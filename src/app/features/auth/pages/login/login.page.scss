@@ -1,0 +1,73 @@
+ion-content {
+  --background: var(--ion-background-color);
+}
+
+.login-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  padding: 40px 28px;
+}
+
+.brand-section {
+  text-align: center;
+  margin-bottom: 60px;
+
+  .logo-icon {
+    font-size: 72px;
+    color: var(--ion-color-primary);
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--ion-text-color);
+    margin: 0;
+    letter-spacing: -0.5px;
+  }
+
+  p {
+    font-size: 15px;
+    color: var(--ion-color-medium);
+    margin: 8px 0 0;
+  }
+}
+
+.actions-section {
+  width: 100%;
+
+  .google-btn {
+    --color: var(--ion-text-color);
+    --border-radius: 14px;
+    font-weight: 600;
+    height: 54px;
+    border: 1.5px solid var(--ion-color-light-shade);
+    border-radius: 14px;
+
+    ion-icon {
+      font-size: 22px;
+      margin-right: 10px;
+    }
+  }
+
+  .terms-text {
+    margin-top: 24px;
+    text-align: center;
+
+    p {
+      font-size: 12px;
+      color: var(--ion-color-medium);
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    a {
+      color: var(--ion-color-primary);
+      font-weight: 600;
+      text-decoration: none;
+    }
+  }
+}

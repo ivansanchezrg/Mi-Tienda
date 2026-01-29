@@ -1,0 +1,515 @@
+// Variables
+$celular-color: #3b82f6;
+$bus-color: #ef4444;
+$caja-color: #10b981;
+$caja-chica-color: #8b5cf6;
+$efectivo-color: #f59e0b;
+
+// Container principal
+.wizard-container {
+  padding: 16px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 80%;
+  color: var(--ion-color-medium);
+
+  ion-spinner {
+    width: 50px;
+    height: 50px;
+    margin-bottom: 16px;
+  }
+
+  p {
+    font-size: 16px;
+    font-weight: 500;
+  }
+}
+
+.step-indicator {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+  
+  span {
+    background: var(--ion-color-light);
+    color: var(--ion-color-medium);
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+// Header de cada paso
+.paso-header {
+  text-align: center;
+  margin-bottom: 24px;
+
+  .paso-icon {
+    font-size: 64px;
+    color: var(--ion-color-primary);
+    margin-bottom: 12px;
+
+    &.verificacion {
+      color: var(--ion-color-success);
+    }
+  }
+
+  h2 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    color: var(--ion-color-dark);
+  }
+
+  p {
+    font-size: 14px;
+    color: var(--ion-color-medium);
+    margin: 0;
+  }
+}
+
+// Formulario de entrada (Paso 1)
+.input-list {
+  margin-bottom: 24px;
+  background: transparent;
+
+  .input-item {
+    --background: #fff;
+    --padding-start: 16px;
+    --padding-end: 16px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+    .item-icon {
+      font-size: 36px; // Más grande
+      margin-right: 16px;
+
+      &.celular { color: $celular-color; }
+      &.bus { color: $bus-color; }
+      &.efectivo { color: $efectivo-color; }
+    }
+
+    ion-label {
+      margin-bottom: 12px;
+
+      strong {
+        font-size: 18px; // Más grande
+        color: var(--ion-color-dark);
+        letter-spacing: -0.3px;
+      }
+
+      ion-note {
+        font-size: 14px; // Más grande
+        color: var(--ion-color-medium);
+        display: block;
+        margin-top: 4px;
+      }
+    }
+
+    .input-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 2px solid #f0f0f0;
+      margin-top: 4px;
+      
+      &:focus-within {
+        border-bottom-color: var(--ion-color-primary);
+      }
+
+      .currency-prefix {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--ion-color-medium);
+        margin-top: -2px;
+      }
+    }
+
+    ion-input {
+      --padding-top: 8px;
+      --padding-bottom: 8px;
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--ion-color-dark); // Color oscuro profesional
+    }
+
+    ion-textarea {
+      --padding-start: 0;
+      --padding-end: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+  }
+}
+
+.input-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  margin-bottom: 16px;
+
+  ion-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  &.importante {
+    color: var(--ion-color-warning);
+    background: rgba(var(--ion-color-warning-rgb), 0.1);
+    border-radius: 8px;
+    font-weight: 500;
+
+    ion-icon {
+      color: var(--ion-color-warning);
+    }
+  }
+}
+
+// Cards de resumen (Paso 2)
+.resumen-card,
+.verificacion-card,
+.alerta-card,
+.observaciones-card {
+  margin-bottom: 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+
+  ion-card-header {
+    padding-bottom: 12px;
+
+    ion-card-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 700;
+
+      ion-icon {
+        font-size: 20px;
+        color: var(--ion-color-primary);
+      }
+    }
+  }
+
+  ion-card-content {
+    padding: 16px;
+  }
+}
+
+// Ventas del día
+.venta-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid #f0f0f0;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &.total {
+    border-top: 2px solid var(--ion-color-primary);
+    padding-top: 16px;
+    margin-top: 8px;
+
+    .venta-monto {
+      font-size: 20px;
+      color: var(--ion-color-primary);
+    }
+  }
+
+  .venta-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .venta-icon {
+      font-size: 24px;
+
+      &.celular { color: $celular-color; }
+      &.bus { color: $bus-color; }
+    }
+
+    .venta-nombre {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ion-color-dark);
+    }
+  }
+
+  .venta-detalle {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+
+    .venta-monto {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ion-color-dark);
+    }
+
+    .venta-ganancia {
+      font-size: 12px;
+      color: var(--ion-color-success);
+      font-weight: 500;
+    }
+  }
+}
+
+// Verificación de cajas
+.caja-verificacion {
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  .caja-nombre {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+
+    .caja-icon {
+      font-size: 20px;
+
+      &.caja { color: $caja-color; }
+      &.caja-chica { color: $caja-chica-color; }
+      &.celular { color: $celular-color; }
+      &.bus { color: $bus-color; }
+    }
+
+    strong {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--ion-color-medium);
+    }
+  }
+
+  .caja-calculo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 15px;
+
+    .saldo,
+    .operacion,
+    .resultado {
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: white;
+    }
+
+    .saldo {
+      color: var(--ion-color-medium);
+    }
+
+    .operacion {
+      color: var(--ion-color-primary);
+    }
+
+    .resultado {
+      color: var(--ion-color-success);
+      font-size: 20px; // Aumentado
+      background: rgba(var(--ion-color-success-rgb), 0.1) !important;
+      border: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
+    }
+
+    .operador {
+      color: var(--ion-color-medium);
+      font-weight: 600;
+      font-size: 18px;
+    }
+  }
+}
+
+// Estilo para destacar el resultado final de efectivo
+.venta-detalle .venta-monto {
+  font-size: 22px; // Más grande para el total recaudado
+  font-weight: 800;
+  color: var(--ion-color-dark);
+}
+
+// Alertas simplificadas
+.alerta-simple {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--ion-color-light);
+  border-radius: 12px;
+  margin-bottom: 12px;
+
+  ion-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ion-color-dark);
+    line-height: 1.4;
+
+    strong {
+      color: var(--ion-color-primary);
+    }
+  }
+
+  &.warning {
+    background: rgba(var(--ion-color-warning-rgb), 0.1);
+  }
+}
+
+// Observaciones
+.observaciones-card {
+  ion-card-content {
+    padding: 8px;
+
+    .observaciones-item {
+      --background: transparent;
+      --padding-start: 0;
+      --padding-end: 0;
+      --inner-padding-end: 0;
+
+      ion-textarea {
+        --padding-start: 12px;
+        --padding-end: 12px;
+        --padding-top: 12px;
+        --padding-bottom: 12px;
+        font-size: 14px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        background: #f9fafb;
+      }
+    }
+  }
+}
+
+// Acciones de navegación
+.paso-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+  padding-bottom: 16px;
+
+  ion-button {
+    --border-radius: 12px;
+    height: 50px;
+    font-weight: 700;
+    text-transform: none;
+  }
+}
+
+// Dark mode
+@media (prefers-color-scheme: dark) {
+  .input-list .input-item,
+  .resumen-card,
+  .verificacion-card,
+  .observaciones-card {
+    --background: #1a1a1a;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .paso-header {
+    h2 { color: #e5e5e5; }
+  }
+
+  .venta-item {
+    border-bottom-color: #2a2a2a;
+
+    &.total {
+      border-top-color: var(--ion-color-primary);
+    }
+
+    .venta-header .venta-nombre {
+      color: #e5e5e5;
+    }
+
+    .venta-detalle .venta-monto {
+      color: #e5e5e5;
+    }
+  }
+
+  .caja-verificacion {
+    background: rgba(255, 255, 255, 0.05);
+
+    .caja-calculo {
+      .saldo,
+      .operacion,
+      .resultado {
+        background: rgba(255, 255, 255, 0.08);
+      }
+    }
+  }
+
+  .alerta-card {
+    background: linear-gradient(135deg, #451a03, #78350f);
+
+    .alerta-item {
+      &.info {
+        background: rgba(59, 130, 246, 0.2);
+        color: #93c5fd;
+
+        ion-icon {
+          color: #60a5fa;
+        }
+      }
+
+      &.warning {
+        background: rgba(239, 68, 68, 0.2);
+        color: #fca5a5;
+
+        ion-icon {
+          color: #f87171;
+        }
+      }
+    }
+  }
+
+  .observaciones-card {
+    .observaciones-item ion-textarea {
+      border-color: #374151;
+      background: rgba(255, 255, 255, 0.05);
+      color: #e5e5e5;
+    }
+  }
+}
+
+// Responsive
+@media (max-width: 360px) {
+  .caja-calculo {
+    font-size: 13px !important;
+
+    .saldo,
+    .operacion,
+    .resultado {
+      padding: 4px 8px !important;
+      font-size: 13px !important;
+    }
+  }
+}
