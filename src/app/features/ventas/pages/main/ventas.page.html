@@ -1,0 +1,20 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Ventas</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <app-under-construction
+    title="Ventas"
+    icon="cart-outline"
+    description="Aquí podrás gestionar todas las ventas."
+    [features]="[
+      { label: 'Registrar ventas' },
+      { label: 'Historial de transacciones' }
+    ]">
+  </app-under-construction>
+</ion-content>

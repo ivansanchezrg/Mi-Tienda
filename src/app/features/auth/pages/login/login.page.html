@@ -1,0 +1,22 @@
+<ion-content [fullscreen]="true">
+  <div class="login-container">
+
+    <div class="brand-section">
+      <ion-icon name="storefront" class="logo-icon"></ion-icon>
+      <h1>Mi Tienda</h1>
+      <p>Gestiona tu negocio fácil</p>
+    </div>
+
+    <div class="actions-section">
+      <ion-button (click)="loginWithGoogle()" expand="block" fill="clear" class="google-btn">
+        <ion-icon slot="start" name="logo-google"></ion-icon>
+        Continuar con Google
+      </ion-button>
+
+      <div class="terms-text">
+        <p>Al continuar, aceptas nuestros <a href="#">Términos</a> y <a href="#">Política de Privacidad</a>.</p>
+      </div>
+    </div>
+
+  </div>
+</ion-content>

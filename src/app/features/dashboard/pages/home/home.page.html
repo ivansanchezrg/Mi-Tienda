@@ -1,0 +1,186 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Mi Tienda</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Pull to Refresh -->
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content
+      pullingIcon="chevron-down-outline"
+      pullingText="Desliza para actualizar"
+      refreshingSpinner="crescent"
+      refreshingText="Actualizando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Indicador de estado discreto -->
+  <div class="estado-banner" [ngClass]="cajaAbierta ? 'abierto' : 'cerrado'">
+    <ion-icon [name]="cajaAbierta ? 'checkmark-circle' : 'time-outline'"></ion-icon>
+    <span>{{ cajaAbierta ? 'Operando - ' + fechaActual : 'Día cerrado - ' + fechaActual }}</span>
+  </div>
+
+  <!-- SECCIÓN 1: Saldos (Último Cierre) -->
+  <ion-card class="saldos-card">
+    <ion-card-header>
+      <div class="saldos-header">
+        <div>
+          <ion-card-title class="seccion-titulo">
+            <ion-icon name="wallet-outline"></ion-icon>
+            Saldos
+          </ion-card-title>
+          <ion-card-subtitle>
+            <span class="fecha">Último cierre: 24 Enero 2026</span>
+            <span class="hora">8:30 PM</span>
+          </ion-card-subtitle>
+        </div>
+        <div class="total-efectivo">
+          <span class="total-label">Total</span>
+          <span class="total-monto">${{ getTotalEfectivo() | number:'1.2-2' }}</span>
+        </div>
+      </div>
+    </ion-card-header>
+
+    <ion-card-content>
+      <ion-grid class="saldos-grid">
+        <ion-row>
+          <ion-col size="6">
+            <div class="saldo-card" (click)="onSaldoClick('caja')">
+              <ion-icon name="cash-outline" class="saldo-icon caja"></ion-icon>
+              <div class="saldo-info">
+                <span class="saldo-label">Caja <ion-icon name="chevron-forward-outline"></ion-icon></span>
+                <span class="saldo-monto">${{ saldos.caja | number:'1.2-2' }}</span>
+              </div>
+            </div>
+          </ion-col>
+          <ion-col size="6">
+            <div class="saldo-card" (click)="onSaldoClick('cajaChica')">
+              <ion-icon name="wallet-outline" class="saldo-icon caja-chica"></ion-icon>
+              <div class="saldo-info">
+                <span class="saldo-label">Caja Chica <ion-icon name="chevron-forward-outline"></ion-icon></span>
+                <span class="saldo-monto">${{ saldos.cajaChica | number:'1.2-2' }}</span>
+              </div>
+            </div>
+          </ion-col>
+        </ion-row>
+        <ion-row>
+          <ion-col size="6">
+            <div class="saldo-card" (click)="onSaldoClick('celular')">
+              <ion-icon name="phone-portrait-outline" class="saldo-icon celular"></ion-icon>
+              <div class="saldo-info">
+                <span class="saldo-label">Celular <ion-icon name="chevron-forward-outline"></ion-icon></span>
+                <span class="saldo-monto">${{ saldos.celular | number:'1.2-2' }}</span>
+              </div>
+            </div>
+          </ion-col>
+          <ion-col size="6">
+            <div class="saldo-card" (click)="onSaldoClick('bus')">
+              <ion-icon name="bus-outline" class="saldo-icon bus"></ion-icon>
+              <div class="saldo-info">
+                <span class="saldo-label">Bus <ion-icon name="chevron-forward-outline"></ion-icon></span>
+                <span class="saldo-monto">${{ saldos.bus | number:'1.2-2' }}</span>
+              </div>
+            </div>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- SECCIÓN 2: Operaciones Rápidas -->
+  <ion-card class="operaciones-card" *ngIf="cajaAbierta">
+    <ion-card-header>
+      <ion-card-title class="seccion-titulo">
+        <ion-icon name="flash-outline"></ion-icon>
+        Operaciones Rápidas
+      </ion-card-title>
+    </ion-card-header>
+
+    <ion-card-content>
+      <div class="operaciones-grid">
+        <div class="operacion-btn" (click)="onOperacion('ingreso')">
+          <div class="operacion-icon ingreso">
+            <ion-icon name="arrow-down-outline"></ion-icon>
+          </div>
+          <span class="operacion-label">Ingreso</span>
+        </div>
+
+        <div class="operacion-btn" (click)="onOperacion('egreso')">
+          <div class="operacion-icon egreso">
+            <ion-icon name="arrow-up-outline"></ion-icon>
+          </div>
+          <span class="operacion-label">Egreso</span>
+        </div>
+
+        <div class="operacion-btn" (click)="onOperacion('transferencia')">
+          <div class="operacion-icon transferencia">
+            <ion-icon name="swap-horizontal-outline"></ion-icon>
+          </div>
+          <span class="operacion-label">Transferir</span>
+        </div>
+
+        <div class="operacion-btn" (click)="onOperacion('gasto')">
+          <div class="operacion-icon gasto">
+            <ion-icon name="receipt-outline"></ion-icon>
+          </div>
+          <span class="operacion-label">Gasto</span>
+        </div>
+      </div>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- SECCIÓN 3: Cuadre de Caja -->
+  <ion-card class="cuadre-card" *ngIf="cajaAbierta">
+    <ion-card-header>
+      <ion-card-title class="seccion-titulo">
+        <ion-icon name="clipboard-outline"></ion-icon>
+        Cuadre de Caja
+      </ion-card-title>
+      <ion-card-subtitle>Compara el efectivo esperado con el real</ion-card-subtitle>
+    </ion-card-header>
+
+    <ion-card-content>
+      <ion-button
+        expand="block"
+        color="primary"
+        fill="outline"
+        class="btn-accion-card"
+        (click)="onCuadre()">
+        <ion-icon slot="start" name="clipboard-outline"></ion-icon>
+        Iniciar Cuadre
+      </ion-button>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- SECCIÓN 4: Cierre Diario -->
+  <ion-card class="cierre-card">
+    <ion-card-header>
+      <ion-card-title class="seccion-titulo">
+        <ion-icon name="calculator-outline"></ion-icon>
+        Cierre Diario
+      </ion-card-title>
+      <ion-card-subtitle>Registra saldos y calcula ventas al finalizar el día</ion-card-subtitle>
+    </ion-card-header>
+
+    <ion-card-content>
+      <ion-button
+        expand="block"
+        [color]="cajaAbierta ? 'warning' : 'success'"
+        class="btn-accion-card"
+        [disabled]="!cajaAbierta"
+        (click)="cajaAbierta ? onCerrarDia() : onAbrirDia()">
+        <ion-icon slot="start" [name]="cajaAbierta ? 'lock-closed-outline' : 'lock-open-outline'"></ion-icon>
+        {{ cajaAbierta ? 'Realizar Cierre de Día' : 'Abrir Nuevo Día' }}
+      </ion-button>
+
+      <div *ngIf="cajaAbierta" class="cierre-detalle">
+        <ion-icon name="information-circle-outline"></ion-icon>
+        <span>Abierto desde {{ horaApertura }} por {{ empleadoApertura }}</span>
+      </div>
+    </ion-card-content>
+  </ion-card>
+</ion-content>

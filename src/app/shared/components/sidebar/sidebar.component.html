@@ -1,0 +1,29 @@
+<!-- Header del Menú con info del usuario -->
+<div class="menu-header">
+  <ion-avatar class="menu-avatar">
+    <ion-icon [icon]="userIcon"></ion-icon>
+  </ion-avatar>
+  <h3>{{ empleadoNombre }}</h3>
+  <p>{{ empleadoEmail }}</p>
+  <span class="menu-role">{{ empleadoRol }}</span>
+</div>
+
+<!-- Items del Menú -->
+<ion-list lines="none" class="menu-list">
+  <ion-menu-toggle *ngFor="let item of menuItems" auto-hide="false">
+    <ion-item button class="menu-item" [routerLink]="item.url" routerLinkActive="active-item" (click)="closeMenu()">
+      <ion-icon [icon]="item.icon" slot="start"></ion-icon>
+      <ion-label>{{ item.title }}</ion-label>
+    </ion-item>
+  </ion-menu-toggle>
+</ion-list>
+
+<!-- Footer con Logout -->
+<div class="menu-footer">
+  <ion-menu-toggle auto-hide="false">
+    <ion-button expand="block" color="medium" fill="outline" (click)="logout()">
+      <ion-icon [icon]="logoutIcon" slot="start"></ion-icon>
+      Cerrar Sesión
+    </ion-button>
+  </ion-menu-toggle>
+</div>

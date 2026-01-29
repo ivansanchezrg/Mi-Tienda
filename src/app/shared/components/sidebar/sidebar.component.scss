@@ -1,0 +1,125 @@
+ion-content {
+  --background: var(--ion-background-color);
+}
+
+.menu-header {
+  padding: 32px 24px 24px;
+  background: linear-gradient(135deg, var(--ion-color-primary) 0%, var(--ion-color-primary-shade) 100%)!important;
+  color: white;
+  text-align: center;
+
+  :host-context(body.dark) & {
+    background: linear-gradient(135deg, var(--ion-color-dark) 0%, var(--ion-color-dark-shade) 100%)!important;
+  }
+
+  .menu-avatar {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 16px auto;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+
+    ion-icon {
+      font-size: 48px;
+      color: white;
+    }
+  }
+
+  h3 {
+    margin: 0 0 4px 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    opacity: 0.9;
+  }
+
+  .menu-role {
+    display: inline-block;
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+.menu-list {
+  padding: 16px 0;
+  background: transparent;
+}
+
+.menu-item {
+  --padding-start: 24px;
+  --padding-end: 24px;
+  --min-height: 52px;
+  font-size: 15px;
+  margin: 4px 12px;
+  border-radius: 12px;
+
+  ion-icon {
+    margin-right: 16px;
+    font-size: 24px;
+    color: var(--ion-color-medium);
+  }
+
+  ion-label {
+    font-weight: 500;
+  }
+
+  &:hover {
+    --background: rgba(var(--ion-color-primary-rgb), 0.05);
+  }
+
+  &:active {
+    --background: rgba(var(--ion-color-primary-rgb), 0.1);
+  }
+}
+
+.active-item {
+  --background: rgba(var(--ion-color-primary-rgb), 0.08);
+
+  ion-icon {
+    color: var(--ion-color-primary);
+  }
+
+  ion-label {
+    color: var(--ion-color-primary);
+    font-weight: 600;
+  }
+}
+
+.menu-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 14px 12px;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  background: var(--ion-color-light);
+  border-top: 1px solid var(--ion-color-light-shade);
+
+  ion-button {
+    height: 42px;
+    font-weight: 500;
+    font-size: 14px;
+    letter-spacing: 0.3px;
+    --border-radius: 12px;
+    --color: var(--ion-color-medium);
+    --border-color: var(--ion-color-medium-tint);
+    --border-width: 1px;
+
+    ion-icon {
+      font-size: 18px;
+      margin-right: 6px;
+    }
+  }
+}
