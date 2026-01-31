@@ -334,6 +334,25 @@ src/app/
 └── shared/        # Componentes y utilidades compartidas
 ```
 
+## 📝 Commits
+
+Formato de commits usando Conventional Commits. Para PowerShell usar múltiples `-m`:
+
+```bash
+git commit -m "tipo(scope): descripción corta" -m "- Detalle 1
+- Detalle 2
+- Detalle 3"
+```
+
+**Tipos comunes:**
+- `feat` - Nueva funcionalidad
+- `fix` - Corrección de bug
+- `docs` - Documentación
+- `refactor` - Refactorización sin cambio de funcionalidad
+- `style` - Formato, espacios, etc.
+
+---
+
 ## 👥 Contribución
 
 Al agregar nuevas funcionalidades:
