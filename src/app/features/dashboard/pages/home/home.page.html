@@ -34,13 +34,13 @@
             Saldos
           </ion-card-title>
           <ion-card-subtitle>
-            <span class="fecha">Último cierre: 24 Enero 2026</span>
-            <span class="hora">8:30 PM</span>
+            <span class="fecha">Último cierre: {{ fechaUltimoCierre }}</span>
+            <span class="hora">{{ horaUltimoCierre }}</span>
           </ion-card-subtitle>
         </div>
         <div class="total-efectivo">
           <span class="total-label">Total</span>
-          <span class="total-monto">${{ getTotalEfectivo() | number:'1.2-2' }}</span>
+          <span class="total-monto">${{ totalEfectivo | number:'1.2-2' }}</span>
         </div>
       </div>
     </ion-card-header>
@@ -49,42 +49,42 @@
       <ion-grid class="saldos-grid">
         <ion-row>
           <ion-col size="6">
-            <div class="saldo-card" (click)="onSaldoClick('caja')">
+            <button type="button" class="saldo-card" (click)="onSaldoClick('caja')">
               <ion-icon name="cash-outline" class="saldo-icon caja"></ion-icon>
               <div class="saldo-info">
                 <span class="saldo-label">Caja <ion-icon name="chevron-forward-outline"></ion-icon></span>
                 <span class="saldo-monto">${{ saldos.caja | number:'1.2-2' }}</span>
               </div>
-            </div>
+            </button>
           </ion-col>
           <ion-col size="6">
-            <div class="saldo-card" (click)="onSaldoClick('cajaChica')">
+            <button type="button" class="saldo-card" (click)="onSaldoClick('cajaChica')">
               <ion-icon name="wallet-outline" class="saldo-icon caja-chica"></ion-icon>
               <div class="saldo-info">
                 <span class="saldo-label">Caja Chica <ion-icon name="chevron-forward-outline"></ion-icon></span>
                 <span class="saldo-monto">${{ saldos.cajaChica | number:'1.2-2' }}</span>
               </div>
-            </div>
+            </button>
           </ion-col>
         </ion-row>
         <ion-row>
           <ion-col size="6">
-            <div class="saldo-card" (click)="onSaldoClick('celular')">
+            <button type="button" class="saldo-card" (click)="onSaldoClick('celular')">
               <ion-icon name="phone-portrait-outline" class="saldo-icon celular"></ion-icon>
               <div class="saldo-info">
                 <span class="saldo-label">Celular <ion-icon name="chevron-forward-outline"></ion-icon></span>
                 <span class="saldo-monto">${{ saldos.celular | number:'1.2-2' }}</span>
               </div>
-            </div>
+            </button>
           </ion-col>
           <ion-col size="6">
-            <div class="saldo-card" (click)="onSaldoClick('bus')">
+            <button type="button" class="saldo-card" (click)="onSaldoClick('bus')">
               <ion-icon name="bus-outline" class="saldo-icon bus"></ion-icon>
               <div class="saldo-info">
                 <span class="saldo-label">Bus <ion-icon name="chevron-forward-outline"></ion-icon></span>
                 <span class="saldo-monto">${{ saldos.bus | number:'1.2-2' }}</span>
               </div>
-            </div>
+            </button>
           </ion-col>
         </ion-row>
       </ion-grid>
@@ -102,33 +102,33 @@
 
     <ion-card-content>
       <div class="operaciones-grid">
-        <div class="operacion-btn" (click)="onOperacion('ingreso')">
+        <button type="button" class="operacion-btn" (click)="onOperacion('ingreso')">
           <div class="operacion-icon ingreso">
             <ion-icon name="arrow-down-outline"></ion-icon>
           </div>
           <span class="operacion-label">Ingreso</span>
-        </div>
+        </button>
 
-        <div class="operacion-btn" (click)="onOperacion('egreso')">
+        <button type="button" class="operacion-btn" (click)="onOperacion('egreso')">
           <div class="operacion-icon egreso">
             <ion-icon name="arrow-up-outline"></ion-icon>
           </div>
           <span class="operacion-label">Egreso</span>
-        </div>
+        </button>
 
-        <div class="operacion-btn" (click)="onOperacion('transferencia')">
+        <button type="button" class="operacion-btn" (click)="onOperacion('transferencia')">
           <div class="operacion-icon transferencia">
             <ion-icon name="swap-horizontal-outline"></ion-icon>
           </div>
           <span class="operacion-label">Transferir</span>
-        </div>
+        </button>
 
-        <div class="operacion-btn" (click)="onOperacion('gasto')">
+        <button type="button" class="operacion-btn" (click)="onOperacion('gasto')">
           <div class="operacion-icon gasto">
             <ion-icon name="receipt-outline"></ion-icon>
           </div>
           <span class="operacion-label">Gasto</span>
-        </div>
+        </button>
       </div>
     </ion-card-content>
   </ion-card>
@@ -169,9 +169,9 @@
     <ion-card-content>
       <ion-button
         expand="block"
+        size="small"
         [color]="cajaAbierta ? 'warning' : 'success'"
         class="btn-accion-card"
-        [disabled]="!cajaAbierta"
         (click)="cajaAbierta ? onCerrarDia() : onAbrirDia()">
         <ion-icon slot="start" [name]="cajaAbierta ? 'lock-closed-outline' : 'lock-open-outline'"></ion-icon>
         {{ cajaAbierta ? 'Realizar Cierre de Día' : 'Abrir Nuevo Día' }}

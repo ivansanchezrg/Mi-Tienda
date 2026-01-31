@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { UiService } from '../../../core/services/ui.service';
+import { environment } from '../../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -10,6 +11,30 @@ export class AuthService {
   private router = inject(Router);
   private supabase = inject(SupabaseService);
   private ui = inject(UiService);
+
+  // Key de storage de Supabase: sb-{projectRef}-auth-token
+  private readonly STORAGE_KEY: string;
+
+  constructor() {
+    const projectRef = environment.supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || '';
+    this.STORAGE_KEY = `sb-${projectRef}-auth-token`;
+  }
+
+  /**
+   * Verifica si hay sesión guardada localmente (sin llamada de red).
+   * Útil para el guard cuando no hay internet.
+   */
+  hasLocalSession(): boolean {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_KEY);
+      if (!stored) return false;
+
+      const parsed = JSON.parse(stored);
+      return !!parsed?.access_token;
+    } catch {
+      return false;
+    }
+  }
 
   /** Retorna la sesión actual o null */
   async getSession() {

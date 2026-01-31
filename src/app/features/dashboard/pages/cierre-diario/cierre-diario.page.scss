@@ -84,7 +84,7 @@ $efectivo-color: #f59e0b;
   background: transparent;
 
   .input-item {
-    --background: #fff;
+    --background: var(--ion-item-background, #fff);
     --padding-start: 16px;
     --padding-end: 16px;
     margin-bottom: 8px;
@@ -121,7 +121,7 @@ $efectivo-color: #f59e0b;
       display: flex;
       align-items: center;
       gap: 8px;
-      border-bottom: 2px solid #f0f0f0;
+      border-bottom: 2px solid var(--ion-border-color, #f0f0f0);
       margin-top: 4px;
       
       &:focus-within {
@@ -151,6 +151,21 @@ $efectivo-color: #f59e0b;
       font-weight: 600;
     }
   }
+}
+
+// Validación inline
+.input-item.input-error {
+  box-shadow: 0 0 0 2px rgba(var(--ion-color-danger-rgb), 0.3);
+}
+
+.field-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 16px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ion-color-danger);
 }
 
 .input-hint {
@@ -216,7 +231,7 @@ $efectivo-color: #f59e0b;
   justify-content: space-between;
   align-items: center;
   padding: 14px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--ion-border-color, #f0f0f0);
 
   &:last-child {
     border-bottom: none;
@@ -275,7 +290,7 @@ $efectivo-color: #f59e0b;
 // Verificación de cajas
 .caja-verificacion {
   padding: 16px;
-  background: #f8f9fa;
+  background: var(--ion-color-light, #f8f9fa);
   border-radius: 10px;
   margin-bottom: 12px;
 
@@ -320,7 +335,7 @@ $efectivo-color: #f59e0b;
       font-weight: 700;
       padding: 6px 12px;
       border-radius: 8px;
-      background: white;
+      background: var(--ion-item-background, #fff);
     }
 
     .saldo {
@@ -333,8 +348,8 @@ $efectivo-color: #f59e0b;
 
     .resultado {
       color: var(--ion-color-success);
-      font-size: 20px; // Aumentado
-      background: rgba(var(--ion-color-success-rgb), 0.1) !important;
+      font-size: 20px;
+      background: rgba(var(--ion-color-success-rgb), 0.1);
       border: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
     }
 
@@ -502,14 +517,14 @@ $efectivo-color: #f59e0b;
 
 // Responsive
 @media (max-width: 360px) {
-  .caja-calculo {
-    font-size: 13px !important;
+  .caja-verificacion .caja-calculo {
+    font-size: 13px;
 
     .saldo,
     .operacion,
     .resultado {
-      padding: 4px 8px !important;
-      font-size: 13px !important;
+      padding: 4px 8px;
+      font-size: 13px;
     }
   }
 }

@@ -33,7 +33,7 @@ Aplicación móvil híbrida para gestión de tienda, desarrollada con Ionic Angu
 
 #### UiService (`core/services/ui.service.ts`)
 
-Maneja loading y toast con conteo inteligente:
+Maneja loading y toast con conteo inteligente y oculta tabs de navegacion:
 
 ```typescript
 // Mostrar loading
@@ -49,7 +49,48 @@ await this.ui.showToast('Error al guardar', 'danger');
 // Shortcuts
 await this.ui.showError('Mensaje de error');
 await this.ui.showSuccess('Operación exitosa');
+
+// Ocultar/mostrar tabs (para wizards o páginas fullscreen)
+this.ui.hideTabs();
+this.ui.showTabs();
 ```
+
+Para ocultar tabs en una página específica, usar los lifecycle hooks de Ionic:
+
+```typescript
+private ui = inject(UiService);
+
+ionViewWillEnter() { this.ui.hideTabs(); }
+ionViewWillLeave() { this.ui.showTabs(); }
+```
+
+#### LoggerService (`core/services/logger.service.ts`)
+
+Sistema de logs persistente para debugging:
+
+```typescript
+private logger = inject(LoggerService);
+
+// Niveles de log
+this.logger.debug('MiComponente', 'Mensaje de debug');
+this.logger.info('MiComponente', 'Información general');
+this.logger.warn('MiComponente', 'Advertencia');
+this.logger.error('MiComponente', 'Error crítico', errorObj);
+
+// Obtener logs (para mostrar en UI)
+const logs = await this.logger.getLogs();
+
+// Limpiar logs
+await this.logger.clearLogs();
+```
+
+**Características:**
+- Logs guardados en archivos (solo en dispositivo nativo)
+- Rotación automática (máx 3 archivos de 1MB)
+- Formato: `2026-01-30 10:15:23 [ERROR] AuthGuard: Mensaje`
+- Ver/limpiar logs desde Configuración en la app
+
+---
 
 #### SupabaseService (`core/services/supabase.service.ts`)
 
@@ -161,6 +202,28 @@ Directiva para resetear scroll al top cuando un valor cambia. Ideal para wizards
 ```
 
 Cada vez que `pasoActual` cambia, el contenido hace scroll al top.
+
+---
+
+### AuthGuard (`core/guards/auth.guard.ts`)
+
+Guard `canActivate` que protege rutas privadas con soporte offline:
+
+```typescript
+// En app.routes.ts
+{
+  path: '',
+  canActivate: [authGuard],
+  loadChildren: () => import('./features/layout/layout.routes').then(m => m.LAYOUT_ROUTES)
+}
+```
+
+**Comportamiento:**
+- **Con internet:** Valida sesión con Supabase normalmente
+- **Sin internet + sesión local:** Permite acceso + muestra toast "Sin conexión a internet"
+- **Sin internet + sin sesión:** Redirige a login
+
+Usa `AuthService.hasLocalSession()` para verificar sesión guardada en localStorage sin hacer llamadas de red.
 
 ---
 

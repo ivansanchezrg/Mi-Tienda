@@ -70,6 +70,19 @@ ion-card-subtitle {
   }
 }
 
+// Reset para botones semánticos
+button.saldo-card,
+button.operacion-btn {
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+}
+
 // Saldos Card
 .saldos-card {
   .saldos-header {
@@ -200,8 +213,8 @@ ion-card-subtitle {
   }
 
   .operacion-icon {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -234,7 +247,7 @@ ion-card-subtitle {
   }
 
   .operacion-label {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--ion-color-medium);
   }
