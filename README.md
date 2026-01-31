@@ -205,28 +205,6 @@ Cada vez que `pasoActual` cambia, el contenido hace scroll al top.
 
 ---
 
-### AuthGuard (`core/guards/auth.guard.ts`)
-
-Guard `canActivate` que protege rutas privadas con soporte offline:
-
-```typescript
-// En app.routes.ts
-{
-  path: '',
-  canActivate: [authGuard],
-  loadChildren: () => import('./features/layout/layout.routes').then(m => m.LAYOUT_ROUTES)
-}
-```
-
-**Comportamiento:**
-- **Con internet:** Valida sesión con Supabase normalmente
-- **Sin internet + sesión local:** Permite acceso + muestra toast "Sin conexión a internet"
-- **Sin internet + sin sesión:** Redirige a login
-
-Usa `AuthService.hasLocalSession()` para verificar sesión guardada en localStorage sin hacer llamadas de red.
-
----
-
 ### PendingChangesGuard (`core/guards/pending-changes.guard.ts`)
 
 Guard `canDeactivate` que previene salir de una página con cambios sin guardar:

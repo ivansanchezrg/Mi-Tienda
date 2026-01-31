@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { AlertController } from '@ionic/angular/standalone';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { UiService } from '../../../core/services/ui.service';
 import { environment } from '../../../../environments/environment';
@@ -11,6 +12,7 @@ export class AuthService {
   private router = inject(Router);
   private supabase = inject(SupabaseService);
   private ui = inject(UiService);
+  private alertCtrl = inject(AlertController);
 
   // Key de storage de Supabase: sb-{projectRef}-auth-token
   private readonly STORAGE_KEY: string;
@@ -84,18 +86,40 @@ export class AuthService {
   /** Cierra sesión sin mostrar loading (uso interno) */
   private async forceLogout() {
     await this.supabase.client.auth.signOut();
+    localStorage.removeItem(this.STORAGE_KEY);
     this.router.navigate(['/auth/login'], { replaceUrl: true });
   }
 
+  /** Muestra confirmación y cierra sesión si el usuario acepta */
   async logout() {
-    await this.ui.showLoading();
-    const { error } = await this.supabase.client.auth.signOut();
-    await this.ui.hideLoading();
+    const alert = await this.alertCtrl.create({
+      header: 'Cerrar Sesión',
+      message: '¿Estás seguro de que deseas cerrar sesión?',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Cerrar Sesión', role: 'confirm' }
+      ]
+    });
 
-    if (error) {
-      await this.ui.showError('Error al cerrar sesión');
-      return;
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+
+    if (role === 'confirm') {
+      await this.executeLogout();
     }
+  }
+
+  /** Ejecuta el cierre de sesión */
+  private async executeLogout() {
+    await this.ui.showLoading();
+
+    // signOut puede fallar sin internet, pero igual limpia la sesión local
+    await this.supabase.client.auth.signOut();
+
+    // Forzar limpieza de sesión local por si signOut falla sin internet
+    localStorage.removeItem(this.STORAGE_KEY);
+
+    await this.ui.hideLoading();
 
     this.router.navigate(['/auth/login'], { replaceUrl: true });
   }

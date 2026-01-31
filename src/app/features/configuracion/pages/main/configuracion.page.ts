@@ -4,7 +4,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonList, IonItem, IonIcon, IonLabel, IonToggle, IonButton,
-  AlertController
+  AlertController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -15,6 +15,7 @@ import {
 import { AuthService } from '../../../auth/services/auth.service';
 import { LoggerService } from '@core/services/logger.service';
 import { UiService } from '@core/services/ui.service';
+import { LogsModalComponent } from '../../components/logs-modal/logs-modal.component';
 
 @Component({
   selector: 'app-configuracion',
@@ -32,6 +33,7 @@ export class ConfiguracionPage implements OnInit {
   private authService = inject(AuthService);
   private logger = inject(LoggerService);
   private alertCtrl = inject(AlertController);
+  private modalCtrl = inject(ModalController);
   private ui = inject(UiService);
 
   empleadoNombre = '';
@@ -64,17 +66,10 @@ export class ConfiguracionPage implements OnInit {
   }
 
   async verLogs() {
-    await this.ui.showLoading('Cargando logs...');
-    const logs = await this.logger.getLogs();
-    await this.ui.hideLoading();
-
-    const alert = await this.alertCtrl.create({
-      header: 'Logs de la App',
-      message: `<pre style="max-height: 300px; overflow: auto; font-size: 10px; white-space: pre-wrap;">${logs}</pre>`,
-      buttons: ['Cerrar'],
-      cssClass: 'logs-alert'
+    const modal = await this.modalCtrl.create({
+      component: LogsModalComponent
     });
-    await alert.present();
+    await modal.present();
   }
 
   async limpiarLogs() {
