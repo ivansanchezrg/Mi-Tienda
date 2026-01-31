@@ -6,6 +6,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { storefront, logoGoogle } from 'ionicons/icons';
+import { Network } from '@capacitor/network';
 import { SupabaseService } from 'src/app/core/services/supabase.service';
 import { UiService } from 'src/app/core/services/ui.service';
 
@@ -30,11 +31,16 @@ export class LoginPage {
   }
 
   async loginWithGoogle() {
+    const status = await Network.getStatus();
+    if (!status.connected) {
+      this.ui.showToast('Sin conexión a internet', 'warning');
+      return;
+    }
+
     try {
-      // No mostramos loading infinito porque la app se irá a segundo plano (browser)
       await this.supabaseSvc.signInWithGoogle();
     } catch (error: any) {
-      this.ui.showError('Error iniciando con Google: ' + error.message);
+      this.ui.showError(error.message || 'Error al iniciar sesión');
     }
   }
 }

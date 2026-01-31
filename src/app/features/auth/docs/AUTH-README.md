@@ -23,6 +23,7 @@ Módulo de autenticación usando Supabase Auth con Google como proveedor OAuth.
 **Archivo:** `features/auth/pages/login/login.page.ts`
 
 - Botón "Continuar con Google" que llama a `signInWithGoogle()`
+- Verifica conexión a internet antes de iniciar OAuth (muestra toast si no hay red)
 - No muestra loading propio porque la app va a segundo plano al abrir el navegador
 - Maneja error con `UiService.showError()`
 
@@ -61,18 +62,32 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 
 **Archivo:** `features/auth/services/auth.service.ts`
 
+- `hasLocalSession()` → verifica si hay sesión guardada en localStorage (sin llamada de red). Útil para soporte offline
 - `getSession()` → retorna la sesión actual de Supabase o null
 - `getUser()` → retorna el usuario actual o null
 - `validateEmployee()` → consulta tabla `empleados` por email. Retorna `true` si existe y `activo = true`. Si no, muestra error, cierra sesión y redirige al login
-- `logout()` → cierra sesión con Supabase, muestra loading, y redirige a `/auth/login`
-- `forceLogout()` → cierra sesión sin loading (uso interno de `validateEmployee()`)
+- `logout()` → muestra confirmación, cierra sesión y redirige a `/auth/login`. Funciona con o sin internet (limpia sesión local)
+- `forceLogout()` → cierra sesión sin confirmación ni loading (uso interno)
 
 ### 7. Guards (protección de rutas)
 
 **Archivos:** `core/guards/auth.guard.ts`, `core/guards/public.guard.ts`
 
-- `authGuard` → protege rutas privadas (layout). Sin sesión → redirige a `/auth/login`. Aplicado en `app.routes.ts`
-- `publicGuard` → protege rutas públicas (solo login). Con sesión → redirige a `/home`. Aplicado en `auth.routes.ts`
+#### authGuard (rutas privadas)
+
+Protege el layout principal. Aplicado en `app.routes.ts`.
+
+**Comportamiento con soporte offline:**
+- **Con internet:** Valida sesión con Supabase normalmente
+- **Sin internet + sesión local:** Permite acceso + muestra toast "Sin conexión a internet"
+- **Sin internet + sin sesión:** Redirige a `/auth/login`
+
+Usa `AuthService.hasLocalSession()` para verificar sesión guardada en localStorage sin hacer llamadas de red. Esto evita que la app se quede en pantalla blanca cuando no hay internet.
+
+#### publicGuard (rutas públicas)
+
+Protege el login. Con sesión activa → redirige a `/home`. Aplicado en `auth.routes.ts`.
+
 - **Importante:** `publicGuard` NO se aplica a `/auth/callback` para que el callback siempre se ejecute y valide al empleado
 
 ### 8. Datos del usuario en sidebar y configuración
@@ -96,7 +111,7 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 | `app.routes.ts`                                           | `authGuard` aplicado a layout                                          |
 | `features/auth/pages/login/login.page.ts`                 | UI de login + botón Google                                             |
 | `features/auth/pages/callback/callback.page.ts`           | Procesa tokens web y Android                                           |
-| `features/auth/services/auth.service.ts`                  | `getSession()`, `getUser()`, `validateEmployee()`, `logout()`          |
+| `features/auth/services/auth.service.ts`                  | `hasLocalSession()`, `getSession()`, `getUser()`, `validateEmployee()`, `logout()` |
 | `features/auth/auth.routes.ts`                            | Rutas `/auth/login` (con `publicGuard`) y `/auth/callback` (sin guard) |
 | `shared/components/sidebar/sidebar.component.ts`          | Muestra datos del usuario, logout                                      |
 | `features/configuracion/pages/main/configuracion.page.ts` | Muestra datos del usuario, logout                                      |

@@ -42,18 +42,60 @@ export class UiService {
     }
   }
 
-  /** Muestra Toast de Error automáticamente */
+  /** Muestra Toast de Error con mensaje amigable */
   async showError(message: string) {
     const toast = await this.toastCtrl.create({
-      message: message,
+      message: this.formatErrorMessage(message),
       duration: 3000,
-      color: 'danger', // Rojo para errores
-      position: 'bottom',
-      // 2. CORREGIDO: Pasamos la variable del icono directamente
-      icon: alertCircleOutline, 
+      color: 'danger',
+      position: 'top',
+      icon: alertCircleOutline,
       buttons: [{ text: 'OK', role: 'cancel' }]
     });
     await toast.present();
+  }
+
+  /** Convierte errores técnicos a mensajes amigables */
+  private formatErrorMessage(message: string): string {
+    const lower = message.toLowerCase();
+
+    // Errores de red
+    if (lower.includes('failed to fetch') || lower.includes('network') || lower.includes('net::')) {
+      return 'Error de conexión. Verifica tu internet.';
+    }
+    if (lower.includes('timeout')) {
+      return 'La conexión tardó demasiado. Intenta de nuevo.';
+    }
+
+    // Errores de autenticación
+    if (lower.includes('invalid login') || lower.includes('invalid credentials')) {
+      return 'Credenciales inválidas.';
+    }
+    if (lower.includes('email not confirmed')) {
+      return 'Debes confirmar tu email primero.';
+    }
+    if (lower.includes('user not found')) {
+      return 'Usuario no encontrado.';
+    }
+
+    // Errores de permisos
+    if (lower.includes('permission denied') || lower.includes('not authorized')) {
+      return 'No tienes permisos para esta acción.';
+    }
+    if (lower.includes('row level security')) {
+      return 'Acceso denegado.';
+    }
+
+    // Errores de datos
+    if (lower.includes('duplicate') || lower.includes('unique constraint')) {
+      return 'Este registro ya existe.';
+    }
+    if (lower.includes('not found') || lower.includes('no rows')) {
+      return 'Registro no encontrado.';
+    }
+
+    // Si no coincide con ninguno, retornar el original
+    return message;
   }
 
   /** Muestra Toast genérico con color configurable */
@@ -65,22 +107,21 @@ export class UiService {
       message,
       duration: color === 'danger' ? 3000 : 2000,
       color,
-      position: 'bottom',
+      position: 'top',
       ...(icon && { icon }),
       ...(color === 'danger' && { buttons: [{ text: 'OK', role: 'cancel' }] })
     });
     await toast.present();
   }
 
-  /** Muestra Toast de Éxito (Opcional) */
+  /** Muestra Toast de Éxito */
   async showSuccess(message: string) {
     const toast = await this.toastCtrl.create({
       message: message,
       duration: 2000,
       color: 'success',
-      position: 'bottom',
-      // 3. CORREGIDO: Pasamos la variable del icono directamente
-      icon: checkmarkCircleOutline 
+      position: 'top',
+      icon: checkmarkCircleOutline
     });
     await toast.present();
   }
