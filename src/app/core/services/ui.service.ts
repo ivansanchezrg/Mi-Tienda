@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { LoadingController, ToastController } from '@ionic/angular/standalone';
 // 1. IMPORTANTE: Importamos los iconos como objetos, no usamos strings
 import { checkmarkCircleOutline, alertCircleOutline } from 'ionicons/icons';
@@ -7,6 +7,12 @@ import { checkmarkCircleOutline, alertCircleOutline } from 'ionicons/icons';
 export class UiService {
   private loadingCtrl = inject(LoadingController);
   private toastCtrl = inject(ToastController);
+
+  // Control de visibilidad de tabs
+  tabsVisible = signal(true);
+
+  hideTabs() { this.tabsVisible.set(false); }
+  showTabs() { this.tabsVisible.set(true); }
 
   private loadingCount = 0;
   private loadingElement: HTMLIonLoadingElement | null = null;

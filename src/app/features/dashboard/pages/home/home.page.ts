@@ -45,6 +45,9 @@ export class HomePage extends ScrollablePage {
     bus: 150.00
   };
 
+  fechaUltimoCierre = '24 Enero 2026';
+  horaUltimoCierre = '8:30 PM';
+
   constructor() {
     super();
     addIcons({
@@ -56,7 +59,7 @@ export class HomePage extends ScrollablePage {
     });
   }
 
-  getTotalEfectivo(): number {
+  get totalEfectivo(): number {
     return this.saldos.caja + this.saldos.cajaChica + this.saldos.celular + this.saldos.bus;
   }
 

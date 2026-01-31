@@ -33,7 +33,7 @@
         <form [formGroup]="cierreForm">
           <ion-list class="input-list">
             <!-- Saldo Virtual Celular -->
-            <ion-item class="input-item">
+            <ion-item class="input-item" [class.input-error]="cierreForm.get('saldoVirtualCelularFinal')?.touched && cierreForm.get('saldoVirtualCelularFinal')?.hasError('required')">
               <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular"></ion-icon>
               <ion-label position="stacked">
                 <strong>Saldo Virtual Celular</strong>
@@ -50,9 +50,12 @@
                 </ion-input>
               </div>
             </ion-item>
+            @if (cierreForm.get('saldoVirtualCelularFinal')?.touched && cierreForm.get('saldoVirtualCelularFinal')?.hasError('required')) {
+              <div class="field-error">Este campo es requerido</div>
+            }
 
             <!-- Saldo Virtual Bus -->
-            <ion-item class="input-item">
+            <ion-item class="input-item" [class.input-error]="cierreForm.get('saldoVirtualBusFinal')?.touched && cierreForm.get('saldoVirtualBusFinal')?.hasError('required')">
               <ion-icon slot="start" name="bus-outline" class="item-icon bus"></ion-icon>
               <ion-label position="stacked">
                 <strong>Saldo Virtual Bus</strong>
@@ -69,9 +72,12 @@
                 </ion-input>
               </div>
             </ion-item>
+            @if (cierreForm.get('saldoVirtualBusFinal')?.touched && cierreForm.get('saldoVirtualBusFinal')?.hasError('required')) {
+              <div class="field-error">Este campo es requerido</div>
+            }
 
             <!-- Efectivo Total Recaudado -->
-            <ion-item class="input-item">
+            <ion-item class="input-item" [class.input-error]="cierreForm.get('efectivoTotalRecaudado')?.touched && cierreForm.get('efectivoTotalRecaudado')?.hasError('required')">
               <ion-icon slot="start" name="wallet-outline" class="item-icon efectivo"></ion-icon>
               <ion-label position="stacked">
                 <strong>Efectivo Total Recaudado</strong>
@@ -88,6 +94,9 @@
                 </ion-input>
               </div>
             </ion-item>
+            @if (cierreForm.get('efectivoTotalRecaudado')?.touched && cierreForm.get('efectivoTotalRecaudado')?.hasError('required')) {
+              <div class="field-error">Este campo es requerido</div>
+            }
           </ion-list>
         </form>
 
@@ -249,7 +258,7 @@
             <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
             Atrás
           </ion-button>
-          <ion-button expand="block" color="danger" (click)="confirmarCierre()">
+          <ion-button expand="block" color="success" (click)="confirmarCierre()">
             <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
             Confirmar Cierre
           </ion-button>

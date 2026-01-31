@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   IonMenu, IonContent, IonTabs, IonTabBar,
@@ -6,6 +6,7 @@ import {
 } from '@ionic/angular/standalone';
 import { SidebarComponent } from 'src/app/shared/components/sidebar/sidebar.component';
 import { homeOutline, cartOutline, cubeOutline, barChartOutline } from 'ionicons/icons';
+import { UiService } from '@core/services/ui.service';
 
 @Component({
   selector: 'app-main-layout',
@@ -20,11 +21,13 @@ import { homeOutline, cartOutline, cubeOutline, barChartOutline } from 'ionicons
   ]
 })
 export class MainLayoutPage {
+  private ui = inject(UiService);
+
   // Iconos importados como objetos (patrón Ionic Standalone)
   homeIcon = homeOutline;
   ventasIcon = cartOutline;
   inventarioIcon = cubeOutline;
   reportesIcon = barChartOutline;
 
-  showTabs = true;
+  get showTabs() { return this.ui.tabsVisible(); }
 }

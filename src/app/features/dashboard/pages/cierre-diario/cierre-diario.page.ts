@@ -123,6 +123,14 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     });
   }
 
+  ionViewWillEnter() {
+    this.ui.hideTabs();
+  }
+
+  ionViewWillLeave() {
+    this.ui.showTabs();
+  }
+
   async ngOnInit() {
     this.resetState();
     await this.cargarDatosIniciales();
@@ -147,9 +155,10 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     try {
       // Simulación de carga
       await new Promise(resolve => setTimeout(resolve, 800));
-      this.isLoading = false;
     } catch (error) {
       this.ui.showToast('Error al cargar saldos', 'danger');
+    } finally {
+      this.isLoading = false;
     }
   }
 
@@ -158,10 +167,15 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
   /**
-   * Intenta volver al home. El Guard se encargará de pedir confirmación si hay cambios.
+   * Si está en paso > 1, retrocede un paso. Si está en paso 1, navega al home.
+   * El Guard se encargará de pedir confirmación si hay cambios.
    */
   volver() {
-    this.router.navigate(['/home']);
+    if (this.pasoActual > 1) {
+      this.pasoAnterior();
+    } else {
+      this.router.navigate(['/home']);
+    }
   }
 
   /**
@@ -184,9 +198,30 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
   /**
-   * Ejecuta la lógica final de cierre en la base de datos
+   * Muestra diálogo de confirmación antes de ejecutar el cierre.
    */
   async confirmarCierre() {
+    const alert = await this.alertCtrl.create({
+      header: 'Confirmar Cierre',
+      message: '¿Estás seguro de que deseas cerrar el día? Esta acción no se puede deshacer.',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Confirmar', role: 'confirm' }
+      ]
+    });
+
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+
+    if (role === 'confirm') {
+      await this.ejecutarCierre();
+    }
+  }
+
+  /**
+   * Ejecuta la lógica final de cierre en la base de datos.
+   */
+  private async ejecutarCierre() {
     await this.ui.showLoading('Guardando cierre...');
     try {
       // TODO: Implementar transacción real en Supabase...

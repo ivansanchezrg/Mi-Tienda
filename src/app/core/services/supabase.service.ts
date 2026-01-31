@@ -9,8 +9,7 @@ import { Browser } from '@capacitor/browser';
 @Injectable({ providedIn: 'root' })
 export class SupabaseService {
   private ui = inject(UiService);
-  
-  // Cliente público para usar en selects simples si quieres
+
   public client: SupabaseClient = createClient(environment.supabaseUrl, environment.supabaseKey);
 
   // Variable crítica para Android (según tu MD)  >>>> NUEVO
