@@ -27,6 +27,42 @@ Aplicación móvil híbrida para gestión de tienda, desarrollada con Ionic Angu
 
 ## 🎯 Patrones y Convenciones
 
+### Sistema de Diseño - Fondos y Cards
+
+El fondo principal de la app es un **gris sutil**, lo que permite que los cards y elementos con fondo blanco resalten visualmente, creando profundidad y jerarquía.
+
+**Variables clave** (`src/theme/variables.scss`):
+
+| Variable | Light Mode | Dark Mode | Uso |
+|----------|------------|-----------|-----|
+| `--ion-background-color` | `#f4f5f8` | `#121212` | Fondo de páginas |
+| `--ion-item-background` | `#ffffff` | `#1e1e1e` | Cards, items, elementos destacados |
+
+**Uso en componentes:**
+
+```scss
+// Para cards, modales, tab bar, o cualquier elemento que deba resaltar
+.mi-card {
+  background: var(--ion-item-background);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+```
+
+**Ejemplo visual:**
+
+```
+┌─────────────────────────────────────┐
+│  Fondo gris (#f4f5f8)              │
+│  ┌───────────────────────────────┐  │
+│  │  Card blanco (#ffffff)        │  │ ← Resalta sobre el fondo
+│  └───────────────────────────────┘  │
+└─────────────────────────────────────┘
+```
+
+> **Importante:** Al crear nuevos componentes, usar `--ion-item-background` para fondos que deban contrastar con el fondo principal.
+
+---
+
 ### Consultas a Supabase
 
 **IMPORTANTE:** Todas las consultas a Supabase deben usar el patrón centralizado de servicios.
@@ -85,6 +121,7 @@ await this.logger.clearLogs();
 ```
 
 **Características:**
+
 - Logs guardados en archivos (solo en dispositivo nativo)
 - Rotación automática (máx 3 archivos de 1MB)
 - Formato: `2026-01-30 10:15:23 [ERROR] AuthGuard: Mensaje`
@@ -190,6 +227,40 @@ Directiva para `<ion-input>` que formatea automáticamente al perder foco y limp
 
 - **ionBlur**: formatea a `1,250.00`
 - **ionFocus**: limpia a `1250.00` para edición
+
+---
+
+### NumbersOnlyDirective (`shared/directives/numbers-only.directive.ts`)
+
+Directiva que valida entrada permitiendo solo números, punto y coma (ideal para campos numéricos y moneda):
+
+```html
+<ion-input
+  appNumbersOnly
+  appCurrencyInput
+  formControlName="monto"
+  inputmode="decimal">
+</ion-input>
+```
+
+**Caracteres permitidos:**
+- Números: `0-9`
+- Punto: `.`
+- Coma: `,`
+
+**Previene:**
+- Letras (a-z, A-Z)
+- Espacios
+- Caracteres especiales (@, #, $, etc.)
+
+**Características:**
+- Valida en tiempo real (keydown + input)
+- Limpia texto pegado automáticamente
+- Mantiene posición del cursor
+- Permite teclas de navegación (Backspace, Tab, flechas, etc.)
+- Permite atajos de teclado (Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X)
+
+**Uso combinado:** Se recomienda usar junto con `appCurrencyInput` para validación de entrada + formato automático.
 
 ---
 
@@ -345,6 +416,7 @@ git commit -m "tipo(scope): descripción corta" -m "- Detalle 1
 ```
 
 **Tipos comunes:**
+
 - `feat` - Nueva funcionalidad
 - `fix` - Corrección de bug
 - `docs` - Documentación

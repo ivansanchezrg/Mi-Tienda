@@ -4,16 +4,14 @@ import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-  IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle, IonCardContent,
-  IonGrid, IonRow, IonCol, IonIcon, IonButton
+  IonCard, IonIcon
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   walletOutline, cashOutline, phonePortraitOutline, busOutline,
-  chevronForwardOutline, chevronDownOutline, checkmarkCircle, timeOutline,
-  flashOutline, arrowDownOutline, arrowUpOutline, swapHorizontalOutline,
-  receiptOutline, calculatorOutline, lockClosedOutline, lockOpenOutline,
-  informationCircleOutline, clipboardOutline
+  chevronForwardOutline, chevronDownOutline, checkmarkCircle, closeCircle,
+  arrowDownOutline, arrowUpOutline, swapHorizontalOutline,
+  receiptOutline, clipboardOutline
 } from 'ionicons/icons';
 import { ScrollablePage } from '@core/pages/scrollable.page';
 
@@ -26,8 +24,7 @@ import { ScrollablePage } from '@core/pages/scrollable.page';
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-    IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle, IonCardContent,
-    IonGrid, IonRow, IonCol, IonIcon, IonButton
+    IonCard, IonIcon
   ]
 })
 export class HomePage extends ScrollablePage {
@@ -52,10 +49,9 @@ export class HomePage extends ScrollablePage {
     super();
     addIcons({
       walletOutline, cashOutline, phonePortraitOutline, busOutline,
-      chevronForwardOutline, chevronDownOutline, checkmarkCircle, timeOutline,
-      flashOutline, arrowDownOutline, arrowUpOutline, swapHorizontalOutline,
-      receiptOutline, calculatorOutline, lockClosedOutline, lockOpenOutline,
-      informationCircleOutline, clipboardOutline
+      chevronForwardOutline, chevronDownOutline, checkmarkCircle, closeCircle,
+      arrowDownOutline, arrowUpOutline, swapHorizontalOutline,
+      receiptOutline, clipboardOutline
     });
   }
 

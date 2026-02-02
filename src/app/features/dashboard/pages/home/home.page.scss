@@ -1,289 +1,297 @@
-// Safe area bottom
-ion-content {
-  --padding-bottom: env(safe-area-inset-bottom, 16px);
-}
+// No definimos variables locales de color manuales.
+// Usamos las que Ionic provee globalmente.
 
-// Estado Banner
-.estado-banner {
+
+// 1. STATUS CARD
+.status-card {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 500;
-
-  ion-icon {
-    font-size: 16px;
-  }
+  padding: 14px 20px;
+  margin-bottom: 20px;
+  background: var(--ion-item-background);
+  border-bottom: 1px solid var(--ion-color-step-100, #e5e5e5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 
   &.abierto {
-    background: rgba(var(--ion-color-success-rgb), 0.1);
-    color: var(--ion-color-success-shade);
-
-    :host-context(body.dark) & {
-      background: rgba(var(--ion-color-success-rgb), 0.15);
+    .status-left ion-icon {
       color: var(--ion-color-success);
     }
   }
 
   &.cerrado {
-    background: rgba(var(--ion-color-danger-rgb), 0.1);
-    color: var(--ion-color-danger-shade);
-
-    :host-context(body.dark) & {
-      background: rgba(var(--ion-color-danger-rgb), 0.15);
-      color: var(--ion-color-danger);
-    }
-  }
-}
-
-// Cards generales
-ion-card {
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  margin: 12px 16px;
-
-  :host-context(body.dark) & {
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
-  }
-}
-
-ion-card-header {
-  padding-bottom: 8px;
-}
-
-ion-card-subtitle {
-  margin-top: 4px;
-  font-size: 12px;
-}
-
-.seccion-titulo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 17px;
-  font-weight: 700;
-
-  ion-icon {
-    font-size: 20px;
-    color: var(--ion-color-primary);
-  }
-}
-
-// Reset para botones semánticos
-button.saldo-card,
-button.operacion-btn {
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-}
-
-// Saldos Card
-.saldos-card {
-  .saldos-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-
-  .hora {
-    margin-left: 6px;
-    opacity: 0.7;
-  }
-
-  .total-efectivo {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-
-    .total-label {
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    .status-left ion-icon {
       color: var(--ion-color-medium);
     }
-
-    .total-monto {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--ion-color-primary);
-    }
   }
 
-  .saldos-grid {
-    padding: 0;
-
-    ion-row + ion-row {
-      margin-top: 8px;
-    }
-  }
-
-  .saldo-card {
+  .status-left {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px;
-    border-radius: 12px;
-    background: var(--ion-color-light);
-    cursor: pointer;
-    transition: background 0.2s;
-
-    :host-context(body.dark) & {
-      background: rgba(255, 255, 255, 0.05);
-    }
-
-    &:active {
-      background: rgba(var(--ion-color-primary-rgb), 0.08);
-    }
-  }
-
-  .saldo-icon {
-    font-size: 24px;
-    flex-shrink: 0;
-
-    &.caja {
-      color: var(--ion-color-success);
-    }
-
-    &.caja-chica {
-      color: var(--ion-color-tertiary);
-    }
-
-    &.celular {
-      color: var(--ion-color-secondary);
-    }
-
-    &.bus {
-      color: var(--ion-color-warning);
-    }
-  }
-
-  .saldo-info {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  .saldo-label {
-    font-size: 13px;
-    color: var(--ion-color-medium);
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 2px;
-
-    ion-icon {
-      font-size: 12px;
-      opacity: 0.5;
-    }
-  }
-
-  .saldo-monto {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--ion-text-color);
-  }
-}
-
-// Operaciones Card
-.operaciones-card {
-  .operaciones-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px 12px;
-    padding: 8px 0;
-  }
-
-  .operacion-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-
-    &:active .operacion-icon {
-      opacity: 0.6;
-    }
-  }
-
-  .operacion-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: opacity 0.15s;
 
     ion-icon {
       font-size: 22px;
     }
 
-    &.ingreso {
-      background: rgba(var(--ion-color-success-rgb), 0.1);
-      ion-icon { color: var(--ion-color-success); }
-    }
-
-    &.egreso {
-      background: rgba(var(--ion-color-danger-rgb), 0.1);
-      ion-icon { color: var(--ion-color-danger); }
-    }
-
-    &.transferencia {
-      background: rgba(var(--ion-color-primary-rgb), 0.1);
-      ion-icon { color: var(--ion-color-primary); }
-    }
-
-    &.gasto {
-      background: rgba(var(--ion-color-warning-rgb), 0.1);
-      ion-icon { color: var(--ion-color-warning); }
+    .status-text {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ion-text-color);
     }
   }
 
-  .operacion-label {
-    font-size: 12px;
+  .status-date {
+    font-size: 13px;
     font-weight: 500;
     color: var(--ion-color-medium);
   }
 }
 
-// Cuadre & Cierre Cards
-.btn-accion-card {
-  --border-radius: 12px;
-  font-weight: 600;
-  font-size: 14px;
-  height: 44px;
-  margin: 0;
-}
+// Títulos de sección
+.section-header {
+  padding: 0 20px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
 
-.cierre-card {
-  margin-bottom: 24px;
-
-  .cierre-detalle {
+  .header-left {
     display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .header-right {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 2px;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ion-text-color);
+  }
+  .sub-info {
     font-size: 12px;
     color: var(--ion-color-medium);
-    margin-top: 12px;
-    padding: 8px 12px;
-    background: var(--ion-color-light);
-    border-radius: 8px;
+  }
+  .total-amount {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--ion-color-primary);
+  }
+  .total-label {
+    font-size: 11px;
+    color: var(--ion-color-medium);
+  }
+}
 
-    :host-context(body.dark) & {
-      background: rgba(255, 255, 255, 0.05);
+// 2. ACTIONS GRID
+.actions-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 16px;
+
+  @media (max-width: 360px) {
+    display: flex;
+    overflow-x: auto;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  .action-btn {
+    background: none;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    min-width: 60px;
+
+    .icon-box {
+      width: 50px;
+      height: 50px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      
+      // Lógica de colores dinámica usando variables CSS de Ionic
+      // Esto funciona perfecto en Dark Mode
+      &.ion-color-success { background: rgba(var(--ion-color-success-rgb), 0.12); color: var(--ion-color-success); }
+      &.ion-color-danger { background: rgba(var(--ion-color-danger-rgb), 0.12); color: var(--ion-color-danger); }
+      &.ion-color-primary { background: rgba(var(--ion-color-primary-rgb), 0.12); color: var(--ion-color-primary); }
+      &.ion-color-warning { background: rgba(var(--ion-color-warning-rgb), 0.12); color: var(--ion-color-warning); }
+      &.ion-color-tertiary { background: rgba(var(--ion-color-tertiary-rgb), 0.12); color: var(--ion-color-tertiary); }
+      &.ion-color-secondary { background: rgba(var(--ion-color-secondary-rgb), 0.12); color: var(--ion-color-secondary); }
     }
 
-    ion-icon {
-      font-size: 16px;
-      flex-shrink: 0;
-      color: var(--ion-color-primary);
+    span {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ion-color-medium);
+    }
+
+    &:active .icon-box {
+      transform: scale(0.9);
+    }
+  }
+}
+
+// 3. MODERN CARD LIST
+.modern-card {
+  margin: 0 16px 24px;
+  border-radius: 20px;
+  // Fondo adaptativo (Blanco en light, #1e1e1e en dark)
+  background: var(--ion-item-background); 
+  // Sombra suave en light, invisible o sutil en dark
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+
+  .account-list {
+    padding: 8px 0;
+  }
+
+  .divider {
+    height: 1px;
+    // Borde adaptativo
+    background: var(--ion-color-step-100, #f0f0f0); 
+    margin: 0 16px 0 68px;
+  }
+
+  .account-item {
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    text-align: left;
+    transition: background 0.2s;
+
+    &:active {
+      // Color de toque adaptativo
+      background: var(--ion-color-step-50, rgba(0,0,0,0.04));
+    }
+
+    .account-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+
+      &.ion-color-primary { color: var(--ion-color-primary); }
+      &.ion-color-tertiary { color: var(--ion-color-tertiary); }
+      &.ion-color-secondary { color: var(--ion-color-secondary); }
+      &.ion-color-warning { color: var(--ion-color-warning); }
+    }
+
+    .account-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+
+      .name-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .name {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--ion-text-color);
+      }
+
+      .arrow {
+        font-size: 12px;
+        color: var(--ion-text-color);
+      }
+
+      .type {
+        font-size: 12px;
+        color: var(--ion-color-medium);
+      }
+    }
+
+    .account-amount {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ion-text-color);
+    }
+  }
+}
+
+// 4. FOOTER SHIFT CARD
+.footer-action {
+  padding: 0 16px 30px;
+  
+  .shift-card {
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+    // Fondo adaptativo de tarjeta
+    background: var(--ion-item-background); 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+
+    &.is-open {
+      border-color: rgba(var(--ion-color-success-rgb), 0.3);
+      
+      .shift-btn {
+        background: var(--ion-color-warning); 
+        color: var(--ion-color-warning-contrast);
+      }
+    }
+
+    &.is-closed {
+      border-color: rgba(var(--ion-color-medium-rgb), 0.2);
+      
+      .shift-btn {
+        background: var(--ion-color-success);
+        color: var(--ion-color-success-contrast);
+      }
+    }
+
+    .shift-text {
+      display: flex;
+      flex-direction: column;
+      
+      .shift-label {
+        font-weight: 700;
+        font-size: 15px;
+        color: var(--ion-text-color);
+      }
+      .shift-detail {
+        font-size: 12px;
+        color: var(--ion-color-medium);
+        margin-top: 2px;
+      }
+    }
+
+    .shift-btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      
+      &:active { transform: scale(0.96); }
     }
   }
 }

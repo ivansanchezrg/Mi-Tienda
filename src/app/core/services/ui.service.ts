@@ -68,6 +68,9 @@ export class UiService {
     }
 
     // Errores de autenticación
+    if (lower.includes('jwt') && (lower.includes('expired') || lower.includes('invalid'))) {
+      return 'Sesión expirada. Inicia sesión nuevamente.';
+    }
     if (lower.includes('invalid login') || lower.includes('invalid credentials')) {
       return 'Credenciales inválidas.';
     }
@@ -86,7 +89,13 @@ export class UiService {
       return 'Acceso denegado.';
     }
 
-    // Errores de datos
+    // Errores de base de datos
+    if (lower.includes('could not find') && lower.includes('table')) {
+      return 'Tabla no encontrada en la base de datos.';
+    }
+    if (lower.includes('schema cache')) {
+      return 'Error en la estructura de la base de datos.';
+    }
     if (lower.includes('duplicate') || lower.includes('unique constraint')) {
       return 'Este registro ya existe.';
     }

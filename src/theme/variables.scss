@@ -1,2 +1,57 @@
 // For information on how to create your own theme, please refer to:
 // https://ionicframework.com/docs/theming/
+
+/**
+ * ============================================================================
+ * PATRÓN DE DISEÑO - SISTEMA DE FONDOS Y CARDS
+ * ============================================================================
+ *
+ * CONCEPTO:
+ * El fondo principal de la app es un gris sutil, lo que permite que los
+ * cards y elementos con fondo blanco resalten visualmente creando
+ * profundidad y jerarquía visual.
+ *
+ * VARIABLES CLAVE:
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ --ion-background-color    → Fondo general de páginas (gris sutil)      │
+ * │ --ion-item-background     → Fondo de cards, items, elementos (blanco)  │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * USO EN COMPONENTES:
+ * - Cards, modales, popovers      → usar: var(--ion-item-background)
+ * - Tab bar, status bars          → usar: var(--ion-item-background)
+ * - Elementos que deben resaltar  → usar: var(--ion-item-background)
+ *
+ * EJEMPLO VISUAL:
+ * ┌─────────────────────────────────────┐
+ * │  Fondo gris (#f4f5f8)              │
+ * │  ┌───────────────────────────────┐  │
+ * │  │  Card blanco (#ffffff)        │  │ ← Resalta sobre el fondo
+ * │  └───────────────────────────────┘  │
+ * └─────────────────────────────────────┘
+ *
+ * IMPORTANTE:
+ * Al crear nuevos componentes, usar --ion-item-background para fondos
+ * que deban contrastar con el fondo principal de la página.
+ * ============================================================================
+ */
+
+:root {
+  // Fondo principal de páginas (gris sutil - resalta cards)
+  --ion-background-color: #f4f5f8;
+  --ion-background-color-rgb: 244, 245, 248;
+
+  // Fondo de cards/items/elementos destacados (blanco)
+  --ion-item-background: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    // Fondo principal de páginas (dark mode)
+    --ion-background-color: #121212;
+    --ion-background-color-rgb: 18, 18, 18;
+
+    // Fondo de cards/items/elementos destacados (dark mode)
+    --ion-item-background: #1e1e1e;
+  }
+}

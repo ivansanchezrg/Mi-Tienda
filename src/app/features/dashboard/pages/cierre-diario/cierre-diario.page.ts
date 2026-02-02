@@ -2,47 +2,34 @@ import { Component, inject, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonButtons, IonProgressBar,
-  IonContent,
-  IonList,
-  IonItem,
-  IonLabel,
-  IonInput,
-  IonTextarea,
-  IonIcon,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
-  IonNote,
-  IonButton,
-  AlertController,
-  IonSpinner
+  IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
+  IonProgressBar, IonContent, IonList, IonItem, IonLabel,
+  IonInput, IonIcon, IonNote, IonCard, IonCardHeader,
+  IonCardTitle, IonCardContent, IonTextarea, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  arrowForwardOutline,
   arrowBackOutline,
-  walletOutline,
+  arrowForwardOutline,
   phonePortraitOutline,
   busOutline,
-  cashOutline,
+  walletOutline,
   checkmarkCircleOutline,
-  alertCircleOutline,
-  informationCircleOutline,
   trendingUpOutline,
-  calculatorOutline
+  cashOutline,
+  calculatorOutline,
+  informationCircleOutline,
+  alertCircleOutline
 } from 'ionicons/icons';
-import { DecimalPipe, CommonModule } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { UiService } from '@core/services/ui.service';
 import { HasPendingChanges } from '@core/guards/pending-changes.guard';
 import { CurrencyService } from '@core/services/currency.service';
+import { RecargasService } from '../../services/recargas.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
+import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive';
 
-/**
- * Page para realizar el cierre diario de caja.
- */
 @Component({
   selector: 'app-cierre-diario',
   templateUrl: './cierre-diario.page.html',
@@ -51,23 +38,12 @@ import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive'
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    DecimalPipe,
-    IonHeader, IonToolbar, IonTitle, IonButtons, IonProgressBar,
-    IonContent,
-    IonList,
-    IonItem,
-    IonLabel,
-    IonInput,
-    IonTextarea,
-    IonIcon,
-    IonCard,
-    IonCardHeader,
-    IonCardTitle,
-    IonCardContent,
-    IonNote,
-    IonButton,
-    IonSpinner,
+    IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
+    IonProgressBar, IonContent, IonList, IonItem, IonLabel,
+    IonInput, IonIcon, IonNote, IonCard, IonCardHeader,
+    IonCardTitle, IonCardContent, IonTextarea,
     CurrencyInputDirective,
+    NumbersOnlyDirective,
     ScrollResetDirective
   ]
 })
@@ -75,44 +51,34 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   private router = inject(Router);
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
+  private recargasService = inject(RecargasService);
   private alertCtrl = inject(AlertController);
   private currencyService = inject(CurrencyService);
 
-  // Estado de la página
-  isLoading = true;
+  // Estado
   pasoActual = 1;
   totalPasos = 2;
+
+  // Saldos anteriores (del último registro)
+  saldoAnteriorCelular = 0;
+  saldoAnteriorBus = 0;
 
   // Formulario
   cierreForm: FormGroup;
 
-  // Datos reales (se cargarán desde DB)
-  saldosAnteriores = {
-    celular: 0,
-    bus: 0,
-    cajaPrincipal: 0,
-    cajaChica: 0,
-    cajaCelular: 0,
-    cajaBus: 0
-  };
-
-  configuracion = {
-    transferenciaDiaria: 20.00
-  };
-
   constructor() {
     addIcons({
-      arrowForwardOutline,
       arrowBackOutline,
-      walletOutline,
+      arrowForwardOutline,
       phonePortraitOutline,
       busOutline,
-      cashOutline,
+      walletOutline,
       checkmarkCircleOutline,
-      alertCircleOutline,
-      informationCircleOutline,
       trendingUpOutline,
-      calculatorOutline
+      cashOutline,
+      calculatorOutline,
+      informationCircleOutline,
+      alertCircleOutline
     });
 
     this.cierreForm = this.fb.group({
@@ -125,6 +91,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
 
   ionViewWillEnter() {
     this.ui.hideTabs();
+    this.cargarDatosIniciales();
   }
 
   ionViewWillLeave() {
@@ -133,43 +100,43 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
 
   async ngOnInit() {
     this.resetState();
-    await this.cargarDatosIniciales();
   }
 
-  /**
-   * Reinicia el formulario y el estado del wizard a sus valores iniciales.
-   */
   public resetState() {
-    this.cierreForm.reset({
-      saldoVirtualCelularFinal: '',
-      saldoVirtualBusFinal: '',
-      efectivoTotalRecaudado: '',
-      observaciones: ''
-    });
+    this.cierreForm.reset();
     this.cierreForm.markAsPristine();
     this.pasoActual = 1;
   }
 
   async cargarDatosIniciales() {
-    this.isLoading = true;
-    try {
-      // Simulación de carga
-      await new Promise(resolve => setTimeout(resolve, 800));
-    } catch (error) {
-      this.ui.showToast('Error al cargar saldos', 'danger');
-    } finally {
-      this.isLoading = false;
-    }
+    const saldos = await this.recargasService.getSaldosAnteriores();
+
+    this.saldoAnteriorCelular = saldos.celular;
+    this.saldoAnteriorBus = saldos.bus;
+
+    console.log('Saldo anterior Celular:', this.saldoAnteriorCelular);
+    console.log('Saldo anterior Bus:', this.saldoAnteriorBus);
   }
 
   hasPendingChanges(): boolean {
     return this.cierreForm.dirty;
   }
 
-  /**
-   * Si está en paso > 1, retrocede un paso. Si está en paso 1, navega al home.
-   * El Guard se encargará de pedir confirmación si hay cambios.
-   */
+  // Getters para Ventas del Día
+  get ventaCelular(): number {
+    const saldoFinal = this.cierreForm.get('saldoVirtualCelularFinal')?.value || 0;
+    return this.saldoAnteriorCelular - saldoFinal;
+  }
+
+  get ventaBus(): number {
+    const saldoFinal = this.cierreForm.get('saldoVirtualBusFinal')?.value || 0;
+    return this.saldoAnteriorBus - saldoFinal;
+  }
+
+  get efectivoRecaudado(): number {
+    return this.cierreForm.get('efectivoTotalRecaudado')?.value || 0;
+  }
+
   volver() {
     if (this.pasoActual > 1) {
       this.pasoAnterior();
@@ -178,13 +145,12 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     }
   }
 
-  /**
-   * Avanza al siguiente paso
-   */
   siguientePaso() {
     if (this.pasoActual < this.totalPasos) {
-      if (this.pasoActual === 1 && this.cierreForm.invalid) {
-        Object.keys(this.cierreForm.controls).forEach(key => this.cierreForm.get(key)?.markAsTouched());
+      if (this.cierreForm.invalid) {
+        Object.keys(this.cierreForm.controls).forEach(key =>
+          this.cierreForm.get(key)?.markAsTouched()
+        );
         return;
       }
       this.pasoActual++;
@@ -197,13 +163,10 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     }
   }
 
-  /**
-   * Muestra diálogo de confirmación antes de ejecutar el cierre.
-   */
   async confirmarCierre() {
     const alert = await this.alertCtrl.create({
       header: 'Confirmar Cierre',
-      message: '¿Estás seguro de que deseas cerrar el día? Esta acción no se puede deshacer.',
+      message: '¿Estás seguro de que deseas cerrar el día?',
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
         { text: 'Confirmar', role: 'confirm' }
@@ -218,72 +181,20 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     }
   }
 
-  /**
-   * Ejecuta la lógica final de cierre en la base de datos.
-   */
   private async ejecutarCierre() {
     await this.ui.showLoading('Guardando cierre...');
     try {
-      // TODO: Implementar transacción real en Supabase...
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // TODO: Guardar en Supabase
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      await this.ui.showToast('Cierre diario guardado correctamente', 'success');
-
-      // Limpiar dirty para que el guard permita salir
+      await this.ui.showSuccess('Cierre guardado correctamente');
       this.cierreForm.markAsPristine();
-
-      // Navegar primero, resetear después.
-      // Si resetState() va antes, cambia pasoActual y dispara el scroll
-      // de cierre-diario al mismo tiempo que el de home → race condition.
       await this.router.navigate(['/home']);
       this.resetState();
     } catch {
-      this.ui.showToast('Hubo un error al guardar el cierre', 'danger');
+      this.ui.showError('Error al guardar el cierre');
     } finally {
       await this.ui.hideLoading();
     }
   }
-
-  // --- GETTERS USANDO EL SERVICIO ---
-
-  get ventaCelular(): number {
-    const val = this.currencyService.parse(this.cierreForm.get('saldoVirtualCelularFinal')?.value);
-    return Math.max(0, this.saldosAnteriores.celular - val);
-  }
-
-  get ventaBus(): number {
-    const val = this.currencyService.parse(this.cierreForm.get('saldoVirtualBusFinal')?.value);
-    return Math.max(0, this.saldosAnteriores.bus - val);
-  }
-
-  get efectivoRecaudado(): number {
-    return this.currencyService.parse(this.cierreForm.get('efectivoTotalRecaudado')?.value);
-  }
-
-  get cajaFinal(): number {
-    return this.saldosAnteriores.cajaPrincipal - this.configuracion.transferenciaDiaria;
-  }
-
-  get cajaChicaFinal(): number {
-    return this.saldosAnteriores.cajaChica + this.configuracion.transferenciaDiaria;
-  }
-
-  get efectivoCelular(): number {
-    const total = this.ventaCelular + this.ventaBus;
-    return total > 0 ? (this.efectivoRecaudado * (this.ventaCelular / total)) : 0;
-  }
-
-  get efectivoBus(): number {
-    const total = this.ventaCelular + this.ventaBus;
-    return total > 0 ? (this.efectivoRecaudado * (this.ventaBus / total)) : 0;
-  }
-
-  get cajaCelularFinal(): number {
-    return this.saldosAnteriores.cajaCelular + this.efectivoCelular;
-  }
-
-  get cajaBusFinal(): number {
-    return this.saldosAnteriores.cajaBus + this.efectivoBus;
-  }
-
 }

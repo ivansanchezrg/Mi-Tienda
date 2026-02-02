@@ -1,9 +1,9 @@
-// Variables
+// Variables de colores
 $celular-color: #3b82f6;
 $bus-color: #ef4444;
+$efectivo-color: #f59e0b;
 $caja-color: #10b981;
 $caja-chica-color: #8b5cf6;
-$efectivo-color: #f59e0b;
 
 // Container principal
 .wizard-container {
@@ -12,31 +12,11 @@ $efectivo-color: #f59e0b;
   margin: 0 auto;
 }
 
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 80%;
-  color: var(--ion-color-medium);
-
-  ion-spinner {
-    width: 50px;
-    height: 50px;
-    margin-bottom: 16px;
-  }
-
-  p {
-    font-size: 16px;
-    font-weight: 500;
-  }
-}
-
 .step-indicator {
   display: flex;
   justify-content: center;
   margin-bottom: 20px;
-  
+
   span {
     background: var(--ion-color-light);
     color: var(--ion-color-medium);
@@ -49,26 +29,15 @@ $efectivo-color: #f59e0b;
   }
 }
 
-// Header de cada paso
 .paso-header {
   text-align: center;
   margin-bottom: 24px;
-
-  .paso-icon {
-    font-size: 64px;
-    color: var(--ion-color-primary);
-    margin-bottom: 12px;
-
-    &.verificacion {
-      color: var(--ion-color-success);
-    }
-  }
 
   h2 {
     font-size: 24px;
     font-weight: 700;
     margin: 0 0 8px;
-    color: var(--ion-color-dark);
+    color: var(--ion-text-color);
   }
 
   p {
@@ -87,12 +56,12 @@ $efectivo-color: #f59e0b;
     --background: var(--ion-item-background, #fff);
     --padding-start: 16px;
     --padding-end: 16px;
-    margin-bottom: 8px;
+    margin-bottom: 16px;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 
     .item-icon {
-      font-size: 36px; // Más grande
+      font-size: 36px;
       margin-right: 16px;
 
       &.celular { color: $celular-color; }
@@ -104,13 +73,13 @@ $efectivo-color: #f59e0b;
       margin-bottom: 12px;
 
       strong {
-        font-size: 18px; // Más grande
-        color: var(--ion-color-dark);
+        font-size: 18px;
+        color: var(--ion-text-color);
         letter-spacing: -0.3px;
       }
 
       ion-note {
-        font-size: 14px; // Más grande
+        font-size: 14px;
         color: var(--ion-color-medium);
         display: block;
         margin-top: 4px;
@@ -123,7 +92,7 @@ $efectivo-color: #f59e0b;
       gap: 8px;
       border-bottom: 2px solid var(--ion-border-color, #f0f0f0);
       margin-top: 4px;
-      
+
       &:focus-within {
         border-bottom-color: var(--ion-color-primary);
       }
@@ -141,55 +110,7 @@ $efectivo-color: #f59e0b;
       --padding-bottom: 8px;
       font-size: 32px;
       font-weight: 800;
-      color: var(--ion-color-dark); // Color oscuro profesional
-    }
-
-    ion-textarea {
-      --padding-start: 0;
-      --padding-end: 0;
-      font-size: 16px;
-      font-weight: 600;
-    }
-  }
-}
-
-// Validación inline
-.input-item.input-error {
-  box-shadow: 0 0 0 2px rgba(var(--ion-color-danger-rgb), 0.3);
-}
-
-.field-error {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 16px 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ion-color-danger);
-}
-
-.input-hint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  font-size: 13px;
-  color: var(--ion-color-medium);
-  margin-bottom: 16px;
-
-  ion-icon {
-    font-size: 16px;
-    flex-shrink: 0;
-  }
-
-  &.importante {
-    color: var(--ion-color-warning);
-    background: rgba(var(--ion-color-warning-rgb), 0.1);
-    border-radius: 8px;
-    font-weight: 500;
-
-    ion-icon {
-      color: var(--ion-color-warning);
+      color: var(--ion-text-color);
     }
   }
 }
@@ -197,7 +118,6 @@ $efectivo-color: #f59e0b;
 // Cards de resumen (Paso 2)
 .resumen-card,
 .verificacion-card,
-.alerta-card,
 .observaciones-card {
   margin-bottom: 16px;
   border-radius: 12px;
@@ -237,17 +157,6 @@ $efectivo-color: #f59e0b;
     border-bottom: none;
   }
 
-  &.total {
-    border-top: 2px solid var(--ion-color-primary);
-    padding-top: 16px;
-    margin-top: 8px;
-
-    .venta-monto {
-      font-size: 20px;
-      color: var(--ion-color-primary);
-    }
-  }
-
   .venta-header {
     display: flex;
     align-items: center;
@@ -258,12 +167,13 @@ $efectivo-color: #f59e0b;
 
       &.celular { color: $celular-color; }
       &.bus { color: $bus-color; }
+      &.efectivo { color: $efectivo-color; }
     }
 
     .venta-nombre {
       font-size: 14px;
       font-weight: 600;
-      color: var(--ion-color-dark);
+      color: var(--ion-text-color);
     }
   }
 
@@ -276,13 +186,7 @@ $efectivo-color: #f59e0b;
     .venta-monto {
       font-size: 18px;
       font-weight: 700;
-      color: var(--ion-color-dark);
-    }
-
-    .venta-ganancia {
-      font-size: 12px;
-      color: var(--ion-color-success);
-      font-weight: 500;
+      color: var(--ion-text-color);
     }
   }
 }
@@ -348,7 +252,7 @@ $efectivo-color: #f59e0b;
 
     .resultado {
       color: var(--ion-color-success);
-      font-size: 20px;
+      font-size: 18px;
       background: rgba(var(--ion-color-success-rgb), 0.1);
       border: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
     }
@@ -361,14 +265,7 @@ $efectivo-color: #f59e0b;
   }
 }
 
-// Estilo para destacar el resultado final de efectivo
-.venta-detalle .venta-monto {
-  font-size: 22px; // Más grande para el total recaudado
-  font-weight: 800;
-  color: var(--ion-color-dark);
-}
-
-// Alertas simplificadas
+// Alertas
 .alerta-simple {
   display: flex;
   align-items: center;
@@ -386,7 +283,7 @@ $efectivo-color: #f59e0b;
   p {
     margin: 0;
     font-size: 13px;
-    color: var(--ion-color-dark);
+    color: var(--ion-text-color);
     line-height: 1.4;
 
     strong {
@@ -416,15 +313,14 @@ $efectivo-color: #f59e0b;
         --padding-top: 12px;
         --padding-bottom: 12px;
         font-size: 14px;
-        border: 2px solid #e5e7eb;
+        border: 2px solid var(--ion-border-color, #e5e7eb);
         border-radius: 8px;
-        background: #f9fafb;
+        background: var(--ion-color-light, #f9fafb);
       }
     }
   }
 }
 
-// Acciones de navegación
 .paso-actions {
   display: flex;
   flex-direction: column;
@@ -437,94 +333,5 @@ $efectivo-color: #f59e0b;
     height: 50px;
     font-weight: 700;
     text-transform: none;
-  }
-}
-
-// Dark mode
-@media (prefers-color-scheme: dark) {
-  .input-list .input-item,
-  .resumen-card,
-  .verificacion-card,
-  .observaciones-card {
-    --background: #1a1a1a;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .paso-header {
-    h2 { color: #e5e5e5; }
-  }
-
-  .venta-item {
-    border-bottom-color: #2a2a2a;
-
-    &.total {
-      border-top-color: var(--ion-color-primary);
-    }
-
-    .venta-header .venta-nombre {
-      color: #e5e5e5;
-    }
-
-    .venta-detalle .venta-monto {
-      color: #e5e5e5;
-    }
-  }
-
-  .caja-verificacion {
-    background: rgba(255, 255, 255, 0.05);
-
-    .caja-calculo {
-      .saldo,
-      .operacion,
-      .resultado {
-        background: rgba(255, 255, 255, 0.08);
-      }
-    }
-  }
-
-  .alerta-card {
-    background: linear-gradient(135deg, #451a03, #78350f);
-
-    .alerta-item {
-      &.info {
-        background: rgba(59, 130, 246, 0.2);
-        color: #93c5fd;
-
-        ion-icon {
-          color: #60a5fa;
-        }
-      }
-
-      &.warning {
-        background: rgba(239, 68, 68, 0.2);
-        color: #fca5a5;
-
-        ion-icon {
-          color: #f87171;
-        }
-      }
-    }
-  }
-
-  .observaciones-card {
-    .observaciones-item ion-textarea {
-      border-color: #374151;
-      background: rgba(255, 255, 255, 0.05);
-      color: #e5e5e5;
-    }
-  }
-}
-
-// Responsive
-@media (max-width: 360px) {
-  .caja-verificacion .caja-calculo {
-    font-size: 13px;
-
-    .saldo,
-    .operacion,
-    .resultado {
-      padding: 4px 8px;
-      font-size: 13px;
-    }
   }
 }
