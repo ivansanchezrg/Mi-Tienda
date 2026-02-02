@@ -7,25 +7,27 @@
 
 <!-- Capa 2: Tabs + Router Outlet (directo en el layout, NO extraer) -->
 <ion-tabs id="main-content">
-  <ion-tab-bar slot="bottom" *ngIf="showTabs">
-    <ion-tab-button tab="home">
-      <ion-icon [icon]="homeIcon"></ion-icon>
-      <ion-label>Inicio</ion-label>
-    </ion-tab-button>
+  @if (showTabs) {
+    <ion-tab-bar slot="bottom">
+      <ion-tab-button tab="home">
+        <ion-icon [icon]="homeIcon"></ion-icon>
+        <ion-label>Inicio</ion-label>
+      </ion-tab-button>
 
-    <ion-tab-button tab="ventas">
-      <ion-icon [icon]="ventasIcon"></ion-icon>
-      <ion-label>Ventas</ion-label>
-    </ion-tab-button>
+      <ion-tab-button tab="ventas">
+        <ion-icon [icon]="ventasIcon"></ion-icon>
+        <ion-label>Ventas</ion-label>
+      </ion-tab-button>
 
-    <ion-tab-button tab="inventario">
-      <ion-icon [icon]="inventarioIcon"></ion-icon>
-      <ion-label>Inventario</ion-label>
-    </ion-tab-button>
+      <ion-tab-button tab="inventario">
+        <ion-icon [icon]="inventarioIcon"></ion-icon>
+        <ion-label>Inventario</ion-label>
+      </ion-tab-button>
 
-    <ion-tab-button tab="reportes">
-      <ion-icon [icon]="reportesIcon"></ion-icon>
-      <ion-label>Reportes</ion-label>
-    </ion-tab-button>
-  </ion-tab-bar>
+      <ion-tab-button tab="reportes">
+        <ion-icon [icon]="reportesIcon"></ion-icon>
+        <ion-label>Reportes</ion-label>
+      </ion-tab-button>
+    </ion-tab-bar>
+  }
 </ion-tabs>

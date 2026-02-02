@@ -1,3 +1,8 @@
 ion-menu {
   --width: 280px;
 }
+
+ion-tab-bar {
+  --background: var(--ion-item-background);
+  border-top: 1px solid var(--ion-color-step-100, #e5e5e5);
+}

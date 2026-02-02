@@ -11,260 +11,247 @@
 </ion-header>
 
 <ion-content [appScrollReset]="pasoActual">
-  @if (isLoading) {
-    <div class="loading-container">
-      <ion-spinner name="crescent"></ion-spinner>
-      <p>Cargando información del día...</p>
-    </div>
-  } @else {
-    <div class="wizard-container">
+  <div class="wizard-container">
       <div class="step-indicator">
         <span>Paso {{ pasoActual }} de {{ totalPasos }}</span>
       </div>
 
-      <!-- PASO 1: Ingresar Datos -->
+      <!-- PASO 1: Ingresar Saldos -->
       @if (pasoActual === 1) {
-      <div class="paso">
-        <div class="paso-header">
-          <h2>Ingresar Saldos</h2>
-          <p>Registra los montos finales que aparecen en los sistemas</p>
+        <div class="paso">
+          <div class="paso-header">
+            <h2>Ingresar Saldos</h2>
+            <p>Registra los montos finales del día</p>
+          </div>
+
+          <form [formGroup]="cierreForm">
+            <ion-list class="input-list">
+              <!-- Saldo Virtual Celular -->
+              <ion-item class="input-item">
+                <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular"></ion-icon>
+                <ion-label position="stacked">
+                  <strong>Saldo Virtual Celular</strong>
+                  <ion-note>Consulta el saldo en el teléfono</ion-note>
+                </ion-label>
+                <div class="input-wrapper">
+                  <span class="currency-prefix">$</span>
+                  <ion-input
+                    appNumbersOnly
+                    appCurrencyInput
+                    formControlName="saldoVirtualCelularFinal"
+                    type="text"
+                    inputmode="decimal"
+                    placeholder="0.00">
+                  </ion-input>
+                </div>
+              </ion-item>
+
+              <!-- Saldo Virtual Bus -->
+              <ion-item class="input-item">
+                <ion-icon slot="start" name="bus-outline" class="item-icon bus"></ion-icon>
+                <ion-label position="stacked">
+                  <strong>Saldo Virtual Bus</strong>
+                  <ion-note>Consulta el saldo en la máquina</ion-note>
+                </ion-label>
+                <div class="input-wrapper">
+                  <span class="currency-prefix">$</span>
+                  <ion-input
+                    appNumbersOnly
+                    appCurrencyInput
+                    formControlName="saldoVirtualBusFinal"
+                    type="text"
+                    inputmode="decimal"
+                    placeholder="0.00">
+                  </ion-input>
+                </div>
+              </ion-item>
+
+              <!-- Efectivo Total Recaudado -->
+              <ion-item class="input-item">
+                <ion-icon slot="start" name="wallet-outline" class="item-icon efectivo"></ion-icon>
+                <ion-label position="stacked">
+                  <strong>Efectivo Total Recaudado</strong>
+                  <ion-note>Suma de todo el efectivo del día</ion-note>
+                </ion-label>
+                <div class="input-wrapper">
+                  <span class="currency-prefix">$</span>
+                  <ion-input
+                    appNumbersOnly
+                    appCurrencyInput
+                    formControlName="efectivoTotalRecaudado"
+                    type="text"
+                    inputmode="decimal"
+                    placeholder="0.00">
+                  </ion-input>
+                </div>
+              </ion-item>
+            </ion-list>
+          </form>
+
+          <div class="paso-actions">
+            <ion-button expand="block" size="large" (click)="siguientePaso()" [disabled]="cierreForm.invalid">
+              Siguiente
+              <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
+            </ion-button>
+          </div>
         </div>
-
-        <form [formGroup]="cierreForm">
-          <ion-list class="input-list">
-            <!-- Saldo Virtual Celular -->
-            <ion-item class="input-item" [class.input-error]="cierreForm.get('saldoVirtualCelularFinal')?.touched && cierreForm.get('saldoVirtualCelularFinal')?.hasError('required')">
-              <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular"></ion-icon>
-              <ion-label position="stacked">
-                <strong>Saldo Virtual Celular</strong>
-                <ion-note>Consulta el saldo en el teléfono</ion-note>
-              </ion-label>
-              <div class="input-wrapper">
-                <span class="currency-prefix">$</span>
-                <ion-input
-                  appCurrencyInput
-                  formControlName="saldoVirtualCelularFinal"
-                  type="text"
-                  inputmode="decimal"
-                  placeholder="0.00">
-                </ion-input>
-              </div>
-            </ion-item>
-            @if (cierreForm.get('saldoVirtualCelularFinal')?.touched && cierreForm.get('saldoVirtualCelularFinal')?.hasError('required')) {
-              <div class="field-error">Este campo es requerido</div>
-            }
-
-            <!-- Saldo Virtual Bus -->
-            <ion-item class="input-item" [class.input-error]="cierreForm.get('saldoVirtualBusFinal')?.touched && cierreForm.get('saldoVirtualBusFinal')?.hasError('required')">
-              <ion-icon slot="start" name="bus-outline" class="item-icon bus"></ion-icon>
-              <ion-label position="stacked">
-                <strong>Saldo Virtual Bus</strong>
-                <ion-note>Consulta el saldo en la máquina</ion-note>
-              </ion-label>
-              <div class="input-wrapper">
-                <span class="currency-prefix">$</span>
-                <ion-input
-                  appCurrencyInput
-                  formControlName="saldoVirtualBusFinal"
-                  type="text"
-                  inputmode="decimal"
-                  placeholder="0.00">
-                </ion-input>
-              </div>
-            </ion-item>
-            @if (cierreForm.get('saldoVirtualBusFinal')?.touched && cierreForm.get('saldoVirtualBusFinal')?.hasError('required')) {
-              <div class="field-error">Este campo es requerido</div>
-            }
-
-            <!-- Efectivo Total Recaudado -->
-            <ion-item class="input-item" [class.input-error]="cierreForm.get('efectivoTotalRecaudado')?.touched && cierreForm.get('efectivoTotalRecaudado')?.hasError('required')">
-              <ion-icon slot="start" name="wallet-outline" class="item-icon efectivo"></ion-icon>
-              <ion-label position="stacked">
-                <strong>Efectivo Total Recaudado</strong>
-                <ion-note>Suma de todo el efectivo del día</ion-note>
-              </ion-label>
-              <div class="input-wrapper">
-                <span class="currency-prefix">$</span>
-                <ion-input
-                  appCurrencyInput
-                  formControlName="efectivoTotalRecaudado"
-                  type="text"
-                  inputmode="decimal"
-                  placeholder="0.00">
-                </ion-input>
-              </div>
-            </ion-item>
-            @if (cierreForm.get('efectivoTotalRecaudado')?.touched && cierreForm.get('efectivoTotalRecaudado')?.hasError('required')) {
-              <div class="field-error">Este campo es requerido</div>
-            }
-          </ion-list>
-        </form>
-
-        <div class="paso-actions">
-          <ion-button expand="block" size="large" (click)="siguientePaso()" [disabled]="cierreForm.invalid">
-            Siguiente
-            <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
-          </ion-button>
-        </div>
-      </div>
       }
 
-      <!-- PASO 2: Verificación Final -->
+      <!-- PASO 2: Verificación -->
       @if (pasoActual === 2) {
-      <div class="paso">
-        <div class="paso-header">
-          <h2>Verificación Final</h2>
-          <p>Revisa los cálculos automáticos y distribuciones</p>
+        <div class="paso">
+          <div class="paso-header">
+            <h2>Verificación Final</h2>
+            <p>Revisa los cálculos antes de confirmar</p>
+          </div>
+
+          <!-- Ventas del Día -->
+          <ion-card class="resumen-card">
+            <ion-card-header>
+              <ion-card-title>
+                <ion-icon name="trending-up-outline"></ion-icon>
+                Ventas del Día
+              </ion-card-title>
+            </ion-card-header>
+            <ion-card-content>
+              <div class="venta-item">
+                <div class="venta-header">
+                  <ion-icon name="phone-portrait-outline" class="venta-icon celular"></ion-icon>
+                  <span class="venta-nombre">Celular</span>
+                </div>
+                <div class="venta-detalle">
+                  <span class="venta-monto">{{ ventaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+                </div>
+              </div>
+
+              <div class="venta-item">
+                <div class="venta-header">
+                  <ion-icon name="bus-outline" class="venta-icon bus"></ion-icon>
+                  <span class="venta-nombre">Bus</span>
+                </div>
+                <div class="venta-detalle">
+                  <span class="venta-monto">{{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+                </div>
+              </div>
+
+              <div class="venta-item">
+                <div class="venta-header">
+                  <ion-icon name="cash-outline" class="venta-icon efectivo"></ion-icon>
+                  <span class="venta-nombre">Efectivo Recaudado</span>
+                </div>
+                <div class="venta-detalle">
+                  <span class="venta-monto">{{ efectivoRecaudado | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+
+          <!-- Verificación de Cajas -->
+          <ion-card class="verificacion-card">
+            <ion-card-header>
+              <ion-card-title>
+                <ion-icon name="calculator-outline"></ion-icon>
+                Verificación de Cajas
+              </ion-card-title>
+            </ion-card-header>
+            <ion-card-content>
+              <div class="caja-verificacion">
+                <div class="caja-nombre">
+                  <ion-icon name="cash-outline" class="caja-icon caja"></ion-icon>
+                  <strong>CAJA</strong>
+                </div>
+                <div class="caja-calculo">
+                  <span class="saldo">$0.00</span>
+                  <span class="operador">-</span>
+                  <span class="operacion">$0.00</span>
+                  <span class="operador">=</span>
+                  <span class="resultado">$0.00</span>
+                </div>
+              </div>
+
+              <div class="caja-verificacion">
+                <div class="caja-nombre">
+                  <ion-icon name="wallet-outline" class="caja-icon caja-chica"></ion-icon>
+                  <strong>CAJA CHICA</strong>
+                </div>
+                <div class="caja-calculo">
+                  <span class="saldo">$0.00</span>
+                  <span class="operador">+</span>
+                  <span class="operacion">$0.00</span>
+                  <span class="operador">=</span>
+                  <span class="resultado">$0.00</span>
+                </div>
+              </div>
+
+              <div class="caja-verificacion">
+                <div class="caja-nombre">
+                  <ion-icon name="phone-portrait-outline" class="caja-icon celular"></ion-icon>
+                  <strong>CELULAR</strong>
+                </div>
+                <div class="caja-calculo">
+                  <span class="saldo">$0.00</span>
+                  <span class="operador">+</span>
+                  <span class="operacion">$0.00</span>
+                  <span class="operador">=</span>
+                  <span class="resultado">$0.00</span>
+                </div>
+              </div>
+
+              <div class="caja-verificacion">
+                <div class="caja-nombre">
+                  <ion-icon name="bus-outline" class="caja-icon bus"></ion-icon>
+                  <strong>BUS</strong>
+                </div>
+                <div class="caja-calculo">
+                  <span class="saldo">$0.00</span>
+                  <span class="operador">+</span>
+                  <span class="operacion">$0.00</span>
+                  <span class="operador">=</span>
+                  <span class="resultado">$0.00</span>
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+
+          <!-- Alertas informativas -->
+          <div class="alerta-simple">
+            <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+            <p>Se transferirán <strong>$0.00</strong> de CAJA a CAJA CHICA automáticamente.</p>
+          </div>
+
+          <div class="alerta-simple warning">
+            <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
+            <p>Verifica el efectivo físico antes de confirmar el cierre.</p>
+          </div>
+
+          <!-- Observaciones -->
+          <ion-card class="observaciones-card" [formGroup]="cierreForm">
+            <ion-card-header>
+              <ion-card-title>Observaciones (Opcional)</ion-card-title>
+            </ion-card-header>
+            <ion-card-content>
+              <ion-item class="observaciones-item" lines="none">
+                <ion-textarea
+                  formControlName="observaciones"
+                  placeholder="Agrega notas sobre el cierre del día..."
+                  rows="3"
+                  maxlength="500">
+                </ion-textarea>
+              </ion-item>
+            </ion-card-content>
+          </ion-card>
+
+          <div class="paso-actions">
+            <ion-button expand="block" fill="outline" (click)="pasoAnterior()">
+              <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
+              Atrás
+            </ion-button>
+            <ion-button expand="block" color="success" (click)="confirmarCierre()">
+              <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+              Confirmar Cierre
+            </ion-button>
+          </div>
         </div>
-
-        <form [formGroup]="cierreForm">
-        <!-- Ventas del Día -->
-        <ion-card class="resumen-card">
-          <ion-card-header>
-            <ion-card-title>
-              <ion-icon name="trending-up-outline"></ion-icon>
-              Ventas del Día
-            </ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <div class="venta-item">
-              <div class="venta-header">
-                <ion-icon name="phone-portrait-outline" class="venta-icon celular"></ion-icon>
-                <span class="venta-nombre">Celular</span>
-              </div>
-              <div class="venta-detalle">
-                <span class="venta-monto">${{ ventaCelular | number:'1.2-2' }}</span>
-              </div>
-            </div>
-
-            <div class="venta-item">
-              <div class="venta-header">
-                <ion-icon name="bus-outline" class="venta-icon bus"></ion-icon>
-                <span class="venta-nombre">Bus</span>
-              </div>
-              <div class="venta-detalle">
-                <span class="venta-monto">${{ ventaBus | number:'1.2-2' }}</span>
-              </div>
-            </div>
-
-            <div class="venta-item">
-              <div class="venta-header">
-                <ion-icon name="cash-outline" class="venta-icon efectivo"></ion-icon>
-                <span class="venta-nombre">Efectivo del Día</span>
-              </div>
-              <div class="venta-detalle">
-                <span class="venta-monto">${{ efectivoRecaudado | number:'1.2-2' }}</span>
-              </div>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Verificación de Cajas -->
-        <ion-card class="verificacion-card">
-          <ion-card-header>
-            <ion-card-title>
-              <ion-icon name="calculator-outline"></ion-icon>
-              Verificación de Cajas
-            </ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <div class="caja-verificacion">
-              <div class="caja-nombre">
-                <ion-icon name="cash-outline" class="caja-icon caja"></ion-icon>
-                <strong>CAJA</strong>
-              </div>
-              <div class="caja-calculo">
-                <span class="saldo">${{ saldosAnteriores.cajaPrincipal | number:'1.2-2' }}</span>
-                <span class="operador">-</span>
-                <span class="operacion">${{ configuracion.transferenciaDiaria | number:'1.2-2' }}</span>
-                <span class="operador">=</span>
-                <span class="resultado">${{ cajaFinal | number:'1.2-2' }}</span>
-              </div>
-            </div>
-
-            <div class="caja-verificacion">
-              <div class="caja-nombre">
-                <ion-icon name="wallet-outline" class="caja-icon caja-chica"></ion-icon>
-                <strong>CAJA CHICA</strong>
-              </div>
-              <div class="caja-calculo">
-                <span class="saldo">${{ saldosAnteriores.cajaChica | number:'1.2-2' }}</span>
-                <span class="operador">+</span>
-                <span class="operacion">${{ configuracion.transferenciaDiaria | number:'1.2-2' }}</span>
-                <span class="operador">=</span>
-                <span class="resultado">${{ cajaChicaFinal | number:'1.2-2' }}</span>
-              </div>
-            </div>
-
-            <div class="caja-verificacion">
-              <div class="caja-nombre">
-                <ion-icon name="phone-portrait-outline" class="caja-icon celular"></ion-icon>
-                <strong>CELULAR</strong>
-              </div>
-              <div class="caja-calculo">
-                <span class="saldo">${{ saldosAnteriores.cajaCelular | number:'1.2-2' }}</span>
-                <span class="operador">+</span>
-                <span class="operacion">${{ efectivoCelular | number:'1.2-2' }}</span>
-                <span class="operador">=</span>
-                <span class="resultado">${{ cajaCelularFinal | number:'1.2-2' }}</span>
-              </div>
-            </div>
-
-            <div class="caja-verificacion">
-              <div class="caja-nombre">
-                <ion-icon name="bus-outline" class="caja-icon bus"></ion-icon>
-                <strong>BUS</strong>
-              </div>
-              <div class="caja-calculo">
-                <span class="saldo">${{ saldosAnteriores.cajaBus | number:'1.2-2' }}</span>
-                <span class="operador">+</span>
-                <span class="operacion">${{ efectivoBus | number:'1.2-2' }}</span>
-                <span class="operador">=</span>
-                <span class="resultado">${{ cajaBusFinal | number:'1.2-2' }}</span>
-              </div>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <div class="alerta-simple">
-          <ion-icon name="information-circle-outline" color="primary"></ion-icon>
-          <p>Se transferirán <strong>${{ configuracion.transferenciaDiaria | number:'1.2-2' }}</strong> de CAJA a CAJA CHICA automáticamente.</p>
-        </div>
-
-        <div class="alerta-simple warning">
-          <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
-          <p>Verifica el efectivo físico antes de confirmar el cierre.</p>
-        </div>
-
-        <ion-card class="observaciones-card">
-          <ion-card-header>
-            <ion-card-title>Observaciones (Opcional)</ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <ion-item class="observaciones-item" lines="none">
-              <ion-textarea
-                formControlName="observaciones"
-                placeholder="Agrega notas sobre el cierre del día..."
-                rows="3"
-                maxlength="500">
-              </ion-textarea>
-            </ion-item>
-          </ion-card-content>
-        </ion-card>
-        </form>
-
-        <div class="paso-actions">
-          <ion-button expand="block" fill="outline" (click)="pasoAnterior()">
-            <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
-            Atrás
-          </ion-button>
-          <ion-button expand="block" color="success" (click)="confirmarCierre()">
-            <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
-            Confirmar Cierre
-          </ion-button>
-        </div>
-      </div>
       }
     </div>
-  }
 </ion-content>

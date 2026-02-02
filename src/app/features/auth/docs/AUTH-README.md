@@ -69,7 +69,72 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 - `logout()` → muestra confirmación, cierra sesión y redirige a `/auth/login`. Funciona con o sin internet (limpia sesión local)
 - `forceLogout()` → cierra sesión sin confirmación ni loading (uso interno)
 
-### 7. Guards (protección de rutas)
+### 7. Manejo de JWT Expirado
+
+**Archivos:** `core/services/supabase.service.ts`, `core/services/ui.service.ts`
+
+#### Configuración de Expiración
+
+Por defecto, Supabase configura:
+- **Access Token (JWT)**: 1 hora (3600 segundos)
+- **Refresh Token**: 30 días
+
+Supabase intenta renovar el JWT automáticamente, pero el refresh puede fallar si la app está cerrada/inactiva, hay problemas de red, o el refresh token expiró.
+
+#### Detección y Manejo Automático
+
+Cuando una petición de Supabase falla por JWT expirado, `SupabaseService.call()` lo detecta y ejecuta el siguiente flujo:
+
+1. **Detecta el error** → Busca "JWT" + ("expired" o "invalid") en el mensaje
+2. **Formatea el mensaje** → `UiService.formatErrorMessage()` convierte el error técnico a: **"Sesión expirada. Inicia sesión nuevamente."**
+3. **Muestra toast** con el mensaje amigable (3 segundos, color danger)
+4. **Cierra loading** para liberar la UI
+5. **Espera 1.5 segundos** para que el usuario vea el mensaje
+6. **Limpia la sesión**:
+   - Ejecuta `auth.signOut()` en Supabase (ignora errores si no hay red)
+   - Limpia localStorage (`sb-{projectRef}-auth-token`)
+7. **Redirige al login** con `replaceUrl: true` (no permite volver atrás con el botón Atrás)
+
+#### Código Relevante
+
+```typescript
+// supabase.service.ts - método call()
+if (this.isJWTExpiredError(msg)) {
+  await this.ui.showError(msg);
+  await this.ui.hideLoading();
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  await this.handleExpiredSession();
+  return null;
+}
+
+private isJWTExpiredError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes('jwt') && (lower.includes('expired') || lower.includes('invalid'));
+}
+
+private async handleExpiredSession() {
+  this.client.auth.signOut().catch(() => {});
+  localStorage.removeItem(this.STORAGE_KEY);
+  await this.router.navigate(['/auth/login'], { replaceUrl: true });
+}
+```
+
+```typescript
+// ui.service.ts - método formatErrorMessage()
+if (lower.includes('jwt') && (lower.includes('expired') || lower.includes('invalid'))) {
+  return 'Sesión expirada. Inicia sesión nuevamente.';
+}
+```
+
+#### Comportamiento del Usuario
+
+Cuando expira el JWT:
+- ✅ Ve un toast rojo: "Sesión expirada. Inicia sesión nuevamente."
+- ✅ Es redirigido automáticamente al login después de 1.5 segundos
+- ✅ Debe autenticarse nuevamente con Google OAuth
+- ✅ No puede usar el botón "Atrás" para volver a la sesión expirada
+
+### 8. Guards (protección de rutas)
 
 **Archivos:** `core/guards/auth.guard.ts`, `core/guards/public.guard.ts`
 
@@ -90,7 +155,7 @@ Protege el login. Con sesión activa → redirige a `/home`. Aplicado en `auth.r
 
 - **Importante:** `publicGuard` NO se aplica a `/auth/callback` para que el callback siempre se ejecute y valide al empleado
 
-### 8. Datos del usuario en sidebar y configuración
+### 9. Datos del usuario en sidebar y configuración
 
 **Archivos:** `shared/components/sidebar/sidebar.component.ts`, `features/configuracion/pages/main/configuracion.page.ts`
 
@@ -104,7 +169,8 @@ Protege el login. Con sesión activa → redirige a `/home`. Aplicado en `auth.r
 
 | Archivo                                                   | Qué tiene                                                              |
 | --------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `core/services/supabase.service.ts`                       | `signInWithGoogle()` (con `Browser.open()`), `pendingDeepLinkUrl`      |
+| `core/services/supabase.service.ts`                       | `signInWithGoogle()`, `pendingDeepLinkUrl`, detección/manejo JWT expirado |
+| `core/services/ui.service.ts`                             | `formatErrorMessage()` (convierte errores técnicos a mensajes amigables) |
 | `core/guards/auth.guard.ts`                               | Guard para rutas privadas                                              |
 | `core/guards/public.guard.ts`                             | Guard para rutas públicas                                              |
 | `app.component.ts`                                        | `setupDeepLinkListener()` + `Browser.close()` para Android             |
