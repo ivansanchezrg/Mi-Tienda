@@ -26,12 +26,12 @@ Este documento describe el **Sistema de Control de Recargas y Cierre Diario** pa
 
 ### Características Principales
 
-| Característica    | Descripción                          |
-| ----------------- | ------------------------------------ |
+| Característica | Descripción |
+|----------------|-------------|
 | **Transaccional** | Rollback automático en caso de error |
-| **Trazable**      | Cada operación vinculada a su origen |
-| **Validado**      | Múltiples capas de validación        |
-| **Auditado**      | Historial completo de operaciones    |
+| **Trazable** | Cada operación vinculada a su origen |
+| **Validado** | Múltiples capas de validación |
+| **Auditado** | Historial completo de operaciones |
 
 ---
 
@@ -42,27 +42,23 @@ Este documento describe el **Sistema de Control de Recargas y Cierre Diario** pa
 El sistema maneja 4 cajas independientes con propósitos específicos:
 
 #### 🏦 CAJA (Principal)
-
 - **Propósito**: Caja principal de la tienda
 - **Recibe**: Efectivo de ventas diarias
 - **Transfiere**: $20 diarios a CAJA_CHICA
 - **Tipo**: Efectivo físico
 
 #### 💰 CAJA_CHICA
-
 - **Propósito**: Gastos menores y operativos
 - **Recibe**: $20 diarios de CAJA (automático)
 - **Recibe**: Comisiones de proveedores (manual)
 - **Tipo**: Efectivo físico
 
 #### 📱 CAJA_CELULAR
-
 - **Propósito**: Control de efectivo de recargas celular
 - **Recibe**: Efectivo de ventas de recargas celular
 - **Tipo**: Efectivo físico
 
 #### 🚌 CAJA_BUS
-
 - **Propósito**: Control de efectivo de recargas bus
 - **Recibe**: Efectivo de ventas de recargas bus
 - **Tipo**: Efectivo físico
@@ -79,55 +75,51 @@ erDiagram
 ```
 
 #### 📋 `cierres_diarios`
-
 Registro maestro de cada cierre diario (uno por día).
 
-| Campo                      | Descripción              |
-| -------------------------- | ------------------------ |
-| `id`                       | UUID único del cierre    |
-| `fecha`                    | Fecha del cierre (única) |
-| `empleado_id`              | Quién realizó el cierre  |
-| `efectivo_recaudado`       | Efectivo total del día   |
-| `transferencia_caja_chica` | Monto transferido ($20)  |
-| `observaciones`            | Notas del cierre         |
+| Campo | Descripción |
+|-------|-------------|
+| `id` | UUID único del cierre |
+| `fecha` | Fecha del cierre (única) |
+| `empleado_id` | Quién realizó el cierre |
+| `efectivo_recaudado` | Efectivo total del día |
+| `transferencia_caja_chica` | Monto transferido ($20) |
+| `observaciones` | Notas del cierre |
 
 #### 📊 `recargas`
-
 Control diario de saldo virtual por servicio.
 
-| Campo                    | Descripción            |
-| ------------------------ | ---------------------- |
-| `id`                     | UUID único             |
-| `fecha`                  | Fecha del registro     |
-| `tipo_servicio_id`       | Bus o Celular          |
-| `venta_dia`              | Venta del día          |
+| Campo | Descripción |
+|-------|-------------|
+| `id` | UUID único |
+| `fecha` | Fecha del registro |
+| `tipo_servicio_id` | Bus o Celular |
+| `venta_dia` | Venta del día |
 | `saldo_virtual_anterior` | Saldo del día anterior |
-| `saldo_virtual_actual`   | Saldo resultante       |
-| `validado`               | Validación matemática  |
+| `saldo_virtual_actual` | Saldo resultante |
+| `validado` | Validación matemática |
 
 #### 🔍 `operaciones_cajas`
-
 Auditoría completa de todas las operaciones.
 
-| Campo                | Descripción           |
-| -------------------- | --------------------- |
-| `id`                 | UUID único            |
-| `caja_id`            | Caja afectada         |
-| `tipo_operacion`     | INGRESO, EGRESO, etc. |
-| `monto`              | Monto de la operación |
-| `saldo_anterior`     | Saldo ANTES           |
-| `saldo_actual`       | Saldo DESPUÉS         |
+| Campo | Descripción |
+|-------|-------------|
+| `id` | UUID único |
+| `caja_id` | Caja afectada |
+| `tipo_operacion` | INGRESO, EGRESO, etc. |
+| `monto` | Monto de la operación |
+| `saldo_anterior` | Saldo ANTES |
+| `saldo_actual` | Saldo DESPUÉS |
 | `tipo_referencia_id` | FK a tipos_referencia |
-| `referencia_id`      | UUID del origen       |
+| `referencia_id` | UUID del origen |
 
 #### 🏷️ `tipos_referencia`
-
 Catálogo de tablas que originan operaciones.
 
-| Código            | Tabla             | Descripción             |
-| ----------------- | ----------------- | ----------------------- |
-| `RECARGAS`        | `recargas`        | Operaciones de recargas |
-| `CIERRES_DIARIOS` | `cierres_diarios` | Operaciones del cierre  |
+| Código | Tabla | Descripción |
+|--------|-------|-------------|
+| `RECARGAS` | `recargas` | Operaciones de recargas |
+| `CIERRES_DIARIOS` | `cierres_diarios` | Operaciones del cierre |
 
 ---
 
@@ -138,13 +130,11 @@ Catálogo de tablas que originan operaciones.
 El **saldo virtual** representa el crédito disponible en las plataformas de recargas (Bus/Celular).
 
 **Fórmula básica:**
-
 ```
 Saldo Virtual Actual = Saldo Virtual Anterior - Venta del Día
 ```
 
 **Ejemplo:**
-
 ```
 Saldo anterior: $440.80
 Venta del día:  $154.80
@@ -155,13 +145,11 @@ Saldo actual:   $286.00
 ### 3.2. Validación de Recargas
 
 Cada registro se valida con:
-
 ```
 Venta del Día + Saldo Virtual Actual = Saldo Virtual Anterior
 ```
 
 **Ejemplo:**
-
 ```
 $154.80 + $286.00 = $440.80 ✅
 ```
@@ -169,13 +157,11 @@ $154.80 + $286.00 = $440.80 ✅
 ### 3.3. Tipos de Servicio
 
 #### 🚌 Bus
-
 - **Fondo Base**: $500
 - **Comisión**: 1% mensual
 - **Frecuencia Recarga**: Semanal
 
 #### 📱 Celular
-
 - **Fondo Base**: $200
 - **Comisión**: 5% semanal
 - **Frecuencia Recarga**: Semanal
@@ -212,7 +198,6 @@ flowchart TD
 5. Si no existe → Navega a página de cierre
 
 **Código:**
-
 ```typescript
 const fechaLocal = this.recargasService.getFechaLocal();
 const existeCierre = await this.recargasService.existeCierreDiario();
@@ -224,21 +209,18 @@ if (existeCierre) {
 #### **Paso 2: Captura de Datos**
 
 Usuario ingresa en el formulario:
-
 - Saldo Virtual Celular Final
 - Saldo Virtual Bus Final
 - Efectivo Total Recaudado
 - Observaciones (opcional)
 
 Sistema calcula automáticamente:
-
 - Venta Celular = Saldo Anterior - Saldo Final
 - Venta Bus = Saldo Anterior - Saldo Final
 
 #### **Paso 3: Verificación**
 
 Sistema muestra:
-
 - Ventas calculadas
 - Saldos finales de las 4 cajas
 - Operaciones que se realizarán
@@ -311,26 +293,24 @@ Capacidad de rastrear **el origen exacto** de cada movimiento de dinero en las c
 ### 5.2. Implementación
 
 Cada operación en `operaciones_cajas` tiene:
-
 - `tipo_referencia_id`: Qué tabla la originó
 - `referencia_id`: Qué registro específico
 
 ### 5.3. Mapeo de Referencias
 
-| Operación          | Tipo Referencia | Referencia ID        | Tabla Origen      |
-| ------------------ | --------------- | -------------------- | ----------------- |
-| Efectivo ventas    | CIERRES_DIARIOS | UUID del cierre      | `cierres_diarios` |
-| Transferencia -$20 | CIERRES_DIARIOS | UUID del cierre      | `cierres_diarios` |
-| Transferencia +$20 | CIERRES_DIARIOS | UUID del cierre      | `cierres_diarios` |
-| Ingreso celular    | RECARGAS        | UUID recarga celular | `recargas`        |
-| Ingreso bus        | RECARGAS        | UUID recarga bus     | `recargas`        |
+| Operación | Tipo Referencia | Referencia ID | Tabla Origen |
+|-----------|-----------------|---------------|--------------|
+| Efectivo ventas | CIERRES_DIARIOS | UUID del cierre | `cierres_diarios` |
+| Transferencia -$20 | CIERRES_DIARIOS | UUID del cierre | `cierres_diarios` |
+| Transferencia +$20 | CIERRES_DIARIOS | UUID del cierre | `cierres_diarios` |
+| Ingreso celular | RECARGAS | UUID recarga celular | `recargas` |
+| Ingreso bus | RECARGAS | UUID recarga bus | `recargas` |
 
 ### 5.4. Ejemplo de Trazabilidad
 
 **Pregunta:** ¿De dónde vienen los $59.15 en CAJA_CELULAR?
 
 **Respuesta:**
-
 ```sql
 SELECT
   o.monto,
@@ -361,7 +341,6 @@ WHERE o.id = 'operacion-uuid';
 **Problema:** `new Date().toISOString()` usa UTC, puede dar fecha +1.
 
 **Solución:** Función `getFechaLocal()`
-
 ```typescript
 getFechaLocal(): string {
   const now = new Date();
@@ -383,13 +362,11 @@ getFechaLocal(): string {
 ### 6.3. Validación de Consistencia
 
 **En recargas:**
-
 ```sql
 validado = (venta_dia + saldo_virtual_actual = saldo_virtual_anterior)
 ```
 
 **En operaciones:**
-
 ```sql
 saldo_actual = saldo_anterior ± monto
 ```
@@ -404,7 +381,6 @@ saldo_actual = saldo_anterior ± monto
 **Empleado:** Ivan Sanchez
 
 **Saldos Anteriores (antes del cierre):**
-
 - Saldo Virtual Celular: $135.15
 - Saldo Virtual Bus: $440.80
 - CAJA: $0.00
@@ -415,7 +391,6 @@ saldo_actual = saldo_anterior ± monto
 ### Paso 1: Usuario Ingresa Datos
 
 Usuario registra:
-
 - Saldo Virtual Celular Final: **$76.00**
 - Saldo Virtual Bus Final: **$286.00**
 - Efectivo Total Recaudado: **$500.00**
@@ -423,14 +398,12 @@ Usuario registra:
 ### Paso 2: Sistema Calcula
 
 **Ventas:**
-
 ```
 Venta Celular = $135.15 - $76.00 = $59.15
 Venta Bus = $440.80 - $286.00 = $154.80
 ```
 
 **Saldos Finales Cajas:**
-
 ```
 CAJA = $0.00 + $500.00 - $20.00 = $480.00
 CAJA_CHICA = $0.00 + $20.00 = $20.00
@@ -441,7 +414,6 @@ CAJA_BUS = $264.85 + $154.80 = $419.65
 ### Paso 3: Sistema Ejecuta
 
 #### 3.1. Crea Cierre Diario
-
 ```sql
 INSERT INTO cierres_diarios VALUES (
   'uuid-cierre-123',
@@ -455,7 +427,6 @@ INSERT INTO cierres_diarios VALUES (
 ```
 
 #### 3.2. Crea Recargas
-
 ```sql
 INSERT INTO recargas VALUES
 ('uuid-rec-celular-456', '2026-02-02', 1, 1, 59.15, 135.15, 76.00, TRUE, NULL),
@@ -463,7 +434,6 @@ INSERT INTO recargas VALUES
 ```
 
 #### 3.3. Crea Operaciones
-
 ```sql
 -- 1. CAJA: INGRESO
 INSERT INTO operaciones_cajas VALUES (
@@ -507,7 +477,6 @@ INSERT INTO operaciones_cajas VALUES (
 ```
 
 #### 3.4. Actualiza Saldos
-
 ```sql
 UPDATE cajas SET saldo_actual = 480.00 WHERE id = 1;    -- CAJA
 UPDATE cajas SET saldo_actual = 20.00 WHERE id = 2;     -- CAJA_CHICA
@@ -519,15 +488,14 @@ UPDATE cajas SET saldo_actual = 419.65 WHERE id = 4;    -- CAJA_BUS
 
 **Estado del Sistema:**
 
-| Tabla               | Registros Nuevos  |
-| ------------------- | ----------------- |
-| `cierres_diarios`   | 1                 |
-| `recargas`          | 2 (Celular + Bus) |
-| `operaciones_cajas` | 5                 |
-| `cajas`             | 4 (actualizados)  |
+| Tabla | Registros Nuevos |
+|-------|------------------|
+| `cierres_diarios` | 1 |
+| `recargas` | 2 (Celular + Bus) |
+| `operaciones_cajas` | 5 |
+| `cajas` | 4 (actualizados) |
 
 **Saldos Finales:**
-
 - ✅ CAJA: $480.00
 - ✅ CAJA_CHICA: $20.00
 - ✅ CAJA_CELULAR: $218.35
@@ -635,14 +603,11 @@ ORDER BY fecha DESC, c.nombre;
 **Causa:** Intentando hacer cierre duplicado.
 
 **Solución:**
-
 1. Verificar en Supabase:
-   
    ```sql
    SELECT * FROM recargas WHERE fecha = CURRENT_DATE;
    ```
 2. Si necesitas rehacerlo, eliminar:
-   
    ```sql
    DELETE FROM operaciones_cajas WHERE DATE(fecha) = CURRENT_DATE;
    DELETE FROM recargas WHERE fecha = CURRENT_DATE;
@@ -654,7 +619,6 @@ ORDER BY fecha DESC, c.nombre;
 **Causa:** Problema de zona horaria (UTC vs local).
 
 **Solución:** Ya implementada con `getFechaLocal()`. Hacer:
-
 ```bash
 npx cap sync android
 ```
@@ -664,7 +628,6 @@ npx cap sync android
 **Causa:** `tipo_referencia_id` o `referencia_id` es NULL.
 
 **Investigar:**
-
 ```sql
 SELECT * FROM operaciones_cajas
 WHERE tipo_referencia_id IS NULL
@@ -676,7 +639,6 @@ WHERE tipo_referencia_id IS NULL
 ### 9.4. Saldos Descuadrados
 
 **Verificar consistencia:**
-
 ```sql
 -- Verificar que saldo en cajas coincida con última operación
 SELECT
@@ -715,12 +677,16 @@ WHERE c.saldo_actual != o.saldo_actual OR o.saldo_actual IS NULL;
 
 ### Archivos Relacionados
 
-- `schema_inicial_completo.sql` - Schema de base de datos
-- `funcion_cierre_diario.md` - Documentación de función PostgreSQL
-- `proceso_recargas.md` - Este documento
+**Documentacion de Base de Datos:**
+- 🗄️ [Schema de Base de Datos](../../../../doc/schema_inicial_completo.sql) - Estructura completa de tablas
+- ⚙️ [Funcion PostgreSQL](./funcion_cierre_diario.md) - Funcion transaccional `ejecutar_cierre_diario()`
+
+**Documentacion Tecnica:**
+- 💻 [Dashboard README](./DASHBOARD-README.md) - Documentacion tecnica de componentes y patrones
+- 🔧 [Recargas Service](../services/recargas.service.ts) - Servicio principal
 
 ---
 
-**Fecha de Actualización:** 2026-02-02
-**Versión:** 3.0 (Sistema Completo con Trazabilidad)
+**Fecha de Actualizacion:** 2026-02-02
+**Version:** 3.0 (Sistema Completo con Trazabilidad)
 **Autor:** Sistema Mi Tienda

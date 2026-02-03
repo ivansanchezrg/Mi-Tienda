@@ -17,13 +17,11 @@
       <ion-icon [name]="cajaAbierta ? 'checkmark-circle' : 'close-circle'"></ion-icon>
       <span class="status-text">{{ cajaAbierta ? 'Caja Abierta' : 'Caja Cerrada' }}</span>
     </div>
-    <span class="status-date">{{ fechaActual }}</span>
   </div>
 
   <div class="section-header">
     <div class="header-left">
       <h3>Cuentas</h3>
-      <span class="sub-info">Último cierre: {{ fechaUltimoCierre }}</span>
     </div>
     <div class="header-right">
       <span class="total-amount">${{ totalEfectivo | number:'1.2-2' }}</span>
@@ -45,7 +43,7 @@
           </div>
           <span class="type">Efectivo</span>
         </div>
-        <span class="account-amount">${{ saldos.caja | number:'1.2-2' }}</span>
+        <span class="account-amount">${{ saldoCaja | number:'1.2-2' }}</span>
       </button>
 
       <div class="divider"></div>
@@ -61,7 +59,7 @@
           </div>
           <span class="type">Gastos menores</span>
         </div>
-        <span class="account-amount">${{ saldos.cajaChica | number:'1.2-2' }}</span>
+        <span class="account-amount">${{ saldoCajaChica | number:'1.2-2' }}</span>
       </button>
 
       <div class="divider"></div>
@@ -77,7 +75,7 @@
           </div>
           <span class="type">Saldo digital</span>
         </div>
-        <span class="account-amount">${{ saldos.celular | number:'1.2-2' }}</span>
+        <span class="account-amount">${{ saldoCelular | number:'1.2-2' }}</span>
       </button>
 
       <div class="divider"></div>
@@ -93,7 +91,7 @@
           </div>
           <span class="type">Saldo digital</span>
         </div>
-        <span class="account-amount">${{ saldos.bus | number:'1.2-2' }}</span>
+        <span class="account-amount">${{ saldoBus | number:'1.2-2' }}</span>
       </button>
 
     </div>
@@ -147,9 +145,9 @@
   <div class="footer-action">
     <div class="shift-card" [ngClass]="cajaAbierta ? 'is-open' : 'is-closed'">
       <div class="shift-text">
-        <span class="shift-label">{{ cajaAbierta ? 'Turno en curso' : 'Turno finalizado' }}</span>
+        <span class="shift-label">{{ cajaAbierta ? 'Cierre Diario' : 'Turno finalizado' }}</span>
         @if (cajaAbierta) {
-          <span class="shift-detail">Apertura: {{ horaApertura }} ({{ empleadoApertura }})</span>
+          <span class="shift-detail">Apertura: {{ horaApertura }} ({{ nombreUsuario }})</span>
         } @else {
           <span class="shift-detail">Listo para abrir nuevo día</span>
         }

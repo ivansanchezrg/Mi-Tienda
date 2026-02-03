@@ -14,6 +14,9 @@ import {
   receiptOutline, clipboardOutline
 } from 'ionicons/icons';
 import { ScrollablePage } from '@core/pages/scrollable.page';
+import { UiService } from '@core/services/ui.service';
+import { RecargasService } from '../../services/recargas.service';
+import { CajasService } from '../../services/cajas.service';
 
 @Component({
   selector: 'app-home',
@@ -29,21 +32,22 @@ import { ScrollablePage } from '@core/pages/scrollable.page';
 })
 export class HomePage extends ScrollablePage {
   private router = inject(Router);
+  private ui = inject(UiService);
+  private recargasService = inject(RecargasService);
+  private cajasService = inject(CajasService);
 
   cajaAbierta = true;
-  fechaActual = '29 Enero 2026';
+
+  // Saldos de cajas (se cargan desde BD)
+  saldoCaja = 0;
+  saldoCajaChica = 0;
+  saldoCelular = 0;
+  saldoBus = 0;
+  totalSaldos = 0;
+
+  // Usuario actual
+  nombreUsuario = '';
   horaApertura = '7:00 AM';
-  empleadoApertura = 'Carlos M.';
-
-  saldos = {
-    caja: 1250.50,
-    cajaChica: 320.00,
-    celular: 480.75,
-    bus: 150.00
-  };
-
-  fechaUltimoCierre = '24 Enero 2026';
-  horaUltimoCierre = '8:30 PM';
 
   constructor() {
     super();
@@ -55,33 +59,75 @@ export class HomePage extends ScrollablePage {
     });
   }
 
-  get totalEfectivo(): number {
-    return this.saldos.caja + this.saldos.cajaChica + this.saldos.celular + this.saldos.bus;
+  override ionViewWillEnter(): void {
+    super.ionViewWillEnter();
+    this.cargarSaldos();
   }
 
-  handleRefresh(event: any) {
-    setTimeout(() => {
-      event.target.complete();
-    }, 1500);
+  /**
+   * Carga los saldos actuales de todas las cajas desde la BD
+   */
+  async cargarSaldos() {
+    const saldos = await this.cajasService.obtenerSaldosCajas();
+
+    if (saldos) {
+      this.saldoCaja = saldos.cajaPrincipal;
+      this.saldoCajaChica = saldos.cajaChica;
+      this.saldoCelular = saldos.cajaCelular;
+      this.saldoBus = saldos.cajaBus;
+      this.totalSaldos = saldos.total;
+    }
+
+    // Cargar usuario actual
+    const user = await this.recargasService.obtenerEmpleadoActual();
+    this.nombreUsuario = user?.nombre || 'Usuario';
+  }
+
+  get totalEfectivo(): number {
+    return this.totalSaldos;
+  }
+
+  async handleRefresh(event: any) {
+    await this.cargarSaldos();
+    event.target.complete();
   }
 
   onSaldoClick(tipo: string) {
-    console.log('Saldo click:', tipo);
+    // TODO: Implementar navegación a detalle de caja
   }
 
   onOperacion(tipo: string) {
-    console.log('Operación:', tipo);
+    // TODO: Implementar operaciones (ingreso, egreso, transferencia, gasto)
   }
 
   onCuadre() {
-    console.log('Cuadre de caja');
+    // TODO: Implementar cuadre de caja
   }
 
-  onCerrarDia() {
-    this.router.navigate(['/home/cierre-diario']);
+  /**
+   * Navega a la página de cierre diario
+   * Primero verifica si ya existe un cierre para la fecha actual
+   */
+  async onCerrarDia() {
+    await this.ui.showLoading('Verificando...');
+
+    try {
+      const existeCierre = await this.recargasService.existeCierreDiario();
+      await this.ui.hideLoading();
+
+      if (existeCierre) {
+        await this.ui.showToast('Ya existe un cierre registrado para el día de hoy', 'warning');
+        return;
+      }
+
+      await this.router.navigate(['/home/cierre-diario']);
+    } catch (error) {
+      await this.ui.hideLoading();
+      await this.ui.showError('Error al verificar el cierre diario');
+    }
   }
 
   onAbrirDia() {
-    console.log('Abrir día');
+    // TODO: Implementar apertura de día
   }
 }

@@ -13,7 +13,7 @@ Aplicación móvil híbrida para gestión de tienda, desarrollada con Ionic Angu
 ### Por Módulo
 
 - **[Auth](src/app/features/auth/docs/AUTH-README.md)** - Autenticación con Google OAuth (Supabase + Deep Links)
-- **[Dashboard](src/app/features/dashboard/docs/DASHBOARD-README.md)** - Home, Cierre Diario, Cuadre de Caja
+- **[Dashboard](src/app/features/dashboard/docs/DASHBOARD-README.md)** - Home, Cierre Diario (incluye proceso de recargas, sistema de 4 cajas y trazabilidad completa)
 
 ## 🚀 Stack Tecnológico
 
