@@ -8,7 +8,7 @@ Función que ejecuta el cierre diario completo en una **transacción atómica**.
 
 - ✅ **Transacción atómica**: Todo o nada (rollback automático en caso de error)
 - ✅ **Validación de duplicados**: Previene cierres duplicados para la misma fecha
-- ✅ **5 operaciones en cajas**: Registra todas las operaciones del día
+- ✅ **6 operaciones en cajas**: Registra todas las operaciones del día (incluye CIERRE de turno)
 - ✅ **2 registros de recargas**: Celular y Bus
 - ✅ **4 actualizaciones de saldos**: Actualiza todas las cajas
 - ✅ **Respuesta JSON**: Retorna información detallada del resultado
@@ -62,7 +62,7 @@ Retorna un objeto JSON con la siguiente estructura:
 5. **Cálculos**: Calcula ventas y saldos finales
 6. **Cierre Diario**: Crea registro maestro en `cierres_diarios` y captura UUID
 7. **Recargas**: Inserta 2 registros en tabla `recargas` y captura sus UUIDs
-8. **Operaciones**: Inserta 5 registros en tabla `operaciones_cajas` con referencias
+8. **Operaciones**: Inserta 6 registros en tabla `operaciones_cajas` con referencias (incluye CIERRE de turno)
 9. **Actualización**: Actualiza saldos en tabla `cajas`
 10. **Resultado**: Retorna JSON con información del cierre
 
@@ -247,6 +247,17 @@ BEGIN
     p_saldo_anterior_caja_bus, v_saldo_final_caja_bus,
     v_tipo_ref_recargas_id, v_recarga_bus_id,
     'Venta de recargas bus'
+  );
+
+  -- CAJA: CIERRE (cierre de turno) - Referencia al cierre diario
+  INSERT INTO operaciones_cajas (
+    caja_id, empleado_id, tipo_operacion, monto,
+    saldo_anterior, saldo_actual, tipo_referencia_id, referencia_id, descripcion
+  ) VALUES (
+    v_caja_id, p_empleado_id, 'CIERRE', 0,
+    v_saldo_final_caja, v_saldo_final_caja,
+    v_tipo_ref_cierres_id, v_cierre_diario_id,
+    'Cierre de turno'
   );
 
   -- 11. Actualizar saldos en cajas

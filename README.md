@@ -33,10 +33,10 @@ El fondo principal de la app es un **gris sutil**, lo que permite que los cards 
 
 **Variables clave** (`src/theme/variables.scss`):
 
-| Variable | Light Mode | Dark Mode | Uso |
-|----------|------------|-----------|-----|
-| `--ion-background-color` | `#f4f5f8` | `#121212` | Fondo de páginas |
-| `--ion-item-background` | `#ffffff` | `#1e1e1e` | Cards, items, elementos destacados |
+| Variable                 | Light Mode | Dark Mode | Uso                                |
+| ------------------------ | ---------- | --------- | ---------------------------------- |
+| `--ion-background-color` | `#f4f5f8`  | `#121212` | Fondo de páginas                   |
+| `--ion-item-background`  | `#ffffff`  | `#1e1e1e` | Cards, items, elementos destacados |
 
 **Uso en componentes:**
 
@@ -244,16 +244,19 @@ Directiva que valida entrada permitiendo solo números, punto y coma (ideal para
 ```
 
 **Caracteres permitidos:**
+
 - Números: `0-9`
 - Punto: `.`
 - Coma: `,`
 
 **Previene:**
+
 - Letras (a-z, A-Z)
 - Espacios
 - Caracteres especiales (@, #, $, etc.)
 
 **Características:**
+
 - Valida en tiempo real (keydown + input)
 - Limpia texto pegado automáticamente
 - Mantiene posición del cursor
@@ -375,6 +378,170 @@ async showError(message: string) {
   await toast.present();
 }
 ```
+
+---
+
+## 💡 Mejores Prácticas
+
+### Loading y Navegación
+
+**⚠️ Problema Común:** Al ejecutar operaciones con loading y luego navegar a otra página, el contador de loading puede desbalancearse, causando que el loading se quede trabado hasta el timeout (12-15 segundos).
+
+**✅ Solución:** Siempre cerrar el loading ANTES de navegar.
+
+**Ejemplo incorrecto:**
+```typescript
+async ejecutarOperacion() {
+  await this.ui.showLoading('Procesando...');
+  try {
+    await this.service.operacion();
+    await this.ui.showSuccess('Éxito');
+    await this.router.navigate(['/home']); // ❌ Navega antes de cerrar loading
+  } finally {
+    await this.ui.hideLoading(); // ❌ Demasiado tarde
+  }
+}
+```
+
+**Ejemplo correcto:**
+```typescript
+async ejecutarOperacion() {
+  await this.ui.showLoading('Procesando...');
+  try {
+    await this.service.operacion();
+
+    // ✅ 1. Cerrar loading PRIMERO
+    await this.ui.hideLoading();
+
+    // ✅ 2. Mostrar toast de éxito
+    await this.ui.showSuccess('Éxito');
+
+    // ✅ 3. Pequeño delay para asegurar que UI procese el cierre
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // ✅ 4. Navegar al final
+    await this.router.navigate(['/home']);
+  } catch (error) {
+    await this.ui.hideLoading();
+    await this.ui.showError('Error en la operación');
+  }
+}
+```
+
+### Consultas en Paralelo
+
+**⚠️ Problema Común:** Hacer múltiples consultas secuencialmente causa loadings múltiples y es más lento.
+
+**✅ Solución:** Usar `Promise.all()` para ejecutar consultas independientes en paralelo.
+
+**Ejemplo incorrecto:**
+```typescript
+async cargarDatos() {
+  const usuarios = await this.service.getUsuarios();    // Loading 1
+  const productos = await this.service.getProductos();  // Loading 2
+  const ventas = await this.service.getVentas();        // Loading 3
+  // Total: 3 loadings seguidos, más lento
+}
+```
+
+**Ejemplo correcto:**
+```typescript
+async cargarDatos() {
+  // ✅ Una sola consulta paralela, un solo loading
+  const [usuarios, productos, ventas] = await Promise.all([
+    this.service.getUsuarios(),
+    this.service.getProductos(),
+    this.service.getVentas()
+  ]);
+  // Total: 1 loading, más rápido
+}
+```
+
+**Ventajas:**
+- ⚡ Más rápido (consultas simultáneas)
+- 🎨 Mejor UX (un solo loading)
+- 🧠 El UiService maneja el contador automáticamente
+
+### Refrescar Tabs Condicionalmente
+
+**⚠️ Problema Común:** Con tabs en Ionic, las páginas quedan en caché. Necesitas que una tab se refresque después de ciertos procesos (ej: cierre diario), pero NO en navegación normal (para no molestar al usuario).
+
+**✅ Solución:** Usar query params para señalizar cuándo refrescar, combinado con pull-to-refresh para actualizaciones manuales.
+
+**Paso 1: Navegar con query param desde la página del proceso**
+
+```typescript
+// En cierre-diario.page.ts (o cualquier proceso que requiera refresh)
+async ejecutarCierre() {
+  await this.ui.showLoading('Guardando cierre...');
+  try {
+    await this.recargasService.ejecutarCierreDiario({...});
+
+    await this.ui.hideLoading();
+    await this.ui.showSuccess('Cierre guardado correctamente');
+
+    // ✅ Navegar con query param para señalizar refresh
+    await this.router.navigate(['/home'], {
+      queryParams: { refresh: Date.now() }
+    });
+  } catch (error) {
+    await this.ui.hideLoading();
+    await this.ui.showError('Error al guardar el cierre');
+  }
+}
+```
+
+**Paso 2: Detectar query param en la tab y refrescar**
+
+```typescript
+// En home.page.ts (la tab que debe refrescarse)
+export class HomePage extends ScrollablePage implements OnInit {
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+
+  async ngOnInit() {
+    // Carga inicial (solo una vez al crear el componente)
+    await this.cargarDatos();
+  }
+
+  override async ionViewWillEnter(): Promise<void> {
+    super.ionViewWillEnter();
+
+    // ✅ Verificar si viene con señal de refresh
+    const refresh = this.route.snapshot.queryParams['refresh'];
+    if (refresh) {
+      // 1. Limpiar query param PRIMERO (evita loops)
+      await this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {},
+        replaceUrl: true
+      });
+
+      // 2. Refrescar datos
+      await this.cargarDatos();
+    }
+  }
+
+  // Pull-to-refresh para actualizaciones manuales
+  async handleRefresh(event: any) {
+    await this.cargarDatos();
+    event.target.complete();
+  }
+}
+```
+
+**Flujo resultante:**
+- ✅ **Después de cierre**: Home se refresca automáticamente
+- ✅ **Navegación normal** (Configuración → Home): NO refresca, evita molestias
+- ✅ **Pull-to-refresh**: Siempre disponible para actualizaciones manuales
+
+**¿Por qué funciona?**
+- Ionic cachea las tabs, por eso `ngOnInit` solo se ejecuta una vez
+- `ionViewWillEnter` se ejecuta cada vez que se activa la tab
+- Query params permiten señalizar cuándo es necesario refrescar
+- Limpiar el param primero evita que se refresque en la próxima navegación
+
+---
 
 ## 📱 Comandos Principales
 

@@ -62,12 +62,68 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 
 **Archivo:** `features/auth/services/auth.service.ts`
 
+#### Métodos de Sesión
+
 - `hasLocalSession()` → verifica si hay sesión guardada en localStorage (sin llamada de red). Útil para soporte offline
 - `getSession()` → retorna la sesión actual de Supabase o null
 - `getUser()` → retorna el usuario actual o null
-- `validateEmployee()` → consulta tabla `empleados` por email. Retorna `true` si existe y `activo = true`. Si no, muestra error, cierra sesión y redirige al login
-- `logout()` → muestra confirmación, cierra sesión y redirige a `/auth/login`. Funciona con o sin internet (limpia sesión local)
-- `forceLogout()` → cierra sesión sin confirmación ni loading (uso interno)
+- `validateEmployee()` → consulta tabla `empleados` por email. Retorna `true` si existe y `activo = true`. Si no, muestra error, cierra sesión y redirige al login. **Después de validar, guarda automáticamente el empleado en Preferences**
+- `logout()` → muestra confirmación, cierra sesión y redirige a `/auth/login`. Funciona con o sin internet (limpia sesión local y Preferences)
+- `forceLogout()` → cierra sesión sin confirmación ni loading (uso interno). Limpia sesión local y Preferences
+
+#### Métodos de Empleado Actual (Capacitor Preferences)
+
+**Nuevo sistema de caché local para evitar consultas repetidas a la base de datos:**
+
+- `getEmpleadoActual()` → Obtiene el empleado actual desde **Capacitor Preferences** (lectura local, instantánea). No hace consultas a la BD. Retorna `null` si no hay empleado guardado.
+
+**Interfaz EmpleadoActual:**
+
+```typescript
+export interface EmpleadoActual {
+  id: number;
+  nombre: string;
+  usuario: string;
+  activo: boolean;
+}
+```
+
+**¿Cuándo se guarda automáticamente?**
+
+Al iniciar sesión exitosamente, `validateEmployee()` consulta la tabla `empleados` UNA SOLA VEZ y guarda los datos en Preferences. A partir de ahí, todos los módulos pueden usar `getEmpleadoActual()` sin consultar Supabase.
+
+**¿Cuándo se limpia automáticamente?**
+
+Al cerrar sesión (tanto `logout()` como `forceLogout()`), se limpian automáticamente las Preferences.
+
+**Ejemplo de uso en otros módulos:**
+
+```typescript
+import { AuthService } from '../../../auth/services/auth.service';
+
+export class HomePage {
+  private authService = inject(AuthService);
+
+  async cargarDatos() {
+    // Lectura instantánea, sin consulta a BD
+    const empleado = await this.authService.getEmpleadoActual();
+
+    if (empleado) {
+      console.log('ID:', empleado.id);
+      console.log('Nombre:', empleado.nombre);
+      console.log('Email:', empleado.usuario);
+    }
+  }
+}
+```
+
+**Ventajas:**
+
+- ⚡ **10x más rápido** - Lectura local vs consulta HTTP a Supabase
+- 📱 **Funciona offline** - Datos guardados en el dispositivo
+- 💾 **Ahorra ancho de banda** - No consulta BD repetidamente
+- 🔋 **Ahorra batería** - Menos operaciones de red
+- 🎯 **Automático** - Se guarda al login, se limpia al logout
 
 ### 7. Manejo de JWT Expirado
 
@@ -177,7 +233,7 @@ Protege el login. Con sesión activa → redirige a `/home`. Aplicado en `auth.r
 | `app.routes.ts`                                           | `authGuard` aplicado a layout                                          |
 | `features/auth/pages/login/login.page.ts`                 | UI de login + botón Google                                             |
 | `features/auth/pages/callback/callback.page.ts`           | Procesa tokens web y Android                                           |
-| `features/auth/services/auth.service.ts`                  | `hasLocalSession()`, `getSession()`, `getUser()`, `validateEmployee()`, `logout()` |
+| `features/auth/services/auth.service.ts`                  | `hasLocalSession()`, `getSession()`, `getUser()`, `validateEmployee()`, `logout()`, **`getEmpleadoActual()`** (Preferences) |
 | `features/auth/auth.routes.ts`                            | Rutas `/auth/login` (con `publicGuard`) y `/auth/callback` (sin guard) |
 | `shared/components/sidebar/sidebar.component.ts`          | Muestra datos del usuario, logout                                      |
 | `features/configuracion/pages/main/configuracion.page.ts` | Muestra datos del usuario, logout                                      |

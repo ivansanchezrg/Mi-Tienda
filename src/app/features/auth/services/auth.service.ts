@@ -1,9 +1,11 @@
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController } from '@ionic/angular/standalone';
+import { Preferences } from '@capacitor/preferences';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { UiService } from '../../../core/services/ui.service';
 import { environment } from '../../../../environments/environment';
+import { EmpleadoActual } from '../models/empleado_actual.model';
 
 @Injectable({
   providedIn: 'root'
@@ -16,6 +18,7 @@ export class AuthService {
 
   // Key de storage de Supabase: sb-{projectRef}-auth-token
   private readonly STORAGE_KEY: string;
+  private readonly EMPLEADO_KEY = 'empleado_actual';
 
   constructor() {
     const projectRef = environment.supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || '';
@@ -54,6 +57,7 @@ export class AuthService {
    * Valida que el email del usuario logueado exista en la tabla empleados y esté activo.
    * Retorna true si es válido, false si no.
    * Si no es válido, cierra sesión automáticamente.
+   * Si es válido, guarda los datos del empleado en Preferences para acceso rápido.
    */
   async validateEmployee(): Promise<boolean> {
     const user = await this.getUser();
@@ -64,7 +68,7 @@ export class AuthService {
 
     const { data, error } = await this.supabase.client
       .from('empleados')
-      .select('id, activo')
+      .select('id, nombre, usuario, activo')
       .eq('usuario', user.email)
       .single();
 
@@ -80,6 +84,9 @@ export class AuthService {
       return false;
     }
 
+    // Guardar empleado en Preferences para acceso rápido sin consultar BD
+    await this.saveEmpleadoActual(data);
+
     return true;
   }
 
@@ -87,6 +94,7 @@ export class AuthService {
   private async forceLogout() {
     await this.supabase.client.auth.signOut();
     localStorage.removeItem(this.STORAGE_KEY);
+    await this.clearEmpleadoActual();
     this.router.navigate(['/auth/login'], { replaceUrl: true });
   }
 
@@ -118,9 +126,48 @@ export class AuthService {
 
     // Forzar limpieza de sesión local por si signOut falla sin internet
     localStorage.removeItem(this.STORAGE_KEY);
+    await this.clearEmpleadoActual();
 
     await this.ui.hideLoading();
 
     this.router.navigate(['/auth/login'], { replaceUrl: true });
+  }
+
+  // ==========================================
+  // MÉTODOS DE EMPLEADO ACTUAL (Preferences)
+  // ==========================================
+
+  /**
+   * Obtiene el empleado actual desde Preferences (lectura local, muy rápida).
+   * No hace consultas a la BD.
+   * Retorna null si no hay empleado guardado.
+   */
+  async getEmpleadoActual(): Promise<EmpleadoActual | null> {
+    try {
+      const { value } = await Preferences.get({ key: this.EMPLEADO_KEY });
+      if (!value) return null;
+      return JSON.parse(value) as EmpleadoActual;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Guarda los datos del empleado en Preferences.
+   * Se llama automáticamente después de validar el login.
+   */
+  private async saveEmpleadoActual(empleado: EmpleadoActual): Promise<void> {
+    await Preferences.set({
+      key: this.EMPLEADO_KEY,
+      value: JSON.stringify(empleado)
+    });
+  }
+
+  /**
+   * Limpia los datos del empleado de Preferences.
+   * Se llama automáticamente al cerrar sesión.
+   */
+  private async clearEmpleadoActual(): Promise<void> {
+    await Preferences.remove({ key: this.EMPLEADO_KEY });
   }
 }

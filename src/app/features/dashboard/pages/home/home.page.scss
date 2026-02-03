@@ -1,6 +1,25 @@
 // No definimos variables locales de color manuales.
 // Usamos las que Ionic provee globalmente.
 
+// Botón de notificaciones con badge superpuesto
+.notification-button {
+  position: relative;
+
+  .notification-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 9px;
+    min-width: 14px;
+    height: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+  }
+}
+
 
 // 1. STATUS CARD
 .status-card {

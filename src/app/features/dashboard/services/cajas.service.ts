@@ -137,4 +137,92 @@ export class CajasService {
 
     return caja;
   }
+
+  /**
+   * Obtiene la fecha del último cierre registrado
+   * Consulta la tabla cierres_diarios ordenada por fecha descendente
+   * @returns Fecha en formato YYYY-MM-DD o null si no hay cierres
+   */
+  async obtenerFechaUltimoCierre(): Promise<string | null> {
+    const cierre = await this.supabase.call<{ fecha: string }>(
+      this.supabase.client
+        .from('cierres_diarios')
+        .select('fecha')
+        .order('fecha', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    );
+
+    return cierre?.fecha || null;
+  }
+
+  /**
+   * Verifica si la caja está abierta o cerrada
+   * Consulta la última operación APERTURA/CIERRE del día actual
+   * @returns true si está abierta, false si está cerrada
+   */
+  async verificarEstadoCaja(): Promise<boolean> {
+    const operacion = await this.supabase.call<{ tipo_operacion: string }>(
+      this.supabase.client
+        .from('operaciones_cajas')
+        .select('tipo_operacion')
+        .eq('caja_id', 1) // CAJA_PRINCIPAL como representativa del turno
+        .gte('fecha', new Date().toISOString().split('T')[0]) // Desde hoy a las 00:00
+        .in('tipo_operacion', ['APERTURA', 'CIERRE'])
+        .order('fecha', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    );
+
+    return operacion?.tipo_operacion === 'APERTURA';
+  }
+
+  /**
+   * Abre la caja (inicia el turno de trabajo)
+   * Crea una operación APERTURA en CAJA_PRINCIPAL
+   * @param empleadoId ID del empleado que abre la caja
+   */
+  async abrirCaja(empleadoId: number): Promise<void> {
+    await this.supabase.call(
+      this.supabase.client
+        .from('operaciones_cajas')
+        .insert({
+          caja_id: 1, // CAJA_PRINCIPAL
+          empleado_id: empleadoId,
+          tipo_operacion: 'APERTURA',
+          monto: 0,
+          descripcion: 'Apertura de turno'
+        })
+    );
+  }
+
+  /**
+   * Obtiene la hora de apertura de la caja del día actual
+   * @returns Hora en formato "7:00 AM" o null si no hay apertura
+   */
+  async obtenerHoraApertura(): Promise<string | null> {
+    const operacion = await this.supabase.call<{ fecha: string }>(
+      this.supabase.client
+        .from('operaciones_cajas')
+        .select('fecha')
+        .eq('caja_id', 1) // CAJA_PRINCIPAL
+        .eq('tipo_operacion', 'APERTURA')
+        .gte('fecha', new Date().toISOString().split('T')[0]) // Desde hoy a las 00:00
+        .order('fecha', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    );
+
+    if (!operacion?.fecha) return null;
+
+    // Formatear hora a "7:00 AM"
+    const fecha = new Date(operacion.fecha);
+    const horas = fecha.getHours();
+    const minutos = fecha.getMinutes();
+    const ampm = horas >= 12 ? 'PM' : 'AM';
+    const horas12 = horas % 12 || 12;
+    const minutosStr = minutos.toString().padStart(2, '0');
+
+    return `${horas12}:${minutosStr} ${ampm}`;
+  }
 }

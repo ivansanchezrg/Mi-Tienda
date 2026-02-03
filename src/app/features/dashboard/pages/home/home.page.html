@@ -4,6 +4,14 @@
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
     <ion-title>Mi Tienda</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="abrirNotificaciones()" class="notification-button">
+        <ion-icon slot="icon-only" name="notifications-outline"></ion-icon>
+        <ion-badge *ngIf="notificacionesPendientes > 0" color="danger" class="notification-badge">
+          {{ notificacionesPendientes }}
+        </ion-badge>
+      </ion-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
@@ -17,11 +25,13 @@
       <ion-icon [name]="cajaAbierta ? 'checkmark-circle' : 'close-circle'"></ion-icon>
       <span class="status-text">{{ cajaAbierta ? 'Caja Abierta' : 'Caja Cerrada' }}</span>
     </div>
+    <span class="status-date">{{ fechaActual }}</span>
   </div>
 
   <div class="section-header">
     <div class="header-left">
       <h3>Cuentas</h3>
+      <span class="sub-info">Último cierre: {{ fechaUltimoCierre }}</span>
     </div>
     <div class="header-right">
       <span class="total-amount">${{ totalEfectivo | number:'1.2-2' }}</span>
@@ -57,7 +67,7 @@
             <span class="name">Caja Chica</span>
             <ion-icon name="chevron-forward-outline" class="arrow"></ion-icon>
           </div>
-          <span class="type">Gastos menores</span>
+          <span class="type">Varios</span>
         </div>
         <span class="account-amount">${{ saldoCajaChica | number:'1.2-2' }}</span>
       </button>
@@ -86,7 +96,7 @@
         </div>
         <div class="account-info">
           <div class="name-row">
-            <span class="name">Transporte</span>
+            <span class="name">Bus</span>
             <ion-icon name="chevron-forward-outline" class="arrow"></ion-icon>
           </div>
           <span class="type">Saldo digital</span>
@@ -145,7 +155,7 @@
   <div class="footer-action">
     <div class="shift-card" [ngClass]="cajaAbierta ? 'is-open' : 'is-closed'">
       <div class="shift-text">
-        <span class="shift-label">{{ cajaAbierta ? 'Cierre Diario' : 'Turno finalizado' }}</span>
+        <span class="shift-label">{{ cajaAbierta ? 'Turno en curso' : 'Turno finalizado' }}</span>
         @if (cajaAbierta) {
           <span class="shift-detail">Apertura: {{ horaApertura }} ({{ nombreUsuario }})</span>
         } @else {
