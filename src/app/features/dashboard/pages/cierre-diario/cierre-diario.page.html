@@ -161,11 +161,13 @@
                   <strong>CAJA</strong>
                 </div>
                 <div class="caja-calculo">
-                  <span class="saldo">$0.00</span>
+                  <span class="saldo">{{ saldoAnteriorCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+                  <span class="operador">+</span>
+                  <span class="operacion">{{ efectivoRecaudado | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                   <span class="operador">-</span>
-                  <span class="operacion">$0.00</span>
+                  <span class="operacion">{{ transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                   <span class="operador">=</span>
-                  <span class="resultado">$0.00</span>
+                  <span class="resultado">{{ saldoFinalCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                 </div>
               </div>
 
@@ -175,11 +177,11 @@
                   <strong>CAJA CHICA</strong>
                 </div>
                 <div class="caja-calculo">
-                  <span class="saldo">$0.00</span>
+                  <span class="saldo">{{ saldoAnteriorCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                   <span class="operador">+</span>
-                  <span class="operacion">$0.00</span>
+                  <span class="operacion">{{ transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                   <span class="operador">=</span>
-                  <span class="resultado">$0.00</span>
+                  <span class="resultado">{{ saldoFinalCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                 </div>
               </div>
 
@@ -189,11 +191,11 @@
                   <strong>CELULAR</strong>
                 </div>
                 <div class="caja-calculo">
-                  <span class="saldo">$0.00</span>
+                  <span class="saldo">{{ saldoAnteriorCajaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                   <span class="operador">+</span>
-                  <span class="operacion">$0.00</span>
+                  <span class="operacion">{{ ventaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                   <span class="operador">=</span>
-                  <span class="resultado">$0.00</span>
+                  <span class="resultado">{{ saldoFinalCajaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                 </div>
               </div>
 
@@ -203,11 +205,11 @@
                   <strong>BUS</strong>
                 </div>
                 <div class="caja-calculo">
-                  <span class="saldo">$0.00</span>
+                  <span class="saldo">{{ saldoAnteriorCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                   <span class="operador">+</span>
-                  <span class="operacion">$0.00</span>
+                  <span class="operacion">{{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                   <span class="operador">=</span>
-                  <span class="resultado">$0.00</span>
+                  <span class="resultado">{{ saldoFinalCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                 </div>
               </div>
             </ion-card-content>
@@ -216,7 +218,7 @@
           <!-- Alertas informativas -->
           <div class="alerta-simple">
             <ion-icon name="information-circle-outline" color="primary"></ion-icon>
-            <p>Se transferirán <strong>$0.00</strong> de CAJA a CAJA CHICA automáticamente.</p>
+            <p>Se transferirán <strong>{{ transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de CAJA a CAJA CHICA automáticamente.</p>
           </div>
 
           <div class="alerta-simple warning">

@@ -58,3 +58,15 @@ Wizard de 2 pasos para cerrar el dia:
 | `core/pages/scrollable.page.ts` | HomePage extiende para reset scroll |
 | `shared/directives/currency-input.directive.ts` | Formato en inputs de cierre |
 | `shared/directives/scroll-reset.directive.ts` | Scroll al top entre pasos |
+
+## Documentacion Relacionada
+
+### Documentacion de Negocio
+- 📖 [**Proceso de Cierre de Cajas**](./proceso_cierre_cajas.md) - Flujo completo del cierre diario, arquitectura del sistema de 4 cajas, validaciones, trazabilidad y ejemplos practicos
+- ⚙️ [**Funcion PostgreSQL**](./funcion_cierre_diario.md) - Documentacion de la funcion transaccional `ejecutar_cierre_diario()`
+- 🗄️ [**Schema de Base de Datos**](../../../../doc/schema_inicial_completo.sql) - Estructura completa de tablas, indices y datos iniciales
+
+### Para Desarrolladores
+- 💻 **DASHBOARD-README.md** (este archivo) - Documentacion tecnica de componentes, rutas y patrones
+- 🔧 **RecargasService** (`services/recargas.service.ts`) - Servicio principal para operaciones de cierre
+- 🎨 **CierreDiarioPage** (`pages/cierre-diario/`) - Implementacion del wizard de cierre
