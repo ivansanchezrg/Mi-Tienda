@@ -26,6 +26,7 @@ import { UiService } from '@core/services/ui.service';
 import { HasPendingChanges } from '@core/guards/pending-changes.guard';
 import { CurrencyService } from '@core/services/currency.service';
 import { RecargasService } from '../../services/recargas.service';
+import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive';
@@ -52,6 +53,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
   private recargasService = inject(RecargasService);
+  private authService = inject(AuthService);
   private alertCtrl = inject(AlertController);
   private currencyService = inject(CurrencyService);
 
@@ -273,9 +275,9 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
       const efectivoRecaudado = this.currencyService.parse(this.cierreForm.get('efectivoTotalRecaudado')?.value);
       const observaciones = this.cierreForm.get('observaciones')?.value || null;
 
-      // 2. Obtener ID del empleado actual
-      const user = await this.recargasService.obtenerEmpleadoActual();
-      const empleadoId = user?.id || 1;
+      // 2. Obtener ID del empleado actual desde Preferences (rápido, sin consulta a BD)
+      const empleado = await this.authService.getEmpleadoActual();
+      const empleadoId = empleado?.id || 1;
 
       // 3. Preparar parámetros para la función (usa fecha local, no UTC)
       const fechaLocal = this.recargasService.getFechaLocal();
@@ -296,15 +298,27 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
         observaciones
       });
 
-      await this.ui.showSuccess('Cierre guardado correctamente');
-      this.cierreForm.markAsPristine();
-      await this.router.navigate(['/home']);
-      this.resetState();
-    } catch (error: any) {
-      const mensaje = error?.message || 'Error al guardar el cierre';
-      this.ui.showError(mensaje);
-    } finally {
+      // Cerrar loading ANTES de navegar
       await this.ui.hideLoading();
+
+      // Mostrar toast de éxito
+      await this.ui.showSuccess('Cierre guardado correctamente');
+
+      // Limpiar formulario y navegar
+      this.cierreForm.markAsPristine();
+      this.resetState();
+
+      // Pequeño delay para asegurar que el loading se cerró correctamente
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Query param para indicar que debe refrescar datos
+      await this.router.navigate(['/home'], {
+        queryParams: { refresh: Date.now() }
+      });
+    } catch (error: any) {
+      await this.ui.hideLoading();
+      const mensaje = error?.message || 'Error al guardar el cierre';
+      await this.ui.showError(mensaje);
     }
   }
 
