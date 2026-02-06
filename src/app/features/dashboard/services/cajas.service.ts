@@ -140,13 +140,13 @@ export class CajasService {
 
   /**
    * Obtiene la fecha del último cierre registrado
-   * Consulta la tabla cierres_diarios ordenada por fecha descendente
+   * Consulta la tabla caja_fisica_diaria ordenada por fecha descendente
    * @returns Fecha en formato YYYY-MM-DD o null si no hay cierres
    */
   async obtenerFechaUltimoCierre(): Promise<string | null> {
     const cierre = await this.supabase.call<{ fecha: string }>(
       this.supabase.client
-        .from('cierres_diarios')
+        .from('caja_fisica_diaria')
         .select('fecha')
         .order('fecha', { ascending: false })
         .limit(1)
@@ -157,72 +157,175 @@ export class CajasService {
   }
 
   /**
-   * Verifica si la caja está abierta o cerrada
-   * Consulta la última operación APERTURA/CIERRE del día actual
-   * @returns true si está abierta, false si está cerrada
+   * Verifica si la caja está abierta o cerrada (Versión 3.0)
+   * Consulta la tabla caja_fisica_diaria
+   * @returns true si está abierta (NO hay cierre para hoy), false si está cerrada (SÍ hay cierre)
    */
   async verificarEstadoCaja(): Promise<boolean> {
-    const operacion = await this.supabase.call<{ tipo_operacion: string }>(
+    const fechaHoy = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+    const cierre = await this.supabase.call<{ id: string }>(
       this.supabase.client
-        .from('operaciones_cajas')
-        .select('tipo_operacion')
-        .eq('caja_id', 1) // CAJA_PRINCIPAL como representativa del turno
-        .gte('fecha', new Date().toISOString().split('T')[0]) // Desde hoy a las 00:00
-        .in('tipo_operacion', ['APERTURA', 'CIERRE'])
-        .order('fecha', { ascending: false })
-        .limit(1)
+        .from('caja_fisica_diaria')
+        .select('id')
+        .eq('fecha', fechaHoy)
         .maybeSingle()
     );
 
-    return operacion?.tipo_operacion === 'APERTURA';
+    // Si NO existe cierre para hoy → está ABIERTA
+    // Si SÍ existe cierre para hoy → está CERRADA
+    return cierre === null;
   }
 
   /**
-   * Abre la caja (inicia el turno de trabajo)
-   * Crea una operación APERTURA en CAJA_PRINCIPAL
-   * @param empleadoId ID del empleado que abre la caja
+   * DEPRECADO en Versión 3.0
+   * La apertura ahora se representa implícitamente en caja_fisica_diaria
+   * Ya NO se crea operación APERTURA
+   *
+   * @deprecated Ya no se usa - la apertura se maneja en el cierre diario
    */
   async abrirCaja(empleadoId: number): Promise<void> {
+    // Método deprecado - ya no hace nada
+    // La apertura se representa por la ausencia de cierre para el día actual
+    console.warn('abrirCaja() está deprecado en v3.0 - la apertura se maneja en caja_fisica_diaria');
+  }
+
+  /**
+   * Obtiene la hora de "apertura" del día actual (Versión 2.0)
+   * En v2.0, la apertura es implícita (cuando NO existe cierre para hoy)
+   * Este método devuelve null ya que no hay operación APERTURA específica
+   * @returns null - La apertura ya no tiene hora específica en v2.0
+   * @deprecated Ya no tiene sentido en v2.0 - considerar eliminar del UI
+   */
+  async obtenerHoraApertura(): Promise<string | null> {
+    // En v2.0, la apertura es implícita (ausencia de cierre)
+    // No hay hora de apertura específica
+    return null;
+  }
+
+  /**
+   * Registra una operación de ingreso o egreso en una caja
+   * @param params Parámetros de la operación
+   */
+  async registrarOperacion(params: {
+    cajaId: number;
+    empleadoId: number;
+    tipo: 'INGRESO' | 'EGRESO';
+    monto: number;
+    descripcion: string;
+  }): Promise<void> {
+    const { cajaId, empleadoId, tipo, monto, descripcion } = params;
+
+    // 1. Obtener caja y saldo actual
+    const caja = await this.obtenerCajaPorId(cajaId);
+    if (!caja) {
+      throw new Error('Caja no encontrada');
+    }
+
+    // 2. Validar saldo suficiente para egreso
+    if (tipo === 'EGRESO' && monto > caja.saldo_actual) {
+      throw new Error('Saldo insuficiente para realizar el egreso');
+    }
+
+    // 3. Calcular nuevo saldo
+    const nuevoSaldo = tipo === 'INGRESO'
+      ? caja.saldo_actual + monto
+      : caja.saldo_actual - monto;
+
+    // 4. Insertar operación
     await this.supabase.call(
       this.supabase.client
         .from('operaciones_cajas')
         .insert({
-          caja_id: 1, // CAJA_PRINCIPAL
+          caja_id: cajaId,
           empleado_id: empleadoId,
-          tipo_operacion: 'APERTURA',
-          monto: 0,
-          descripcion: 'Apertura de turno'
+          tipo_operacion: tipo,
+          monto: monto,
+          saldo_anterior: caja.saldo_actual,
+          saldo_actual: nuevoSaldo,
+          descripcion: descripcion || (tipo === 'INGRESO' ? 'Ingreso manual' : 'Egreso manual')
         })
+    );
+
+    // 5. Actualizar saldo en tabla cajas
+    await this.supabase.call(
+      this.supabase.client
+        .from('cajas')
+        .update({ saldo_actual: nuevoSaldo })
+        .eq('id', cajaId)
     );
   }
 
   /**
-   * Obtiene la hora de apertura de la caja del día actual
-   * @returns Hora en formato "7:00 AM" o null si no hay apertura
+   * Crea una transferencia entre dos cajas
+   * Genera dos operaciones: TRANSFERENCIA_SALIENTE y TRANSFERENCIA_ENTRANTE
+   * @param params Parámetros de la transferencia
    */
-  async obtenerHoraApertura(): Promise<string | null> {
-    const operacion = await this.supabase.call<{ fecha: string }>(
+  async crearTransferencia(params: {
+    cajaOrigenId: number;
+    cajaDestinoId: number;
+    monto: number;
+    empleadoId: number;
+    descripcion: string;
+  }): Promise<void> {
+    const { cajaOrigenId, cajaDestinoId, monto, empleadoId, descripcion } = params;
+
+    // 1. Obtener saldos actuales
+    const cajaOrigen = await this.obtenerCajaPorId(cajaOrigenId);
+    const cajaDestino = await this.obtenerCajaPorId(cajaDestinoId);
+
+    if (!cajaOrigen || !cajaDestino) {
+      throw new Error('Caja no encontrada');
+    }
+
+    // 2. Calcular nuevos saldos
+    const nuevoSaldoOrigen = cajaOrigen.saldo_actual - monto;
+    const nuevoSaldoDestino = cajaDestino.saldo_actual + monto;
+
+    // 3. Crear operación SALIENTE en caja origen
+    await this.supabase.call(
       this.supabase.client
         .from('operaciones_cajas')
-        .select('fecha')
-        .eq('caja_id', 1) // CAJA_PRINCIPAL
-        .eq('tipo_operacion', 'APERTURA')
-        .gte('fecha', new Date().toISOString().split('T')[0]) // Desde hoy a las 00:00
-        .order('fecha', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+        .insert({
+          caja_id: cajaOrigenId,
+          empleado_id: empleadoId,
+          tipo_operacion: 'TRANSFERENCIA_SALIENTE',
+          monto: monto,
+          saldo_anterior: cajaOrigen.saldo_actual,
+          saldo_actual: nuevoSaldoOrigen,
+          descripcion: descripcion
+        })
     );
 
-    if (!operacion?.fecha) return null;
+    // 4. Crear operación ENTRANTE en caja destino
+    await this.supabase.call(
+      this.supabase.client
+        .from('operaciones_cajas')
+        .insert({
+          caja_id: cajaDestinoId,
+          empleado_id: empleadoId,
+          tipo_operacion: 'TRANSFERENCIA_ENTRANTE',
+          monto: monto,
+          saldo_anterior: cajaDestino.saldo_actual,
+          saldo_actual: nuevoSaldoDestino,
+          descripcion: `${descripcion} desde ${cajaOrigen.nombre}`
+        })
+    );
 
-    // Formatear hora a "7:00 AM"
-    const fecha = new Date(operacion.fecha);
-    const horas = fecha.getHours();
-    const minutos = fecha.getMinutes();
-    const ampm = horas >= 12 ? 'PM' : 'AM';
-    const horas12 = horas % 12 || 12;
-    const minutosStr = minutos.toString().padStart(2, '0');
-
-    return `${horas12}:${minutosStr} ${ampm}`;
+    // 5. Actualizar saldos en tabla cajas
+    await Promise.all([
+      this.supabase.call(
+        this.supabase.client
+          .from('cajas')
+          .update({ saldo_actual: nuevoSaldoOrigen })
+          .eq('id', cajaOrigenId)
+      ),
+      this.supabase.call(
+        this.supabase.client
+          .from('cajas')
+          .update({ saldo_actual: nuevoSaldoDestino })
+          .eq('id', cajaDestinoId)
+      )
+    ]);
   }
 }

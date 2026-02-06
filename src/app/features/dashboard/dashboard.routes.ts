@@ -11,5 +11,17 @@ export const DASHBOARD_ROUTES: Routes = [
     path: 'cierre-diario',
     loadComponent: () => import('./pages/cierre-diario/cierre-diario.page').then(m => m.CierreDiarioPage),
     canDeactivate: [pendingChangesGuard]
+  },
+  {
+    path: 'transferir-ganancias',
+    loadComponent: () => import('./pages/transferir-ganancias/transferir-ganancias.page').then(m => m.TransferirGananciasPage)
+  },
+  {
+    path: 'operaciones-caja',
+    loadComponent: () => import('./pages/operaciones-caja/operaciones-caja.page').then(m => m.OperacionesCajaPage)
+  },
+  {
+    path: 'cuadre-caja',
+    loadComponent: () => import('./pages/cuadre-caja/cuadre-caja.page').then(m => m.CuadreCajaPage)
   }
 ];

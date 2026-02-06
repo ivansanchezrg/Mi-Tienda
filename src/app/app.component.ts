@@ -5,11 +5,12 @@ import { Browser } from '@capacitor/browser';
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 import { SupabaseService } from './core/services/supabase.service';
 import { Capacitor } from '@capacitor/core';
+import { OfflineBannerComponent } from './core/components/offline-banner/offline-banner.component';
 
 @Component({
   selector: 'app-root',
   templateUrl: 'app.component.html',
-  imports: [IonApp, IonRouterOutlet],
+  imports: [IonApp, IonRouterOutlet, OfflineBannerComponent],
 })
 export class AppComponent {
 

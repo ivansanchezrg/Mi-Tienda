@@ -7,7 +7,7 @@ export interface SaldosAnteriores {
 }
 
 /**
- * Datos completos necesarios para el cierre diario
+ * Datos completos necesarios para el cierre diario (v4.0)
  * Incluye saldos virtuales, saldos de cajas físicas y configuración
  */
 export interface DatosCierreDiario {
@@ -21,6 +21,31 @@ export interface DatosCierreDiario {
   saldoCajaCelular: number;
   /** Saldo actual de CAJA_BUS */
   saldoCajaBus: number;
-  /** Monto fijo de transferencia diaria a caja chica ($20) */
+  /** Fondo fijo diario (viene de configuración) */
+  fondoFijo: number;
+  /** Monto fijo de transferencia diaria a caja chica (viene de configuración) */
   transferenciaDiariaCajaChica: number;
+}
+
+/**
+ * Parámetros para ejecutar el cierre diario (Versión 4.0)
+ * Ultra-simplificado: solo efectivo_recaudado + recargas
+ */
+export interface ParamsCierreDiario {
+  fecha: string;
+  empleado_id: number;
+  // Operaciones del día
+  efectivo_recaudado: number; // ¡Solo este campo! Todo lo demás viene de config
+  // Recargas
+  saldo_celular_final: number;
+  saldo_bus_final: number;
+  saldo_anterior_celular: number;
+  saldo_anterior_bus: number;
+  // Saldos de cajas
+  saldo_anterior_caja: number;
+  saldo_anterior_caja_chica: number;
+  saldo_anterior_caja_celular: number;
+  saldo_anterior_caja_bus: number;
+  // Opcional
+  observaciones?: string;
 }

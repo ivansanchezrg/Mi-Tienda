@@ -1,0 +1,275 @@
+// Estilo inspirado en operaciones-caja page
+
+// Balance Card - Colores dinámicos según tipo de operación
+.balance-card {
+  padding: 20px;
+  margin-bottom: 16px;
+
+  // Verde para ingresos
+  &.ingreso {
+    background: rgba(var(--ion-color-success-rgb), 0.06);
+    border-bottom: 1px solid rgba(var(--ion-color-success-rgb), 0.12);
+
+    .balance-amount {
+      color: var(--ion-color-success);
+    }
+  }
+
+  // Rojo para egresos
+  &.egreso {
+    background: rgba(var(--ion-color-danger-rgb), 0.06);
+    border-bottom: 1px solid rgba(var(--ion-color-danger-rgb), 0.12);
+
+    .balance-amount {
+      color: var(--ion-color-danger);
+    }
+  }
+
+  .caja-name {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ion-text-color);
+    margin-bottom: 12px;
+  }
+
+  .balance-main {
+    text-align: center;
+
+    .balance-amount {
+      display: block;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+
+    .balance-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ion-color-medium);
+    }
+  }
+}
+
+// Form Content
+.form-content {
+  padding: 0 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+// Input Groups
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .input-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ion-color-medium);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .required-badge {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--ion-color-danger);
+      background: rgba(var(--ion-color-danger-rgb), 0.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+  }
+
+  // Amount Input - Estilo similar al balance
+  .amount-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 20px;
+    background: var(--ion-item-background);
+    border: 2px solid var(--ion-color-step-150);
+    border-radius: 12px;
+    transition: all 0.2s ease;
+
+    &:focus-within {
+      border-color: var(--ion-color-primary);
+    }
+
+    &.error {
+      border-color: var(--ion-color-danger);
+    }
+
+    .currency {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--ion-color-medium);
+    }
+
+    input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--ion-text-color);
+      outline: none;
+
+      &::placeholder {
+        color: var(--ion-color-step-400);
+        opacity: 0.4;
+      }
+
+      // Remover spinners
+      &::-webkit-outer-spin-button,
+      &::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      &[type=number] {
+        -moz-appearance: textfield;
+      }
+    }
+  }
+
+  // Textarea
+  textarea {
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--ion-item-background);
+    border: 2px solid var(--ion-color-step-150);
+    border-radius: 12px;
+    font-size: 15px;
+    color: var(--ion-text-color);
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.2s ease;
+    outline: none;
+
+    &:focus {
+      border-color: var(--ion-color-primary);
+    }
+
+    &::placeholder {
+      color: var(--ion-color-medium);
+      opacity: 0.6;
+    }
+  }
+
+  .error-text {
+    font-size: 13px;
+    color: var(--ion-color-danger);
+    font-weight: 500;
+  }
+
+  // Upload Button
+  .upload-btn {
+    width: 100%;
+    padding: 20px;
+    background: var(--ion-item-background);
+    border: 2px dashed var(--ion-color-step-300);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--ion-color-medium);
+
+    ion-icon {
+      font-size: 32px;
+    }
+
+    span {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    &:active {
+      border-color: var(--ion-color-primary);
+      background: rgba(var(--ion-color-primary-rgb), 0.05);
+    }
+  }
+
+  // Photo Preview
+  .photo-preview {
+    position: relative;
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid var(--ion-color-step-150);
+
+    img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .remove-photo {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.6);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      ion-icon {
+        font-size: 24px;
+        color: white;
+      }
+
+      &:active {
+        background: rgba(0, 0, 0, 0.8);
+      }
+    }
+  }
+}
+
+// Submit Button
+.submit-btn {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &.ingreso {
+    background: var(--ion-color-success);
+    color: var(--ion-color-success-contrast);
+
+    &:active:not(:disabled) {
+      opacity: 0.9;
+    }
+  }
+
+  &.egreso {
+    background: var(--ion-color-danger);
+    color: var(--ion-color-danger-contrast);
+
+    &:active:not(:disabled) {
+      opacity: 0.9;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+}

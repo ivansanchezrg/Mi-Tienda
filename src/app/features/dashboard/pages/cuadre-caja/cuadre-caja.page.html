@@ -1,0 +1,114 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon slot="icon-only" name="chevron-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Cuadre de Caja</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  @if (loading) {
+    <div class="loading-state">
+      <ion-icon name="cash-outline"></ion-icon>
+      <p>Cargando datos...</p>
+    </div>
+  } @else {
+    <form [formGroup]="form">
+      <!-- Saldo del Sistema -->
+      <div class="info-card">
+        <div class="info-header">
+          <ion-icon name="cash-outline"></ion-icon>
+          <span>Saldo según sistema</span>
+        </div>
+        <div class="info-amount">${{ saldoSistema | number:'1.2-2' }}</div>
+        <p class="info-desc">Este es el saldo registrado en el sistema para la Caja Principal</p>
+      </div>
+
+      <!-- Input de Efectivo Contado -->
+      <ion-card class="input-card">
+        <div class="input-header">
+          <span class="input-label">Efectivo contado físicamente</span>
+          <span class="input-hint">Ingresa el monto que contaste en caja</span>
+        </div>
+        <div class="input-wrapper">
+          <span class="currency-prefix">$</span>
+          <ion-input
+            type="number"
+            inputmode="decimal"
+            placeholder="0.00"
+            formControlName="efectivoContado"
+            class="amount-input">
+          </ion-input>
+        </div>
+      </ion-card>
+
+      <!-- Resultado del Cuadre -->
+      @if (form.get('efectivoContado')?.value !== null) {
+        <div class="result-card" [attr.data-status]="colorEstado">
+          <div class="result-icon">
+            <ion-icon [name]="iconoEstado"></ion-icon>
+          </div>
+          <div class="result-content">
+            <span class="result-label">{{ textoEstado }}</span>
+            <span class="result-amount">
+              @if (diferencia !== 0) {
+                {{ diferencia > 0 ? '+' : '' }}${{ diferencia | number:'1.2-2' }}
+              } @else {
+                $0.00
+              }
+            </span>
+          </div>
+        </div>
+
+        <!-- Observaciones -->
+        @if (requiereObservaciones) {
+          <ion-card class="input-card observaciones-card">
+            <div class="input-header">
+              <span class="input-label">Observaciones (requeridas)</span>
+              <span class="input-hint">Explica el motivo de la diferencia</span>
+            </div>
+            <ion-textarea
+              formControlName="observaciones"
+              placeholder="Ej: Error en vuelto, dinero encontrado, etc."
+              [rows]="3"
+              [autoGrow]="true">
+            </ion-textarea>
+          </ion-card>
+        }
+      }
+
+      <!-- Resumen -->
+      @if (form.get('efectivoContado')?.value !== null) {
+        <div class="summary-card">
+          <div class="summary-row">
+            <span>Saldo sistema</span>
+            <span>${{ saldoSistema | number:'1.2-2' }}</span>
+          </div>
+          <div class="summary-row">
+            <span>Efectivo contado</span>
+            <span>${{ efectivoContado | number:'1.2-2' }}</span>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-row total" [attr.data-status]="colorEstado">
+            <span>Diferencia</span>
+            <span>{{ diferencia >= 0 ? '+' : '' }}${{ diferencia | number:'1.2-2' }}</span>
+          </div>
+        </div>
+      }
+    </form>
+
+    <!-- Botón de Confirmación -->
+    <div class="footer-action">
+      <button
+        class="confirm-btn"
+        [disabled]="!formularioValido || form.get('efectivoContado')?.value === null"
+        (click)="confirmarCuadre()">
+        <ion-icon name="checkmark-circle-outline"></ion-icon>
+        <span>{{ diferencia === 0 ? 'Confirmar Cuadre' : 'Registrar Ajuste' }}</span>
+      </button>
+    </div>
+  }
+</ion-content>

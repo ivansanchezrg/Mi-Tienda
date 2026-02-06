@@ -1,4 +1,9 @@
-# Sistema de Control de Recargas y Cierre Diario
+# Sistema de Control de Recargas y Cierre Diario (VERSIÓN 2.0)
+
+**IMPORTANTE:** Este documento refleja la Versión 2.0 del sistema donde:
+- ✅ `cierres_diarios` representa la **CAJA FÍSICA del día**
+- ✅ `CAJA` (tabla cajas) es la **caja de ACUMULACIÓN**
+- ✅ Ya NO se crean operaciones APERTURA/CIERRE
 
 ## Índice
 
@@ -41,11 +46,13 @@ Este documento describe el **Sistema de Control de Recargas y Cierre Diario** pa
 
 El sistema maneja 4 cajas independientes con propósitos específicos:
 
-#### 🏦 CAJA (Principal)
-- **Propósito**: Caja principal de la tienda
-- **Recibe**: Efectivo de ventas diarias
+#### 🏦 CAJA (Principal) - **VERSIÓN 2.0**
+- **Propósito**: **Caja de ACUMULACIÓN** (como caja fuerte)
+- **Recibe**: Depósitos del efectivo recaudado cada día
+- **Sale**: Egresos cuando no hay efectivo en caja física
 - **Transfiere**: $20 diarios a CAJA_CHICA
-- **Tipo**: Efectivo físico
+- **Tipo**: Efectivo acumulado (NO es la caja física del día)
+- **Nota**: La caja física del día se representa en `cierres_diarios`
 
 #### 💰 CAJA_CHICA
 - **Propósito**: Gastos menores y operativos
@@ -74,17 +81,22 @@ erDiagram
     TIPOS_SERVICIO ||--o{ RECARGAS : clasifica
 ```
 
-#### 📋 `cierres_diarios`
-Registro maestro de cada cierre diario (uno por día).
+#### 📋 `cierres_diarios` - **VERSIÓN 2.0**
+Representa la **CAJA FÍSICA del día** (apertura + operaciones + cierre).
 
 | Campo | Descripción |
 |-------|-------------|
 | `id` | UUID único del cierre |
 | `fecha` | Fecha del cierre (única) |
 | `empleado_id` | Quién realizó el cierre |
-| `efectivo_recaudado` | Efectivo total del día |
+| **`saldo_inicial`** ⭐ | **Fondo con el que abrió la caja física** |
+| `efectivo_recaudado` | Efectivo de ventas del día |
+| **`egresos_del_dia`** ⭐ | **Gastos del día (se toman de CAJA acumulación)** |
 | `transferencia_caja_chica` | Monto transferido ($20) |
+| **`fondo_siguiente_dia`** ⭐ | **Fondo que queda para mañana** |
 | `observaciones` | Notas del cierre |
+
+⭐ = Campos nuevos en v2.0
 
 #### 📊 `recargas`
 Control diario de saldo virtual por servicio.
@@ -236,8 +248,9 @@ Se llama a la función PostgreSQL `ejecutar_cierre_diario` que:
 3. **Calcula** ventas y saldos finales
 4. **Crea** registro en `cierres_diarios` (captura UUID)
 5. **Crea** 2 registros en `recargas` (captura UUIDs)
-6. **Crea** 5 operaciones en `operaciones_cajas`:
-   - CAJA: INGRESO (efectivo) → ref: cierre_diario
+6. **Crea** 3-5 operaciones en `operaciones_cajas` (según si hay egresos y depósito):
+   - CAJA: EGRESO (si hay egresos_del_dia > 0) → ref: cierre_diario
+   - CAJA: INGRESO (depósito del día) → ref: cierre_diario
    - CAJA: TRANSFERENCIA_SALIENTE ($20) → ref: cierre_diario
    - CAJA_CHICA: TRANSFERENCIA_ENTRANTE ($20) → ref: cierre_diario
    - CAJA_CELULAR: INGRESO (venta) → ref: recarga_celular
@@ -247,39 +260,47 @@ Se llama a la función PostgreSQL `ejecutar_cierre_diario` que:
 
 **Si cualquier paso falla → Rollback automático de TODO**
 
-### 4.3. Diagrama de Operaciones
+### 4.3. Diagrama de Operaciones (VERSIÓN 2.0)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    CIERRE DIARIO                            │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  1. cierres_diarios (UUID: abc-123)                        │
-│     ├─ fecha: 2026-02-02                                   │
-│     ├─ efectivo_recaudado: $500                            │
-│     └─ transferencia: $20                                  │
-│                                                             │
-│  2. recargas                                               │
-│     ├─ Celular (UUID: def-456)                            │
-│     │  ├─ venta: $59.15                                    │
-│     │  └─ saldo: $76.00                                    │
-│     └─ Bus (UUID: ghi-789)                                │
-│        ├─ venta: $154.80                                   │
-│        └─ saldo: $286.00                                   │
-│                                                             │
-│  3. operaciones_cajas                                      │
-│     ├─ CAJA: +$500 (ref: abc-123 → cierres_diarios)      │
-│     ├─ CAJA: -$20  (ref: abc-123 → cierres_diarios)      │
-│     ├─ CAJA_CHICA: +$20 (ref: abc-123 → cierres_diarios) │
-│     ├─ CAJA_CELULAR: +$59.15 (ref: def-456 → recargas)   │
-│     └─ CAJA_BUS: +$154.80 (ref: ghi-789 → recargas)      │
-│                                                             │
-│  4. cajas (actualización de saldos)                       │
-│     ├─ CAJA: $480.00                                       │
-│     ├─ CAJA_CHICA: $20.00                                  │
-│     ├─ CAJA_CELULAR: $218.35                               │
-│     └─ CAJA_BUS: $419.65                                   │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                    CIERRE DIARIO v2.0                            │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. cierres_diarios (UUID: abc-123) - CAJA FÍSICA               │
+│     ├─ fecha: 2026-02-05                                        │
+│     ├─ saldo_inicial: $100 (apertura) ⭐                        │
+│     ├─ efectivo_recaudado: $500                                 │
+│     ├─ egresos_del_dia: $50 ⭐                                  │
+│     ├─ fondo_siguiente_dia: $100 (cierre) ⭐                    │
+│     └─ transferencia: $20                                       │
+│                                                                  │
+│  2. recargas                                                    │
+│     ├─ Celular (UUID: def-456)                                 │
+│     │  ├─ venta: $59.15                                         │
+│     │  └─ saldo: $76.00                                         │
+│     └─ Bus (UUID: ghi-789)                                     │
+│        ├─ venta: $154.80                                        │
+│        └─ saldo: $286.00                                        │
+│                                                                  │
+│  3. operaciones_cajas (CAJA = acumulación)                     │
+│     ├─ CAJA: -$50 EGRESO (ref: abc-123) ⭐                     │
+│     ├─ CAJA: +$400 INGRESO (depósito=$500-$100) (ref: abc-123)│
+│     ├─ CAJA: -$20 TRANSFERENCIA_SALIENTE (ref: abc-123)       │
+│     ├─ CAJA_CHICA: +$20 (ref: abc-123)                         │
+│     ├─ CAJA_CELULAR: +$59.15 (ref: def-456)                    │
+│     └─ CAJA_BUS: +$154.80 (ref: ghi-789)                       │
+│                                                                  │
+│  4. cajas (saldos finales)                                     │
+│     ├─ CAJA (acumulación): $1,330 ($1,000 - $50 + $400 - $20) │
+│     ├─ CAJA_CHICA: $20.00                                      │
+│     ├─ CAJA_CELULAR: $218.35                                   │
+│     └─ CAJA_BUS: $419.65                                        │
+│                                                                  │
+│  Caja física (implícita): $100 (fondo_siguiente_dia)          │
+└──────────────────────────────────────────────────────────────────┘
+
+⭐ = Nuevo en v2.0
 ```
 
 ---
@@ -672,14 +693,15 @@ WHERE c.saldo_actual != o.saldo_actual OR o.saldo_actual IS NULL;
 
 - 🔒 **Transaccional**: Rollback automático
 - 🔍 **Trazable**: Origen de cada operación
-- ✅ **Validado**: Múltiples capas de validación
+- ✅ **Validado**: Múltiples capas de validación + continuidad del fondo
 - 📊 **Auditable**: Historial completo
+- 🏦 **Separación clara**: Caja física vs Caja de acumulación
 
 ### Archivos Relacionados
 
 **Documentacion de Base de Datos:**
-- 🗄️ [Schema de Base de Datos](../../../../doc/schema_inicial_completo.sql) - Estructura completa de tablas
-- ⚙️ [Funcion PostgreSQL](./funcion_cierre_diario.md) - Funcion transaccional `ejecutar_cierre_diario()`
+- 🗄️ [Schema de Base de Datos v2.0](../../../../doc/schema_inicial_completo.sql) - Estructura completa con nuevos campos
+- ⚙️ [Funcion PostgreSQL v2.0](../../../../doc/funcion_cierre_diario_v2.sql) - Funcion transaccional actualizada
 
 **Documentacion Tecnica:**
 - 💻 [Dashboard README](./DASHBOARD-README.md) - Documentacion tecnica de componentes y patrones
@@ -687,6 +709,26 @@ WHERE c.saldo_actual != o.saldo_actual OR o.saldo_actual IS NULL;
 
 ---
 
-**Fecha de Actualizacion:** 2026-02-02
-**Version:** 3.0 (Sistema Completo con Trazabilidad)
+## 📝 CAMBIOS VERSIÓN 2.0
+
+### Concepto Fundamental
+- **Antes**: CAJA era la caja física del día
+- **Ahora**: `cierres_diarios` = caja física | CAJA (tabla) = caja de acumulación
+
+### Nuevos Campos en `cierres_diarios`
+- ✅ `saldo_inicial`: Fondo de apertura
+- ✅ `egresos_del_dia`: Gastos del día
+- ✅ `fondo_siguiente_dia`: Fondo de cierre
+
+### Operaciones Modificadas
+- ❌ Eliminadas: APERTURA y CIERRE
+- ✅ Nuevas: EGRESO (si hay) e INGRESO (depósito del día)
+
+### Validaciones Nuevas
+- ✅ Continuidad del fondo: saldo_inicial = fondo_siguiente_dia del día anterior
+
+---
+
+**Fecha de Actualizacion:** 2026-02-05
+**Version:** 2.0 (Caja Física vs Acumulación)
 **Autor:** Sistema Mi Tienda

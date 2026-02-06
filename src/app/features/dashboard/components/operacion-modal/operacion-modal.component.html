@@ -1,0 +1,92 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="cancelar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>{{ titulo }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <form [formGroup]="form">
+
+    <!-- Balance Card - Estilo operaciones-caja -->
+    <div class="balance-card" [class.ingreso]="esIngreso" [class.egreso]="!esIngreso">
+      <div class="caja-name">{{ nombreCajaSeleccionada }}</div>
+      <div class="balance-main">
+        <span class="balance-amount">${{ saldoCajaSeleccionada | number:'1.2-2' }}</span>
+        <span class="balance-label">Saldo disponible</span>
+      </div>
+    </div>
+
+    <!-- Form Content -->
+    <div class="form-content">
+      <!-- Input de Monto -->
+      <div class="input-group">
+        <label class="input-label">{{ esIngreso ? 'Monto a ingresar' : 'Monto a retirar' }}</label>
+        <div class="amount-wrapper" [class.error]="montoExcedeSaldo">
+          <span class="currency">$</span>
+          <input
+            type="number"
+            inputmode="decimal"
+            placeholder="0.00"
+            formControlName="monto"
+            autofocus>
+        </div>
+        @if (montoExcedeSaldo) {
+          <span class="error-text">El monto excede el saldo disponible</span>
+        }
+      </div>
+
+      <!-- Descripción -->
+      <div class="input-group">
+        <label class="input-label">
+          {{ esIngreso ? 'Descripción (opcional)' : 'Descripción' }}
+        </label>
+        <textarea
+          placeholder="{{ esIngreso ? 'Ej: Venta de productos' : 'Ej: Pago a proveedor' }}"
+          formControlName="descripcion"
+          rows="3">
+        </textarea>
+      </div>
+
+      <!-- Comprobante -->
+      <div class="input-group">
+        <label class="input-label">
+          {{ esIngreso ? 'Comprobante (opcional)' : 'Comprobante' }}
+          @if (!esIngreso) {
+            <span class="required-badge">Obligatorio</span>
+          }
+        </label>
+
+        @if (!fotoComprobante) {
+          <button type="button" class="upload-btn" (click)="seleccionarFoto()">
+            <ion-icon name="camera-outline"></ion-icon>
+            <span>Tomar foto o seleccionar de galería</span>
+          </button>
+        } @else {
+          <div class="photo-preview">
+            <img [src]="fotoComprobante" alt="Comprobante">
+            <button type="button" class="remove-photo" (click)="removerFoto()">
+              <ion-icon name="close-circle"></ion-icon>
+            </button>
+          </div>
+        }
+      </div>
+
+      <!-- Botón -->
+      <button
+        type="button"
+        class="submit-btn"
+        [class.ingreso]="esIngreso"
+        [class.egreso]="!esIngreso"
+        [disabled]="form.invalid || montoExcedeSaldo || (!esIngreso && !fotoComprobante)"
+        (click)="confirmar()">
+        {{ esIngreso ? 'Confirmar Ingreso' : 'Confirmar Egreso' }}
+      </button>
+    </div>
+
+  </form>
+</ion-content>

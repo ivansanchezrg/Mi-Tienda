@@ -4,8 +4,8 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonProgressBar, IonContent, IonList, IonItem, IonLabel,
-  IonInput, IonIcon, IonNote, IonCard, IonCardHeader,
-  IonCardTitle, IonCardContent, IonTextarea, AlertController
+  IonInput, IonIcon, IonNote, IonCard, IonCardHeader, IonCardTitle,
+  IonCardContent, IonTextarea, AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -15,11 +15,12 @@ import {
   busOutline,
   walletOutline,
   checkmarkCircleOutline,
-  trendingUpOutline,
   cashOutline,
+  trendingUpOutline,
   calculatorOutline,
   informationCircleOutline,
-  alertCircleOutline
+  alertCircleOutline,
+  checkmarkOutline
 } from 'ionicons/icons';
 import { CommonModule } from '@angular/common';
 import { UiService } from '@core/services/ui.service';
@@ -41,8 +42,8 @@ import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive'
     ReactiveFormsModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonProgressBar, IonContent, IonList, IonItem, IonLabel,
-    IonInput, IonIcon, IonNote, IonCard, IonCardHeader,
-    IonCardTitle, IonCardContent, IonTextarea,
+    IonInput, IonIcon, IonNote, IonCard, IonCardHeader, IonCardTitle,
+    IonCardContent, IonTextarea,
     CurrencyInputDirective,
     NumbersOnlyDirective,
     ScrollResetDirective
@@ -55,6 +56,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   private recargasService = inject(RecargasService);
   private authService = inject(AuthService);
   private alertCtrl = inject(AlertController);
+  private toastCtrl = inject(ToastController);
   private currencyService = inject(CurrencyService);
 
   // Estado
@@ -71,7 +73,8 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   saldoAnteriorCajaCelular = 0;
   saldoAnteriorCajaBus = 0;
 
-  // Configuración del sistema
+  // Configuración del sistema (v4.0)
+  fondoFijo = 40;
   transferenciaDiariaCajaChica = 20;
 
   // Formulario
@@ -85,17 +88,21 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
       busOutline,
       walletOutline,
       checkmarkCircleOutline,
-      trendingUpOutline,
       cashOutline,
+      trendingUpOutline,
       calculatorOutline,
       informationCircleOutline,
-      alertCircleOutline
+      alertCircleOutline,
+      checkmarkOutline
     });
 
     this.cierreForm = this.fb.group({
+      // Solo 1 campo principal! (v4.0)
+      efectivoTotalRecaudado: ['', [Validators.required]],
+      // Recargas
       saldoVirtualCelularFinal: ['', [Validators.required]],
       saldoVirtualBusFinal: ['', [Validators.required]],
-      efectivoTotalRecaudado: ['', [Validators.required]],
+      // Opcional
       observaciones: ['']
     });
   }
@@ -120,10 +127,12 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
   /**
-   * Carga los datos iniciales necesarios para el cierre diario
+   * Carga los datos iniciales necesarios para el cierre diario (v4.0)
    * Obtiene saldos virtuales, saldos de cajas y configuración del sistema
+   * NOTA: La validación de cierre existente se hace en el home antes de navegar
    */
   async cargarDatosIniciales() {
+    // Cargar todos los datos necesarios
     const datos = await this.recargasService.getDatosCierreDiario();
 
     // Saldos virtuales
@@ -136,12 +145,26 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     this.saldoAnteriorCajaCelular = datos.saldoCajaCelular;
     this.saldoAnteriorCajaBus = datos.saldoCajaBus;
 
-    // Configuración
+    // Configuración (v4.0)
+    this.fondoFijo = datos.fondoFijo;
     this.transferenciaDiariaCajaChica = datos.transferenciaDiariaCajaChica;
   }
 
   hasPendingChanges(): boolean {
     return this.cierreForm.dirty;
+  }
+
+  // ==========================================
+  // GETTERS: Valores del Formulario (v4.0 - Ultra-simplificado)
+  // ==========================================
+
+  /**
+   * Obtiene el efectivo total contado al final del día
+   * ¡El ÚNICO campo que el usuario necesita ingresar!
+   * @returns {number} Efectivo recaudado (ingresado en Paso 1)
+   */
+  get efectivoRecaudado(): number {
+    return this.cierreForm.get('efectivoTotalRecaudado')?.value || 0;
   }
 
   // ==========================================
@@ -168,30 +191,32 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     return this.saldoAnteriorBus - saldoFinal;
   }
 
+  // ==========================================
+  // GETTERS: Cálculos del Cierre (v4.0 - Fórmula Final)
+  // ==========================================
+
   /**
-   * Obtiene el efectivo total recaudado de ventas de tienda
-   * @returns {number} Efectivo recaudado (ingresado en Paso 1)
+   * Calcula el dinero a depositar en CAJA PRINCIPAL (v4.0)
+   * Fórmula: efectivo_recaudado - fondo_fijo - transferencia_caja_chica
+   * @returns {number} Monto a depositar en caja principal
    */
-  get efectivoRecaudado(): number {
-    return this.cierreForm.get('efectivoTotalRecaudado')?.value || 0;
+  get dineroADepositar(): number {
+    return this.efectivoRecaudado - this.fondoFijo - this.transferenciaDiariaCajaChica;
   }
 
-  // ==========================================
-  // GETTERS: Verificación de Cajas
-  // ==========================================
-
   /**
-   * Calcula el saldo final de CAJA (Principal)
-   * Fórmula: Saldo anterior + Efectivo recaudado - Transferencia a caja chica
+   * Calcula el saldo final de CAJA (Principal) - v4.0
+   * CAJA PRINCIPAL es una CAJA DE ACUMULACIÓN (como caja fuerte)
+   * Fórmula: Saldo anterior + Dinero a depositar
    * @returns {number} Saldo final de caja principal
    */
   get saldoFinalCaja(): number {
-    return this.saldoAnteriorCaja + this.efectivoRecaudado - this.transferenciaDiariaCajaChica;
+    return this.saldoAnteriorCaja + this.dineroADepositar;
   }
 
   /**
-   * Calcula el saldo final de CAJA_CHICA
-   * Fórmula: Saldo anterior + Transferencia desde caja principal
+   * Calcula el saldo final de CAJA_CHICA (v4.0)
+   * Fórmula: Saldo anterior + Transferencia (físicamente separada del efectivo)
    * @returns {number} Saldo final de caja chica
    */
   get saldoFinalCajaChica(): number {
@@ -214,6 +239,28 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    */
   get saldoFinalCajaBus(): number {
     return this.saldoAnteriorCajaBus + this.ventaBus;
+  }
+
+  /**
+   * Calcula el total de saldos anteriores
+   * @returns {number} Suma de todos los saldos anteriores
+   */
+  get totalAnterior(): number {
+    return this.saldoAnteriorCaja +
+           this.saldoAnteriorCajaChica +
+           this.saldoAnteriorCajaCelular +
+           this.saldoAnteriorCajaBus;
+  }
+
+  /**
+   * Calcula el total de saldos finales
+   * @returns {number} Suma de todos los saldos finales
+   */
+  get totalFinal(): number {
+    return this.saldoFinalCaja +
+           this.saldoFinalCajaChica +
+           this.saldoFinalCajaCelular +
+           this.saldoFinalCajaBus;
   }
 
   volver() {
@@ -261,7 +308,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
   /**
-   * Ejecuta el cierre diario completo usando función PostgreSQL
+   * Ejecuta el cierre diario completo usando función PostgreSQL (Versión 4.0)
    *
    * Llama a la función ejecutar_cierre_diario que realiza todas las operaciones
    * en una transacción atómica. Si algo falla, se hace rollback automático.
@@ -270,9 +317,9 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     await this.ui.showLoading('Guardando cierre...');
     try {
       // 1. Parsear valores del formulario (convertir strings formateados a números)
+      const efectivoRecaudado = this.currencyService.parse(this.cierreForm.get('efectivoTotalRecaudado')?.value);
       const saldoCelularFinal = this.currencyService.parse(this.cierreForm.get('saldoVirtualCelularFinal')?.value);
       const saldoBusFinal = this.currencyService.parse(this.cierreForm.get('saldoVirtualBusFinal')?.value);
-      const efectivoRecaudado = this.currencyService.parse(this.cierreForm.get('efectivoTotalRecaudado')?.value);
       const observaciones = this.cierreForm.get('observaciones')?.value || null;
 
       // 2. Obtener ID del empleado actual desde Preferences (rápido, sin consulta a BD)
@@ -282,21 +329,32 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
       // 3. Preparar parámetros para la función (usa fecha local, no UTC)
       const fechaLocal = this.recargasService.getFechaLocal();
 
-      // 4. Ejecutar cierre diario (transacción atómica)
-      await this.recargasService.ejecutarCierreDiario({
+      // 4. Ejecutar cierre diario (transacción atómica) - Versión 4.0
+      const resultado = await this.recargasService.ejecutarCierreDiario({
         fecha: fechaLocal,
         empleado_id: empleadoId,
+        // Solo 1 campo principal!
+        efectivo_recaudado: efectivoRecaudado,
+        // Recargas
         saldo_celular_final: saldoCelularFinal,
         saldo_bus_final: saldoBusFinal,
-        efectivo_recaudado: efectivoRecaudado,
         saldo_anterior_celular: this.saldoAnteriorCelular,
         saldo_anterior_bus: this.saldoAnteriorBus,
+        // Saldos de cajas
         saldo_anterior_caja: this.saldoAnteriorCaja,
         saldo_anterior_caja_chica: this.saldoAnteriorCajaChica,
         saldo_anterior_caja_celular: this.saldoAnteriorCajaCelular,
         saldo_anterior_caja_bus: this.saldoAnteriorCajaBus,
+        // Opcional
         observaciones
       });
+
+      // Verificar si hubo error (supabase.call retorna null en caso de error)
+      if (!resultado) {
+        // El error ya fue mostrado por supabase.call(), solo cerrar loading
+        await this.ui.hideLoading();
+        return; // No continuar
+      }
 
       // Cerrar loading ANTES de navegar
       await this.ui.hideLoading();

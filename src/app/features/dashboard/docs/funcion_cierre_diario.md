@@ -15,20 +15,20 @@ Función que ejecuta el cierre diario completo en una **transacción atómica**.
 
 ## Parámetros de Entrada
 
-| Parámetro | Tipo | Descripción |
-|-----------|------|-------------|
-| `p_fecha` | DATE | Fecha del cierre (YYYY-MM-DD) |
-| `p_empleado_id` | INTEGER | ID del empleado que realiza el cierre |
-| `p_saldo_celular_final` | DECIMAL(12,2) | Saldo virtual final de celular |
-| `p_saldo_bus_final` | DECIMAL(12,2) | Saldo virtual final de bus |
-| `p_efectivo_recaudado` | DECIMAL(12,2) | Efectivo total recaudado del día |
-| `p_saldo_anterior_celular` | DECIMAL(12,2) | Saldo virtual anterior de celular |
-| `p_saldo_anterior_bus` | DECIMAL(12,2) | Saldo virtual anterior de bus |
-| `p_saldo_anterior_caja` | DECIMAL(12,2) | Saldo anterior de CAJA principal |
-| `p_saldo_anterior_caja_chica` | DECIMAL(12,2) | Saldo anterior de CAJA_CHICA |
-| `p_saldo_anterior_caja_celular` | DECIMAL(12,2) | Saldo anterior de CAJA_CELULAR |
-| `p_saldo_anterior_caja_bus` | DECIMAL(12,2) | Saldo anterior de CAJA_BUS |
-| `p_observaciones` | TEXT | Observaciones opcionales del cierre |
+| Parámetro                       | Tipo          | Descripción                           |
+| ------------------------------- | ------------- | ------------------------------------- |
+| `p_fecha`                       | DATE          | Fecha del cierre (YYYY-MM-DD)         |
+| `p_empleado_id`                 | INTEGER       | ID del empleado que realiza el cierre |
+| `p_saldo_celular_final`         | DECIMAL(12,2) | Saldo virtual final de celular        |
+| `p_saldo_bus_final`             | DECIMAL(12,2) | Saldo virtual final de bus            |
+| `p_efectivo_recaudado`          | DECIMAL(12,2) | Efectivo total recaudado del día      |
+| `p_saldo_anterior_celular`      | DECIMAL(12,2) | Saldo virtual anterior de celular     |
+| `p_saldo_anterior_bus`          | DECIMAL(12,2) | Saldo virtual anterior de bus         |
+| `p_saldo_anterior_caja`         | DECIMAL(12,2) | Saldo anterior de CAJA principal      |
+| `p_saldo_anterior_caja_chica`   | DECIMAL(12,2) | Saldo anterior de CAJA_CHICA          |
+| `p_saldo_anterior_caja_celular` | DECIMAL(12,2) | Saldo anterior de CAJA_CELULAR        |
+| `p_saldo_anterior_caja_bus`     | DECIMAL(12,2) | Saldo anterior de CAJA_BUS            |
+| `p_observaciones`               | TEXT          | Observaciones opcionales del cierre   |
 
 ## Valor de Retorno
 
@@ -71,10 +71,12 @@ Si **cualquier operación falla**, PostgreSQL hace **rollback automático** de t
 ### Trazabilidad Completa
 
 **Operaciones de efectivo y transferencias:**
+
 - Efectivo de ventas → Referencia a `cierres_diarios`
 - Transferencias → Referencia a `cierres_diarios`
 
 **Operaciones de recargas:**
+
 - CAJA_CELULAR → Referencia a `recargas` (celular)
 - CAJA_BUS → Referencia a `recargas` (bus)
 
@@ -361,15 +363,15 @@ PostgreSQL automáticamente hace **rollback de TODAS las operaciones**, garantiz
 
 ## Ventajas sobre el Método Anterior
 
-| Aspecto | Método Anterior | Con Función PostgreSQL |
-|---------|----------------|------------------------|
-| Transacciones | ❌ No | ✅ Sí (atómicas) |
-| Rollback automático | ❌ No | ✅ Sí |
-| Llamadas HTTP | 12+ llamadas | 1 sola llamada |
-| Performance | Lento | Rápido |
-| Consistencia | Riesgo alto | Garantizada |
-| Seguridad | Media | Alta |
-| Trazabilidad | ❌ No | ✅ Completa |
+| Aspecto             | Método Anterior | Con Función PostgreSQL |
+| ------------------- | --------------- | ---------------------- |
+| Transacciones       | ❌ No            | ✅ Sí (atómicas)        |
+| Rollback automático | ❌ No            | ✅ Sí                   |
+| Llamadas HTTP       | 12+ llamadas    | 1 sola llamada         |
+| Performance         | Lento           | Rápido                 |
+| Consistencia        | Riesgo alto     | Garantizada            |
+| Seguridad           | Media           | Alta                   |
+| Trazabilidad        | ❌ No            | ✅ Completa             |
 
 ## Consultas de Trazabilidad
 
@@ -437,10 +439,12 @@ ORDER BY c.nombre, o.fecha;
 ## Archivos Relacionados
 
 **Documentacion del Dashboard:**
+
 - 📖 [Proceso de Cierre de Cajas](./proceso_cierre_cajas.md) - Documentacion completa del proceso de negocio
 - 💻 [Dashboard README](./DASHBOARD-README.md) - Documentacion tecnica de componentes
 
 **Base de Datos:**
+
 - 🗄️ [Schema Completo](../../../../doc/schema_inicial_completo.sql) - Estructura de tablas e indices
 
 ---

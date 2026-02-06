@@ -1,0 +1,98 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon slot="icon-only" name="chevron-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Transferir Ganancias</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (ganancias) {
+    <!-- Status Card -->
+    <div class="status-card">
+      <div class="status-left">
+        <ion-icon name="calendar-outline"></ion-icon>
+        <span class="status-text">{{ ganancias.mesDisplay }}</span>
+      </div>
+      <span class="status-badge">Pendiente</span>
+    </div>
+
+    <!-- Section Header -->
+    <div class="section-header">
+      <div class="header-left">
+        <h3>Total a Transferir</h3>
+        <span class="sub-info">Destino: Caja Chica</span>
+      </div>
+      <div class="header-right">
+        <span class="total-amount">${{ ganancias.total | number:'1.2-2' }}</span>
+      </div>
+    </div>
+
+    <!-- Desglose Card -->
+    <ion-card class="modern-card">
+      <div class="card-header">
+        <h4>Desglose de Comisiones</h4>
+      </div>
+
+      <div class="account-list">
+        <div class="account-item">
+          <div class="account-icon ion-color-secondary">
+            <ion-icon name="phone-portrait-outline"></ion-icon>
+          </div>
+          <div class="account-info">
+            <div class="name-row">
+              <span class="name">Recargas Celular</span>
+              <span class="badge success">5%</span>
+            </div>
+            <span class="type">${{ ganancias.ventasCelular | number:'1.2-2' }} en ventas</span>
+          </div>
+          <span class="account-amount">${{ ganancias.gananciaCelular | number:'1.2-2' }}</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="account-item">
+          <div class="account-icon ion-color-warning">
+            <ion-icon name="bus-outline"></ion-icon>
+          </div>
+          <div class="account-info">
+            <div class="name-row">
+              <span class="name">Recargas Bus</span>
+              <span class="badge success">1%</span>
+            </div>
+            <span class="type">${{ ganancias.ventasBus | number:'1.2-2' }} en ventas</span>
+          </div>
+          <span class="account-amount">${{ ganancias.gananciaBus | number:'1.2-2' }}</span>
+        </div>
+      </div>
+    </ion-card>
+
+    <!-- Info Card -->
+    <ion-card class="modern-card info-card">
+      <div class="info-content">
+        <ion-icon name="information-circle-outline" class="info-icon"></ion-icon>
+        <p>
+          Mueve físicamente <strong>${{ ganancias.gananciaCelular | number:'1.2-2' }}</strong>
+          de Celular y <strong>${{ ganancias.gananciaBus | number:'1.2-2' }}</strong> de Bus
+          hacia Caja Chica antes de confirmar.
+        </p>
+      </div>
+    </ion-card>
+
+    <!-- Footer Action -->
+    <div class="footer-action">
+      <div class="action-card">
+        <div class="action-text">
+          <span class="action-label">Confirmar transferencia</span>
+          <span class="action-detail">Se registrará en ambas cajas</span>
+        </div>
+        <button class="action-btn success" (click)="confirmarTransferencia()">
+          Confirmar
+        </button>
+      </div>
+    </div>
+  }
+</ion-content>

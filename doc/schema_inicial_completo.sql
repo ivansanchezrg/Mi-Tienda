@@ -8,8 +8,13 @@
 -- IMPORTANTE: Ejecutar este script UNA SOLA VEZ al iniciar el proyecto.
 -- Para resetear el sistema, ejecutar nuevamente (incluye DROP de tablas).
 --
--- Fecha: 2026-02-02
--- Versión: 1.0
+-- Fecha: 2026-02-05
+-- Versión: 4.0 - Ultra-simplificación con fondo fijo
+--   • Solo 1 campo: efectivo_recaudado (total contado al final)
+--   • Fondo fijo en config: configuraciones.fondo_fijo_diario ($40)
+--   • Transferencia en config: configuraciones.caja_chica_transferencia_diaria ($20)
+--   • Fórmula: depósito = efectivo_recaudado - fondo_fijo - transferencia
+--   • Tabla gastos_diarios para tracking de gastos operativos
 -- ==========================================
 
 -- Habilitar extensión para UUIDs
@@ -20,7 +25,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ==========================================
 DROP TABLE IF EXISTS operaciones_cajas CASCADE;
 DROP TABLE IF EXISTS tipos_referencia CASCADE;
-DROP TABLE IF EXISTS cierres_diarios CASCADE;
+DROP TABLE IF EXISTS gastos_diarios CASCADE;
+DROP TABLE IF EXISTS caja_fisica_diaria CASCADE;
+DROP TABLE IF EXISTS cierres_diarios CASCADE; -- Mantener por compatibilidad (nombre antiguo)
 DROP TABLE IF EXISTS recargas CASCADE;
 DROP TABLE IF EXISTS cajas CASCADE;
 DROP TABLE IF EXISTS configuraciones CASCADE;
@@ -74,6 +81,7 @@ CREATE TABLE IF NOT EXISTS cajas (
 -- Configuración global del sistema
 CREATE TABLE IF NOT EXISTS configuraciones (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fondo_fijo_diario DECIMAL(10,2) DEFAULT 40.00,      -- Fondo fijo que se deja en caja física cada día
     celular_alerta_saldo_bajo DECIMAL(12,2),           -- Alerta cuando saldo virtual < este valor
     caja_chica_transferencia_diaria DECIMAL(12,2),     -- Monto fijo diario a caja chica ($20)
     bus_dias_antes_facturacion INTEGER,                -- Días de anticipación para facturación
@@ -129,19 +137,35 @@ CREATE TABLE IF NOT EXISTS recargas (
     UNIQUE(fecha, tipo_servicio_id)
 );
 
--- 6. Tabla: cierres_diarios
--- Registro maestro de cada cierre diario (una entidad por día)
-CREATE TABLE IF NOT EXISTS cierres_diarios (
+-- 6. Tabla: caja_fisica_diaria
+-- Registro de la caja física diaria (versión ultra-simplificada)
+-- En v4.0: Solo se registra el efectivo contado - todo lo demás viene de configuración
+CREATE TABLE IF NOT EXISTS caja_fisica_diaria (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     fecha DATE NOT NULL UNIQUE,                      -- Fecha del cierre (única)
     empleado_id INTEGER NOT NULL REFERENCES empleados(id),
-    efectivo_recaudado DECIMAL(12,2) NOT NULL,       -- Efectivo total del día
-    transferencia_caja_chica DECIMAL(12,2) NOT NULL, -- Monto transferido a caja chica
+    efectivo_recaudado DECIMAL(12,2) NOT NULL,       -- Total efectivo contado al final del día
     observaciones TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 7. Tabla: tipos_referencia
+-- 7. Tabla: gastos_diarios
+-- Registro de gastos operativos pagados desde la caja física (efectivo de ventas del día)
+-- NOTA: Si no hay efectivo, se hace EGRESO desde CAJA PRINCIPAL (en operaciones_cajas)
+CREATE TABLE IF NOT EXISTS gastos_diarios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fecha DATE NOT NULL,                             -- Fecha del gasto
+    empleado_id INTEGER NOT NULL REFERENCES empleados(id),
+    concepto VARCHAR(200) NOT NULL,                  -- Descripción del gasto
+    monto DECIMAL(10,2) NOT NULL CHECK (monto > 0),  -- Monto del gasto
+    observaciones TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índice para búsquedas por fecha
+CREATE INDEX idx_gastos_diarios_fecha ON gastos_diarios(fecha);
+
+-- 8. Tabla: tipos_referencia
 -- Catálogo de tablas que pueden ser referenciadas por operaciones
 CREATE TABLE IF NOT EXISTS tipos_referencia (
     id SERIAL PRIMARY KEY,
@@ -166,6 +190,7 @@ CREATE TABLE IF NOT EXISTS operaciones_cajas (
     tipo_referencia_id INTEGER REFERENCES tipos_referencia(id),  -- Tipo de tabla que origina la operación
     referencia_id UUID,                              -- UUID del registro que origina la operación
     descripcion TEXT,
+    comprobante_url TEXT,                            -- URL del comprobante en Supabase Storage (obligatorio para egresos)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -175,8 +200,8 @@ CREATE TABLE IF NOT EXISTS operaciones_cajas (
 CREATE INDEX idx_recargas_fecha ON recargas(fecha);
 CREATE INDEX idx_recargas_tipo_servicio ON recargas(tipo_servicio_id);
 CREATE INDEX idx_recargas_empleado ON recargas(empleado_id);
-CREATE INDEX idx_cierres_diarios_fecha ON cierres_diarios(fecha);
-CREATE INDEX idx_cierres_diarios_empleado ON cierres_diarios(empleado_id);
+CREATE INDEX idx_caja_fisica_diaria_fecha ON caja_fisica_diaria(fecha);
+CREATE INDEX idx_caja_fisica_diaria_empleado ON caja_fisica_diaria(empleado_id);
 CREATE INDEX idx_operaciones_cajas_fecha ON operaciones_cajas(fecha);
 CREATE INDEX idx_operaciones_cajas_caja ON operaciones_cajas(caja_id);
 CREATE INDEX idx_operaciones_cajas_empleado ON operaciones_cajas(empleado_id);
@@ -200,11 +225,11 @@ INSERT INTO cajas (codigo, nombre, descripcion, saldo_actual) VALUES
 -- Tipos de referencia (catálogo de tablas que pueden originar operaciones)
 INSERT INTO tipos_referencia (codigo, tabla, descripcion) VALUES
 ('RECARGAS', 'recargas', 'Operaciones originadas desde registros de recargas diarias'),
-('CIERRES_DIARIOS', 'cierres_diarios', 'Operaciones originadas desde el cierre diario (efectivo, transferencias)');
+('CAJA_FISICA_DIARIA', 'caja_fisica_diaria', 'Operaciones originadas desde el cierre de caja física diaria (depósito, transferencias)');
 
 -- Configuración inicial del sistema
-INSERT INTO configuraciones (celular_alerta_saldo_bajo, caja_chica_transferencia_diaria, bus_dias_antes_facturacion) VALUES
-(50.00, 20.00, 3);
+INSERT INTO configuraciones (fondo_fijo_diario, celular_alerta_saldo_bajo, caja_chica_transferencia_diaria, bus_dias_antes_facturacion) VALUES
+(40.00, 50.00, 20.00, 3);
 
 -- Empleado inicial del sistema
 INSERT INTO empleados (nombre, usuario) VALUES
@@ -224,12 +249,15 @@ COMMENT ON TABLE cajas IS 'Cajas de efectivo físico (CAJA, CAJA_CHICA) y virtua
 COMMENT ON TABLE configuraciones IS 'Configuración global del sistema';
 COMMENT ON TABLE tipos_servicio IS 'Tipos de servicio de recarga con sus reglas de negocio';
 COMMENT ON TABLE recargas IS 'Registro diario de control de saldo virtual por servicio';
-COMMENT ON TABLE cierres_diarios IS 'Registro maestro de cada cierre diario (una entidad por día con datos generales)';
+COMMENT ON TABLE caja_fisica_diaria IS 'Registro de la caja física diaria (v4.0: ultra-simplificado - solo efectivo_recaudado)';
+COMMENT ON TABLE gastos_diarios IS 'Registro de gastos operativos pagados desde efectivo de ventas del día (no afecta CAJA PRINCIPAL)';
 COMMENT ON TABLE tipos_referencia IS 'Catálogo de tablas que pueden originar operaciones en cajas (para trazabilidad)';
 COMMENT ON TABLE operaciones_cajas IS 'Log de auditoría de todas las operaciones en cajas con trazabilidad completa';
 
 COMMENT ON COLUMN cajas.saldo_actual IS 'Saldo actual de la caja (se actualiza con cada operación)';
 COMMENT ON COLUMN configuraciones.caja_chica_transferencia_diaria IS 'Monto fijo diario que se transfiere a caja chica ($20)';
+COMMENT ON COLUMN caja_fisica_diaria.efectivo_recaudado IS 'Total efectivo contado al final del día (el único campo necesario)';
+COMMENT ON COLUMN configuraciones.fondo_fijo_diario IS 'Fondo fijo que se deja en caja física todos los días ($40 por defecto)';
 COMMENT ON COLUMN recargas.venta_dia IS 'Monto vendido en el día';
 COMMENT ON COLUMN recargas.saldo_virtual_anterior IS 'Saldo del día anterior (viene del saldo_virtual_actual previo)';
 COMMENT ON COLUMN recargas.saldo_virtual_actual IS 'Saldo resultante: saldo_virtual_anterior - venta_dia';
@@ -240,19 +268,27 @@ COMMENT ON COLUMN operaciones_cajas.tipo_referencia_id IS 'FK a tipos_referencia
 COMMENT ON COLUMN operaciones_cajas.referencia_id IS 'UUID del registro específico que originó esta operación (para trazabilidad completa)';
 
 -- ==========================================
--- FLUJO DEL CIERRE DIARIO
+-- FLUJO DEL CIERRE DIARIO (VERSIÓN 2.0)
 -- ==========================================
--- Al realizar el cierre diario se ejecutan las siguientes operaciones:
+-- El cierre diario ahora representa APERTURA + OPERACIONES + CIERRE en un solo registro
+--
+-- APERTURA (implícita):
+--    • No se crea operación APERTURA - el registro de cierre con saldo_inicial representa la apertura
+--    • saldo_inicial = fondo_siguiente_dia del día anterior (validación de continuidad)
+--
+-- OPERACIONES DEL DÍA:
 --
 -- 1. CAJA (Principal):
---    • Recibe: efectivo de ventas de tienda
---    • Sale: $20 diarios a CAJA_CHICA
---    • Fórmula: saldo_anterior + efectivo_recaudado - 20 = saldo_actual
+--    • Comienza con: saldo_inicial (del cierre)
+--    • Recibe: efectivo_recaudado
+--    • Sale: egresos_del_dia
+--    • Sale: $20 a CAJA_CHICA (transferencia_caja_chica)
+--    • Sale: fondo_siguiente_dia (se deja para mañana)
+--    • Fórmula: saldo_inicial + efectivo_recaudado - egresos_del_dia - transferencia_caja_chica - fondo_siguiente_dia = saldo_final
 --    • Operaciones: INGRESO (efectivo) + TRANSFERENCIA_SALIENTE ($20)
 --
 -- 2. CAJA_CHICA:
 --    • Recibe: $20 diarios de CAJA (automático en cierre)
---    • Comisiones: se registran manualmente cuando el proveedor paga
 --    • Fórmula: saldo_anterior + 20 = saldo_actual
 --    • Operación: TRANSFERENCIA_ENTRANTE ($20)
 --
@@ -266,10 +302,18 @@ COMMENT ON COLUMN operaciones_cajas.referencia_id IS 'UUID del registro específ
 --    • Fórmula: saldo_anterior + venta_bus = saldo_actual
 --    • Operación: INGRESO (venta)
 --
+-- CIERRE (implícito):
+--    • No se crea operación CIERRE - el registro de cierre representa el fin del turno
+--    • fondo_siguiente_dia será el saldo_inicial del próximo día
+--
+-- VALIDACIÓN DE CONTINUIDAD:
+--    • saldo_inicial_dia_N = fondo_siguiente_dia_dia_N-1
+--
 -- IMPORTANTE:
--- - El saldo_actual de cada caja se actualiza con cada operación
--- - La tabla operaciones_cajas registra el historial completo
--- - Cada operación guarda saldo_anterior y saldo_actual para auditoría
+-- - YA NO se crean operaciones APERTURA/CIERRE en operaciones_cajas
+-- - El estado abierto/cerrado se determina por la existencia de cierre para HOY
+-- - Si existe cierre para hoy → día cerrado
+-- - Si NO existe cierre para hoy → día abierto
 
 -- ==========================================
 -- RESUMEN
@@ -293,3 +337,13 @@ COMMENT ON COLUMN operaciones_cajas.referencia_id IS 'UUID del registro específ
 -- El sistema está listo para comenzar a operar.
 -- Los saldos virtuales actuales servirán como base para el próximo cierre diario.
 -- La trazabilidad completa de operaciones está habilitada mediante tipos_referencia.
+--
+-- CAMBIOS VERSIÓN 4.0:
+-- ✅ Ultra-simplificado: Solo 1 campo (efectivo_recaudado)
+-- ✅ Fondo fijo centralizado: configuraciones.fondo_fijo_diario ($40)
+-- ✅ Fórmula final: depósito = efectivo_recaudado - fondo_fijo - transferencia
+-- ✅ UI más simple: Solo cuenta 1 número al final del día
+-- ✅ Menos errores: No pueden equivocarse con saldo_inicial/fondo_siguiente
+-- ✅ Estado abierto/cerrado por existencia de cierre para HOY
+-- ✅ Tabla gastos_diarios para tracking de gastos operativos
+-- ✅ Cuando no hay efectivo: EGRESO desde CAJA PRINCIPAL (en operaciones_cajas)
