@@ -145,6 +145,27 @@ $caja-chica-color: #8b5cf6;
   }
 }
 
+// Secciones dentro de cards
+.seccion-titulo {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--ion-color-primary);
+
+  strong {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ion-color-primary);
+    font-weight: 700;
+  }
+}
+
+.separador-seccion {
+  height: 1px;
+  background: var(--ion-border-color, #e5e7eb);
+  margin: 20px 0;
+}
+
 // Ventas del día
 .venta-item {
   display: flex;
@@ -187,6 +208,66 @@ $caja-chica-color: #8b5cf6;
       font-size: 18px;
       font-weight: 700;
       color: var(--ion-text-color);
+    }
+  }
+}
+
+// Desglose del efectivo
+.desglose-efectivo {
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--ion-color-light, #f8f9fa);
+  border-radius: 8px;
+  border-left: 3px solid $efectivo-color;
+
+  .desglose-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+
+    &:not(:last-child) {
+      border-bottom: 1px dashed var(--ion-border-color, #e5e7eb);
+    }
+
+    &.resultado {
+      margin-top: 4px;
+      padding-top: 12px;
+      border-top: 2px solid var(--ion-border-color, #e5e7eb);
+    }
+
+    .desglose-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--ion-color-medium);
+
+      .desglose-icon {
+        font-size: 16px;
+      }
+    }
+
+    .desglose-valor {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ion-text-color);
+
+      &.resta {
+        color: $bus-color; // Rojo para las restas
+        font-weight: 700;
+      }
+
+      &.destacado {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--ion-color-success);
+      }
+    }
+
+    &.resultado .desglose-label {
+      color: var(--ion-color-success);
+      font-weight: 600;
     }
   }
 }
@@ -268,20 +349,25 @@ $caja-chica-color: #8b5cf6;
 // Alertas
 .alerta-simple {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 12px;
   background: var(--ion-color-light);
-  border-radius: 12px;
+  border-radius: 10px;
   margin-bottom: 12px;
 
   ion-icon {
     font-size: 24px;
     flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  > div {
+    flex: 1;
   }
 
   p {
-    margin: 0;
+    margin: 0 0 8px 0;
     font-size: 13px;
     color: var(--ion-text-color);
     line-height: 1.4;
@@ -289,10 +375,42 @@ $caja-chica-color: #8b5cf6;
     strong {
       color: var(--ion-color-primary);
     }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 20px;
+    list-style: disc;
+
+    li {
+      font-size: 13px;
+      color: var(--ion-text-color);
+      line-height: 1.6;
+      margin-bottom: 6px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      strong {
+        color: var(--ion-color-primary);
+        font-weight: 700;
+      }
+    }
+  }
+
+  &.info {
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.2);
   }
 
   &.warning {
     background: rgba(var(--ion-color-warning-rgb), 0.1);
+    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.2);
   }
 }
 
@@ -323,7 +441,7 @@ $caja-chica-color: #8b5cf6;
 
 .paso-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 12px;
   margin-top: 24px;
   padding-bottom: 16px;
@@ -333,5 +451,6 @@ $caja-chica-color: #8b5cf6;
     height: 50px;
     font-weight: 700;
     text-transform: none;
+    flex: 1;
   }
 }

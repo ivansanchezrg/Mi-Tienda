@@ -1,6 +1,81 @@
 // No definimos variables locales de color manuales.
 // Usamos las que Ionic provee globalmente.
 
+// ==========================================
+// Action Sheet - Estilo Moderno con Esquinas Redondeadas
+// ==========================================
+::ng-deep {
+  .caja-action-sheet {
+    // Contenedor principal del action sheet
+    .action-sheet-wrapper {
+      border-radius: 20px 20px 0 0 !important;  // Esquinas redondeadas arriba
+      overflow: hidden;  // Asegura que el contenido respete el border-radius
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15) !important;  // Sombra suave hacia arriba
+    }
+
+    // Header del action sheet
+    .action-sheet-title {
+      font-size: 15px !important;
+      font-weight: 600 !important;
+      padding: 18px 16px 12px !important;
+      color: var(--ion-text-color) !important;
+      border-bottom: 1px solid var(--ion-color-step-150) !important;
+    }
+
+    // Container de botones
+    .action-sheet-group {
+      padding: 0 !important;
+    }
+
+    // Botones individuales
+    .action-sheet-button {
+      height: 56px !important;
+      font-size: 15px !important;
+
+      .action-sheet-icon {
+        font-size: 22px !important;
+        margin-right: 16px !important;
+      }
+    }
+
+    // Botón de cancelar (separado)
+    .action-sheet-button.action-sheet-cancel {
+      border-top: 8px solid var(--ion-color-step-50) !important;
+      font-weight: 500 !important;
+    }
+  }
+
+  // Backdrop (fondo oscuro detrás del action sheet)
+  ion-backdrop {
+    backdrop-filter: blur(4px) !important;  // Efecto blur en el fondo
+  }
+
+  // Colores personalizados para iconos
+  .action-sheet-primary {
+    ion-icon {
+      color: var(--ion-color-primary) !important;
+    }
+  }
+
+  .action-sheet-success {
+    ion-icon {
+      color: var(--ion-color-success) !important;
+    }
+  }
+
+  .action-sheet-danger {
+    ion-icon {
+      color: var(--ion-color-danger) !important;
+    }
+  }
+
+  .action-sheet-cancel {
+    ion-icon {
+      color: var(--ion-color-medium) !important;
+    }
+  }
+}
+
 // Botón de notificaciones con badge superpuesto
 .notification-button {
   position: relative;
@@ -29,7 +104,7 @@
   padding: 14px 20px;
   margin-bottom: 20px;
   background: var(--ion-item-background);
-  border-bottom: 1px solid var(--ion-color-step-100, #e5e5e5);
+  border-bottom: 1px solid var(--ion-color-step-100);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 
   &.abierto {
@@ -112,8 +187,8 @@
 // 2. ACTIONS GRID
 .actions-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
   padding: 16px;
 
   @media (max-width: 360px) {
@@ -179,9 +254,17 @@
 
   .divider {
     height: 1px;
-    // Borde adaptativo
-    background: var(--ion-color-step-100, #f0f0f0); 
     margin: 0 16px 0 68px;
+
+    /* Color para Modo Claro */
+    background: #d1d5db; // Un gris tipo Tailwind que nunca falla
+
+    /* Color específico para Modo Oscuro */
+      .ios &, .md & {
+        @media (prefers-color-scheme: dark) {
+        background: #333639; // Gris carbón muy discreto
+      }
+    }
   }
 
   .account-item {
@@ -193,11 +276,29 @@
     align-items: center;
     gap: 16px;
     text-align: left;
-    transition: background 0.2s;
+    position: relative;
 
-    &:active {
-      // Color de toque adaptativo
-      background: var(--ion-color-step-50, rgba(0,0,0,0.04));
+    .menu-button {
+      background: none;
+      border: none;
+      padding: 8px;
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ion-color-medium);
+      cursor: pointer;
+      border-radius: 50%;
+      transition: all 0.2s;
+
+      ion-icon {
+        font-size: 20px;
+      }
+
+      &:active {
+        background: var(--ion-color-step-100, rgba(0,0,0,0.08));
+        color: var(--ion-color-primary);
+      }
     }
 
     .account-icon {
@@ -251,66 +352,3 @@
   }
 }
 
-// 4. FOOTER SHIFT CARD
-.footer-action {
-  padding: 0 16px 30px;
-  
-  .shift-card {
-    border-radius: 16px;
-    padding: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    transition: all 0.3s ease;
-    border: 1px solid transparent;
-    // Fondo adaptativo de tarjeta
-    background: var(--ion-item-background); 
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-
-    &.is-open {
-      border-color: rgba(var(--ion-color-success-rgb), 0.3);
-      
-      .shift-btn {
-        background: var(--ion-color-warning); 
-        color: var(--ion-color-warning-contrast);
-      }
-    }
-
-    &.is-closed {
-      border-color: rgba(var(--ion-color-medium-rgb), 0.2);
-      
-      .shift-btn {
-        background: var(--ion-color-success);
-        color: var(--ion-color-success-contrast);
-      }
-    }
-
-    .shift-text {
-      display: flex;
-      flex-direction: column;
-      
-      .shift-label {
-        font-weight: 700;
-        font-size: 15px;
-        color: var(--ion-text-color);
-      }
-      .shift-detail {
-        font-size: 12px;
-        color: var(--ion-color-medium);
-        margin-top: 2px;
-      }
-    }
-
-    .shift-btn {
-      padding: 10px 20px;
-      border-radius: 10px;
-      border: none;
-      font-weight: 700;
-      font-size: 13px;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      
-      &:active { transform: scale(0.96); }
-    }
-  }
-}

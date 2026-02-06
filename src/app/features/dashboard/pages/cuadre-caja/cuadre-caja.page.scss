@@ -1,0 +1,294 @@
+// Loading State
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 50vh;
+  gap: 16px;
+
+  ion-icon {
+    font-size: 48px;
+    color: var(--ion-color-medium);
+    opacity: 0.5;
+  }
+
+  p {
+    font-size: 14px;
+    color: var(--ion-color-medium);
+  }
+}
+
+// Info Card - Saldo del sistema
+.info-card {
+  background: rgba(var(--ion-color-primary-rgb), 0.06);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+
+  .info-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+
+    ion-icon {
+      font-size: 20px;
+      color: var(--ion-color-primary);
+    }
+
+    span {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--ion-color-medium);
+    }
+  }
+
+  .info-amount {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--ion-color-primary);
+    margin-bottom: 8px;
+  }
+
+  .info-desc {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+    margin: 0;
+  }
+}
+
+// Input Card
+.input-card {
+  margin: 0 0 16px;
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--ion-item-background);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  .input-header {
+    margin-bottom: 12px;
+
+    .input-label {
+      display: block;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ion-text-color);
+      margin-bottom: 4px;
+    }
+
+    .input-hint {
+      display: block;
+      font-size: 12px;
+      color: var(--ion-color-medium);
+    }
+  }
+
+  .input-wrapper {
+    display: flex;
+    align-items: center;
+    background: var(--ion-color-step-50);
+    border-radius: 12px;
+    padding: 12px 16px;
+
+    .currency-prefix {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--ion-color-medium);
+      margin-right: 8px;
+    }
+
+    .amount-input {
+      --padding-start: 0;
+      --padding-end: 0;
+      font-size: 24px;
+      font-weight: 700;
+    }
+  }
+
+  ion-textarea {
+    --background: var(--ion-color-step-50);
+    --border-radius: 12px;
+    --padding-start: 16px;
+    --padding-end: 16px;
+    --padding-top: 12px;
+    --padding-bottom: 12px;
+  }
+}
+
+// Result Card
+.result-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  margin-bottom: 16px;
+
+  &[data-status="success"] {
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+
+    .result-icon {
+      background: rgba(var(--ion-color-success-rgb), 0.2);
+      color: var(--ion-color-success);
+    }
+
+    .result-label {
+      color: var(--ion-color-success-shade);
+    }
+
+    .result-amount {
+      color: var(--ion-color-success);
+    }
+  }
+
+  &[data-status="warning"] {
+    background: rgba(var(--ion-color-warning-rgb), 0.1);
+
+    .result-icon {
+      background: rgba(var(--ion-color-warning-rgb), 0.2);
+      color: var(--ion-color-warning);
+    }
+
+    .result-label {
+      color: var(--ion-color-warning-shade);
+    }
+
+    .result-amount {
+      color: var(--ion-color-warning);
+    }
+  }
+
+  &[data-status="danger"] {
+    background: rgba(var(--ion-color-danger-rgb), 0.1);
+
+    .result-icon {
+      background: rgba(var(--ion-color-danger-rgb), 0.2);
+      color: var(--ion-color-danger);
+    }
+
+    .result-label {
+      color: var(--ion-color-danger-shade);
+    }
+
+    .result-amount {
+      color: var(--ion-color-danger);
+    }
+  }
+
+  .result-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    ion-icon {
+      font-size: 26px;
+    }
+  }
+
+  .result-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    .result-label {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .result-amount {
+      font-size: 20px;
+      font-weight: 700;
+    }
+  }
+}
+
+// Observaciones Card
+.observaciones-card {
+  border-left: 4px solid var(--ion-color-warning);
+}
+
+// Summary Card
+.summary-card {
+  background: var(--ion-item-background);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 14px;
+    color: var(--ion-color-medium);
+
+    &.total {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ion-text-color);
+
+      &[data-status="success"] span:last-child {
+        color: var(--ion-color-success);
+      }
+
+      &[data-status="warning"] span:last-child {
+        color: var(--ion-color-warning);
+      }
+
+      &[data-status="danger"] span:last-child {
+        color: var(--ion-color-danger);
+      }
+    }
+  }
+
+  .summary-divider {
+    height: 1px;
+    background: var(--ion-color-step-100);
+    margin: 8px 0;
+  }
+}
+
+// Footer Action
+.footer-action {
+  padding: 16px 0 32px;
+
+  .confirm-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--ion-color-primary);
+    color: var(--ion-color-primary-contrast);
+    transition: all 0.2s ease;
+
+    ion-icon {
+      font-size: 20px;
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--ion-color-primary-shade);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+  }
+}

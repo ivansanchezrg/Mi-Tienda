@@ -1,0 +1,153 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon slot="icon-only" name="chevron-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>{{ cajaNombre }}</ion-title>
+    @if (showHeaderBalance) {
+      <ion-buttons slot="end">
+        <span class="header-balance">${{ cajaSaldo | number:'1.2-2' }}</span>
+      </ion-buttons>
+    }
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [scrollEvents]="true" (ionScroll)="onScroll($event)">
+  <!-- Balance Card - Empresarial pero limpio -->
+  <div class="balance-card">
+    <div class="balance-main">
+      <div class="balance-header">
+        <div class="balance-content">
+          <span class="balance-label">Saldo disponible</span>
+          <span class="balance-amount">${{ cajaSaldo | number:'1.2-2' }}</span>
+        </div>
+        <button class="menu-button" (click)="mostrarMenuOperaciones($event)">
+          <ion-icon name="ellipsis-vertical"></ion-icon>
+        </button>
+      </div>
+    </div>
+    <div class="balance-summary">
+      <div class="summary-item">
+        <ion-icon name="arrow-down-outline" class="income"></ion-icon>
+        <div class="summary-info">
+          <span class="summary-value">${{ totalIngresos | number:'1.2-2' }}</span>
+          <span class="summary-label">Entradas</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-item">
+        <ion-icon name="arrow-up-outline" class="expense"></ion-icon>
+        <div class="summary-info">
+          <span class="summary-value">${{ totalEgresos | number:'1.2-2' }}</span>
+          <span class="summary-label">Salidas</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra de filtros -->
+  <div class="filter-bar">
+    <span class="filter-label">Movimientos</span>
+    <div class="filter-tabs">
+      @for (f of ['hoy', 'semana', 'mes', 'todas']; track f) {
+        <button
+          class="filter-tab"
+          [class.active]="filtro === f"
+          (click)="cambiarFiltroDirecto(f)">
+          {{ f === 'todas' ? 'Todo' : (f | titlecase) }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Estados -->
+  @if (loading && operaciones.length === 0) {
+    <div class="empty-state">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Cargando movimientos...</p>
+    </div>
+  }
+
+  @if (!loading && operaciones.length === 0) {
+    <div class="empty-state">
+      <ion-icon name="document-text-outline"></ion-icon>
+      <p>No hay movimientos en este período</p>
+    </div>
+  }
+
+  <!-- Lista de movimientos -->
+  @if (operacionesAgrupadas.length > 0) {
+    @for (grupo of operacionesAgrupadas; track grupo.fecha) {
+      <!-- Fecha Header -->
+      <div class="date-header">
+        <span class="date-text">{{ grupo.fechaDisplay }}</span>
+        <div class="date-totals">
+          @if (grupo.totalIngresos > 0) {
+            <span class="total-in">+${{ grupo.totalIngresos | number:'1.2-2' }}</span>
+          }
+          @if (grupo.totalEgresos > 0) {
+            <span class="total-out">-${{ grupo.totalEgresos | number:'1.2-2' }}</span>
+          }
+        </div>
+      </div>
+
+      <!-- Card de operaciones -->
+      <ion-card class="operations-card">
+        @for (op of grupo.operaciones; track op.id; let last = $last) {
+          <div class="op-row">
+            <div class="op-icon" [attr.data-type]="getOperacionColor(op.tipo_operacion)">
+              <ion-icon [name]="getOperacionIcon(op.tipo_operacion)"></ion-icon>
+            </div>
+
+            <div class="op-details">
+              <div class="op-title-row">
+                <span class="op-title">{{ getOperacionLabel(op.tipo_operacion) }}</span>
+                @if (op.comprobante_url) {
+                  <button class="comprobante-btn" (click)="verComprobante(op.comprobante_url)">
+                    <ion-icon name="document-attach-outline"></ion-icon>
+                  </button>
+                }
+              </div>
+
+              @if (op.descripcion) {
+                <p class="op-desc">{{ op.descripcion }}</p>
+              }
+
+              <div class="op-footer">
+                <span class="op-time">{{ formatHora(op.fecha) }}</span>
+                @if (op.empleado) {
+                  <span class="dot">·</span>
+                  <span class="op-user">{{ op.empleado.nombre }}</span>
+                }
+                @if (op.saldo_actual !== null) {
+                  <span class="dot">·</span>
+                  <span class="op-saldo">Saldo: ${{ op.saldo_actual | number:'1.2-2' }}</span>
+                }
+              </div>
+            </div>
+
+            <span class="op-amount" [attr.data-type]="getOperacionColor(op.tipo_operacion)">
+              {{ esIngreso(op.tipo_operacion) ? '+' : '-' }}${{ op.monto | number:'1.2-2' }}
+            </span>
+          </div>
+
+          @if (!last) {
+            <div class="op-divider"></div>
+          }
+        }
+      </ion-card>
+    }
+
+    <ion-infinite-scroll
+      threshold="100px"
+      [disabled]="!hasMore"
+      (ionInfinite)="loadMore($event)">
+      <ion-infinite-scroll-content
+        loadingSpinner="crescent"
+        loadingText="Cargando más...">
+      </ion-infinite-scroll-content>
+    </ion-infinite-scroll>
+  }
+</ion-content>

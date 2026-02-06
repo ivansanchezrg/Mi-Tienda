@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
-import { SaldosAnteriores, DatosCierreDiario } from '../models/saldos-anteriores.model';
+import { SaldosAnteriores, DatosCierreDiario, ParamsCierreDiario } from '../models/saldos-anteriores.model';
 
 /**
  * Tipo de retorno de la query de saldo virtual
@@ -103,18 +103,18 @@ export class RecargasService {
   }
 
   /**
-   * Obtiene todos los datos necesarios para el cierre diario
+   * Obtiene todos los datos necesarios para el cierre diario (v4.0)
    *
    * Realiza queries en paralelo para obtener:
    * - Saldos virtuales anteriores (Celular y Bus) desde tabla recargas
    * - Saldos actuales de las 4 cajas desde tabla cajas
-   * - Configuración de transferencia diaria desde tabla configuraciones
+   * - Configuración (fondo_fijo y transferencia_diaria) desde tabla configuraciones
    *
    * @returns {Promise<DatosCierreDiario>} Objeto con todos los datos necesarios para el cierre
    *
    * @example
    * const datos = await recargasService.getDatosCierreDiario();
-   * console.log(datos.saldoCaja); // 500.00
+   * console.log(datos.fondoFijo); // 40.00
    * console.log(datos.transferenciaDiariaCajaChica); // 20.00
    */
   async getDatosCierreDiario(): Promise<DatosCierreDiario> {
@@ -159,11 +159,11 @@ export class RecargasService {
           .single()
       ),
 
-      // 6. Configuración de transferencia diaria
-      this.supabase.call<ConfiguracionQuery>(
+      // 6. Configuración (fondo_fijo y transferencia_diaria)
+      this.supabase.call<{ fondo_fijo_diario: number; caja_chica_transferencia_diaria: number }>(
         this.supabase.client
           .from('configuraciones')
-          .select('caja_chica_transferencia_diaria')
+          .select('fondo_fijo_diario, caja_chica_transferencia_diaria')
           .limit(1)
           .single()
       )
@@ -175,6 +175,7 @@ export class RecargasService {
       saldoCajaChica: cajaChica?.saldo_actual ?? 0,
       saldoCajaCelular: cajaCelular?.saldo_actual ?? 0,
       saldoCajaBus: cajaBus?.saldo_actual ?? 0,
+      fondoFijo: config?.fondo_fijo_diario ?? 40,
       transferenciaDiariaCajaChica: config?.caja_chica_transferencia_diaria ?? 20
     };
   }
@@ -271,24 +272,31 @@ export class RecargasService {
   }
 
   /**
-   * Verifica si ya existe un cierre diario para la fecha actual (local)
+   * Verifica si ya existe un cierre diario para la fecha actual (local) - Versión 3.0
+   * Verifica en la tabla caja_fisica_diaria
    * Si no se pasa fecha, usa la fecha local actual
    * @param {string} [fecha] Fecha en formato YYYY-MM-DD (opcional)
-   * @returns {Promise<boolean>} True si ya existe un cierre para esa fecha
+   * @returns {Promise<boolean | null>} True si existe cierre, False si no existe, null si hay error
    */
-  async existeCierreDiario(fecha?: string): Promise<boolean> {
+  async existeCierreDiario(fecha?: string): Promise<boolean | null> {
     const fechaBusqueda = fecha || this.getFechaLocal();
 
-    const recarga = await this.supabase.call<{ id: string }>(
-      this.supabase.client
-        .from('recargas')
-        .select('id')
-        .eq('fecha', fechaBusqueda)
-        .limit(1)
-        .maybeSingle()
-    );
+    // Hacer la consulta directamente para poder distinguir error vs sin datos
+    const response = await this.supabase.client
+      .from('caja_fisica_diaria')
+      .select('id')
+      .eq('fecha', fechaBusqueda)
+      .limit(1)
+      .maybeSingle();
 
-    return recarga !== null;
+    // Si hay error, retornar null
+    if (response.error) {
+      console.error('Error al verificar cierre:', response.error);
+      return null;
+    }
+
+    // Si no hay error, verificar si hay datos
+    return response.data !== null;
   }
 
   /**
@@ -330,47 +338,27 @@ export class RecargasService {
   }
 
   /**
-   * Ejecuta el cierre diario completo usando función PostgreSQL
+   * Ejecuta el cierre diario completo usando función PostgreSQL (Versión 4.0)
    *
    * Esta función ejecuta todas las operaciones del cierre diario en una transacción atómica.
    * Si alguna operación falla, PostgreSQL hace rollback automático de todo.
    *
-   * @param {object} params Parámetros del cierre diario
-   * @param {string} params.fecha Fecha del cierre (YYYY-MM-DD)
-   * @param {number} params.empleado_id ID del empleado
-   * @param {number} params.saldo_celular_final Saldo virtual final de celular
-   * @param {number} params.saldo_bus_final Saldo virtual final de bus
-   * @param {number} params.efectivo_recaudado Efectivo total recaudado
-   * @param {number} params.saldo_anterior_celular Saldo virtual anterior de celular
-   * @param {number} params.saldo_anterior_bus Saldo virtual anterior de bus
-   * @param {number} params.saldo_anterior_caja Saldo anterior de CAJA
-   * @param {number} params.saldo_anterior_caja_chica Saldo anterior de CAJA_CHICA
-   * @param {number} params.saldo_anterior_caja_celular Saldo anterior de CAJA_CELULAR
-   * @param {number} params.saldo_anterior_caja_bus Saldo anterior de CAJA_BUS
-   * @param {string} [params.observaciones] Observaciones opcionales
+   * CAMBIOS VERSIÓN 4.0:
+   * - Ultra-simplificado: Solo requiere efectivo_recaudado
+   * - Fondo fijo y transferencia vienen de configuración
+   * - Fórmula: depósito = efectivo_recaudado - fondo_fijo - transferencia
+   *
+   * @param {ParamsCierreDiario} params Parámetros completos del cierre diario
    * @returns {Promise<any>} Resultado del cierre con información detallada
    */
-  async ejecutarCierreDiario(params: {
-    fecha: string;
-    empleado_id: number;
-    saldo_celular_final: number;
-    saldo_bus_final: number;
-    efectivo_recaudado: number;
-    saldo_anterior_celular: number;
-    saldo_anterior_bus: number;
-    saldo_anterior_caja: number;
-    saldo_anterior_caja_chica: number;
-    saldo_anterior_caja_celular: number;
-    saldo_anterior_caja_bus: number;
-    observaciones?: string;
-  }): Promise<any> {
+  async ejecutarCierreDiario(params: ParamsCierreDiario): Promise<any> {
     const resultado = await this.supabase.call(
       this.supabase.client.rpc('ejecutar_cierre_diario', {
         p_fecha: params.fecha,
         p_empleado_id: params.empleado_id,
+        p_efectivo_recaudado: params.efectivo_recaudado,
         p_saldo_celular_final: params.saldo_celular_final,
         p_saldo_bus_final: params.saldo_bus_final,
-        p_efectivo_recaudado: params.efectivo_recaudado,
         p_saldo_anterior_celular: params.saldo_anterior_celular,
         p_saldo_anterior_bus: params.saldo_anterior_bus,
         p_saldo_anterior_caja: params.saldo_anterior_caja,
