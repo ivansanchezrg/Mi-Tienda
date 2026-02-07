@@ -20,12 +20,21 @@
     <ion-refresher-content pullingIcon="chevron-down-outline" refreshingSpinner="crescent"></ion-refresher-content>
   </ion-refresher>
 
-  <div class="status-card" [ngClass]="cajaAbierta ? 'abierto' : 'cerrado'">
-    <div class="status-left">
-      <ion-icon [name]="cajaAbierta ? 'checkmark-circle' : 'close-circle'"></ion-icon>
-      <span class="status-text">{{ cajaAbierta ? 'Caja Abierta' : 'Caja Cerrada' }}</span>
+  <!-- Banner superior simplificado -->
+  <div class="status-banner" [ngClass]="estadoCaja.estado">
+    <div class="status-info">
+      <ion-icon
+        [name]="estadoCaja.estado === 'TURNO_EN_CURSO' ? 'checkmark-circle' : 'close-circle'"
+        [class.success]="estadoCaja.estado === 'TURNO_EN_CURSO'"
+        [class.medium]="estadoCaja.estado !== 'TURNO_EN_CURSO'">
+      </ion-icon>
+      <span class="status-text">
+        {{ estadoCaja.estado === 'TURNO_EN_CURSO' ? 'Caja Abierta' : 'Caja Cerrada' }}
+      </span>
     </div>
-    <span class="status-date">{{ fechaActual }}</span>
+    <span class="status-hora" *ngIf="estadoCaja.estado === 'TURNO_EN_CURSO'">
+      {{ estadoCaja.horaApertura }}
+    </span>
   </div>
 
   <div class="section-header">
@@ -49,13 +58,13 @@
         <div class="account-info">
           <div class="name-row">
             <span class="name">Caja Principal</span>
+            <button class="chevron-button" (click)="onSaldoClick('caja')">
+              <ion-icon name="chevron-forward-outline"></ion-icon>
+            </button>
           </div>
           <span class="type">Efectivo</span>
         </div>
         <span class="account-amount">${{ saldoCaja | number:'1.2-2' }}</span>
-        <button class="menu-button" (click)="mostrarMenuCaja($event, 'caja')">
-          <ion-icon name="ellipsis-vertical"></ion-icon>
-        </button>
       </div>
 
       <div class="divider"></div>
@@ -67,13 +76,13 @@
         <div class="account-info">
           <div class="name-row">
             <span class="name">Caja Chica</span>
+            <button class="chevron-button" (click)="onSaldoClick('cajaChica')">
+              <ion-icon name="chevron-forward-outline"></ion-icon>
+            </button>
           </div>
           <span class="type">Varios</span>
         </div>
         <span class="account-amount">${{ saldoCajaChica | number:'1.2-2' }}</span>
-        <button class="menu-button" (click)="mostrarMenuCaja($event, 'cajaChica')">
-          <ion-icon name="ellipsis-vertical"></ion-icon>
-        </button>
       </div>
 
       <div class="divider"></div>
@@ -85,13 +94,13 @@
         <div class="account-info">
           <div class="name-row">
             <span class="name">Celular</span>
+            <button class="chevron-button" (click)="onSaldoClick('celular')">
+              <ion-icon name="chevron-forward-outline"></ion-icon>
+            </button>
           </div>
           <span class="type">Saldo digital</span>
         </div>
         <span class="account-amount">${{ saldoCelular | number:'1.2-2' }}</span>
-        <button class="menu-button" (click)="mostrarMenuCaja($event, 'celular')">
-          <ion-icon name="ellipsis-vertical"></ion-icon>
-        </button>
       </div>
 
       <div class="divider"></div>
@@ -103,53 +112,61 @@
         <div class="account-info">
           <div class="name-row">
             <span class="name">Bus</span>
+            <button class="chevron-button" (click)="onSaldoClick('bus')">
+              <ion-icon name="chevron-forward-outline"></ion-icon>
+            </button>
           </div>
           <span class="type">Saldo digital</span>
         </div>
         <span class="account-amount">${{ saldoBus | number:'1.2-2' }}</span>
-        <button class="menu-button" (click)="mostrarMenuCaja($event, 'bus')">
-          <ion-icon name="ellipsis-vertical"></ion-icon>
-        </button>
       </div>
 
     </div>
   </ion-card>
 
-  <div class="section-header">
-    <h3>Operaciones</h3>
-  </div>
-
-  <ion-card class="modern-card">
-    <div class="actions-grid">
-      <button class="action-btn" (click)="onOperacion('gasto')">
-        <div class="icon-box ion-color-warning">
-          <ion-icon name="receipt-outline"></ion-icon>
+  <!-- Card de gestión de turnos -->
+  <ion-card class="modern-card turno-card">
+    <div class="turno-card-content">
+      <!-- Header con título y botón -->
+      <div class="turno-header">
+        <div class="turno-header-left">
+          <ion-icon
+            [name]="estadoCaja.estado === 'TURNO_EN_CURSO' ? 'lock-open-outline' : 'lock-closed-outline'"
+            [color]="estadoCaja.estado === 'TURNO_EN_CURSO' ? 'success' : 'medium'">
+          </ion-icon>
+          <div class="turno-header-info">
+            <div class="turno-header-title">
+              {{ estadoCaja.estado === 'TURNO_EN_CURSO' ? 'Turno en Curso' : estadoCaja.estado === 'CERRADA' ? 'Sin turno activo' : 'Listo para abrir' }}
+            </div>
+            <div class="turno-header-subtitle">
+              <ng-container *ngIf="estadoCaja.estado === 'TURNO_EN_CURSO'">
+                Apertura: {{ estadoCaja.horaApertura }} • {{ estadoCaja.empleadoNombre }}
+              </ng-container>
+              <ng-container *ngIf="estadoCaja.estado === 'CERRADA'">
+                {{ estadoCaja.turnosHoy }} turno{{ estadoCaja.turnosHoy > 1 ? 's' : '' }} completado{{ estadoCaja.turnosHoy > 1 ? 's' : '' }} hoy
+              </ng-container>
+              <ng-container *ngIf="estadoCaja.estado === 'SIN_ABRIR'">
+                Verifica el fondo fijo antes de abrir
+              </ng-container>
+            </div>
+          </div>
         </div>
-        <span>Gasto</span>
-      </button>
-
-      <button class="action-btn" (click)="onOperacion('transferencia')">
-        <div class="icon-box ion-color-primary">
-          <ion-icon name="swap-horizontal-outline"></ion-icon>
-        </div>
-        <span>Transferir</span>
-      </button>
-
-      <button class="action-btn" (click)="onCuadre()">
-        <div class="icon-box ion-color-tertiary">
-          <ion-icon name="clipboard-outline"></ion-icon>
-        </div>
-        <span>Cuadre</span>
-      </button>
-
-      <button class="action-btn" (click)="cajaAbierta ? onCerrarDia() : onAbrirDia()">
-        <div class="icon-box" [ngClass]="cajaAbierta ? 'ion-color-danger' : 'ion-color-success'">
-          <ion-icon [name]="cajaAbierta ? 'lock-open-outline' : 'lock-closed-outline'"></ion-icon>
-        </div>
-        <span>{{ cajaAbierta ? 'Cerrar Día' : 'Iniciar Día' }}</span>
-      </button>
+        <ion-button
+          *ngIf="estadoCaja.estado === 'TURNO_EN_CURSO'"
+          size="small"
+          color="danger"
+          (click)="onCerrarCaja()">
+          Cerrar
+        </ion-button>
+        <ion-button
+          *ngIf="estadoCaja.estado !== 'TURNO_EN_CURSO'"
+          size="small"
+          color="success"
+          (click)="onAbrirCaja()">
+          Abrir
+        </ion-button>
+      </div>
     </div>
   </ion-card>
-
 
 </ion-content>

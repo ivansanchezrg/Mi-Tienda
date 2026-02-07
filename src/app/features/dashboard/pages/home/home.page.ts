@@ -1,11 +1,12 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
   IonCard, IonIcon, IonBadge, IonButton, ModalController,
-  IonList, IonItem, IonLabel, IonText, ToastController, ActionSheetController
+  IonList, IonItem, IonLabel, IonText, IonCheckbox, ToastController, ActionSheetController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -14,7 +15,8 @@ import {
   arrowDownOutline, arrowUpOutline, swapHorizontalOutline,
   receiptOutline, clipboardOutline, notificationsOutline, close,
   notificationsOffOutline, cloudOfflineOutline, alertCircleOutline,
-  ellipsisVertical, listOutline, lockOpenOutline, lockClosedOutline
+  ellipsisVertical, listOutline, lockOpenOutline, lockClosedOutline,
+  timeOutline, playOutline, stopOutline
 } from 'ionicons/icons';
 import { ScrollablePage } from '@core/pages/scrollable.page';
 import { UiService } from '@core/services/ui.service';
@@ -24,6 +26,8 @@ import { CajasService, Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { GananciasService, GananciasPendientes } from '../../services/ganancias.service';
+import { TurnosCajaService } from '../../services/turnos-caja.service';
+import { EstadoCaja } from '../../models/turno-caja.model';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
 
 @Component({
@@ -47,13 +51,25 @@ export class HomePage extends ScrollablePage implements OnInit {
   private operacionesCajaService = inject(OperacionesCajaService);
   private authService = inject(AuthService);
   private gananciasService = inject(GananciasService);
+  private turnosCajaService = inject(TurnosCajaService);
   private modalCtrl = inject(ModalController);
   private toastCtrl = inject(ToastController);
   private actionSheetCtrl = inject(ActionSheetController);
   private networkService = inject(NetworkService);
+  private cdr = inject(ChangeDetectorRef);
 
-  // Estado de la caja (se carga desde BD)
-  cajaAbierta = false;
+  // Estado del turno de caja
+  estadoCaja: EstadoCaja = {
+    estado: 'SIN_ABRIR',
+    turnoActivo: null,
+    empleadoNombre: '',
+    horaApertura: '',
+    turnosHoy: 0
+  };
+
+  get cajaAbierta(): boolean {
+    return this.estadoCaja.estado === 'TURNO_EN_CURSO';
+  }
 
   // Estado de conexión
   isOnline = true;
@@ -85,7 +101,8 @@ export class HomePage extends ScrollablePage implements OnInit {
       arrowDownOutline, arrowUpOutline, swapHorizontalOutline,
       receiptOutline, clipboardOutline, notificationsOutline, close,
       notificationsOffOutline, cloudOfflineOutline, alertCircleOutline,
-      ellipsisVertical, listOutline, lockOpenOutline, lockClosedOutline
+      ellipsisVertical, listOutline, lockOpenOutline, lockClosedOutline,
+      timeOutline, playOutline, stopOutline
     });
   }
 
@@ -105,22 +122,34 @@ export class HomePage extends ScrollablePage implements OnInit {
   /**
    * Mantiene el comportamiento de ScrollablePage (resetear scroll)
    * Carga datos solo si viene con query param refresh (ej: después de cierre)
+   * Detecta acciones desde el FAB (ej: action=gasto)
    */
   override async ionViewWillEnter(): Promise<void> {
     super.ionViewWillEnter();
 
+    // Check for action from FAB
+    const action = this.route.snapshot.queryParams['action'];
+
     // Check if should refresh (coming from cierre or other process)
     const refresh = this.route.snapshot.queryParams['refresh'];
-    if (refresh) {
-      // Clear query param first to avoid refresh loop
+
+    if (action || refresh) {
+      // Clear query params first to avoid loops
       await this.router.navigate([], {
         relativeTo: this.route,
         queryParams: {},
         replaceUrl: true
       });
 
-      // Then refresh data
-      await this.cargarDatos();
+      // Handle action
+      if (action === 'gasto') {
+        await this.onOperacion('gasto');
+      }
+
+      // Refresh data if needed
+      if (refresh) {
+        await this.cargarDatos();
+      }
     }
   }
 
@@ -131,15 +160,15 @@ export class HomePage extends ScrollablePage implements OnInit {
    */
   async cargarDatos() {
     // Ejecutar todas las consultas en paralelo (un solo loading)
-    const [cajaAbierta, saldos, fechaUltimoCierre, gananciasPendientes] = await Promise.all([
-      this.cajasService.verificarEstadoCaja(),
+    const [estadoCaja, saldos, fechaUltimoCierre, gananciasPendientes] = await Promise.all([
+      this.turnosCajaService.obtenerEstadoCaja(),
       this.cajasService.obtenerSaldosCajas(),
       this.cajasService.obtenerFechaUltimoCierre(),
       this.gananciasService.verificarGananciasPendientes()
     ]);
 
-    // Asignar estado de caja
-    this.cajaAbierta = cajaAbierta;
+    // Asignar estado de caja (crear nuevo objeto para forzar detección de cambios)
+    this.estadoCaja = { ...estadoCaja };
 
     // Asignar saldos y cajas
     if (saldos) {
@@ -195,64 +224,6 @@ export class HomePage extends ScrollablePage implements OnInit {
   /**
    * Muestra el menú de opciones para una caja específica
    */
-  async mostrarMenuCaja(event: Event, tipo: string) {
-    // Prevenir que el click se propague al contenedor
-    event.stopPropagation();
-
-    // Verificar conexión
-    if (!this.isOnline) {
-      await this.ui.showError('Sin conexión a internet. No puedes realizar operaciones.');
-      return;
-    }
-
-    // Mapeo de nombres para el action sheet
-    const nombresCortos = {
-      'caja': 'Caja Principal',
-      'cajaChica': 'Caja Chica',
-      'celular': 'Celular',
-      'bus': 'Bus'
-    };
-
-    const actionSheet = await this.actionSheetCtrl.create({
-      header: nombresCortos[tipo as keyof typeof nombresCortos],
-      cssClass: 'caja-action-sheet',  // Clase personalizada para estilos
-      buttons: [
-        {
-          text: 'Ver movimientos',
-          icon: 'list-outline',
-          cssClass: 'action-sheet-primary',
-          handler: () => {
-            this.onSaldoClick(tipo);
-          }
-        },
-        {
-          text: 'Ingreso',
-          icon: 'arrow-down-outline',
-          cssClass: 'action-sheet-success',
-          handler: () => {
-            this.onOperacion('ingreso', tipo);
-          }
-        },
-        {
-          text: 'Egreso',
-          icon: 'arrow-up-outline',
-          cssClass: 'action-sheet-danger',
-          handler: () => {
-            this.onOperacion('egreso', tipo);
-          }
-        },
-        {
-          text: 'Cancelar',
-          icon: 'close',
-          role: 'cancel',
-          cssClass: 'action-sheet-cancel'
-        }
-      ]
-    });
-
-    await actionSheet.present();
-  }
-
   onSaldoClick(tipo: string) {
     // Mapeo de tipos a IDs y nombres de cajas
     const cajas = {
@@ -274,6 +245,11 @@ export class HomePage extends ScrollablePage implements OnInit {
   }
 
   async onOperacion(tipo: string, tipoCaja?: string) {
+    // Mapear 'gasto' a 'egreso'
+    if (tipo === 'gasto') {
+      tipo = 'egreso';
+    }
+
     // Solo ingreso y egreso por ahora
     if (tipo !== 'ingreso' && tipo !== 'egreso') {
       await this.ui.showToast('Función no disponible aún', 'warning');
@@ -327,15 +303,63 @@ export class HomePage extends ScrollablePage implements OnInit {
     }
   }
 
+  async onAbrirCaja() {
+    // Mostrar modal de verificación de fondo fijo
+    const confirmado = await this.mostrarModalVerificacionFondo();
+    if (!confirmado) return;
+
+    // Si confirma, abrir turno
+    const success = await this.turnosCajaService.abrirTurno();
+
+    if (success) {
+      // Dar tiempo a que la BD se actualice
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Recargar datos
+      await this.cargarDatos();
+
+      // Forzar detección de cambios
+      this.cdr.detectChanges();
+    }
+  }
+
+  /**
+   * Cierra la caja y navega al proceso de cierre contable completo
+   * Este método reemplaza el anterior "Cerrar Día" de operaciones
+   */
+  async onCerrarCaja() {
+    // Verificar que haya turno activo
+    if (!this.estadoCaja.turnoActivo) return;
+
+    // Navegar a la página de cierre diario (igual que antes)
+    await this.onCerrarDia();
+  }
+
   onCuadre() {
     this.router.navigate(['/home/cuadre-caja']);
   }
 
   /**
    * Navega a la página de cierre diario
-   * Primero verifica si ya existe un cierre para la fecha actual
+   * Verifica:
+   * 1. Que haya un turno abierto (validación de turno)
+   * 2. Que no exista un cierre para hoy (validación de cierre)
    */
   async onCerrarDia() {
+    // VALIDACIÓN 1: Verificar que haya turno abierto
+    if (this.estadoCaja.estado !== 'TURNO_EN_CURSO') {
+      const toast = await this.toastCtrl.create({
+        message: 'Debes abrir la caja primero antes de hacer el cierre diario',
+        duration: 3000,
+        color: 'warning',
+        position: 'top',
+        icon: 'alert-circle-outline'
+      });
+      await toast.present();
+      return;
+    }
+
+    // VALIDACIÓN 2: Verificar que no exista cierre para hoy
     await this.ui.showLoading('Verificando...');
 
     const existeCierre = await this.recargasService.existeCierreDiario();
@@ -360,7 +384,7 @@ export class HomePage extends ScrollablePage implements OnInit {
       return;
     }
 
-    // Si no existe cierre (false), navegar a la página de cierre diario
+    // Si pasa todas las validaciones, navegar a la página de cierre diario
     await this.router.navigate(['/home/cierre-diario']);
   }
 
@@ -418,6 +442,22 @@ export class HomePage extends ScrollablePage implements OnInit {
     if (data?.reload) {
       await this.cargarDatos();
     }
+  }
+
+  async mostrarModalVerificacionFondo(): Promise<boolean> {
+    const fondoFijo = await this.turnosCajaService.obtenerFondoFijo();
+
+    const modal = await this.modalCtrl.create({
+      component: VerificarFondoModalComponent,
+      cssClass: 'verificar-fondo-modal',
+      componentProps: {
+        fondoFijo
+      }
+    });
+
+    await modal.present();
+    const { data, role } = await modal.onWillDismiss();
+    return role === 'confirm' && data?.confirmado === true;
   }
 }
 
@@ -512,5 +552,167 @@ export class NotificacionesModalComponent implements OnInit {
         state: { ganancias: this.gananciasPendientes }
       });
     }
+  }
+}
+
+// ==========================================
+// COMPONENTE MODAL DE VERIFICACIÓN DE FONDO
+// ==========================================
+
+@Component({
+  selector: 'app-verificar-fondo-modal',
+  template: `
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Abrir Caja</ion-title>
+        <ion-buttons slot="end">
+          <ion-button (click)="cancelar()">
+            <ion-icon slot="icon-only" name="close"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+
+    <ion-content class="ion-padding">
+      <ion-card class="verificar-card">
+        <div class="verificacion-content">
+          <div class="info-section">
+            <div class="info-row">
+              <ion-icon name="cash-outline" color="success"></ion-icon>
+              <div class="info-text">
+                <div class="info-label">Fondo fijo inicial</div>
+                <div class="info-value">\${{ fondoFijo | number:'1.2-2' }}</div>
+              </div>
+            </div>
+            <p class="info-descripcion">
+              Confirma que este monto está en la caja física antes de continuar.
+            </p>
+          </div>
+
+          <div class="checkbox-section">
+            <ion-checkbox [(ngModel)]="confirmado" labelPlacement="end">
+              He verificado el fondo en la caja
+            </ion-checkbox>
+          </div>
+
+          <div class="actions-section">
+            <ion-button
+              expand="block"
+              color="success"
+              [disabled]="!confirmado"
+              (click)="abrirCaja()"
+              style="--border-radius: 8px">
+              Abrir Caja
+            </ion-button>
+            <ion-button
+              expand="block"
+              fill="clear"
+              color="medium"
+              (click)="cancelar()">
+              Cancelar
+            </ion-button>
+          </div>
+        </div>
+      </ion-card>
+    </ion-content>
+  `,
+  styles: [`
+    ion-content {
+      --padding-top: 8px;
+      --padding-bottom: 8px;
+    }
+
+    .verificar-card {
+      margin: 0;
+      border-radius: 16px;
+      box-shadow: none;
+    }
+
+    .verificacion-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding: 20px;
+
+      .info-section {
+        .info-row {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          gap: 12px;
+          padding: 20px;
+          background: var(--ion-color-light);
+          border-radius: 12px;
+          margin-bottom: 12px;
+
+          ion-icon {
+            font-size: 32px;
+            flex-shrink: 0;
+          }
+
+          .info-text {
+            .info-label {
+              font-size: 13px;
+              color: var(--ion-color-medium);
+              margin-bottom: 4px;
+            }
+
+            .info-value {
+              font-size: 28px;
+              font-weight: 700;
+              color: var(--ion-color-success);
+            }
+          }
+        }
+
+        .info-descripcion {
+          font-size: 13px;
+          color: var(--ion-color-medium);
+          line-height: 1.4;
+          margin: 0;
+          text-align: center;
+        }
+      }
+
+      .checkbox-section {
+        ion-checkbox {
+          --size: 20px;
+          width: 100%;
+        }
+      }
+
+      .actions-section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+
+        ion-button {
+          margin: 0;
+        }
+      }
+    }
+  `],
+  standalone: true,
+  imports: [
+    CommonModule,
+    FormsModule,
+    IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
+    IonContent, IonCard, IonIcon, IonCheckbox
+  ]
+})
+export class VerificarFondoModalComponent {
+  private modalCtrl = inject(ModalController);
+
+  fondoFijo = 40.00;
+  confirmado = false;
+
+  cancelar() {
+    this.modalCtrl.dismiss(null, 'cancel');
+  }
+
+  abrirCaja() {
+    this.modalCtrl.dismiss({ confirmado: true }, 'confirm');
   }
 }

@@ -17,16 +17,15 @@
 
   .balance-main {
     margin-bottom: 20px;
+    position: relative; // Para posicionar el botón de forma absoluta
 
     .balance-header {
       display: flex;
-      justify-content: space-between;
+      justify-content: center; // Centrar el saldo
       align-items: flex-start;
-      gap: 12px;
     }
 
     .balance-content {
-      flex: 1;
       text-align: center;
     }
 
@@ -46,6 +45,9 @@
     }
 
     .menu-button {
+      position: absolute;
+      top: -4px;
+      right: -15px;
       background: transparent;
       border: none;
       padding: 8px;
@@ -231,7 +233,7 @@
 // Operation Row
 .op-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 14px 16px;
 
   .op-icon {
@@ -314,11 +316,21 @@
     }
   }
 
+  // Columna derecha: comprobante arriba, monto abajo (o centrado si no hay comprobante)
+  .op-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    margin-left: 12px;
+    flex-shrink: 0;
+    min-height: 50px; // Altura del op-icon para centrar el monto cuando no hay comprobante
+  }
+
   .op-amount {
     font-size: 15px;
     font-weight: 700;
-    flex-shrink: 0;
-    margin-left: 12px;
 
     &[data-type="success"] { color: var(--ion-color-success); }
     &[data-type="danger"] { color: var(--ion-color-danger); }
@@ -344,7 +356,7 @@
   }
 }
 
-// Botón de comprobante (inline con el título)
+// Botón de comprobante (arriba del monto, a la derecha)
 .comprobante-btn {
   background: none;
   border: none;
@@ -359,7 +371,7 @@
   flex-shrink: 0;
 
   ion-icon {
-    font-size: 16px;  // Más pequeño para que no compita con el título
+    font-size: 18px;
   }
 
   &:active {

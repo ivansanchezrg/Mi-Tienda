@@ -5,4 +5,139 @@ ion-menu {
 ion-tab-bar {
   --background: var(--ion-item-background);
   border-top: 1px solid var(--ion-color-step-100, #e5e5e5);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  height: 56px;
+  padding-bottom: 12px;
+}
+
+// Contenedor del FAB como tab
+.fab-tab-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: visible;
+}
+
+// Overlay oscuro de fondo (fuera del tab-bar)
+.fab-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--ion-backdrop-color, rgba(0, 0, 0, 0.4));
+  z-index: 999;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+// Botón FAB dentro del tab (rectangular)
+ion-fab-button {
+  --box-shadow: 0 2px 6px rgba(var(--ion-color-dark-rgb), 0.25);
+  --border-radius: 8px;
+  width: 35px;
+  height: 35px;
+  transition: transform 0.3s ease;
+  position: relative;
+  z-index: 1001;
+
+  ion-icon {
+    font-size: 18px;
+    transition: transform 0.3s ease;
+  }
+
+  // Rotación del botón cuando está abierto
+  &.fab-abierto {
+    transform: rotate(90deg);
+  }
+}
+
+// Contenedor de opciones (pills verticales) - fuera del tab-bar
+.fab-options {
+  position: fixed;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 1000;
+}
+
+// Cada opción tipo pill/chip
+.fab-option {
+  background: var(--ion-card-background, var(--ion-background-color));
+  border-radius: 28px;
+  padding: 8px 16px 8px 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 12px var(--ion-shadow-color, rgba(0, 0, 0, 0.15));
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 140px;
+  animation: slideUpItem 0.3s ease forwards;
+  opacity: 0;
+
+  // Delay escalonado para cada opción (de abajo hacia arriba)
+  &:nth-child(1) {
+    animation-delay: 0.15s;
+  }
+
+  &:nth-child(2) {
+    animation-delay: 0.05s;
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  // Icono circular con color
+  .fab-option-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    ion-icon {
+      font-size: 22px;
+      color: white;
+    }
+
+    &.tertiary {
+      background: var(--ion-color-tertiary);
+    }
+
+    &.warning {
+      background: var(--ion-color-warning);
+    }
+  }
+
+  // Texto de la opción
+  .fab-option-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ion-text-color);
+    white-space: nowrap;
+  }
+}
+
+// Animación para cada opción individual
+@keyframes slideUpItem {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
