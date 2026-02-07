@@ -1,420 +1,149 @@
-// No definimos variables locales de color manuales.
-// Usamos las que Ionic provee globalmente.
-
-// ==========================================
-// Action Sheet - Estilo Moderno con Esquinas Redondeadas
-// ==========================================
-::ng-deep {
-  .caja-action-sheet {
-    // Contenedor principal del action sheet
-    .action-sheet-wrapper {
-      border-radius: 20px 20px 0 0 !important;  // Esquinas redondeadas arriba
-      overflow: hidden;  // Asegura que el contenido respete el border-radius
-      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15) !important;  // Sombra suave hacia arriba
-    }
-
-    // Header del action sheet
-    .action-sheet-title {
-      font-size: 15px !important;
-      font-weight: 600 !important;
-      padding: 18px 16px 12px !important;
-      color: var(--ion-text-color) !important;
-      border-bottom: 1px solid var(--ion-color-step-150) !important;
-    }
-
-    // Container de botones
-    .action-sheet-group {
-      padding: 0 !important;
-    }
-
-    // Botones individuales
-    .action-sheet-button {
-      height: 56px !important;
-      font-size: 15px !important;
-
-      .action-sheet-icon {
-        font-size: 22px !important;
-        margin-right: 16px !important;
-      }
-    }
-
-    // Botón de cancelar (separado)
-    .action-sheet-button.action-sheet-cancel {
-      border-top: 8px solid var(--ion-color-step-50) !important;
-      font-weight: 500 !important;
-    }
-  }
-
-  // Backdrop (fondo oscuro detrás del action sheet)
-  ion-backdrop {
-    backdrop-filter: blur(4px) !important;  // Efecto blur en el fondo
-  }
-
-  // Colores personalizados para iconos
-  .action-sheet-primary {
-    ion-icon {
-      color: var(--ion-color-primary) !important;
-    }
-  }
-
-  .action-sheet-success {
-    ion-icon {
-      color: var(--ion-color-success) !important;
-    }
-  }
-
-  .action-sheet-danger {
-    ion-icon {
-      color: var(--ion-color-danger) !important;
-    }
-  }
-
-  .action-sheet-cancel {
-    ion-icon {
-      color: var(--ion-color-medium) !important;
-    }
-  }
+// Variables de diseño Flat 2.0
+:host {
+  --bg-soft: var(--ion-background-color, #f8f9fa); // Adaptativo al modo oscuro
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.04);
 }
 
-// Botón de notificaciones con badge superpuesto
-.notification-button {
-  position: relative;
-
-  .notification-badge {
-    position: absolute;
-    top: 0;
-    right: 0;
-    font-size: 9px;
-    min-width: 14px;
-    height: 14px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 3px;
-  }
+ion-content {
+  --background: var(--bg-soft);
 }
 
-
-// 1. STATUS BANNER - Banner superior simplificado
-.status-banner {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 20px;
-  margin-bottom: 20px;
-  background: var(--ion-item-background);
-  border-bottom: 1px solid var(--ion-color-step-100);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-
-  .status-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-
-    ion-icon {
-      font-size: 22px;
-
-      &.success {
-        color: var(--ion-color-success);
-      }
-
-      &.medium {
-        color: var(--ion-color-medium);
-      }
-    }
-
-    .status-text {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--ion-text-color);
-    }
-  }
-
-  .status-hora {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--ion-color-medium);
-  }
-}
-
-// 2. TURNO CARD - Card completa con esquinas redondeadas
-.turno-card {
-  .turno-card-content {
-    padding: 16px;
-  }
-
-  .turno-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-
-    .turno-header-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex: 1;
-
-      ion-icon {
-        font-size: 28px;
-        flex-shrink: 0;
-      }
-
-      .turno-header-info {
-        flex: 1;
-
-        .turno-header-title {
-          font-size: 15px;
-          font-weight: 600;
-          color: var(--ion-text-color);
-          margin-bottom: 2px;
-        }
-
-        .turno-header-subtitle {
-          font-size: 12px;
-          color: var(--ion-color-medium);
-          line-height: 1.3;
-        }
-      }
-    }
-
-    ion-button {
-      margin: 0;
-      flex-shrink: 0;
-      --border-radius: 8px;
-    }
-  }
-}
-
-// Títulos de sección
-.section-header {
-  padding: 0 20px;
-  margin-bottom: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-
-  .header-left {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .header-right {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-  }
-
-  h3 {
-    margin: 0;
-    font-size: 18px;
+// Header estético
+ion-toolbar {
+  --background: var(--bg-soft);
+  --border-width: 0;
+  padding: 0 8px;
+  ion-title {
     font-weight: 700;
-    color: var(--ion-text-color);
-  }
-  .sub-info {
-    font-size: 12px;
-    color: var(--ion-color-medium);
-  }
-  .total-amount {
-    font-size: 18px;
-    font-weight: 800;
-    color: var(--ion-color-primary);
-  }
-  .total-label {
-    font-size: 11px;
-    color: var(--ion-color-medium);
+    letter-spacing: -0.5px;
   }
 }
 
-// 2. ACTIONS GRID
-.actions-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  padding: 16px;
-
-  @media (max-width: 360px) {
-    display: flex;
-    overflow-x: auto;
-    &::-webkit-scrollbar { display: none; }
+// Notificaciones minimalistas
+.notification-btn {
+  position: relative;
+  .dot-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 8px;
+    height: 8px;
+    background: var(--ion-color-danger);
+    border-radius: 50%;
+    border: 2px solid var(--bg-soft);
   }
+}
 
-  .action-btn {
-    background: none;
-    border: none;
+// Hero Section (Balance Total)
+.hero-section {
+  padding: 20px;
+  .summary-card {
+    background: var(--ion-item-background, #fff); // Adaptativo
+    padding: 30px 20px;
+    border-radius: var(--radius-lg);
+    text-align: center;
+    box-shadow: var(--shadow-soft);
+    
+    .label { font-size: 13px; color: var(--ion-color-medium); text-transform: uppercase; letter-spacing: 1px; }
+    .amount { font-size: 38px; font-weight: 800; margin: 8px 0; color: var(--ion-text-color); }
+    .sub-label { font-size: 12px; color: var(--ion-color-step-400); }
+  }
+}
+
+// Status Chip
+.status-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+  
+  .flat-chip {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    min-width: 60px;
-
-    .icon-box {
-      width: 50px;
-      height: 50px;
-      border-radius: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-      
-      // Lógica de colores dinámica usando variables CSS de Ionic
-      // Esto funciona perfecto en Dark Mode
-      &.ion-color-success { background: rgba(var(--ion-color-success-rgb), 0.12); color: var(--ion-color-success); }
-      &.ion-color-danger { background: rgba(var(--ion-color-danger-rgb), 0.12); color: var(--ion-color-danger); }
-      &.ion-color-primary { background: rgba(var(--ion-color-primary-rgb), 0.12); color: var(--ion-color-primary); }
-      &.ion-color-warning { background: rgba(var(--ion-color-warning-rgb), 0.12); color: var(--ion-color-warning); }
-      &.ion-color-tertiary { background: rgba(var(--ion-color-tertiary-rgb), 0.12); color: var(--ion-color-tertiary); }
-      &.ion-color-secondary { background: rgba(var(--ion-color-secondary-rgb), 0.12); color: var(--ion-color-secondary); }
-    }
-
-    span {
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--ion-color-medium);
-    }
-
-    &:active .icon-box {
-      transform: scale(0.9);
-    }
+    padding: 6px 16px;
+    background: var(--ion-item-background, #fff);
+    border-radius: 100px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+    
+    .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+    &.TURNO_EN_CURSO .dot { background: var(--ion-color-success); }
+    &.CERRADA .dot { background: var(--ion-color-medium); }
+    
+    .label { font-size: 12px; font-weight: 600; }
+    .time { font-size: 12px; color: var(--ion-color-medium); margin-left: 4px; }
   }
 }
 
-// 3. MODERN CARD LIST
-.modern-card {
-  margin: 0 16px 24px;
-  border-radius: 20px;
-  // Fondo adaptativo (Blanco en light, #1e1e1e en dark)
-  background: var(--ion-item-background); 
-  // Sombra suave en light, invisible o sutil en dark
-  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+// Modern List Items
+.section-title { padding: 0 24px; h2 { font-size: 20px; font-weight: 700; } }
 
-  .account-list {
-    padding: 8px 0;
-  }
-
-  .divider {
-    height: 1px;
-    margin: 0 16px 0 68px;
-
-    /* Color para Modo Claro */
-    background: #d1d5db; // Un gris tipo Tailwind que nunca falla
-
-    /* Color específico para Modo Oscuro */
-      .ios &, .md & {
-        @media (prefers-color-scheme: dark) {
-        background: #333639; // Gris carbón muy discreto
-      }
-    }
-  }
-
-  .account-item {
-    width: 100%;
-    background: none;
-    border: none;
+.modern-list {
+  padding: 10px 20px;
+  .flat-item {
+    background: var(--ion-item-background, #fff);
+    margin-bottom: 12px;
     padding: 16px;
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
-    gap: 16px;
-    text-align: left;
-    position: relative;
+    transition: transform 0.2s;
 
-    .menu-button {
-      background: none;
-      border: none;
-      padding: 8px;
-      margin-left: auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--ion-color-medium);
-      cursor: pointer;
-      border-radius: 50%;
-      transition: all 0.2s;
+    &:active { transform: scale(0.98); }
 
-      ion-icon {
-        font-size: 20px;
-      }
-
-      &:active {
-        background: var(--ion-color-step-100, rgba(0,0,0,0.08));
-        color: var(--ion-color-primary);
-      }
-    }
-
-    .account-icon {
-      width: 40px;
-      height: 40px;
+    .icon-wrapper {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 24px;
-
-      &.ion-color-primary { color: var(--ion-color-primary); }
-      &.ion-color-tertiary { color: var(--ion-color-tertiary); }
-      &.ion-color-secondary { color: var(--ion-color-secondary); }
-      &.ion-color-warning { color: var(--ion-color-warning); }
+      margin-right: 16px;
+      
+      // Colores con transparencia para respetar el modo oscuro
+      &.primary { background: rgba(var(--ion-color-primary-rgb), 0.12); color: var(--ion-color-primary); }
+      &.tertiary { background: rgba(var(--ion-color-tertiary-rgb), 0.12); color: var(--ion-color-tertiary); }
+      &.secondary { background: rgba(var(--ion-color-secondary-rgb), 0.12); color: var(--ion-color-secondary); }
+      
+      // ESTILO PARA EL BUS (Agregado)
+      &.warning { background: rgba(var(--ion-color-warning-rgb), 0.12); color: var(--ion-color-warning); }
     }
 
-    .account-info {
+    .content {
       flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-
-      .name-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .name {
-        font-size: 15px;
-        font-weight: 600;
-        color: var(--ion-text-color);
-      }
-
-      .chevron-button {
-        background: none;
-        border: none;
-        padding: 2px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        color: var(--ion-color-medium);
-        transition: all 0.2s ease;
-
-        ion-icon {
-          font-size: 18px;
-        }
-
-        &:active {
-          transform: scale(0.9);
-          color: var(--ion-color-primary);
-        }
-      }
-
-      .arrow {
-        font-size: 12px;
-        color: var(--ion-text-color);
-      }
-
-      .type {
-        font-size: 12px;
-        color: var(--ion-color-medium);
-      }
+      .title { display: block; font-size: 15px; font-weight: 600; color: var(--ion-text-color); }
+      .subtitle { font-size: 12px; color: var(--ion-color-medium); }
     }
 
-    .account-amount {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--ion-text-color);
+    .amount-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      .value { font-weight: 700; font-size: 16px; color: var(--ion-text-color); }
+      ion-icon { color: var(--ion-color-step-300); }
     }
   }
 }
 
+// Action Footer Card
+.action-footer-card {
+  margin: 20px;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--ion-item-background, #fff);
+  border: 1px solid var(--ion-color-step-100);
+
+  h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ion-text-color); }
+  p { margin: 2px 0 0; font-size: 12px; color: var(--ion-color-medium); }
+
+  .btn-action {
+    --border-radius: 12px;
+    font-weight: 600;
+    margin: 0;
+    &.danger { --color: var(--ion-color-danger); }
+  }
+}
