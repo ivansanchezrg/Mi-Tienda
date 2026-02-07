@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Network } from '@capacitor/network';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { App } from '@capacitor/app';
+import { BehaviorSubject, Observable, interval } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -8,6 +9,7 @@ import { BehaviorSubject, Observable } from 'rxjs';
 export class NetworkService {
   private isOnline$ = new BehaviorSubject<boolean>(true);
   private initialized = false;
+  private pollingInterval: any;
 
   constructor() {
     this.initializeNetworkMonitoring();
@@ -23,12 +25,44 @@ export class NetworkService {
     // Obtener estado inicial
     const status = await Network.getStatus();
     this.isOnline$.next(status.connected);
+    console.log('Network initial status:', status.connected);
 
     // Escuchar cambios de estado
     Network.addListener('networkStatusChange', status => {
       console.log('Network status changed:', status.connected);
       this.isOnline$.next(status.connected);
     });
+
+    // Verificar estado cuando la app vuelve del background
+    App.addListener('appStateChange', async ({ isActive }) => {
+      if (isActive) {
+        console.log('App resumed, checking network...');
+        await this.checkConnection();
+      }
+    });
+
+    // Polling cada 5 segundos como fallback (solo en Android/iOS)
+    this.startPolling();
+  }
+
+  /**
+   * Inicia polling periódico para verificar conexión
+   */
+  private startPolling() {
+    // Verificar cada 5 segundos
+    this.pollingInterval = setInterval(async () => {
+      await this.checkConnection();
+    }, 5000);
+  }
+
+  /**
+   * Detiene el polling
+   */
+  private stopPolling() {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
   }
 
   /**

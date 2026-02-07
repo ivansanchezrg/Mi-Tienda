@@ -36,6 +36,8 @@
  * ============================================================================
  */
 
+ 
+
 :root {
   // Fondo principal de páginas (gris sutil - resalta cards)
   --ion-background-color: #f4f5f8;
@@ -43,6 +45,13 @@
 
   // Fondo de cards/items/elementos destacados (blanco)
   --ion-item-background: #ffffff;
+
+  /* 1. Sobrescribir la variable nativa de Ionic para que la base sea NEGRA 
+  Esto es para los ovelay de modal, alert, ,etc */
+  --ion-backdrop-color: rgba(0, 0, 0, 0.7)!important;
+  
+  /* 2. Definir tu opacidad deseada */
+  --ion-backdrop-opacity: 0.8;
 }
 
 @media (prefers-color-scheme: dark) {

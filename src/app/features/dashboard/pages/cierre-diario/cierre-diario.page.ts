@@ -328,11 +328,20 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
       const empleado = await this.authService.getEmpleadoActual();
       const empleadoId = empleado?.id || 1;
 
-      // 3. Preparar parámetros para la función (usa fecha local, no UTC)
+      // 3. Obtener turno activo (REQUERIDO en v4.1)
+      const estadoCaja = await this.turnosCajaService.obtenerEstadoCaja();
+      if (estadoCaja.estado !== 'TURNO_EN_CURSO' || !estadoCaja.turnoActivo) {
+        await this.ui.hideLoading();
+        await this.ui.showError('No hay un turno activo. Debes abrir caja primero.');
+        return;
+      }
+
+      // 4. Preparar parámetros para la función (usa fecha local, no UTC)
       const fechaLocal = this.recargasService.getFechaLocal();
 
-      // 4. Ejecutar cierre diario (transacción atómica) - Versión 4.0
+      // 5. Ejecutar cierre diario (transacción atómica) - Versión 4.1
       const resultado = await this.recargasService.ejecutarCierreDiario({
+        turno_id: estadoCaja.turnoActivo.id,
         fecha: fechaLocal,
         empleado_id: empleadoId,
         // Solo 1 campo principal!
@@ -364,11 +373,8 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
       // Mostrar toast de éxito
       await this.ui.showSuccess('Cierre guardado correctamente');
 
-      // AUTO-CERRAR TURNO: Cerrar el turno activo automáticamente
-      const estadoCaja = await this.turnosCajaService.obtenerEstadoCaja();
-      if (estadoCaja.estado === 'TURNO_EN_CURSO' && estadoCaja.turnoActivo) {
-        await this.turnosCajaService.cerrarTurno(estadoCaja.turnoActivo.id);
-      }
+      // NOTA: El turno se cierra automáticamente desde la función SQL (v4.1)
+      // Ya no es necesario cerrarlo manualmente desde TypeScript
 
       // Limpiar formulario y navegar
       this.cierreForm.markAsPristine();

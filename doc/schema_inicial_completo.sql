@@ -8,13 +8,16 @@
 -- IMPORTANTE: Ejecutar este script UNA SOLA VEZ al iniciar el proyecto.
 -- Para resetear el sistema, ejecutar nuevamente (incluye DROP de tablas).
 --
--- Fecha: 2026-02-05
--- Versión: 4.0 - Ultra-simplificación con fondo fijo
+-- Fecha: 2026-02-07
+-- Versión: 4.1 - Múltiples cierres por día (1 cierre por turno)
 --   • Solo 1 campo: efectivo_recaudado (total contado al final)
 --   • Fondo fijo en config: configuraciones.fondo_fijo_diario ($40)
 --   • Transferencia en config: configuraciones.caja_chica_transferencia_diaria ($20)
 --   • Fórmula: depósito = efectivo_recaudado - fondo_fijo - transferencia
 --   • Tabla gastos_diarios para tracking de gastos operativos
+--   • CAMBIOS v4.1: Múltiples cierres por día (1 por turno)
+--   • turno_id en caja_fisica_diaria y recargas
+--   • UNIQUE(turno_id, tipo_servicio_id) en recargas
 -- ==========================================
 
 -- Habilitar extensión para UUIDs
@@ -23,13 +26,14 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ==========================================
 -- LIMPIEZA (eliminar tablas y tipos existentes)
 -- ==========================================
+-- ORDEN: De más dependiente a menos dependiente
 DROP TABLE IF EXISTS operaciones_cajas CASCADE;
-DROP TABLE IF EXISTS tipos_referencia CASCADE;
-DROP TABLE IF EXISTS turnos_caja CASCADE;
-DROP TABLE IF EXISTS gastos_diarios CASCADE;
 DROP TABLE IF EXISTS caja_fisica_diaria CASCADE;
-DROP TABLE IF EXISTS cierres_diarios CASCADE; -- Mantener por compatibilidad (nombre antiguo)
+DROP TABLE IF EXISTS gastos_diarios CASCADE;
+DROP TABLE IF EXISTS turnos_caja CASCADE;
 DROP TABLE IF EXISTS recargas CASCADE;
+DROP TABLE IF EXISTS tipos_referencia CASCADE;
+DROP TABLE IF EXISTS cierres_diarios CASCADE; -- Mantener por compatibilidad (nombre antiguo)
 DROP TABLE IF EXISTS cajas CASCADE;
 DROP TABLE IF EXISTS configuraciones CASCADE;
 DROP TABLE IF EXISTS tipos_servicio CASCADE;
@@ -108,13 +112,29 @@ CREATE TABLE IF NOT EXISTS tipos_servicio (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 5. Tabla: recargas
--- Registro diario de control de saldo virtual por servicio
+-- 5. Tabla: turnos_caja
+-- Registro de turnos de apertura/cierre de caja (independiente del cierre contable)
+-- Permite múltiples turnos por día con hora exacta de apertura y cierre
+CREATE TABLE IF NOT EXISTS turnos_caja (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fecha DATE NOT NULL,
+    numero_turno SMALLINT NOT NULL DEFAULT 1,
+    empleado_id INTEGER NOT NULL REFERENCES empleados(id),
+    hora_apertura TIMESTAMP WITH TIME ZONE NOT NULL,
+    hora_cierre TIMESTAMP WITH TIME ZONE,
+    observaciones TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(fecha, numero_turno)
+);
+
+-- 6. Tabla: recargas
+-- Registro de control de saldo virtual por servicio (v4.1: por turno)
 CREATE TABLE IF NOT EXISTS recargas (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 
     -- Identificación
     fecha DATE NOT NULL,
+    turno_id UUID NOT NULL REFERENCES turnos_caja(id), -- Turno al que pertenece este registro
     tipo_servicio_id INTEGER NOT NULL REFERENCES tipos_servicio(id),
     empleado_id INTEGER NOT NULL REFERENCES empleados(id),
 
@@ -134,35 +154,21 @@ CREATE TABLE IF NOT EXISTS recargas (
     observacion TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
-    -- Restricción: un solo registro por día y tipo de servicio
-    UNIQUE(fecha, tipo_servicio_id)
+    -- Restricción v4.1: un solo registro por turno y tipo de servicio
+    UNIQUE(turno_id, tipo_servicio_id)
 );
 
--- 6. Tabla: caja_fisica_diaria
+-- 7. Tabla: caja_fisica_diaria
 -- Registro de la caja física diaria (versión ultra-simplificada)
--- En v4.0: Solo se registra el efectivo contado - todo lo demás viene de configuración
+-- En v4.1: Permite múltiples cierres por día (1 cierre por turno)
 CREATE TABLE IF NOT EXISTS caja_fisica_diaria (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    fecha DATE NOT NULL UNIQUE,                      -- Fecha del cierre (única)
+    fecha DATE NOT NULL,                             -- Fecha del cierre (múltiples por día permitidos)
+    turno_id UUID NOT NULL REFERENCES turnos_caja(id) UNIQUE, -- Relación 1:1 con turno (un cierre por turno)
     empleado_id INTEGER NOT NULL REFERENCES empleados(id),
     efectivo_recaudado DECIMAL(12,2) NOT NULL,       -- Total efectivo contado al final del día
     observaciones TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 7. Tabla: turnos_caja
--- Registro de turnos de apertura/cierre de caja (independiente del cierre contable)
--- Permite múltiples turnos por día con hora exacta de apertura y cierre
-CREATE TABLE IF NOT EXISTS turnos_caja (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    fecha DATE NOT NULL,
-    numero_turno SMALLINT NOT NULL DEFAULT 1,
-    empleado_id INTEGER NOT NULL REFERENCES empleados(id),
-    hora_apertura TIMESTAMP WITH TIME ZONE NOT NULL,
-    hora_cierre TIMESTAMP WITH TIME ZONE,
-    observaciones TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(fecha, numero_turno)
 );
 
 -- 8. Tabla: gastos_diarios
@@ -181,7 +187,7 @@ CREATE TABLE IF NOT EXISTS gastos_diarios (
 -- Índice para búsquedas por fecha
 CREATE INDEX idx_gastos_diarios_fecha ON gastos_diarios(fecha);
 
--- 8. Tabla: tipos_referencia
+-- 9. Tabla: tipos_referencia
 -- Catálogo de tablas que pueden ser referenciadas por operaciones
 CREATE TABLE IF NOT EXISTS tipos_referencia (
     id SERIAL PRIMARY KEY,
@@ -192,7 +198,7 @@ CREATE TABLE IF NOT EXISTS tipos_referencia (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 8. Tabla: operaciones_cajas
+-- 10. Tabla: operaciones_cajas
 -- Log completo de todas las operaciones que afectan el saldo de las cajas
 CREATE TABLE IF NOT EXISTS operaciones_cajas (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -214,9 +220,11 @@ CREATE TABLE IF NOT EXISTS operaciones_cajas (
 -- ÍNDICES PARA MEJORAR PERFORMANCE
 -- ==========================================
 CREATE INDEX idx_recargas_fecha ON recargas(fecha);
+CREATE INDEX idx_recargas_turno ON recargas(turno_id);
 CREATE INDEX idx_recargas_tipo_servicio ON recargas(tipo_servicio_id);
 CREATE INDEX idx_recargas_empleado ON recargas(empleado_id);
 CREATE INDEX idx_caja_fisica_diaria_fecha ON caja_fisica_diaria(fecha);
+CREATE INDEX idx_caja_fisica_diaria_turno ON caja_fisica_diaria(turno_id);
 CREATE INDEX idx_caja_fisica_diaria_empleado ON caja_fisica_diaria(empleado_id);
 CREATE INDEX idx_turnos_caja_fecha ON turnos_caja(fecha);
 CREATE INDEX idx_turnos_caja_empleado ON turnos_caja(empleado_id);
@@ -254,11 +262,9 @@ INSERT INTO configuraciones (fondo_fijo_diario, celular_alerta_saldo_bajo, caja_
 INSERT INTO empleados (nombre, usuario) VALUES
 ('Ivan Sanchez', 'ivansan2192@gmail.com');
 
--- Registros iniciales de recargas (necesarios para el primer cierre diario)
--- Estos registros establecen el saldo virtual anterior para el siguiente cierre
-INSERT INTO recargas (fecha, tipo_servicio_id, empleado_id, venta_dia, saldo_virtual_anterior, saldo_virtual_actual, validado, observacion) VALUES
-((SELECT CURRENT_DATE), (SELECT id FROM tipos_servicio WHERE codigo = 'CELULAR'), (SELECT id FROM empleados WHERE usuario = 'ivansan2192@gmail.com'), 59.15, 135.15, 76.00, TRUE, 'Registro inicial del sistema'),
-((SELECT CURRENT_DATE), (SELECT id FROM tipos_servicio WHERE codigo = 'BUS'), (SELECT id FROM empleados WHERE usuario = 'ivansan2192@gmail.com'), 154.80, 440.80, 286.00, TRUE, 'Registro inicial del sistema');
+-- NOTA v4.1: Los registros de recargas se crean automáticamente con el primer cierre
+-- Ya no se insertan registros iniciales aquí porque requieren un turno_id
+-- El primer cierre del día tomará saldo_virtual_anterior = 0 (o el configurado manualmente)
 
 -- ==========================================
 -- COMENTARIOS PARA DOCUMENTACIÓN
@@ -267,8 +273,8 @@ COMMENT ON TABLE empleados IS 'Usuarios del sistema que pueden operar las cajas'
 COMMENT ON TABLE cajas IS 'Cajas de efectivo físico (CAJA, CAJA_CHICA) y virtual (CELULAR, BUS)';
 COMMENT ON TABLE configuraciones IS 'Configuración global del sistema';
 COMMENT ON TABLE tipos_servicio IS 'Tipos de servicio de recarga con sus reglas de negocio';
-COMMENT ON TABLE recargas IS 'Registro diario de control de saldo virtual por servicio';
-COMMENT ON TABLE caja_fisica_diaria IS 'Registro de la caja física diaria (v4.0: ultra-simplificado - solo efectivo_recaudado)';
+COMMENT ON TABLE recargas IS 'Registro de control de saldo virtual por servicio (v4.1: un registro por turno y tipo servicio)';
+COMMENT ON TABLE caja_fisica_diaria IS 'Registro de la caja física por turno (v4.1: permite múltiples cierres por día - 1 cierre por turno)';
 COMMENT ON TABLE gastos_diarios IS 'Registro de gastos operativos pagados desde efectivo de ventas del día (no afecta CAJA PRINCIPAL)';
 COMMENT ON TABLE tipos_referencia IS 'Catálogo de tablas que pueden originar operaciones en cajas (para trazabilidad)';
 COMMENT ON TABLE turnos_caja IS 'Registro de turnos de apertura/cierre de caja (independiente del cierre contable diario)';
@@ -338,7 +344,7 @@ COMMENT ON COLUMN operaciones_cajas.referencia_id IS 'UUID del registro específ
 -- ==========================================
 -- RESUMEN
 -- ==========================================
--- ✅ 9 Tablas creadas
+-- ✅ 10 Tablas creadas
 -- ✅ 1 Tipo enumerado creado
 -- ✅ 10 Índices creados para performance
 -- ✅ 2 Tipos de servicio configurados (BUS, CELULAR)
@@ -350,12 +356,10 @@ COMMENT ON COLUMN operaciones_cajas.referencia_id IS 'UUID del registro específ
 --    • CAJA_BUS: $264.85
 -- ✅ Configuración inicial establecida
 -- ✅ 1 Empleado inicial creado (Ivan Sanchez)
--- ✅ 2 Registros iniciales de recargas:
---    • Celular: Saldo virtual $76.00
---    • Bus: Saldo virtual $286.00
+-- NOTA: Los registros de recargas se crean con el primer cierre (requieren turno_id)
 --
 -- El sistema está listo para comenzar a operar.
--- Los saldos virtuales actuales servirán como base para el próximo cierre diario.
+-- Al hacer el primer cierre, se crearán los primeros registros de recargas.
 -- La trazabilidad completa de operaciones está habilitada mediante tipos_referencia.
 --
 -- CAMBIOS VERSIÓN 4.0:

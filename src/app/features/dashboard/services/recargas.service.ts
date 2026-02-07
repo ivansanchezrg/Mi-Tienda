@@ -66,31 +66,31 @@ export class RecargasService {
   /**
    * Obtiene los saldos virtuales anteriores (últimos registros) de Celular y Bus
    *
-   * Según proceso_recargas.md:
-   * - El saldo_virtual_actual del último registro ES el saldo_virtual_anterior para el cierre actual
+   * v4.1: Con múltiples cierres por día, ordenamos por created_at para tomar
+   * el registro MÁS RECIENTE cronológicamente (sin importar cuántos turnos haya en el día)
    *
    * @returns Saldos anteriores de Celular y Bus (0 si no hay registros previos)
    */
   async getSaldosAnteriores(): Promise<SaldosAnteriores> {
     // Queries en paralelo para mejor performance
     const [celular, bus] = await Promise.all([
-      // Último saldo Celular
+      // Último saldo Celular (ordenado por created_at DESC)
       this.supabase.call<SaldoVirtualQuery>(
         this.supabase.client
           .from('recargas')
           .select('saldo_virtual_actual, tipos_servicio!inner(codigo)')
           .eq('tipos_servicio.codigo', 'CELULAR')
-          .order('fecha', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
       ),
-      // Último saldo Bus
+      // Último saldo Bus (ordenado por created_at DESC)
       this.supabase.call<SaldoVirtualQuery>(
         this.supabase.client
           .from('recargas')
           .select('saldo_virtual_actual, tipos_servicio!inner(codigo)')
           .eq('tipos_servicio.codigo', 'BUS')
-          .order('fecha', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
       )
@@ -278,25 +278,54 @@ export class RecargasService {
    * @param {string} [fecha] Fecha en formato YYYY-MM-DD (opcional)
    * @returns {Promise<boolean | null>} True si existe cierre, False si no existe, null si hay error
    */
+  /**
+   * Verifica si el turno activo ya tiene un cierre registrado (v4.1)
+   * En v4.1: Permite múltiples cierres por día (1 por turno)
+   *
+   * @returns true si el turno activo tiene cierre, false si no, null si hay error
+   */
   async existeCierreDiario(fecha?: string): Promise<boolean | null> {
-    const fechaBusqueda = fecha || this.getFechaLocal();
+    try {
+      const fechaBusqueda = fecha || this.getFechaLocal();
 
-    // Hacer la consulta directamente para poder distinguir error vs sin datos
-    const response = await this.supabase.client
-      .from('caja_fisica_diaria')
-      .select('id')
-      .eq('fecha', fechaBusqueda)
-      .limit(1)
-      .maybeSingle();
+      // 1. Obtener turno activo de hoy (sin hora_cierre)
+      const turnoResponse = await this.supabase.client
+        .from('turnos_caja')
+        .select('id')
+        .eq('fecha', fechaBusqueda)
+        .is('hora_cierre', null)
+        .maybeSingle();
 
-    // Si hay error, retornar null
-    if (response.error) {
-      console.error('Error al verificar cierre:', response.error);
+      // Si hay error al buscar turno
+      if (turnoResponse.error) {
+        console.error('Error al verificar turno activo:', turnoResponse.error);
+        return null;
+      }
+
+      // Si no hay turno activo, no hay cierre pendiente
+      if (!turnoResponse.data) {
+        return false;
+      }
+
+      // 2. Verificar si ese turno tiene cierre
+      const cierreResponse = await this.supabase.client
+        .from('caja_fisica_diaria')
+        .select('id')
+        .eq('turno_id', turnoResponse.data.id)
+        .maybeSingle();
+
+      // Si hay error al buscar cierre
+      if (cierreResponse.error) {
+        console.error('Error al verificar cierre del turno:', cierreResponse.error);
+        return null;
+      }
+
+      // Retorna true si el turno activo ya tiene cierre
+      return cierreResponse.data !== null;
+    } catch (error) {
+      console.error('Error en existeCierreDiario:', error);
       return null;
     }
-
-    // Si no hay error, verificar si hay datos
-    return response.data !== null;
   }
 
   /**
@@ -354,6 +383,7 @@ export class RecargasService {
   async ejecutarCierreDiario(params: ParamsCierreDiario): Promise<any> {
     const resultado = await this.supabase.call(
       this.supabase.client.rpc('ejecutar_cierre_diario', {
+        p_turno_id: params.turno_id,
         p_fecha: params.fecha,
         p_empleado_id: params.empleado_id,
         p_efectivo_recaudado: params.efectivo_recaudado,

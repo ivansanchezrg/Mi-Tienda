@@ -1,4 +1,28 @@
 @if (isOffline) {
+  <!-- Overlay bloqueante -->
+  <div class="offline-overlay">
+    <div class="offline-message">
+      <ion-icon name="cloud-offline-outline"></ion-icon>
+      <h2>Sin conexión a internet</h2>
+      <p>Por favor, espera a que se restablezca la conexión para continuar</p>
+
+      <ion-button
+        size="small"
+        fill="outline"
+        (click)="retryConnection()"
+        [disabled]="isChecking">
+        @if (isChecking) {
+          <ion-spinner name="crescent"></ion-spinner>
+          <span>Verificando...</span>
+        } @else {
+          <ion-icon slot="start" name="refresh-outline"></ion-icon>
+          <span>Reintentar</span>
+        }
+      </ion-button>
+    </div>
+  </div>
+
+  <!-- Banner con mensaje -->
   <div class="offline-banner">
     <ion-icon name="cloud-offline-outline"></ion-icon>
     <span>Sin conexión a internet</span>
