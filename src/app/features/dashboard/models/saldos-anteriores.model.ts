@@ -28,10 +28,12 @@ export interface DatosCierreDiario {
 }
 
 /**
- * Parámetros para ejecutar el cierre diario (Versión 4.0)
+ * Parámetros para ejecutar el cierre diario (Versión 4.1)
  * Ultra-simplificado: solo efectivo_recaudado + recargas
+ * Múltiples cierres por día: 1 cierre por turno
  */
 export interface ParamsCierreDiario {
+  turno_id: string; // UUID del turno que se está cerrando
   fecha: string;
   empleado_id: number;
   // Operaciones del día

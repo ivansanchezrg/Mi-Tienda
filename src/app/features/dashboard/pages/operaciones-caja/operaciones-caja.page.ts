@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, ViewChild } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
@@ -14,6 +14,7 @@ import {
   cashOutline, documentTextOutline, walletOutline,
   documentAttachOutline, closeOutline, ellipsisVertical, close
 } from 'ionicons/icons';
+import { Subscription } from 'rxjs';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { OperacionCaja, FiltroFecha } from '../../models/operacion-caja.model';
 import { UiService } from '@core/services/ui.service';
@@ -42,7 +43,7 @@ interface OperacionAgrupada {
     IonInfiniteScroll, IonInfiniteScrollContent
   ]
 })
-export class OperacionesCajaPage implements OnInit {
+export class OperacionesCajaPage implements OnInit, OnDestroy {
   private router = inject(Router);
   private service = inject(OperacionesCajaService);
   private cajasService = inject(CajasService);
@@ -51,6 +52,7 @@ export class OperacionesCajaPage implements OnInit {
   private storageService = inject(StorageService);
   private actionSheetCtrl = inject(ActionSheetController);
   private networkService = inject(NetworkService);
+  private networkSub?: Subscription;
 
   @ViewChild(IonInfiniteScroll) infiniteScroll!: IonInfiniteScroll;
 
@@ -101,8 +103,9 @@ export class OperacionesCajaPage implements OnInit {
   async ionViewWillEnter() {
     this.ui.hideTabs();
 
-    // Suscribirse al estado de red
-    this.networkService.getNetworkStatus().subscribe(isOnline => {
+    // Suscribirse al estado de red (limpiar anterior si existe)
+    this.networkSub?.unsubscribe();
+    this.networkSub = this.networkService.getNetworkStatus().subscribe(isOnline => {
       this.isOnline = isOnline;
     });
 
@@ -112,6 +115,10 @@ export class OperacionesCajaPage implements OnInit {
 
   ionViewWillLeave() {
     this.ui.showTabs();
+  }
+
+  ngOnDestroy() {
+    this.networkSub?.unsubscribe();
   }
 
   async cargarSaldoCaja() {

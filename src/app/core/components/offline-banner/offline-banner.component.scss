@@ -1,3 +1,4 @@
+// Banner superior que muestra estado offline
 .offline-banner {
   position: fixed;
   top: 0;
@@ -10,21 +11,25 @@
   justify-content: center;
   gap: 8px;
 
-  height: 40px;
+  height: 55px;
   padding: 0 16px;
 
-  background: #ef4444;  // Rojo para offline
-  color: #ffffff;
+  background: var(--ion-color-danger, #ef4444);
+  color: var(--ion-color-danger-contrast, #ffffff);
 
   font-size: 14px;
   font-weight: 500;
 
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-
   animation: slideDown 0.3s ease-out;
 
   ion-icon {
     font-size: 20px;
+    margin-top: 3px;
+  }
+
+  span {
+    margin-top: 3px;
   }
 }
 
@@ -36,6 +41,86 @@
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+// Overlay bloqueante que cubre toda la pantalla
+.offline-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(3px);
+  pointer-events: all;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  .offline-message {
+    background: var(--ion-background-color, #ffffff);
+    border-radius: 16px;
+    padding: 32px 24px;
+    max-width: 400px;
+    margin: 0 20px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+
+    ion-icon {
+      font-size: 56px;
+      color: var(--ion-color-danger, #ef4444);
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      margin: 0 0 12px 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--ion-text-color, #1f2937);
+    }
+
+    p {
+      margin: 0 0 20px 0;
+      font-size: 14px;
+      color: var(--ion-color-medium, #6b7280);
+      line-height: 1.5;
+    }
+
+    ion-button {
+      margin: 0;
+      --border-radius: 8px;
+      --padding-top: 6px;
+      --padding-bottom: 6px;
+      --padding-start: 12px;
+      --padding-end: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      height: 32px;
+
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      ion-spinner {
+        width: 14px;
+        height: 14px;
+        margin-right: 6px;
+      }
+
+      ion-icon {
+        font-size: 16px;
+        margin: 0 4px 0 0;
+        color: inherit;
+      }
+
+      span {
+        line-height: 1;
+        margin: 0;
+      }
+    }
   }
 }
 

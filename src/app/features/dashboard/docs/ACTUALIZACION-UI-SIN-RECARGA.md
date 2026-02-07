@@ -39,6 +39,7 @@ confirmar() {
 ```
 
 El modal se cierra y retorna:
+
 - `cajaId`: 1 (Caja Principal)
 - `monto`: 50.00
 - `descripcion`: "Venta de producto"
@@ -66,6 +67,7 @@ async onOperacion(tipo: string, tipoCaja?: string) {
 ```
 
 **Flujo:**
+
 1. `await modal.onDidDismiss()` espera a que el modal se cierre
 2. Si el usuario confirmó (`role === 'confirm'`), continúa
 3. Si el usuario canceló, no hace nada (no ejecuta operación)
@@ -95,6 +97,7 @@ private async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModal
 ```
 
 **¿Qué hace `registrarOperacion()`?**
+
 1. Sube la foto a Supabase Storage (si hay)
 2. Obtiene el empleado actual
 3. Llama a la función PostgreSQL que:
@@ -103,6 +106,7 @@ private async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModal
    - Retorna `{ success: true, ... }`
 
 **Si algo falla:**
+
 - El servicio muestra error al usuario
 - Retorna `false`
 - `cargarDatos()` NO se ejecuta (no se actualizan datos incorrectos)
@@ -152,6 +156,7 @@ async cargarDatos() {
 ```
 
 **¿Qué pasa aquí?**
+
 1. **Consultas a BD**: Obtiene los datos FRESCOS desde la base de datos
 2. **Asignación**: Actualiza las propiedades públicas del componente
 3. **Cambio detectado**: Angular detecta que las propiedades cambiaron
@@ -174,6 +179,7 @@ async cargarDatos() {
 ```
 
 **¿Cómo sabe Angular que cambió?**
+
 - Angular tiene un sistema llamado **Change Detection**
 - Cuando ejecutas `this.saldoCaja = 150`, Angular marca el componente como "dirty"
 - En el siguiente ciclo de detección, Angular compara el valor anterior vs el nuevo
@@ -204,6 +210,7 @@ this.saldoCaja = 150;  // ← Angular detecta este cambio
 ```
 
 **¿Cuándo se ejecuta Change Detection?**
+
 - Después de eventos del usuario (click, input, etc.)
 - Después de peticiones HTTP (observables, promesas)
 - Después de temporizadores (setTimeout, setInterval)
@@ -235,11 +242,13 @@ const [cajaAbierta, saldos, fechaUltimoCierre, gananciasPendientes] = await Prom
 ```
 
 **¿Por qué Promise.all()?**
+
 - Ejecuta 4 consultas en paralelo (al mismo tiempo)
 - Espera a que TODAS terminen
 - Más rápido que hacer una por una (secuencial)
 
 **Comparación:**
+
 - **Secuencial**: 200ms + 150ms + 100ms + 180ms = 630ms
 - **Paralelo**: max(200ms, 150ms, 100ms, 180ms) = 200ms
 
@@ -319,21 +328,25 @@ const [cajaAbierta, saldos, fechaUltimoCierre, gananciasPendientes] = await Prom
 ## 🚀 Ventajas de este Patrón
 
 ### ✅ **No recarga página completa**
+
 - Solo actualiza las partes que cambiaron
 - Experiencia de usuario fluida (no parpadea la pantalla)
 - Mantiene el estado de scroll y animaciones
 
 ### ✅ **Datos siempre frescos**
+
 - Reconsulta desde BD después de cada operación
 - Sincronizado con el servidor
 - Evita datos desactualizados en caché
 
 ### ✅ **Simple y mantenible**
+
 - No necesitas manipular el DOM manualmente
 - Angular se encarga de la actualización
 - Fácil de debuggear (inspeccionar propiedades del componente)
 
 ### ✅ **Optimizado**
+
 - `Promise.all()` ejecuta consultas en paralelo
 - Solo actualiza elementos que cambiaron (no re-renderiza todo)
 - Change Detection eficiente de Angular
@@ -343,6 +356,7 @@ const [cajaAbierta, saldos, fechaUltimoCierre, gananciasPendientes] = await Prom
 ## ⚠️ ¿Qué NO hace Angular automáticamente?
 
 ### ❌ No reconsulta la BD automáticamente
+
 ```typescript
 // Esto NO actualiza la UI:
 // (porque Angular no sabe que cambiaste algo en la BD)
@@ -356,6 +370,7 @@ await this.cargarDatos();  // ← Reconsultar y asignar nuevos valores
 ```
 
 ### ❌ No actualiza si modificas objetos mutables sin reasignar
+
 ```typescript
 // ❌ MAL: Angular podría no detectar el cambio
 this.cajas[0].saldo = 150;
@@ -397,11 +412,13 @@ ngOnInit() {
 ```
 
 **Ventajas:**
+
 - Actualización automática cuando cambian los datos
 - Patrón más reactivo
 - Ideal para actualizaciones en tiempo real
 
 **Desventajas:**
+
 - Más complejo de implementar
 - Requiere manejar subscripciones (evitar memory leaks)
 
@@ -421,11 +438,13 @@ async cargarDatos() {
 ```
 
 **Ventajas:**
+
 - Más simple que Observables
 - Change Detection más eficiente
 - API más limpia
 
 **Desventajas:**
+
 - Requiere Angular 16+ (tenemos Angular 20, es viable)
 - Tendríamos que refactorizar todo el código
 
@@ -434,6 +453,7 @@ async cargarDatos() {
 ## 📝 Resumen
 
 **Flujo simplificado:**
+
 1. Usuario confirma operación → Modal retorna datos
 2. Home ejecuta operación → Guarda en BD
 3. Si exitoso → `cargarDatos()` reconsulta BD
@@ -442,6 +462,7 @@ async cargarDatos() {
 6. Usuario ve saldo actualizado → Sin recargar página
 
 **Patrón clave:**
+
 ```typescript
 // Guardar en BD
 const success = await this.service.guardarOperacion();
@@ -453,6 +474,7 @@ if (success) {
 ```
 
 **¿Por qué funciona?**
+
 - Angular tiene **Data Binding**: Vínculo automático entre propiedades y vista
 - Angular tiene **Change Detection**: Detecta cambios en propiedades y actualiza DOM
 - Solo necesitas actualizar las propiedades, Angular hace el resto
@@ -527,6 +549,7 @@ async call<T>(promise, successMessage): Promise<T | null> {
 ```
 
 Entonces:
+
 1. INSERT es exitoso (status 201)
 2. Supabase devuelve `data: null` (comportamiento por defecto)
 3. `supabase.call()` devuelve `null`
@@ -569,6 +592,7 @@ if (success) {
 ### 📊 Comparación de Respuestas
 
 #### SELECT (devuelve data)
+
 ```typescript
 const response = await supabase.from('tabla').select('*');
 // {
@@ -580,6 +604,7 @@ const response = await supabase.from('tabla').select('*');
 ```
 
 #### INSERT/UPDATE (devuelve null por defecto)
+
 ```typescript
 const response = await supabase.from('tabla').insert({nombre: 'Juan'});
 // {
@@ -591,6 +616,7 @@ const response = await supabase.from('tabla').insert({nombre: 'Juan'});
 ```
 
 #### INSERT/UPDATE con .select()
+
 ```typescript
 const response = await supabase.from('tabla')
   .insert({nombre: 'Juan'})

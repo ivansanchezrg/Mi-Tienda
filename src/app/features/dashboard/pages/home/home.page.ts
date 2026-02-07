@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -18,6 +18,7 @@ import {
   ellipsisVertical, listOutline, lockOpenOutline, lockClosedOutline,
   timeOutline, playOutline, stopOutline
 } from 'ionicons/icons';
+import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
 import { UiService } from '@core/services/ui.service';
 import { NetworkService } from '@core/services/network.service';
@@ -42,7 +43,7 @@ import { OperacionModalComponent, OperacionModalResult } from '../../components/
     IonCard, IonIcon, IonBadge, IonButton
   ]
 })
-export class HomePage extends ScrollablePage implements OnInit {
+export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private ui = inject(UiService);
@@ -57,6 +58,7 @@ export class HomePage extends ScrollablePage implements OnInit {
   private actionSheetCtrl = inject(ActionSheetController);
   private networkService = inject(NetworkService);
   private cdr = inject(ChangeDetectorRef);
+  private networkSub?: Subscription;
 
   // Estado del turno de caja
   estadoCaja: EstadoCaja = {
@@ -112,11 +114,15 @@ export class HomePage extends ScrollablePage implements OnInit {
    */
   async ngOnInit() {
     // Suscribirse al estado de red
-    this.networkService.getNetworkStatus().subscribe(isOnline => {
+    this.networkSub = this.networkService.getNetworkStatus().subscribe(isOnline => {
       this.isOnline = isOnline;
     });
 
     await this.cargarDatos();
+  }
+
+  ngOnDestroy() {
+    this.networkSub?.unsubscribe();
   }
 
   /**
