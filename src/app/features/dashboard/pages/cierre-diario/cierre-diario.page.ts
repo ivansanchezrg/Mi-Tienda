@@ -27,6 +27,7 @@ import { UiService } from '@core/services/ui.service';
 import { HasPendingChanges } from '@core/guards/pending-changes.guard';
 import { CurrencyService } from '@core/services/currency.service';
 import { RecargasService } from '../../services/recargas.service';
+import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
@@ -54,6 +55,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
   private recargasService = inject(RecargasService);
+  private turnosCajaService = inject(TurnosCajaService);
   private authService = inject(AuthService);
   private alertCtrl = inject(AlertController);
   private toastCtrl = inject(ToastController);
@@ -361,6 +363,12 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
 
       // Mostrar toast de éxito
       await this.ui.showSuccess('Cierre guardado correctamente');
+
+      // AUTO-CERRAR TURNO: Cerrar el turno activo automáticamente
+      const estadoCaja = await this.turnosCajaService.obtenerEstadoCaja();
+      if (estadoCaja.estado === 'TURNO_EN_CURSO' && estadoCaja.turnoActivo) {
+        await this.turnosCajaService.cerrarTurno(estadoCaja.turnoActivo.id);
+      }
 
       // Limpiar formulario y navegar
       this.cierreForm.markAsPristine();

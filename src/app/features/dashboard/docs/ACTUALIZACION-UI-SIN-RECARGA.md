@@ -459,6 +459,213 @@ if (success) {
 
 ---
 
+## ⚠️ CASO ESPECIAL: INSERT/UPDATE con Supabase
+
+**Fecha actualización:** 2026-02-07
+**Contexto:** Sistema de turnos de caja - Problema con UI que no se actualizaba
+
+### 🐛 El Problema
+
+Después de hacer un INSERT o UPDATE exitoso, la UI no se actualizaba aunque la operación funcionara correctamente en la base de datos.
+
+```typescript
+// Código que NO funcionaba:
+async abrirTurno(): Promise<boolean> {
+  const result = await this.supabase.call(
+    this.supabase.client
+      .from('turnos_caja')
+      .insert({ fecha, numero_turno, empleado_id, hora_apertura }),
+    'Caja abierta'
+  );
+
+  return result !== null;  // ❌ Siempre era false aunque el INSERT funcionara
+}
+
+// En el componente:
+if (success) {
+  await this.cargarDatos();  // ❌ Nunca se ejecutaba porque success era false
+}
+```
+
+**Síntoma:** El botón "Abrir" no hacía nada, pero al recargar la página manualmente (F5), los datos aparecían correctamente en la BD.
+
+### 🔍 La Causa Raíz
+
+**Supabase devuelve `data: null` en operaciones INSERT/UPDATE por defecto**, a menos que uses `.select()` explícitamente.
+
+```typescript
+// INSERT sin .select()
+const response = await supabase.from('tabla').insert({ campo: 'valor' });
+
+console.log(response);
+// {
+//   error: null,
+//   data: null,      // ← NULL aunque sea exitoso
+//   count: null,
+//   status: 201,     // ← Status indica éxito
+//   statusText: ''
+// }
+```
+
+El método `supabase.call()` devuelve `response.data`:
+
+```typescript
+// supabase.service.ts - método call()
+async call<T>(promise, successMessage): Promise<T | null> {
+  try {
+    const response = await promise;
+
+    if (response.error) {
+      throw response.error;
+    }
+
+    return response.data as T;  // ← Devuelve data (que es null)
+  } catch (error) {
+    return null;
+  }
+}
+```
+
+Entonces:
+1. INSERT es exitoso (status 201)
+2. Supabase devuelve `data: null` (comportamiento por defecto)
+3. `supabase.call()` devuelve `null`
+4. El código evalúa `result !== null` como `false`
+5. Nunca entra al `if (success)` y no recarga datos
+
+### ✅ La Solución
+
+**Verificar `response.error` en lugar de `response.data`:**
+
+```typescript
+// ✅ Código que SÍ funciona:
+async abrirTurno(): Promise<boolean> {
+  // Hacer INSERT directamente (sin supabase.call)
+  const response = await this.supabase.client
+    .from('turnos_caja')
+    .insert({ fecha, numero_turno, empleado_id, hora_apertura });
+
+  // Verificar si hay error
+  if (response.error) {
+    return false;  // Falló
+  }
+
+  // Mostrar toast de éxito manualmente
+  await this.supabase.call(
+    Promise.resolve(response),
+    'Caja abierta'
+  );
+
+  return true;  // ✅ Éxito
+}
+
+// Ahora en el componente:
+if (success) {
+  await this.cargarDatos();  // ✅ SÍ se ejecuta
+  this.cdr.detectChanges();  // ✅ UI se actualiza
+}
+```
+
+### 📊 Comparación de Respuestas
+
+#### SELECT (devuelve data)
+```typescript
+const response = await supabase.from('tabla').select('*');
+// {
+//   error: null,
+//   data: [{id: 1, nombre: 'Juan'}, ...],  // ✅ Tiene datos
+//   count: null,
+//   status: 200
+// }
+```
+
+#### INSERT/UPDATE (devuelve null por defecto)
+```typescript
+const response = await supabase.from('tabla').insert({nombre: 'Juan'});
+// {
+//   error: null,
+//   data: null,  // ⚠️ NULL por defecto
+//   count: null,
+//   status: 201
+// }
+```
+
+#### INSERT/UPDATE con .select()
+```typescript
+const response = await supabase.from('tabla')
+  .insert({nombre: 'Juan'})
+  .select();  // ← Agregar .select()
+
+// {
+//   error: null,
+//   data: [{id: 1, nombre: 'Juan'}],  // ✅ Ahora SÍ devuelve datos
+//   count: null,
+//   status: 201
+// }
+```
+
+### 🎯 Patrón Recomendado
+
+**Para INSERT/UPDATE sin necesidad de datos insertados:**
+
+```typescript
+async guardarDatos(): Promise<boolean> {
+  // 1. Hacer operación directamente
+  const response = await this.supabase.client
+    .from('tabla')
+    .insert({ campo: 'valor' });
+
+  // 2. Verificar error (NO verificar data)
+  if (response.error) {
+    return false;
+  }
+
+  // 3. Opcional: mostrar toast
+  await this.supabase.call(Promise.resolve(response), 'Guardado exitosamente');
+
+  // 4. Retornar true si no hay error
+  return true;
+}
+```
+
+**Para INSERT/UPDATE que necesitan devolver datos:**
+
+```typescript
+async guardarDatos(): Promise<MiTipo | null> {
+  // Agregar .select() para obtener datos
+  const result = await this.supabase.call<MiTipo>(
+    this.supabase.client
+      .from('tabla')
+      .insert({ campo: 'valor' })
+      .select()  // ← IMPORTANTE
+      .single(),
+    'Guardado exitosamente'
+  );
+
+  return result;  // Ahora SÍ devuelve datos
+}
+```
+
+### 🔑 Conclusión
+
+- **Para SELECT:** Usa `supabase.call()` directamente (devuelve data)
+- **Para INSERT/UPDATE:**
+  - Si **NO necesitas** los datos insertados: Verifica `error === null`
+  - Si **SÍ necesitas** los datos insertados: Agrega `.select()` al query
+
+### 📝 Checklist de Debugging
+
+Si tu UI no se actualiza después de INSERT/UPDATE:
+
+- [ ] ¿La operación está siendo exitosa? (revisar status 201/204)
+- [ ] ¿Estás verificando `data !== null` en lugar de `error === null`?
+- [ ] ¿Necesitas agregar `.select()` después del INSERT/UPDATE?
+- [ ] ¿El `if (success)` se está ejecutando? (agregar console.logs)
+- [ ] ¿Estás llamando a `cargarDatos()` después de la operación exitosa?
+- [ ] ¿Necesitas `cdr.detectChanges()` para forzar actualización?
+
+---
+
 ## 🎓 Conceptos para Aprender Más
 
 - **Angular Change Detection**: Cómo detecta cambios Angular
@@ -466,6 +673,7 @@ if (success) {
 - **OnPush Strategy**: Optimización de Change Detection para componentes grandes
 - **RxJS Observables**: Patrón reactivo para flujos de datos
 - **Angular Signals**: Nueva API reactiva de Angular 16+
+- **Supabase PostgREST API**: Comportamiento de respuestas según operación
 
 ---
 

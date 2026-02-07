@@ -8,6 +8,32 @@
 <!-- Capa 2: Tabs + Router Outlet (directo en el layout, NO extraer) -->
 <ion-tabs id="main-content">
   @if (showTabs) {
+    <!-- Overlay oscuro (fuera del tab-bar) -->
+    @if (fabAbierto) {
+      <div class="fab-overlay" (click)="toggleFab()"></div>
+    }
+
+    <!-- Opciones con diseño pill/chip (fuera del tab-bar) -->
+    @if (fabAbierto) {
+      <div class="fab-options">
+        <!-- Cuadre -->
+        <div class="fab-option" (click)="irACuadre()">
+          <div class="fab-option-icon tertiary">
+            <ion-icon [icon]="clipboardIcon"></ion-icon>
+          </div>
+          <span class="fab-option-label">Cuadre</span>
+        </div>
+
+        <!-- Gasto -->
+        <div class="fab-option" (click)="irAGasto()">
+          <div class="fab-option-icon warning">
+            <ion-icon [icon]="receiptIcon"></ion-icon>
+          </div>
+          <span class="fab-option-label">Gastos</span>
+        </div>
+      </div>
+    }
+
     <ion-tab-bar slot="bottom">
       <ion-tab-button tab="home">
         <ion-icon [icon]="homeIcon"></ion-icon>
@@ -17,6 +43,13 @@
       <ion-tab-button tab="ventas">
         <ion-icon [icon]="ventasIcon"></ion-icon>
         <ion-label>Ventas</ion-label>
+      </ion-tab-button>
+
+      <!-- FAB integrado como tab -->
+      <ion-tab-button class="fab-tab-container">
+        <ion-fab-button color="dark" (click)="toggleFab()" [class.fab-abierto]="fabAbierto">
+          <ion-icon [icon]="fabAbierto ? closeIcon : addIcon"></ion-icon>
+        </ion-fab-button>
       </ion-tab-button>
 
       <ion-tab-button tab="inventario">

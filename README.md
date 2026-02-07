@@ -334,6 +334,47 @@ Despues de modificar `capacitor.config.ts` ejecutar `npx cap sync android`.
 
 ---
 
+### Detección de Conexión a Internet
+
+Sistema automático que detecta pérdida de conexión y bloquea operaciones críticas.
+
+**Componentes:**
+- **NetworkService** (`core/services/network.service.ts`) - Monitoreo de conexión
+- **OfflineBannerComponent** - Banner rojo que aparece al perder internet
+- **Validación en operaciones** - Bloquea acciones sin conexión
+
+**Uso en páginas:**
+
+```typescript
+private networkService = inject(NetworkService);
+isOnline = true;
+
+ngOnInit() {
+  // Suscribirse a cambios de conexión
+  this.networkService.getNetworkStatus().subscribe(isOnline => {
+    this.isOnline = isOnline;
+  });
+}
+
+async ejecutarOperacion() {
+  // Verificar antes de operaciones críticas
+  if (!this.isOnline) {
+    await this.ui.showError('Sin conexión a internet');
+    return;
+  }
+  // continuar...
+}
+```
+
+**Banner automático:**
+- Aparece en toda la app al perder internet
+- Desaparece automáticamente al recuperar conexión
+- No requiere configuración adicional
+
+**Importante:** Las validaciones de error en servicios siguen siendo necesarias (complementarias) para detectar fallos durante la operación.
+
+---
+
 ### Uso de Iconos en Ionic Standalone
 
 **IMPORTANTE:** En Ionic Standalone, los iconos deben importarse como objetos, NO como strings.

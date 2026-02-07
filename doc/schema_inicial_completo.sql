@@ -25,6 +25,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ==========================================
 DROP TABLE IF EXISTS operaciones_cajas CASCADE;
 DROP TABLE IF EXISTS tipos_referencia CASCADE;
+DROP TABLE IF EXISTS turnos_caja CASCADE;
 DROP TABLE IF EXISTS gastos_diarios CASCADE;
 DROP TABLE IF EXISTS caja_fisica_diaria CASCADE;
 DROP TABLE IF EXISTS cierres_diarios CASCADE; -- Mantener por compatibilidad (nombre antiguo)
@@ -149,7 +150,22 @@ CREATE TABLE IF NOT EXISTS caja_fisica_diaria (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 7. Tabla: gastos_diarios
+-- 7. Tabla: turnos_caja
+-- Registro de turnos de apertura/cierre de caja (independiente del cierre contable)
+-- Permite múltiples turnos por día con hora exacta de apertura y cierre
+CREATE TABLE IF NOT EXISTS turnos_caja (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fecha DATE NOT NULL,
+    numero_turno SMALLINT NOT NULL DEFAULT 1,
+    empleado_id INTEGER NOT NULL REFERENCES empleados(id),
+    hora_apertura TIMESTAMP WITH TIME ZONE NOT NULL,
+    hora_cierre TIMESTAMP WITH TIME ZONE,
+    observaciones TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(fecha, numero_turno)
+);
+
+-- 8. Tabla: gastos_diarios
 -- Registro de gastos operativos pagados desde la caja física (efectivo de ventas del día)
 -- NOTA: Si no hay efectivo, se hace EGRESO desde CAJA PRINCIPAL (en operaciones_cajas)
 CREATE TABLE IF NOT EXISTS gastos_diarios (
@@ -202,6 +218,8 @@ CREATE INDEX idx_recargas_tipo_servicio ON recargas(tipo_servicio_id);
 CREATE INDEX idx_recargas_empleado ON recargas(empleado_id);
 CREATE INDEX idx_caja_fisica_diaria_fecha ON caja_fisica_diaria(fecha);
 CREATE INDEX idx_caja_fisica_diaria_empleado ON caja_fisica_diaria(empleado_id);
+CREATE INDEX idx_turnos_caja_fecha ON turnos_caja(fecha);
+CREATE INDEX idx_turnos_caja_empleado ON turnos_caja(empleado_id);
 CREATE INDEX idx_operaciones_cajas_fecha ON operaciones_cajas(fecha);
 CREATE INDEX idx_operaciones_cajas_caja ON operaciones_cajas(caja_id);
 CREATE INDEX idx_operaciones_cajas_empleado ON operaciones_cajas(empleado_id);
@@ -225,7 +243,8 @@ INSERT INTO cajas (codigo, nombre, descripcion, saldo_actual) VALUES
 -- Tipos de referencia (catálogo de tablas que pueden originar operaciones)
 INSERT INTO tipos_referencia (codigo, tabla, descripcion) VALUES
 ('RECARGAS', 'recargas', 'Operaciones originadas desde registros de recargas diarias'),
-('CAJA_FISICA_DIARIA', 'caja_fisica_diaria', 'Operaciones originadas desde el cierre de caja física diaria (depósito, transferencias)');
+('CAJA_FISICA_DIARIA', 'caja_fisica_diaria', 'Operaciones originadas desde el cierre de caja física diaria (depósito, transferencias)'),
+('TURNOS_CAJA', 'turnos_caja', 'Registro de turnos de apertura/cierre de caja');
 
 -- Configuración inicial del sistema
 INSERT INTO configuraciones (fondo_fijo_diario, celular_alerta_saldo_bajo, caja_chica_transferencia_diaria, bus_dias_antes_facturacion) VALUES
@@ -252,6 +271,7 @@ COMMENT ON TABLE recargas IS 'Registro diario de control de saldo virtual por se
 COMMENT ON TABLE caja_fisica_diaria IS 'Registro de la caja física diaria (v4.0: ultra-simplificado - solo efectivo_recaudado)';
 COMMENT ON TABLE gastos_diarios IS 'Registro de gastos operativos pagados desde efectivo de ventas del día (no afecta CAJA PRINCIPAL)';
 COMMENT ON TABLE tipos_referencia IS 'Catálogo de tablas que pueden originar operaciones en cajas (para trazabilidad)';
+COMMENT ON TABLE turnos_caja IS 'Registro de turnos de apertura/cierre de caja (independiente del cierre contable diario)';
 COMMENT ON TABLE operaciones_cajas IS 'Log de auditoría de todas las operaciones en cajas con trazabilidad completa';
 
 COMMENT ON COLUMN cajas.saldo_actual IS 'Saldo actual de la caja (se actualiza con cada operación)';
@@ -318,11 +338,11 @@ COMMENT ON COLUMN operaciones_cajas.referencia_id IS 'UUID del registro específ
 -- ==========================================
 -- RESUMEN
 -- ==========================================
--- ✅ 8 Tablas creadas
+-- ✅ 9 Tablas creadas
 -- ✅ 1 Tipo enumerado creado
--- ✅ 8 Índices creados para performance
+-- ✅ 10 Índices creados para performance
 -- ✅ 2 Tipos de servicio configurados (BUS, CELULAR)
--- ✅ 2 Tipos de referencia configurados (RECARGAS, CIERRES_DIARIOS)
+-- ✅ 3 Tipos de referencia configurados (RECARGAS, CAJA_FISICA_DIARIA, TURNOS_CAJA)
 -- ✅ 4 Cajas inicializadas:
 --    • CAJA: $0.00
 --    • CAJA_CHICA: $0.00

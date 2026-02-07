@@ -104,11 +104,6 @@
             <div class="op-details">
               <div class="op-title-row">
                 <span class="op-title">{{ getOperacionLabel(op.tipo_operacion) }}</span>
-                @if (op.comprobante_url) {
-                  <button class="comprobante-btn" (click)="verComprobante(op.comprobante_url)">
-                    <ion-icon name="document-attach-outline"></ion-icon>
-                  </button>
-                }
               </div>
 
               @if (op.descripcion) {
@@ -128,9 +123,16 @@
               </div>
             </div>
 
-            <span class="op-amount" [attr.data-type]="getOperacionColor(op.tipo_operacion)">
-              {{ esIngreso(op.tipo_operacion) ? '+' : '-' }}${{ op.monto | number:'1.2-2' }}
-            </span>
+            <div class="op-right">
+              @if (op.comprobante_url) {
+                <button class="comprobante-btn" (click)="verComprobante(op.comprobante_url)">
+                  <ion-icon name="document-attach-outline"></ion-icon>
+                </button>
+              }
+              <span class="op-amount" [attr.data-type]="getOperacionColor(op.tipo_operacion)">
+                {{ esIngreso(op.tipo_operacion) ? '+' : '-' }}${{ op.monto | number:'1.2-2' }}
+              </span>
+            </div>
           </div>
 
           @if (!last) {
