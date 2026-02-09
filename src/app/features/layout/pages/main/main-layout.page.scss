@@ -4,10 +4,10 @@ ion-menu {
 
 ion-tab-bar {
   --background: var(--ion-item-background);
-  border-top: 1px solid var(--ion-color-step-100, #e5e5e5);
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  border-top: 1px solid var(--ion-color-step-100);
+  box-shadow: var(--shadow-level-1);
   height: 56px;
-  padding-bottom: 12px;
+  padding-bottom: var(--spacing-md);
 }
 
 // Contenedor del FAB como tab
@@ -26,9 +26,9 @@ ion-tab-bar {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, var(--opacity-medium));
   z-index: 999;
-  animation: fadeIn 0.3s ease;
+  animation: fadeIn 0.2s ease;
 }
 
 @keyframes fadeIn {
@@ -36,19 +36,19 @@ ion-tab-bar {
   to { opacity: 1; }
 }
 
-// Botón FAB dentro del tab (rectangular)
+// Botón FAB dentro del tab
 ion-fab-button {
-  --box-shadow: 0 2px 6px rgba(var(--ion-color-dark-rgb), 0.25);
-  --border-radius: 8px;
-  width: 35px;
-  height: 35px;
-  transition: transform 0.3s ease;
+  --box-shadow: var(--shadow-level-1);
+  width: 40px;
+  height: 40px;
+  --border-radius: 50%;
+  transition: transform var(--transition-slow) ease;
   position: relative;
   z-index: 1001;
 
   ion-icon {
-    font-size: 18px;
-    transition: transform 0.3s ease;
+    font-size: 22px;
+    transition: transform var(--transition-slow) ease;
   }
 
   // Rotación del botón cuando está abierto
@@ -65,32 +65,32 @@ ion-fab-button {
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--spacing-md);
   z-index: 1000;
 }
 
 // Cada opción tipo pill/chip
 .fab-option {
   background: var(--ion-card-background, var(--ion-background-color));
-  border-radius: 28px;
-  padding: 8px 16px 8px 8px;
+  border-radius: var(--radius-pill);
+  padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-sm) var(--spacing-sm);
   display: flex;
   align-items: center;
-  gap: 12px;
-  box-shadow: 0 4px 12px var(--ion-shadow-color, rgba(0, 0, 0, 0.15));
+  gap: var(--spacing-md);
+  box-shadow: var(--shadow-level-2);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-normal);
   min-width: 140px;
-  animation: slideUpItem 0.3s ease forwards;
+  animation: slideUpItem 0.18s ease forwards;
   opacity: 0;
 
   // Delay escalonado para cada opción (de abajo hacia arriba)
   &:nth-child(1) {
-    animation-delay: 0.15s;
+    animation-delay: 0.08s;
   }
 
   &:nth-child(2) {
-    animation-delay: 0.05s;
+    animation-delay: 0.02s;
   }
 
   &:active {
@@ -101,7 +101,7 @@ ion-fab-button {
   .fab-option-icon {
     width: 40px;
     height: 40px;
-    border-radius: 50%;
+    border-radius: var(--radius-full);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -124,7 +124,7 @@ ion-fab-button {
   // Texto de la opción
   .fab-option-label {
     font-size: 15px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     color: var(--ion-text-color);
     white-space: nowrap;
   }

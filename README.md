@@ -27,39 +27,19 @@ Aplicación móvil híbrida para gestión de tienda, desarrollada con Ionic Angu
 
 ## 🎯 Patrones y Convenciones
 
-### Sistema de Diseño - Fondos y Cards
+### Sistema de Diseño
 
-El fondo principal de la app es un **gris sutil**, lo que permite que los cards y elementos con fondo blanco resalten visualmente, creando profundidad y jerarquía.
+Este proyecto implementa un sistema de diseño consistente basado en **Flat Design Moderno** con design tokens para spacing, colores, sombras y radios.
 
-**Variables clave** (`src/theme/variables.scss`):
+📖 **[Ver Guía Completa de Diseño →](./docs/DESIGN.md)**
 
-| Variable                 | Light Mode | Dark Mode | Uso                                |
-| ------------------------ | ---------- | --------- | ---------------------------------- |
-| `--ion-background-color` | `#f4f5f8`  | `#121212` | Fondo de páginas                   |
-| `--ion-item-background`  | `#ffffff`  | `#1e1e1e` | Cards, items, elementos destacados |
-
-**Uso en componentes:**
-
-```scss
-// Para cards, modales, tab bar, o cualquier elemento que deba resaltar
-.mi-card {
-  background: var(--ion-item-background);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-```
-
-**Ejemplo visual:**
-
-```
-┌─────────────────────────────────────┐
-│  Fondo gris (#f4f5f8)              │
-│  ┌───────────────────────────────┐  │
-│  │  Card blanco (#ffffff)        │  │ ← Resalta sobre el fondo
-│  └───────────────────────────────┘  │
-└─────────────────────────────────────┘
-```
-
-> **Importante:** Al crear nuevos componentes, usar `--ion-item-background` para fondos que deban contrastar con el fondo principal.
+La guía incluye:
+- Principios del patrón de diseño
+- Tabla completa de design tokens (spacing, shadows, radius, etc.)
+- Ejemplos de código DO/DON'T
+- Componentes Ionic recomendados y a evitar
+- Checklist de desarrollo
+- Recursos y mejores prácticas
 
 ---
 
@@ -584,6 +564,50 @@ export class HomePage extends ScrollablePage implements OnInit {
 
 ---
 
+## 🔧 Problemas Comunes y Soluciones
+
+### NavigatorLockAcquireTimeoutError (Supabase)
+
+**Problema:**
+```
+NavigatorLockAcquireTimeoutError: Acquiring an exclusive Navigator
+LockManager lock "lock:sb-xxx-auth-token" immediately failed
+```
+
+Este error aparece en consola repetidamente (incrementa contador) cuando Supabase intenta usar el Navigator LockManager API para sincronizar sesiones entre pestañas/tabs del navegador.
+
+**Causa:**
+- En apps Capacitor (nativas), el LockManager está diseñado para navegadores multi-tab
+- En una app móvil (single window), este mecanismo no es necesario y puede fallar
+
+**Solución:**
+Configurar el cliente de Supabase con una función lock no-op que desactiva el mecanismo:
+
+```typescript
+// supabase.service.ts
+this.client = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    storageKey: 'sb-xxx-auth-token',
+    storage: window.localStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+    // Desactiva LockManager (no necesario en Capacitor)
+    lock: async (name, acquireTimeout, fn) => {
+      return await fn();
+    }
+  }
+});
+```
+
+**Resultado:**
+- ✅ Elimina completamente el error de consola
+- ✅ No afecta funcionalidad (single-window app)
+- ✅ Auth tokens se manejan normalmente
+
+---
+
 ## 📱 Comandos Principales
 
 ```bash
@@ -638,8 +662,9 @@ git commit -m "tipo(scope): descripción corta" -m "- Detalle 1
 Al agregar nuevas funcionalidades:
 
 1. Seguir la estructura de carpetas definida en `doc/estructura-proyecto.md`
-2. Usar el patrón de servicios (UiService + SupabaseService)
-3. Actualizar la documentación si es necesario
+2. **Seguir el sistema de diseño** definido en [`docs/DESIGN.md`](./docs/DESIGN.md) (design tokens, spacing, colores, step colors)
+3. Usar el patrón de servicios (UiService + SupabaseService)
+4. Actualizar la documentación si es necesario
 
 ### Documentación por Módulo
 

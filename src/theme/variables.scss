@@ -3,42 +3,37 @@
 
 /**
  * ============================================================================
- * PATRÓN DE DISEÑO - SISTEMA DE FONDOS Y CARDS
+ * SISTEMA DE DISEÑO - FLAT DESIGN MODERNO v2.0
  * ============================================================================
  *
- * CONCEPTO:
- * El fondo principal de la app es un gris sutil, lo que permite que los
- * cards y elementos con fondo blanco resalten visualmente creando
- * profundidad y jerarquía visual.
+ * FILOSOFÍA:
+ * Este sistema de diseño se basa en Flat Design moderno con superficies planas,
+ * sombras sutiles, bordes redondeados suaves y espaciado consistente.
+ * Compatible con modo claro/oscuro usando variables CSS de Ionic.
  *
- * VARIABLES CLAVE:
+ * CAPAS VISUALES:
  * ┌─────────────────────────────────────────────────────────────────────────┐
- * │ --ion-background-color    → Fondo general de páginas (gris sutil)      │
- * │ --ion-item-background     → Fondo de cards, items, elementos (blanco)  │
+ * │ Fondo General (--ion-background-color) → Gris sutil / Dark #121212     │
+ * │   ┌───────────────────────────────────────────────────────────────┐     │
+ * │   │ Cards/Items (--ion-item-background) → Blanco / Dark #1e1e1e  │     │
+ * │   │   • Sombras sutiles para profundidad                          │     │
+ * │   │   • Bordes redondeados suaves                                 │     │
+ * │   └───────────────────────────────────────────────────────────────┘     │
  * └─────────────────────────────────────────────────────────────────────────┘
  *
- * USO EN COMPONENTES:
- * - Cards, modales, popovers      → usar: var(--ion-item-background)
- * - Tab bar, status bars          → usar: var(--ion-item-background)
- * - Elementos que deben resaltar  → usar: var(--ion-item-background)
- *
- * EJEMPLO VISUAL:
- * ┌─────────────────────────────────────┐
- * │  Fondo gris (#f4f5f8)              │
- * │  ┌───────────────────────────────┐  │
- * │  │  Card blanco (#ffffff)        │  │ ← Resalta sobre el fondo
- * │  └───────────────────────────────┘  │
- * └─────────────────────────────────────┘
- *
- * IMPORTANTE:
- * Al crear nuevos componentes, usar --ion-item-background para fondos
- * que deban contrastar con el fondo principal de la página.
+ * PRINCIPIOS DE USO:
+ * 1. Usar design tokens (variables) en lugar de valores hardcodeados
+ * 2. Aprovechar variables Ionic nativas para compatibilidad con temas
+ * 3. Usar --ion-color-step-* para variaciones sutiles
+ * 4. Mantener consistencia en spacing y radios en toda la app
  * ============================================================================
  */
 
- 
-
 :root {
+  // ============================================================================
+  // COLORES BASE (Ionic Nativo - Adaptativo al modo oscuro)
+  // ============================================================================
+
   // Fondo principal de páginas (gris sutil - resalta cards)
   --ion-background-color: #f4f5f8;
   --ion-background-color-rgb: 244, 245, 248;
@@ -46,21 +41,218 @@
   // Fondo de cards/items/elementos destacados (blanco)
   --ion-item-background: #ffffff;
 
-  /* 1. Sobrescribir la variable nativa de Ionic para que la base sea NEGRA 
-  Esto es para los ovelay de modal, alert, ,etc */
-  --ion-backdrop-color: rgba(0, 0, 0, 0.7)!important;
+  /* Backdrop para modals, alerts, etc (negro semi-transparente) */
+  // --ion-backdrop-color: rgba(0, 0, 0, 0.9) !important;
+  // --ion-backdrop-opacity: 0.8;
+
+  // ============================================================================
+  // BORDER RADIUS (Bordes Redondeados)
+  // ============================================================================
+
+  /**
+   * Escala de border-radius consistente
+   * USO:
+   * - xs: Botones pequeños, badges, inputs
+   * - sm: Icon wrappers, botones medianos
+   * - md: Cards pequeños, items de lista
+   * - lg: Cards grandes, modales, secciones hero
+   * - xl: Elementos especiales muy redondeados
+   * - pill: Pills, chips, tags (totalmente redondeado)
+   * - full: Elementos circulares (avatares, dots, badges)
+   */
+  --radius-xs: 8px;      // Botones pequeños, badges, inputs
+  --radius-sm: 12px;     // Icon wrappers, botones medianos
+  --radius-md: 16px;     // Cards pequeños, items de lista
+  --radius-lg: 24px;     // Cards grandes, modales, secciones hero
+  --radius-xl: 32px;     // Elementos especiales muy redondeados
+  --radius-pill: 100px;  // Pills, chips, tags
+  --radius-full: 50%;    // Elementos circulares
+
+  // ============================================================================
+  // BOX SHADOW (Elevación y Profundidad)
+  // ============================================================================
+
+  /**
+   * Escala de sombras para crear profundidad visual
+   * USO:
+   * - none: Elementos planos sin elevación
+   * - level-1: Elevación mínima (chips, badges)
+   * - level-2: Elevación suave (cards, items)
+   * - level-3: Elevación media (modales, popovers)
+   * - level-4: Elevación alta (dialogs, overlays)
+   *
+   * NOTA: Las sombras se adaptan automáticamente en modo oscuro
+   * (aparecen más sutiles)
+   */
+  --shadow-none: none;
+  --shadow-level-1: 0 2px 8px rgba(0, 0, 0, 0.04);    // Mínima
+  --shadow-level-2: 0 4px 16px rgba(0, 0, 0, 0.06);   // Suave
+  --shadow-level-3: 0 8px 24px rgba(0, 0, 0, 0.08);   // Media
+  --shadow-level-4: 0 12px 32px rgba(0, 0, 0, 0.12);  // Alta
+
+  // ============================================================================
+  // SPACING (Espaciado Consistente)
+  // ============================================================================
+
+  /**
+   * Escala de espaciado basada en múltiplos de 4px
+   * USO:
+   * - xs (4px): Gaps pequeños entre elementos hermanos
+   * - sm (8px): Espaciado entre íconos y texto, gaps medianos
+   * - md (12px): Márgenes entre items, padding de botones
+   * - lg (16px): Padding de items, márgenes de secciones
+   * - xl (20px): Padding de cards, márgenes de páginas
+   * - 2xl (24px): Padding de secciones grandes
+   * - 3xl (32px): Padding de hero sections, modales
+   * - 4xl (40px): Espaciado especial muy grande
+   *
+   * EJEMPLO:
+   * .card { padding: var(--spacing-xl); margin-bottom: var(--spacing-md); }
+   */
+  --spacing-xs: 4px;    // 0.25rem
+  --spacing-sm: 8px;    // 0.5rem
+  --spacing-md: 12px;   // 0.75rem
+  --spacing-lg: 16px;   // 1rem
+  --spacing-xl: 20px;   // 1.25rem
+  --spacing-2xl: 24px;  // 1.5rem
+  --spacing-3xl: 32px;  // 2rem
+  --spacing-4xl: 40px;  // 2.5rem
+
+  // ============================================================================
+  // FONT WEIGHTS (Pesos de Fuente)
+  // ============================================================================
+
+  /**
+   * Escala de pesos tipográficos
+   * USO:
+   * - regular: Texto normal, párrafos
+   * - medium: Subtítulos, labels
+   * - semibold: Títulos de sección
+   * - bold: Títulos principales, montos
+   * - extrabold: Hero titles, números destacados
+   */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  // ============================================================================
+  // TRANSITIONS (Animaciones Suaves)
+  // ============================================================================
+
+  /**
+   * Tiempos de transición estándar
+   * USO:
+   * - fast: Hover states, botones
+   * - normal: Transiciones generales
+   * - slow: Animaciones complejas
+   */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+
+  // ============================================================================
+  // OPACITIES (Transparencias)
+  // ============================================================================
+
+  /**
+   * Niveles de opacidad estándar para overlays, backgrounds, etc.
+   * USO:
+   * - disabled: Estados deshabilitados
+   * - muted: Elementos secundarios
+   * - subtle: Backgrounds ligeros
+   * - medium: Overlays moderados
+   * - strong: Overlays prominentes
+   */
+  --opacity-disabled: 0.3;
+  --opacity-muted: 0.6;
+  --opacity-subtle: 0.08;
+  --opacity-medium: 0.12;
+  --opacity-strong: 0.16;
+
+  // ============================================================================
+  // STEP COLORS (Escala de Grises - Light Mode)
+  // ============================================================================
+
+  /**
+   * Escala de grises desde casi blanco (50) hasta casi negro (950)
+   * Estos valores NO se generan automáticamente en Ionic 8
+   * Base: #ffffff (blanco) → #000000 (negro)
+   */
+  --ion-color-step-50: #f2f2f2;    // 98% blanco
+  --ion-color-step-100: #e6e6e6;   // 90% blanco
+  --ion-color-step-150: #d9d9d9;   // 85% blanco
+  --ion-color-step-300: #b3b3b3;   // 70% blanco
+  --ion-color-step-400: #999999;   // 60% blanco
+  --ion-color-step-600: #666666;   // 40% blanco
+  --ion-color-step-900: #1a1a1a;   // 10% blanco (muy oscuro)
+  --ion-color-step-950: #0d0d0d;   // 5% blanco (casi negro)
+
   
-  /* 2. Definir tu opacidad deseada */
-  --ion-backdrop-opacity: 0.8;
 }
+
+// ============================================================================
+// DARK MODE (Modo Oscuro)
+// ============================================================================
 
 @media (prefers-color-scheme: dark) {
   :root {
-    // Fondo principal de páginas (dark mode)
+    // Fondos adaptados a modo oscuro
     --ion-background-color: #121212;
     --ion-background-color-rgb: 18, 18, 18;
-
-    // Fondo de cards/items/elementos destacados (dark mode)
     --ion-item-background: #1e1e1e;
+
+    // Sombras más sutiles en modo oscuro
+    --shadow-level-1: 0 2px 8px rgba(0, 0, 0, 0.2);
+    --shadow-level-2: 0 4px 16px rgba(0, 0, 0, 0.3);
+    --shadow-level-3: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-level-4: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+    // Step Colors invertidos para dark mode (claro → oscuro)
+    --ion-color-step-50: #0d0d0d;    // Casi negro
+    --ion-color-step-100: #1a1a1a;   // Muy oscuro
+    --ion-color-step-150: #262626;   // Oscuro
+    --ion-color-step-300: #4d4d4d;   // Gris oscuro
+    --ion-color-step-400: #666666;   // Gris medio
+    --ion-color-step-600: #999999;   // Gris claro
+    --ion-color-step-900: #e6e6e6;   // Muy claro
+    --ion-color-step-950: #f2f2f2;   // Casi blanco
   }
 }
+
+// ============================================================================
+// UTILITY CLASSES (Clases de Utilidad)
+// ============================================================================
+
+/**
+ * Clases helper para aplicar design tokens rápidamente
+ * NOTA: Úsalas con moderación, prefiere componentes semánticos
+ */
+
+// Spacing utilities
+.p-xs { padding: var(--spacing-xs); }
+.p-sm { padding: var(--spacing-sm); }
+.p-md { padding: var(--spacing-md); }
+.p-lg { padding: var(--spacing-lg); }
+.p-xl { padding: var(--spacing-xl); }
+
+.m-xs { margin: var(--spacing-xs); }
+.m-sm { margin: var(--spacing-sm); }
+.m-md { margin: var(--spacing-md); }
+.m-lg { margin: var(--spacing-lg); }
+.m-xl { margin: var(--spacing-xl); }
+
+// Border radius utilities
+.rounded-sm { border-radius: var(--radius-sm); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.rounded-pill { border-radius: var(--radius-pill); }
+.rounded-full { border-radius: var(--radius-full); }
+
+// Shadow utilities
+.shadow-1 { box-shadow: var(--shadow-level-1); }
+.shadow-2 { box-shadow: var(--shadow-level-2); }
+.shadow-3 { box-shadow: var(--shadow-level-3); }
+.shadow-4 { box-shadow: var(--shadow-level-4); }
+.shadow-none { box-shadow: none; }

@@ -8,15 +8,15 @@
 }
 
 ion-button {
-  margin: 20px;
+  margin: var(--spacing-xl);
 }
 
 .active {
   color: var(--ion-color-success);
-  font-weight: bold;
+  font-weight: var(--font-weight-bold);
 }
 
 .inactive {
   color: var(--ion-color-danger);
-  font-weight: bold;
+  font-weight: var(--font-weight-bold);
 }

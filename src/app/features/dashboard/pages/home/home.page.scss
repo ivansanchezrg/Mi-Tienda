@@ -69,6 +69,7 @@ ion-toolbar {
     .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
     &.TURNO_EN_CURSO .dot { background: var(--ion-color-success); }
     &.CERRADA .dot { background: var(--ion-color-medium); }
+    &.SIN_ABRIR .dot { background: var(--ion-color-medium); }
     
     .label { font-size: 12px; font-weight: 600; }
     .time { font-size: 12px; color: var(--ion-color-medium); margin-left: 4px; }

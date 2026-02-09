@@ -7,7 +7,7 @@ $caja-chica-color: #8b5cf6;
 
 // Container principal
 .wizard-container {
-  padding: 16px;
+  padding: var(--spacing-lg);
   max-width: 600px;
   margin: 0 auto;
 }
@@ -15,15 +15,15 @@ $caja-chica-color: #8b5cf6;
 .step-indicator {
   display: flex;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-xl);
 
   span {
     background: var(--ion-color-light);
     color: var(--ion-color-medium);
-    padding: 4px 12px;
-    border-radius: 16px;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--radius-md);
     font-size: 12px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -31,12 +31,12 @@ $caja-chica-color: #8b5cf6;
 
 .paso-header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: var(--spacing-2xl);
 
   h2 {
     font-size: 24px;
-    font-weight: 700;
-    margin: 0 0 8px;
+    font-weight: var(--font-weight-bold);
+    margin: 0 0 var(--spacing-sm);
     color: var(--ion-text-color);
   }
 
@@ -49,20 +49,20 @@ $caja-chica-color: #8b5cf6;
 
 // Formulario de entrada (Paso 1)
 .input-list {
-  margin-bottom: 24px;
+  margin-bottom: var(--spacing-2xl);
   background: transparent;
 
   .input-item {
     --background: var(--ion-item-background, #fff);
-    --padding-start: 16px;
-    --padding-end: 16px;
-    margin-bottom: 16px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    --padding-start: var(--spacing-lg);
+    --padding-end: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-level-1);
 
     .item-icon {
       font-size: 36px;
-      margin-right: 16px;
+      margin-right: var(--spacing-lg);
 
       &.celular { color: $celular-color; }
       &.bus { color: $bus-color; }
@@ -70,7 +70,7 @@ $caja-chica-color: #8b5cf6;
     }
 
     ion-label {
-      margin-bottom: 12px;
+      margin-bottom: var(--spacing-md);
 
       strong {
         font-size: 18px;
@@ -82,16 +82,17 @@ $caja-chica-color: #8b5cf6;
         font-size: 14px;
         color: var(--ion-color-medium);
         display: block;
-        margin-top: 4px;
+        margin-top: var(--spacing-xs);
       }
     }
 
     .input-wrapper {
       display: flex;
       align-items: center;
-      gap: 8px;
-      border-bottom: 2px solid var(--ion-border-color, #f0f0f0);
-      margin-top: 4px;
+      gap: var(--spacing-sm);
+      border-bottom: 2px solid var(--ion-color-step-100);
+      margin-top: var(--spacing-xs);
+      transition: border-color var(--transition-normal);
 
       &:focus-within {
         border-bottom-color: var(--ion-color-primary);
@@ -99,17 +100,17 @@ $caja-chica-color: #8b5cf6;
 
       .currency-prefix {
         font-size: 24px;
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
         color: var(--ion-color-medium);
         margin-top: -2px;
       }
     }
 
     ion-input {
-      --padding-top: 8px;
-      --padding-bottom: 8px;
+      --padding-top: var(--spacing-sm);
+      --padding-bottom: var(--spacing-sm);
       font-size: 32px;
-      font-weight: 800;
+      font-weight: var(--font-weight-extrabold);
       color: var(--ion-text-color);
     }
   }
@@ -119,19 +120,18 @@ $caja-chica-color: #8b5cf6;
 .resumen-card,
 .verificacion-card,
 .observaciones-card {
-  margin-bottom: 16px;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-level-2);
 
   ion-card-header {
-    padding-bottom: 12px;
+    padding-bottom: var(--spacing-md);
 
     ion-card-title {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--spacing-sm);
       font-size: 16px;
-      font-weight: 700;
+      font-weight: var(--font-weight-bold);
 
       ion-icon {
         font-size: 20px;
@@ -139,16 +139,14 @@ $caja-chica-color: #8b5cf6;
       }
     }
   }
-
-  ion-card-content {
-    padding: 16px;
-  }
 }
 
 // Secciones dentro de cards
 .seccion-titulo {
-  margin-bottom: 12px;
-  padding-bottom: 8px;
+  margin-bottom: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+
   border-bottom: 2px solid var(--ion-color-primary);
 
   strong {
@@ -156,14 +154,8 @@ $caja-chica-color: #8b5cf6;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--ion-color-primary);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
-}
-
-.separador-seccion {
-  height: 1px;
-  background: var(--ion-border-color, #e5e7eb);
-  margin: 20px 0;
 }
 
 // Ventas del día
@@ -171,8 +163,7 @@ $caja-chica-color: #8b5cf6;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--ion-border-color, #f0f0f0);
+  padding: var(--spacing-md) 0;
 
   &:last-child {
     border-bottom: none;
@@ -181,7 +172,7 @@ $caja-chica-color: #8b5cf6;
   .venta-header {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--spacing-sm);
 
     .venta-icon {
       font-size: 24px;
@@ -193,7 +184,7 @@ $caja-chica-color: #8b5cf6;
 
     .venta-nombre {
       font-size: 14px;
-      font-weight: 600;
+      font-weight: var(--font-weight-semibold);
       color: var(--ion-text-color);
     }
   }
@@ -202,11 +193,11 @@ $caja-chica-color: #8b5cf6;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 4px;
+    gap: var(--spacing-xs);
 
     .venta-monto {
       font-size: 18px;
-      font-weight: 700;
+      font-weight: var(--font-weight-bold);
       color: var(--ion-text-color);
     }
   }
@@ -214,32 +205,31 @@ $caja-chica-color: #8b5cf6;
 
 // Desglose del efectivo
 .desglose-efectivo {
-  margin-top: 8px;
-  padding: 12px;
-  background: var(--ion-color-light, #f8f9fa);
-  border-radius: 8px;
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--ion-color-light);
+  border-radius: var(--radius-xs);
   border-left: 3px solid $efectivo-color;
 
   .desglose-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 0;
+    padding: var(--spacing-sm) 0;
 
     &:not(:last-child) {
-      border-bottom: 1px dashed var(--ion-border-color, #e5e7eb);
+      border-bottom: 1px dashed var(--ion-color-step-300);
     }
 
     &.resultado {
-      margin-top: 4px;
-      padding-top: 12px;
-      border-top: 2px solid var(--ion-border-color, #e5e7eb);
+      margin-top: var(--spacing-xs);
+      padding-top: var(--spacing-md);
     }
 
     .desglose-label {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--spacing-xs);
       font-size: 13px;
       color: var(--ion-color-medium);
 
@@ -250,34 +240,34 @@ $caja-chica-color: #8b5cf6;
 
     .desglose-valor {
       font-size: 14px;
-      font-weight: 600;
+      font-weight: var(--font-weight-semibold);
       color: var(--ion-text-color);
 
       &.resta {
         color: $bus-color; // Rojo para las restas
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
       }
 
       &.destacado {
         font-size: 16px;
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
         color: var(--ion-color-success);
       }
     }
 
     &.resultado .desglose-label {
       color: var(--ion-color-success);
-      font-weight: 600;
+      font-weight: var(--font-weight-semibold);
     }
   }
 }
 
 // Verificación de cajas
 .caja-verificacion {
-  padding: 16px;
-  background: var(--ion-color-light, #f8f9fa);
-  border-radius: 10px;
-  margin-bottom: 12px;
+  padding: var(--spacing-lg);
+  background: var(--ion-color-light);
+  border-radius: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 
   &:last-child {
     margin-bottom: 0;
@@ -286,8 +276,8 @@ $caja-chica-color: #8b5cf6;
   .caja-nombre {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
 
     .caja-icon {
       font-size: 20px;
@@ -311,16 +301,16 @@ $caja-chica-color: #8b5cf6;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--spacing-sm);
     font-size: 15px;
 
     .saldo,
     .operacion,
     .resultado {
-      font-weight: 700;
-      padding: 6px 12px;
-      border-radius: 8px;
-      background: var(--ion-item-background, #fff);
+      font-weight: var(--font-weight-bold);
+      padding: var(--spacing-xs) var(--spacing-md);
+      border-radius: var(--radius-xs);
+      background: var(--ion-item-background, var(--ion-background-color));
     }
 
     .saldo {
@@ -334,13 +324,13 @@ $caja-chica-color: #8b5cf6;
     .resultado {
       color: var(--ion-color-success);
       font-size: 18px;
-      background: rgba(var(--ion-color-success-rgb), 0.1);
-      border: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
+      background: rgba(var(--ion-color-success-rgb), 0.10);
+      border: 1px solid rgba(var(--ion-color-success-rgb), 0.20);
     }
 
     .operador {
       color: var(--ion-color-medium);
-      font-weight: 600;
+      font-weight: var(--font-weight-semibold);
       font-size: 18px;
     }
   }
@@ -350,16 +340,16 @@ $caja-chica-color: #8b5cf6;
 .alerta-simple {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 12px;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
   background: var(--ion-color-light);
-  border-radius: 10px;
-  margin-bottom: 12px;
+  border-radius: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 
   ion-icon {
     font-size: 24px;
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: var(--spacing-2xs);
   }
 
   > div {
@@ -367,7 +357,7 @@ $caja-chica-color: #8b5cf6;
   }
 
   p {
-    margin: 0 0 8px 0;
+    margin: 0 0 var(--spacing-sm) 0;
     font-size: 13px;
     color: var(--ion-text-color);
     line-height: 1.4;
@@ -383,14 +373,14 @@ $caja-chica-color: #8b5cf6;
 
   ul {
     margin: 0;
-    padding-left: 20px;
+    padding-left: var(--spacing-xl);
     list-style: disc;
 
     li {
       font-size: 13px;
       color: var(--ion-text-color);
       line-height: 1.6;
-      margin-bottom: 6px;
+      margin-bottom: var(--spacing-xs);
 
       &:last-child {
         margin-bottom: 0;
@@ -398,26 +388,26 @@ $caja-chica-color: #8b5cf6;
 
       strong {
         color: var(--ion-color-primary);
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
       }
     }
   }
 
   &.info {
-    background: rgba(var(--ion-color-primary-rgb), 0.1);
-    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.2);
+    background: rgba(var(--ion-color-primary-rgb), 0.10);
+    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.20);
   }
 
   &.warning {
-    background: rgba(var(--ion-color-warning-rgb), 0.1);
-    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.2);
+    background: rgba(var(--ion-color-warning-rgb), 0.10);
+    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.20);
   }
 }
 
 // Observaciones
 .observaciones-card {
   ion-card-content {
-    padding: 8px;
+    padding: var(--spacing-sm);
 
     .observaciones-item {
       --background: transparent;
@@ -426,14 +416,14 @@ $caja-chica-color: #8b5cf6;
       --inner-padding-end: 0;
 
       ion-textarea {
-        --padding-start: 12px;
-        --padding-end: 12px;
-        --padding-top: 12px;
-        --padding-bottom: 12px;
+        --padding-start: var(--spacing-md);
+        --padding-end: var(--spacing-md);
+        --padding-top: var(--spacing-md);
+        --padding-bottom: var(--spacing-md);
         font-size: 14px;
-        border: 2px solid var(--ion-border-color, #e5e7eb);
-        border-radius: 8px;
-        background: var(--ion-color-light, #f9fafb);
+        border: 2px solid var(--ion-color-step-150);
+        border-radius: var(--radius-sm);
+        background: var(--ion-color-light);
       }
     }
   }
@@ -442,15 +432,16 @@ $caja-chica-color: #8b5cf6;
 .paso-actions {
   display: flex;
   flex-direction: row;
-  gap: 12px;
-  margin-top: 24px;
-  padding-bottom: 16px;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-2xl);
+  padding-bottom: var(--spacing-lg);
 
   ion-button {
-    --border-radius: 12px;
-    height: 50px;
-    font-weight: 700;
+    --border-radius: var(--radius-sm);
+    height: var(--spacing-4xl);
+    font-weight: var(--font-weight-bold);
     text-transform: none;
     flex: 1;
+    transition: all var(--transition-fast);
   }
 }

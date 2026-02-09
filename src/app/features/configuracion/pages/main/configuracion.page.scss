@@ -3,21 +3,21 @@ ion-content {
 }
 
 .page-container {
-  padding: 16px;
-  padding-bottom: 32px;
+  padding: var(--spacing-lg);
+  padding-bottom: var(--spacing-3xl);
 }
 
 ion-card {
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  margin-bottom: 16px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-level-1);
+  margin-bottom: var(--spacing-lg);
 
   ion-card-title {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--spacing-sm);
     font-size: 17px;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
 
     ion-icon {
       font-size: 22px;
@@ -35,19 +35,19 @@ ion-card {
   }
 
   ion-item {
-    --padding-start: 16px;
-    --padding-end: 16px;
+    --padding-start: var(--spacing-lg);
+    --padding-end: var(--spacing-lg);
     --min-height: 60px;
 
     ion-icon[slot="start"] {
       font-size: 24px;
-      margin-right: 16px;
+      margin-right: var(--spacing-lg);
     }
 
     h3 {
       font-size: 15px;
-      font-weight: 600;
-      margin: 0 0 4px 0;
+      font-weight: var(--font-weight-semibold);
+      margin: 0 0 var(--spacing-xs) 0;
       color: var(--ion-color-dark);
     }
 
@@ -61,13 +61,13 @@ ion-card {
 
 .logout-card {
   ion-card-content {
-    padding: 16px;
+    padding: var(--spacing-lg);
   }
 
   ion-button {
-    height: 50px;
-    font-weight: 700;
+    height: var(--spacing-4xl);
+    font-weight: var(--font-weight-bold);
     font-size: 15px;
-    --border-radius: 12px;
+    --border-radius: var(--radius-md);
   }
 }
