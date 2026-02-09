@@ -25,18 +25,15 @@ export class NetworkService {
     // Obtener estado inicial
     const status = await Network.getStatus();
     this.isOnline$.next(status.connected);
-    console.log('Network initial status:', status.connected);
 
     // Escuchar cambios de estado
     Network.addListener('networkStatusChange', status => {
-      console.log('Network status changed:', status.connected);
       this.isOnline$.next(status.connected);
     });
 
     // Verificar estado cuando la app vuelve del background
     App.addListener('appStateChange', async ({ isActive }) => {
       if (isActive) {
-        console.log('App resumed, checking network...');
         await this.checkConnection();
       }
     });

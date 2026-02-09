@@ -12,7 +12,7 @@ export class SupabaseService {
   private ui = inject(UiService);
   private router = inject(Router);
 
-  public client: SupabaseClient = createClient(environment.supabaseUrl, environment.supabaseKey);
+  public client: SupabaseClient;
 
   // Variable crítica para Android (según tu MD)  >>>> NUEVO
   public pendingDeepLinkUrl: string | null = null;
@@ -23,6 +23,22 @@ export class SupabaseService {
   constructor() {
     const projectRef = environment.supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || '';
     this.STORAGE_KEY = `sb-${projectRef}-auth-token`;
+
+    // Inicializar Supabase con configuración para evitar errores de LockManager
+    this.client = createClient(environment.supabaseUrl, environment.supabaseKey, {
+      auth: {
+        storageKey: this.STORAGE_KEY,
+        storage: window.localStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce',
+        // Desactiva LockManager (no necesario en Capacitor - single window)
+        lock: async (name, acquireTimeout, fn) => {
+          return await fn();
+        }
+      }
+    });
   }
 
   /**

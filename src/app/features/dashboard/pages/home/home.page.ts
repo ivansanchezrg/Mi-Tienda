@@ -5,13 +5,13 @@ import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-  IonCard, IonIcon, IonBadge, IonButton, ModalController,
+  IonIcon, IonButton, IonCard, ModalController,
   IonList, IonItem, IonLabel, IonText, IonCheckbox, ToastController, ActionSheetController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   walletOutline, cashOutline, phonePortraitOutline, busOutline,
-  chevronForwardOutline, chevronDownOutline, checkmarkCircle, closeCircle,
+  chevronForward, chevronForwardOutline, chevronDownOutline, checkmarkCircle, closeCircle,
   arrowDownOutline, arrowUpOutline, swapHorizontalOutline,
   receiptOutline, clipboardOutline, notificationsOutline, close,
   notificationsOffOutline, cloudOfflineOutline, alertCircleOutline,
@@ -40,7 +40,7 @@ import { OperacionModalComponent, OperacionModalResult } from '../../components/
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-    IonCard, IonIcon, IonBadge, IonButton
+    IonIcon, IonButton
   ]
 })
 export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
@@ -99,7 +99,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     super();
     addIcons({
       walletOutline, cashOutline, phonePortraitOutline, busOutline,
-      chevronForwardOutline, chevronDownOutline, checkmarkCircle, closeCircle,
+      chevronForward, chevronForwardOutline, chevronDownOutline, checkmarkCircle, closeCircle,
       arrowDownOutline, arrowUpOutline, swapHorizontalOutline,
       receiptOutline, clipboardOutline, notificationsOutline, close,
       notificationsOffOutline, cloudOfflineOutline, alertCircleOutline,
@@ -118,6 +118,22 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       this.isOnline = isOnline;
     });
 
+    // Suscribirse a cambios en queryParams para detectar acciones del FAB
+    this.route.queryParams.subscribe(async params => {
+      const action = params['action'];
+      if (action) {
+        // Limpiar queryParams
+        await this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: {},
+          replaceUrl: true
+        });
+
+        // Manejar acción
+        await this.manejarAccion(action);
+      }
+    });
+
     await this.cargarDatos();
   }
 
@@ -126,20 +142,25 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   /**
+   * Maneja las acciones que vienen desde queryParams (FAB, etc)
+   */
+  private async manejarAccion(action: string) {
+    if (action === 'gasto') {
+      await this.onOperacion('gasto');
+    }
+  }
+
+  /**
    * Mantiene el comportamiento de ScrollablePage (resetear scroll)
    * Carga datos solo si viene con query param refresh (ej: después de cierre)
-   * Detecta acciones desde el FAB (ej: action=gasto)
    */
   override async ionViewWillEnter(): Promise<void> {
     super.ionViewWillEnter();
 
-    // Check for action from FAB
-    const action = this.route.snapshot.queryParams['action'];
-
     // Check if should refresh (coming from cierre or other process)
     const refresh = this.route.snapshot.queryParams['refresh'];
 
-    if (action || refresh) {
+    if (refresh) {
       // Clear query params first to avoid loops
       await this.router.navigate([], {
         relativeTo: this.route,
@@ -147,15 +168,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
         replaceUrl: true
       });
 
-      // Handle action
-      if (action === 'gasto') {
-        await this.onOperacion('gasto');
-      }
-
-      // Refresh data if needed
-      if (refresh) {
-        await this.cargarDatos();
-      }
+      // Refresh data
+      await this.cargarDatos();
     }
   }
 

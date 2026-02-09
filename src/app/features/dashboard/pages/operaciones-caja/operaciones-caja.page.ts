@@ -379,6 +379,8 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   }
 
   async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModalResult) {
+    console.log('🔵 [ejecutarOperacion] Iniciando...', { tipo, data });
+
     const success = await this.service.registrarOperacion(
       data.cajaId,
       tipo,
@@ -387,10 +389,15 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       data.fotoComprobante
     );
 
+    console.log('🔵 [ejecutarOperacion] Resultado:', { success });
+
     if (success) {
+      console.log('✅ [ejecutarOperacion] Operación exitosa, recargando datos...');
       // Recargar saldo y operaciones
       await this.cargarSaldoCaja();
       await this.cargarOperaciones(true);
+    } else {
+      console.error('❌ [ejecutarOperacion] Operación falló');
     }
   }
 
@@ -427,7 +434,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
         <ion-title>Comprobante</ion-title>
         <ion-buttons slot="end">
           <ion-button (click)="cerrar()">
-            <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+            <ion-icon slot="icon-only" name="close"></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>

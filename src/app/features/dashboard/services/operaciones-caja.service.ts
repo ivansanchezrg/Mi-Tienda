@@ -104,15 +104,20 @@ export class OperacionesCajaService {
     fotoComprobante: string | null
   ): Promise<boolean> {
     try {
+      console.log('🟢 [registrarOperacion] Iniciando...', { cajaId, tipo, monto, descripcion, tieneFoto: !!fotoComprobante });
+
       let pathImagen: string | null = null;
 
       // 1. Si hay foto, subirla primero a Storage
       if (fotoComprobante) {
+        console.log('📸 [registrarOperacion] Subiendo comprobante...');
         await this.ui.showLoading('Subiendo comprobante...');
 
         pathImagen = await this.storageService.uploadImage(fotoComprobante);
+        console.log('📸 [registrarOperacion] Path imagen:', pathImagen);
 
         if (!pathImagen) {
+          console.error('❌ [registrarOperacion] Error al subir imagen');
           await this.ui.hideLoading();
           await this.ui.showError('Error al subir el comprobante. Intenta de nuevo.');
           return false;
@@ -122,8 +127,12 @@ export class OperacionesCajaService {
       }
 
       // 2. Obtener empleado actual
+      console.log('👤 [registrarOperacion] Obteniendo empleado...');
       const empleado = await this.authService.getEmpleadoActual();
+      console.log('👤 [registrarOperacion] Empleado:', empleado);
+
       if (!empleado) {
+        console.error('❌ [registrarOperacion] No se pudo obtener empleado');
         await this.ui.showError('No se pudo obtener información del empleado');
         return false;
       }
@@ -132,7 +141,15 @@ export class OperacionesCajaService {
       await this.ui.showLoading(`Registrando ${tipo.toLowerCase()}...`);
 
       // 4. Llamar a la función PostgreSQL que maneja todo
-      // Guardamos el PATH, no la URL (más flexible para generar signed URLs después)
+      console.log('🗄️ [registrarOperacion] Llamando RPC con params:', {
+        p_caja_id: cajaId,
+        p_empleado_id: empleado.id,
+        p_tipo_operacion: tipo,
+        p_monto: monto,
+        p_descripcion: descripcion || null,
+        p_comprobante_url: pathImagen
+      });
+
       const { data, error } = await this.supabase.client.rpc('registrar_operacion_manual', {
         p_caja_id: cajaId,
         p_empleado_id: empleado.id,
@@ -142,11 +159,13 @@ export class OperacionesCajaService {
         p_comprobante_url: pathImagen  // ← Guardamos PATH, no URL
       });
 
+      console.log('🗄️ [registrarOperacion] Respuesta RPC:', { data, error });
+
       await this.ui.hideLoading();
 
       // Verificar si hubo error en la llamada RPC
       if (error) {
-        console.error('Error al llamar RPC:', error);
+        console.error('❌ [registrarOperacion] Error RPC:', error);
 
         // Si falla y ya subimos la imagen, eliminarla
         if (pathImagen) {
@@ -159,7 +178,7 @@ export class OperacionesCajaService {
 
       // Verificar el resultado de la función
       if (!data || !data.success) {
-        console.error('Error en la función:', data?.error);
+        console.error('❌ [registrarOperacion] Función retornó error:', data?.error);
 
         // Si falla y ya subimos la imagen, eliminarla
         if (pathImagen) {
@@ -170,11 +189,12 @@ export class OperacionesCajaService {
         return false;
       }
 
+      console.log('✅ [registrarOperacion] Operación registrada exitosamente');
       await this.ui.showSuccess(`${tipo} registrado correctamente`);
       return true;
 
     } catch (error) {
-      console.error('Error en registrarOperacion:', error);
+      console.error('❌ [registrarOperacion] Error catch:', error);
       await this.ui.hideLoading();
       await this.ui.showError('Error inesperado');
       return false;

@@ -9,6 +9,7 @@
 ## 📋 Resumen
 
 Sistema que permite a los empleados adjuntar comprobantes fotográficos a las operaciones de ingreso y egreso de cajas. Los comprobantes son:
+
 - **Obligatorios** para egresos
 - **Opcionales** para ingresos
 
@@ -40,12 +41,14 @@ Sistema que permite a los empleados adjuntar comprobantes fotográficos a las op
 ```
 
 ### Instalación:
+
 ```bash
 npm install @capacitor/camera
 npx cap sync android
 ```
 
 ### ⚠️ Nota para Web:
+
 En **web** la cámara requiere PWA Elements (opcional). Para desarrollo, usa **"Seleccionar de galería"** o prueba en Android.
 
 ### Permisos Android (`android/app/src/main/AndroidManifest.xml`):
@@ -102,6 +105,7 @@ src/app/
 ```
 
 **Leyenda:**
+
 - 🆕 Archivo nuevo
 - 🔄 Archivo modificado
 - 📄 Documentación
@@ -167,6 +171,7 @@ async onOperacion(tipo: string, tipoCaja?: string) {
 ```
 
 **Interface del resultado:**
+
 ```typescript
 export interface OperacionModalResult {
   cajaId: number;
@@ -233,12 +238,14 @@ async tomarFoto(source: CameraSource) {
 ```
 
 **⚡ Optimización de Tamaño:**
+
 - **Sin optimización**: Fotos de 4000x3000px = 3-10 MB
 - **Con optimización**: Fotos de 1200x900px = 200-500 KB
 - **Reducción**: ~90% menos tamaño sin pérdida visible de calidad
 - **Beneficios**: Carga más rápida, menos storage usado, mejor UX
 
 **Formato de DataURL:**
+
 ```
 data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCE...
 ```
@@ -294,6 +301,7 @@ confirmar() {
 ```
 
 **Condiciones de deshabilitación:**
+
 - ✅ Formulario inválido
 - ✅ Monto excede saldo (solo egresos)
 - ✅ Es egreso Y no hay foto
@@ -572,6 +580,7 @@ async verComprobante(path: string) {
 ```
 
 **¿Por qué generar la URL al momento de mostrar?**
+
 - ✅ El PATH nunca expira, la URL sí
 - ✅ Más flexible (podemos cambiar tiempo de expiración)
 - ✅ Más seguro (URLs temporales)
@@ -583,12 +592,14 @@ async verComprobante(path: string) {
 ### ¿Por qué optimizar?
 
 **Problema sin optimización:**
+
 - Cámaras modernas: 12-48 megapíxeles
 - Resoluciones típicas: 4000x3000 px o más
 - Tamaño de archivos: 3-10 MB por foto
 - Para 100 comprobantes: ~500 MB - 1 GB
 
 **Problema real:**
+
 - ❌ Storage caro en Supabase
 - ❌ Carga lenta en conexiones malas
 - ❌ Desperdicio de ancho de banda
@@ -614,21 +625,25 @@ Camera.getPhoto({
 **Parámetros explicados:**
 
 1. **`quality: 80`**
+   
    - Rango: 0-100
    - 80 = excelente calidad con buen tamaño
    - 100 = sin compresión (archivos gigantes)
    - 60 = calidad aceptable (más compresión)
 
 2. **`width: 1200`**
+   
    - Limita ancho máximo
    - Mantiene aspect ratio (proporción)
    - Para comprobantes, 1200px es más que suficiente
 
 3. **`height: 1600`**
+   
    - Limita alto máximo
    - Fotos verticales quedan bien
 
 4. **`correctOrientation: true`**
+   
    - ⚠️ **MUY IMPORTANTE**
    - Corrige rotación según datos EXIF de la cámara
    - Sin esto, fotos aparecen rotadas
@@ -636,11 +651,13 @@ Camera.getPhoto({
 ### Resultados
 
 **Antes (sin optimización):**
+
 - Resolución: 4000x3000 px
 - Tamaño: 3-8 MB
 - Tiempo de carga: 5-15 segundos
 
 **Después (con optimización):**
+
 - Resolución: 1200x900 px (aprox)
 - Tamaño: 200-500 KB
 - Tiempo de carga: 1-2 segundos
@@ -650,6 +667,7 @@ Camera.getPhoto({
 ### ¿Es suficiente 1200px para comprobantes?
 
 **SÍ.** Para referencia:
+
 - Pantalla Full HD: 1920x1080 px
 - Pantalla de celular: ~400-500 px de ancho
 - Impresión A4 a 150 DPI: 1240x1754 px
@@ -660,15 +678,18 @@ Camera.getPhoto({
 Si necesitas más control, puedes:
 
 1. **Usar un plugin de compresión**
+   
    - `capacitor-image-compressor`
    - `@capacitor-community/image-compressor`
 
 2. **Comprimir en backend**
+   
    - Edge Function en Supabase
    - Sharp.js para Node.js
    - Pero agrega latencia y costo
 
 3. **Usar un CDN con transformación**
+   
    - Cloudinary
    - Imgix
    - Mucho más caro
@@ -704,11 +725,13 @@ CREATE TABLE operaciones_cajas (
 ### Bucket de Storage: `comprobantes`
 
 **Configuración:**
+
 - **Público:** No (privado)
 - **Tamaño máximo:** 5 MB
 - **Tipos permitidos:** `image/jpeg`, `image/png`, `image/jpg`
 
 **Estructura de carpetas:**
+
 ```
 comprobantes/
 ├── 2026/
@@ -848,25 +871,30 @@ USING (
 ## 🔐 Seguridad
 
 ### 1. **Autenticación**
+
 - Solo usuarios autenticados pueden subir comprobantes
 - Políticas RLS en Storage verifican `auth.uid() IS NOT NULL`
 
 ### 2. **Validación de Archivos**
+
 - Tamaño máximo: 5 MB
 - Tipos permitidos: JPG, PNG
 - Validación en cliente (Capacitor Camera)
 
 ### 3. **Transacciones Atómicas**
+
 - Función PostgreSQL garantiza atomicidad
 - Si falla guardado, rollback completo
 - Si falla subida, no se guarda operación
 
 ### 4. **Limpieza de Imágenes Huérfanas**
+
 - Si falla la operación después de subir la imagen
 - El servicio elimina automáticamente la imagen
 - Evita basura en Storage
 
 ### 5. **Lock de Concurrencia**
+
 - `SELECT ... FOR UPDATE` en la función PostgreSQL
 - Evita race conditions al actualizar saldos
 - Garantiza consistencia de datos
@@ -878,12 +906,14 @@ USING (
 ### Problema: "Error al subir comprobante"
 
 **Posibles causas:**
+
 1. Políticas RLS mal configuradas
 2. Bucket no existe
 3. Usuario no autenticado
 4. Archivo excede 5 MB
 
 **Solución:**
+
 ```sql
 -- Verificar que el bucket existe
 SELECT * FROM storage.buckets WHERE name = 'comprobantes';
@@ -899,6 +929,7 @@ SELECT * FROM pg_policies WHERE tablename = 'objects';
 **Causa:** Función no creada o cache no actualizado
 
 **Solución:**
+
 ```sql
 -- Verificar que existe
 SELECT routine_name FROM information_schema.routines
@@ -915,6 +946,7 @@ NOTIFY pgrst, 'reload schema';
 **Causa:** Saldo en BD no está actualizado
 
 **Solución:**
+
 ```sql
 -- Verificar saldo actual
 SELECT id, nombre, saldo_actual FROM cajas WHERE id = 1;
@@ -933,6 +965,7 @@ LIMIT 1;
 **Causa:** Angular no detecta el cambio
 
 **Solución:** Ya implementado con `ChangeDetectorRef`
+
 ```typescript
 this.fotoComprobante = image.dataUrl || null;
 this.cdr.detectChanges();  // ← Forzar detección
@@ -944,129 +977,82 @@ this.cdr.detectChanges();  // ← Forzar detección
 
 ```sql
 -- ==========================================
--- FUNCIÓN: registrar_operacion_manual
--- ==========================================
--- Registra una operación manual de INGRESO o EGRESO
--- Actualiza el saldo de la caja automáticamente
--- Valida saldo insuficiente en egresos
--- Todo en una transacción atómica
--- ==========================================
-
--- Eliminar función anterior si existe
-DROP FUNCTION IF EXISTS registrar_operacion_manual;
-
--- Crear la función
-CREATE OR REPLACE FUNCTION registrar_operacion_manual(
-  p_caja_id INTEGER,
-  p_empleado_id INTEGER,
-  p_tipo_operacion tipo_operacion_caja_enum,
-  p_monto DECIMAL(12,2),
-  p_descripcion TEXT DEFAULT NULL,
-  p_comprobante_url TEXT DEFAULT NULL
-)
-RETURNS JSON
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  v_saldo_anterior DECIMAL(12,2);
-  v_saldo_nuevo DECIMAL(12,2);
-  v_operacion_id UUID;
-BEGIN
+  -- ELIMINAR Y RECREAR FUNCIÓN
   -- ==========================================
-  -- 1. OBTENER SALDO ACTUAL DE LA CAJA
-  -- ==========================================
-  -- FOR UPDATE: Lock de fila para evitar race conditions
-  SELECT saldo_actual INTO v_saldo_anterior
-  FROM cajas
-  WHERE id = p_caja_id
-  FOR UPDATE;
 
-  -- Validar que la caja existe
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Caja no encontrada con ID: %', p_caja_id;
-  END IF;
+  -- 1. Eliminar todas las versiones anteriores
+  DROP FUNCTION IF EXISTS public.registrar_operacion_manual(INTEGER, INTEGER, tipo_operacion_caja_enum, DECIMAL, TEXT, TEXT);
+  DROP FUNCTION IF EXISTS public.registrar_operacion_manual;
 
-  -- ==========================================
-  -- 2. CALCULAR NUEVO SALDO
-  -- ==========================================
-  IF p_tipo_operacion = 'INGRESO' THEN
-    v_saldo_nuevo := v_saldo_anterior + p_monto;
+  -- 2. Crear la función
+  CREATE FUNCTION public.registrar_operacion_manual(
+    p_caja_id INTEGER,
+    p_empleado_id INTEGER,
+    p_tipo_operacion tipo_operacion_caja_enum,
+    p_monto DECIMAL(12,2),
+    p_descripcion TEXT DEFAULT NULL,
+    p_comprobante_url TEXT DEFAULT NULL
+  )
+  RETURNS JSON
+  LANGUAGE plpgsql
+  AS $$
+  DECLARE
+    v_saldo_anterior DECIMAL(12,2);
+    v_saldo_nuevo DECIMAL(12,2);
+    v_operacion_id UUID;
+  BEGIN
+    -- 1. Obtener saldo actual de la caja
+    SELECT saldo_actual INTO v_saldo_anterior
+    FROM cajas
+    WHERE id = p_caja_id
+    FOR UPDATE;
 
-  ELSIF p_tipo_operacion = 'EGRESO' THEN
-    v_saldo_nuevo := v_saldo_anterior - p_monto;
-
-    -- Validar que no quede saldo negativo
-    IF v_saldo_nuevo < 0 THEN
-      RAISE EXCEPTION 'Saldo insuficiente. Saldo actual: $%, monto a retirar: $%',
-        v_saldo_anterior, p_monto;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Caja no encontrada con ID: %', p_caja_id;
     END IF;
 
-  ELSE
-    RAISE EXCEPTION 'Tipo de operación no válido: %. Use INGRESO o EGRESO', p_tipo_operacion;
-  END IF;
+    -- 2. Calcular nuevo saldo
+    IF p_tipo_operacion = 'INGRESO' THEN
+      v_saldo_nuevo := v_saldo_anterior + p_monto;
+    ELSIF p_tipo_operacion = 'EGRESO' THEN
+      v_saldo_nuevo := v_saldo_anterior - p_monto;
+      IF v_saldo_nuevo < 0 THEN
+        RAISE EXCEPTION 'Saldo insuficiente. Saldo actual: %, monto a retirar: %',
+          v_saldo_anterior, p_monto;
+      END IF;
+    ELSE
+      RAISE EXCEPTION 'Tipo de operación no válido: %. Use INGRESO o EGRESO', p_tipo_operacion;
+    END IF;
 
-  -- ==========================================
-  -- 3. ACTUALIZAR SALDO DE LA CAJA
-  -- ==========================================
-  UPDATE cajas
-  SET saldo_actual = v_saldo_nuevo,
-      updated_at = NOW()
-  WHERE id = p_caja_id;
+    -- 3. Actualizar saldo de la caja
+    UPDATE cajas
+    SET saldo_actual = v_saldo_nuevo,
+        updated_at = NOW()
+    WHERE id = p_caja_id;
 
-  -- ==========================================
-  -- 4. INSERTAR OPERACIÓN
-  -- ==========================================
-  INSERT INTO operaciones_cajas (
-    id,
-    caja_id,
-    empleado_id,
-    tipo_operacion,
-    monto,
-    saldo_anterior,
-    saldo_actual,
-    descripcion,
-    comprobante_url,
-    created_at
-  ) VALUES (
-    uuid_generate_v4(),
-    p_caja_id,
-    p_empleado_id,
-    p_tipo_operacion,
-    p_monto,
-    v_saldo_anterior,
-    v_saldo_nuevo,
-    p_descripcion,
-    p_comprobante_url,
-    NOW()
-  ) RETURNING id INTO v_operacion_id;
+    -- 4. Insertar operación
+    INSERT INTO operaciones_cajas (
+      id, caja_id, empleado_id, tipo_operacion, monto,
+      saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
+    ) VALUES (
+      uuid_generate_v4(), p_caja_id, p_empleado_id, p_tipo_operacion, p_monto,
+      v_saldo_anterior, v_saldo_nuevo, p_descripcion, p_comprobante_url, NOW()
+    ) RETURNING id INTO v_operacion_id;
 
-  -- ==========================================
-  -- 5. RETORNAR RESULTADO EXITOSO
-  -- ==========================================
-  RETURN json_build_object(
-    'success', true,
-    'operacion_id', v_operacion_id,
-    'saldo_anterior', v_saldo_anterior,
-    'saldo_nuevo', v_saldo_nuevo,
-    'monto', p_monto,
-    'tipo', p_tipo_operacion
-  );
+    -- 5. Retornar resultado
+    RETURN json_build_object(
+      'success', true,
+      'operacion_id', v_operacion_id,
+      'saldo_anterior', v_saldo_anterior,
+      'saldo_nuevo', v_saldo_nuevo
+    );
 
-EXCEPTION
-  WHEN OTHERS THEN
-    -- Capturar cualquier error y retornarlo
-    RAISE EXCEPTION 'Error en operación: %', SQLERRM;
-END;
-$$;
-
--- ==========================================
--- COMENTARIO
--- ==========================================
-COMMENT ON FUNCTION registrar_operacion_manual IS
-'Registra operación manual de INGRESO o EGRESO con actualización automática de saldo y validación de saldo insuficiente';
+  EXCEPTION
+    WHEN OTHERS THEN
+      RAISE EXCEPTION 'Error en operación: %', SQLERRM;
+  END;
+  $$;---
 ```
-
----
 
 ## ✅ Checklist de Implementación
 

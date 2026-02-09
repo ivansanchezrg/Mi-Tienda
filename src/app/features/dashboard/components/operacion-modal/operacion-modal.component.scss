@@ -2,8 +2,8 @@
 
 // Balance Card - Colores dinámicos según tipo de operación
 .balance-card {
-  padding: 20px;
-  margin-bottom: 16px;
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-lg);
 
   // Verde para ingresos
   &.ingreso {
@@ -28,9 +28,9 @@
   .caja-name {
     text-align: center;
     font-size: 15px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     color: var(--ion-text-color);
-    margin-bottom: 12px;
+    margin-bottom: var(--spacing-md);
   }
 
   .balance-main {
@@ -39,15 +39,15 @@
     .balance-amount {
       display: block;
       font-size: 32px;
-      font-weight: 800;
+      font-weight: var(--font-weight-extrabold);
       letter-spacing: -0.5px;
-      margin-bottom: 4px;
+      margin-bottom: var(--spacing-xs);
     }
 
     .balance-label {
       display: block;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: var(--font-weight-medium);
       color: var(--ion-color-medium);
     }
   }
@@ -55,33 +55,33 @@
 
 // Form Content
 .form-content {
-  padding: 0 20px 20px;
+  padding: 0 var(--spacing-xl) var(--spacing-xl);
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--spacing-2xl);
 }
 
 // Input Groups
 .input-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--spacing-sm);
 
   .input-label {
     font-size: 13px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     color: var(--ion-color-medium);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--spacing-sm);
 
     .required-badge {
       font-size: 10px;
-      font-weight: 600;
+      font-weight: var(--font-weight-semibold);
       color: var(--ion-color-danger);
-      background: rgba(var(--ion-color-danger-rgb), 0.1);
-      padding: 2px 8px;
-      border-radius: 4px;
+      background: rgba(var(--ion-color-danger-rgb), 0.10);
+      padding: 2px var(--spacing-sm);
+      border-radius: var(--radius-xs);
       text-transform: uppercase;
     }
   }
@@ -90,12 +90,12 @@
   .amount-wrapper {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 16px 20px;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg) var(--spacing-xl);
     background: var(--ion-item-background);
     border: 2px solid var(--ion-color-step-150);
-    border-radius: 12px;
-    transition: all 0.2s ease;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-normal);
 
     &:focus-within {
       border-color: var(--ion-color-primary);
@@ -107,7 +107,7 @@
 
     .currency {
       font-size: 24px;
-      font-weight: 700;
+      font-weight: var(--font-weight-bold);
       color: var(--ion-color-medium);
     }
 
@@ -116,7 +116,7 @@
       border: none;
       background: transparent;
       font-size: 28px;
-      font-weight: 700;
+      font-weight: var(--font-weight-bold);
       color: var(--ion-text-color);
       outline: none;
 
@@ -141,15 +141,15 @@
   // Textarea
   textarea {
     width: 100%;
-    padding: 14px 16px;
+    padding: 14px var(--spacing-lg);
     background: var(--ion-item-background);
     border: 2px solid var(--ion-color-step-150);
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
     font-size: 15px;
     color: var(--ion-text-color);
     font-family: inherit;
     resize: vertical;
-    transition: border-color 0.2s ease;
+    transition: border-color var(--transition-normal);
     outline: none;
 
     &:focus {
@@ -158,29 +158,29 @@
 
     &::placeholder {
       color: var(--ion-color-medium);
-      opacity: 0.6;
+      opacity: var(--opacity-muted);
     }
   }
 
   .error-text {
     font-size: 13px;
     color: var(--ion-color-danger);
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
   }
 
   // Upload Button
   .upload-btn {
     width: 100%;
-    padding: 20px;
+    padding: var(--spacing-xl);
     background: var(--ion-item-background);
     border: 2px dashed var(--ion-color-step-300);
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: var(--spacing-sm);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all var(--transition-normal);
     color: var(--ion-color-medium);
 
     ion-icon {
@@ -189,7 +189,7 @@
 
     span {
       font-size: 14px;
-      font-weight: 500;
+      font-weight: var(--font-weight-medium);
     }
 
     &:active {
@@ -202,7 +202,7 @@
   .photo-preview {
     position: relative;
     width: 100%;
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     border: 2px solid var(--ion-color-step-150);
 
@@ -214,18 +214,18 @@
 
     .remove-photo {
       position: absolute;
-      top: 8px;
-      right: 8px;
+      top: var(--spacing-sm);
+      right: var(--spacing-sm);
       width: 32px;
       height: 32px;
-      border-radius: 50%;
-      background: rgba(0, 0, 0, 0.6);
+      border-radius: var(--radius-full);
+      background: rgba(0, 0, 0, 0.60);
       border: none;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all var(--transition-normal);
 
       ion-icon {
         font-size: 24px;
@@ -233,7 +233,7 @@
       }
 
       &:active {
-        background: rgba(0, 0, 0, 0.8);
+        background: rgba(0, 0, 0, 0.80);
       }
     }
   }
@@ -242,20 +242,20 @@
 // Submit Button
 .submit-btn {
   width: 100%;
-  padding: 16px;
+  padding: var(--spacing-lg);
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   font-size: 16px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-normal);
 
   &.ingreso {
     background: var(--ion-color-success);
     color: var(--ion-color-success-contrast);
 
     &:active:not(:disabled) {
-      opacity: 0.9;
+      opacity: var(--opacity-strong);
     }
   }
 
@@ -264,12 +264,12 @@
     color: var(--ion-color-danger-contrast);
 
     &:active:not(:disabled) {
-      opacity: 0.9;
+      opacity: var(--opacity-strong);
     }
   }
 
   &:disabled {
-    opacity: 0.3;
+    opacity: var(--opacity-disabled);
     cursor: not-allowed;
   }
 }
