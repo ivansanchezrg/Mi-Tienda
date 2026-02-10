@@ -23,5 +23,13 @@ export const DASHBOARD_ROUTES: Routes = [
   {
     path: 'cuadre-caja',
     loadComponent: () => import('./pages/cuadre-caja/cuadre-caja.page').then(m => m.CuadreCajaPage)
+  },
+  {
+    path: 'gastos-diarios',
+    loadComponent: () => import('./pages/gastos-diarios/gastos-diarios.page').then(m => m.GastosDiariosPage)
+  },
+  {
+    path: 'historial-recargas',
+    loadComponent: () => import('./pages/historial-recargas/historial-recargas.page').then(m => m.HistorialRecargasPage)
   }
 ];

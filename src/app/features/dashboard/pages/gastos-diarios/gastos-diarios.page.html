@@ -1,0 +1,128 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Gastos Diarios</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Balance Card -->
+  <div class="balance-card">
+    <div class="balance-main">
+      <div class="balance-content">
+        <span class="balance-label">Total de Gastos</span>
+        <div class="balance-amount">${{ totalGastos.toFixed(2) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra de Filtros -->
+  <div class="filter-bar">
+    <span class="filter-label">Período</span>
+    <div class="filter-tabs">
+      <button
+        class="filter-tab"
+        [class.active]="filtroActivo === 'hoy'"
+        (click)="cambiarFiltro('hoy')"
+      >
+        Hoy
+      </button>
+      <button
+        class="filter-tab"
+        [class.active]="filtroActivo === 'semana'"
+        (click)="cambiarFiltro('semana')"
+      >
+        Semana
+      </button>
+      <button
+        class="filter-tab"
+        [class.active]="filtroActivo === 'mes'"
+        (click)="cambiarFiltro('mes')"
+      >
+        Mes
+      </button>
+      <button
+        class="filter-tab"
+        [class.active]="filtroActivo === 'todo'"
+        (click)="cambiarFiltro('todo')"
+      >
+        Todo
+      </button>
+    </div>
+  </div>
+
+  <!-- Lista de Gastos -->
+  @if (loading) {
+    <div class="empty-state">
+      <ion-spinner name="crescent" color="primary"></ion-spinner>
+      <p>Cargando gastos...</p>
+    </div>
+  } @else if (gastosAgrupados.length === 0) {
+    <div class="empty-state">
+      <ion-icon name="receipt-outline"></ion-icon>
+      <p>No hay gastos registrados</p>
+    </div>
+  } @else {
+    @for (grupo of gastosAgrupados; track grupo.fecha) {
+      <!-- Date Header -->
+      <div class="date-header">
+        <span class="date-text">{{ formatearFechaLegible(grupo.fecha) }}</span>
+        <span class="date-total">${{ calcularTotalDia(grupo.gastos) }}</span>
+      </div>
+
+      <!-- Gastos Card -->
+      <div class="gastos-card">
+        @for (gasto of grupo.gastos; track gasto.id; let last = $last) {
+          <div class="gasto-row">
+            <!-- Icono (clickeable si hay comprobante) -->
+            @if (gasto.comprobante_url) {
+              <div
+                class="gasto-icon clickeable"
+                (click)="verComprobante($event, gasto.comprobante_url)"
+              >
+                <ion-icon name="receipt-outline"></ion-icon>
+              </div>
+            } @else {
+              <div class="gasto-icon">
+                <ion-icon name="receipt-outline"></ion-icon>
+              </div>
+            }
+
+            <!-- Detalles -->
+            <div class="gasto-details">
+              <div class="gasto-title">{{ gasto.categoria_nombre || 'Sin categoría' }}</div>
+
+              @if (gasto.observaciones) {
+                <div class="gasto-observaciones">{{ gasto.observaciones }}</div>
+              }
+
+              <div class="gasto-footer">
+                <span class="gasto-user">{{ gasto.empleado_nombre || 'Sin nombre' }}</span>
+                <span class="dot">•</span>
+                <span class="gasto-time">{{ formatearHora(gasto.created_at) }}</span>
+                @if (gasto.comprobante_url) {
+                  <span class="dot">•</span>
+                  <span class="comprobante-badge" (click)="verComprobante($event, gasto.comprobante_url)">
+                    <ion-icon name="image-outline"></ion-icon>
+                    Ver comprobante
+                  </span>
+                }
+              </div>
+            </div>
+
+            <!-- Monto -->
+            <div class="gasto-right">
+              <div class="gasto-amount">${{ gasto.monto.toFixed(2) }}</div>
+            </div>
+          </div>
+
+          @if (!last) {
+            <div class="gasto-divider"></div>
+          }
+        }
+      </div>
+    }
+  }
+</ion-content>

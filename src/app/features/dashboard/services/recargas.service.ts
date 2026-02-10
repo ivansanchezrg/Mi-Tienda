@@ -42,6 +42,19 @@ interface CajasIds {
 }
 
 /**
+ * Interface para historial de recargas
+ */
+export interface RecargaHistorial {
+  id: number;
+  fecha: string;
+  servicio: string;
+  saldo_anterior: number;
+  saldo_actual: number;
+  venta_dia: number;
+  created_at: string;
+}
+
+/**
  * Servicio para gestionar operaciones de recargas (Celular y Bus)
  */
 @Injectable({
@@ -401,4 +414,69 @@ export class RecargasService {
 
     return resultado;
   }
+
+  /**
+   * Obtiene el historial completo de recargas ordenado del más reciente al más antiguo
+   *
+   * Calcula la venta del día como: saldo_virtual_anterior - saldo_virtual_actual
+   *
+   * @returns {Promise<RecargaHistorial[]>} Lista de recargas con toda la información
+   */
+  async obtenerHistorialRecargas(): Promise<RecargaHistorial[]> {
+    const response = await this.supabase.client
+      .from('recargas')
+      .select(`
+        id,
+        fecha,
+        saldo_virtual_anterior,
+        saldo_virtual_actual,
+        created_at,
+        tipos_servicio!inner(codigo)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (response.error) {
+      console.error('Error al obtener historial:', response.error);
+      throw response.error;
+    }
+
+    // Transformar datos al formato esperado
+    const recargas: RecargaHistorial[] = (response.data || []).map((r: any) => ({
+      id: r.id,
+      fecha: r.fecha,
+      servicio: r.tipos_servicio.codigo,
+      saldo_anterior: r.saldo_virtual_anterior,
+      saldo_actual: r.saldo_virtual_actual,
+      venta_dia: r.saldo_virtual_anterior - r.saldo_virtual_actual,
+      created_at: r.created_at
+    }));
+
+    return recargas;
+  }
+
+  /**
+   * TEMPORAL - SOLO PARA TESTING
+   * Registra recargas para verificar cálculos del Cuadre
+   * Esta función guarda en BD (a diferencia del Cuadre normal que es solo visual)
+   *
+   * @param params Parámetros de las recargas a registrar
+   * @returns Resultado del registro
+   */
+  async registrarRecargasTesting(params: any): Promise<any> {
+    const resultado = await this.supabase.call(
+      this.supabase.client.rpc('registrar_recargas_testing', {
+        p_fecha: params.fecha,
+        p_empleado_id: params.empleado_id,
+        p_saldo_anterior_celular: params.saldo_anterior_celular,
+        p_saldo_actual_celular: params.saldo_actual_celular,
+        p_venta_celular: params.venta_celular,
+        p_saldo_anterior_bus: params.saldo_anterior_bus,
+        p_saldo_actual_bus: params.saldo_actual_bus,
+        p_venta_bus: params.venta_bus
+      })
+    );
+
+    return resultado;
+  }
+
 }

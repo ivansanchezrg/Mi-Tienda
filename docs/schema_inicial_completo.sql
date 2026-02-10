@@ -8,8 +8,8 @@
 -- IMPORTANTE: Ejecutar este script UNA SOLA VEZ al iniciar el proyecto.
 -- Para resetear el sistema, ejecutar nuevamente (incluye DROP de tablas).
 --
--- Fecha: 2026-02-07
--- Versión: 4.1 - Múltiples cierres por día (1 cierre por turno)
+-- Fecha: 2026-02-09
+-- Versión: 4.4 - Categorización de gastos diarios
 --   • Solo 1 campo: efectivo_recaudado (total contado al final)
 --   • Fondo fijo en config: configuraciones.fondo_fijo_diario ($40)
 --   • Transferencia en config: configuraciones.caja_chica_transferencia_diaria ($20)
@@ -18,6 +18,16 @@
 --   • CAMBIOS v4.1: Múltiples cierres por día (1 por turno)
 --   • turno_id en caja_fisica_diaria y recargas
 --   • UNIQUE(turno_id, tipo_servicio_id) en recargas
+--   • CAMBIOS v4.2: Categorización contable
+--   • Nueva tabla: categorias_operaciones
+--   • categoria_id en operaciones_cajas (obligatorio para INGRESO/EGRESO)
+--   • 12 categorías por defecto (9 egresos + 3 ingresos)
+--   • CAMBIOS v4.3: Comprobantes en gastos_diarios
+--   • comprobante_url en gastos_diarios (opcional)
+--   • CAMBIOS v4.4: Categorización de gastos diarios
+--   • Nueva tabla: categorias_gastos
+--   • categoria_gasto_id en gastos_diarios (obligatorio)
+--   • 7 categorías predefinidas para gastos operativos
 -- ==========================================
 
 -- Habilitar extensión para UUIDs
@@ -32,6 +42,8 @@ DROP TABLE IF EXISTS caja_fisica_diaria CASCADE;
 DROP TABLE IF EXISTS gastos_diarios CASCADE;
 DROP TABLE IF EXISTS turnos_caja CASCADE;
 DROP TABLE IF EXISTS recargas CASCADE;
+DROP TABLE IF EXISTS categorias_operaciones CASCADE;
+DROP TABLE IF EXISTS categorias_gastos CASCADE;
 DROP TABLE IF EXISTS tipos_referencia CASCADE;
 DROP TABLE IF EXISTS cierres_diarios CASCADE; -- Mantener por compatibilidad (nombre antiguo)
 DROP TABLE IF EXISTS cajas CASCADE;
@@ -171,23 +183,35 @@ CREATE TABLE IF NOT EXISTS caja_fisica_diaria (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 8. Tabla: gastos_diarios
+-- 8. Tabla: categorias_gastos
+-- Catálogo de categorías para clasificar gastos diarios operativos
+CREATE TABLE IF NOT EXISTS categorias_gastos (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,                    -- Nombre de la categoría
+    codigo VARCHAR(20) NOT NULL UNIQUE,              -- Código único (ej: 'GS-001')
+    descripcion TEXT,                                -- Descripción de la categoría
+    activo BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 9. Tabla: gastos_diarios
 -- Registro de gastos operativos pagados desde la caja física (efectivo de ventas del día)
 -- NOTA: Si no hay efectivo, se hace EGRESO desde CAJA PRINCIPAL (en operaciones_cajas)
 CREATE TABLE IF NOT EXISTS gastos_diarios (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     fecha DATE NOT NULL,                             -- Fecha del gasto
     empleado_id INTEGER NOT NULL REFERENCES empleados(id),
-    concepto VARCHAR(200) NOT NULL,                  -- Descripción del gasto
+    categoria_gasto_id INTEGER NOT NULL REFERENCES categorias_gastos(id), -- Categoría del gasto
     monto DECIMAL(10,2) NOT NULL CHECK (monto > 0),  -- Monto del gasto
-    observaciones TEXT,
+    observaciones TEXT,                              -- Detalles adicionales del gasto
+    comprobante_url TEXT,                            -- Path del comprobante en Storage (opcional)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Índice para búsquedas por fecha
 CREATE INDEX idx_gastos_diarios_fecha ON gastos_diarios(fecha);
 
--- 9. Tabla: tipos_referencia
+-- 10. Tabla: tipos_referencia
 -- Catálogo de tablas que pueden ser referenciadas por operaciones
 CREATE TABLE IF NOT EXISTS tipos_referencia (
     id SERIAL PRIMARY KEY,
@@ -198,7 +222,19 @@ CREATE TABLE IF NOT EXISTS tipos_referencia (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 10. Tabla: operaciones_cajas
+-- 11. Tabla: categorias_operaciones
+-- Catálogo de categorías contables para clasificar ingresos y egresos
+CREATE TABLE IF NOT EXISTS categorias_operaciones (
+    id SERIAL PRIMARY KEY,
+    tipo TEXT NOT NULL CHECK (tipo IN ('INGRESO', 'EGRESO')),
+    nombre VARCHAR(100) NOT NULL,                    -- Nombre de la categoría
+    codigo VARCHAR(20) NOT NULL UNIQUE,              -- Código único (ej: 'EG-001')
+    descripcion TEXT,                                -- Descripción de la categoría
+    activo BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 12. Tabla: operaciones_cajas
 -- Log completo de todas las operaciones que afectan el saldo de las cajas
 CREATE TABLE IF NOT EXISTS operaciones_cajas (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -209,6 +245,7 @@ CREATE TABLE IF NOT EXISTS operaciones_cajas (
     monto DECIMAL(12,2) NOT NULL,
     saldo_anterior DECIMAL(12,2),                    -- Saldo ANTES de la operación
     saldo_actual DECIMAL(12,2),                      -- Saldo DESPUÉS de la operación
+    categoria_id INTEGER REFERENCES categorias_operaciones(id),  -- Categoría contable (obligatorio para INGRESO/EGRESO)
     tipo_referencia_id INTEGER REFERENCES tipos_referencia(id),  -- Tipo de tabla que origina la operación
     referencia_id UUID,                              -- UUID del registro que origina la operación
     descripcion TEXT,
@@ -231,6 +268,7 @@ CREATE INDEX idx_turnos_caja_empleado ON turnos_caja(empleado_id);
 CREATE INDEX idx_operaciones_cajas_fecha ON operaciones_cajas(fecha);
 CREATE INDEX idx_operaciones_cajas_caja ON operaciones_cajas(caja_id);
 CREATE INDEX idx_operaciones_cajas_empleado ON operaciones_cajas(empleado_id);
+CREATE INDEX idx_operaciones_cajas_categoria ON operaciones_cajas(categoria_id);
 
 -- ==========================================
 -- DATOS INICIALES (Configuración base del sistema)
@@ -245,14 +283,41 @@ INSERT INTO tipos_servicio (codigo, nombre, fondo_base, porcentaje_comision, per
 INSERT INTO cajas (codigo, nombre, descripcion, saldo_actual) VALUES
 ('CAJA', 'Caja Principal', 'Caja principal de la tienda - Recibe efectivo de ventas diarias', 0.00),
 ('CAJA_CHICA', 'Caja Chica', 'Caja chica - Recibe $20 diarios + comisiones de recargas', 0.00),
-('CAJA_CELULAR', 'Caja Celular', 'Efectivo de ventas de recargas celular', 159.20),
-('CAJA_BUS', 'Caja Bus', 'Efectivo de ventas de recargas bus', 264.85);
+('CAJA_CELULAR', 'Caja Celular', 'Efectivo de ventas de recargas celular', 0.00),
+('CAJA_BUS', 'Caja Bus', 'Efectivo de ventas de recargas bus', 0.00);
 
 -- Tipos de referencia (catálogo de tablas que pueden originar operaciones)
 INSERT INTO tipos_referencia (codigo, tabla, descripcion) VALUES
 ('RECARGAS', 'recargas', 'Operaciones originadas desde registros de recargas diarias'),
 ('CAJA_FISICA_DIARIA', 'caja_fisica_diaria', 'Operaciones originadas desde el cierre de caja física diaria (depósito, transferencias)'),
 ('TURNOS_CAJA', 'turnos_caja', 'Registro de turnos de apertura/cierre de caja');
+
+-- Categorías de gastos diarios (clasificación de gastos operativos)
+INSERT INTO categorias_gastos (nombre, codigo, descripcion) VALUES
+('Servicios Públicos', 'GS-001', 'Luz, agua, internet, teléfono y otros servicios básicos'),
+('Transporte', 'GS-002', 'Gastos de transporte, combustible y estacionamiento'),
+('Mantenimiento', 'GS-003', 'Reparaciones y mantenimiento del local, equipos y mobiliario'),
+('Limpieza', 'GS-004', 'Productos de limpieza y servicios de limpieza'),
+('Papelería', 'GS-005', 'Papelería, útiles de oficina y suministros'),
+('Alimentación', 'GS-006', 'Alimentación y bebidas para el personal'),
+('Otros', 'GS-007', 'Otros gastos operativos no clasificados');
+
+-- Categorías de operaciones (para clasificación contable de ingresos y egresos)
+INSERT INTO categorias_operaciones (tipo, nombre, codigo, descripcion) VALUES
+-- Categorías de EGRESOS
+('EGRESO', 'Compras/Mercadería', 'EG-001', 'Compra de productos para reventa o uso en el negocio'),
+('EGRESO', 'Servicios Básicos', 'EG-002', 'Pago de luz, agua, internet, teléfono'),
+('EGRESO', 'Alquiler', 'EG-003', 'Pago de alquiler del local'),
+('EGRESO', 'Mantenimiento', 'EG-004', 'Reparaciones y mantenimiento del local o equipo'),
+('EGRESO', 'Transporte/Combustible', 'EG-005', 'Gastos de transporte y combustible'),
+('EGRESO', 'Papelería/Suministros', 'EG-006', 'Papelería, útiles de oficina y suministros generales'),
+('EGRESO', 'Salarios', 'EG-007', 'Pago de salarios a empleados'),
+('EGRESO', 'Impuestos/Tasas', 'EG-008', 'Pago de impuestos y tasas municipales'),
+('EGRESO', 'Otros Gastos', 'EG-009', 'Otros gastos operativos no clasificados'),
+-- Categorías de INGRESOS
+('INGRESO', 'Ventas', 'IN-001', 'Ingresos por ventas del negocio'),
+('INGRESO', 'Devoluciones de Proveedores', 'IN-002', 'Devolución de dinero por parte de proveedores'),
+('INGRESO', 'Otros Ingresos', 'IN-003', 'Otros ingresos no clasificados');
 
 -- Configuración inicial del sistema
 INSERT INTO configuraciones (fondo_fijo_diario, celular_alerta_saldo_bajo, caja_chica_transferencia_diaria, bus_dias_antes_facturacion) VALUES
@@ -275,8 +340,9 @@ COMMENT ON TABLE configuraciones IS 'Configuración global del sistema';
 COMMENT ON TABLE tipos_servicio IS 'Tipos de servicio de recarga con sus reglas de negocio';
 COMMENT ON TABLE recargas IS 'Registro de control de saldo virtual por servicio (v4.1: un registro por turno y tipo servicio)';
 COMMENT ON TABLE caja_fisica_diaria IS 'Registro de la caja física por turno (v4.1: permite múltiples cierres por día - 1 cierre por turno)';
-COMMENT ON TABLE gastos_diarios IS 'Registro de gastos operativos pagados desde efectivo de ventas del día (no afecta CAJA PRINCIPAL)';
+COMMENT ON TABLE gastos_diarios IS 'Registro de gastos operativos pagados desde efectivo de ventas del día (no afecta CAJA PRINCIPAL, comprobante opcional)';
 COMMENT ON TABLE tipos_referencia IS 'Catálogo de tablas que pueden originar operaciones en cajas (para trazabilidad)';
+COMMENT ON TABLE categorias_operaciones IS 'Catálogo de categorías contables para clasificar ingresos y egresos (permite reportes por tipo de gasto)';
 COMMENT ON TABLE turnos_caja IS 'Registro de turnos de apertura/cierre de caja (independiente del cierre contable diario)';
 COMMENT ON TABLE operaciones_cajas IS 'Log de auditoría de todas las operaciones en cajas con trazabilidad completa';
 
@@ -290,8 +356,10 @@ COMMENT ON COLUMN recargas.saldo_virtual_actual IS 'Saldo resultante: saldo_virt
 COMMENT ON COLUMN recargas.validado IS 'Validación: venta_dia + saldo_virtual_actual = saldo_virtual_anterior';
 COMMENT ON COLUMN operaciones_cajas.saldo_anterior IS 'Saldo de la caja ANTES de esta operación';
 COMMENT ON COLUMN operaciones_cajas.saldo_actual IS 'Saldo de la caja DESPUÉS de esta operación';
+COMMENT ON COLUMN operaciones_cajas.categoria_id IS 'FK a categorias_operaciones - Clasificación contable de la operación (obligatorio para INGRESO/EGRESO)';
 COMMENT ON COLUMN operaciones_cajas.tipo_referencia_id IS 'FK a tipos_referencia - Indica qué tipo de tabla originó esta operación';
 COMMENT ON COLUMN operaciones_cajas.referencia_id IS 'UUID del registro específico que originó esta operación (para trazabilidad completa)';
+COMMENT ON COLUMN gastos_diarios.comprobante_url IS 'Path del comprobante en Storage (opcional) - Ej: "2026/02/uuid.jpg"';
 
 -- ==========================================
 -- FLUJO DEL CIERRE DIARIO (VERSIÓN 2.0)
@@ -344,11 +412,12 @@ COMMENT ON COLUMN operaciones_cajas.referencia_id IS 'UUID del registro específ
 -- ==========================================
 -- RESUMEN
 -- ==========================================
--- ✅ 10 Tablas creadas
+-- ✅ 11 Tablas creadas
 -- ✅ 1 Tipo enumerado creado
--- ✅ 10 Índices creados para performance
+-- ✅ 13 Índices creados para performance
 -- ✅ 2 Tipos de servicio configurados (BUS, CELULAR)
 -- ✅ 3 Tipos de referencia configurados (RECARGAS, CAJA_FISICA_DIARIA, TURNOS_CAJA)
+-- ✅ 12 Categorías de operaciones creadas (9 egresos + 3 ingresos)
 -- ✅ 4 Cajas inicializadas:
 --    • CAJA: $0.00
 --    • CAJA_CHICA: $0.00
@@ -371,3 +440,18 @@ COMMENT ON COLUMN operaciones_cajas.referencia_id IS 'UUID del registro específ
 -- ✅ Estado abierto/cerrado por existencia de cierre para HOY
 -- ✅ Tabla gastos_diarios para tracking de gastos operativos
 -- ✅ Cuando no hay efectivo: EGRESO desde CAJA PRINCIPAL (en operaciones_cajas)
+--
+-- CAMBIOS VERSIÓN 4.2:
+-- ✅ Sistema de categorías contables para clasificación de operaciones
+-- ✅ 12 categorías predefinidas (9 egresos + 3 ingresos)
+-- ✅ Campo categoria_id agregado a operaciones_cajas
+--
+-- CAMBIOS VERSIÓN 4.3:
+-- ✅ Campo comprobante_url agregado a gastos_diarios (opcional)
+-- ✅ Gastos operativos ahora soportan comprobantes fotográficos
+-- ✅ Modal directo desde FAB para registro rápido de gastos
+-- ✅ NO afecta saldos de cajas (gastos pagados con efectivo del día)
+--
+-- NOTA: Las funciones PostgreSQL están documentadas en:
+--       src/app/features/dashboard/docs/PROCESO_INGRESO_EGRESO.md
+--       (Copiar desde ahí para ejecutar en Supabase)

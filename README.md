@@ -566,7 +566,7 @@ export class HomePage extends ScrollablePage implements OnInit {
 
 ## 🔧 Problemas Comunes y Soluciones
 
-### NavigatorLockAcquireTimeoutError (Supabase)
+### NavigatorLockAcquireTimeoutError & Login en Android
 
 **Problema:**
 ```
@@ -574,37 +574,52 @@ NavigatorLockAcquireTimeoutError: Acquiring an exclusive Navigator
 LockManager lock "lock:sb-xxx-auth-token" immediately failed
 ```
 
-Este error aparece en consola repetidamente (incrementa contador) cuando Supabase intenta usar el Navigator LockManager API para sincronizar sesiones entre pestañas/tabs del navegador.
+Este warning aparece en consola durante desarrollo web cuando Supabase intenta usar el Navigator LockManager API para sincronizar sesiones entre pestañas/tabs.
 
-**Causa:**
-- En apps Capacitor (nativas), el LockManager está diseñado para navegadores multi-tab
-- En una app móvil (single window), este mecanismo no es necesario y puede fallar
+**⚠️ ADVERTENCIA CRÍTICA:**
 
-**Solución:**
-Configurar el cliente de Supabase con una función lock no-op que desactiva el mecanismo:
+**NO intentes "arreglar" este warning modificando la configuración de Supabase.** Cualquier configuración custom en el objeto `auth` del cliente **ROMPE el login OAuth en Android**.
+
+**❌ Esto ROMPE el login en Android:**
 
 ```typescript
-// supabase.service.ts
-this.client = createClient(supabaseUrl, supabaseKey, {
+// ❌ NO HACER - Rompe OAuth en Android
+this.client = createClient(url, key, {
   auth: {
-    storageKey: 'sb-xxx-auth-token',
-    storage: window.localStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
+    storageKey: 'custom-key',
+    detectSessionInUrl: !isNative,
     flowType: 'pkce',
-    // Desactiva LockManager (no necesario en Capacitor)
-    lock: async (name, acquireTimeout, fn) => {
-      return await fn();
-    }
+    // ... cualquier configuración custom
   }
 });
 ```
 
-**Resultado:**
-- ✅ Elimina completamente el error de consola
-- ✅ No afecta funcionalidad (single-window app)
-- ✅ Auth tokens se manejan normalmente
+**✅ Configuración CORRECTA:**
+
+```typescript
+// ✅ CORRECTO - Usar configuración por defecto
+public client: SupabaseClient = createClient(
+  environment.supabaseUrl,
+  environment.supabaseKey
+);
+```
+
+**¿Por qué?**
+
+- La configuración **por defecto** de Supabase funciona perfectamente con OAuth en Android
+- Agregar opciones como `detectSessionInUrl`, `flowType: 'pkce'`, o `storageKey` custom interfiere con el flujo de deep links y procesamiento de callback
+- El warning de NavigatorLock es **inofensivo** (solo aparece en desarrollo web, no en APK)
+
+**✅ Solución Recomendada:**
+
+**IGNORAR el warning.** No afecta la funcionalidad:
+
+- ✅ Solo aparece en **desarrollo web** (navegador)
+- ✅ **NO aparece** en producción (APK de Android)
+- ✅ **NO afecta** el funcionamiento de la autenticación
+- ✅ **NO afecta** el rendimiento
+
+**Lección aprendida:** A veces, intentar "arreglar" un warning inofensivo puede romper funcionalidad crítica. **Simple es mejor.**
 
 ---
 

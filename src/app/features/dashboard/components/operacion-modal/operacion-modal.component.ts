@@ -3,13 +3,17 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon,
+  IonContent, IonIcon, IonSpinner,
   ModalController, ActionSheetController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, imagesOutline } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Caja } from '../../services/cajas.service';
+import { CategoriaOperacion } from '../../models/categoria-operacion.model';
+import { OperacionesCajaService } from '../../services/operaciones-caja.service';
+import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
+import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 
 export interface OperacionModalData {
   tipo: 'INGRESO' | 'EGRESO';
@@ -18,6 +22,7 @@ export interface OperacionModalData {
 
 export interface OperacionModalResult {
   cajaId: number;
+  categoriaId: number;
   monto: number;
   descripcion: string;
   fotoComprobante: string | null;
@@ -32,7 +37,9 @@ export interface OperacionModalResult {
     CommonModule,
     ReactiveFormsModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon
+    IonContent, IonIcon, IonSpinner,
+    CurrencyInputDirective,
+    NumbersOnlyDirective
   ]
 })
 export class OperacionModalComponent implements OnInit {
@@ -40,6 +47,7 @@ export class OperacionModalComponent implements OnInit {
   private fb = inject(FormBuilder);
   private actionSheetCtrl = inject(ActionSheetController);
   private cdr = inject(ChangeDetectorRef);
+  private operacionesService = inject(OperacionesCajaService);
 
   @Input() tipo!: 'INGRESO' | 'EGRESO';
   @Input() cajas: Caja[] = [];
@@ -47,6 +55,8 @@ export class OperacionModalComponent implements OnInit {
 
   form!: FormGroup;
   cajasFiltradas: Caja[] = [];
+  categorias: CategoriaOperacion[] = [];
+  cargandoCategorias = true;
   saldoCajaSeleccionada: number = 0;
   nombreCajaSeleccionada: string = '';
   fotoComprobante: string | null = null; // URL de la foto cargada
@@ -55,7 +65,7 @@ export class OperacionModalComponent implements OnInit {
     addIcons({ closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, imagesOutline });
   }
 
-  ngOnInit() {
+  async ngOnInit() {
     // Filtrar solo cajas donde se permite ingreso/egreso manual
     // Por ahora: CAJA y CAJA_CHICA
     this.cajasFiltradas = this.cajas.filter(c =>
@@ -65,8 +75,11 @@ export class OperacionModalComponent implements OnInit {
     // Pre-seleccionar caja si se especificó
     const cajaIdInicial = this.cajaIdPreseleccionada || null;
 
+    // ⚠️ IMPORTANTE: Crear el form PRIMERO (síncronamente)
+    // para evitar error "formGroup expects a FormGroup instance"
     this.form = this.fb.group({
       cajaId: [cajaIdInicial, Validators.required],
+      categoriaId: [null, Validators.required],
       monto: [null, [Validators.required, Validators.min(0.01)]],
       descripcion: ['', this.tipo === 'EGRESO' ? Validators.required : []]
     });
@@ -84,6 +97,17 @@ export class OperacionModalComponent implements OnInit {
       this.saldoCajaSeleccionada = caja?.saldo_actual || 0;
       this.nombreCajaSeleccionada = caja?.nombre || '';
     });
+
+    // Cargar categorías según el tipo de operación (asíncronamente)
+    try {
+      this.cargandoCategorias = true;
+      this.categorias = await this.operacionesService.obtenerCategorias(this.tipo);
+    } catch (error) {
+      console.error('Error al cargar categorías:', error);
+      this.categorias = [];
+    } finally {
+      this.cargandoCategorias = false;
+    }
   }
 
   get esIngreso(): boolean {
@@ -183,6 +207,7 @@ export class OperacionModalComponent implements OnInit {
 
     const result: OperacionModalResult = {
       cajaId: this.form.value.cajaId,
+      categoriaId: this.form.value.categoriaId,
       monto: this.form.value.monto,
       descripcion: this.form.value.descripcion || '',
       fotoComprobante: this.fotoComprobante
