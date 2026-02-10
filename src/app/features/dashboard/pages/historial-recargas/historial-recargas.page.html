@@ -1,0 +1,93 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon slot="icon-only" name="chevron-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Recargas</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Barra de filtros -->
+  <div class="filter-bar">
+    <span class="filter-label">Historial</span>
+    <div class="filter-tabs">
+      @for (f of filtros; track f.value) {
+        <button
+          class="filter-tab"
+          [class.active]="filtroActual === f.value"
+          (click)="cambiarFiltro(f.value)">
+          {{ f.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Estados -->
+  @if (loading && recargas.length === 0) {
+    <div class="empty-state">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Cargando recargas...</p>
+    </div>
+  }
+
+  @if (!loading && recargas.length === 0) {
+    <div class="empty-state">
+      <ion-icon name="list-outline"></ion-icon>
+      <p>No hay registros de recargas</p>
+    </div>
+  }
+
+  <!-- Lista de recargas agrupadas por fecha -->
+  @if (recargasAgrupadas.length > 0) {
+    @for (grupo of recargasAgrupadas; track grupo.fecha) {
+      <!-- Date Header -->
+      <div class="date-header">
+        <span class="date-text">{{ grupo.fechaDisplay }}</span>
+      </div>
+
+      <!-- Card de recargas -->
+      <ion-card class="operations-card">
+        @for (recarga of grupo.recargas; track recarga.id; let last = $last) {
+          <div class="op-row">
+            <div class="op-icon" [attr.data-type]="getColorServicio(recarga.servicio)">
+              <ion-icon [name]="getIconoServicio(recarga.servicio)"></ion-icon>
+            </div>
+
+            <div class="op-details">
+              <div class="op-title-row">
+                <span class="op-title">{{ recarga.servicio }}</span>
+              </div>
+
+              <div class="recarga-info">
+                <span class="info-item">Anterior: ${{ recarga.saldo_anterior | number:'1.2-2' }}</span>
+                <span class="dot">·</span>
+                <span class="info-item">Actual: ${{ recarga.saldo_actual | number:'1.2-2' }}</span>
+              </div>
+
+              <div class="op-footer">
+                <span class="op-time">{{ formatearHora(recarga.created_at) }}</span>
+              </div>
+            </div>
+
+            <div class="op-right">
+              <span class="op-amount" [attr.data-type]="recarga.venta_dia >= 0 ? 'success' : 'danger'">
+                {{ recarga.venta_dia >= 0 ? '' : '' }}${{ recarga.venta_dia | number:'1.2-2' }}
+              </span>
+            </div>
+          </div>
+
+          @if (!last) {
+            <div class="op-divider"></div>
+          }
+        }
+      </ion-card>
+    }
+  }
+</ion-content>

@@ -312,6 +312,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     const success = await this.operacionesCajaService.registrarOperacion(
       data.cajaId,
       tipo,
+      data.categoriaId,
       data.monto,
       data.descripcion,
       data.fotoComprobante

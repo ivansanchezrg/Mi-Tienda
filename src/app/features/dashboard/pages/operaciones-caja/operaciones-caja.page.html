@@ -33,7 +33,7 @@
         <ion-icon name="arrow-down-outline" class="income"></ion-icon>
         <div class="summary-info">
           <span class="summary-value">${{ totalIngresos | number:'1.2-2' }}</span>
-          <span class="summary-label">Entradas</span>
+          <span class="summary-label">Ingresos</span>
         </div>
       </div>
       <div class="summary-divider"></div>
@@ -41,7 +41,7 @@
         <ion-icon name="arrow-up-outline" class="expense"></ion-icon>
         <div class="summary-info">
           <span class="summary-value">${{ totalEgresos | number:'1.2-2' }}</span>
-          <span class="summary-label">Salidas</span>
+          <span class="summary-label">Egresos</span>
         </div>
       </div>
     </div>
@@ -105,6 +105,12 @@
               <div class="op-title-row">
                 <span class="op-title">{{ getOperacionLabel(op.tipo_operacion) }}</span>
               </div>
+
+              @if (op.categoria) {
+                <ion-chip class="category-chip" [attr.data-type]="op.categoria.tipo">
+                  <span class="category-name">{{ op.categoria.nombre }}</span>
+                </ion-chip>
+              }
 
               @if (op.descripcion) {
                 <p class="op-desc">{{ op.descripcion }}</p>

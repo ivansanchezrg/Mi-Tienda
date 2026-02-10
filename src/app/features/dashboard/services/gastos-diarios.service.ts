@@ -1,0 +1,232 @@
+import { Injectable, inject } from '@angular/core';
+import { SupabaseService } from '@core/services/supabase.service';
+import { StorageService } from '@core/services/storage.service';
+import { UiService } from '@core/services/ui.service';
+import { AuthService } from '../../auth/services/auth.service';
+import { GastoDiario, GastoDiarioInput, CategoriaGasto } from '../models/gasto-diario.model';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class GastosDiariosService {
+  private supabase = inject(SupabaseService);
+  private storageService = inject(StorageService);
+  private ui = inject(UiService);
+  private authService = inject(AuthService);
+
+  /**
+   * Obtiene la fecha local en formato YYYY-MM-DD
+   */
+  private getFechaLocal(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * Registra un nuevo gasto diario
+   * @param gasto - Datos del gasto (concepto, monto, observaciones, foto)
+   * @returns true si se guardó correctamente, false si hubo error
+   */
+  async registrarGasto(gasto: GastoDiarioInput): Promise<boolean> {
+    try {
+      let pathImagen: string | null = null;
+
+      // 1. Si hay foto, subirla primero a Storage
+      if (gasto.fotoComprobante) {
+        await this.ui.showLoading('Subiendo comprobante...');
+
+        pathImagen = await this.storageService.uploadImage(gasto.fotoComprobante);
+
+        if (!pathImagen) {
+          console.error('❌ [registrarGasto] Error al subir imagen');
+          await this.ui.hideLoading();
+          await this.ui.showError('Error al subir el comprobante. Intenta de nuevo.');
+          return false;
+        }
+
+        await this.ui.hideLoading();
+      }
+
+      // 2. Obtener empleado actual
+      const empleado = await this.authService.getEmpleadoActual();
+
+      if (!empleado) {
+        console.error('❌ [registrarGasto] No se pudo obtener empleado');
+        await this.ui.showError('No se pudo obtener información del empleado');
+        return false;
+      }
+
+      // 3. Obtener fecha local
+      const fecha = this.getFechaLocal();
+
+      // 4. Mostrar loading para guardar gasto
+      await this.ui.showLoading('Registrando gasto...');
+
+      // 5. Insertar en tabla gastos_diarios
+      const { error } = await this.supabase.client
+        .from('gastos_diarios')
+        .insert({
+          fecha,
+          empleado_id: empleado.id,
+          categoria_gasto_id: gasto.categoria_gasto_id,
+          monto: gasto.monto,
+          observaciones: gasto.observaciones || null,
+          comprobante_url: pathImagen
+        });
+
+      await this.ui.hideLoading();
+
+      if (error) {
+        console.error('❌ [registrarGasto] Error en BD:', error);
+
+        // Si falla y ya subimos la imagen, eliminarla
+        if (pathImagen) {
+          await this.storageService.deleteFile(pathImagen);
+        }
+
+        await this.ui.showError('Error al registrar el gasto');
+        return false;
+      }
+
+      await this.ui.showSuccess('Gasto registrado correctamente');
+      return true;
+
+    } catch (error) {
+      console.error('❌ [registrarGasto] Error catch:', error);
+      await this.ui.hideLoading();
+      await this.ui.showError('Error inesperado');
+      return false;
+    }
+  }
+
+  /**
+   * Obtiene gastos en un rango de fechas
+   * @param fechaInicio - Fecha inicial (YYYY-MM-DD)
+   * @param fechaFin - Fecha final (YYYY-MM-DD)
+   * @returns Lista de gastos con información del empleado y categoría
+   */
+  async getGastos(fechaInicio: string, fechaFin: string): Promise<GastoDiario[]> {
+    const { data, error } = await this.supabase.client
+      .from('gastos_diarios')
+      .select(`
+        id,
+        fecha,
+        empleado_id,
+        categoria_gasto_id,
+        monto,
+        observaciones,
+        comprobante_url,
+        created_at,
+        empleados!inner (
+          id,
+          nombre
+        ),
+        categorias_gastos!inner (
+          id,
+          nombre,
+          codigo
+        )
+      `)
+      .gte('fecha', fechaInicio)
+      .lte('fecha', fechaFin)
+      .order('fecha', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error al obtener gastos:', error);
+      return [];
+    }
+
+    // Mapear para incluir nombres del empleado y categoría
+    return (data || []).map((gasto: any) => ({
+      ...gasto,
+      empleado_nombre: gasto.empleados?.nombre || 'Sin nombre',
+      categoria_nombre: gasto.categorias_gastos?.nombre || 'Sin categoría'
+    })) as any;
+  }
+
+  /**
+   * Calcula el total de gastos en un rango de fechas
+   * @param fechaInicio - Fecha inicial (YYYY-MM-DD)
+   * @param fechaFin - Fecha final (YYYY-MM-DD)
+   * @returns Total de gastos
+   */
+  async getTotalGastos(fechaInicio: string, fechaFin: string): Promise<number> {
+    const { data, error } = await this.supabase.client
+      .from('gastos_diarios')
+      .select('monto')
+      .gte('fecha', fechaInicio)
+      .lte('fecha', fechaFin);
+
+    if (error) {
+      console.error('Error al calcular total de gastos:', error);
+      return 0;
+    }
+
+    return (data || []).reduce((total, gasto) => total + gasto.monto, 0);
+  }
+
+  /**
+   * Obtiene todas las categorías de gastos activas
+   * @returns Lista de categorías de gastos
+   */
+  async getCategorias(): Promise<CategoriaGasto[]> {
+    const { data, error } = await this.supabase.client
+      .from('categorias_gastos')
+      .select('*')
+      .eq('activo', true)
+      .order('nombre', { ascending: true });
+
+    if (error) {
+      console.error('Error al obtener categorías de gastos:', error);
+      return [];
+    }
+
+    return data || [];
+  }
+
+  /**
+   * Obtiene un gasto por ID
+   * @param id - ID del gasto
+   * @returns Gasto con información del empleado y categoría
+   */
+  async getGastoById(id: string): Promise<GastoDiario | null> {
+    const { data, error } = await this.supabase.client
+      .from('gastos_diarios')
+      .select(`
+        id,
+        fecha,
+        empleado_id,
+        categoria_gasto_id,
+        monto,
+        observaciones,
+        comprobante_url,
+        created_at,
+        empleados!inner (
+          id,
+          nombre
+        ),
+        categorias_gastos!inner (
+          id,
+          nombre,
+          codigo
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      console.error('Error al obtener gasto:', error);
+      return null;
+    }
+
+    return {
+      ...data,
+      empleado_nombre: (data as any).empleados?.nombre || 'Sin nombre',
+      categoria_nombre: (data as any).categorias_gastos?.nombre || 'Sin categoría'
+    } as any;
+  }
+}

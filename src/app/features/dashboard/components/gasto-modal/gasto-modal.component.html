@@ -1,6 +1,6 @@
 <ion-header>
   <ion-toolbar>
-    <ion-title>{{ titulo }}</ion-title>
+    <ion-title>Registrar Gasto</ion-title>
     <ion-buttons slot="end">
       <ion-button (click)="cancelar()">
         <ion-icon slot="icon-only" name="close-outline"></ion-icon>
@@ -11,15 +11,6 @@
 
 <ion-content>
   <form [formGroup]="form">
-
-    <!-- Balance Card - Estilo operaciones-caja -->
-    <div class="balance-card" [class.ingreso]="esIngreso" [class.egreso]="!esIngreso">
-      <div class="caja-name">{{ nombreCajaSeleccionada }}</div>
-      <div class="balance-main">
-        <span class="balance-amount">${{ saldoCajaSeleccionada | number:'1.2-2' }}</span>
-        <span class="balance-label">Saldo disponible</span>
-      </div>
-    </div>
 
     <!-- Form Content -->
     <div class="form-content">
@@ -37,7 +28,7 @@
             <span>Cargando categorías...</span>
           </div>
         } @else {
-          <select formControlName="categoriaId" autofocus>
+          <select formControlName="categoria_gasto_id" autofocus>
             <option [value]="null" disabled>Seleccionar categoría</option>
             @for (categoria of categorias; track categoria.id) {
               <option [value]="categoria.id">{{ categoria.nombre }}</option>
@@ -48,11 +39,8 @@
 
       <!-- Monto -->
       <div class="input-group">
-        <label class="input-label">
-          {{ esIngreso ? 'Monto a ingresar' : 'Monto a retirar' }}
-          <span class="required-badge">Obligatorio</span>
-        </label>
-        <div class="amount-wrapper" [class.error]="montoExcedeSaldo">
+        <label class="input-label">Monto</label>
+        <div class="amount-wrapper">
           <span class="currency">$</span>
           <input
             type="number"
@@ -62,37 +50,13 @@
             appCurrencyInput
             appNumbersOnly>
         </div>
-        @if (montoExcedeSaldo) {
-          <span class="error-text">El monto excede el saldo disponible</span>
-        }
       </div>
 
-      <!-- Descripción -->
-      <div class="input-group">
-        <label class="input-label">
-          {{ esIngreso ? 'Descripción' : 'Descripción' }}
-          @if (esIngreso) {
-            <span class="optional-badge">Opcional</span>
-          } @else {
-            <span class="required-badge">Obligatorio</span>
-          }
-        </label>
-        <textarea
-          placeholder="{{ esIngreso ? 'Ej: Venta de productos' : 'Ej: Pago a proveedor' }}"
-          formControlName="descripcion"
-          rows="3">
-        </textarea>
-      </div>
-
-      <!-- Comprobante -->
+      <!-- Comprobante (Opcional) -->
       <div class="input-group">
         <label class="input-label">
           Comprobante
-          @if (esIngreso) {
-            <span class="optional-badge">Opcional</span>
-          } @else {
-            <span class="required-badge">Obligatorio</span>
-          }
+          <span class="optional-badge">Opcional</span>
         </label>
 
         @if (!fotoComprobante) {
@@ -110,15 +74,23 @@
         }
       </div>
 
+      <!-- Observaciones (Opcional) -->
+      <div class="input-group">
+        <label class="input-label">Observaciones (opcional)</label>
+        <textarea
+          placeholder="Detalles adicionales..."
+          formControlName="observaciones"
+          rows="3">
+        </textarea>
+      </div>
+
       <!-- Botón -->
       <button
         type="button"
         class="submit-btn"
-        [class.ingreso]="esIngreso"
-        [class.egreso]="!esIngreso"
-        [disabled]="form.invalid || montoExcedeSaldo || (!esIngreso && !fotoComprobante)"
+        [disabled]="form.invalid"
         (click)="confirmar()">
-        {{ esIngreso ? 'Confirmar Ingreso' : 'Confirmar Egreso' }}
+        Registrar Gasto
       </button>
     </div>
 

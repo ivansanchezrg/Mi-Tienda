@@ -23,6 +23,7 @@ export interface OperacionCaja {
   monto: number;
   saldo_anterior: number | null;
   saldo_actual: number | null;
+  categoria_id: number | null;
   tipo_referencia_id: number | null;
   referencia_id: string | null;
   descripcion: string | null;
@@ -38,6 +39,12 @@ export interface OperacionCaja {
   empleado?: {
     id: number;
     nombre: string;
+  } | null;
+  categoria?: {
+    id: number;
+    nombre: string;
+    codigo: string;
+    tipo: 'INGRESO' | 'EGRESO';
   } | null;
 }
 

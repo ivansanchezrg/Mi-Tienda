@@ -7,7 +7,7 @@ import {
 } from '@ionic/angular/standalone';
 import { MenuController } from '@ionic/angular/standalone';
 import {
-  peopleOutline, settingsOutline, logOutOutline, personCircleOutline
+  peopleOutline, settingsOutline, logOutOutline, personCircleOutline, receiptOutline, listOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 
@@ -44,6 +44,8 @@ export class SidebarComponent implements OnInit {
 
   // Rutas específicas del sidebar (NO están en los tabs)
   menuItems: MenuItem[] = [
+    { title: 'Gastos Diarios', url: '/home/gastos-diarios', icon: receiptOutline },
+    { title: 'Recargas', url: '/home/historial-recargas', icon: listOutline },
     { title: 'Empleados', url: '/employees', icon: peopleOutline },
     { title: 'Configuración', url: '/configuracion', icon: settingsOutline },
   ];

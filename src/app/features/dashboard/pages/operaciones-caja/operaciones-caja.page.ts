@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCard, IonSpinner,
+  IonContent, IonIcon, IonCard, IonSpinner, IonChip,
   IonInfiniteScroll, IonInfiniteScrollContent,
   ModalController, ActionSheetController
 } from '@ionic/angular/standalone';
@@ -39,7 +39,7 @@ interface OperacionAgrupada {
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonCard, IonSpinner,
+    IonContent, IonIcon, IonCard, IonSpinner, IonChip,
     IonInfiniteScroll, IonInfiniteScrollContent
   ]
 })
@@ -379,20 +379,16 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   }
 
   async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModalResult) {
-    console.log('🔵 [ejecutarOperacion] Iniciando...', { tipo, data });
-
     const success = await this.service.registrarOperacion(
       data.cajaId,
       tipo,
+      data.categoriaId,
       data.monto,
       data.descripcion,
       data.fotoComprobante
     );
 
-    console.log('🔵 [ejecutarOperacion] Resultado:', { success });
-
     if (success) {
-      console.log('✅ [ejecutarOperacion] Operación exitosa, recargando datos...');
       // Recargar saldo y operaciones
       await this.cargarSaldoCaja();
       await this.cargarOperaciones(true);

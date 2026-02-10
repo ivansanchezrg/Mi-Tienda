@@ -4,17 +4,17 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCard, IonInput, IonTextarea,
-  AlertController
+  IonContent, IonIcon, IonCard, IonNote, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  chevronBackOutline, cashOutline, checkmarkCircleOutline,
-  warningOutline, alertCircleOutline
+  chevronBackOutline, phonePortraitOutline, busOutline,
+  cashOutline, calculatorOutline, informationCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { CajasService, Caja } from '../../services/cajas.service';
-import { AuthService } from '../../../auth/services/auth.service';
+import { RecargasService } from '../../services/recargas.service';
+import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
+import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 
 @Component({
   selector: 'app-cuadre-caja',
@@ -25,36 +25,43 @@ import { AuthService } from '../../../auth/services/auth.service';
     CommonModule,
     ReactiveFormsModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonCard, IonInput, IonTextarea
+    IonContent, IonIcon, IonCard, IonNote,
+    CurrencyInputDirective,
+    NumbersOnlyDirective
   ]
 })
 export class CuadreCajaPage implements OnInit {
   private router = inject(Router);
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
-  private cajasService = inject(CajasService);
-  private authService = inject(AuthService);
+  private recargasService = inject(RecargasService);
   private alertCtrl = inject(AlertController);
 
   form!: FormGroup;
-  caja: Caja | null = null;
-  saldoSistema: number = 0;
   loading = true;
+
+  // Saldos anteriores (virtuales)
+  saldoAnteriorCelular = 0;
+  saldoAnteriorBus = 0;
 
   constructor() {
     addIcons({
-      chevronBackOutline, cashOutline, checkmarkCircleOutline,
-      warningOutline, alertCircleOutline
+      chevronBackOutline,
+      phonePortraitOutline,
+      busOutline,
+      cashOutline,
+      calculatorOutline,
+      informationCircleOutline
     });
   }
 
   async ngOnInit() {
     this.form = this.fb.group({
-      efectivoContado: [null, [Validators.required, Validators.min(0)]],
-      observaciones: ['']
+      saldoCelularActual: [null, [Validators.required, Validators.min(0)]],
+      saldoBusActual: [null, [Validators.required, Validators.min(0)]]
     });
 
-    await this.cargarDatosCaja();
+    await this.cargarSaldosAnteriores();
   }
 
   ionViewWillEnter() {
@@ -65,150 +72,127 @@ export class CuadreCajaPage implements OnInit {
     this.ui.showTabs();
   }
 
-  async cargarDatosCaja() {
+  async cargarSaldosAnteriores() {
     this.loading = true;
     try {
-      // Por ahora solo cuadre de CAJA principal (id: 1)
-      this.caja = await this.cajasService.obtenerCajaPorId(1);
-      if (this.caja) {
-        this.saldoSistema = this.caja.saldo_actual;
-      }
+      const saldos = await this.recargasService.getSaldosAnteriores();
+      this.saldoAnteriorCelular = saldos.celular;
+      this.saldoAnteriorBus = saldos.bus;
     } catch (error) {
-      console.error('Error al cargar caja:', error);
-      await this.ui.showError('Error al cargar datos de la caja');
+      console.error('Error al cargar saldos:', error);
+      await this.ui.showError('Error al cargar saldos anteriores');
     } finally {
       this.loading = false;
     }
   }
 
-  get efectivoContado(): number {
-    return this.form.get('efectivoContado')?.value || 0;
+  // Getters para valores del formulario
+  get saldoCelularActual(): number {
+    return this.form.get('saldoCelularActual')?.value || 0;
   }
 
-  get diferencia(): number {
-    return this.efectivoContado - this.saldoSistema;
+  get saldoBusActual(): number {
+    return this.form.get('saldoBusActual')?.value || 0;
   }
 
-  get diferenciaAbsoluta(): number {
-    return Math.abs(this.diferencia);
+  // Cálculos de ventas (efectivo vendido)
+  get ventaCelular(): number {
+    return this.saldoAnteriorCelular - this.saldoCelularActual;
   }
 
-  get estadoCuadre(): 'cuadrado' | 'sobrante' | 'faltante' {
-    if (this.diferencia === 0) return 'cuadrado';
-    if (this.diferencia > 0) return 'sobrante';
-    return 'faltante';
+  get ventaBus(): number {
+    return this.saldoAnteriorBus - this.saldoBusActual;
   }
 
-  get colorEstado(): string {
-    switch (this.estadoCuadre) {
-      case 'cuadrado': return 'success';
-      case 'sobrante': return 'warning';
-      case 'faltante': return 'danger';
-    }
+  // Validaciones
+  get ventaCelularValida(): boolean {
+    return this.ventaCelular >= 0;
   }
 
-  get iconoEstado(): string {
-    switch (this.estadoCuadre) {
-      case 'cuadrado': return 'checkmark-circle-outline';
-      case 'sobrante': return 'warning-outline';
-      case 'faltante': return 'alert-circle-outline';
-    }
+  get ventaBusValida(): boolean {
+    return this.ventaBus >= 0;
   }
 
-  get textoEstado(): string {
-    switch (this.estadoCuadre) {
-      case 'cuadrado': return 'Caja cuadrada';
-      case 'sobrante': return 'Sobrante de efectivo';
-      case 'faltante': return 'Faltante de efectivo';
-    }
-  }
-
-  get requiereObservaciones(): boolean {
-    return this.diferencia !== 0;
-  }
-
-  get formularioValido(): boolean {
-    if (this.form.invalid) return false;
-    if (this.requiereObservaciones && !this.form.get('observaciones')?.value?.trim()) {
-      return false;
-    }
-    return true;
+  get mostrarResultado(): boolean {
+    return this.form.valid && this.ventaCelularValida && this.ventaBusValida;
   }
 
   volver() {
     this.router.navigate(['/home']);
   }
 
-  async confirmarCuadre() {
-    if (!this.formularioValido) {
-      this.form.markAllAsTouched();
-      if (this.requiereObservaciones && !this.form.get('observaciones')?.value?.trim()) {
-        await this.ui.showToast('Las observaciones son requeridas cuando hay diferencia', 'warning');
-      }
+  limpiar() {
+    this.form.reset();
+  }
+
+  /**
+   * TEMPORAL - SOLO PARA TESTING
+   * Confirma y guarda las recargas en la base de datos
+   * Este método no debería existir en producción (Cuadre es solo visual)
+   */
+  async confirmarRecargas() {
+    // Validar que haya resultado para confirmar
+    if (!this.mostrarResultado) {
+      await this.ui.showError('Completa los campos primero');
       return;
     }
 
-    // Si hay diferencia, pedir confirmación
-    if (this.diferencia !== 0) {
-      const alert = await this.alertCtrl.create({
-        header: 'Confirmar Ajuste',
-        message: `Se registrará un ${this.estadoCuadre === 'sobrante' ? 'ingreso' : 'egreso'} de $${this.diferenciaAbsoluta.toFixed(2)} para cuadrar la caja. ¿Continuar?`,
-        buttons: [
-          {
-            text: 'Cancelar',
-            role: 'cancel'
-          },
-          {
-            text: 'Confirmar',
-            role: 'confirm',
-            handler: () => this.ejecutarCuadre()
-          }
-        ]
-      });
-      await alert.present();
-    } else {
-      await this.ejecutarCuadre();
-    }
-  }
+    // Confirmar con el usuario
+    const alert = await this.alertCtrl.create({
+      header: 'Confirmar Recargas',
+      message: '¿Guardar estas recargas en la base de datos? (Solo Testing)',
+      buttons: [
+        {
+          text: 'Cancelar',
+          role: 'cancel'
+        },
+        {
+          text: 'Confirmar',
+          role: 'confirm'
+        }
+      ]
+    });
 
-  private async ejecutarCuadre() {
-    await this.ui.showLoading('Registrando cuadre...');
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+
+    if (role !== 'confirm') return;
+
+    // Mostrar loading
+    await this.ui.showLoading('Guardando recargas...');
 
     try {
-      const empleado = await this.authService.getEmpleadoActual();
+      // Obtener empleado actual
+      const empleado = await this.recargasService.obtenerEmpleadoActual();
       if (!empleado) {
         throw new Error('No se pudo obtener el empleado actual');
       }
 
-      // Si hay diferencia, crear operación de ajuste
-      if (this.diferencia !== 0) {
-        const tipoOperacion = this.diferencia > 0 ? 'INGRESO' : 'EGRESO';
-        const descripcion = `Ajuste por cuadre: ${this.form.get('observaciones')?.value || 'Sin observaciones'}`;
+      // Preparar parámetros
+      const params = {
+        fecha: this.recargasService.getFechaLocal(),
+        empleado_id: empleado.id,
+        saldo_anterior_celular: this.saldoAnteriorCelular,
+        saldo_actual_celular: this.saldoCelularActual,
+        venta_celular: this.ventaCelular,
+        saldo_anterior_bus: this.saldoAnteriorBus,
+        saldo_actual_bus: this.saldoBusActual,
+        venta_bus: this.ventaBus
+      };
 
-        await this.cajasService.registrarOperacion({
-          cajaId: 1, // CAJA principal
-          empleadoId: empleado.id,
-          tipo: tipoOperacion,
-          monto: this.diferenciaAbsoluta,
-          descripcion: descripcion
-        });
-      }
+      // Ejecutar función PostgreSQL
+      const resultado = await this.recargasService.registrarRecargasTesting(params);
 
       await this.ui.hideLoading();
+      await this.ui.showSuccess('Recargas guardadas correctamente');
 
-      if (this.diferencia === 0) {
-        await this.ui.showSuccess('Cuadre verificado correctamente');
-      } else {
-        await this.ui.showSuccess('Cuadre registrado con ajuste');
-      }
+      // Navegar a Home con refresh
+      await this.router.navigate(['/home'], { queryParams: { refresh: true } });
 
-      // Volver al home
-      await this.router.navigate(['/home'], {
-        queryParams: { refresh: Date.now() }
-      });
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Error al confirmar recargas:', error);
       await this.ui.hideLoading();
-      await this.ui.showError(error.message || 'Error al registrar el cuadre');
+      await this.ui.showError('Error al guardar las recargas');
     }
   }
 }

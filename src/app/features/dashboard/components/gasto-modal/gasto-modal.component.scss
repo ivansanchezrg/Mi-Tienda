@@ -1,59 +1,11 @@
-// Estilo inspirado en operaciones-caja page
+// Estilos del modal de gastos
+// Reutiliza el patrón de operacion-modal
 
-// Balance Card - Colores dinámicos según tipo de operación
-.balance-card {
-  padding: var(--spacing-xl);
-  margin-bottom: var(--spacing-lg);
-
-  // Verde para ingresos
-  &.ingreso {
-    background: rgba(var(--ion-color-success-rgb), 0.06);
-    border-bottom: 1px solid rgba(var(--ion-color-success-rgb), 0.12);
-
-    .balance-amount {
-      color: var(--ion-color-success);
-    }
-  }
-
-  // Rojo para egresos
-  &.egreso {
-    background: rgba(var(--ion-color-danger-rgb), 0.06);
-    border-bottom: 1px solid rgba(var(--ion-color-danger-rgb), 0.12);
-
-    .balance-amount {
-      color: var(--ion-color-danger);
-    }
-  }
-
-  .caja-name {
-    text-align: center;
-    font-size: 15px;
-    font-weight: var(--font-weight-semibold);
-    color: var(--ion-text-color);
-    margin-bottom: var(--spacing-md);
-  }
-
-  .balance-main {
-    text-align: center;
-
-    .balance-amount {
-      display: block;
-      font-size: 32px;
-      font-weight: var(--font-weight-extrabold);
-      letter-spacing: -0.5px;
-      margin-bottom: var(--spacing-xs);
-    }
-
-    .balance-label {
-      display: block;
-      font-size: 13px;
-      font-weight: var(--font-weight-medium);
-      color: var(--ion-color-medium);
-    }
-  }
+ion-content {
+  --padding-top: 0;
+  --padding-bottom: 0;
 }
 
-// Form Content - Igual que gasto-modal
 .form-content {
   padding: var(--spacing-lg);
   display: flex;
@@ -61,7 +13,6 @@
   gap: var(--spacing-lg);
 }
 
-// Input Groups - Igual que gasto-modal
 .input-group {
   display: flex;
   flex-direction: column;
@@ -94,8 +45,10 @@
     border-radius: var(--radius-xs);
   }
 
-  // Select nativo
-  select {
+  input[type="text"],
+  input[type="number"],
+  select,
+  textarea {
     width: 100%;
     padding: var(--spacing-md);
     font-size: 15px;
@@ -104,21 +57,28 @@
     background: var(--ion-item-background);
     color: var(--ion-text-color);
     outline: none;
-    cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right var(--spacing-md) center;
-    padding-right: calc(var(--spacing-md) + 20px);
     transition: all var(--transition-fast);
 
     &:focus {
       border-color: var(--ion-color-primary);
       box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.1);
     }
+
+    &::placeholder {
+      color: var(--ion-color-medium);
+      opacity: 0.6;
+    }
   }
 
-  // Loading de categorías
+  select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right var(--spacing-md) center;
+    padding-right: calc(var(--spacing-md) + 20px);
+  }
+
   .loading-categorias {
     display: flex;
     align-items: center;
@@ -136,7 +96,12 @@
     }
   }
 
-  // Amount Input - Estilo igual que gasto-modal
+  textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+  }
+
   .amount-wrapper {
     display: flex;
     align-items: center;
@@ -152,11 +117,6 @@
       box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.1);
     }
 
-    &.error {
-      border-color: var(--ion-color-danger);
-      background: rgba(var(--ion-color-danger-rgb), 0.05);
-    }
-
     .currency {
       font-size: 18px;
       font-weight: var(--font-weight-semibold);
@@ -170,56 +130,16 @@
       font-size: 18px;
       font-weight: var(--font-weight-semibold);
       background: transparent;
-      color: var(--ion-text-color);
-      outline: none;
 
       &:focus {
         border: none;
         box-shadow: none;
       }
-
-      &::placeholder {
-        color: var(--ion-color-medium);
-        opacity: 0.6;
-      }
     }
-  }
-
-  // Textarea - Igual que gasto-modal
-  textarea {
-    width: 100%;
-    padding: var(--spacing-md);
-    font-size: 15px;
-    border: 1px solid var(--ion-color-step-150);
-    border-radius: var(--radius-sm);
-    background: var(--ion-item-background);
-    color: var(--ion-text-color);
-    font-family: inherit;
-    resize: vertical;
-    min-height: 80px;
-    outline: none;
-    transition: all var(--transition-fast);
-
-    &:focus {
-      border-color: var(--ion-color-primary);
-      box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.1);
-    }
-
-    &::placeholder {
-      color: var(--ion-color-medium);
-      opacity: 0.6;
-    }
-  }
-
-  .error-text {
-    font-size: 12px;
-    color: var(--ion-color-danger);
-    font-weight: var(--font-weight-medium);
-    margin-top: var(--spacing-2xs);
   }
 }
 
-// Botón de subir foto - Igual que gasto-modal
+// Botón de subir foto
 .upload-btn {
   width: 100%;
   padding: var(--spacing-lg);
@@ -251,7 +171,7 @@
   }
 }
 
-// Preview de foto - Igual que gasto-modal
+// Preview de foto
 .photo-preview {
   position: relative;
   width: 100%;
@@ -292,33 +212,22 @@
   }
 }
 
-// Submit Button
+// Botón de submit
 .submit-btn {
   width: 100%;
   padding: var(--spacing-lg);
+  background: var(--ion-color-warning);
+  color: var(--ion-color-warning-contrast);
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-size: 16px;
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: all var(--transition-normal);
+  margin-top: var(--spacing-md);
 
-  &.ingreso {
-    background: var(--ion-color-success);
-    color: var(--ion-color-success-contrast);
-
-    &:active:not(:disabled) {
-      opacity: var(--opacity-strong);
-    }
-  }
-
-  &.egreso {
-    background: var(--ion-color-danger);
-    color: var(--ion-color-danger-contrast);
-
-    &:active:not(:disabled) {
-      opacity: var(--opacity-strong);
-    }
+  &:active:not(:disabled) {
+    transform: scale(0.98);
   }
 
   &:disabled {

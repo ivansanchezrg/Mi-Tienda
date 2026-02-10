@@ -93,7 +93,27 @@ Sistema automático de notificaciones y transferencia de ganancias mensuales de 
 
 **Documentación completa:** Ver [GANANCIAS-MENSUALES.md](./GANANCIAS-MENSUALES.md)
 
-**Testing:** Ver [test_notificaciones_ganancias.sql](../../../../doc/test_notificaciones_ganancias.sql) y [TESTING_NOTIFICACIONES.md](../../../../doc/TESTING_NOTIFICACIONES.md)
+**Testing:** Ver [TESTING_NOTIFICACIONES.md](./TESTING_NOTIFICACIONES.md)
+
+### Gastos Diarios (`components/gasto-modal/`)
+
+Sistema de registro de gastos operativos de la tienda con acceso rápido desde FAB.
+
+**Características:**
+- 💰 **Acceso rápido** desde FAB (Floating Action Button) en cualquier página
+- 📝 **Flujo simplificado** de 2 pasos: Modal → Guardar
+- 📸 **Comprobantes opcionales** con optimización automática de imágenes
+- ❌ **NO afecta saldos de cajas** (gastos operativos, no transacciones)
+- 🔍 **Trazabilidad completa** con empleado, fecha y concepto
+
+**Flujo:**
+1. Usuario hace clic en FAB → selecciona "Gasto"
+2. Se abre modal de gastos
+3. Usuario ingresa concepto, monto, foto opcional y observaciones
+4. Sistema sube foto a Storage (si hay) y registra en BD
+5. ✅ Gasto registrado (NO afecta saldos)
+
+**Documentación completa:** Ver [PROCESO_GASTOS_DIARIOS.md](./PROCESO_GASTOS_DIARIOS.md)
 
 ## Rutas
 
@@ -119,22 +139,26 @@ Sistema automático de notificaciones y transferencia de ganancias mensuales de 
 ## Documentacion Relacionada
 
 ### Documentacion de Negocio
-- 📖 [**Proceso de Cierre de Cajas**](./proceso_cierre_cajas.md) - Flujo completo del cierre diario, arquitectura del sistema de 4 cajas, validaciones, trazabilidad y ejemplos practicos
+- 📖 [**Proceso de Cierre de Cajas**](./PROCESO_CIERRE_CAJA.md) - Flujo completo del cierre diario, arquitectura del sistema de 4 cajas, validaciones, trazabilidad y ejemplos practicos
 - 💰 [**Ganancias Mensuales**](./GANANCIAS-MENSUALES.md) - Sistema automático de notificaciones y transferencia de ganancias mensuales (comisiones 5% Celular, 1% Bus)
 - 📋 [**Operaciones de Caja**](./OPERACIONES-CAJA.md) - Historial de movimientos por caja, filtros, diseño híbrido y scroll infinito
-- 📸 [**Comprobantes en Operaciones**](./COMPROBANTES-OPERACIONES.md) - Sistema completo de comprobantes fotográficos para ingresos (opcional) y egresos (obligatorio), con subida a Supabase Storage
-- ⚙️ [**Funcion PostgreSQL**](./funcion_cierre_diario.md) - Documentacion de la funcion transaccional `ejecutar_cierre_diario()`
-- 🗄️ [**Schema de Base de Datos**](../../../../doc/schema_inicial_completo.sql) - Estructura completa de tablas, indices y datos iniciales
+- 📸 [**Proceso de Ingreso/Egreso**](./PROCESO_INGRESO_EGRESO.md) - Sistema completo de operaciones con categorías contables y comprobantes fotográficos (v2.0: categorías obligatorias + fotos opcionales/obligatorias según tipo)
+- 💸 [**Proceso de Gastos Diarios**](./PROCESO_GASTOS_DIARIOS.md) - Sistema de registro de gastos operativos con acceso rápido desde FAB, comprobantes opcionales y trazabilidad completa (NO afecta saldos de cajas)
+- 🗄️ [**Schema de Base de Datos**](../../../../docs/schema_inicial_completo.sql) - Estructura completa de tablas, indices y datos iniciales
 
 ### Para Desarrolladores
 - 💻 **DASHBOARD-README.md** (este archivo) - Documentacion tecnica de componentes, rutas y patrones
-- 📸 [**COMPROBANTES-OPERACIONES.md**](./COMPROBANTES-OPERACIONES.md) - Guía completa de implementación: Capacitor Camera, Supabase Storage, flujo step-by-step, función PostgreSQL y troubleshooting
+- 📸 [**PROCESO_INGRESO_EGRESO.md**](./PROCESO_INGRESO_EGRESO.md) - Guía completa de implementación: Categorías contables (v2.0), Capacitor Camera, Supabase Storage, flujo step-by-step, función PostgreSQL y troubleshooting
+- 💸 [**PROCESO_GASTOS_DIARIOS.md**](./PROCESO_GASTOS_DIARIOS.md) - Guía completa de implementación: Modal desde FAB, Capacitor Camera, optimización de imágenes, tabla gastos_diarios v4.3, diferencia con operaciones de caja
 - 🔄 [**ACTUALIZACION-UI-SIN-RECARGA.md**](./ACTUALIZACION-UI-SIN-RECARGA.md) - Explicación detallada de cómo Angular actualiza la UI sin recargar la página: Change Detection, Data Binding, flujo completo con diagramas
+- 🧪 [**TESTING_NOTIFICACIONES.md**](./TESTING_NOTIFICACIONES.md) - Guía de testing para el sistema de notificaciones de ganancias mensuales
 - 🔧 **RecargasService** (`services/recargas.service.ts`) - Servicio principal para operaciones de cierre
 - 💰 **GananciasService** (`services/ganancias.service.ts`) - Servicio para calculo y verificacion de ganancias mensuales
 - 🏦 **CajasService** (`services/cajas.service.ts`) - Servicio para operaciones de cajas y transferencias
 - 📋 **OperacionesCajaService** (`services/operaciones-caja.service.ts`) - Consulta de operaciones con filtros y paginacion
+- 💸 **GastosDiariosService** (`services/gastos-diarios.service.ts`) - Servicio para registro de gastos operativos (NO afecta saldos)
 - 🗄️ **StorageService** (`core/services/storage.service.ts`) - Servicio para subida de imágenes a Supabase Storage
 - 🎨 **CierreDiarioPage** (`pages/cierre-diario/`) - Implementacion del wizard de cierre
 - 💸 **TransferirGananciasPage** (`pages/transferir-ganancias/`) - Confirmacion y ejecucion de transferencias de ganancias
 - 📜 **OperacionesCajaPage** (`pages/operaciones-caja/`) - Historial de movimientos con diseño híbrido
+- 🧾 **GastoModalComponent** (`components/gasto-modal/`) - Modal de registro de gastos con foto opcional

@@ -1,17 +1,26 @@
-# Guía Completa: Comprobantes Fotográficos en Operaciones
+# Guía Completa: Sistema de Operaciones con Comprobantes y Categorías
 
-**Fecha:** 2026-02-06
-**Versión:** 1.0
+**Fecha:** 2026-02-09 (actualizado)
+**Versión:** 2.0
 **Autor:** Claude Code
 
 ---
 
 ## 📋 Resumen
 
-Sistema que permite a los empleados adjuntar comprobantes fotográficos a las operaciones de ingreso y egreso de cajas. Los comprobantes son:
+Sistema completo para registro de operaciones de ingreso y egreso con:
 
+### ✅ Comprobantes Fotográficos (v1.0)
 - **Obligatorios** para egresos
 - **Opcionales** para ingresos
+- Optimización automática de imágenes (1200x1600px, ~90% reducción)
+- Almacenamiento en Supabase Storage (bucket privado)
+
+### ✅ Categorías Contables (v2.0)
+- **Obligatorias** para todas las operaciones
+- 12 categorías predefinidas (9 egresos + 3 ingresos)
+- Clasificación contable para reportes
+- Trazabilidad completa de gastos e ingresos
 
 ---
 
@@ -21,12 +30,14 @@ Sistema que permite a los empleados adjuntar comprobantes fotográficos a las op
 
 1. Usuario hace clic en **3 puntos** de una caja → **"Ingreso"** o **"Egreso"**
 2. Se abre modal con formulario
-3. Usuario captura/selecciona foto del comprobante
-4. Usuario completa monto y descripción
-5. Usuario confirma
-6. Sistema sube foto a Supabase Storage
-7. Sistema registra operación en BD con URL del comprobante
-8. Sistema actualiza saldo de la caja
+3. **Usuario selecciona categoría contable** (obligatorio)
+4. Usuario ingresa monto
+5. Usuario captura/selecciona foto del comprobante (obligatorio para egresos)
+6. Usuario completa descripción (opcional para ingresos, obligatorio para egresos)
+7. Usuario confirma
+8. Sistema sube foto a Supabase Storage (si hay)
+9. Sistema registra operación en BD con categoría y comprobante
+10. Sistema actualiza saldo de la caja
 
 ---
 
@@ -175,6 +186,7 @@ async onOperacion(tipo: string, tipoCaja?: string) {
 ```typescript
 export interface OperacionModalResult {
   cajaId: number;
+  categoriaId: number;             // ← Categoría contable seleccionada
   monto: number;
   descripcion: string;
   fotoComprobante: string | null;  // ← DataURL de la imagen
@@ -317,6 +329,8 @@ private async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModal
   // El servicio maneja loading, empleado, subida de foto y guardado
   const success = await this.operacionesCajaService.registrarOperacion(
     data.cajaId,
+    tipo,
+    data.categoriaId,     // ← Categoría contable seleccionada
     data.monto,
     data.descripcion,
     data.fotoComprobante  // ← Pasa la foto al servicio
@@ -338,6 +352,7 @@ private async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModal
 async registrarOperacion(
   cajaId: number,
   tipo: 'INGRESO' | 'EGRESO',
+  categoriaId: number,         // ← Categoría contable (obligatorio)
   monto: number,
   descripcion: string,
   fotoComprobante: string | null
@@ -377,9 +392,10 @@ async registrarOperacion(
       p_caja_id: cajaId,
       p_empleado_id: empleado.id,
       p_tipo_operacion: tipo,
+      p_categoria_id: categoriaId,       // ← Categoría contable (obligatorio)
       p_monto: monto,
       p_descripcion: descripcion || null,
-      p_comprobante_url: pathImagen  // ← PATH de la imagen, no URL
+      p_comprobante_url: pathImagen      // ← PATH de la imagen, no URL
     });
 
     await this.ui.hideLoading();
@@ -709,18 +725,53 @@ CREATE TABLE operaciones_cajas (
   caja_id INTEGER NOT NULL REFERENCES cajas(id),
   empleado_id INTEGER REFERENCES empleados(id),
   tipo_operacion tipo_operacion_caja_enum NOT NULL,
+  categoria_id INTEGER REFERENCES categorias_operaciones(id),  -- ← NUEVO (v2.0): Categoría contable
   monto DECIMAL(12,2) NOT NULL,
   saldo_anterior DECIMAL(12,2),
   saldo_actual DECIMAL(12,2),
   tipo_referencia_id INTEGER REFERENCES tipos_referencia(id),
   referencia_id UUID,
   descripcion TEXT,
-  comprobante_url TEXT,  -- ← NUEVO CAMPO: Guarda PATH (ej: "2026/02/uuid.jpg"), NO URL completa
+  comprobante_url TEXT,  -- ← PATH del archivo (v1.0): Ej "2026/02/uuid.jpg", NO URL completa
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ```
 
-**⚠️ Importante:** El campo `comprobante_url` guarda el **PATH** del archivo en Storage (ejemplo: `2026/02/a1b2c3d4.jpg`), **NO la URL completa**. Esto permite generar signed URLs dinámicamente cuando se necesiten.
+**⚠️ Importante:**
+- El campo `comprobante_url` guarda el **PATH** del archivo en Storage (ejemplo: `2026/02/a1b2c3d4.jpg`), **NO la URL completa**. Esto permite generar signed URLs dinámicamente cuando se necesiten.
+- El campo `categoria_id` es **obligatorio** para operaciones INGRESO/EGRESO manuales, permite clasificación contable y reportes por tipo de gasto.
+
+### Tabla: `categorias_operaciones` (v2.0)
+
+```sql
+CREATE TABLE categorias_operaciones (
+  id SERIAL PRIMARY KEY,
+  tipo TEXT NOT NULL CHECK (tipo IN ('INGRESO', 'EGRESO')),
+  nombre VARCHAR(100) NOT NULL,
+  codigo VARCHAR(20) NOT NULL UNIQUE,
+  descripcion TEXT,
+  activo BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+**Categorías predefinidas:**
+
+**Egresos (9):**
+- `EGR_PAGOS` - Pago a Proveedores
+- `EGR_SERVICIOS` - Servicios Básicos (luz, agua, internet)
+- `EGR_SALARIOS` - Nómina y Salarios
+- `EGR_ALQUILER` - Alquiler de Local
+- `EGR_SUMINISTROS` - Suministros de Oficina
+- `EGR_TRANSPORTE` - Transporte y Combustible
+- `EGR_MANTENIMIENTO` - Mantenimiento y Reparaciones
+- `EGR_IMPUESTOS` - Impuestos y Tasas
+- `EGR_OTROS` - Otros Gastos
+
+**Ingresos (3):**
+- `ING_VENTAS` - Ventas de Productos/Servicios
+- `ING_SERVICIOS` - Cobro por Servicios
+- `ING_OTROS` - Otros Ingresos
 
 ### Bucket de Storage: `comprobantes`
 
@@ -975,87 +1026,114 @@ this.cdr.detectChanges();  // ← Forzar detección
 
 ## 📝 Función PostgreSQL Completa
 
+**Versión:** 2.0 (con categorías contables)
+
 ```sql
 -- ==========================================
-  -- ELIMINAR Y RECREAR FUNCIÓN
-  -- ==========================================
+-- ELIMINAR Y RECREAR FUNCIÓN
+-- ==========================================
 
-  -- 1. Eliminar todas las versiones anteriores
-  DROP FUNCTION IF EXISTS public.registrar_operacion_manual(INTEGER, INTEGER, tipo_operacion_caja_enum, DECIMAL, TEXT, TEXT);
-  DROP FUNCTION IF EXISTS public.registrar_operacion_manual;
+-- 1. Eliminar todas las versiones anteriores
+DROP FUNCTION IF EXISTS public.registrar_operacion_manual(INTEGER, INTEGER, tipo_operacion_caja_enum, INTEGER, DECIMAL, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.registrar_operacion_manual;
 
-  -- 2. Crear la función
-  CREATE FUNCTION public.registrar_operacion_manual(
-    p_caja_id INTEGER,
-    p_empleado_id INTEGER,
-    p_tipo_operacion tipo_operacion_caja_enum,
-    p_monto DECIMAL(12,2),
-    p_descripcion TEXT DEFAULT NULL,
-    p_comprobante_url TEXT DEFAULT NULL
-  )
-  RETURNS JSON
-  LANGUAGE plpgsql
-  AS $$
-  DECLARE
-    v_saldo_anterior DECIMAL(12,2);
-    v_saldo_nuevo DECIMAL(12,2);
-    v_operacion_id UUID;
-  BEGIN
-    -- 1. Obtener saldo actual de la caja
-    SELECT saldo_actual INTO v_saldo_anterior
-    FROM cajas
-    WHERE id = p_caja_id
-    FOR UPDATE;
+-- 2. Crear la función con soporte para categorías
+CREATE FUNCTION public.registrar_operacion_manual(
+  p_caja_id INTEGER,
+  p_empleado_id INTEGER,
+  p_tipo_operacion tipo_operacion_caja_enum,
+  p_categoria_id INTEGER,                    -- ← NUEVO: Categoría contable
+  p_monto DECIMAL(12,2),
+  p_descripcion TEXT DEFAULT NULL,
+  p_comprobante_url TEXT DEFAULT NULL
+)
+RETURNS JSON
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_saldo_anterior DECIMAL(12,2);
+  v_saldo_nuevo DECIMAL(12,2);
+  v_operacion_id UUID;
+BEGIN
+  -- 1. Obtener saldo actual de la caja (con lock para evitar race conditions)
+  SELECT saldo_actual INTO v_saldo_anterior
+  FROM cajas
+  WHERE id = p_caja_id
+  FOR UPDATE;
 
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Caja no encontrada con ID: %', p_caja_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Caja no encontrada con ID: %', p_caja_id;
+  END IF;
+
+  -- 2. Calcular nuevo saldo según tipo de operación
+  IF p_tipo_operacion = 'INGRESO' THEN
+    v_saldo_nuevo := v_saldo_anterior + p_monto;
+  ELSIF p_tipo_operacion = 'EGRESO' THEN
+    v_saldo_nuevo := v_saldo_anterior - p_monto;
+    -- Validar saldo insuficiente
+    IF v_saldo_nuevo < 0 THEN
+      RAISE EXCEPTION 'Saldo insuficiente. Saldo actual: %, monto a retirar: %',
+        v_saldo_anterior, p_monto;
     END IF;
+  ELSE
+    RAISE EXCEPTION 'Tipo de operación no válido: %. Use INGRESO o EGRESO', p_tipo_operacion;
+  END IF;
 
-    -- 2. Calcular nuevo saldo
-    IF p_tipo_operacion = 'INGRESO' THEN
-      v_saldo_nuevo := v_saldo_anterior + p_monto;
-    ELSIF p_tipo_operacion = 'EGRESO' THEN
-      v_saldo_nuevo := v_saldo_anterior - p_monto;
-      IF v_saldo_nuevo < 0 THEN
-        RAISE EXCEPTION 'Saldo insuficiente. Saldo actual: %, monto a retirar: %',
-          v_saldo_anterior, p_monto;
-      END IF;
-    ELSE
-      RAISE EXCEPTION 'Tipo de operación no válido: %. Use INGRESO o EGRESO', p_tipo_operacion;
-    END IF;
+  -- 3. Actualizar saldo de la caja
+  UPDATE cajas
+  SET saldo_actual = v_saldo_nuevo,
+      updated_at = NOW()
+  WHERE id = p_caja_id;
 
-    -- 3. Actualizar saldo de la caja
-    UPDATE cajas
-    SET saldo_actual = v_saldo_nuevo,
-        updated_at = NOW()
-    WHERE id = p_caja_id;
+  -- 4. Insertar operación con categoría
+  INSERT INTO operaciones_cajas (
+    id, caja_id, empleado_id, tipo_operacion, categoria_id, monto,
+    saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
+  ) VALUES (
+    uuid_generate_v4(), p_caja_id, p_empleado_id, p_tipo_operacion, p_categoria_id, p_monto,
+    v_saldo_anterior, v_saldo_nuevo, p_descripcion, p_comprobante_url, NOW()
+  ) RETURNING id INTO v_operacion_id;
 
-    -- 4. Insertar operación
-    INSERT INTO operaciones_cajas (
-      id, caja_id, empleado_id, tipo_operacion, monto,
-      saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
-    ) VALUES (
-      uuid_generate_v4(), p_caja_id, p_empleado_id, p_tipo_operacion, p_monto,
-      v_saldo_anterior, v_saldo_nuevo, p_descripcion, p_comprobante_url, NOW()
-    ) RETURNING id INTO v_operacion_id;
+  -- 5. Retornar resultado exitoso
+  RETURN json_build_object(
+    'success', true,
+    'operacion_id', v_operacion_id,
+    'saldo_anterior', v_saldo_anterior,
+    'saldo_nuevo', v_saldo_nuevo
+  );
 
-    -- 5. Retornar resultado
-    RETURN json_build_object(
-      'success', true,
-      'operacion_id', v_operacion_id,
-      'saldo_anterior', v_saldo_anterior,
-      'saldo_nuevo', v_saldo_nuevo
-    );
-
-  EXCEPTION
-    WHEN OTHERS THEN
-      RAISE EXCEPTION 'Error en operación: %', SQLERRM;
-  END;
-  $$;---
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'Error en operación: %', SQLERRM;
+END;
+$$;
 ```
+
+### Parámetros de la función:
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `p_caja_id` | INTEGER | ID de la caja (1=CAJA, 2=CAJA_CHICA, etc.) |
+| `p_empleado_id` | INTEGER | ID del empleado que registra la operación |
+| `p_tipo_operacion` | ENUM | 'INGRESO' o 'EGRESO' |
+| `p_categoria_id` | INTEGER | **NUEVO:** ID de la categoría contable (obligatorio) |
+| `p_monto` | DECIMAL | Monto de la operación |
+| `p_descripcion` | TEXT | Descripción adicional (opcional, más detalle que la categoría) |
+| `p_comprobante_url` | TEXT | Path del comprobante en Storage (opcional para ingresos, obligatorio para egresos) |
+
+### Cambios en Versión 2.0:
+
+- ✅ Agregado parámetro `p_categoria_id` (obligatorio)
+- ✅ INSERT ahora incluye `categoria_id` en operaciones_cajas
+- ✅ Permite clasificación contable de operaciones
+- ✅ Facilita reportes por tipo de gasto/ingreso
+- ✅ Mantiene compatibilidad con comprobantes fotográficos
+
+---
 
 ## ✅ Checklist de Implementación
 
+### Versión 1.0 (Comprobantes fotográficos)
 - [x] Instalar @capacitor/camera
 - [x] Configurar permisos en AndroidManifest.xml
 - [x] Crear StorageService
@@ -1068,7 +1146,19 @@ this.cdr.detectChanges();  // ← Forzar detección
 - [x] Crear función PostgreSQL registrar_operacion_manual
 - [x] Agregar campo comprobante_url a operaciones_cajas
 - [x] Actualizar modelo TypeScript OperacionCaja
-- [x] Documentar en COMPROBANTES-OPERACIONES.md
+- [x] Documentar en PROCESO_INGRESO_EGRESO.md
+
+### Versión 2.0 (Categorías contables)
+- [x] Crear tabla categorias_operaciones
+- [x] Agregar campo categoria_id a operaciones_cajas
+- [x] Insertar 12 categorías predefinidas (9 egresos + 3 ingresos)
+- [x] Crear modelo CategoriaOperacion
+- [x] Actualizar modelo OperacionCaja con categoria
+- [x] Agregar método obtenerCategorias() al servicio
+- [x] Actualizar registrarOperacion() para aceptar categoriaId
+- [x] Agregar dropdown de categorías en modal
+- [x] Actualizar función PostgreSQL con p_categoria_id
+- [x] Actualizar documentación con versión 2.0
 
 ---
 
@@ -1078,6 +1168,52 @@ this.cdr.detectChanges();  // ← Forzar detección
 - [Supabase Storage](https://supabase.com/docs/guides/storage)
 - [Supabase RPC Functions](https://supabase.com/docs/guides/database/functions)
 - [PostgreSQL Transactions](https://www.postgresql.org/docs/current/tutorial-transactions.html)
+
+---
+
+## 📊 Novedades Versión 2.0
+
+### ¿Qué cambió?
+
+**Versión 1.0** solo guardaba:
+- Monto
+- Descripción libre (texto)
+- Comprobante (foto)
+
+**Versión 2.0** agrega:
+- ✅ **Categoría contable obligatoria** (selección de lista)
+- ✅ **12 categorías predefinidas** para clasificación
+- ✅ **Descripción ahora es complementaria** (más detalle que la categoría)
+- ✅ **Base para reportes contables** por tipo de gasto/ingreso
+
+### Beneficios:
+
+1. **Contabilidad estructurada**: Gastos clasificados, no solo descripciones libres
+2. **Reportes precisos**: "¿Cuánto gastamos en servicios básicos este mes?"
+3. **Análisis de tendencias**: Comparar gastos mes a mes por categoría
+4. **Auditoría mejorada**: Trazabilidad completa con categoría + comprobante + descripción
+5. **Flexibilidad**: Descripción adicional para casos específicos
+
+### Ejemplo de uso:
+
+**Antes (v1.0):**
+```
+Monto: $50
+Descripción: "Pago de luz"
+```
+
+**Ahora (v2.0):**
+```
+Categoría: EGR_SERVICIOS - Servicios Básicos
+Monto: $50
+Descripción: "Recibo de luz - Factura #12345 - Mes de Enero"
+Comprobante: [Foto del recibo]
+```
+
+**Ventaja:** El sistema ahora puede generar reportes como:
+- "Total en Servicios Básicos: $250/mes"
+- "Comparativa: Enero ($250) vs Febrero ($280)"
+- "Desglose: Luz ($50) + Internet ($30) + Agua ($20)"
 
 ---
 

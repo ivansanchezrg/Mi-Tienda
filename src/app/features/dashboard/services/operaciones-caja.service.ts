@@ -9,6 +9,7 @@ import {
   OperacionesPaginadas,
   FiltroFecha
 } from '../models/operacion-caja.model';
+import { CategoriaOperacion } from '../models/categoria-operacion.model';
 
 @Injectable({
   providedIn: 'root'
@@ -19,6 +20,32 @@ export class OperacionesCajaService {
   private ui = inject(UiService);
   private authService = inject(AuthService);
   private pageSize = PAGINATION_CONFIG.operacionesCaja.pageSize;
+
+  /**
+   * Obtiene las categorías de operaciones filtradas por tipo
+   * @param tipo - 'INGRESO' o 'EGRESO' (opcional, si no se envía trae todas)
+   * @returns Lista de categorías activas
+   */
+  async obtenerCategorias(tipo?: 'INGRESO' | 'EGRESO'): Promise<CategoriaOperacion[]> {
+    let query = this.supabase.client
+      .from('categorias_operaciones')
+      .select('*')
+      .eq('activo', true)
+      .order('codigo', { ascending: true });
+
+    if (tipo) {
+      query = query.eq('tipo', tipo);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error al obtener categorías:', error);
+      throw new Error(`Error al obtener categorías: ${error.message}`);
+    }
+
+    return data || [];
+  }
 
   /**
    * Obtiene operaciones de una caja con paginación
@@ -36,7 +63,8 @@ export class OperacionesCajaService {
       .select(`
         *,
         caja:cajas!inner(id, nombre, codigo),
-        empleado:empleados(id, nombre)
+        empleado:empleados(id, nombre),
+        categoria:categorias_operaciones(id, nombre, codigo, tipo)
       `, { count: 'exact' })
       .eq('caja_id', cajaId)
       .order('fecha', { ascending: false });
@@ -91,6 +119,7 @@ export class OperacionesCajaService {
    * Registra una nueva operación de INGRESO o EGRESO
    * @param cajaId - ID de la caja
    * @param tipo - 'INGRESO' o 'EGRESO'
+   * @param categoriaId - ID de la categoría contable
    * @param monto - Monto de la operación
    * @param descripcion - Descripción opcional
    * @param fotoComprobante - DataURL de la foto (null si no hay)
@@ -99,22 +128,19 @@ export class OperacionesCajaService {
   async registrarOperacion(
     cajaId: number,
     tipo: 'INGRESO' | 'EGRESO',
+    categoriaId: number,
     monto: number,
     descripcion: string,
     fotoComprobante: string | null
   ): Promise<boolean> {
     try {
-      console.log('🟢 [registrarOperacion] Iniciando...', { cajaId, tipo, monto, descripcion, tieneFoto: !!fotoComprobante });
-
       let pathImagen: string | null = null;
 
       // 1. Si hay foto, subirla primero a Storage
       if (fotoComprobante) {
-        console.log('📸 [registrarOperacion] Subiendo comprobante...');
         await this.ui.showLoading('Subiendo comprobante...');
 
         pathImagen = await this.storageService.uploadImage(fotoComprobante);
-        console.log('📸 [registrarOperacion] Path imagen:', pathImagen);
 
         if (!pathImagen) {
           console.error('❌ [registrarOperacion] Error al subir imagen');
@@ -127,9 +153,7 @@ export class OperacionesCajaService {
       }
 
       // 2. Obtener empleado actual
-      console.log('👤 [registrarOperacion] Obteniendo empleado...');
       const empleado = await this.authService.getEmpleadoActual();
-      console.log('👤 [registrarOperacion] Empleado:', empleado);
 
       if (!empleado) {
         console.error('❌ [registrarOperacion] No se pudo obtener empleado');
@@ -141,25 +165,15 @@ export class OperacionesCajaService {
       await this.ui.showLoading(`Registrando ${tipo.toLowerCase()}...`);
 
       // 4. Llamar a la función PostgreSQL que maneja todo
-      console.log('🗄️ [registrarOperacion] Llamando RPC con params:', {
-        p_caja_id: cajaId,
-        p_empleado_id: empleado.id,
-        p_tipo_operacion: tipo,
-        p_monto: monto,
-        p_descripcion: descripcion || null,
-        p_comprobante_url: pathImagen
-      });
-
       const { data, error } = await this.supabase.client.rpc('registrar_operacion_manual', {
         p_caja_id: cajaId,
         p_empleado_id: empleado.id,
         p_tipo_operacion: tipo,
+        p_categoria_id: categoriaId,
         p_monto: monto,
         p_descripcion: descripcion || null,
         p_comprobante_url: pathImagen  // ← Guardamos PATH, no URL
       });
-
-      console.log('🗄️ [registrarOperacion] Respuesta RPC:', { data, error });
 
       await this.ui.hideLoading();
 
@@ -189,7 +203,6 @@ export class OperacionesCajaService {
         return false;
       }
 
-      console.log('✅ [registrarOperacion] Operación registrada exitosamente');
       await this.ui.showSuccess(`${tipo} registrado correctamente`);
       return true;
 

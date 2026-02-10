@@ -3,11 +3,15 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import {
   IonMenu, IonContent, IonTabs, IonTabBar,
-  IonTabButton, IonIcon, IonLabel, IonFabButton
+  IonTabButton, IonIcon, IonLabel, IonFabButton,
+  ModalController
 } from '@ionic/angular/standalone';
 import { SidebarComponent } from 'src/app/shared/components/sidebar/sidebar.component';
 import { homeOutline, cartOutline, cubeOutline, barChartOutline, add, close, receiptOutline, clipboardOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { GastoModalComponent } from 'src/app/features/dashboard/components/gasto-modal/gasto-modal.component';
+import { GastosDiariosService } from 'src/app/features/dashboard/services/gastos-diarios.service';
+import { GastoModalResult } from 'src/app/features/dashboard/models/gasto-diario.model';
 
 @Component({
   selector: 'app-main-layout',
@@ -24,6 +28,8 @@ import { UiService } from '@core/services/ui.service';
 export class MainLayoutPage {
   private ui = inject(UiService);
   private router = inject(Router);
+  private modalCtrl = inject(ModalController);
+  private gastosService = inject(GastosDiariosService);
 
   // Iconos importados como objetos (patrón Ionic Standalone)
   homeIcon = homeOutline;
@@ -48,13 +54,28 @@ export class MainLayoutPage {
   }
 
   /**
-   * Navega a la funcionalidad de gasto
+   * Abre modal para registrar un gasto diario
    */
-  irAGasto() {
+  async irAGasto() {
     this.fabAbierto = false;
-    this.router.navigate(['/home'], {
-      queryParams: { action: 'gasto' }
+
+    const modal = await this.modalCtrl.create({
+      component: GastoModalComponent
     });
+
+    await modal.present();
+    const { data, role } = await modal.onDidDismiss<GastoModalResult>();
+
+    if (role === 'confirm' && data) {
+      const success = await this.gastosService.registrarGasto({
+        categoria_gasto_id: data.categoria_gasto_id,
+        monto: data.monto,
+        observaciones: data.observaciones,
+        fotoComprobante: data.fotoComprobante
+      });
+
+      // El servicio ya muestra el toast de éxito/error
+    }
   }
 
   /**
