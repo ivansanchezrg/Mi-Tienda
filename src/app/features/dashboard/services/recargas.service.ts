@@ -116,12 +116,42 @@ export class RecargasService {
   }
 
   /**
-   * Obtiene todos los datos necesarios para el cierre diario (v4.0)
+   * Obtiene el monto total agregado HOY en recargas_virtuales (v4.5)
+   * Necesario para calcular correctamente la venta del día
+   * @returns {Promise<{ celular: number; bus: number }>}
+   */
+  async getAgregadoVirtualHoy(): Promise<{ celular: number; bus: number }> {
+    const fechaHoy = this.getFechaLocal();
+
+    // Query sin supabase.call para evitar loading spinner extra
+    const [celularRes, busRes] = await Promise.all([
+      this.supabase.client
+        .from('recargas_virtuales')
+        .select('monto_virtual, tipos_servicio!inner(codigo)')
+        .eq('tipos_servicio.codigo', 'CELULAR')
+        .eq('fecha', fechaHoy),
+      this.supabase.client
+        .from('recargas_virtuales')
+        .select('monto_virtual, tipos_servicio!inner(codigo)')
+        .eq('tipos_servicio.codigo', 'BUS')
+        .eq('fecha', fechaHoy)
+    ]);
+
+    // Sumar los montos en TypeScript
+    const celular = (celularRes.data || []).reduce((sum: number, r: any) => sum + (r.monto_virtual || 0), 0);
+    const bus = (busRes.data || []).reduce((sum: number, r: any) => sum + (r.monto_virtual || 0), 0);
+
+    return { celular, bus };
+  }
+
+  /**
+   * Obtiene todos los datos necesarios para el cierre diario (v4.5)
    *
    * Realiza queries en paralelo para obtener:
    * - Saldos virtuales anteriores (Celular y Bus) desde tabla recargas
    * - Saldos actuales de las 4 cajas desde tabla cajas
    * - Configuración (fondo_fijo y transferencia_diaria) desde tabla configuraciones
+   * - Agregado hoy desde recargas_virtuales (v4.5)
    *
    * @returns {Promise<DatosCierreDiario>} Objeto con todos los datos necesarios para el cierre
    *
@@ -132,7 +162,7 @@ export class RecargasService {
    */
   async getDatosCierreDiario(): Promise<DatosCierreDiario> {
     // Queries en paralelo para mejor performance
-    const [saldosVirtuales, caja, cajaChica, cajaCelular, cajaBus, config] = await Promise.all([
+    const [saldosVirtuales, caja, cajaChica, cajaCelular, cajaBus, config, agregadoHoy] = await Promise.all([
       // 1. Saldos virtuales (Celular y Bus)
       this.getSaldosAnteriores(),
 
@@ -179,7 +209,10 @@ export class RecargasService {
           .select('fondo_fijo_diario, caja_chica_transferencia_diaria')
           .limit(1)
           .single()
-      )
+      ),
+
+      // 7. Agregado hoy de recargas virtuales (v4.5)
+      this.getAgregadoVirtualHoy()
     ]);
 
     return {
@@ -189,7 +222,9 @@ export class RecargasService {
       saldoCajaCelular: cajaCelular?.saldo_actual ?? 0,
       saldoCajaBus: cajaBus?.saldo_actual ?? 0,
       fondoFijo: config?.fondo_fijo_diario ?? 40,
-      transferenciaDiariaCajaChica: config?.caja_chica_transferencia_diaria ?? 20
+      transferenciaDiariaCajaChica: config?.caja_chica_transferencia_diaria ?? 20,
+      agregadoCelularHoy: agregadoHoy.celular,
+      agregadoBusHoy: agregadoHoy.bus
     };
   }
 
@@ -454,29 +489,5 @@ export class RecargasService {
     return recargas;
   }
 
-  /**
-   * TEMPORAL - SOLO PARA TESTING
-   * Registra recargas para verificar cálculos del Cuadre
-   * Esta función guarda en BD (a diferencia del Cuadre normal que es solo visual)
-   *
-   * @param params Parámetros de las recargas a registrar
-   * @returns Resultado del registro
-   */
-  async registrarRecargasTesting(params: any): Promise<any> {
-    const resultado = await this.supabase.call(
-      this.supabase.client.rpc('registrar_recargas_testing', {
-        p_fecha: params.fecha,
-        p_empleado_id: params.empleado_id,
-        p_saldo_anterior_celular: params.saldo_anterior_celular,
-        p_saldo_actual_celular: params.saldo_actual_celular,
-        p_venta_celular: params.venta_celular,
-        p_saldo_anterior_bus: params.saldo_anterior_bus,
-        p_saldo_actual_bus: params.saldo_actual_bus,
-        p_venta_bus: params.venta_bus
-      })
-    );
-
-    return resultado;
-  }
 
 }

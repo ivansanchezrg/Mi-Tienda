@@ -13,10 +13,6 @@ export const DASHBOARD_ROUTES: Routes = [
     canDeactivate: [pendingChangesGuard]
   },
   {
-    path: 'transferir-ganancias',
-    loadComponent: () => import('./pages/transferir-ganancias/transferir-ganancias.page').then(m => m.TransferirGananciasPage)
-  },
-  {
     path: 'operaciones-caja',
     loadComponent: () => import('./pages/operaciones-caja/operaciones-caja.page').then(m => m.OperacionesCajaPage)
   },
@@ -31,5 +27,13 @@ export const DASHBOARD_ROUTES: Routes = [
   {
     path: 'historial-recargas',
     loadComponent: () => import('./pages/historial-recargas/historial-recargas.page').then(m => m.HistorialRecargasPage)
+  },
+  {
+    path: 'recargas-virtuales',
+    loadComponent: () => import('./pages/recargas-virtuales/recargas-virtuales.page').then(m => m.RecargasVirtualesPage)
+  },
+  {
+    path: 'pagar-deudas',
+    loadComponent: () => import('./pages/pagar-deudas/pagar-deudas.page').then(m => m.PagarDeudasPage)
   }
 ];

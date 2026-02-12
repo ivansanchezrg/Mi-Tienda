@@ -216,7 +216,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     const hoy = new Date();
     this.fechaActual = this.formatearFecha(hoy);
 
-    // Verificar ganancias pendientes
+    // Verificar ganancias pendientes (solo BUS mensual)
     this.gananciasPendientes = gananciasPendientes;
     this.notificacionesPendientes = gananciasPendientes ? 1 : 0;
   }
@@ -545,16 +545,16 @@ export class NotificacionesModalComponent implements OnInit {
   notificaciones: any[] = [];
 
   ngOnInit() {
-    // Construir notificaciones dinámicas
+    // Notificación BUS (liquidación mensual del proveedor)
     if (this.gananciasPendientes) {
       this.notificaciones.push({
-        id: 'ganancias-' + this.gananciasPendientes.mes,
+        id: 'ganancias-bus-' + this.gananciasPendientes.mes,
         tipo: 'GANANCIAS_MENSUALES',
-        titulo: 'Transferir ganancias',
+        titulo: 'Ganancia Bus (liquidación)',
         mensaje: this.gananciasPendientes.mesDisplay,
-        detalle: `Celular: $${this.gananciasPendientes.gananciaCelular.toFixed(2)} | Bus: $${this.gananciasPendientes.gananciaBus.toFixed(2)} | Total: $${this.gananciasPendientes.total.toFixed(2)}`,
-        icono: 'cash-outline',
-        color: 'success'
+        detalle: `$${this.gananciasPendientes.gananciaBus.toFixed(2)} → transferir a Caja Chica`,
+        icono: 'bus-outline',
+        color: 'warning'
       });
     }
   }
@@ -567,7 +567,7 @@ export class NotificacionesModalComponent implements OnInit {
     // Cerrar modal primero
     await this.modalCtrl.dismiss({ reload: false });
 
-    // Navegar a página de transferencia
+    // Navegar a página de transferencia BUS
     if (notif.tipo === 'GANANCIAS_MENSUALES') {
       await this.router.navigate(['/home/transferir-ganancias'], {
         state: { ganancias: this.gananciasPendientes }

@@ -1,0 +1,72 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="cerrar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>{{ tituloModal }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (loading) {
+    <div class="loading-state">
+      <ion-icon [name]="iconoServicio"></ion-icon>
+      <p>Cargando historial...</p>
+    </div>
+  } @else {
+    <div class="modal-content">
+
+      @if (historial.length > 0) {
+        <ion-card class="historial-card">
+          @for (r of historial; track r.id; let last = $last) {
+            <div class="historial-row">
+              <!-- Icono según estado/tipo -->
+              @if (tipo === 'CELULAR') {
+                <div class="historial-icon" [class.pagado]="r.pagado" [class.pendiente]="!r.pagado">
+                  <ion-icon [name]="r.pagado ? 'checkmark-circle-outline' : 'alert-circle-outline'"></ion-icon>
+                </div>
+              } @else {
+                <div class="historial-icon bus">
+                  <ion-icon name="bus-outline"></ion-icon>
+                </div>
+              }
+
+              <!-- Detalles -->
+              <div class="historial-details">
+                <div class="historial-fecha">{{ formatearFecha(r.fecha) }}</div>
+                @if (tipo === 'CELULAR') {
+                  <div class="historial-sub">
+                    Virtual: ${{ r.monto_virtual | number:'1.2-2' }} ·
+                    Deuda: ${{ r.monto_a_pagar | number:'1.2-2' }}
+                  </div>
+                } @else {
+                  @if (r.notas) {
+                    <div class="historial-sub">{{ r.notas }}</div>
+                  }
+                }
+              </div>
+
+              <!-- Badge/Monto -->
+              @if (tipo === 'CELULAR') {
+                <div class="historial-badge" [class.pagado]="r.pagado" [class.pendiente]="!r.pagado">
+                  {{ r.pagado ? 'Pagado' : 'Pendiente' }}
+                </div>
+              } @else {
+                <div class="historial-monto">${{ r.monto_virtual | number:'1.2-2' }}</div>
+              }
+            </div>
+            @if (!last) { <div class="divider"></div> }
+          }
+        </ion-card>
+      } @else {
+        <div class="empty-state">
+          <ion-icon [name]="iconoServicio"></ion-icon>
+          <p>Sin movimientos registrados</p>
+        </div>
+      }
+
+    </div>
+  }
+</ion-content>

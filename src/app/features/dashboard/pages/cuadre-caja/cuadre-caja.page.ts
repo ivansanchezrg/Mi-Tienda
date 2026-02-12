@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCard, IonNote, AlertController
+  IonContent, IonIcon, IonCard, IonNote
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -35,14 +35,16 @@ export class CuadreCajaPage implements OnInit {
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
   private recargasService = inject(RecargasService);
-  private alertCtrl = inject(AlertController);
-
   form!: FormGroup;
   loading = true;
 
   // Saldos anteriores (virtuales)
   saldoAnteriorCelular = 0;
   saldoAnteriorBus = 0;
+
+  // Agregado hoy de recargas virtuales (v4.5)
+  agregadoCelularHoy = 0;
+  agregadoBusHoy = 0;
 
   constructor() {
     addIcons({
@@ -75,9 +77,14 @@ export class CuadreCajaPage implements OnInit {
   async cargarSaldosAnteriores() {
     this.loading = true;
     try {
-      const saldos = await this.recargasService.getSaldosAnteriores();
+      const [saldos, agregado] = await Promise.all([
+        this.recargasService.getSaldosAnteriores(),
+        this.recargasService.getAgregadoVirtualHoy()
+      ]);
       this.saldoAnteriorCelular = saldos.celular;
       this.saldoAnteriorBus = saldos.bus;
+      this.agregadoCelularHoy = agregado.celular;
+      this.agregadoBusHoy = agregado.bus;
     } catch (error) {
       console.error('Error al cargar saldos:', error);
       await this.ui.showError('Error al cargar saldos anteriores');
@@ -95,16 +102,16 @@ export class CuadreCajaPage implements OnInit {
     return this.form.get('saldoBusActual')?.value || 0;
   }
 
-  // Cálculos de ventas (efectivo vendido)
+  // Cálculos de ventas (efectivo vendido) - v4.5
   get ventaCelular(): number {
-    return this.saldoAnteriorCelular - this.saldoCelularActual;
+    return (this.saldoAnteriorCelular + this.agregadoCelularHoy) - this.saldoCelularActual;
   }
 
   get ventaBus(): number {
-    return this.saldoAnteriorBus - this.saldoBusActual;
+    return (this.saldoAnteriorBus + this.agregadoBusHoy) - this.saldoBusActual;
   }
 
-  // Validaciones
+  // Validaciones (v4.5 — venta puede ser positiva incluso si saldo_actual > saldo_anterior)
   get ventaCelularValida(): boolean {
     return this.ventaCelular >= 0;
   }
@@ -125,74 +132,4 @@ export class CuadreCajaPage implements OnInit {
     this.form.reset();
   }
 
-  /**
-   * TEMPORAL - SOLO PARA TESTING
-   * Confirma y guarda las recargas en la base de datos
-   * Este método no debería existir en producción (Cuadre es solo visual)
-   */
-  async confirmarRecargas() {
-    // Validar que haya resultado para confirmar
-    if (!this.mostrarResultado) {
-      await this.ui.showError('Completa los campos primero');
-      return;
-    }
-
-    // Confirmar con el usuario
-    const alert = await this.alertCtrl.create({
-      header: 'Confirmar Recargas',
-      message: '¿Guardar estas recargas en la base de datos? (Solo Testing)',
-      buttons: [
-        {
-          text: 'Cancelar',
-          role: 'cancel'
-        },
-        {
-          text: 'Confirmar',
-          role: 'confirm'
-        }
-      ]
-    });
-
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-
-    if (role !== 'confirm') return;
-
-    // Mostrar loading
-    await this.ui.showLoading('Guardando recargas...');
-
-    try {
-      // Obtener empleado actual
-      const empleado = await this.recargasService.obtenerEmpleadoActual();
-      if (!empleado) {
-        throw new Error('No se pudo obtener el empleado actual');
-      }
-
-      // Preparar parámetros
-      const params = {
-        fecha: this.recargasService.getFechaLocal(),
-        empleado_id: empleado.id,
-        saldo_anterior_celular: this.saldoAnteriorCelular,
-        saldo_actual_celular: this.saldoCelularActual,
-        venta_celular: this.ventaCelular,
-        saldo_anterior_bus: this.saldoAnteriorBus,
-        saldo_actual_bus: this.saldoBusActual,
-        venta_bus: this.ventaBus
-      };
-
-      // Ejecutar función PostgreSQL
-      const resultado = await this.recargasService.registrarRecargasTesting(params);
-
-      await this.ui.hideLoading();
-      await this.ui.showSuccess('Recargas guardadas correctamente');
-
-      // Navegar a Home con refresh
-      await this.router.navigate(['/home'], { queryParams: { refresh: true } });
-
-    } catch (error) {
-      console.error('Error al confirmar recargas:', error);
-      await this.ui.hideLoading();
-      await this.ui.showError('Error al guardar las recargas');
-    }
-  }
 }

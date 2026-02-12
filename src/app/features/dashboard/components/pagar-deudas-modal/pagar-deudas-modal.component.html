@@ -1,0 +1,113 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="cerrar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Pagar al Proveedor - Celular</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (loading) {
+    <div class="loading-state">
+      <ion-icon name="wallet-outline"></ion-icon>
+      <p>Cargando deudas...</p>
+    </div>
+  } @else {
+    <div class="modal-content">
+
+      @if (deudasPendientes.length > 0) {
+
+        <!-- Deudas pendientes -->
+        <ion-card class="deudas-card">
+          <!-- Seleccionar todas -->
+          <div class="select-all-row" (click)="seleccionarTodas()">
+            <div class="checkbox" [class.checked]="deudasSeleccionadas.size === deudasPendientes.length">
+              @if (deudasSeleccionadas.size === deudasPendientes.length) {
+                <ion-icon name="checkmark-circle-outline"></ion-icon>
+              }
+            </div>
+            <span>Seleccionar todas</span>
+            @if (deudasSeleccionadas.size > 0) {
+              <span class="total-deudas">${{ totalSeleccionado | number:'1.2-2' }}</span>
+            }
+          </div>
+
+          <!-- Lista de deudas -->
+          @for (deuda of deudasPendientes; track deuda.id; let last = $last) {
+            <div class="deuda-row" (click)="toggleDeuda(deuda.id)">
+              <div class="checkbox" [class.checked]="deudasSeleccionadas.has(deuda.id)">
+                @if (deudasSeleccionadas.has(deuda.id)) {
+                  <ion-icon name="checkmark-circle-outline"></ion-icon>
+                }
+              </div>
+              <div class="deuda-details">
+                <div class="deuda-fecha">{{ formatearFecha(deuda.fecha) }}</div>
+                <div class="deuda-sub">
+                  Virtual: ${{ deuda.monto_virtual | number:'1.2-2' }}
+                </div>
+              </div>
+              <div class="deuda-monto">${{ deuda.monto_a_pagar | number:'1.2-2' }}</div>
+            </div>
+            @if (!last) { <div class="divider"></div> }
+          }
+        </ion-card>
+
+        <!-- Validación de saldo -->
+        @if (deudasSeleccionadas.size > 0) {
+          <ion-card class="saldo-card" [class.error]="!saldoSuficiente">
+            <div class="saldo-header">
+              <ion-icon name="wallet-outline"></ion-icon>
+              <span>CAJA CELULAR</span>
+            </div>
+            <div class="divider"></div>
+            <div class="saldo-row">
+              <span>Saldo actual</span>
+              <span class="saldo-valor">${{ saldoDisponible | number:'1.2-2' }}</span>
+            </div>
+            <div class="saldo-row">
+              <span>Saldo después del pago</span>
+              <span class="saldo-valor" [class.success]="saldoSuficiente" [class.danger]="!saldoSuficiente">
+                ${{ saldoDespues | number:'1.2-2' }}
+                @if (saldoSuficiente) {
+                  <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
+                } @else {
+                  <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+                }
+              </span>
+            </div>
+          </ion-card>
+
+          <!-- Alerta de saldo insuficiente -->
+          @if (!saldoSuficiente) {
+            <div class="alerta-saldo">
+              <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+              <div>
+                <strong>Saldo insuficiente</strong>
+                <p>Vendé más saldo virtual para acumular efectivo</p>
+              </div>
+            </div>
+          }
+        }
+
+        <!-- Botón confirmar -->
+        <button
+          class="primary-btn"
+          [disabled]="!puedeConfirmar"
+          (click)="confirmarPago()">
+          <ion-icon name="cash-outline"></ion-icon>
+          Confirmar Pago
+        </button>
+
+      } @else {
+        <div class="empty-state">
+          <ion-icon name="checkmark-circle-outline"></ion-icon>
+          <p>No hay deudas pendientes</p>
+        </div>
+      }
+
+    </div>
+  }
+</ion-content>

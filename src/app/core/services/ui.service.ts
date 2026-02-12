@@ -46,7 +46,7 @@ export class UiService {
   async showError(message: string) {
     const toast = await this.toastCtrl.create({
       message: this.formatErrorMessage(message),
-      duration: 3000,
+      duration: 5000,
       color: 'danger',
       position: 'top',
       icon: alertCircleOutline,
@@ -114,7 +114,7 @@ export class UiService {
                : undefined;
     const toast = await this.toastCtrl.create({
       message,
-      duration: color === 'danger' ? 3000 : 2000,
+      duration: 5000,
       color,
       position: 'top',
       ...(icon && { icon }),
@@ -127,7 +127,7 @@ export class UiService {
   async showSuccess(message: string) {
     const toast = await this.toastCtrl.create({
       message: message,
-      duration: 2000,
+      duration: 5000,
       color: 'success',
       position: 'top',
       icon: checkmarkCircleOutline

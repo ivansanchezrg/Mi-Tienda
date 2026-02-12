@@ -1,9 +1,12 @@
-# Sistema de Control de Recargas y Cierre Diario (VERSIÓN 4.1)
+# Sistema de Control de Recargas y Cierre Diario (VERSIÓN 4.5)
 
-**IMPORTANTE:** Este documento refleja la Versión 4.1 del sistema donde:
+**IMPORTANTE:** Este documento refleja la Versión 4.5 del sistema donde:
+
 - ✅ **NUEVO v4.1:** Múltiples cierres por día (1 cierre por turno)
 - ✅ **NUEVO v4.1:** Relación turno ↔ cierre (1:1)
 - ✅ **NUEVO v4.1:** Recargas por turno (no por día)
+- ✅ **NUEVO v4.5:** Fórmula de venta incluye agregado del proveedor
+- ✅ **NUEVO v4.5:** `recargas_virtuales` integradas en el cálculo del cierre
 - ✅ Ultra-simplificado: Solo 1 campo de entrada (efectivo_recaudado)
 - ✅ Configuración centralizada: fondo_fijo desde configuraciones
 - ✅ Fórmula simplificada: depósito = efectivo - fondo - transferencia
@@ -40,16 +43,16 @@ Este documento describe el **Sistema de Control de Recargas y Cierre por Turno v
 
 ### Características Principales v4.1
 
-| Característica | Descripción |
-|----------------|-------------|
-| **Múltiples Cierres/Día** | Cada turno tiene su propio cierre contable |
-| **Ultra-Simplificado** | Solo requiere 1 campo: efectivo_recaudado |
-| **Turnos Independientes** | Cada empleado abre/cierra su turno |
-| **Configuración Centralizada** | Fondo fijo y transferencia desde config |
-| **Transaccional** | Rollback automático en caso de error |
-| **Trazable por Turno** | Cada operación vinculada a su turno |
-| **Validado** | Múltiples capas de validación |
-| **Auditado** | Historial completo por turno |
+| Característica                 | Descripción                                |
+| ------------------------------ | ------------------------------------------ |
+| **Múltiples Cierres/Día**      | Cada turno tiene su propio cierre contable |
+| **Ultra-Simplificado**         | Solo requiere 1 campo: efectivo_recaudado  |
+| **Turnos Independientes**      | Cada empleado abre/cierra su turno         |
+| **Configuración Centralizada** | Fondo fijo y transferencia desde config    |
+| **Transaccional**              | Rollback automático en caso de error       |
+| **Trazable por Turno**         | Cada operación vinculada a su turno        |
+| **Validado**                   | Múltiples capas de validación              |
+| **Auditado**                   | Historial completo por turno               |
 
 ---
 
@@ -58,11 +61,13 @@ Este documento describe el **Sistema de Control de Recargas y Cierre por Turno v
 ### 2.1. Múltiples Cierres por Día
 
 #### Antes (v4.0)
+
 - 1 solo cierre por día
 - Validación: `UNIQUE(fecha)` en `caja_fisica_diaria`
 - Todos los empleados acumulaban en el mismo cierre
 
 #### Ahora (v4.1)
+
 - **Múltiples cierres por día** (1 por turno)
 - Validación: `UNIQUE(turno_id)` en `caja_fisica_diaria`
 - Cada turno tiene su cierre independiente
@@ -122,6 +127,7 @@ CREATE TABLE recargas (
 ```
 
 **Cambio crítico:**
+
 - **Antes:** `UNIQUE(fecha, tipo_servicio_id)` → 1 registro por día
 - **Ahora:** `UNIQUE(turno_id, tipo_servicio_id)` → 1 registro por turno
 
@@ -140,11 +146,13 @@ CREATE FUNCTION ejecutar_cierre_diario(
 ```
 
 **Nuevas validaciones:**
+
 1. El turno debe existir
 2. El turno no debe tener cierre previo
 3. El turno debe estar abierto (sin hora_cierre)
 
 **Nueva operación:**
+
 - Cierra el turno específico automáticamente (`hora_cierre = NOW()`)
 
 ### 2.6. Servicio TypeScript Actualizado
@@ -180,22 +188,26 @@ CREATE FUNCTION ejecutar_cierre_diario(
 El sistema maneja 4 cajas independientes con propósitos específicos:
 
 #### 🏦 CAJA (Principal)
+
 - **Propósito**: **Caja de ACUMULACIÓN** (como caja fuerte)
 - **Recibe**: Depósitos del efectivo recaudado de cada turno
 - **Nota**: NO recibe los $20 de transferencia (se toman físicamente del efectivo)
 - **Tipo**: Efectivo acumulado (NO es la caja física del turno)
 
 #### 💰 CAJA_CHICA
+
 - **Propósito**: Gastos menores y operativos
 - **Recibe**: $20 por turno cerrado (automático desde config)
 - **Tipo**: Efectivo físico
 
 #### 📱 CAJA_CELULAR
+
 - **Propósito**: Control de efectivo de recargas celular
 - **Recibe**: Efectivo de ventas de recargas celular por turno
 - **Tipo**: Efectivo físico
 
 #### 🚌 CAJA_BUS
+
 - **Propósito**: Control de efectivo de recargas bus
 - **Recibe**: Efectivo de ventas de recargas bus por turno
 - **Tipo**: Efectivo físico
@@ -203,41 +215,44 @@ El sistema maneja 4 cajas independientes con propósitos específicos:
 ### 3.2. Tablas Principales v4.1
 
 #### 🕐 `turnos_caja` (NUEVA)
+
 Control de turnos de apertura/cierre de caja.
 
-| Campo | Descripción |
-|-------|-------------|
-| `id` | UUID único del turno |
-| `fecha` | Fecha del turno |
-| `numero_turno` | 1, 2, 3... (múltiples por día) |
-| `empleado_id` | Quién trabaja el turno |
-| `hora_apertura` | Timestamp de apertura |
-| `hora_cierre` | Timestamp de cierre (NULL si abierto) |
+| Campo           | Descripción                           |
+| --------------- | ------------------------------------- |
+| `id`            | UUID único del turno                  |
+| `fecha`         | Fecha del turno                       |
+| `numero_turno`  | 1, 2, 3... (múltiples por día)        |
+| `empleado_id`   | Quién trabaja el turno                |
+| `hora_apertura` | Timestamp de apertura                 |
+| `hora_cierre`   | Timestamp de cierre (NULL si abierto) |
 
 #### 📋 `caja_fisica_diaria`
+
 Representa la **CAJA FÍSICA por turno** (ultra-simplificada).
 
-| Campo | Descripción |
-|-------|-------------|
-| `id` | UUID único del cierre |
-| `fecha` | Fecha del cierre |
-| **`turno_id`** 🆕 | **UUID del turno (relación 1:1)** |
-| `empleado_id` | Quién realizó el cierre |
-| **`efectivo_recaudado`** ⭐ | **¡ÚNICO CAMPO REQUERIDO!** |
-| `observaciones` | Notas del cierre (opcional) |
+| Campo                      | Descripción                       |
+| -------------------------- | --------------------------------- |
+| `id`                       | UUID único del cierre             |
+| `fecha`                    | Fecha del cierre                  |
+| **`turno_id`** 🆕          | **UUID del turno (relación 1:1)** |
+| `empleado_id`              | Quién realizó el cierre           |
+| **`efectivo_recaudado`** ⭐ | **¡ÚNICO CAMPO REQUERIDO!**       |
+| `observaciones`            | Notas del cierre (opcional)       |
 
 #### 📊 `recargas`
+
 Control de saldo virtual por servicio **y turno**.
 
-| Campo | Descripción |
-|-------|-------------|
-| `id` | UUID único del registro |
-| `fecha` | Fecha del registro |
-| **`turno_id`** 🆕 | **UUID del turno** |
-| `tipo_servicio_id` | CELULAR o BUS |
-| `venta_dia` | Venta del turno |
-| `saldo_virtual_anterior` | Saldo antes del turno |
-| `saldo_virtual_actual` | Saldo después del turno |
+| Campo                    | Descripción             |
+| ------------------------ | ----------------------- |
+| `id`                     | UUID único del registro |
+| `fecha`                  | Fecha del registro      |
+| **`turno_id`** 🆕        | **UUID del turno**      |
+| `tipo_servicio_id`       | CELULAR o BUS           |
+| `venta_dia`              | Venta del turno         |
+| `saldo_virtual_anterior` | Saldo antes del turno   |
+| `saldo_virtual_actual`   | Saldo después del turno |
 
 ---
 
@@ -360,6 +375,7 @@ Usuario presiona "Abrir Caja":
 #### **Paso 1: Ingresar Datos (Ultra-Simplificado)**
 
 Usuario solo ingresa:
+
 - ✅ **Efectivo Total Contado**: El dinero en caja física al final del turno
 - ✅ Saldo Virtual Celular Final
 - ✅ Saldo Virtual Bus Final
@@ -412,12 +428,12 @@ SELECT ejecutar_cierre_diario(
 
 ### 6.1. Mapeo de Referencias v4.1
 
-| Operación | Tipo Referencia | Referencia ID | Tabla Origen | Turno |
-|-----------|-----------------|---------------|--------------|-------|
-| Depósito a CAJA | CAJA_FISICA_DIARIA | UUID del cierre | `caja_fisica_diaria` | ✅ |
-| Transferencia CAJA_CHICA | CAJA_FISICA_DIARIA | UUID del cierre | `caja_fisica_diaria` | ✅ |
-| Ingreso celular | RECARGAS | UUID recarga celular | `recargas` | ✅ |
-| Ingreso bus | RECARGAS | UUID recarga bus | `recargas` | ✅ |
+| Operación                | Tipo Referencia    | Referencia ID        | Tabla Origen         | Turno |
+| ------------------------ | ------------------ | -------------------- | -------------------- | ----- |
+| Depósito a CAJA          | CAJA_FISICA_DIARIA | UUID del cierre      | `caja_fisica_diaria` | ✅     |
+| Transferencia CAJA_CHICA | CAJA_FISICA_DIARIA | UUID del cierre      | `caja_fisica_diaria` | ✅     |
+| Ingreso celular          | RECARGAS           | UUID recarga celular | `recargas`           | ✅     |
+| Ingreso bus              | RECARGAS           | UUID recarga bus     | `recargas`           | ✅     |
 
 ### 6.2. Trazabilidad por Turno
 
@@ -500,10 +516,12 @@ END IF;
 
 **Fecha:** 2026-02-07
 **Configuración:**
+
 - Fondo Fijo: $40.00
 - Transferencia Caja Chica: $20.00
 
 **Saldos Iniciales (08:00):**
+
 - Saldo Virtual Celular: $100.00
 - Saldo Virtual Bus: $285.00
 - CAJA: $500.00
@@ -516,6 +534,7 @@ END IF;
 ### TURNO 1 (08:00 - 10:00)
 
 #### Apertura
+
 ```sql
 INSERT INTO turnos_caja VALUES (
   'turno-1-id',
@@ -531,15 +550,19 @@ INSERT INTO turnos_caja VALUES (
 #### Cierre (10:00)
 
 **Usuario ingresa:**
+
 - Efectivo: $140.00
 - Celular Final: $75.00
 - Bus Final: $250.00
 
-**Sistema calcula:**
+**Sistema calcula (v4.5):**
+
 ```
 Depósito = $140 - $40 - $20 = $80
-Venta Celular = $100 - $75 = $25
-Venta Bus = $285 - $250 = $35
+Venta Celular = ($100 + agregado_celular_hoy) - $75
+             = ($100 + $0) - $75 = $25   (sin recarga del proveedor ese día)
+Venta Bus = ($285 + agregado_bus_hoy) - $250
+          = ($285 + $0) - $250 = $35
 ```
 
 **Función ejecuta:**
@@ -573,6 +596,7 @@ UPDATE turnos_caja SET hora_cierre = '2026-02-07 10:00:00' WHERE id = 'turno-1-i
 ```
 
 **Saldos después Turno 1:**
+
 - CAJA: $580.00 (+$80)
 - CAJA_CHICA: $50.00 (+$20)
 - CAJA_CELULAR: $225.00 (+$25)
@@ -585,6 +609,7 @@ UPDATE turnos_caja SET hora_cierre = '2026-02-07 10:00:00' WHERE id = 'turno-1-i
 ### TURNO 2 (12:00 - 15:00)
 
 #### Apertura
+
 ```sql
 INSERT INTO turnos_caja VALUES (
   'turno-2-id',
@@ -600,11 +625,13 @@ INSERT INTO turnos_caja VALUES (
 #### Cierre (15:00)
 
 **Usuario ingresa:**
+
 - Efectivo: $160.00
 - Celular Final: $50.00
 - Bus Final: $220.00
 
 **Sistema obtiene saldos anteriores:**
+
 ```typescript
 // getSaldosAnteriores() - Ordena por created_at DESC
 Celular: $75.00 (del turno 1) ✅
@@ -612,6 +639,7 @@ Bus: $250.00 (del turno 1) ✅
 ```
 
 **Sistema calcula:**
+
 ```
 Depósito = $160 - $40 - $20 = $100
 Venta Celular = $75 - $50 = $25
@@ -649,6 +677,7 @@ UPDATE turnos_caja SET hora_cierre = '2026-02-07 15:00:00' WHERE id = 'turno-2-i
 ```
 
 **Saldos Finales del Día:**
+
 - CAJA: $680.00 (Turno 1: +$80, Turno 2: +$100)
 - CAJA_CHICA: $70.00 (Turno 1: +$20, Turno 2: +$20)
 - CAJA_CELULAR: $250.00 (Turno 1: +$25, Turno 2: +$25)
@@ -753,160 +782,172 @@ ORDER BY t.numero_turno;
 
 ```sql
 -- ==========================================
--- FUNCIÓN: ejecutar_cierre_diario (VERSIÓN 4.1)
+-- FUNCIÓN: ejecutar_cierre_diario (v4.5)
 -- ==========================================
--- Ejecuta el cierre de turno completo en una transacción atómica
--- Si alguna operación falla, se hace rollback automático de todo
---
--- CAMBIOS EN VERSIÓN 4.1:
--- ✅ Múltiples cierres por día: 1 cierre por turno
--- ✅ Nuevo parámetro: p_turno_id (obligatorio)
--- ✅ Validación: El turno no debe tener cierre previo
--- ✅ Cierre automático del turno específico (garantiza consistencia)
--- ✅ Atomicidad: Si falla algo, se revierte TODO incluyendo cierre de turno
---
--- CAMBIOS EN VERSIÓN 4.0:
--- ✅ Ultra-simplificado: Solo requiere efectivo_recaudado
--- ✅ Fondo fijo desde config: configuraciones.fondo_fijo_diario
--- ✅ Fórmula final: depósito = efectivo_recaudado - fondo_fijo - transferencia
--- ✅ Operaciones: INGRESO a CAJA, TRANSFERENCIA a CAJA_CHICA
--- ✅ No requiere saldo_inicial ni fondo_siguiente_dia (viene de config)
+-- CAMBIOS v4.5:
+--   - Fórmula corregida para venta_celular y venta_bus:
+--       venta = (saldo_anterior + agregado_dia) - saldo_final
+--       donde agregado_dia = SUM(monto_virtual) de recargas_virtuales del día
+--   - campo validado corregido en tabla recargas
+--   - Soporta recargas del proveedor CELULAR sin romper el cálculo
+--   - Soporta compras de saldo BUS sin romper el cálculo
 -- ==========================================
-
--- Eliminar la función anterior si existe
-DROP FUNCTION IF EXISTS ejecutar_cierre_diario;
 
 CREATE OR REPLACE FUNCTION ejecutar_cierre_diario(
-  p_turno_id UUID,
-  p_fecha DATE,
-  p_empleado_id INTEGER,
-  p_efectivo_recaudado DECIMAL(12,2),
-  p_saldo_celular_final DECIMAL(12,2),
-  p_saldo_bus_final DECIMAL(12,2),
-  p_saldo_anterior_celular DECIMAL(12,2),
-  p_saldo_anterior_bus DECIMAL(12,2),
-  p_saldo_anterior_caja DECIMAL(12,2),
-  p_saldo_anterior_caja_chica DECIMAL(12,2),
+  p_turno_id                   UUID,
+  p_fecha                      DATE,
+  p_empleado_id                INTEGER,
+  p_efectivo_recaudado         DECIMAL(12,2),
+  p_saldo_celular_final        DECIMAL(12,2),
+  p_saldo_bus_final            DECIMAL(12,2),
+  p_saldo_anterior_celular     DECIMAL(12,2),
+  p_saldo_anterior_bus         DECIMAL(12,2),
+  p_saldo_anterior_caja        DECIMAL(12,2),
+  p_saldo_anterior_caja_chica  DECIMAL(12,2),
   p_saldo_anterior_caja_celular DECIMAL(12,2),
-  p_saldo_anterior_caja_bus DECIMAL(12,2),
-  p_observaciones TEXT DEFAULT NULL
+  p_saldo_anterior_caja_bus    DECIMAL(12,2),
+  p_observaciones              TEXT DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  -- IDs de tablas
-  v_caja_id INTEGER := 1;
-  v_caja_chica_id INTEGER := 2;
-  v_caja_celular_id INTEGER := 3;
-  v_caja_bus_id INTEGER := 4;
-  v_tipo_servicio_celular_id INTEGER;
-  v_tipo_servicio_bus_id INTEGER;
-  v_tipo_ref_caja_fisica_id INTEGER;
+  -- IDs de cajas (por código para evitar hardcodeo)
+  v_caja_id          INTEGER;
+  v_caja_chica_id    INTEGER;
+  v_caja_celular_id  INTEGER;
+  v_caja_bus_id      INTEGER;
 
-  -- Configuración (desde tabla configuraciones)
-  v_fondo_fijo DECIMAL(10,2);
+  -- IDs de servicios y referencias
+  v_tipo_servicio_celular_id  INTEGER;
+  v_tipo_servicio_bus_id      INTEGER;
+  v_tipo_ref_caja_fisica_id   INTEGER;
+  v_tipo_ref_recargas_id      INTEGER;
+
+  -- Configuración
+  v_fondo_fijo           DECIMAL(10,2);
   v_transferencia_diaria DECIMAL(12,2);
 
-  -- Cálculos v4.0 (ultra-simplificados)
-  v_dinero_a_depositar DECIMAL(12,2);
-  v_saldo_final_caja DECIMAL(12,2);
-  v_saldo_final_caja_chica DECIMAL(12,2);
+  -- Recargas virtuales del día (v4.5)
+  v_agregado_celular  DECIMAL(12,2);
+  v_agregado_bus      DECIMAL(12,2);
 
-  -- Ventas de recargas
-  v_venta_celular DECIMAL(12,2);
-  v_venta_bus DECIMAL(12,2);
+  -- Cálculos
+  v_dinero_a_depositar    DECIMAL(12,2);
+  v_saldo_final_caja      DECIMAL(12,2);
+  v_saldo_final_caja_chica DECIMAL(12,2);
+  v_venta_celular         DECIMAL(12,2);
+  v_venta_bus             DECIMAL(12,2);
   v_saldo_final_caja_celular DECIMAL(12,2);
-  v_saldo_final_caja_bus DECIMAL(12,2);
+  v_saldo_final_caja_bus   DECIMAL(12,2);
 
   -- IDs generados
-  v_cierre_id UUID;
+  v_cierre_id          UUID;
   v_recarga_celular_id UUID;
-  v_recarga_bus_id UUID;
-
-  -- Control de turno
-  v_turno_cerrado BOOLEAN := FALSE;
+  v_recarga_bus_id     UUID;
+  v_turno_cerrado      BOOLEAN := FALSE;
 BEGIN
   -- ==========================================
   -- 1. VALIDACIONES
   -- ==========================================
 
-  -- Validar que el turno exista
   IF NOT EXISTS (SELECT 1 FROM turnos_caja WHERE id = p_turno_id) THEN
     RAISE EXCEPTION 'El turno especificado no existe';
   END IF;
 
-  -- Validar que el turno no tenga ya un cierre
   IF EXISTS (SELECT 1 FROM caja_fisica_diaria WHERE turno_id = p_turno_id) THEN
     RAISE EXCEPTION 'El turno ya tiene un cierre registrado';
   END IF;
 
-  -- Validar que el turno esté abierto (sin hora_cierre)
   IF EXISTS (SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND hora_cierre IS NOT NULL) THEN
     RAISE EXCEPTION 'El turno ya está cerrado';
   END IF;
 
-  -- Obtener configuración del sistema
+  -- ==========================================
+  -- 2. OBTENER IDs POR CÓDIGO
+  -- ==========================================
+
+  SELECT id INTO v_caja_id         FROM cajas WHERE codigo = 'CAJA';
+  SELECT id INTO v_caja_chica_id   FROM cajas WHERE codigo = 'CAJA_CHICA';
+  SELECT id INTO v_caja_celular_id FROM cajas WHERE codigo = 'CAJA_CELULAR';
+  SELECT id INTO v_caja_bus_id     FROM cajas WHERE codigo = 'CAJA_BUS';
+
+  SELECT id INTO v_tipo_servicio_celular_id FROM tipos_servicio WHERE codigo = 'CELULAR';
+  SELECT id INTO v_tipo_servicio_bus_id     FROM tipos_servicio WHERE codigo = 'BUS';
+  SELECT id INTO v_tipo_ref_caja_fisica_id  FROM tipos_referencia WHERE codigo = 'CAJA_FISICA_DIARIA';
+  SELECT id INTO v_tipo_ref_recargas_id     FROM tipos_referencia WHERE codigo = 'RECARGAS';
+
+  -- Obtener configuración
   SELECT fondo_fijo_diario, caja_chica_transferencia_diaria
   INTO v_fondo_fijo, v_transferencia_diaria
-  FROM configuraciones
-  LIMIT 1;
+  FROM configuraciones LIMIT 1;
 
-  -- Validar que exista configuración
   IF v_fondo_fijo IS NULL OR v_transferencia_diaria IS NULL THEN
     RAISE EXCEPTION 'No se encontró configuración del sistema';
   END IF;
 
-  -- Obtener IDs de tipos de servicio
-  SELECT id INTO v_tipo_servicio_celular_id FROM tipos_servicio WHERE codigo = 'CELULAR';
-  SELECT id INTO v_tipo_servicio_bus_id FROM tipos_servicio WHERE codigo = 'BUS';
+  -- ==========================================
+  -- 3. RECARGAS VIRTUALES DEL DÍA (v4.5)
+  -- Suma todo lo que el proveedor/compra agregó al saldo virtual hoy
+  -- ==========================================
 
-  -- Obtener ID de tipo de referencia
-  SELECT id INTO v_tipo_ref_caja_fisica_id FROM tipos_referencia WHERE codigo = 'CAJA_FISICA_DIARIA';
+  SELECT COALESCE(SUM(monto_virtual), 0)
+  INTO v_agregado_celular
+  FROM recargas_virtuales
+  WHERE fecha = p_fecha AND tipo_servicio_id = v_tipo_servicio_celular_id;
+
+  SELECT COALESCE(SUM(monto_virtual), 0)
+  INTO v_agregado_bus
+  FROM recargas_virtuales
+  WHERE fecha = p_fecha AND tipo_servicio_id = v_tipo_servicio_bus_id;
 
   -- ==========================================
-  -- 2. INSERTAR REGISTRO EN caja_fisica_diaria
+  -- 4. CÁLCULOS
+  -- ==========================================
+
+  -- Fórmula caja principal
+  v_dinero_a_depositar := p_efectivo_recaudado - v_fondo_fijo - v_transferencia_diaria;
+
+  IF v_dinero_a_depositar < 0 THEN
+    RAISE EXCEPTION 'Dinero a depositar negativo. Efectivo: $%, Fondo: $%, Transferencia: $%',
+      p_efectivo_recaudado, v_fondo_fijo, v_transferencia_diaria;
+  END IF;
+
+  v_saldo_final_caja       := p_saldo_anterior_caja + v_dinero_a_depositar;
+  v_saldo_final_caja_chica := p_saldo_anterior_caja_chica + v_transferencia_diaria;
+
+  -- Fórmula corregida v4.5: descuenta lo que el proveedor agregó
+  v_venta_celular := (p_saldo_anterior_celular + v_agregado_celular) - p_saldo_celular_final;
+  v_venta_bus     := (p_saldo_anterior_bus     + v_agregado_bus)     - p_saldo_bus_final;
+
+  -- Validar ventas negativas (v4.5)
+  IF v_venta_celular < 0 THEN
+    RAISE EXCEPTION 'Venta celular negativa ($%). Registrá la recarga del proveedor en Recargas Virtuales antes de cerrar.', v_venta_celular;
+  END IF;
+
+  IF v_venta_bus < 0 THEN
+    RAISE EXCEPTION 'Venta bus negativa ($%). Registrá la compra de saldo virtual en Recargas Virtuales antes de cerrar.', v_venta_bus;
+  END IF;
+
+  v_saldo_final_caja_celular := p_saldo_anterior_caja_celular + v_venta_celular;
+  v_saldo_final_caja_bus     := p_saldo_anterior_caja_bus     + v_venta_bus;
+
+  -- ==========================================
+  -- 5. INSERTAR caja_fisica_diaria
   -- ==========================================
 
   INSERT INTO caja_fisica_diaria (
     id, fecha, turno_id, empleado_id, efectivo_recaudado, observaciones, created_at
   ) VALUES (
-    uuid_generate_v4(), p_fecha, p_turno_id, p_empleado_id, p_efectivo_recaudado, p_observaciones, NOW()
+    uuid_generate_v4(), p_fecha, p_turno_id, p_empleado_id,
+    p_efectivo_recaudado, p_observaciones, NOW()
   )
   RETURNING id INTO v_cierre_id;
 
   -- ==========================================
-  -- 3. CÁLCULOS v4.0 (ULTRA-SIMPLIFICADOS)
+  -- 6. OPERACIÓN EN CAJA PRINCIPAL
   -- ==========================================
 
-  -- Fórmula simple: depósito = efectivo_recaudado - fondo_fijo - transferencia
-  v_dinero_a_depositar := p_efectivo_recaudado - v_fondo_fijo - v_transferencia_diaria;
-
-  -- Validar que el depósito no sea negativo
-  IF v_dinero_a_depositar < 0 THEN
-    RAISE EXCEPTION 'El dinero a depositar no puede ser negativo. Efectivo: $%, Fondo: $%, Transferencia: $%',
-      p_efectivo_recaudado, v_fondo_fijo, v_transferencia_diaria;
-  END IF;
-
-  -- Saldo final CAJA: anterior + depósito
-  v_saldo_final_caja := p_saldo_anterior_caja + v_dinero_a_depositar;
-
-  -- Saldo final CAJA_CHICA: anterior + transferencia
-  v_saldo_final_caja_chica := p_saldo_anterior_caja_chica + v_transferencia_diaria;
-
-  -- Ventas de recargas (sin cambios)
-  v_venta_celular := p_saldo_anterior_celular - p_saldo_celular_final;
-  v_venta_bus := p_saldo_anterior_bus - p_saldo_bus_final;
-
-  -- Saldos finales de cajas de recargas
-  v_saldo_final_caja_celular := p_saldo_anterior_caja_celular + v_venta_celular;
-  v_saldo_final_caja_bus := p_saldo_anterior_caja_bus + v_venta_bus;
-
-  -- ==========================================
-  -- 4. OPERACIÓN EN CAJA PRINCIPAL
-  -- ==========================================
-
-  -- INGRESO: Depósito del dinero
   IF v_dinero_a_depositar > 0 THEN
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, monto,
@@ -921,11 +962,9 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 5. TRANSFERENCIA A CAJA_CHICA
+  -- 7. TRANSFERENCIA A CAJA_CHICA
   -- ==========================================
 
-  -- La transferencia se hace FÍSICAMENTE, no desde CAJA PRINCIPAL
-  -- Por eso CAJA_CHICA recibe directamente sin operación SALIENTE en CAJA
   INSERT INTO operaciones_cajas (
     id, caja_id, empleado_id, tipo_operacion, monto,
     saldo_anterior, saldo_actual, descripcion,
@@ -938,7 +977,8 @@ BEGIN
   );
 
   -- ==========================================
-  -- 6. RECARGAS CELULAR
+  -- 8. RECARGAS CELULAR
+  -- validado v4.5: venta + saldo_final = saldo_anterior + agregado_dia
   -- ==========================================
 
   INSERT INTO recargas (
@@ -948,24 +988,26 @@ BEGIN
   ) VALUES (
     uuid_generate_v4(), p_fecha, p_turno_id, p_empleado_id, v_tipo_servicio_celular_id,
     v_venta_celular, p_saldo_anterior_celular, p_saldo_celular_final,
-    (v_venta_celular + p_saldo_celular_final) = p_saldo_anterior_celular,
+    (v_venta_celular + p_saldo_celular_final) = (p_saldo_anterior_celular + v_agregado_celular),
     NOW()
   )
   RETURNING id INTO v_recarga_celular_id;
 
-  INSERT INTO operaciones_cajas (
-    id, caja_id, empleado_id, tipo_operacion, monto,
-    saldo_anterior, saldo_actual, descripcion,
-    tipo_referencia_id, referencia_id, created_at
-  ) VALUES (
-    uuid_generate_v4(), v_caja_celular_id, p_empleado_id, 'INGRESO', v_venta_celular,
-    p_saldo_anterior_caja_celular, v_saldo_final_caja_celular,
-    'Venta del día ' || p_fecha,
-    (SELECT id FROM tipos_referencia WHERE codigo = 'RECARGAS'), v_recarga_celular_id, NOW()
-  );
+  IF v_venta_celular > 0 THEN
+    INSERT INTO operaciones_cajas (
+      id, caja_id, empleado_id, tipo_operacion, monto,
+      saldo_anterior, saldo_actual, descripcion,
+      tipo_referencia_id, referencia_id, created_at
+    ) VALUES (
+      uuid_generate_v4(), v_caja_celular_id, p_empleado_id, 'INGRESO', v_venta_celular,
+      p_saldo_anterior_caja_celular, v_saldo_final_caja_celular,
+      'Venta celular del día ' || p_fecha,
+      v_tipo_ref_recargas_id, v_recarga_celular_id, NOW()
+    );
+  END IF;
 
   -- ==========================================
-  -- 7. RECARGAS BUS
+  -- 9. RECARGAS BUS
   -- ==========================================
 
   INSERT INTO recargas (
@@ -975,90 +1017,82 @@ BEGIN
   ) VALUES (
     uuid_generate_v4(), p_fecha, p_turno_id, p_empleado_id, v_tipo_servicio_bus_id,
     v_venta_bus, p_saldo_anterior_bus, p_saldo_bus_final,
-    (v_venta_bus + p_saldo_bus_final) = p_saldo_anterior_bus,
+    (v_venta_bus + p_saldo_bus_final) = (p_saldo_anterior_bus + v_agregado_bus),
     NOW()
   )
   RETURNING id INTO v_recarga_bus_id;
 
-  INSERT INTO operaciones_cajas (
-    id, caja_id, empleado_id, tipo_operacion, monto,
-    saldo_anterior, saldo_actual, descripcion,
-    tipo_referencia_id, referencia_id, created_at
-  ) VALUES (
-    uuid_generate_v4(), v_caja_bus_id, p_empleado_id, 'INGRESO', v_venta_bus,
-    p_saldo_anterior_caja_bus, v_saldo_final_caja_bus,
-    'Venta del día ' || p_fecha,
-    (SELECT id FROM tipos_referencia WHERE codigo = 'RECARGAS'), v_recarga_bus_id, NOW()
-  );
+  IF v_venta_bus > 0 THEN
+    INSERT INTO operaciones_cajas (
+      id, caja_id, empleado_id, tipo_operacion, monto,
+      saldo_anterior, saldo_actual, descripcion,
+      tipo_referencia_id, referencia_id, created_at
+    ) VALUES (
+      uuid_generate_v4(), v_caja_bus_id, p_empleado_id, 'INGRESO', v_venta_bus,
+      p_saldo_anterior_caja_bus, v_saldo_final_caja_bus,
+      'Venta bus del día ' || p_fecha,
+      v_tipo_ref_recargas_id, v_recarga_bus_id, NOW()
+    );
+  END IF;
 
   -- ==========================================
-  -- 8. ACTUALIZAR SALDOS DE LAS CAJAS
+  -- 10. ACTUALIZAR SALDOS DE CAJAS
   -- ==========================================
 
-  UPDATE cajas SET saldo_actual = v_saldo_final_caja, updated_at = NOW()
-  WHERE id = v_caja_id;
-
-  UPDATE cajas SET saldo_actual = v_saldo_final_caja_chica, updated_at = NOW()
-  WHERE id = v_caja_chica_id;
-
-  UPDATE cajas SET saldo_actual = v_saldo_final_caja_celular, updated_at = NOW()
-  WHERE id = v_caja_celular_id;
-
-  UPDATE cajas SET saldo_actual = v_saldo_final_caja_bus, updated_at = NOW()
-  WHERE id = v_caja_bus_id;
+  UPDATE cajas SET saldo_actual = v_saldo_final_caja,        updated_at = NOW() WHERE id = v_caja_id;
+  UPDATE cajas SET saldo_actual = v_saldo_final_caja_chica,  updated_at = NOW() WHERE id = v_caja_chica_id;
+  UPDATE cajas SET saldo_actual = v_saldo_final_caja_celular, updated_at = NOW() WHERE id = v_caja_celular_id;
+  UPDATE cajas SET saldo_actual = v_saldo_final_caja_bus,    updated_at = NOW() WHERE id = v_caja_bus_id;
 
   -- ==========================================
-  -- 9. CERRAR TURNO ESPECÍFICO (NUEVO EN V4.1)
+  -- 11. CERRAR TURNO
   -- ==========================================
 
-  -- Cerrar el turno específico de este cierre
-  -- Esto garantiza consistencia: no puede haber cierre sin turno cerrado
-  UPDATE turnos_caja
-  SET hora_cierre = NOW()
-  WHERE id = p_turno_id;
-
-  -- Marcar que se cerró el turno (siempre debería ser TRUE)
+  UPDATE turnos_caja SET hora_cierre = NOW() WHERE id = p_turno_id;
   v_turno_cerrado := TRUE;
 
   -- ==========================================
-  -- 10. RETORNAR RESUMEN
+  -- 12. RETORNAR RESUMEN
   -- ==========================================
 
   RETURN json_build_object(
-    'success', true,
-    'cierre_id', v_cierre_id,
-    'turno_id', p_turno_id,
-    'fecha', p_fecha,
-    'turno_cerrado', v_turno_cerrado,
+    'success',        true,
+    'cierre_id',      v_cierre_id,
+    'turno_id',       p_turno_id,
+    'fecha',          p_fecha,
+    'turno_cerrado',  v_turno_cerrado,
+    'version',        '4.5',
     'configuracion', json_build_object(
-      'fondo_fijo', v_fondo_fijo,
+      'fondo_fijo',          v_fondo_fijo,
       'transferencia_diaria', v_transferencia_diaria
     ),
+    'recargas_virtuales_dia', json_build_object(
+      'celular', v_agregado_celular,
+      'bus',     v_agregado_bus
+    ),
     'saldos_finales', json_build_object(
-      'caja', v_saldo_final_caja,
-      'caja_chica', v_saldo_final_caja_chica,
-      'caja_celular', v_saldo_final_caja_celular,
-      'caja_bus', v_saldo_final_caja_bus
+      'caja',          v_saldo_final_caja,
+      'caja_chica',    v_saldo_final_caja_chica,
+      'caja_celular',  v_saldo_final_caja_celular,
+      'caja_bus',      v_saldo_final_caja_bus
     ),
     'operaciones_creadas', json_build_object(
-      'deposito', v_dinero_a_depositar,
+      'deposito',               v_dinero_a_depositar,
       'transferencia_caja_chica', v_transferencia_diaria,
-      'venta_celular', v_venta_celular,
-      'venta_bus', v_venta_bus
+      'venta_celular',          v_venta_celular,
+      'venta_bus',              v_venta_bus
     )
   );
 
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error en cierre diario: %', SQLERRM;
+    RAISE EXCEPTION 'Error en cierre diario v4.5: %', SQLERRM;
 END;
 $$;
 
--- ==========================================
--- COMENTARIOS
--- ==========================================
+COMMENT ON FUNCTION ejecutar_cierre_diario IS
+'Cierre diario v4.5 — Fórmula corregida para saldo virtual con recargas_virtuales del día.';
 
-COMMENT ON FUNCTION ejecutar_cierre_diario IS 'Ejecuta el cierre de turno completo en transacción atómica (Versión 4.1 - Múltiples cierres por día, 1 por turno)';
 ```
 
 ---
@@ -1070,6 +1104,7 @@ COMMENT ON FUNCTION ejecutar_cierre_diario IS 'Ejecuta el cierre de turno comple
 **Causa:** El `turno_id` pasado a la función no existe en la tabla `turnos_caja`.
 
 **Solución:**
+
 1. Verificar que se haya abierto un turno antes de cerrar
 2. Verificar que el turno_id sea correcto
 
@@ -1083,6 +1118,7 @@ SELECT * FROM turnos_caja WHERE fecha = CURRENT_DATE;
 **Causa:** Ya existe un registro en `caja_fisica_diaria` con ese `turno_id`.
 
 **Solución:**
+
 1. Verificar si el turno ya fue cerrado
 2. Abrir un nuevo turno si deseas hacer otro cierre
 
@@ -1101,6 +1137,7 @@ WHERE t.fecha = CURRENT_DATE;
 **Causa:** El turno tiene `hora_cierre` diferente de NULL.
 
 **Solución:**
+
 - Abrir un nuevo turno para hacer otro cierre
 
 ```sql
@@ -1120,6 +1157,7 @@ WHERE fecha = CURRENT_DATE;
 **Causa:** La validación TypeScript no está actualizada a v4.1.
 
 **Solución:**
+
 - Asegurarse que `existeCierreDiario()` valida por turno activo (no por fecha)
 
 ```typescript
@@ -1134,6 +1172,7 @@ WHERE fecha = CURRENT_DATE;
 **Causa:** `getSaldosAnteriores()` no está usando `order by created_at`.
 
 **Solución:**
+
 ```typescript
 // Debe ordenar por created_at (no solo por fecha)
 .order('created_at', { ascending: false })
@@ -1172,16 +1211,19 @@ WHERE fecha = CURRENT_DATE;
 ### Archivos Relacionados
 
 **Base de Datos:**
+
 - 🗄️ [Schema de Base de Datos v4.1](../../../../doc/schema_inicial_completo.sql)
 - ⚙️ [Función PostgreSQL v4.1](funcion_cierre_diario_v4.sql)
 
 **Código Frontend:**
+
 - 💻 [Cierre Diario Page (TS)](../pages/cierre-diario/cierre-diario.page.ts)
 - 🎨 [Cierre Diario Page (HTML)](../pages/cierre-diario/cierre-diario.page.html)
 - 🔧 [Recargas Service](../services/recargas.service.ts)
 - 🕐 [Turnos Caja Service](../services/turnos-caja.service.ts)
 
 **Documentación:**
+
 - 📖 [Dashboard README](./DASHBOARD-README.md)
 - 📖 [Actualización UI sin Recarga](./ACTUALIZACION-UI-SIN-RECARGA.md)
 
@@ -1189,7 +1231,18 @@ WHERE fecha = CURRENT_DATE;
 
 ## 📝 HISTORIAL DE VERSIONES
 
+### Versión 4.5 (2026-02-11)
+
+- ✅ **Fórmula de venta incluye agregado del proveedor**
+- ✅ `recargas_virtuales` integradas en el cálculo del cierre
+- ✅ `venta = (saldo_anterior + agregado_hoy) - saldo_final`
+- ✅ Tabla `recargas_virtuales` (CELULAR: crédito / BUS: depósito directo)
+- ✅ Módulo "Saldo Virtual" para registrar cargas del proveedor
+- ✅ Comisión CELULAR: `monto_a_pagar = monto_virtual * 0.95`
+- ✅ `getSaldoVirtualActual()` muestra cierre + cargas posteriores no aplicadas
+
 ### Versión 4.1 (2026-02-07)
+
 - ✅ **Múltiples cierres por día** (1 cierre por turno)
 - ✅ Tabla `turnos_caja` agregada
 - ✅ Campo `turno_id` en `caja_fisica_diaria` y `recargas`
@@ -1201,6 +1254,7 @@ WHERE fecha = CURRENT_DATE;
 - ✅ Continuidad de saldos entre turnos garantizada
 
 ### Versión 4.0 (2026-02-05)
+
 - ✅ Ultra-simplificado: Solo 1 campo de entrada
 - ✅ Configuración centralizada (fondo_fijo_diario)
 - ✅ Fórmula simplificada: depósito = efectivo - fondo - transferencia
@@ -1208,18 +1262,21 @@ WHERE fecha = CURRENT_DATE;
 - ✅ UI mejorada con guía visual "¿Qué hacer con el dinero?"
 
 ### Versión 3.0
+
 - ✅ Renombrado cierres_diarios → caja_fisica_diaria
 - ✅ Ajustes en función PostgreSQL
 
 ### Versión 2.0
+
 - ✅ Separación caja física vs acumulación
 - ✅ Nuevos campos: saldo_inicial, egresos_del_dia, fondo_siguiente_dia
 
 ### Versión 1.0
+
 - ✅ Implementación inicial
 
 ---
 
-**Fecha de Actualización:** 2026-02-07
-**Versión:** 4.1 (Múltiples Turnos por Día)
+**Fecha de Actualización:** 2026-02-11
+**Versión:** 4.5 (Múltiples Turnos + Recargas Virtuales integradas)
 **Autor:** Sistema Mi Tienda

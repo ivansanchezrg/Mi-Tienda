@@ -1,0 +1,268 @@
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  gap: var(--spacing-md);
+
+  ion-icon {
+    font-size: 64px;
+    color: var(--ion-color-medium);
+    opacity: 0.5;
+  }
+
+  p {
+    font-size: 14px;
+    color: var(--ion-color-medium);
+    margin: 0;
+  }
+}
+
+.modal-content {
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+// Deudas card
+.deudas-card {
+  margin: 0;
+  border-radius: var(--radius-xl);
+  background: var(--ion-item-background);
+  box-shadow: var(--shadow-level-2);
+  overflow: hidden;
+}
+
+.select-all-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-text-color);
+  cursor: pointer;
+  background: var(--ion-color-step-50);
+
+  .total-deudas {
+    margin-left: auto;
+    color: var(--ion-color-danger);
+    font-weight: var(--font-weight-extrabold);
+    font-size: 20px; // Más grande y destacado
+  }
+}
+
+.checkbox {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--ion-color-step-300);
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+
+  &.checked {
+    border-color: var(--ion-color-primary);
+    background: var(--ion-color-primary);
+    color: white;
+
+    ion-icon {
+      font-size: 18px;
+    }
+  }
+}
+
+.deuda-row {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  gap: var(--spacing-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+
+  &:active {
+    background: var(--ion-color-step-50);
+  }
+
+  .deuda-details {
+    flex: 1;
+    min-width: 0;
+
+    .deuda-fecha {
+      font-size: 15px;
+      font-weight: var(--font-weight-semibold);
+      color: var(--ion-text-color);
+    }
+
+    .deuda-sub {
+      font-size: 12px;
+      color: var(--ion-color-medium);
+      margin-top: 2px;
+    }
+  }
+
+  .deuda-monto {
+    font-size: 14px; // Más pequeño
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-medium); // Menos prominente
+    flex-shrink: 0;
+  }
+}
+
+.divider {
+  height: 1px;
+  margin: 0 var(--spacing-lg);
+  background: var(--ion-color-step-150);
+}
+
+// Saldo card
+.saldo-card {
+  margin: 0;
+  border-radius: var(--radius-xl);
+  background: var(--ion-item-background);
+  box-shadow: var(--shadow-level-2);
+  padding: var(--spacing-lg);
+
+  &.error {
+    border: 2px solid var(--ion-color-danger);
+  }
+
+  .saldo-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+
+    ion-icon {
+      font-size: 24px;
+      color: var(--ion-color-primary);
+    }
+
+    span {
+      font-size: 14px;
+      font-weight: var(--font-weight-bold);
+      color: var(--ion-text-color);
+    }
+  }
+
+  .saldo-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm) 0;
+
+    span:first-child {
+      font-size: 14px;
+      color: var(--ion-color-medium);
+    }
+
+    .saldo-valor {
+      font-size: 16px;
+      font-weight: var(--font-weight-bold);
+      color: var(--ion-text-color);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+
+      &.danger {
+        color: var(--ion-color-danger);
+      }
+
+      &.success {
+        color: var(--ion-color-success);
+      }
+
+      ion-icon {
+        font-size: 20px;
+      }
+    }
+  }
+}
+
+// Alerta saldo
+.alerta-saldo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: rgba(var(--ion-color-danger-rgb), 0.1);
+  border: 1px solid rgba(var(--ion-color-danger-rgb), 0.3);
+  border-radius: var(--radius-md);
+
+  ion-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  strong {
+    display: block;
+    font-size: 14px;
+    color: var(--ion-color-danger);
+    margin-bottom: 4px;
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ion-text-color);
+    line-height: 1.4;
+  }
+}
+
+// Botón
+.primary-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  width: 100%;
+  padding: var(--spacing-md);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  font-weight: var(--font-weight-bold);
+  background: var(--ion-color-primary);
+  color: var(--ion-color-primary-contrast);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  box-shadow: var(--shadow-level-2);
+  margin-top: var(--spacing-md);
+
+  ion-icon {
+    font-size: 20px;
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+// Empty state
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-xl);
+
+  ion-icon {
+    font-size: 64px;
+    color: var(--ion-color-success);
+    opacity: 0.5;
+    margin-bottom: var(--spacing-md);
+  }
+
+  p {
+    font-size: 14px;
+    color: var(--ion-color-medium);
+    margin: 0;
+  }
+}
