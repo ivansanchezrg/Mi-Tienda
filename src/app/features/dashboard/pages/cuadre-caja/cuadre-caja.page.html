@@ -52,7 +52,7 @@
           </ion-note>
           @if (!ventaCelularValida && saldoCelularActual > 0) {
             <span class="error-text">
-              El saldo actual no puede ser mayor que el anterior
+              ⚠️ Venta negativa. Registrá la recarga del proveedor en Recargas Virtuales
             </span>
           }
         </div>
@@ -79,7 +79,7 @@
           </ion-note>
           @if (!ventaBusValida && saldoBusActual > 0) {
             <span class="error-text">
-              El saldo actual no puede ser mayor que el anterior
+              ⚠️ Venta negativa. Registrá la compra de saldo virtual en Recargas Virtuales
             </span>
           }
         </div>
@@ -122,16 +122,6 @@
               <p>Deberías tener este monto en efectivo físico en tu caja</p>
             </div>
           </ion-card>
-        }
-
-        <!-- Botón Confirmar (Testing) -->
-        @if (mostrarResultado) {
-          <button
-            type="button"
-            class="primary-btn"
-            (click)="confirmarRecargas()">
-            Confirmar Recargas (Testing)
-          </button>
         }
 
         <!-- Botón Limpiar -->

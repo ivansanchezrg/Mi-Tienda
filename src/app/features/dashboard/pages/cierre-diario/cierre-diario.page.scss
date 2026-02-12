@@ -402,6 +402,11 @@ $caja-chica-color: #8b5cf6;
     background: rgba(var(--ion-color-warning-rgb), 0.10);
     border: 1px solid rgba(var(--ion-color-warning-rgb), 0.20);
   }
+
+  &.danger {
+    background: rgba(var(--ion-color-danger-rgb), 0.10);
+    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.20);
+  }
 }
 
 // Observaciones

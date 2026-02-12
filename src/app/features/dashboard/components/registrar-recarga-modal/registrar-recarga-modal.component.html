@@ -1,0 +1,78 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="cerrar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>{{ tituloModal }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <div class="modal-content">
+
+    <!-- Hint -->
+    <div class="hint-card">
+      <ion-icon [name]="iconoServicio"></ion-icon>
+      <p>
+        @if (tipo === 'CELULAR') {
+          Registrá cuando el proveedor agregó saldo virtual a tu cuenta
+        } @else {
+          Registrá cuando comprás saldo virtual mediante depósito bancario
+        }
+      </p>
+    </div>
+
+    <!-- Input monto -->
+    <div class="input-group">
+      <label class="input-label">{{ labelMonto }}</label>
+      <div class="amount-wrapper" [class.filled]="montoVirtual">
+        <span class="currency">$</span>
+        <input
+          type="number"
+          inputmode="decimal"
+          placeholder="0.00"
+          [(ngModel)]="montoVirtual"
+          appCurrencyInput
+          appNumbersOnly
+          autofocus>
+      </div>
+    </div>
+
+    <!-- Botones -->
+    <div class="modal-actions">
+      <button
+        class="secondary-btn"
+        (click)="cerrar()">
+        Cancelar
+      </button>
+      <button
+        class="primary-btn"
+        [disabled]="!montoVirtual || montoVirtual <= 0"
+        (click)="confirmar()">
+        <ion-icon name="add-circle-outline"></ion-icon>
+        @if (tipo === 'CELULAR') {
+          Registrar y transferir ganancia
+        } @else {
+          Confirmar
+        }
+      </button>
+    </div>
+
+    <!-- Cálculos (solo CELULAR) -->
+    @if (mostrarCalculos) {
+      <div class="calculo-preview">
+        <div class="calculo-row">
+          <span>Deuda a pagar al proveedor</span>
+          <span class="calculo-danger">${{ montoAPagar | number:'1.2-2' }}</span>
+        </div>
+        <div class="calculo-row">
+          <span>Ganancia ({{ comisionPct }}%) → Caja Chica</span>
+          <span class="calculo-success">${{ ganancia | number:'1.2-2' }}</span>
+        </div>
+      </div>
+    }
+
+  </div>
+</ion-content>

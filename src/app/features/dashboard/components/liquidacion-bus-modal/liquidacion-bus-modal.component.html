@@ -1,0 +1,75 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="cerrar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Liquidación Ganancia Bus</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <div class="modal-content">
+
+    <!-- Hint card -->
+    <div class="hint-card">
+      <ion-icon name="bus-outline"></ion-icon>
+      <p>
+        El proveedor acredita el <strong>1%</strong> de las ventas del mes
+        como saldo virtual. Ingresá el monto recibido.
+      </p>
+    </div>
+
+    <!-- Ganancia calculada -->
+    <div class="calculo-preview">
+      <div class="calculo-row">
+        <span>Ganancia calculada ({{ mesDisplay }})</span>
+        <span class="calculo-success">${{ gananciaBusCalculada | number:'1.2-2' }}</span>
+      </div>
+      <div class="calculo-sub">
+        Este monto se transferirá de Caja Bus a Caja Chica
+      </div>
+    </div>
+
+    <!-- Input monto acreditado -->
+    <div class="input-group">
+      <label class="input-label">Monto acreditado por el proveedor</label>
+      <div class="amount-wrapper" [class.filled]="montoAcreditado">
+        <span class="currency">$</span>
+        <input
+          type="number"
+          inputmode="decimal"
+          placeholder="0.00"
+          [(ngModel)]="montoAcreditado"
+          appCurrencyInput
+          appNumbersOnly
+          autofocus>
+      </div>
+    </div>
+
+    <!-- Info card -->
+    <div class="info-card">
+      <ion-icon name="information-circle-outline"></ion-icon>
+      <p>
+        Tomá físicamente <strong>${{ gananciaBusCalculada | number:'1.2-2' }}</strong>
+        de Caja Bus y llevalo a Caja Chica antes de confirmar.
+      </p>
+    </div>
+
+    <!-- Botones -->
+    <div class="modal-actions">
+      <button class="secondary-btn" (click)="cerrar()">
+        Cancelar
+      </button>
+      <button
+        class="primary-btn"
+        [disabled]="!puedeConfirmar"
+        (click)="confirmar()">
+        <ion-icon name="checkmark-circle-outline"></ion-icon>
+        Confirmar
+      </button>
+    </div>
+
+  </div>
+</ion-content>

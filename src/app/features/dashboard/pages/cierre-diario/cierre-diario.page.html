@@ -46,6 +46,16 @@
               </div>
             </ion-item>
 
+            @if (ventaCelular < 0 && cierreForm.get('saldoVirtualCelularFinal')?.value) {
+              <div class="alerta-simple danger">
+                <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+                <div>
+                  <p><strong>⚠️ Venta negativa: {{ ventaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</strong></p>
+                  <p>Registrá la recarga del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
+                </div>
+              </div>
+            }
+
             <!-- Saldo Virtual Bus -->
             <ion-item class="input-item">
               <ion-icon slot="start" name="bus-outline" class="item-icon bus"></ion-icon>
@@ -65,6 +75,16 @@
                 </ion-input>
               </div>
             </ion-item>
+
+            @if (ventaBus < 0 && cierreForm.get('saldoVirtualBusFinal')?.value) {
+              <div class="alerta-simple danger">
+                <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+                <div>
+                  <p><strong>⚠️ Venta negativa: {{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</strong></p>
+                  <p>Registrá la compra de saldo virtual en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
+                </div>
+              </div>
+            }
 
             <!-- Efectivo Total Recaudado -->
             <ion-item class="input-item">
@@ -89,7 +109,7 @@
         </form>
 
         <div class="paso-actions">
-          <ion-button expand="block" size="large" (click)="siguientePaso()" [disabled]="cierreForm.invalid">
+          <ion-button expand="block" size="large" (click)="siguientePaso()" [disabled]="cierreForm.invalid || hayVentaNegativa">
             Siguiente
             <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
           </ion-button>

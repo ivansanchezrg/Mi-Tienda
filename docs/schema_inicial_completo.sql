@@ -9,7 +9,7 @@
 -- Para resetear el sistema, ejecutar nuevamente (incluye DROP de tablas).
 --
 -- Fecha: 2026-02-09
--- Versión: 4.4 - Categorización de gastos diarios
+-- Versión: 4.5 - Modelo de recargas virtuales (CELULAR a crédito / BUS compra directa)
 --   • Solo 1 campo: efectivo_recaudado (total contado al final)
 --   • Fondo fijo en config: configuraciones.fondo_fijo_diario ($40)
 --   • Transferencia en config: configuraciones.caja_chica_transferencia_diaria ($20)
@@ -42,6 +42,7 @@ DROP TABLE IF EXISTS caja_fisica_diaria CASCADE;
 DROP TABLE IF EXISTS gastos_diarios CASCADE;
 DROP TABLE IF EXISTS turnos_caja CASCADE;
 DROP TABLE IF EXISTS recargas CASCADE;
+DROP TABLE IF EXISTS recargas_virtuales CASCADE;
 DROP TABLE IF EXISTS categorias_operaciones CASCADE;
 DROP TABLE IF EXISTS categorias_gastos CASCADE;
 DROP TABLE IF EXISTS tipos_referencia CASCADE;
@@ -115,7 +116,7 @@ CREATE TABLE IF NOT EXISTS tipos_servicio (
 
     -- Reglas del negocio
     fondo_base DECIMAL(12,2) NOT NULL,               -- Bus: 500, Celular: 200
-    porcentaje_comision DECIMAL(5,2) NOT NULL,       -- Bus: 1%, Celular: 5%
+    porcentaje_comision DECIMAL(5,2) NOT NULL,       -- Bus: 1%, Celular: 5% (descuento sobre monto_virtual: monto_a_pagar = monto_virtual * (1 - pct/100))
     periodo_comision VARCHAR(20) NOT NULL,           -- 'MENSUAL', 'SEMANAL'
     frecuencia_recarga VARCHAR(20) NOT NULL,         -- 'SEMANAL'
 
@@ -183,7 +184,7 @@ CREATE TABLE IF NOT EXISTS caja_fisica_diaria (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 8. Tabla: categorias_gastos
+-- 9. Tabla: categorias_gastos
 -- Catálogo de categorías para clasificar gastos diarios operativos
 CREATE TABLE IF NOT EXISTS categorias_gastos (
     id SERIAL PRIMARY KEY,
@@ -194,7 +195,7 @@ CREATE TABLE IF NOT EXISTS categorias_gastos (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 9. Tabla: gastos_diarios
+-- 10. Tabla: gastos_diarios
 -- Registro de gastos operativos pagados desde la caja física (efectivo de ventas del día)
 -- NOTA: Si no hay efectivo, se hace EGRESO desde CAJA PRINCIPAL (en operaciones_cajas)
 CREATE TABLE IF NOT EXISTS gastos_diarios (
@@ -211,7 +212,7 @@ CREATE TABLE IF NOT EXISTS gastos_diarios (
 -- Índice para búsquedas por fecha
 CREATE INDEX idx_gastos_diarios_fecha ON gastos_diarios(fecha);
 
--- 10. Tabla: tipos_referencia
+-- 11. Tabla: tipos_referencia
 -- Catálogo de tablas que pueden ser referenciadas por operaciones
 CREATE TABLE IF NOT EXISTS tipos_referencia (
     id SERIAL PRIMARY KEY,
@@ -222,7 +223,7 @@ CREATE TABLE IF NOT EXISTS tipos_referencia (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 11. Tabla: categorias_operaciones
+-- 12. Tabla: categorias_operaciones
 -- Catálogo de categorías contables para clasificar ingresos y egresos
 CREATE TABLE IF NOT EXISTS categorias_operaciones (
     id SERIAL PRIMARY KEY,
@@ -234,7 +235,7 @@ CREATE TABLE IF NOT EXISTS categorias_operaciones (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 12. Tabla: operaciones_cajas
+-- 13. Tabla: operaciones_cajas
 -- Log completo de todas las operaciones que afectan el saldo de las cajas
 CREATE TABLE IF NOT EXISTS operaciones_cajas (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -250,6 +251,32 @@ CREATE TABLE IF NOT EXISTS operaciones_cajas (
     referencia_id UUID,                              -- UUID del registro que origina la operación
     descripcion TEXT,
     comprobante_url TEXT,                            -- URL del comprobante en Supabase Storage (obligatorio para egresos)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 14. Tabla: recargas_virtuales
+-- Registra cada vez que se agrega saldo virtual:
+--   CELULAR: proveedor carga a crédito → crea deuda, no mueve efectivo
+--   BUS: compra directa con depósito bancario → EGRESO inmediato de CAJA_BUS
+CREATE TABLE IF NOT EXISTS recargas_virtuales (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fecha DATE NOT NULL,
+    tipo_servicio_id INTEGER NOT NULL REFERENCES tipos_servicio(id),
+    empleado_id INTEGER NOT NULL REFERENCES empleados(id),
+
+    -- Montos
+    monto_virtual DECIMAL(12,2) NOT NULL,      -- Lo que subió el saldo virtual ($210 celular / $X bus)
+    monto_a_pagar DECIMAL(12,2) NOT NULL,      -- Lo que se debe pagar ($200 celular = monto_virtual * 0.95 / $X bus)
+    ganancia DECIMAL(12,2) NOT NULL DEFAULT 0, -- Ganancia del negocio ($10 celular / $0 bus)
+
+    -- Estado del pago
+    -- CELULAR: false hasta que el proveedor cobre
+    -- BUS: siempre true (pagó al depositar)
+    pagado BOOLEAN DEFAULT false,
+    fecha_pago DATE,
+    operacion_pago_id UUID REFERENCES operaciones_cajas(id), -- Enlace al EGRESO cuando se paga
+
+    notas TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -269,6 +296,9 @@ CREATE INDEX idx_operaciones_cajas_fecha ON operaciones_cajas(fecha);
 CREATE INDEX idx_operaciones_cajas_caja ON operaciones_cajas(caja_id);
 CREATE INDEX idx_operaciones_cajas_empleado ON operaciones_cajas(empleado_id);
 CREATE INDEX idx_operaciones_cajas_categoria ON operaciones_cajas(categoria_id);
+CREATE INDEX idx_recargas_virtuales_fecha ON recargas_virtuales(fecha);
+CREATE INDEX idx_recargas_virtuales_servicio ON recargas_virtuales(tipo_servicio_id);
+CREATE INDEX idx_recargas_virtuales_pagado ON recargas_virtuales(pagado);
 
 -- ==========================================
 -- DATOS INICIALES (Configuración base del sistema)
@@ -288,9 +318,10 @@ INSERT INTO cajas (codigo, nombre, descripcion, saldo_actual) VALUES
 
 -- Tipos de referencia (catálogo de tablas que pueden originar operaciones)
 INSERT INTO tipos_referencia (codigo, tabla, descripcion) VALUES
-('RECARGAS', 'recargas', 'Operaciones originadas desde registros de recargas diarias'),
-('CAJA_FISICA_DIARIA', 'caja_fisica_diaria', 'Operaciones originadas desde el cierre de caja física diaria (depósito, transferencias)'),
-('TURNOS_CAJA', 'turnos_caja', 'Registro de turnos de apertura/cierre de caja');
+('RECARGAS',            'recargas',            'Operaciones originadas desde registros de recargas diarias'),
+('CAJA_FISICA_DIARIA',  'caja_fisica_diaria',  'Operaciones originadas desde el cierre de caja física diaria (depósito, transferencias)'),
+('TURNOS_CAJA',         'turnos_caja',         'Registro de turnos de apertura/cierre de caja'),
+('RECARGAS_VIRTUALES',  'recargas_virtuales',  'Pagos al proveedor celular (EGRESO) y compras de saldo bus (EGRESO)');
 
 -- Categorías de gastos diarios (clasificación de gastos operativos)
 INSERT INTO categorias_gastos (nombre, codigo, descripcion) VALUES
@@ -313,7 +344,9 @@ INSERT INTO categorias_operaciones (tipo, nombre, codigo, descripcion) VALUES
 ('EGRESO', 'Papelería/Suministros', 'EG-006', 'Papelería, útiles de oficina y suministros generales'),
 ('EGRESO', 'Salarios', 'EG-007', 'Pago de salarios a empleados'),
 ('EGRESO', 'Impuestos/Tasas', 'EG-008', 'Pago de impuestos y tasas municipales'),
-('EGRESO', 'Otros Gastos', 'EG-009', 'Otros gastos operativos no clasificados'),
+('EGRESO', 'Otros Gastos',              'EG-009', 'Otros gastos operativos no clasificados'),
+('EGRESO', 'Pago Proveedor Recargas',  'EG-010', 'Pago al proveedor de recargas celular (saldo prestado a crédito)'),
+('EGRESO', 'Compra Saldo Virtual Bus', 'EG-011', 'Compra de saldo virtual bus mediante depósito bancario'),
 -- Categorías de INGRESOS
 ('INGRESO', 'Ventas', 'IN-001', 'Ingresos por ventas del negocio'),
 ('INGRESO', 'Devoluciones de Proveedores', 'IN-002', 'Devolución de dinero por parte de proveedores'),

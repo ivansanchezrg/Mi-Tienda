@@ -1,0 +1,156 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon slot="icon-only" name="chevron-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Recargas Virtuales</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Tabs CELULAR / BUS -->
+  <div class="filter-bar">
+    <button class="filter-tab" [class.active]="tabActivo === 'CELULAR'" (click)="cambiarTab('CELULAR')">
+      <ion-icon name="phone-portrait-outline"></ion-icon>
+      Celular
+    </button>
+    <button class="filter-tab" [class.active]="tabActivo === 'BUS'" (click)="cambiarTab('BUS')">
+      <ion-icon name="bus-outline"></ion-icon>
+      Bus
+    </button>
+  </div>
+
+  @if (loading) {
+    <div class="empty-state">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Cargando...</p>
+    </div>
+  } @else {
+
+    <!-- ====================== -->
+    <!-- TAB CELULAR            -->
+    <!-- ====================== -->
+    @if (tabActivo === 'CELULAR') {
+
+      <!-- Saldo actual -->
+      <div class="saldo-header">
+        <div class="saldo-label">Saldo virtual actual</div>
+        <div class="saldo-monto">${{ saldoVirtualCelular | number:'1.2-2' }}</div>
+      </div>
+
+      <!-- Subtítulo Opciones -->
+      <div class="section-title">Opciones</div>
+
+      <!-- BOTÓN: Registrar recarga del proveedor -->
+      <div class="action-card-large" (click)="abrirModalRecarga()">
+        <div class="action-icon celular">
+          <ion-icon name="phone-portrait-outline"></ion-icon>
+        </div>
+        <div class="action-content">
+          <h3>Registrar Recarga del Proveedor</h3>
+          <p>Cuando el proveedor te carga saldo virtual</p>
+        </div>
+        <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
+      </div>
+
+      <!-- BOTÓN: Pagar al proveedor -->
+      @if (cantidadDeudasPendientes > 0) {
+        <div class="action-card-large" (click)="navegarAPagarDeudas()">
+          <div class="action-icon danger">
+            <ion-icon name="cash-outline"></ion-icon>
+          </div>
+          <div class="action-content">
+            <h3>
+              Pagar al Proveedor
+              <span class="badge">{{ cantidadDeudasPendientes }}</span>
+            </h3>
+            <p>Deudas pendientes: ${{ totalDeudasPendientes | number:'1.2-2' }}</p>
+          </div>
+          <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
+        </div>
+      } @else {
+        <div class="info-card success">
+          <ion-icon name="checkmark-circle-outline"></ion-icon>
+          <span>Sin deudas pendientes con el proveedor</span>
+        </div>
+      }
+
+      <!-- BOTÓN: Ver Historial -->
+      <div class="action-card-large" (click)="abrirHistorial()">
+        <div class="action-icon">
+          <ion-icon name="list-outline"></ion-icon>
+        </div>
+        <div class="action-content">
+          <h3>Ver Historial</h3>
+          <p>Consultar movimientos registrados</p>
+        </div>
+        <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
+      </div>
+
+    }
+
+    <!-- ====================== -->
+    <!-- TAB BUS                -->
+    <!-- ====================== -->
+    @if (tabActivo === 'BUS') {
+
+      <!-- Saldo actual -->
+      <div class="saldo-header">
+        <div class="saldo-label">Saldo virtual actual</div>
+        <div class="saldo-monto">${{ saldoVirtualBus | number:'1.2-2' }}</div>
+      </div>
+
+      <!-- Subtítulo Opciones -->
+      <div class="section-title">Opciones</div>
+
+      <!-- BOTÓN: Comprar saldo virtual -->
+      <div class="action-card-large" (click)="abrirModalCompraBus()">
+        <div class="action-icon bus">
+          <ion-icon name="bus-outline"></ion-icon>
+        </div>
+        <div class="action-content">
+          <h3>Comprar Saldo Virtual</h3>
+          <p>Registrar compra mediante depósito bancario</p>
+        </div>
+        <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
+      </div>
+
+      <!-- BOTÓN: Liquidar Ganancia del Proveedor -->
+      @if (gananciaBusCalculada > 0) {
+        <div class="action-card-large success" (click)="abrirModalLiquidacionBus()">
+          <div class="action-icon success">
+            <ion-icon name="cash-outline"></ion-icon>
+          </div>
+          <div class="action-content">
+            <h3>
+              Liquidar Ganancia
+              <span class="badge success">${{ gananciaBusCalculada | number:'1.2-2' }}</span>
+            </h3>
+            <p>Proveedor acredita 1% del mes anterior</p>
+          </div>
+          <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
+        </div>
+      }
+
+      <!-- BOTÓN: Ver Historial -->
+      <div class="action-card-large" (click)="abrirHistorial()">
+        <div class="action-icon">
+          <ion-icon name="list-outline"></ion-icon>
+        </div>
+        <div class="action-content">
+          <h3>Ver Historial</h3>
+          <p>Consultar movimientos registrados</p>
+        </div>
+        <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
+      </div>
+
+    }
+
+  }
+</ion-content>

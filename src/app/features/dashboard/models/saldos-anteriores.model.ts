@@ -7,7 +7,7 @@ export interface SaldosAnteriores {
 }
 
 /**
- * Datos completos necesarios para el cierre diario (v4.0)
+ * Datos completos necesarios para el cierre diario (v4.5)
  * Incluye saldos virtuales, saldos de cajas físicas y configuración
  */
 export interface DatosCierreDiario {
@@ -25,6 +25,10 @@ export interface DatosCierreDiario {
   fondoFijo: number;
   /** Monto fijo de transferencia diaria a caja chica (viene de configuración) */
   transferenciaDiariaCajaChica: number;
+  /** Monto agregado hoy de recargas virtuales celular (v4.5) */
+  agregadoCelularHoy: number;
+  /** Monto agregado hoy de recargas virtuales bus (v4.5) */
+  agregadoBusHoy: number;
 }
 
 /**

@@ -1,7 +1,7 @@
 # Cuadre de Caja (Verificación de Efectivo)
 
-**Versión:** 1.0 (Solo Verificación)
-**Fecha:** 2026-02-09
+**Versión:** 2.0 (Solo Verificación — v4.5 con agregado proveedor)
+**Fecha:** 2026-02-11
 
 ## 1. Introducción
 
@@ -121,12 +121,14 @@ const saldos = await recargasService.getSaldosAnteriores();
 - Saldo Celular Actual: `$75`
 - Saldo Bus Actual: `$250`
 
-#### Paso 3: Sistema Calcula (EN MEMORIA)
+#### Paso 3: Sistema Calcula (EN MEMORIA) — v4.5
 ```typescript
-ventaCelular = saldoAnterior - saldoActual
-ventaCelular = 100 - 75 = 25
+// Incluye el agregado del proveedor cargado HOY (recargas_virtuales)
+ventaCelular = (saldoAnteriorCelular + agregadoCelularHoy) - saldoCelularActual
+ventaCelular = (100 + 0) - 75 = 25   // Sin recarga del proveedor hoy
 
-ventaBus = 285 - 250 = 35
+ventaBus = (saldoAnteriorBus + agregadoBusHoy) - saldoBusActual
+ventaBus = (285 + 0) - 250 = 35
 
 totalEfectivo = 25 + 35 = 60
 ```
@@ -150,26 +152,41 @@ totalEfectivo = 25 + 35 = 60
 
 ## 5. Fórmulas de Cálculo
 
-### 5.1. Venta por Servicio
+### 5.1. Venta por Servicio (v4.5)
 
 ```
-Venta = Saldo Anterior - Saldo Actual
+Venta = (Saldo Anterior + Agregado Proveedor Hoy) - Saldo Actual
 ```
 
-**Ejemplo Celular:**
+**Ejemplo Celular sin recarga del proveedor:**
 ```
-Saldo Anterior: $100.00
-Saldo Actual:   $ 75.00
-─────────────────────────
-Venta:          $ 25.00  ✅
+Saldo Anterior:           $100.00
+Agregado Proveedor Hoy:  +$  0.00
+Saldo Actual:            -$ 75.00
+─────────────────────────────────
+Venta:                    $ 25.00  ✅
 ```
 
-### 5.2. Validación
+**Ejemplo Celular CON recarga del proveedor ($210.53):**
+```
+Saldo Anterior:           $100.00
+Agregado Proveedor Hoy:  +$210.53
+Saldo Actual:            -$260.53
+─────────────────────────────────
+Venta:                    $ 50.00  ✅
+```
+
+### 5.2. Validación (v4.5)
 
 ```
-Si Saldo Actual > Saldo Anterior → ERROR ❌
-(No puede aumentar el saldo virtual sin recargar)
+Si (Saldo Anterior + Agregado Hoy) < Saldo Actual → ERROR ❌ (venta negativa)
 ```
+
+⚠️ **Importante v4.5**: El saldo actual SÍ puede ser mayor al saldo anterior
+si el proveedor cargó saldo ese día (`agregadoHoy > 0`). En ese caso NO es error.
+
+Si la venta da negativa → el usuario debe ir a **Saldo Virtual** y registrar
+la recarga del proveedor antes de usar el Cuadre.
 
 ---
 
@@ -232,9 +249,13 @@ Si Saldo Actual > Saldo Anterior → ERROR ❌
 
 ```typescript
 export class CuadreCajaPage {
-  // Saldos anteriores (cargados de BD)
+  // Saldos anteriores del último cierre (cargados de BD)
   saldoAnteriorCelular = 0;
   saldoAnteriorBus = 0;
+
+  // Agregado del proveedor HOY (cargado de recargas_virtuales — v4.5)
+  agregadoCelularHoy = 0;
+  agregadoBusHoy = 0;
 
   // Saldos actuales (ingresados por usuario)
   get saldoCelularActual(): number {
@@ -245,16 +266,16 @@ export class CuadreCajaPage {
     return this.form.get('saldoBusActual')?.value || 0;
   }
 
-  // Cálculos EN MEMORIA (no guarda nada)
+  // Cálculos EN MEMORIA — v4.5 (incluye agregado del proveedor)
   get ventaCelular(): number {
-    return this.saldoAnteriorCelular - this.saldoCelularActual;
+    return (this.saldoAnteriorCelular + this.agregadoCelularHoy) - this.saldoCelularActual;
   }
 
   get ventaBus(): number {
-    return this.saldoAnteriorBus - this.saldoBusActual;
+    return (this.saldoAnteriorBus + this.agregadoBusHoy) - this.saldoBusActual;
   }
 
-  // Solo validación de lógica
+  // Validación: venta negativa = falta registrar recarga del proveedor
   get ventaCelularValida(): boolean {
     return this.ventaCelular >= 0;
   }
@@ -384,7 +405,7 @@ export class CuadreCajaPage {
 - 💻 **Page TS**: `pages/cuadre-caja/cuadre-caja.page.ts`
 - 🎨 **Page HTML**: `pages/cuadre-caja/cuadre-caja.page.html`
 - 🎨 **Page SCSS**: `pages/cuadre-caja/cuadre-caja.page.scss`
-- 🔧 **Service**: `services/recargas.service.ts` (solo `getSaldosAnteriores()`)
+- 🔧 **Service**: `services/recargas.service.ts` → `getSaldosAnteriores()` + `getAgregadoVirtualHoy()` (v4.5)
 
 ### Backend
 - ❌ **NO hay función PostgreSQL** (todo en frontend)
@@ -411,5 +432,5 @@ export class CuadreCajaPage {
 ---
 
 **Autor:** Sistema Mi Tienda
-**Versión:** 1.0 (Solo Verificación)
-**Fecha:** 2026-02-09
+**Versión:** 2.0 (Solo Verificación — v4.5 con agregado proveedor)
+**Fecha:** 2026-02-11

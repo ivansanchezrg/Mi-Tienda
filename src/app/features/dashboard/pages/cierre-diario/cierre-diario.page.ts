@@ -69,6 +69,10 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   saldoAnteriorCelular = 0;
   saldoAnteriorBus = 0;
 
+  // Agregado hoy de recargas virtuales (v4.5)
+  agregadoCelularHoy = 0;
+  agregadoBusHoy = 0;
+
   // Saldos anteriores de cajas físicas (del registro actual en tabla cajas)
   saldoAnteriorCaja = 0;
   saldoAnteriorCajaChica = 0;
@@ -129,8 +133,8 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
   /**
-   * Carga los datos iniciales necesarios para el cierre diario (v4.0)
-   * Obtiene saldos virtuales, saldos de cajas y configuración del sistema
+   * Carga los datos iniciales necesarios para el cierre diario (v4.5)
+   * Obtiene saldos virtuales, saldos de cajas, configuración y agregado del día
    * NOTA: La validación de cierre existente se hace en el home antes de navegar
    */
   async cargarDatosIniciales() {
@@ -140,6 +144,10 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     // Saldos virtuales
     this.saldoAnteriorCelular = datos.saldosVirtuales.celular;
     this.saldoAnteriorBus = datos.saldosVirtuales.bus;
+
+    // Agregado hoy (v4.5)
+    this.agregadoCelularHoy = datos.agregadoCelularHoy;
+    this.agregadoBusHoy = datos.agregadoBusHoy;
 
     // Saldos de cajas físicas
     this.saldoAnteriorCaja = datos.saldoCaja;
@@ -170,27 +178,36 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
   // ==========================================
-  // GETTERS: Ventas del Día
+  // GETTERS: Ventas del Día (v4.5 — Fórmula Corregida)
   // ==========================================
 
   /**
-   * Calcula la venta del día de recargas celular
-   * Fórmula: Saldo virtual anterior - Saldo virtual final
+   * Calcula la venta del día de recargas celular (v4.5)
+   * Fórmula: (saldo_anterior + agregado_hoy) - saldo_final
    * @returns {number} Monto vendido en recargas celular
    */
   get ventaCelular(): number {
     const saldoFinal = this.cierreForm.get('saldoVirtualCelularFinal')?.value || 0;
-    return this.saldoAnteriorCelular - saldoFinal;
+    return (this.saldoAnteriorCelular + this.agregadoCelularHoy) - saldoFinal;
   }
 
   /**
-   * Calcula la venta del día de recargas bus
-   * Fórmula: Saldo virtual anterior - Saldo virtual final
+   * Calcula la venta del día de recargas bus (v4.5)
+   * Fórmula: (saldo_anterior + agregado_hoy) - saldo_final
    * @returns {number} Monto vendido en recargas bus
    */
   get ventaBus(): number {
     const saldoFinal = this.cierreForm.get('saldoVirtualBusFinal')?.value || 0;
-    return this.saldoAnteriorBus - saldoFinal;
+    return (this.saldoAnteriorBus + this.agregadoBusHoy) - saldoFinal;
+  }
+
+  /**
+   * Detecta si alguna venta es negativa (v4.5)
+   * Indica que falta registrar una recarga virtual del proveedor
+   * @returns {boolean} True si alguna venta es negativa
+   */
+  get hayVentaNegativa(): boolean {
+    return this.ventaCelular < 0 || this.ventaBus < 0;
   }
 
   // ==========================================
@@ -273,7 +290,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     }
   }
 
-  siguientePaso() {
+  async siguientePaso() {
     if (this.pasoActual < this.totalPasos) {
       if (this.cierreForm.invalid) {
         Object.keys(this.cierreForm.controls).forEach(key =>
@@ -281,6 +298,25 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
         );
         return;
       }
+
+      // Validar ventas negativas (v4.5)
+      if (this.hayVentaNegativa) {
+        const mensajes: string[] = [];
+        if (this.ventaCelular < 0) {
+          mensajes.push(`<strong>Celular:</strong> Venta negativa ($${this.ventaCelular.toFixed(2)})`);
+        }
+        if (this.ventaBus < 0) {
+          mensajes.push(`<strong>Bus:</strong> Venta negativa ($${this.ventaBus.toFixed(2)})`);
+        }
+
+        await this.ui.showError(
+          `<p>No podés continuar con ventas negativas.</p>
+           ${mensajes.join('<br>')}
+           <p style="margin-top: 12px;">Registrá las recargas del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>`
+        );
+        return;
+      }
+
       this.pasoActual++;
     }
   }
