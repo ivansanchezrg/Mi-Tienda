@@ -4,7 +4,7 @@ Este documento describe la organización de carpetas y archivos del proyecto.
 
 ## Arquitectura General
 
-El proyecto sigue una arquitectura **basada en features** (feature-based) con componentes standalone de Angular 20 e Ionic 7+.
+El proyecto sigue una arquitectura **basada en features** (feature-based) con componentes standalone de Angular 20 e Ionic 8.
 
 ```
 mi-tienda/
@@ -17,7 +17,7 @@ mi-tienda/
 │   ├── environments/          # Configuración de entornos
 │   └── theme/                 # Estilos globales
 ├── android/                   # Proyecto nativo Android
-├── doc/                       # Documentación
+├── docs/                      # Documentación del proyecto
 └── capacitor.config.ts        # Configuración de Capacitor
 ```
 
@@ -31,11 +31,25 @@ Contiene servicios singleton y funcionalidades core usadas en toda la app.
 
 ```
 core/
+├── components/                # Componentes core
+│   └── offline-banner/       # Banner de estado offline
+│
+├── config/                    # Configuración global
+│   └── pagination.config.ts  # Constantes de paginación
+│
 ├── guards/                    # Guards de Angular
 │   ├── auth.guard.ts         # Protege rutas privadas (requiere login)
+│   ├── pending-changes.guard.ts # Previene salida con cambios sin guardar
 │   └── public.guard.ts       # Protege rutas públicas (redirige si ya autenticado)
 │
+├── pages/                     # Páginas/clases base
+│   └── scrollable.page.ts    # Clase base para páginas con scroll
+│
 └── services/                  # Servicios centrales
+    ├── currency.service.ts   # Formateo de moneda
+    ├── logger.service.ts     # Logging centralizado
+    ├── network.service.ts    # Estado de conectividad
+    ├── storage.service.ts    # Almacenamiento local
     ├── supabase.service.ts   # Manejo centralizado de consultas a Supabase
     └── ui.service.ts         # Manejo de loading, toast y tabs
 ```
@@ -64,12 +78,12 @@ features/
 │
 ├── auth/                      # Feature de autenticación
 │   ├── docs/
-│   │   └── *.md              # Documentación del módulo
+│   │   └── AUTH-README.md
 │   ├── models/
-│   │   └── auth.model.ts     # Interfaces de autenticación
+│   │   └── empleado_actual.model.ts  # Interface del empleado en sesión
 │   ├── pages/
 │   │   ├── login/            # Página de inicio de sesión
-│   │   └── callback/         # Callback de OAuth
+│   │   └── callback/         # Callback de OAuth (Google)
 │   ├── services/
 │   │   └── auth.service.ts   # Lógica de autenticación con Supabase
 │   └── auth.routes.ts
@@ -77,22 +91,43 @@ features/
 ├── dashboard/                 # Feature principal (home y operaciones de caja)
 │   ├── docs/
 │   │   ├── DASHBOARD-README.md
-│   │   ├── GANANCIAS-MENSUALES.md
-│   │   ├── funcion_cierre_diario.md
-│   │   └── proceso_cierre_cajas.md
+│   │   ├── 1_OPERACIONES-CAJA.md
+│   │   ├── 2_PROCESO_INGRESO_EGRESO.md
+│   │   ├── 3_PROCESO_CIERRE_CAJA.md
+│   │   ├── 4_PROCESO_CUADRE_RECARGAS.md
+│   │   ├── 5_ACTUALIZACION-UI-SIN-RECARGA.md
+│   │   ├── 6_PROCESO_GASTOS_DIARIOS.md
+│   │   └── 7_PROCESO_SALDO_VIRTUAL.md
 │   ├── models/
-│   │   ├── operacion-caja.model.ts    # Tipos de operaciones, filtros
-│   │   └── saldos-anteriores.model.ts # Modelo de saldos
+│   │   ├── categoria-operacion.model.ts  # Tipos/categorías de operación
+│   │   ├── gasto-diario.model.ts         # Interface de gastos
+│   │   ├── operacion-caja.model.ts       # Operaciones, filtros, paginación
+│   │   ├── saldos-anteriores.model.ts    # Modelo de saldos
+│   │   └── turno-caja.model.ts           # Interface del turno/caja
 │   ├── pages/
-│   │   ├── home/                      # Página principal del dashboard
-│   │   ├── operaciones-caja/          # Historial de movimientos por caja
-│   │   ├── transferir-ganancias/      # Transferencia de ganancias mensuales
-│   │   └── cierre-diario/             # Proceso de cierre de cajas
+│   │   ├── home/                         # Dashboard principal
+│   │   ├── cierre-diario/                # Proceso de cierre de cajas
+│   │   ├── cuadre-caja/                  # Cuadre y verificación de caja
+│   │   ├── gastos-diarios/               # Registro de gastos del día
+│   │   ├── historial-recargas/           # Historial de recargas
+│   │   ├── operaciones-caja/             # Movimientos por caja (filtros, scroll infinito)
+│   │   ├── pagar-deudas/                 # Pago de deudas pendientes
+│   │   └── recargas-virtuales/           # Gestión de recargas virtuales
+│   ├── components/
+│   │   ├── gasto-modal/                  # Modal para registrar gasto
+│   │   ├── historial-modal/              # Modal de historial de operaciones
+│   │   ├── liquidacion-bus-modal/        # Modal de liquidación bus
+│   │   ├── operacion-modal/              # Modal ingreso/egreso de caja
+│   │   ├── pagar-deudas-modal/           # Modal para pago de deudas
+│   │   └── registrar-recarga-modal/      # Modal para nueva recarga
 │   ├── services/
-│   │   ├── cajas.service.ts           # CRUD de cajas y transferencias
-│   │   ├── operaciones-caja.service.ts # Consulta de operaciones
-│   │   ├── ganancias.service.ts       # Cálculo de ganancias mensuales
-│   │   └── recargas.service.ts        # Servicios de recargas
+│   │   ├── cajas.service.ts              # CRUD de cajas y saldos
+│   │   ├── ganancias.service.ts          # Cálculo de ganancias mensuales
+│   │   ├── gastos-diarios.service.ts     # CRUD de gastos del día
+│   │   ├── operaciones-caja.service.ts   # Consulta de operaciones con filtros
+│   │   ├── recargas.service.ts           # Recargas celular y bus
+│   │   ├── recargas-virtuales.service.ts # Saldo virtual de recargas
+│   │   └── turnos-caja.service.ts        # Gestión de turnos/apertura de caja
 │   └── dashboard.routes.ts
 │
 ├── employees/                 # Feature de empleados
@@ -150,23 +185,38 @@ Este es el módulo principal que agrupa funcionalidades relacionadas con el pane
 ```
 dashboard/
 ├── models/
-│   ├── operacion-caja.model.ts
-│   │   ├── OperacionCaja          # Interface de operación
-│   │   ├── FiltroFecha            # 'hoy' | 'semana' | 'mes' | 'todas'
-│   │   └── ResultadoOperaciones   # Paginación de resultados
-│   └── saldos-anteriores.model.ts
+│   ├── operacion-caja.model.ts       # OperacionCaja, FiltroFecha, ResultadoOperaciones
+│   ├── saldos-anteriores.model.ts    # SaldosAnteriores
+│   ├── categoria-operacion.model.ts  # CategoriaOperacion
+│   ├── gasto-diario.model.ts         # GastoDiario
+│   └── turno-caja.model.ts           # TurnoCaja
 │
 ├── services/
-│   ├── cajas.service.ts           # obtenerCajas(), crearTransferencia()
-│   ├── operaciones-caja.service.ts # obtenerOperacionesCaja()
-│   ├── ganancias.service.ts       # calcularGananciasPendientes()
-│   └── recargas.service.ts        # servicios de recargas
+│   ├── cajas.service.ts              # obtenerCajas(), actualizarSaldo()
+│   ├── operaciones-caja.service.ts   # obtenerOperacionesCaja() con filtros
+│   ├── ganancias.service.ts          # calcularGananciasPendientes()
+│   ├── gastos-diarios.service.ts     # CRUD gastos del día
+│   ├── recargas.service.ts           # recargas celular y bus
+│   ├── recargas-virtuales.service.ts # saldo virtual
+│   └── turnos-caja.service.ts        # abrirTurno(), cerrarTurno()
+│
+├── components/
+│   ├── gasto-modal/
+│   ├── historial-modal/
+│   ├── liquidacion-bus-modal/
+│   ├── operacion-modal/
+│   ├── pagar-deudas-modal/
+│   └── registrar-recarga-modal/
 │
 └── pages/
-    ├── home/                      # Dashboard principal
-    ├── operaciones-caja/          # Lista de movimientos (filtros, scroll infinito)
-    ├── transferir-ganancias/      # Confirmar transferencia de ganancias
-    └── cierre-diario/             # Proceso de cierre de cajas
+    ├── home/                         # Dashboard principal
+    ├── cierre-diario/                # Cierre de cajas (v4.0 - 1 campo)
+    ├── cuadre-caja/                  # Cuadre y verificación
+    ├── gastos-diarios/               # Gastos del día
+    ├── historial-recargas/           # Historial de recargas
+    ├── operaciones-caja/             # Movimientos (filtros, scroll infinito)
+    ├── pagar-deudas/                 # Pago de deudas
+    └── recargas-virtuales/           # Recargas virtuales
 ```
 
 ---
@@ -184,8 +234,10 @@ shared/
 │   │   └── sidebar.component.scss
 │   └── under-construction/  # Placeholder para features pendientes
 │       └── under-construction.component.ts
-├── pipes/                    # Pipes personalizados
 └── directives/               # Directivas personalizadas
+    ├── currency-input.directive.ts  # Formato moneda en inputs
+    ├── numbers-only.directive.ts    # Solo permite dígitos
+    └── scroll-reset.directive.ts    # Resetea scroll al navegar
 ```
 
 **Convención:**
@@ -241,15 +293,18 @@ Generado por Capacitor. Contiene el proyecto Android Studio.
 
 ## Dónde Colocar Nuevos Archivos
 
-| Quiero agregar...                      | Ubicación                           |
-| -------------------------------------- | ----------------------------------- |
-| Nueva página de operaciones            | `features/dashboard/pages/`         |
-| Servicio de cajas                      | `features/dashboard/services/`      |
-| Modelo de operación                    | `features/dashboard/models/`        |
-| Componente modal reutilizable          | `shared/components/`                |
-| Guard de roles                         | `core/guards/`                      |
-| Servicio de notificaciones global      | `core/services/`                    |
-| Nueva feature (ej: productos)          | `features/productos/`               |
+| Quiero agregar...                      | Ubicación                                    |
+| -------------------------------------- | -------------------------------------------- |
+| Nueva página de operaciones            | `features/dashboard/pages/`                  |
+| Modal exclusivo del dashboard          | `features/dashboard/components/`             |
+| Servicio de cajas                      | `features/dashboard/services/`               |
+| Modelo de operación                    | `features/dashboard/models/`                 |
+| Componente modal reutilizable          | `shared/components/`                         |
+| Directiva de input personalizada       | `shared/directives/`                         |
+| Guard de rutas                         | `core/guards/`                               |
+| Servicio global (red, storage, etc.)   | `core/services/`                             |
+| Constante de configuración global      | `core/config/`                               |
+| Nueva feature (ej: productos)          | `features/productos/`                        |
 
 ---
 
@@ -288,4 +343,4 @@ Generado por Capacitor. Contiene el proyecto Android Studio.
 
 **IMPORTANTE:** Este documento debe actualizarse cada vez que se agregue una nueva carpeta o feature importante al proyecto.
 
-*Última actualización: Febrero 2026*
+*Última actualización: 2026-02-11*
