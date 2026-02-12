@@ -439,7 +439,7 @@ Estos componentes funcionan pero necesitan ajustes:
 | `<ion-toolbar>` | Border por defecto visible | Agregar clase `.ion-no-border` al header |
 | `<ion-item>` | Líneas divisorias muy marcadas | Personalizar `--border-color: transparent` o `--inner-border-width: 0` |
 | `<ion-segment>` | Estilo de botones antiguo | Crear `.filter-tabs` custom con border-radius y hover states |
-| `<ion-tab-bar>` | Estilo por defecto muy pesado | Personalizar con `--background`, `--border` y aplicar `--radius-lg` en la parte superior |
+| `<ion-tab-bar>` | Estilo por defecto muy pesado | Personalizar con `--background: var(--ion-item-background)`, `border-top: 1px solid var(--ion-color-step-100)` y `box-shadow: var(--shadow-level-1)` |
 
 **Ejemplo de personalización:**
 ```html
@@ -466,9 +466,53 @@ Estos componentes no se alinean con el patrón Flat:
 
 | Componente | Por Qué | Alternativa |
 |------------|---------|-------------|
-| `<ion-fab>` | Demasiado prominente, muy tridimensional | Usar `<ion-button>` con `shape="round"` y aplicar `--radius-full` |
+| `<ion-fab>` sin personalizar | Sombra muy prominente y tridimensional por defecto | Ver patrón FAB Custom más abajo |
 | `<ion-skeleton-text>` | Animación shimmer muy distractora | Usar spinner simple con `<ion-spinner>` centrado |
 | `<ion-badge>` sin personalizar | Estilo antiguo con bordes duros | Crear `.flat-chip` custom con `border-radius: var(--radius-pill)` |
+
+---
+
+### 🔘 Patrón FAB Custom (usado en main-layout)
+
+Cuando necesitas un FAB dentro del tab bar, usa el patrón customizado implementado en `main-layout.page.scss`. **No usar `<ion-fab>` nativo sin personalización.**
+
+El patrón consiste en:
+
+- **`.fab-overlay`**: fondo oscuro fijo con `--opacity-medium`
+- **`.fab-options`**: pills posicionadas sobre el tab bar (`bottom: 80px`)
+- **`.fab-option`**: card tipo pill con icono circular + label
+- **`ion-fab-button`** con `--box-shadow: var(--shadow-level-1)` y rotación al abrirse
+
+```scss
+// Overlay de fondo
+.fab-overlay {
+  position: fixed;
+  background: rgba(0, 0, 0, var(--opacity-medium));
+  z-index: 999;
+}
+
+// Pill de opción
+.fab-option {
+  background: var(--ion-card-background, var(--ion-background-color));
+  border-radius: var(--radius-pill);
+  padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-sm) var(--spacing-sm);
+  gap: var(--spacing-md);
+  box-shadow: var(--shadow-level-2);
+  transition: all var(--transition-normal);
+}
+
+// Icono circular con color de marca
+.fab-option-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+
+  &.tertiary { background: var(--ion-color-tertiary); }
+  &.warning  { background: var(--ion-color-warning); }
+}
+```
+
+> **Nota**: `var(--ion-card-background)` es una variable Ionic válida para el fondo de tarjetas. Se usa con fallback: `var(--ion-card-background, var(--ion-background-color))`.
 
 ---
 
@@ -525,8 +569,9 @@ Verifica los siguientes puntos:
 | Archivo | Descripción |
 |---------|-------------|
 | `src/theme/variables.scss` | **Design Tokens principales** - Todas las variables del sistema |
-| `src/global.scss` | Estilos globales y imports |
-| `src/theme/custom/` | Estilos custom compartidos |
+| `src/global.scss` | Estilos globales e imports de Ionic |
+| `src/theme/custom/index.scss` | Entry point de estilos custom compartidos (importa `overlays`, etc.) |
+| `src/app/features/layout/pages/main/main-layout.page.scss` | **Patrón FAB Custom** + tab bar personalizado |
 | `src/app/features/dashboard/pages/home/home.page.scss` | **Ejemplo de referencia** - Implementación completa del patrón |
 
 ### 📖 Documentación Ionic
@@ -568,6 +613,32 @@ El sistema incluye clases de utilidad para prototipado rápido:
 
 ## 📝 Notas de Implementación
 
+### Variables Locales en Componentes (`:host`)
+
+Puedes definir variables CSS locales en `:host` para encapsular valores específicos del componente. Úsalas para **alias semánticos** de tokens globales, no para hardcodear valores nuevos:
+
+```scss
+// ✅ CORRECTO: alias semántico de un token global
+:host {
+  --bg-soft: var(--ion-background-color, #f8f9fa);  // fallback para SSR/tests
+  --shadow-soft: var(--shadow-level-1);
+}
+
+// ✅ Luego usar el alias local
+ion-content {
+  --background: var(--bg-soft);
+}
+
+// ❌ INCORRECTO: hardcodear valores nuevos en :host
+:host {
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.04);  // ← valor nuevo fuera del sistema
+}
+```
+
+> **Regla**: Las variables locales deben apuntar a tokens del sistema. Si necesitas un valor nuevo, agrégalo primero a `variables.scss`.
+
+---
+
 ### Orden de Aplicación de Estilos
 
 1. **Variables Ionic nativas** (no modificar)
@@ -599,6 +670,6 @@ div.container > .card-wrapper .card {
 
 ---
 
-**Última actualización:** 2026-02-07
+**Última actualización:** 2026-02-11
 **Versión:** 2.0
 **Mantenido por:** Equipo Mi Tienda
