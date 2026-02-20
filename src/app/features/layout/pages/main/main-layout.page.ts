@@ -1,6 +1,5 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
 import {
   IonMenu, IonContent, IonTabs, IonTabBar,
   IonTabButton, IonIcon, IonLabel, IonFabButton,
@@ -12,6 +11,7 @@ import { UiService } from '@core/services/ui.service';
 import { GastoModalComponent } from 'src/app/features/dashboard/components/gasto-modal/gasto-modal.component';
 import { GastosDiariosService } from 'src/app/features/dashboard/services/gastos-diarios.service';
 import { GastoModalResult } from 'src/app/features/dashboard/models/gasto-diario.model';
+import { CuadreCajaPage } from 'src/app/features/dashboard/pages/cuadre-caja/cuadre-caja.page';
 
 @Component({
   selector: 'app-main-layout',
@@ -27,7 +27,6 @@ import { GastoModalResult } from 'src/app/features/dashboard/models/gasto-diario
 })
 export class MainLayoutPage {
   private ui = inject(UiService);
-  private router = inject(Router);
   private modalCtrl = inject(ModalController);
   private gastosService = inject(GastosDiariosService);
 
@@ -79,10 +78,14 @@ export class MainLayoutPage {
   }
 
   /**
-   * Navega a la página de cuadre
+   * Abre modal de cuadre de caja
    */
-  irACuadre() {
+  async irACuadre() {
     this.fabAbierto = false;
-    this.router.navigate(['/home/cuadre-caja']);
+
+    const modal = await this.modalCtrl.create({
+      component: CuadreCajaPage
+    });
+    await modal.present();
   }
 }

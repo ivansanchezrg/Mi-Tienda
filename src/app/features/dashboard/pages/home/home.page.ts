@@ -26,7 +26,7 @@ import { RecargasService } from '../../services/recargas.service';
 import { CajasService, Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
-import { GananciasService, GananciasPendientes } from '../../services/ganancias.service';
+import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { EstadoCaja } from '../../models/turno-caja.model';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
@@ -51,7 +51,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private cajasService = inject(CajasService);
   private operacionesCajaService = inject(OperacionesCajaService);
   private authService = inject(AuthService);
-  private gananciasService = inject(GananciasService);
+  private recargasVirtualesService = inject(RecargasVirtualesService);
   private turnosCajaService = inject(TurnosCajaService);
   private modalCtrl = inject(ModalController);
   private toastCtrl = inject(ToastController);
@@ -93,7 +93,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   // Notificaciones
   notificacionesPendientes = 0;
-  gananciasPendientes: GananciasPendientes | null = null;
+  deudasPendientesCelular: RecargaVirtual[] = [];
 
   constructor() {
     super();
@@ -174,17 +174,15 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   /**
-   * Carga el estado de la caja y todos los datos necesarios (Versión 2.0)
+   * Carga el estado de la caja y todos los datos necesarios
    * Todas las consultas en paralelo para un solo loading
-   * NOTA: En v2.0, la apertura es implícita (ausencia de cierre para hoy)
    */
   async cargarDatos() {
-    // Ejecutar todas las consultas en paralelo (un solo loading)
-    const [estadoCaja, saldos, fechaUltimoCierre, gananciasPendientes] = await Promise.all([
+    const [estadoCaja, saldos, fechaUltimoCierre, deudasCelular] = await Promise.all([
       this.turnosCajaService.obtenerEstadoCaja(),
       this.cajasService.obtenerSaldosCajas(),
       this.cajasService.obtenerFechaUltimoCierre(),
-      this.gananciasService.verificarGananciasPendientes()
+      this.recargasVirtualesService.obtenerDeudasPendientesCelular()
     ]);
 
     // Asignar estado de caja (crear nuevo objeto para forzar detección de cambios)
@@ -216,9 +214,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     const hoy = new Date();
     this.fechaActual = this.formatearFecha(hoy);
 
-    // Verificar ganancias pendientes (solo BUS mensual)
-    this.gananciasPendientes = gananciasPendientes;
-    this.notificacionesPendientes = gananciasPendientes ? 1 : 0;
+    // Deudas pendientes CELULAR → campana
+    this.deudasPendientesCelular = deudasCelular;
+    this.notificacionesPendientes = deudasCelular.length > 0 ? 1 : 0;
   }
 
   /**
@@ -245,10 +243,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
    * Muestra el menú de opciones para una caja específica
    */
   onSaldoClick(tipo: string) {
-    // Mapeo de tipos a IDs y nombres de cajas
     const cajas = {
-      'caja': { id: 1, nombre: 'Caja Principal' },
-      'cajaChica': { id: 2, nombre: 'Caja Chica' },
+      'caja': { id: 1, nombre: 'Tienda' },
+      'cajaChica': { id: 2, nombre: 'Varios' },
       'celular': { id: 3, nombre: 'Celular' },
       'bus': { id: 4, nombre: 'Bus' }
     };
@@ -295,7 +292,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       componentProps: {
         tipo: tipoOperacion,
         cajas: this.cajas,
-        cajaIdPreseleccionada // Nueva prop para pre-seleccionar caja
+        cajaIdPreseleccionada
       }
     });
 
@@ -308,7 +305,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   private async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModalResult) {
-    // El servicio maneja loading, empleado, subida de foto y guardado
     const success = await this.operacionesCajaService.registrarOperacion(
       data.cajaId,
       tipo,
@@ -319,45 +315,29 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     );
 
     if (success) {
-      // Recargar datos para actualizar saldos
       await this.cargarDatos();
     }
   }
 
   async onAbrirCaja() {
-    // Mostrar modal de verificación de fondo fijo
     const confirmado = await this.mostrarModalVerificacionFondo();
     if (!confirmado) return;
 
-    // Si confirma, abrir turno
     const success = await this.turnosCajaService.abrirTurno();
 
     if (success) {
-      // Dar tiempo a que la BD se actualice
       await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Recargar datos
       await this.cargarDatos();
-
-      // Forzar detección de cambios
       this.cdr.detectChanges();
     }
   }
 
   /**
    * Cierra la caja y navega al proceso de cierre contable completo
-   * Este método reemplaza el anterior "Cerrar Día" de operaciones
    */
   async onCerrarCaja() {
-    // Verificar que haya turno activo
     if (!this.estadoCaja.turnoActivo) return;
-
-    // Navegar a la página de cierre diario (igual que antes)
     await this.onCerrarDia();
-  }
-
-  onCuadre() {
-    this.router.navigate(['/home/cuadre-caja']);
   }
 
   /**
@@ -386,7 +366,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     const existeCierre = await this.recargasService.existeCierreDiario();
     await this.ui.hideLoading();
 
-    // Si hay error de conexión (null), mostrar error y no navegar
     if (existeCierre === null) {
       const toast = await this.toastCtrl.create({
         message: 'No se pudo verificar el estado de la caja. Revisa tu conexión a internet.',
@@ -399,25 +378,20 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       return;
     }
 
-    // Si ya existe cierre (true), mostrar advertencia y no navegar
     if (existeCierre === true) {
       await this.ui.showToast('Ya existe un cierre registrado para el día de hoy', 'warning');
       return;
     }
 
-    // Si pasa todas las validaciones, navegar a la página de cierre diario
     await this.router.navigate(['/home/cierre-diario']);
   }
 
   /**
    * Inicia el día llevando al usuario a la página de cierre diario
-   * Verifica ANTES de navegar si ya existe un cierre para evitar mostrar UI innecesaria
    */
   async onAbrirDia() {
-    // Verificar si ya existe un cierre para hoy ANTES de navegar
     const yaExisteCierre = await this.recargasService.existeCierreDiario();
 
-    // Si hay error de conexión (null), mostrar error y no navegar
     if (yaExisteCierre === null) {
       const toast = await this.toastCtrl.create({
         message: 'No se pudo verificar el estado de la caja. Revisa tu conexión a internet.',
@@ -430,7 +404,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       return;
     }
 
-    // Si ya existe cierre (true), mostrar advertencia y no navegar
     if (yaExisteCierre === true) {
       const toast = await this.toastCtrl.create({
         message: 'La caja ya fue cerrada hoy. No puedes realizar otro cierre para la misma fecha.',
@@ -443,7 +416,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       return;
     }
 
-    // Si no existe cierre (false), navegar a la página de cierre diario
     await this.router.navigate(['/home/cierre-diario']);
   }
 
@@ -452,13 +424,12 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       component: NotificacionesModalComponent,
       cssClass: 'notificaciones-modal',
       componentProps: {
-        gananciasPendientes: this.gananciasPendientes
+        deudasPendientes: this.deudasPendientesCelular
       }
     });
 
     await modal.present();
 
-    // Si se confirma una acción, recargar datos
     const { data } = await modal.onWillDismiss();
     if (data?.reload) {
       await this.cargarDatos();
@@ -501,15 +472,15 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     </ion-header>
 
     <ion-content>
-      <ion-list *ngIf="notificaciones.length > 0; else sinNotificaciones">
-        <ion-item *ngFor="let notif of notificaciones" button (click)="accionarNotificacion(notif)">
-          <ion-icon slot="start" [name]="notif.icono" [color]="notif.color"></ion-icon>
+      <ion-list *ngIf="deudasPendientes.length > 0; else sinNotificaciones">
+        <ion-item button (click)="irARecargas()">
+          <ion-icon slot="start" name="phone-portrait-outline" color="secondary"></ion-icon>
           <ion-label>
-            <h2>{{ notif.titulo }}</h2>
-            <p>{{ notif.mensaje }}</p>
-            <p class="ion-text-wrap">
+            <h2>Deuda con proveedor CELULAR</h2>
+            <p>{{ deudasPendientes.length }} recarga{{ deudasPendientes.length > 1 ? 's' : '' }} sin pagar</p>
+            <p>
               <ion-text color="medium">
-                <small>{{ notif.detalle }}</small>
+                <small>Total: \${{ totalDeudas | number:'1.2-2' }} → ir a Recargas Virtuales</small>
               </ion-text>
             </p>
           </ion-label>
@@ -535,44 +506,24 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     IonContent, IonList, IonItem, IonLabel, IonIcon, IonText
   ]
 })
-export class NotificacionesModalComponent implements OnInit {
+export class NotificacionesModalComponent {
   private modalCtrl = inject(ModalController);
   private router = inject(Router);
 
   // Propiedad para recibir datos desde el modal
-  gananciasPendientes: GananciasPendientes | null = null;
+  deudasPendientes: RecargaVirtual[] = [];
 
-  notificaciones: any[] = [];
-
-  ngOnInit() {
-    // Notificación BUS (liquidación mensual del proveedor)
-    if (this.gananciasPendientes) {
-      this.notificaciones.push({
-        id: 'ganancias-bus-' + this.gananciasPendientes.mes,
-        tipo: 'GANANCIAS_MENSUALES',
-        titulo: 'Ganancia Bus (liquidación)',
-        mensaje: this.gananciasPendientes.mesDisplay,
-        detalle: `$${this.gananciasPendientes.gananciaBus.toFixed(2)} → transferir a Caja Chica`,
-        icono: 'bus-outline',
-        color: 'warning'
-      });
-    }
+  get totalDeudas(): number {
+    return this.deudasPendientes.reduce((sum, d) => sum + d.monto_a_pagar, 0);
   }
 
   cerrar() {
     this.modalCtrl.dismiss();
   }
 
-  async accionarNotificacion(notif: any) {
-    // Cerrar modal primero
+  async irARecargas() {
     await this.modalCtrl.dismiss({ reload: false });
-
-    // Navegar a página de transferencia BUS
-    if (notif.tipo === 'GANANCIAS_MENSUALES') {
-      await this.router.navigate(['/home/transferir-ganancias'], {
-        state: { ganancias: this.gananciasPendientes }
-      });
-    }
+    await this.router.navigate(['/home/recargas-virtuales']);
   }
 }
 

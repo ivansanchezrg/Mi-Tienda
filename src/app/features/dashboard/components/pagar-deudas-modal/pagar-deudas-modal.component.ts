@@ -86,12 +86,18 @@ export class PagarDeudasModalComponent implements OnInit {
       .reduce((sum, d) => sum + d.monto_a_pagar, 0);
   }
 
+  get totalGananciaSeleccionada(): number {
+    return this.deudasPendientes
+      .filter(d => this.deudasSeleccionadas.has(d.id))
+      .reduce((sum, d) => sum + (d.ganancia ?? 0), 0);
+  }
+
   get totalDeudas(): number {
     return this.deudasPendientes.reduce((sum, d) => sum + d.monto_a_pagar, 0);
   }
 
   get saldoDespues(): number {
-    return this.saldoDisponible - this.totalSeleccionado;
+    return this.saldoDisponible - this.totalSeleccionado - this.totalGananciaSeleccionada;
   }
 
   get saldoSuficiente(): boolean {
@@ -118,7 +124,7 @@ export class PagarDeudasModalComponent implements OnInit {
 
     if (!resultado) return;
 
-    await this.ui.showSuccess(`Pago registrado: $${this.totalSeleccionado.toFixed(2)}`);
+    await this.ui.showSuccess(resultado.message ?? `Pago registrado: $${this.totalSeleccionado.toFixed(2)}`);
     this.modalCtrl.dismiss({ success: true });
   }
 

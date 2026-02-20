@@ -49,11 +49,11 @@
       </button>
       <button
         class="primary-btn"
-        [disabled]="!montoVirtual || montoVirtual <= 0"
+        [disabled]="!montoVirtual || montoVirtual <= 0 || saldoBusInsuficiente"
         (click)="confirmar()">
         <ion-icon name="add-circle-outline"></ion-icon>
         @if (tipo === 'CELULAR') {
-          Registrar y transferir ganancia
+          Registrar deuda
         } @else {
           Confirmar
         }
@@ -68,10 +68,41 @@
           <span class="calculo-danger">${{ montoAPagar | number:'1.2-2' }}</span>
         </div>
         <div class="calculo-row">
-          <span>Ganancia ({{ comisionPct }}%) → Caja Chica</span>
+          <span>Ganancia ({{ comisionPct }}%) — se transfiere al pagar</span>
           <span class="calculo-success">${{ ganancia | number:'1.2-2' }}</span>
         </div>
       </div>
+    }
+
+    <!-- Validación saldo (solo BUS) -->
+    @if (tipo === 'BUS' && montoVirtual && montoVirtual > 0) {
+      <div class="calculo-preview" [class.error]="saldoBusInsuficiente">
+        <div class="calculo-row">
+          <span>Saldo disponible CAJA BUS</span>
+          <span class="calculo-valor">${{ saldoCajaBus | number:'1.2-2' }}</span>
+        </div>
+        <div class="calculo-row">
+          <span>Saldo después</span>
+          <span [class.calculo-success]="!saldoBusInsuficiente" [class.calculo-danger]="saldoBusInsuficiente">
+            ${{ saldoBusDespues | number:'1.2-2' }}
+            @if (!saldoBusInsuficiente) {
+              <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
+            } @else {
+              <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+            }
+          </span>
+        </div>
+      </div>
+
+      @if (saldoBusInsuficiente) {
+        <div class="alerta-saldo">
+          <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+          <div>
+            <strong>Saldo insuficiente</strong>
+            <p>Debe haber efectivo en Caja Bus para poder comprar saldo virtual</p>
+          </div>
+        </div>
+      }
     }
 
   </div>

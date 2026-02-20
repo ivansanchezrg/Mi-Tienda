@@ -1,7 +1,7 @@
 # PROCESO: Saldo Virtual (Recargas Virtuales)
 
-**Versión:** 1.0
-**Fecha:** 2026-02-11
+**Versión:** 1.5
+**Fecha:** 2026-02-20
 **Módulo:** Saldo Virtual (`/home/recargas-virtuales`)
 
 ---
@@ -30,7 +30,7 @@
 
 ### 1.3 Cajas del módulo
 
-- **CAJA_CELULAR**: acumula ingresos por ventas de recargas celulares. Se descuenta cuando se paga al proveedor.
+- **CAJA_CELULAR**: acumula ingresos por ventas de recargas celulares (via cierre diario). Se descuenta cuando se paga al proveedor. La ganancia (5%) queda permanentemente en esta caja — es la diferencia entre lo vendido y lo pagado al proveedor.
 - **CAJA_BUS**: acumula ingresos por ventas de recargas de bus. Se descuenta cuando se compra saldo al proveedor.
 
 ---
@@ -140,7 +140,7 @@ async getSaldoVirtualActual(servicio: 'CELULAR' | 'BUS'): Promise<number> {
 
 ## 4. Flujos de Negocio
 
-### 4.1 Flujo CELULAR — Carga del Proveedor (v1.2 - Transaccional)
+### 4.1 Flujo CELULAR — Carga del Proveedor (v2.0 - Solo crea deuda)
 
 **Cuándo ocurre:** El proveedor acredita saldo virtual a crédito (se paga después).
 
@@ -153,30 +153,38 @@ registrar_recarga_proveedor_celular_completo(fecha, empleado_id, monto_virtual)
 ├─ Calcula: monto_a_pagar = monto_virtual * 0.95
 │           ganancia      = monto_virtual - monto_a_pagar
 ├─ INSERT en recargas_virtuales (pagado = false)
-├─ CREATE TRANSFERENCIA_SALIENTE (CAJA_CELULAR -$10.53)
-├─ CREATE TRANSFERENCIA_ENTRANTE (CAJA_CHICA +$10.53)
-├─ UPDATE saldos en tabla cajas
 ├─ CALCULAR saldo_virtual_actual
 └─ OBTENER deudas_pendientes
         ↓
 Retorna JSON completo:
   - recarga_id, monto_virtual, monto_a_pagar, ganancia
-  - transferencia: { operacion_salida_id, operacion_entrada_id, monto_transferido }
-  - saldos_actualizados: { caja_celular_nuevo, caja_chica_nuevo, saldo_virtual_celular }
+  - saldo_virtual_celular (calculado)
   - deudas_pendientes: { cantidad, total, lista }
 ```
 
 **Efecto:**
 
-- ✅ Crea la deuda en `recargas_virtuales`
-- ✅ Mueve efectivo: CAJA_CELULAR → CAJA_CHICA (ganancia 5%)
-- ✅ Actualiza saldos de ambas cajas
-- ✅ Retorna todos los datos actualizados (saldos, deudas, etc.)
+- ✅ Crea la deuda en `recargas_virtuales` (pagado = false)
+- ✅ NO mueve efectivo de CAJA_CELULAR (no hay saldo que mover aún)
+- ✅ Retorna saldo virtual actualizado y lista de deudas
 - ✅ Rollback automático si falla cualquier paso
+
+**¿Dónde queda la ganancia?**
+
+La ganancia NO se transfiere a ninguna caja en este momento. El ciclo completo es:
+
+```
+1. Proveedor carga $210.53 virtual → recargas_virtuales (pagado=false, ganancia=$10.53)
+2. Día a día: vendes recargas → Cierre Diario → CAJA_CELULAR += ventas del día
+3. Pagas al proveedor $200.00 → CAJA_CELULAR -= $200.00
+4. Resultado: CAJA_CELULAR retiene $10.53 = ganancia acumulada
+```
+
+La ganancia es simplemente el **saldo que queda en CAJA_CELULAR** después de pagar al proveedor. La dueña decide cuándo y cuánto retirar.
 
 ---
 
-### 4.2 Flujo CELULAR — Pago al Proveedor
+### 4.2 Flujo CELULAR — Pago al Proveedor (v2.0 - Con transferencia de ganancia)
 
 **Cuándo ocurre:** Se paga al proveedor lo que se le debe.
 
@@ -186,16 +194,27 @@ Usuario selecciona una o más deudas (pagado = false)
 registrar_pago_proveedor_celular(empleado_id, deuda_ids[], notas)
         ↓
 Valida: deudas existen, son CELULAR, no están pagadas
-Valida: CAJA_CELULAR tiene saldo suficiente
+Calcula: total_a_pagar = SUM(monto_a_pagar) de las deudas seleccionadas
+Calcula: total_ganancia = SUM(ganancia) de las deudas seleccionadas (de recargas_virtuales.ganancia)
+Valida: CAJA_CELULAR tiene saldo >= total_a_pagar + total_ganancia
         ↓
-INSERT en operaciones_cajas (EGRESO, CAJA_CELULAR)
+INSERT en operaciones_cajas (EGRESO, CAJA_CELULAR)          ← pago al proveedor
+INSERT en operaciones_cajas (TRANSFERENCIA_SALIENTE, CAJA_CELULAR)  ← ganancia sale
+INSERT en operaciones_cajas (TRANSFERENCIA_ENTRANTE, CAJA_CHICA)    ← ganancia entra
 UPDATE recargas_virtuales SET pagado=true, fecha_pago, operacion_pago_id
-UPDATE cajas SET saldo_actual = saldo_anterior - total_pagado (CAJA_CELULAR)
+UPDATE cajas CAJA_CELULAR: saldo -= (total_a_pagar + total_ganancia)
+UPDATE cajas CAJA_CHICA:   saldo += total_ganancia
         ↓
-Retorna: operacion_id, deudas_pagadas, total_pagado, saldo_anterior, saldo_nuevo
+Retorna: operacion_id, deudas_pagadas, total_pagado, total_ganancia,
+         saldo_celular_anterior, saldo_celular_nuevo,
+         saldo_chica_anterior, saldo_chica_nuevo
 ```
 
-**Efecto:** Descuenta `total_pagado` de CAJA_CELULAR. Cierra las deudas seleccionadas.
+**Efecto:** Descuenta `total_a_pagar + total_ganancia` de CAJA_CELULAR. Transfiere `total_ganancia` a CAJA_CHICA. Cierra las deudas seleccionadas.
+
+**¿Por qué la ganancia se mueve aquí y no al crear la deuda?**
+
+La ganancia NO existe como efectivo hasta que se cobra a los clientes (via cierre diario → CAJA_CELULAR). Al momento de registrar la deuda con el proveedor, CAJA_CELULAR puede estar en $0. Solo después de varios cierres diarios, CAJA_CELULAR acumula lo suficiente para: pagar al proveedor + transferir la ganancia.
 
 ---
 
@@ -272,22 +291,42 @@ Muestra para cada servicio (CELULAR / BUS):
 - Deudas pendientes CELULAR (si aplica)
 - Botones para abrir modales
 
+### 5.4 Notificación en campana del Home
+
+Cuando existen deudas pendientes con el proveedor CELULAR, el home las refleja en la campana del header (badge numérico rojo estilo Facebook).
+
+**Archivo:** `src/app/features/dashboard/pages/home/home.page.ts`
+
+- `cargarDatos()` llama `obtenerDeudasPendientesCelular()` en el `Promise.all` inicial
+- Si `deudasPendientes.length > 0` → se muestra el badge con el número de deudas
+- Al tocar la campana → `NotificacionesModalComponent` muestra: cantidad, total en $ y botón para ir a Recargas Virtuales
+- Al pagar las deudas y volver al home, el pull-to-refresh actualiza y desaparece el badge
+
 ---
 
 ## 6. Funciones SQL
 
 ### 6.1 `registrar_pago_proveedor_celular`
 
-Registra el pago al proveedor CELULAR de forma atómica: marca deudas como pagadas y descuenta de CAJA_CELULAR.
+Registra el pago al proveedor CELULAR de forma atómica: marca deudas como pagadas, descuenta de CAJA_CELULAR y transfiere la ganancia acumulada a CAJA_CHICA.
 
 ```sql
 -- ==========================================
 -- FUNCIÓN: registrar_pago_proveedor_celular
+-- VERSIÓN: 2.0
+-- FECHA: 2026-02-20
 -- ==========================================
 -- Registra el pago al proveedor CELULAR de forma atómica:
---   1. Marca las deudas seleccionadas como pagado = true
---   2. Crea EGRESO en operaciones_cajas (CAJA_CELULAR)
---   3. Actualiza saldo de CAJA_CELULAR
+--   1. Valida deudas y calcula totales (monto_a_pagar + ganancia)
+--   2. Crea EGRESO en operaciones_cajas (CAJA_CELULAR) — pago al proveedor
+--   3. Crea TRANSFERENCIA_SALIENTE en CAJA_CELULAR — ganancia sale
+--   4. Crea TRANSFERENCIA_ENTRANTE en CAJA_CHICA — ganancia entra
+--   5. Marca deudas como pagadas
+--   6. Actualiza saldo CAJA_CELULAR (saldo -= monto_a_pagar + ganancia)
+--   7. Actualiza saldo CAJA_CHICA (saldo += ganancia)
+--
+-- La ganancia (v_total_ganancia) se obtiene de recargas_virtuales.ganancia
+-- de cada deuda — NO es un valor hardcodeado.
 --
 -- Parámetros:
 --   p_empleado_id   INT      Empleado que registra el pago
@@ -304,30 +343,50 @@ CREATE OR REPLACE FUNCTION registrar_pago_proveedor_celular(
 )
 RETURNS JSON
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_caja_celular_id        INTEGER;
+  v_caja_chica_id          INTEGER;
   v_tipo_ref_id            INTEGER;
   v_categoria_eg010_id     INTEGER;
+  v_categoria_tr_id        INTEGER;
   v_total_a_pagar          NUMERIC;
-  v_saldo_anterior         NUMERIC;
-  v_saldo_nuevo            NUMERIC;
-  v_operacion_id           UUID;
+  v_total_ganancia         NUMERIC;
+  v_total_egreso           NUMERIC;
+  v_saldo_celular_ant      NUMERIC;
+  v_saldo_celular_nuevo    NUMERIC;
+  v_saldo_chica_ant        NUMERIC;
+  v_saldo_chica_nuevo      NUMERIC;
+  v_operacion_pago_id      UUID;
+  v_operacion_sal_id       UUID;
+  v_operacion_ent_id       UUID;
   v_fecha_hoy              DATE;
   v_deudas_count           INTEGER;
 BEGIN
   v_fecha_hoy := CURRENT_DATE;
 
-  -- Obtener IDs necesarios
+  -- ==========================================
+  -- 1. OBTENER IDs NECESARIOS
+  -- ==========================================
   SELECT id INTO v_caja_celular_id FROM cajas WHERE codigo = 'CAJA_CELULAR';
+  SELECT id INTO v_caja_chica_id   FROM cajas WHERE codigo = 'CAJA_CHICA';
   SELECT id INTO v_tipo_ref_id     FROM tipos_referencia WHERE codigo = 'RECARGAS_VIRTUALES';
   SELECT id INTO v_categoria_eg010_id FROM categorias_operaciones WHERE codigo = 'EG-010';
+  SELECT id INTO v_categoria_tr_id    FROM categorias_operaciones WHERE codigo = 'TR-001';
 
   IF v_caja_celular_id IS NULL THEN
     RAISE EXCEPTION 'Caja CAJA_CELULAR no encontrada';
   END IF;
 
-  -- Validar que los IDs existen y no están pagados
+  IF v_caja_chica_id IS NULL THEN
+    RAISE EXCEPTION 'Caja CAJA_CHICA no encontrada';
+  END IF;
+
+  -- ==========================================
+  -- 2. VALIDAR DEUDAS
+  -- ==========================================
   SELECT COUNT(*) INTO v_deudas_count
   FROM recargas_virtuales
   WHERE id = ANY(p_deuda_ids)
@@ -338,9 +397,14 @@ BEGIN
     RAISE EXCEPTION 'Algunas deudas no existen, ya están pagadas o no son de tipo CELULAR';
   END IF;
 
-  -- Calcular total a pagar
-  SELECT COALESCE(SUM(monto_a_pagar), 0)
-  INTO v_total_a_pagar
+  -- ==========================================
+  -- 3. CALCULAR TOTALES DESDE LAS DEUDAS
+  -- Los valores vienen de recargas_virtuales — NO son hardcodeados
+  -- ==========================================
+  SELECT
+    COALESCE(SUM(monto_a_pagar), 0),
+    COALESCE(SUM(ganancia), 0)
+  INTO v_total_a_pagar, v_total_ganancia
   FROM recargas_virtuales
   WHERE id = ANY(p_deuda_ids);
 
@@ -348,19 +412,36 @@ BEGIN
     RAISE EXCEPTION 'El total a pagar debe ser mayor a cero';
   END IF;
 
-  -- Obtener saldo actual de CAJA_CELULAR
-  SELECT saldo_actual INTO v_saldo_anterior
+  -- Total que debe salir de CAJA_CELULAR = pago al proveedor + ganancia a transferir
+  v_total_egreso := v_total_a_pagar + v_total_ganancia;
+
+  -- ==========================================
+  -- 4. VALIDAR SALDO CAJA_CELULAR
+  -- ==========================================
+  SELECT saldo_actual INTO v_saldo_celular_ant
   FROM cajas WHERE id = v_caja_celular_id;
 
-  IF v_saldo_anterior < v_total_a_pagar THEN
-    RAISE EXCEPTION 'Saldo insuficiente en CAJA_CELULAR. Disponible: $%, Requerido: $%',
-      v_saldo_anterior, v_total_a_pagar;
+  IF v_saldo_celular_ant < v_total_egreso THEN
+    RAISE EXCEPTION 'Saldo insuficiente en CAJA_CELULAR. Disponible: $%, Requerido: $% (pago: $% + ganancia: $%)',
+      v_saldo_celular_ant, v_total_egreso, v_total_a_pagar, v_total_ganancia;
   END IF;
 
-  v_saldo_nuevo := v_saldo_anterior - v_total_a_pagar;
-  v_operacion_id := uuid_generate_v4();
+  SELECT saldo_actual INTO v_saldo_chica_ant
+  FROM cajas WHERE id = v_caja_chica_id;
 
-  -- Crear EGRESO en operaciones_cajas
+  -- ==========================================
+  -- 5. CALCULAR SALDOS NUEVOS
+  -- ==========================================
+  v_saldo_celular_nuevo := v_saldo_celular_ant - v_total_egreso;
+  v_saldo_chica_nuevo   := v_saldo_chica_ant + v_total_ganancia;
+
+  v_operacion_pago_id := gen_random_uuid();
+  v_operacion_sal_id  := gen_random_uuid();
+  v_operacion_ent_id  := gen_random_uuid();
+
+  -- ==========================================
+  -- 6. EGRESO: Pago al proveedor (CAJA_CELULAR)
+  -- ==========================================
   INSERT INTO operaciones_cajas (
     id, fecha, caja_id, empleado_id,
     tipo_operacion, monto,
@@ -368,34 +449,84 @@ BEGIN
     categoria_id, tipo_referencia_id,
     descripcion, created_at
   ) VALUES (
-    v_operacion_id, NOW(), v_caja_celular_id, p_empleado_id,
+    v_operacion_pago_id, NOW(), v_caja_celular_id, p_empleado_id,
     'EGRESO', v_total_a_pagar,
-    v_saldo_anterior, v_saldo_nuevo,
+    v_saldo_celular_ant, v_saldo_celular_ant - v_total_a_pagar,
     v_categoria_eg010_id, v_tipo_ref_id,
     COALESCE(p_notas, 'Pago al proveedor celular — ' || array_length(p_deuda_ids, 1) || ' deuda(s)'),
     NOW()
   );
 
-  -- Marcar deudas como pagadas
+  -- ==========================================
+  -- 7. TRANSFERENCIA_SALIENTE: Ganancia sale de CAJA_CELULAR
+  -- ==========================================
+  INSERT INTO operaciones_cajas (
+    id, fecha, caja_id, empleado_id,
+    tipo_operacion, monto,
+    saldo_anterior, saldo_actual,
+    categoria_id, tipo_referencia_id,
+    descripcion, created_at
+  ) VALUES (
+    v_operacion_sal_id, NOW(), v_caja_celular_id, p_empleado_id,
+    'TRANSFERENCIA_SALIENTE', v_total_ganancia,
+    v_saldo_celular_ant - v_total_a_pagar, v_saldo_celular_nuevo,
+    v_categoria_tr_id, v_tipo_ref_id,
+    'Ganancia celular → Caja Chica',
+    NOW()
+  );
+
+  -- ==========================================
+  -- 8. TRANSFERENCIA_ENTRANTE: Ganancia entra a CAJA_CHICA
+  -- ==========================================
+  INSERT INTO operaciones_cajas (
+    id, fecha, caja_id, empleado_id,
+    tipo_operacion, monto,
+    saldo_anterior, saldo_actual,
+    categoria_id, tipo_referencia_id,
+    descripcion, created_at
+  ) VALUES (
+    v_operacion_ent_id, NOW(), v_caja_chica_id, p_empleado_id,
+    'TRANSFERENCIA_ENTRANTE', v_total_ganancia,
+    v_saldo_chica_ant, v_saldo_chica_nuevo,
+    v_categoria_tr_id, v_tipo_ref_id,
+    'Ganancia celular recibida desde Caja Celular',
+    NOW()
+  );
+
+  -- ==========================================
+  -- 9. MARCAR DEUDAS COMO PAGADAS
+  -- ==========================================
   UPDATE recargas_virtuales
   SET pagado            = true,
       fecha_pago        = v_fecha_hoy,
-      operacion_pago_id = v_operacion_id
+      operacion_pago_id = v_operacion_pago_id
   WHERE id = ANY(p_deuda_ids);
 
-  -- Actualizar saldo CAJA_CELULAR
+  -- ==========================================
+  -- 10. ACTUALIZAR SALDOS DE CAJAS
+  -- ==========================================
   UPDATE cajas
-  SET saldo_actual = v_saldo_nuevo, updated_at = NOW()
+  SET saldo_actual = v_saldo_celular_nuevo, updated_at = NOW()
   WHERE id = v_caja_celular_id;
 
+  UPDATE cajas
+  SET saldo_actual = v_saldo_chica_nuevo, updated_at = NOW()
+  WHERE id = v_caja_chica_id;
+
+  -- ==========================================
+  -- 11. RETORNAR RESULTADO
+  -- ==========================================
   RETURN json_build_object(
-    'success',          true,
-    'operacion_id',     v_operacion_id,
-    'deudas_pagadas',   array_length(p_deuda_ids, 1),
-    'total_pagado',     v_total_a_pagar,
-    'saldo_anterior',   v_saldo_anterior,
-    'saldo_nuevo',      v_saldo_nuevo,
-    'message',          'Pago al proveedor registrado: $' || v_total_a_pagar
+    'success',               true,
+    'operacion_pago_id',     v_operacion_pago_id,
+    'deudas_pagadas',        array_length(p_deuda_ids, 1),
+    'total_pagado',          v_total_a_pagar,
+    'total_ganancia',        v_total_ganancia,
+    'saldo_celular_anterior', v_saldo_celular_ant,
+    'saldo_celular_nuevo',   v_saldo_celular_nuevo,
+    'saldo_chica_anterior',  v_saldo_chica_ant,
+    'saldo_chica_nuevo',     v_saldo_chica_nuevo,
+    'message',               'Pago registrado: $' || v_total_a_pagar || ' — Ganancia $' || v_total_ganancia || ' transferida a Caja Chica'
   );
 
 EXCEPTION
@@ -404,8 +535,19 @@ EXCEPTION
 END;
 $$;
 
+-- ==========================================
+-- COMENTARIOS Y PERMISOS
+-- ==========================================
+
 COMMENT ON FUNCTION registrar_pago_proveedor_celular IS
-'Registra pago al proveedor CELULAR. Crea EGRESO en CAJA_CELULAR y marca deudas como pagadas.';
+'v2.0 - Registra pago al proveedor CELULAR. Crea EGRESO en CAJA_CELULAR (monto_a_pagar)
+y transfiere la ganancia acumulada (de recargas_virtuales.ganancia) a CAJA_CHICA.
+Ganancia NO hardcodeada: se lee de cada deuda seleccionada.';
+
+GRANT EXECUTE ON FUNCTION registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) TO anon;
+
+NOTIFY pgrst, 'reload schema';
 ```
 
 ---
@@ -548,35 +690,33 @@ COMMENT ON FUNCTION registrar_compra_saldo_bus IS
 
 #### ¿Por qué esta función?
 
-**Problema anterior:**
+**Problema anterior (v1.2):**
 
-- Función `registrar_recarga_virtual_celular` solo creaba la deuda
-- La transferencia CAJA_CELULAR → CAJA_CHICA se hacía por separado en TypeScript
-- **Sin transacción compartida** → riesgo de inconsistencia si falla la transferencia
-- Múltiples queries adicionales para actualizar la UI (4+ queries)
+- Movía ganancia de CAJA_CELULAR → CAJA_CHICA en el momento del registro de la deuda
+- Validaba saldo de CAJA_CELULAR antes de crear la deuda → error si CAJA_CELULAR estaba en $0
+- Esto era incorrecto: CAJA_CELULAR se llena con las ventas diarias, no existe saldo al momento de crear la deuda
 
-**Solución v1.2:**
+**Solución v2.0:**
 
 ```
 UNA sola función SQL transaccional que hace:
-  1. INSERT en recargas_virtuales (crear deuda)
-  2. CREATE operaciones de transferencia
-  3. UPDATE saldos de cajas
-  4. CALCULAR saldo virtual actualizado
-  5. OBTENER lista de deudas pendientes
-  6. RETORNAR todo en un solo JSON
+  1. INSERT en recargas_virtuales (crear deuda, pagado=false)
+  2. CALCULAR saldo virtual actualizado
+  3. OBTENER lista de deudas pendientes
+  4. RETORNAR todo en un solo JSON
 ```
+
+Sin validar saldo de CAJA_CELULAR. Sin mover ganancia. Solo crea la deuda.
 
 #### Beneficios
 
-| Aspecto                      | Antes (v1.0)              | Después (v1.2)          | Mejora              |
-| ---------------------------- | ------------------------- | ----------------------- | ------------------- |
-| **Transaccionalidad**        | ❌ 2 operaciones separadas | ✅ 1 transacción atómica | Rollback automático |
-| **Queries totales**          | 6 queries                 | 3 queries               | -50%                |
-| **Tiempo estimado**          | ~800-1200ms               | ~400-600ms              | -40-50%             |
-| **Round-trips red**          | 6 llamadas HTTP           | 3 llamadas HTTP         | Menos latencia      |
-| **Actualización UI**         | Recarga completa          | Datos del resultado     | Instantánea         |
-| **Riesgo de inconsistencia** | Alto                      | Cero                    | Seguridad           |
+| Aspecto                    | v1.2 (incorrecto)                   | v2.0 (correcto)         | Mejora                    |
+| -------------------------- | ----------------------------------- | ----------------------- | ------------------------- |
+| **Lógica de negocio**      | ❌ Mueve ganancia al registrar deuda | ✅ Solo crea la deuda    | Modelo correcto (crédito) |
+| **Validación innecesaria** | ❌ Falla si CAJA_CELULAR = $0        | ✅ Sin validación        | Funciona con caja vacía   |
+| **Operaciones DB**         | INSERT + 2 INSERT + 2 UPDATE        | INSERT                  | Mucho más simple          |
+| **Transaccionalidad**      | ✅ 1 transacción atómica             | ✅ 1 transacción atómica | Sin cambios               |
+| **Actualización UI**       | Datos del resultado                 | Datos del resultado     | Sin cambios               |
 
 #### Firma de la función
 
@@ -598,19 +738,8 @@ RETURNS JSON
   "monto_virtual": 210.53,
   "monto_a_pagar": 200.00,
   "ganancia": 10.53,
-  "message": "Recarga registrada y ganancia transferida a Caja Chica",
-  "transferencia": {
-    "operacion_salida_id": "<uuid>",
-    "operacion_entrada_id": "<uuid>",
-    "monto_transferido": 10.53
-  },
-  "saldos_actualizados": {
-    "caja_celular_anterior": 150.00,
-    "caja_celular_nuevo": 139.47,
-    "caja_chica_anterior": 50.00,
-    "caja_chica_nuevo": 60.53,
-    "saldo_virtual_celular": 310.53
-  },
+  "message": "Recarga del proveedor registrada",
+  "saldo_virtual_celular": 310.53,
   "deudas_pendientes": {
     "cantidad": 3,
     "total": 600.00,
@@ -633,22 +762,22 @@ RETURNS JSON
 ```sql
 -- ==========================================
 -- FUNCIÓN: registrar_recarga_proveedor_celular_completo
--- VERSIÓN: 1.0
--- FECHA: 2026-02-11
+-- VERSIÓN: 2.0
+-- FECHA: 2026-02-20
 -- ==========================================
--- Unifica TODO el proceso de registro de recarga del proveedor CELULAR en una transacción atómica:
---   1. INSERT en recargas_virtuales (crear deuda)
---   2. CREATE operaciones de transferencia CAJA_CELULAR → CAJA_CHICA
---   3. UPDATE saldos de ambas cajas
---   4. CALCULAR saldo virtual actualizado
---   5. OBTENER lista de deudas pendientes
---   6. RETORNAR todos los datos en un solo JSON
+-- Registra la deuda con el proveedor CELULAR de forma transaccional.
+-- Solo crea la deuda — NO mueve efectivo entre cajas.
 --
--- BENEFICIOS:
+-- MODELO DE NEGOCIO CELULAR (crédito):
+--   El proveedor carga saldo virtual a crédito. La ganancia (5%) queda
+--   en CAJA_CELULAR como diferencia entre ventas cobradas y monto pagado.
+--   No hay transferencia al registrar la deuda.
+--
+-- BENEFICIOS v2.0:
+--   ✅ No valida saldo de CAJA_CELULAR (correcto: no hay saldo al crear deuda)
+--   ✅ No mueve efectivo entre cajas (correcto: modelo crédito)
+--   ✅ Más simple y robusto
 --   ✅ Transacción atómica (todo o nada)
---   ✅ Rollback automático si falla cualquier paso
---   ✅ Reduce round-trips (1 RPC en vez de 4+ queries)
---   ✅ Retorna todos los datos necesarios para actualizar UI
 --
 -- Parámetros:
 --   p_fecha          DATE     Fecha del evento
@@ -657,8 +786,7 @@ RETURNS JSON
 --
 -- Retorna JSON con:
 --   - success, recarga_id, monto_virtual, monto_a_pagar, ganancia
---   - transferencia: { operacion_salida_id, operacion_entrada_id, monto_transferido }
---   - saldos_actualizados: { caja_celular_anterior, caja_celular_nuevo, caja_chica_anterior, caja_chica_nuevo, saldo_virtual_celular }
+--   - saldo_virtual_celular (calculado)
 --   - deudas_pendientes: { cantidad, total, lista }
 -- ==========================================
 
@@ -675,44 +803,32 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  -- IDs de servicios y cajas
-  v_tipo_celular_id       INTEGER;
-  v_caja_celular_id       INTEGER;
-  v_caja_chica_id         INTEGER;
-  v_tipo_ref_id           INTEGER;
+  -- IDs de servicios
+  v_tipo_celular_id           INTEGER;
+  v_comision_pct              NUMERIC;
 
-  -- Comisión y cálculos
-  v_comision_pct          NUMERIC;
-  v_monto_a_pagar         NUMERIC;
-  v_ganancia              NUMERIC;
+  -- Cálculos
+  v_monto_a_pagar             NUMERIC;
+  v_ganancia                  NUMERIC;
 
-  -- Saldos de cajas
-  v_saldo_anterior_celular NUMERIC;
-  v_saldo_anterior_chica   NUMERIC;
-  v_saldo_nuevo_celular    NUMERIC;
-  v_saldo_nuevo_chica      NUMERIC;
-
-  -- IDs generados
-  v_recarga_id             UUID;
-  v_operacion_salida_id    UUID;
-  v_operacion_entrada_id   UUID;
+  -- ID generado
+  v_recarga_id                UUID;
 
   -- Saldo virtual actualizado
-  v_saldo_ultimo_cierre        NUMERIC;
-  v_suma_recargas_post_cierre  NUMERIC;
-  v_saldo_virtual_actual       NUMERIC;
-  v_fecha_ultimo_cierre        TIMESTAMP;
+  v_saldo_ultimo_cierre       NUMERIC;
+  v_suma_recargas_post_cierre NUMERIC;
+  v_saldo_virtual_actual      NUMERIC;
+  v_fecha_ultimo_cierre       TIMESTAMP;
 
   -- Deudas pendientes
-  v_deudas_pendientes     JSON;
-  v_cantidad_deudas       INTEGER;
-  v_total_deudas          NUMERIC;
+  v_deudas_pendientes         JSON;
+  v_cantidad_deudas           INTEGER;
+  v_total_deudas              NUMERIC;
 BEGIN
   -- ==========================================
   -- 1. VALIDACIONES INICIALES
   -- ==========================================
 
-  -- Obtener tipo de servicio CELULAR y comisión
   SELECT id, porcentaje_comision
   INTO v_tipo_celular_id, v_comision_pct
   FROM tipos_servicio WHERE codigo = 'CELULAR';
@@ -729,8 +845,8 @@ BEGIN
   -- 2. CÁLCULOS DE MONTOS
   -- ==========================================
 
-  -- Fórmula: monto_a_pagar = monto_virtual * (1 - comision/100)
-  -- Ejemplo: 210.53 * (1 - 5/100) = 210.53 * 0.95 = 200.00
+  -- monto_a_pagar = monto_virtual * (1 - comision/100)
+  -- Ejemplo: 210.53 * 0.95 = 200.00
   v_monto_a_pagar := ROUND(p_monto_virtual * (1 - v_comision_pct / 100.0), 2);
   v_ganancia      := p_monto_virtual - v_monto_a_pagar;
 
@@ -750,105 +866,10 @@ BEGIN
   RETURNING id INTO v_recarga_id;
 
   -- ==========================================
-  -- 4. OBTENER IDs DE CAJAS Y REFERENCIAS
-  -- ==========================================
-
-  SELECT id INTO v_caja_celular_id FROM cajas WHERE codigo = 'CAJA_CELULAR';
-  SELECT id INTO v_caja_chica_id   FROM cajas WHERE codigo = 'CAJA_CHICA';
-  SELECT id INTO v_tipo_ref_id     FROM tipos_referencia WHERE codigo = 'RECARGAS_VIRTUALES';
-
-  IF v_caja_celular_id IS NULL THEN
-    RAISE EXCEPTION 'Caja CAJA_CELULAR no encontrada';
-  END IF;
-
-  IF v_caja_chica_id IS NULL THEN
-    RAISE EXCEPTION 'Caja CAJA_CHICA no encontrada';
-  END IF;
-
-  -- ==========================================
-  -- 5. OBTENER SALDOS ACTUALES DE CAJAS
-  -- ==========================================
-
-  SELECT saldo_actual INTO v_saldo_anterior_celular
-  FROM cajas WHERE id = v_caja_celular_id;
-
-  SELECT saldo_actual INTO v_saldo_anterior_chica
-  FROM cajas WHERE id = v_caja_chica_id;
-
-  -- ==========================================
-  -- 6. CALCULAR NUEVOS SALDOS
-  -- ==========================================
-
-  v_saldo_nuevo_celular := v_saldo_anterior_celular - v_ganancia;
-  v_saldo_nuevo_chica   := v_saldo_anterior_chica   + v_ganancia;
-
-  -- ==========================================
-  -- 7. VALIDAR SALDO SUFICIENTE
-  -- ==========================================
-
-  IF v_saldo_anterior_celular < v_ganancia THEN
-    RAISE EXCEPTION 'Saldo insuficiente en CAJA_CELULAR. Disponible: $%, Requerido: $%',
-      v_saldo_anterior_celular, v_ganancia;
-  END IF;
-
-  -- ==========================================
-  -- 8. CREAR TRANSFERENCIA_SALIENTE (CAJA_CELULAR)
-  -- ==========================================
-
-  INSERT INTO operaciones_cajas (
-    id, fecha, caja_id, empleado_id,
-    tipo_operacion, monto,
-    saldo_anterior, saldo_actual,
-    tipo_referencia_id, referencia_id,
-    descripcion, created_at
-  ) VALUES (
-    gen_random_uuid(), NOW(), v_caja_celular_id, p_empleado_id,
-    'TRANSFERENCIA_SALIENTE', v_ganancia,
-    v_saldo_anterior_celular, v_saldo_nuevo_celular,
-    v_tipo_ref_id, v_recarga_id,
-    'Ganancia 5% a Caja Chica — ' || TO_CHAR(p_fecha, 'YYYY-MM'),
-    NOW()
-  )
-  RETURNING id INTO v_operacion_salida_id;
-
-  -- ==========================================
-  -- 9. CREAR TRANSFERENCIA_ENTRANTE (CAJA_CHICA)
-  -- ==========================================
-
-  INSERT INTO operaciones_cajas (
-    id, fecha, caja_id, empleado_id,
-    tipo_operacion, monto,
-    saldo_anterior, saldo_actual,
-    tipo_referencia_id, referencia_id,
-    descripcion, created_at
-  ) VALUES (
-    gen_random_uuid(), NOW(), v_caja_chica_id, p_empleado_id,
-    'TRANSFERENCIA_ENTRANTE', v_ganancia,
-    v_saldo_anterior_chica, v_saldo_nuevo_chica,
-    v_tipo_ref_id, v_recarga_id,
-    'Ganancia 5% desde Caja Celular — ' || TO_CHAR(p_fecha, 'YYYY-MM'),
-    NOW()
-  )
-  RETURNING id INTO v_operacion_entrada_id;
-
-  -- ==========================================
-  -- 10. ACTUALIZAR SALDOS EN TABLA cajas
-  -- ==========================================
-
-  UPDATE cajas
-  SET saldo_actual = v_saldo_nuevo_celular, updated_at = NOW()
-  WHERE id = v_caja_celular_id;
-
-  UPDATE cajas
-  SET saldo_actual = v_saldo_nuevo_chica, updated_at = NOW()
-  WHERE id = v_caja_chica_id;
-
-  -- ==========================================
-  -- 11. CALCULAR SALDO VIRTUAL ACTUAL
+  -- 4. CALCULAR SALDO VIRTUAL ACTUAL
   -- Fórmula: último_cierre + SUM(recargas_virtuales posteriores)
   -- ==========================================
 
-  -- Obtener último cierre y su fecha
   SELECT COALESCE(saldo_virtual_actual, 0), created_at
   INTO v_saldo_ultimo_cierre, v_fecha_ultimo_cierre
   FROM recargas
@@ -856,25 +877,21 @@ BEGIN
   ORDER BY created_at DESC
   LIMIT 1;
 
-  -- Si no hay cierre previo, usar 0 y fecha muy antigua
   IF v_saldo_ultimo_cierre IS NULL THEN
     v_saldo_ultimo_cierre := 0;
     v_fecha_ultimo_cierre := '1900-01-01'::timestamp;
   END IF;
 
-  -- Sumar todas las recargas virtuales posteriores al último cierre
-  -- (incluyendo la que acabamos de crear)
   SELECT COALESCE(SUM(monto_virtual), 0)
   INTO v_suma_recargas_post_cierre
   FROM recargas_virtuales rv
   WHERE rv.tipo_servicio_id = v_tipo_celular_id
     AND rv.created_at > v_fecha_ultimo_cierre;
 
-  -- Saldo virtual actual = cierre anterior + recargas posteriores
   v_saldo_virtual_actual := v_saldo_ultimo_cierre + v_suma_recargas_post_cierre;
 
   -- ==========================================
-  -- 12. OBTENER LISTA DE DEUDAS PENDIENTES
+  -- 5. OBTENER LISTA DE DEUDAS PENDIENTES
   -- ==========================================
 
   SELECT json_agg(
@@ -892,10 +909,6 @@ BEGIN
   WHERE rv.tipo_servicio_id = v_tipo_celular_id
     AND rv.pagado = false;
 
-  -- ==========================================
-  -- 13. CALCULAR TOTALES DE DEUDAS
-  -- ==========================================
-
   SELECT COUNT(*), COALESCE(SUM(monto_a_pagar), 0)
   INTO v_cantidad_deudas, v_total_deudas
   FROM recargas_virtuales
@@ -903,32 +916,21 @@ BEGIN
     AND pagado = false;
 
   -- ==========================================
-  -- 14. RETORNAR JSON COMPLETO
+  -- 6. RETORNAR JSON COMPLETO
   -- ==========================================
 
   RETURN json_build_object(
-    'success', true,
-    'recarga_id', v_recarga_id,
-    'monto_virtual', p_monto_virtual,
-    'monto_a_pagar', v_monto_a_pagar,
-    'ganancia', v_ganancia,
-    'message', 'Recarga registrada y ganancia transferida a Caja Chica',
-    'transferencia', json_build_object(
-      'operacion_salida_id', v_operacion_salida_id,
-      'operacion_entrada_id', v_operacion_entrada_id,
-      'monto_transferido', v_ganancia
-    ),
-    'saldos_actualizados', json_build_object(
-      'caja_celular_anterior', v_saldo_anterior_celular,
-      'caja_celular_nuevo', v_saldo_nuevo_celular,
-      'caja_chica_anterior', v_saldo_anterior_chica,
-      'caja_chica_nuevo', v_saldo_nuevo_chica,
-      'saldo_virtual_celular', v_saldo_virtual_actual
-    ),
+    'success',              true,
+    'recarga_id',           v_recarga_id,
+    'monto_virtual',        p_monto_virtual,
+    'monto_a_pagar',        v_monto_a_pagar,
+    'ganancia',             v_ganancia,
+    'message',              'Recarga del proveedor registrada',
+    'saldo_virtual_celular', v_saldo_virtual_actual,
     'deudas_pendientes', json_build_object(
       'cantidad', v_cantidad_deudas,
-      'total', v_total_deudas,
-      'lista', COALESCE(v_deudas_pendientes, '[]'::json)
+      'total',    v_total_deudas,
+      'lista',    COALESCE(v_deudas_pendientes, '[]'::json)
     )
   );
 
@@ -943,14 +945,12 @@ $$;
 -- ==========================================
 
 COMMENT ON FUNCTION registrar_recarga_proveedor_celular_completo IS
-'v1.0 - Registra recarga del proveedor CELULAR de forma transaccional completa.
-Incluye: deuda, transferencia de ganancia, actualización de saldos y retorno de datos actualizados.';
+'v2.0 - Registra deuda con proveedor CELULAR. Solo crea la deuda (pagado=false).
+Sin transferencia de ganancia: la ganancia queda en CAJA_CELULAR como diferencia entre ventas y pago.';
 
--- Permisos explícitos
 GRANT EXECUTE ON FUNCTION registrar_recarga_proveedor_celular_completo(DATE, INTEGER, NUMERIC) TO authenticated;
 GRANT EXECUTE ON FUNCTION registrar_recarga_proveedor_celular_completo(DATE, INTEGER, NUMERIC) TO anon;
 
--- Refresh de cache de PostgREST
 NOTIFY pgrst, 'reload schema';
 ```
 
@@ -971,47 +971,20 @@ NOTIFY pgrst, 'reload schema';
 
 3. **INSERT en recargas_virtuales** (crear deuda con `pagado = false`)
 
-4. **Obtener saldos actuales de CAJA_CELULAR y CAJA_CHICA**
-
-5. **Validar saldo suficiente en CAJA_CELULAR**
-   
-   ```sql
-   IF v_saldo_anterior_celular < v_ganancia THEN
-     RAISE EXCEPTION 'Saldo insuficiente en CAJA_CELULAR...';
-   END IF;
-   ```
-
-6. **Crear TRANSFERENCIA_SALIENTE en CAJA_CELULAR**
-   
-   - Referencia: `v_recarga_id`
-   - Descripción: `'Ganancia 5% a Caja Chica — YYYY-MM'`
-
-7. **Crear TRANSFERENCIA_ENTRANTE en CAJA_CHICA**
-   
-   - Referencia: `v_recarga_id`
-   - Descripción: `'Ganancia 5% desde Caja Celular — YYYY-MM'`
-
-8. **Actualizar saldos en tabla cajas**
-   
-   ```sql
-   UPDATE cajas SET saldo_actual = v_saldo_nuevo_celular WHERE id = v_caja_celular_id;
-   UPDATE cajas SET saldo_actual = v_saldo_nuevo_chica WHERE id = v_caja_chica_id;
-   ```
-
-9. **Calcular saldo virtual actual**
+4. **Calcular saldo virtual actual**
    
    ```sql
    -- Fórmula: último_cierre + SUM(recargas_virtuales posteriores)
    v_saldo_virtual_actual := v_saldo_ultimo_cierre + v_suma_recargas_post_cierre;
    ```
 
-10. **Obtener lista de deudas pendientes** (todas con `pagado = false`)
+5. **Obtener lista de deudas pendientes** (todas con `pagado = false`)
 
-11. **Calcular totales de deudas** (cantidad y suma de `monto_a_pagar`)
+6. **Calcular totales de deudas** (cantidad y suma de `monto_a_pagar`)
 
-12. **Retornar JSON completo** con todos los datos actualizados
+7. **Retornar JSON completo** con todos los datos actualizados
 
-13. **Exception handler** con rollback automático
+8. **Exception handler** con rollback automático
 
 #### Uso en TypeScript
 
@@ -1058,7 +1031,7 @@ if (data?.success && data?.data) {
   const resultado = data.data;
 
   // Actualizar UI SIN queries adicionales
-  this.saldoVirtualCelular = resultado.saldos_actualizados.saldo_virtual_celular;
+  this.saldoVirtualCelular = resultado.saldo_virtual_celular;
   this.deudasPendientes = resultado.deudas_pendientes.lista;
 
   // Solo recargar BUS y ganancia (no relacionadas con CELULAR)
@@ -1073,9 +1046,8 @@ if (data?.success && data?.data) {
 
 - ✅ Monto virtual = 0 → `RAISE EXCEPTION 'El monto virtual debe ser mayor a cero'`
 - ✅ Monto virtual negativo → Same error
-- ✅ CAJA_CELULAR con saldo insuficiente → `'Saldo insuficiente en CAJA_CELULAR. Disponible: $X, Requerido: $Y'`
 - ✅ Tipo servicio CELULAR no existe → `'Tipo de servicio CELULAR no encontrado'`
-- ✅ Caja no encontrada → `'Caja CAJA_CELULAR no encontrada'`
+- ❌ ~~CAJA_CELULAR con saldo insuficiente~~ — eliminado en v2.0 (no aplica al modelo crédito)
 
 #### Migración Completada
 
@@ -1099,8 +1071,13 @@ if (data?.success && data?.data) {
 
 ```
 CELULAR (crédito):
-  Proveedor carga → [recargas_virtuales: pagado=false] → Pagar proveedor → [operaciones_cajas: EGRESO CAJA_CELULAR]
-  Saldo CAJA_CELULAR: solo baja cuando se paga al proveedor
+  Proveedor carga → [recargas_virtuales: pagado=false, ganancia almacenada]
+                 → Cierre diario acumula ventas → CAJA_CELULAR sube
+                 → Pagar proveedor → [EGRESO CAJA_CELULAR: monto_a_pagar]
+                                  → [TRANSFERENCIA_SALIENTE CAJA_CELULAR: ganancia]
+                                  → [TRANSFERENCIA_ENTRANTE CAJA_CHICA: ganancia]
+  Ganancia: leída de recargas_virtuales.ganancia por deuda — transferida a CAJA_CHICA al pagar
+  CAJA_CELULAR: sube con cierres, baja (pago + ganancia) al pagar proveedor
 
 BUS (directo):
   Depositar al banco → registrar → [recargas_virtuales: pagado=true, ganancia=1%] + [operaciones_cajas: EGRESO CAJA_BUS]
@@ -1112,8 +1089,11 @@ BUS (directo):
 
 ## 8. Historial de Versiones
 
-| Versión | Fecha      | Cambios                                                                                                                                                                                                                                                                                                                                  |
-| ------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1.0     | 2026-02-11 | Creación inicial — documenta módulo Saldo Virtual completo con las 3 funciones SQL embebidas                                                                                                                                                                                                                                             |
-| 1.1     | 2026-02-11 | `registrar_compra_saldo_bus` — ahora calcula y guarda `ganancia = monto * 1%` en vez de 0                                                                                                                                                                                                                                                |
-| 1.2     | 2026-02-11 | ✨ **Nueva función transaccional completa**: `registrar_recarga_proveedor_celular_completo` — Unifica TODO el proceso en una transacción atómica (deuda + transferencia + saldos + retorno de datos). Depreca `registrar_recarga_virtual_celular` para uso con transferencia separada. Reduce queries de 6 a 3 (~50% mejora performance). |
+| Versión | Fecha      | Cambios                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0     | 2026-02-11 | Creación inicial — documenta módulo Saldo Virtual completo con las 3 funciones SQL embebidas                                                                                                                                                                                                                                                                                                                               |
+| 1.1     | 2026-02-11 | `registrar_compra_saldo_bus` — ahora calcula y guarda `ganancia = monto * 1%` en vez de 0                                                                                                                                                                                                                                                                                                                                  |
+| 1.2     | 2026-02-11 | ✨ **Nueva función transaccional completa**: `registrar_recarga_proveedor_celular_completo` — Unifica TODO el proceso en una transacción atómica (deuda + transferencia + saldos + retorno de datos). Depreca `registrar_recarga_virtual_celular` para uso con transferencia separada. Reduce queries de 6 a 3 (~50% mejora performance).                                                                                   |
+| 1.3     | 2026-02-19 | 🔔 **Notificación campana en Home**: las deudas pendientes CELULAR ahora aparecen como badge numérico en la campana del header (`home.page.ts`). Reemplaza el sistema anterior de notificaciones BUS (ganancias pendientes). Ver sección 5.4.                                                                                                                                                                              |
+| 1.4     | 2026-02-20 | 🐛 **Fix `registrar_recarga_proveedor_celular_completo` v2.0**: Eliminada la validación de saldo en CAJA_CELULAR y la transferencia CAJA_CELULAR → CAJA_CHICA. La función ahora solo crea la deuda (`pagado=false`). La ganancia no se mueve: queda en CAJA_CELULAR como diferencia entre ventas acumuladas y monto pagado al proveedor. JSON de retorno simplificado (sin `transferencia` ni `saldos_actualizados`).      |
+| 1.5     | 2026-02-20 | ✨ **`registrar_pago_proveedor_celular` v2.0**: Al pagar al proveedor, la ganancia acumulada (`SUM(recargas_virtuales.ganancia)` de las deudas pagadas) se transfiere automáticamente de CAJA_CELULAR a CAJA_CHICA. Se agregan TRANSFERENCIA_SALIENTE (CAJA_CELULAR) y TRANSFERENCIA_ENTRANTE (CAJA_CHICA). Validación actualizada: CAJA_CELULAR debe tener `monto_a_pagar + ganancia`. JSON retorna saldos de ambas cajas. |

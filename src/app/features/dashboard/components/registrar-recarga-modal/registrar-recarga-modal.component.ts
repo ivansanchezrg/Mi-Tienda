@@ -3,12 +3,13 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, ModalController, AlertController
+  IonContent, IonIcon, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   closeOutline, addCircleOutline,
-  phonePortraitOutline, busOutline
+  phonePortraitOutline, busOutline,
+  checkmarkCircleOutline, alertCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
@@ -35,26 +36,39 @@ export class RegistrarRecargaModalComponent implements OnInit {
   @Input() tipo: TipoServicio = 'CELULAR';
 
   private modalCtrl = inject(ModalController);
-  private alertCtrl = inject(AlertController);
   private ui = inject(UiService);
   private service = inject(RecargasVirtualesService);
 
   montoVirtual: number | null = null;
-  comisionPct: number = 5; // valor por defecto, se reemplaza con el de BD al abrir
+  comisionPct: number = 5;  // valor por defecto, se reemplaza con el de BD al abrir
+  saldoCajaBus: number = 0; // solo usado cuando tipo === 'BUS'
 
   constructor() {
     addIcons({
       closeOutline,
       addCircleOutline,
       phonePortraitOutline,
-      busOutline
+      busOutline,
+      checkmarkCircleOutline,
+      alertCircleOutline
     });
   }
 
   async ngOnInit() {
     if (this.tipo === 'CELULAR') {
       this.comisionPct = await this.service.getPorcentajeComision('CELULAR');
+    } else {
+      this.saldoCajaBus = await this.service.getSaldoCajaActual('CAJA_BUS');
     }
+  }
+
+  get saldoBusInsuficiente(): boolean {
+    if (this.tipo !== 'BUS' || !this.montoVirtual || this.montoVirtual <= 0) return false;
+    return this.montoVirtual > this.saldoCajaBus;
+  }
+
+  get saldoBusDespues(): number {
+    return this.saldoCajaBus - (this.montoVirtual ?? 0);
   }
 
   get tituloModal(): string {
@@ -88,42 +102,10 @@ export class RegistrarRecargaModalComponent implements OnInit {
     this.modalCtrl.dismiss();
   }
 
-  /**
-   * Muestra un alert pidiendo confirmación de que el empleado ya movió físicamente
-   * la ganancia de Caja Celular a Caja Chica.
-   * @returns true si confirmó, false si canceló
-   */
-  private async pedirConfirmacionMovimientoFisico(): Promise<boolean> {
-    return new Promise(async (resolve) => {
-      const alert = await this.alertCtrl.create({
-        header: 'Mover efectivo físicamente',
-        message: `¿Ya tomaste $${this.ganancia.toFixed(2)} de Caja Celular y lo llevaste a Caja Chica?`,
-        buttons: [
-          {
-            text: 'Cancelar',
-            role: 'cancel',
-            handler: () => resolve(false)
-          },
-          {
-            text: 'Sí, ya lo hice',
-            handler: () => resolve(true)
-          }
-        ]
-      });
-      await alert.present();
-    });
-  }
-
   async confirmar() {
     if (!this.montoVirtual || this.montoVirtual <= 0) {
       await this.ui.showError('Ingresá el monto');
       return;
-    }
-
-    // Para CELULAR: confirmar que el empleado ya movió el efectivo físicamente
-    if (this.tipo === 'CELULAR' && this.ganancia > 0) {
-      const confirmado = await this.pedirConfirmacionMovimientoFisico();
-      if (!confirmado) return;
     }
 
     const empleado = await this.service.obtenerEmpleadoActual();
@@ -135,7 +117,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
     let resultado;
 
     if (this.tipo === 'CELULAR') {
-      // UNA SOLA LLAMADA - TODO EN TRANSACCIÓN (v1.0)
+      // UNA SOLA LLAMADA - TODO EN TRANSACCIÓN (v2.0 - solo crea la deuda)
       resultado = await this.service.registrarRecargaProveedorCelularCompleto({
         fecha: this.service.getFechaLocal(),
         empleado_id: empleado.id,
@@ -151,8 +133,8 @@ export class RegistrarRecargaModalComponent implements OnInit {
       await this.ui.showSuccess(
         `Recarga registrada: $${resultado.monto_virtual.toFixed(2)}\n` +
         `Deuda pendiente: $${resultado.monto_a_pagar.toFixed(2)}\n` +
-        `Ganancia $${resultado.ganancia.toFixed(2)} transferida a Caja Chica ✓\n` +
-        `Saldo Virtual Celular: $${resultado.saldos_actualizados.saldo_virtual_celular.toFixed(2)}`
+        `Ganancia: $${resultado.ganancia.toFixed(2)}\n` +
+        `Saldo Virtual Celular: $${resultado.saldo_virtual_celular.toFixed(2)}`
       );
 
       // Cerrar modal con TODOS los datos actualizados

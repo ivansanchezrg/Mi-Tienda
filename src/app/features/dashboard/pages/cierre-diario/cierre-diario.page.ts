@@ -211,22 +211,64 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
   // ==========================================
-  // GETTERS: Cálculos del Cierre (v4.0 - Fórmula Final)
+  // GETTERS: Distribución inteligente de efectivo (v4.6)
+  //
+  // Prioridades:
+  //   1° Fondo fijo  → queda en caja física para dar vueltos mañana
+  //   2° Caja Chica  → todo o nada (monto completo o $0)
+  //   3° Caja Principal → sobrante (siempre >= 0)
+  //
+  // Casos:
+  //   NORMAL:          efectivo >= fondo + transferencia
+  //   DÉFICIT PARCIAL: fondo <= efectivo < fondo + transferencia
+  //   DÉFICIT TOTAL:   efectivo < fondo
   // ==========================================
 
-  /**
-   * Calcula el dinero a depositar en CAJA PRINCIPAL (v4.0)
-   * Fórmula: efectivo_recaudado - fondo_fijo - transferencia_caja_chica
-   * @returns {number} Monto a depositar en caja principal
-   */
-  get dineroADepositar(): number {
-    return this.efectivoRecaudado - this.fondoFijo - this.transferenciaDiariaCajaChica;
+  /** Efectivo disponible tras apartar el fondo (puede ser negativo en déficit total) */
+  private get efectivoDisponible(): number {
+    return this.efectivoRecaudado - this.fondoFijo;
   }
 
   /**
-   * Calcula el saldo final de CAJA (Principal) - v4.0
-   * CAJA PRINCIPAL es una CAJA DE ACUMULACIÓN (como caja fuerte)
-   * Fórmula: Saldo anterior + Dinero a depositar
+   * Monto que realmente se transfiere a Caja Chica (v4.6)
+   * Política todo o nada: si no alcanza el monto completo → $0
+   */
+  get transferenciaEfectivaCajaChica(): number {
+    if (this.efectivoDisponible >= this.transferenciaDiariaCajaChica) {
+      return this.transferenciaDiariaCajaChica; // NORMAL: completo
+    }
+    return 0; // DÉFICIT: todo o nada
+  }
+
+  /**
+   * Monto que faltó transferir a Caja Chica (v4.6)
+   * 0 = turno normal, >0 = turno con déficit
+   */
+  get deficitCajaChica(): number {
+    return this.transferenciaDiariaCajaChica - this.transferenciaEfectivaCajaChica;
+  }
+
+  /** True si el turno cierra con déficit en Caja Chica */
+  get hayDeficitCajaChica(): boolean {
+    return this.efectivoRecaudado > 0 && this.deficitCajaChica > 0;
+  }
+
+  /** True si ni el fondo fijo alcanza (caso más crítico) */
+  get hayDeficitTotal(): boolean {
+    return this.efectivoRecaudado > 0 && this.efectivoDisponible <= 0;
+  }
+
+  /**
+   * Dinero a depositar en CAJA PRINCIPAL (v4.6)
+   * Nunca negativo: es el sobrante tras fondo y transferencia efectiva
+   */
+  get dineroADepositar(): number {
+    if (this.efectivoDisponible <= 0) return 0;             // DÉFICIT TOTAL
+    return Math.max(0, this.efectivoDisponible - this.transferenciaEfectivaCajaChica);
+  }
+
+  /**
+   * Calcula el saldo final de CAJA (Principal) - v4.6
    * @returns {number} Saldo final de caja principal
    */
   get saldoFinalCaja(): number {
@@ -234,12 +276,12 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
   /**
-   * Calcula el saldo final de CAJA_CHICA (v4.0)
-   * Fórmula: Saldo anterior + Transferencia (físicamente separada del efectivo)
+   * Calcula el saldo final de CAJA_CHICA (v4.6)
+   * Usa la transferencia efectiva (puede ser $0 en déficit)
    * @returns {number} Saldo final de caja chica
    */
   get saldoFinalCajaChica(): number {
-    return this.saldoAnteriorCajaChica + this.transferenciaDiariaCajaChica;
+    return this.saldoAnteriorCajaChica + this.transferenciaEfectivaCajaChica;
   }
 
   /**

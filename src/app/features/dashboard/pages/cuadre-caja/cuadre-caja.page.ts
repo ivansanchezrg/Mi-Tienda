@@ -1,14 +1,13 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCard, IonNote
+  IonContent, IonIcon, IonCard, IonNote, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  chevronBackOutline, phonePortraitOutline, busOutline,
+  closeOutline, phonePortraitOutline, busOutline,
   cashOutline, calculatorOutline, informationCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
@@ -31,7 +30,7 @@ import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive'
   ]
 })
 export class CuadreCajaPage implements OnInit {
-  private router = inject(Router);
+  private modalCtrl = inject(ModalController);
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
   private recargasService = inject(RecargasService);
@@ -48,7 +47,7 @@ export class CuadreCajaPage implements OnInit {
 
   constructor() {
     addIcons({
-      chevronBackOutline,
+      closeOutline,
       phonePortraitOutline,
       busOutline,
       cashOutline,
@@ -64,14 +63,6 @@ export class CuadreCajaPage implements OnInit {
     });
 
     await this.cargarSaldosAnteriores();
-  }
-
-  ionViewWillEnter() {
-    this.ui.hideTabs();
-  }
-
-  ionViewWillLeave() {
-    this.ui.showTabs();
   }
 
   async cargarSaldosAnteriores() {
@@ -124,8 +115,8 @@ export class CuadreCajaPage implements OnInit {
     return this.form.valid && this.ventaCelularValida && this.ventaBusValida;
   }
 
-  volver() {
-    this.router.navigate(['/home']);
+  cerrar() {
+    this.modalCtrl.dismiss();
   }
 
   limpiar() {
