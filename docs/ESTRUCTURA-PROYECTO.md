@@ -173,11 +173,13 @@ features/
 Este es el módulo principal que agrupa funcionalidades relacionadas con el panel del usuario y operaciones de caja.
 
 **Criterio de agrupación:** Todo lo relacionado con cajas, operaciones y el home del usuario está en `dashboard/` porque:
+
 - Comparten servicios (CajasService, OperacionesCajaService)
 - Comparten modelos (OperacionCaja, FiltroFecha)
 - Son accedidos desde el mismo punto de entrada (home)
 
 **Cuándo separar en módulo propio:**
+
 - Si una subfuncionalidad crece a más de 4-5 pages propias
 - Si necesita servicios/modelos exclusivos que no comparte
 - Si se requiere lazy loading específico
@@ -280,31 +282,31 @@ Generado por Capacitor. Contiene el proyecto Android Studio.
 
 ## Convenciones de Nombres
 
-| Tipo        | Convención              | Ejemplo                    |
-| ----------- | ----------------------- | -------------------------- |
-| Componentes | `{nombre}.component.ts` | `sidebar.component.ts`     |
-| Páginas     | `{nombre}.page.ts`      | `home.page.ts`             |
-| Servicios   | `{nombre}.service.ts`   | `cajas.service.ts`         |
-| Guards      | `{nombre}.guard.ts`     | `auth.guard.ts`            |
-| Modelos     | `{nombre}.model.ts`     | `operacion-caja.model.ts`  |
-| Rutas       | `{feature}.routes.ts`   | `dashboard.routes.ts`      |
+| Tipo        | Convención              | Ejemplo                   |
+| ----------- | ----------------------- | ------------------------- |
+| Componentes | `{nombre}.component.ts` | `sidebar.component.ts`    |
+| Páginas     | `{nombre}.page.ts`      | `home.page.ts`            |
+| Servicios   | `{nombre}.service.ts`   | `cajas.service.ts`        |
+| Guards      | `{nombre}.guard.ts`     | `auth.guard.ts`           |
+| Modelos     | `{nombre}.model.ts`     | `operacion-caja.model.ts` |
+| Rutas       | `{feature}.routes.ts`   | `dashboard.routes.ts`     |
 
 ---
 
 ## Dónde Colocar Nuevos Archivos
 
-| Quiero agregar...                      | Ubicación                                    |
-| -------------------------------------- | -------------------------------------------- |
-| Nueva página de operaciones            | `features/dashboard/pages/`                  |
-| Modal exclusivo del dashboard          | `features/dashboard/components/`             |
-| Servicio de cajas                      | `features/dashboard/services/`               |
-| Modelo de operación                    | `features/dashboard/models/`                 |
-| Componente modal reutilizable          | `shared/components/`                         |
-| Directiva de input personalizada       | `shared/directives/`                         |
-| Guard de rutas                         | `core/guards/`                               |
-| Servicio global (red, storage, etc.)   | `core/services/`                             |
-| Constante de configuración global      | `core/config/`                               |
-| Nueva feature (ej: productos)          | `features/productos/`                        |
+| Quiero agregar...                    | Ubicación                        |
+| ------------------------------------ | -------------------------------- |
+| Nueva página de operaciones          | `features/dashboard/pages/`      |
+| Modal exclusivo del dashboard        | `features/dashboard/components/` |
+| Servicio de cajas                    | `features/dashboard/services/`   |
+| Modelo de operación                  | `features/dashboard/models/`     |
+| Componente modal reutilizable        | `shared/components/`             |
+| Directiva de input personalizada     | `shared/directives/`             |
+| Guard de rutas                       | `core/guards/`                   |
+| Servicio global (red, storage, etc.) | `core/services/`                 |
+| Constante de configuración global    | `core/config/`                   |
+| Nueva feature (ej: productos)        | `features/productos/`            |
 
 ---
 
@@ -326,12 +328,14 @@ Generado por Capacitor. Contiene el proyecto Android Studio.
 ## Patrones de Diseño Utilizados
 
 ### UI/UX
+
 - **Ionic CSS Variables** para compatibilidad dark/light mode
 - **Diseño híbrido**: Patrón Home + toque empresarial/bancario
 - **Componentes standalone** de Angular 20
 - **Control flow** con `@if`, `@for` (nueva sintaxis Angular)
 
 ### Arquitectura
+
 - **Feature-based**: Cada módulo es autocontenido
 - **Lazy loading**: Features se cargan bajo demanda
 - **Services singleton**: En `core/` para funcionalidad global

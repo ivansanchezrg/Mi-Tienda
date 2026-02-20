@@ -16,8 +16,8 @@ export interface RecargaVirtual {
 }
 
 /**
- * Interface para el retorno de la función unificada de registro de recarga CELULAR (v1.0)
- * Incluye todos los datos necesarios para actualizar la UI sin queries adicionales
+ * Interface para el retorno de la función de registro de recarga CELULAR (v2.0)
+ * Solo crea la deuda — sin transferencia de ganancia ni movimiento de cajas
  */
 export interface RegistroRecargaCompletoResult {
   success: boolean;
@@ -26,18 +26,7 @@ export interface RegistroRecargaCompletoResult {
   monto_a_pagar: number;
   ganancia: number;
   message: string;
-  transferencia: {
-    operacion_salida_id: string;
-    operacion_entrada_id: string;
-    monto_transferido: number;
-  };
-  saldos_actualizados: {
-    caja_celular_anterior: number;
-    caja_celular_nuevo: number;
-    caja_chica_anterior: number;
-    caja_chica_nuevo: number;
-    saldo_virtual_celular: number;
-  };
+  saldo_virtual_celular: number;
   deudas_pendientes: {
     cantidad: number;
     total: number;

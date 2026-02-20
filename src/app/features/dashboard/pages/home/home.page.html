@@ -5,9 +5,11 @@
     </ion-buttons>
     <ion-title>Mi Tienda</ion-title>
     <ion-buttons slot="end">
-      <ion-button (click)="abrirNotificaciones()" class="notification-btn">
-        <ion-icon slot="icon-only" name="notifications-outline"></ion-icon>
-        <span *ngIf="notificacionesPendientes > 0" class="dot-badge"></span>
+      <ion-button (click)="abrirNotificaciones()" fill="clear" class="notification-btn">
+        <div class="bell-wrapper">
+          <ion-icon name="notifications-outline"></ion-icon>
+          <span *ngIf="notificacionesPendientes > 0" class="notif-badge">{{ deudasPendientesCelular.length }}</span>
+        </div>
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
@@ -48,7 +50,7 @@
         <ion-icon name="cash-outline"></ion-icon>
       </div>
       <div class="content">
-        <span class="title">Caja Principal</span>
+        <span class="title">Tienda</span>
         <span class="subtitle">Efectivo</span>
       </div>
       <div class="amount-group">
@@ -62,8 +64,8 @@
         <ion-icon name="wallet-outline"></ion-icon>
       </div>
       <div class="content">
-        <span class="title">Caja Chica</span>
-        <span class="subtitle">Varios</span>
+        <span class="title">Varios</span>
+        <span class="subtitle">Gastos menores</span>
       </div>
       <div class="amount-group">
         <span class="value">${{ saldoCajaChica | number:'1.2-2' }}</span>

@@ -21,18 +21,39 @@ ion-toolbar {
   }
 }
 
-// Notificaciones minimalistas
+// Notificaciones estilo Facebook
 .notification-btn {
-  position: relative;
-  .dot-badge {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 8px;
-    height: 8px;
-    background: var(--ion-color-danger);
-    border-radius: 50%;
-    border: 2px solid var(--bg-soft);
+  --padding-start: 8px;
+  --padding-end: 8px;
+
+  .bell-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    ion-icon {
+      font-size: 24px;
+    }
+
+    .notif-badge {
+      position: absolute;
+      top: -6px;
+      right: -8px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      background: var(--ion-color-danger);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 9px;
+      border: 2px solid var(--bg-soft);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
   }
 }
 

@@ -130,7 +130,7 @@ export class RecargasVirtualesPage implements OnInit {
       const resultado = data.data;
 
       // Actualizar UI con datos del resultado
-      this.saldoVirtualCelular = resultado.saldos_actualizados.saldo_virtual_celular;
+      this.saldoVirtualCelular = resultado.saldo_virtual_celular;
       this.deudasPendientes = resultado.deudas_pendientes.lista;
 
       // Solo recargar datos de BUS y ganancia (no relacionados con esta operación)

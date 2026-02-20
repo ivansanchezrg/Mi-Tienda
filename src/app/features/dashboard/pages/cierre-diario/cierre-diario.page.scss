@@ -409,6 +409,41 @@ $caja-chica-color: #8b5cf6;
   }
 }
 
+// Badge de déficit (aparece en desglose y en verificación de Caja Chica)
+.deficit-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ion-color-warning-contrast);
+  background: var(--ion-color-warning);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+// Valor en déficit (color naranja en desglose)
+.desglose-valor.deficit {
+  color: var(--ion-color-warning) !important;
+}
+
+// Fila de Caja Chica cuando hay déficit
+.caja-verificacion.con-deficit {
+  border-left: 3px solid var(--ion-color-warning);
+  padding-left: 8px;
+}
+
+// Nota explicativa al pie de los bloques de déficit
+.deficit-nota {
+  margin-top: var(--spacing-sm) !important;
+  margin-bottom: 0 !important;
+  font-size: 12px !important;
+  color: var(--ion-color-medium) !important;
+  font-style: italic;
+}
+
 // Observaciones
 .observaciones-card {
   ion-card-content {

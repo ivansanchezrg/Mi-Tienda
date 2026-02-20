@@ -68,7 +68,17 @@
               <span class="saldo-valor">${{ saldoDisponible | number:'1.2-2' }}</span>
             </div>
             <div class="saldo-row">
-              <span>Saldo después del pago</span>
+              <span>Pago al proveedor</span>
+              <span class="saldo-valor">-${{ totalSeleccionado | number:'1.2-2' }}</span>
+            </div>
+            @if (totalGananciaSeleccionada > 0) {
+              <div class="saldo-row">
+                <span>Ganancia → Caja Chica</span>
+                <span class="saldo-valor">-${{ totalGananciaSeleccionada | number:'1.2-2' }}</span>
+              </div>
+            }
+            <div class="saldo-row">
+              <span>Saldo después</span>
               <span class="saldo-valor" [class.success]="saldoSuficiente" [class.danger]="!saldoSuficiente">
                 ${{ saldoDespues | number:'1.2-2' }}
                 @if (saldoSuficiente) {

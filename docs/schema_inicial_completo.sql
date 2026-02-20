@@ -8,10 +8,17 @@
 -- IMPORTANTE: Ejecutar este script UNA SOLA VEZ al iniciar el proyecto.
 -- Para resetear el sistema, ejecutar nuevamente (incluye DROP de tablas).
 --
--- Fecha: 2026-02-09
+-- Fecha: 2026-02-20
+-- Versión: 4.6 - Distribución inteligente de efectivo con registro de déficit
+--   • CAMBIOS v4.6: Manejo de déficit en cierre de turno
+--   • deficit_caja_chica en caja_fisica_diaria (monto que faltó transferir)
+--   • Lógica "todo o nada" para transferencia a Caja Chica
+--   • Sobrante siempre va a Caja Principal (nunca se pierde)
+--   • Función SQL ya no lanza excepción por depósito negativo
+--   • 3 casos: normal / déficit parcial / déficit total
 -- Versión: 4.5 - Modelo de recargas virtuales (CELULAR a crédito / BUS compra directa)
 --   • Solo 1 campo: efectivo_recaudado (total contado al final)
---   • Fondo fijo en config: configuraciones.fondo_fijo_diario ($40)
+--   • Fondo fijo en config: configuraciones.fondo_fijo_diario ($20)
 --   • Transferencia en config: configuraciones.caja_chica_transferencia_diaria ($20)
 --   • Fórmula: depósito = efectivo_recaudado - fondo_fijo - transferencia
 --   • Tabla gastos_diarios para tracking de gastos operativos
@@ -174,12 +181,14 @@ CREATE TABLE IF NOT EXISTS recargas (
 -- 7. Tabla: caja_fisica_diaria
 -- Registro de la caja física diaria (versión ultra-simplificada)
 -- En v4.1: Permite múltiples cierres por día (1 cierre por turno)
+-- En v4.6: Agrega deficit_caja_chica para registrar cuando no hay efectivo suficiente
 CREATE TABLE IF NOT EXISTS caja_fisica_diaria (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     fecha DATE NOT NULL,                             -- Fecha del cierre (múltiples por día permitidos)
     turno_id UUID NOT NULL REFERENCES turnos_caja(id) UNIQUE, -- Relación 1:1 con turno (un cierre por turno)
     empleado_id INTEGER NOT NULL REFERENCES empleados(id),
     efectivo_recaudado DECIMAL(12,2) NOT NULL,       -- Total efectivo contado al final del día
+    deficit_caja_chica DECIMAL(12,2) NOT NULL DEFAULT 0, -- Monto que faltó transferir a Caja Chica (0 = turno normal)
     observaciones TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -372,7 +381,7 @@ COMMENT ON TABLE cajas IS 'Cajas de efectivo físico (CAJA, CAJA_CHICA) y virtua
 COMMENT ON TABLE configuraciones IS 'Configuración global del sistema';
 COMMENT ON TABLE tipos_servicio IS 'Tipos de servicio de recarga con sus reglas de negocio';
 COMMENT ON TABLE recargas IS 'Registro de control de saldo virtual por servicio (v4.1: un registro por turno y tipo servicio)';
-COMMENT ON TABLE caja_fisica_diaria IS 'Registro de la caja física por turno (v4.1: permite múltiples cierres por día - 1 cierre por turno)';
+COMMENT ON TABLE caja_fisica_diaria IS 'Registro de la caja física por turno (v4.6: distribución inteligente con registro de déficit cuando el efectivo no alcanza)';
 COMMENT ON TABLE gastos_diarios IS 'Registro de gastos operativos pagados desde efectivo de ventas del día (no afecta CAJA PRINCIPAL, comprobante opcional)';
 COMMENT ON TABLE tipos_referencia IS 'Catálogo de tablas que pueden originar operaciones en cajas (para trazabilidad)';
 COMMENT ON TABLE categorias_operaciones IS 'Catálogo de categorías contables para clasificar ingresos y egresos (permite reportes por tipo de gasto)';
@@ -382,6 +391,7 @@ COMMENT ON TABLE operaciones_cajas IS 'Log de auditoría de todas las operacione
 COMMENT ON COLUMN cajas.saldo_actual IS 'Saldo actual de la caja (se actualiza con cada operación)';
 COMMENT ON COLUMN configuraciones.caja_chica_transferencia_diaria IS 'Monto fijo diario que se transfiere a caja chica ($20)';
 COMMENT ON COLUMN caja_fisica_diaria.efectivo_recaudado IS 'Total efectivo contado al final del día (el único campo necesario)';
+COMMENT ON COLUMN caja_fisica_diaria.deficit_caja_chica IS 'Monto que faltó transferir a Caja Chica por efectivo insuficiente. 0 = turno normal. >0 = el siguiente turno debe reponer este monto desde Caja Principal al abrir caja';
 COMMENT ON COLUMN configuraciones.fondo_fijo_diario IS 'Fondo fijo que se deja en caja física todos los días ($40 por defecto)';
 COMMENT ON COLUMN recargas.venta_dia IS 'Monto vendido en el día';
 COMMENT ON COLUMN recargas.saldo_virtual_anterior IS 'Saldo del día anterior (viene del saldo_virtual_actual previo)';
