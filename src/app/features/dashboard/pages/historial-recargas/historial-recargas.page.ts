@@ -8,15 +8,36 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  chevronBackOutline, phonePortraitOutline, busOutline, listOutline
+  chevronBackOutline, phonePortraitOutline, busOutline, listOutline,
+  cloudDownloadOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasService, RecargaHistorial } from '../../services/recargas.service';
+import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
 
-interface GrupoRecargas {
+/**
+ * Tipo unificado para el historial: engloba tanto cierres de turno
+ * (de la tabla `recargas`) como recargas del proveedor (de `recargas_virtuales`).
+ */
+export interface HistorialItem {
+  id: string | number;
+  fecha: string;
+  servicio: string;
+  tipo: 'CIERRE' | 'CARGA_VIRTUAL';
+  // Solo para CIERRE
+  saldo_anterior?: number;
+  saldo_actual?: number;
+  venta_dia?: number;
+  // Solo para CARGA_VIRTUAL
+  monto_virtual?: number;
+  pagado?: boolean;
+  created_at: string;
+}
+
+interface GrupoHistorial {
   fecha: string;
   fechaDisplay: string;
-  recargas: RecargaHistorial[];
+  items: HistorialItem[];
 }
 
 type FiltroServicio = 'todas' | 'celular' | 'bus';
@@ -42,10 +63,11 @@ export class HistorialRecargasPage implements OnInit {
   private router = inject(Router);
   private ui = inject(UiService);
   private recargasService = inject(RecargasService);
+  private recargasVirtualesService = inject(RecargasVirtualesService);
 
   loading = true;
-  recargas: RecargaHistorial[] = [];
-  recargasAgrupadas: GrupoRecargas[] = [];
+  items: HistorialItem[] = [];
+  itemsAgrupados: GrupoHistorial[] = [];
 
   // Filtros
   filtroActual: FiltroServicio = 'todas';
@@ -60,7 +82,8 @@ export class HistorialRecargasPage implements OnInit {
       chevronBackOutline,
       phonePortraitOutline,
       busOutline,
-      listOutline
+      listOutline,
+      cloudDownloadOutline
     });
   }
 
@@ -79,7 +102,39 @@ export class HistorialRecargasPage implements OnInit {
   async cargarHistorial() {
     this.loading = true;
     try {
-      this.recargas = await this.recargasService.obtenerHistorialRecargas();
+      const [recargas, virtualesCelular, virtualesBus] = await Promise.all([
+        this.recargasService.obtenerHistorialRecargas(),
+        this.recargasVirtualesService.obtenerHistorial('CELULAR'),
+        this.recargasVirtualesService.obtenerHistorial('BUS')
+      ]);
+
+      // Convertir cierres de turno → HistorialItem
+      const itemsCierre: HistorialItem[] = recargas.map(r => ({
+        id: r.id,
+        fecha: r.fecha,
+        servicio: r.servicio,
+        tipo: 'CIERRE' as const,
+        saldo_anterior: r.saldo_anterior,
+        saldo_actual: r.saldo_actual,
+        venta_dia: r.venta_dia,
+        created_at: r.created_at
+      }));
+
+      // Convertir recargas del proveedor → HistorialItem
+      const itemsVirtuales: HistorialItem[] = [...virtualesCelular, ...virtualesBus].map(rv => ({
+        id: rv.id,
+        fecha: rv.fecha,
+        servicio: rv.servicio,
+        tipo: 'CARGA_VIRTUAL' as const,
+        monto_virtual: rv.monto_virtual,
+        pagado: rv.pagado,
+        created_at: rv.created_at
+      }));
+
+      // Combinar y ordenar por created_at descendente
+      this.items = [...itemsCierre, ...itemsVirtuales]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
       this.agruparPorFecha();
     } catch (error) {
       console.error('Error al cargar historial:', error);
@@ -98,39 +153,35 @@ export class HistorialRecargasPage implements OnInit {
   }
 
   /**
-   * Agrupa las recargas por fecha (aplicando filtro)
+   * Agrupa los items por fecha (aplicando filtro)
    */
   private agruparPorFecha() {
-    const grupos = new Map<string, RecargaHistorial[]>();
+    const grupos = new Map<string, HistorialItem[]>();
 
-    // Filtrar recargas según el filtro actual
-    const recargasFiltradas = this.filtrarRecargas();
-
-    for (const recarga of recargasFiltradas) {
-      const fecha = recarga.fecha;
+    for (const item of this.filtrarItems()) {
+      const fecha = item.fecha;
       if (!grupos.has(fecha)) {
         grupos.set(fecha, []);
       }
-      grupos.get(fecha)!.push(recarga);
+      grupos.get(fecha)!.push(item);
     }
 
-    this.recargasAgrupadas = Array.from(grupos.entries()).map(([fecha, recargas]) => ({
+    this.itemsAgrupados = Array.from(grupos.entries()).map(([fecha, items]) => ({
       fecha,
       fechaDisplay: this.formatearFechaGrupo(fecha),
-      recargas
+      items
     }));
   }
 
   /**
-   * Filtra las recargas según el filtro actual
+   * Filtra los items según el filtro actual (aplica a ambos tipos)
    */
-  private filtrarRecargas(): RecargaHistorial[] {
+  private filtrarItems(): HistorialItem[] {
     if (this.filtroActual === 'todas') {
-      return this.recargas;
+      return this.items;
     }
-
     const servicioFiltro = this.filtroActual.toUpperCase();
-    return this.recargas.filter(r => r.servicio === servicioFiltro);
+    return this.items.filter(i => i.servicio === servicioFiltro);
   }
 
   /**
@@ -142,16 +193,16 @@ export class HistorialRecargasPage implements OnInit {
     const ayer = new Date(hoy);
     ayer.setDate(ayer.getDate() - 1);
 
-    const fechaRecarga = new Date(fecha + 'T00:00:00');
-    fechaRecarga.setHours(0, 0, 0, 0);
+    const fechaItem = new Date(fecha + 'T00:00:00');
+    fechaItem.setHours(0, 0, 0, 0);
 
-    if (fechaRecarga.getTime() === hoy.getTime()) {
+    if (fechaItem.getTime() === hoy.getTime()) {
       return 'Hoy';
-    } else if (fechaRecarga.getTime() === ayer.getTime()) {
+    } else if (fechaItem.getTime() === ayer.getTime()) {
       return 'Ayer';
     } else {
-      const dia = fechaRecarga.getDate();
-      const mes = fechaRecarga.toLocaleDateString('es-ES', { month: 'short' });
+      const dia = fechaItem.getDate();
+      const mes = fechaItem.toLocaleDateString('es-ES', { month: 'short' });
       const mesCapitalizado = mes.charAt(0).toUpperCase() + mes.slice(1);
       return `${dia} ${mesCapitalizado}`;
     }

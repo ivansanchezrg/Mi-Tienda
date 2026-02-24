@@ -1,8 +1,26 @@
 # Guía Completa: Sistema de Operaciones con Comprobantes y Categorías
 
-**Fecha:** 2026-02-09 (actualizado)
-**Versión:** 2.0
+**Fecha:** 2026-02-21 (actualizado)
+**Versión:** 2.3
 **Autor:** Claude Code
+
+---
+
+## Relación con otros módulos
+
+Este doc cubre el **registro manual** de operaciones — el flujo que sigue el usuario cuando quiere anotar un gasto o ingreso.
+
+| Módulo | Doc | Qué hace |
+|--------|-----|----------|
+| **Este doc** | `2_PROCESO_INGRESO_EGRESO.md` | Registro manual: modal con cámara, categoría contable, Storage, `registrar_operacion_manual` |
+| Historial | `1_OPERACIONES-CAJA.md` | Página que muestra las operaciones ya registradas (automáticas + manuales) |
+| Cierre diario | `3_PROCESO_CIERRE_CAJA.md` | Cierre por turno: crea operaciones automáticas sin intervención del usuario |
+
+**Diferencia clave con el cierre diario:**
+
+- Las operaciones de este módulo las **inicia el usuario** (elige monto, categoría, foto).
+- Las operaciones del cierre las **calcula el sistema** a partir del efectivo contado — no tienen categoría contable (`categoria_id = NULL`) porque no son gastos de negocio sino movimientos de sistema.
+- `reparar_deficit_turno` es el único caso intermedio: lo dispara el usuario pero usa categorías especiales (`EG-012`, `IN-004`).
 
 ---
 
@@ -11,12 +29,14 @@
 Sistema completo para registro de operaciones de ingreso y egreso con:
 
 ### ✅ Comprobantes Fotográficos (v1.0)
+
 - **Obligatorios** para egresos
 - **Opcionales** para ingresos
 - Optimización automática de imágenes (1200x1600px, ~90% reducción)
 - Almacenamiento en Supabase Storage (bucket privado)
 
 ### ✅ Categorías Contables (v2.0)
+
 - **Obligatorias** para todas las operaciones
 - 12 categorías predefinidas (9 egresos + 3 ingresos)
 - Clasificación contable para reportes
@@ -738,6 +758,7 @@ CREATE TABLE operaciones_cajas (
 ```
 
 **⚠️ Importante:**
+
 - El campo `comprobante_url` guarda el **PATH** del archivo en Storage (ejemplo: `2026/02/a1b2c3d4.jpg`), **NO la URL completa**. Esto permite generar signed URLs dinámicamente cuando se necesiten.
 - El campo `categoria_id` es **obligatorio** para operaciones INGRESO/EGRESO manuales, permite clasificación contable y reportes por tipo de gasto.
 
@@ -758,6 +779,7 @@ CREATE TABLE categorias_operaciones (
 **Categorías predefinidas:**
 
 **Egresos (9):**
+
 - `EGR_PAGOS` - Pago a Proveedores
 - `EGR_SERVICIOS` - Servicios Básicos (luz, agua, internet)
 - `EGR_SALARIOS` - Nómina y Salarios
@@ -769,6 +791,7 @@ CREATE TABLE categorias_operaciones (
 - `EGR_OTROS` - Otros Gastos
 
 **Ingresos (3):**
+
 - `ING_VENTAS` - Ventas de Productos/Servicios
 - `ING_SERVICIOS` - Cobro por Servicios
 - `ING_OTROS` - Otros Ingresos
@@ -975,18 +998,26 @@ SELECT * FROM pg_policies WHERE tablename = 'objects';
 
 ---
 
-### Problema: "Could not find function registrar_operacion_manual"
+### Problema: 404 Not Found o "Could not find function registrar_operacion_manual"
 
-**Causa:** Función no creada o cache no actualizado
+**Causa:** Falta `SECURITY DEFINER`, `GRANT EXECUTE` o cache de PostgREST desactualizado
 
-**Solución:**
+**Solución:** Ejecutar el bloque completo de la sección "Función PostgreSQL Completa" (incluye DROP, CREATE OR REPLACE, GRANT y NOTIFY)
 
 ```sql
--- Verificar que existe
-SELECT routine_name FROM information_schema.routines
+-- Verificar que existe y tiene los permisos correctos
+SELECT routine_name, security_type
+FROM information_schema.routines
 WHERE routine_name = 'registrar_operacion_manual';
+-- security_type debe ser 'DEFINER', no 'INVOKER'
 
--- Refrescar cache
+-- Verificar permisos
+SELECT grantee, privilege_type
+FROM information_schema.routine_privileges
+WHERE routine_name = 'registrar_operacion_manual';
+-- Debe aparecer 'authenticated' y 'anon' con EXECUTE
+
+-- Refrescar cache (siempre ejecutar después de recrear)
 NOTIFY pgrst, 'reload schema';
 ```
 
@@ -994,9 +1025,7 @@ NOTIFY pgrst, 'reload schema';
 
 ### Problema: "Saldo insuficiente" pero hay saldo
 
-**Causa:** Saldo en BD no está actualizado
-
-**Solución:**
+**Causa A:** Saldo en BD no está actualizado
 
 ```sql
 -- Verificar saldo actual
@@ -1008,6 +1037,10 @@ WHERE caja_id = 1
 ORDER BY fecha DESC
 LIMIT 1;
 ```
+
+**Causa B:** El ajuste es un *Déficit Turno Anterior* — la caja Tienda tiene `saldo_actual = $0.00` en BD porque el cierre anterior no pudo depositar (el dinero existe físicamente en la funda pero digitalmente quedó en cero).
+
+**Solución para Causa B:** No usar `registrar_operacion_manual` para este caso; usar la función dedicada `reparar_deficit_turno` que omite la validación de saldo mínimo. Ver sección **"Función reparar_deficit_turno"** más abajo.
 
 ---
 
@@ -1026,35 +1059,49 @@ this.cdr.detectChanges();  // ← Forzar detección
 
 ## 📝 Función PostgreSQL Completa
 
-**Versión:** 2.0 (con categorías contables)
+**Versión:** 2.2 (p_tipo_operacion como TEXT — PostgREST compatible)
 
 ```sql
 -- ==========================================
 -- ELIMINAR Y RECREAR FUNCIÓN
+-- Versión: 2.2 - p_tipo_operacion TEXT + SECURITY DEFINER + gen_random_uuid()
+-- PROBLEMA RESUELTO: PostgREST no castea string → ENUM automáticamente (400 Bad Request)
+-- SOLUCIÓN: Recibir TEXT y castear al ENUM internamente
 -- ==========================================
 
--- 1. Eliminar todas las versiones anteriores
+-- 1. Eliminar TODAS las versiones anteriores (cualquier firma)
 DROP FUNCTION IF EXISTS public.registrar_operacion_manual(INTEGER, INTEGER, tipo_operacion_caja_enum, INTEGER, DECIMAL, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.registrar_operacion_manual(INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT);
 DROP FUNCTION IF EXISTS public.registrar_operacion_manual;
 
--- 2. Crear la función con soporte para categorías
-CREATE FUNCTION public.registrar_operacion_manual(
+-- 2. Crear con p_tipo_operacion como TEXT
+CREATE OR REPLACE FUNCTION public.registrar_operacion_manual(
   p_caja_id INTEGER,
   p_empleado_id INTEGER,
-  p_tipo_operacion tipo_operacion_caja_enum,
-  p_categoria_id INTEGER,                    -- ← NUEVO: Categoría contable
+  p_tipo_operacion TEXT,           -- ← TEXT (no ENUM) para compatibilidad con PostgREST
+  p_categoria_id INTEGER,
   p_monto DECIMAL(12,2),
   p_descripcion TEXT DEFAULT NULL,
   p_comprobante_url TEXT DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
+SECURITY DEFINER                   -- ← CRÍTICO: ejecuta con permisos del creador
+SET search_path = public           -- ← CRÍTICO: resolución explícita de schema
 AS $$
 DECLARE
   v_saldo_anterior DECIMAL(12,2);
   v_saldo_nuevo DECIMAL(12,2);
   v_operacion_id UUID;
+  v_tipo tipo_operacion_caja_enum; -- ← Variable interna con el tipo correcto
 BEGIN
+  -- 0. Cast TEXT → ENUM con validación
+  BEGIN
+    v_tipo := p_tipo_operacion::tipo_operacion_caja_enum;
+  EXCEPTION WHEN invalid_text_representation THEN
+    RAISE EXCEPTION 'Tipo de operación no válido: %. Use INGRESO o EGRESO', p_tipo_operacion;
+  END;
+
   -- 1. Obtener saldo actual de la caja (con lock para evitar race conditions)
   SELECT saldo_actual INTO v_saldo_anterior
   FROM cajas
@@ -1065,18 +1112,15 @@ BEGIN
     RAISE EXCEPTION 'Caja no encontrada con ID: %', p_caja_id;
   END IF;
 
-  -- 2. Calcular nuevo saldo según tipo de operación
-  IF p_tipo_operacion = 'INGRESO' THEN
+  -- 2. Calcular nuevo saldo
+  IF v_tipo = 'INGRESO' THEN
     v_saldo_nuevo := v_saldo_anterior + p_monto;
-  ELSIF p_tipo_operacion = 'EGRESO' THEN
+  ELSIF v_tipo = 'EGRESO' THEN
     v_saldo_nuevo := v_saldo_anterior - p_monto;
-    -- Validar saldo insuficiente
     IF v_saldo_nuevo < 0 THEN
       RAISE EXCEPTION 'Saldo insuficiente. Saldo actual: %, monto a retirar: %',
         v_saldo_anterior, p_monto;
     END IF;
-  ELSE
-    RAISE EXCEPTION 'Tipo de operación no válido: %. Use INGRESO o EGRESO', p_tipo_operacion;
   END IF;
 
   -- 3. Actualizar saldo de la caja
@@ -1085,12 +1129,12 @@ BEGIN
       updated_at = NOW()
   WHERE id = p_caja_id;
 
-  -- 4. Insertar operación con categoría
+  -- 4. Insertar operación (usando v_tipo, no p_tipo_operacion)
   INSERT INTO operaciones_cajas (
     id, caja_id, empleado_id, tipo_operacion, categoria_id, monto,
     saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
   ) VALUES (
-    uuid_generate_v4(), p_caja_id, p_empleado_id, p_tipo_operacion, p_categoria_id, p_monto,
+    gen_random_uuid(), p_caja_id, p_empleado_id, v_tipo, p_categoria_id, p_monto,
     v_saldo_anterior, v_saldo_nuevo, p_descripcion, p_comprobante_url, NOW()
   ) RETURNING id INTO v_operacion_id;
 
@@ -1107,19 +1151,26 @@ EXCEPTION
     RAISE EXCEPTION 'Error en operación: %', SQLERRM;
 END;
 $$;
+
+-- 3. Permisos explícitos (firma con TEXT, no ENUM)
+GRANT EXECUTE ON FUNCTION public.registrar_operacion_manual(INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.registrar_operacion_manual(INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT) TO anon;
+
+-- 4. Refrescar cache de PostgREST
+NOTIFY pgrst, 'reload schema';
 ```
 
 ### Parámetros de la función:
 
-| Parámetro | Tipo | Descripción |
-|-----------|------|-------------|
-| `p_caja_id` | INTEGER | ID de la caja (1=CAJA, 2=CAJA_CHICA, etc.) |
-| `p_empleado_id` | INTEGER | ID del empleado que registra la operación |
-| `p_tipo_operacion` | ENUM | 'INGRESO' o 'EGRESO' |
-| `p_categoria_id` | INTEGER | **NUEVO:** ID de la categoría contable (obligatorio) |
-| `p_monto` | DECIMAL | Monto de la operación |
-| `p_descripcion` | TEXT | Descripción adicional (opcional, más detalle que la categoría) |
-| `p_comprobante_url` | TEXT | Path del comprobante en Storage (opcional para ingresos, obligatorio para egresos) |
+| Parámetro           | Tipo    | Descripción                                                                        |
+| ------------------- | ------- | ---------------------------------------------------------------------------------- |
+| `p_caja_id`         | INTEGER | ID de la caja (1=CAJA, 2=CAJA_CHICA, etc.)                                         |
+| `p_empleado_id`     | INTEGER | ID del empleado que registra la operación                                          |
+| `p_tipo_operacion`  | ENUM    | 'INGRESO' o 'EGRESO'                                                               |
+| `p_categoria_id`    | INTEGER | **NUEVO:** ID de la categoría contable (obligatorio)                               |
+| `p_monto`           | DECIMAL | Monto de la operación                                                              |
+| `p_descripcion`     | TEXT    | Descripción adicional (opcional, más detalle que la categoría)                     |
+| `p_comprobante_url` | TEXT    | Path del comprobante en Storage (opcional para ingresos, obligatorio para egresos) |
 
 ### Cambios en Versión 2.0:
 
@@ -1134,6 +1185,7 @@ $$;
 ## ✅ Checklist de Implementación
 
 ### Versión 1.0 (Comprobantes fotográficos)
+
 - [x] Instalar @capacitor/camera
 - [x] Configurar permisos en AndroidManifest.xml
 - [x] Crear StorageService
@@ -1149,6 +1201,7 @@ $$;
 - [x] Documentar en PROCESO_INGRESO_EGRESO.md
 
 ### Versión 2.0 (Categorías contables)
+
 - [x] Crear tabla categorias_operaciones
 - [x] Agregar campo categoria_id a operaciones_cajas
 - [x] Insertar 12 categorías predefinidas (9 egresos + 3 ingresos)
@@ -1159,6 +1212,21 @@ $$;
 - [x] Agregar dropdown de categorías en modal
 - [x] Actualizar función PostgreSQL con p_categoria_id
 - [x] Actualizar documentación con versión 2.0
+
+### Versión 2.1 (Fix 404: TEXT en vez de ENUM)
+
+- [x] `registrar_operacion_manual` cambió `p_tipo_operacion` de `tipo_operacion_caja_enum` a `TEXT`
+- [x] Casteo interno: `v_tipo := p_tipo_operacion::tipo_operacion_caja_enum`
+- [x] Agregado `SECURITY DEFINER`, `GRANT EXECUTE`, `NOTIFY pgrst`
+
+### Versión 2.2 (Fix 400: función dedicada para ajuste de déficit)
+
+- [x] Nuevo caso: EGRESO de Tienda para reponer déficit turno anterior cuando `saldo_actual = 0`
+- [x] Causa: `registrar_operacion_manual` bloquea EGRESO si `saldo_nuevo < 0`
+- [x] Solución: función dedicada `reparar_deficit_turno` sin validación de saldo mínimo
+- [x] Nuevas categorías: `EG-012` (Ajuste Déficit Turno Anterior) y `IN-004` (Reposición Déficit Turno Anterior)
+- [x] `TurnosCajaService.repararDeficit()` usa la nueva función RPC
+- [x] `VerificarFondoModalComponent` muestra mensaje de error específico del RPC
 
 ---
 
@@ -1176,11 +1244,13 @@ $$;
 ### ¿Qué cambió?
 
 **Versión 1.0** solo guardaba:
+
 - Monto
 - Descripción libre (texto)
 - Comprobante (foto)
 
 **Versión 2.0** agrega:
+
 - ✅ **Categoría contable obligatoria** (selección de lista)
 - ✅ **12 categorías predefinidas** para clasificación
 - ✅ **Descripción ahora es complementaria** (más detalle que la categoría)
@@ -1197,12 +1267,14 @@ $$;
 ### Ejemplo de uso:
 
 **Antes (v1.0):**
+
 ```
 Monto: $50
 Descripción: "Pago de luz"
 ```
 
 **Ahora (v2.0):**
+
 ```
 Categoría: EGR_SERVICIOS - Servicios Básicos
 Monto: $50
@@ -1211,9 +1283,173 @@ Comprobante: [Foto del recibo]
 ```
 
 **Ventaja:** El sistema ahora puede generar reportes como:
+
 - "Total en Servicios Básicos: $250/mes"
 - "Comparativa: Enero ($250) vs Febrero ($280)"
 - "Desglose: Luz ($50) + Internet ($30) + Agua ($20)"
+
+---
+
+---
+
+## 📝 Función reparar_deficit_turno (v2.2)
+
+**Propósito:** Registra el ajuste contable del déficit del turno anterior **sin validar saldo mínimo** en Tienda.
+
+**¿Por qué existe esta función separada?**
+
+Cuando un turno cierra con déficit, la caja Tienda puede quedar con `saldo_actual = $0.00` en BD (el dinero existe físicamente en la funda pero no se pudo depositar digitalmente). Si se usa `registrar_operacion_manual`, lanza `"Saldo insuficiente"` porque `0 - monto < 0`. Esta función especial permite ese EGRESO contable de ajuste.
+
+**Operaciones que realiza (una transacción atómica):**
+
+1. Valida que `saldo_tienda >= totalAReponer` — si no, retorna error con mensaje claro
+2. `EGRESO` de Tienda (`caja_id = 1`) por `totalAReponer`
+3. `INGRESO` a Varios (`caja_id = 2`) por `deficitCajaChica` (si es > 0)
+
+**Llamada desde TypeScript (`TurnosCajaService.repararDeficit`):**
+
+```typescript
+const { data, error } = await this.supabase.client
+  .rpc('reparar_deficit_turno', {
+    p_empleado_id:        empleado.id,
+    p_deficit_caja_chica: deficitCajaChica,
+    p_fondo_faltante:     fondoFaltante,
+    p_cat_egreso_id:      catEgreso.id,   // EG-012
+    p_cat_ingreso_id:     catIngreso.id   // IN-004
+  });
+
+// data = { success: true } | { success: false, error: "mensaje" }
+```
+
+**SQL completo para ejecutar en Supabase:**
+
+```sql
+-- ==========================================
+-- FUNCIÓN: reparar_deficit_turno
+-- EGRESO de Tienda sin validación de saldo mínimo
+-- INGRESO a Varios si deficitCajaChica > 0
+-- Versión: 1.0 — 2026-02-20
+-- ==========================================
+
+CREATE OR REPLACE FUNCTION public.reparar_deficit_turno(
+  p_empleado_id        INTEGER,
+  p_deficit_caja_chica DECIMAL(12,2),
+  p_fondo_faltante     DECIMAL(12,2),
+  p_cat_egreso_id      INTEGER,
+  p_cat_ingreso_id     INTEGER
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_total_a_reponer DECIMAL(12,2);
+  v_saldo_tienda    DECIMAL(12,2);
+  v_saldo_varios    DECIMAL(12,2);
+  v_op_egreso_id    UUID;
+  v_op_ingreso_id   UUID;
+BEGIN
+  v_total_a_reponer := p_deficit_caja_chica + p_fondo_faltante;
+
+  -- Validaciones básicas
+  IF v_total_a_reponer <= 0 THEN
+    RETURN json_build_object('success', false, 'error', 'El monto a reponer debe ser mayor a cero');
+  END IF;
+
+  IF p_deficit_caja_chica < 0 OR p_fondo_faltante < 0 THEN
+    RETURN json_build_object('success', false, 'error', 'Los montos de déficit no pueden ser negativos');
+  END IF;
+
+  -- Obtener saldo actual de Tienda (con lock)
+  SELECT saldo_actual INTO v_saldo_tienda FROM cajas WHERE id = 1 FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'error', 'No se encontró la caja Tienda');
+  END IF;
+
+  -- Validar que Tienda tiene saldo suficiente para cubrir el ajuste
+  IF v_saldo_tienda < v_total_a_reponer THEN
+    RETURN json_build_object(
+      'success', false,
+      'error', FORMAT(
+        'Saldo insuficiente en Tienda ($%s) para cubrir el ajuste de $%s. Registra un ingreso manual en Tienda primero.',
+        TO_CHAR(v_saldo_tienda, 'FM999990.00'),
+        TO_CHAR(v_total_a_reponer, 'FM999990.00')
+      )
+    );
+  END IF;
+
+  -- 1. EGRESO de Tienda
+  INSERT INTO operaciones_cajas (
+    id, caja_id, empleado_id, tipo_operacion, categoria_id,
+    monto, saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
+  ) VALUES (
+    gen_random_uuid(), 1, p_empleado_id, 'EGRESO', p_cat_egreso_id,
+    v_total_a_reponer, v_saldo_tienda, v_saldo_tienda - v_total_a_reponer,
+    FORMAT(
+      'Ajuste déficit turno anterior — Varios: $%s, Fondo: $%s',
+      TO_CHAR(p_deficit_caja_chica, 'FM999990.00'),
+      TO_CHAR(p_fondo_faltante, 'FM999990.00')
+    ),
+    NULL, NOW()
+  ) RETURNING id INTO v_op_egreso_id;
+
+  UPDATE cajas SET saldo_actual = v_saldo_tienda - v_total_a_reponer, updated_at = NOW() WHERE id = 1;
+
+  -- 2. INGRESO a Varios (solo si hay déficit de caja chica)
+  IF p_deficit_caja_chica > 0 THEN
+    SELECT saldo_actual INTO v_saldo_varios FROM cajas WHERE id = 2 FOR UPDATE;
+    IF NOT FOUND THEN
+      RETURN json_build_object('success', false, 'error', 'No se encontró la caja Varios');
+    END IF;
+
+    INSERT INTO operaciones_cajas (
+      id, caja_id, empleado_id, tipo_operacion, categoria_id,
+      monto, saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
+    ) VALUES (
+      gen_random_uuid(), 2, p_empleado_id, 'INGRESO', p_cat_ingreso_id,
+      p_deficit_caja_chica, v_saldo_varios, v_saldo_varios + p_deficit_caja_chica,
+      'Reposición déficit turno anterior — pendiente cobrado de Tienda',
+      NULL, NOW()
+    ) RETURNING id INTO v_op_ingreso_id;
+
+    UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_caja_chica, updated_at = NOW() WHERE id = 2;
+  END IF;
+
+  RETURN json_build_object(
+    'success',            true,
+    'op_egreso_id',       v_op_egreso_id,
+    'op_ingreso_id',      v_op_ingreso_id,
+    'total_retirado',     v_total_a_reponer,
+    'saldo_tienda_nuevo', v_saldo_tienda - v_total_a_reponer
+  );
+
+EXCEPTION WHEN OTHERS THEN
+  RETURN json_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+
+-- Permisos explícitos
+GRANT EXECUTE ON FUNCTION public.reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER) TO anon;
+
+-- Refrescar caché PostgREST
+NOTIFY pgrst, 'reload schema';
+
+-- Agregar categorías requeridas (si no existen)
+INSERT INTO categorias_operaciones (tipo, nombre, codigo, descripcion)
+VALUES
+  ('EGRESO',   'Ajuste Déficit Turno Anterior',    'EG-012', 'Retiro de Tienda para reponer déficit del turno anterior (fondo faltante + Caja Chica pendiente)'),
+  ('INGRESO',  'Reposición Déficit Turno Anterior', 'IN-004', 'Ingreso a Varios por reposición del déficit pendiente del turno anterior')
+ON CONFLICT (codigo) DO NOTHING;
+
+-- Verificar
+SELECT routine_name FROM information_schema.routines
+WHERE routine_schema = 'public' AND routine_name = 'reparar_deficit_turno';
+
+SELECT id, tipo, nombre, codigo FROM categorias_operaciones
+WHERE codigo IN ('EG-012', 'IN-004');
+```
 
 ---
 

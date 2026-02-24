@@ -1,7 +1,11 @@
-# Sistema de Control de Recargas y Cierre Diario (VERSIÓN 4.5)
+# Sistema de Control de Recargas y Cierre Diario (VERSIÓN 4.7)
 
-**IMPORTANTE:** Este documento refleja la Versión 4.6 del sistema donde:
+**IMPORTANTE:** Este documento refleja la Versión 4.7 del sistema donde:
 
+- ✅ **NUEVO v4.7:** 1 sola transferencia a Varios por día (sin importar cuántos turnos)
+- ✅ **NUEVO v4.7:** UI coherente — Paso 2 muestra chip verde "ya recibió hoy" si es 2do turno
+- ✅ **NUEVO v4.7:** Verificación timezone-safe con `(fecha AT TIME ZONE 'America/Guayaquil')::date`
+- ✅ **NUEVO v4.7:** Función auxiliar `verificar_transferencia_caja_chica_hoy` para la UI
 - ✅ **NUEVO v4.6:** Distribución inteligente de efectivo con registro de déficit
 - ✅ **NUEVO v4.6:** Lógica "todo o nada" para transferencia a Caja Chica
 - ✅ **NUEVO v4.6:** `deficit_caja_chica` en `caja_fisica_diaria`
@@ -372,6 +376,22 @@ Config: `fondo_fijo_diario = $20`, `caja_chica_transferencia_diaria = $20`
 
 > Fondo también queda incompleto ($15 de $20 requeridos)
 
+#### CASO SIN EFECTIVO — efectivo = $0
+
+```
+┌──────────────────────────────────────────────────────┐
+│  Del efectivo contado ($0):                          │
+│  📦 $0.00   → Tienda (nada que depositar)            │
+│  💼 $0.00   → Varios (no alcanzó, todo o nada)       │
+│  💵 $0.00   → Caja física (fondo completamente vacío)│
+│  deficit_caja_chica = $20  ⚠️  (si es 1er turno)    │
+│  deficit_caja_chica = $0   ✅  (si Varios ya recibió)│
+└──────────────────────────────────────────────────────┘
+```
+
+> El operador debe usar el campo **Observaciones** para explicar el turno sin efectivo (ej: "Turno sin ventas en efectivo"). El registro en `caja_fisica_diaria` con `efectivo_recaudado = 0` queda igualmente para trazabilidad.
+> El siguiente turno deberá reponer el fondo ($40) y, si aplica, transferir a Varios ($20).
+
 ---
 
 ## 5. Flujo Completo del Cierre por Turno
@@ -695,10 +715,15 @@ Celular: $75.00 (del turno 1) ✅
 Bus: $250.00 (del turno 1) ✅
 ```
 
-**Sistema calcula:**
+**Sistema calcula (v4.7):**
 
 ```
-Depósito = $160 - $40 - $20 = $100
+v_transferencia_ya_hecha = TRUE  (el Turno 1 ya transfirió $20 a Varios hoy)
+
+Efectivo disponible = $160 - $40 = $120  (resta solo el fondo)
+→ Como ya se transfirió hoy: v_transferencia_efectiva = 0, v_deficit_caja_chica = 0
+→ Depósito a Tienda = $120 (todo el efectivo disponible)
+
 Venta Celular = $75 - $50 = $25
 Venta Bus = $250 - $220 = $30
 ```
@@ -706,26 +731,28 @@ Venta Bus = $250 - $220 = $30
 **Función ejecuta:**
 
 ```sql
+-- (v4.7) Verificación: ya existe TRANSFERENCIA_ENTRANTE en CAJA_CHICA para 2026-02-07
+-- → v_transferencia_ya_hecha = TRUE → v_transferencia_efectiva = 0
+
 -- 1. Cierre
-INSERT INTO caja_fisica_diaria VALUES (
-  'cierre-2-id', '2026-02-07', 'turno-2-id', 2, 160.00, NULL
-);
+INSERT INTO caja_fisica_diaria (fecha, turno_id, empleado_id, efectivo_recaudado, deficit_caja_chica)
+VALUES ('2026-02-07', 'turno-2-id', 2, 160.00, 0);
 
 -- 2. Recargas (con saldos del turno 1)
 INSERT INTO recargas VALUES
 ('rec-cel-2', '2026-02-07', 'turno-2-id', 1, 25.00, 75.00, 50.00, TRUE),
 ('rec-bus-2', '2026-02-07', 'turno-2-id', 2, 30.00, 250.00, 220.00, TRUE);
 
--- 3. Operaciones
+-- 3. Operaciones (SIN TRANSFERENCIA a CAJA_CHICA — ya se hizo en Turno 1)
 INSERT INTO operaciones_cajas VALUES
-('op-5', NOW(), 1, 2, 'INGRESO', 100.00, 580.00, 680.00, ...),
-('op-6', NOW(), 2, 2, 'TRANSFERENCIA_ENTRANTE', 20.00, 50.00, 70.00, ...),
+('op-5', NOW(), 1, 2, 'INGRESO', 120.00, 580.00, 700.00, ...),  -- $120 (todo el disponible)
+-- op-6 NO existe: ya se transfirió hoy
 ('op-7', NOW(), 3, 2, 'INGRESO', 25.00, 225.00, 250.00, ...),
 ('op-8', NOW(), 4, 2, 'INGRESO', 30.00, 435.00, 465.00, ...);
 
 -- 4. Actualiza saldos
-UPDATE cajas SET saldo_actual = 680.00 WHERE id = 1;
-UPDATE cajas SET saldo_actual = 70.00 WHERE id = 2;
+UPDATE cajas SET saldo_actual = 700.00 WHERE id = 1;  -- CAJA: +120 (no -20 de transferencia)
+UPDATE cajas SET saldo_actual = 50.00 WHERE id = 2;   -- CAJA_CHICA: sin cambio (ya recibió hoy)
 UPDATE cajas SET saldo_actual = 250.00 WHERE id = 3;
 UPDATE cajas SET saldo_actual = 465.00 WHERE id = 4;
 
@@ -733,16 +760,16 @@ UPDATE cajas SET saldo_actual = 465.00 WHERE id = 4;
 UPDATE turnos_caja SET hora_cierre = '2026-02-07 15:00:00' WHERE id = 'turno-2-id';
 ```
 
-**Saldos Finales del Día:**
+**Saldos Finales del Día (v4.7):**
 
-- CAJA: $680.00 (Turno 1: +$80, Turno 2: +$100)
-- CAJA_CHICA: $70.00 (Turno 1: +$20, Turno 2: +$20)
+- CAJA: $700.00 (Turno 1: +$80, Turno 2: +$120 — sin descontar transferencia ya hecha)
+- CAJA_CHICA: $50.00 (solo Turno 1: +$20 — **1 sola transferencia diaria** ✅)
 - CAJA_CELULAR: $250.00 (Turno 1: +$25, Turno 2: +$25)
 - CAJA_BUS: $465.00 (Turno 1: +$35, Turno 2: +$30)
 - Saldo Virtual Celular: $50.00
 - Saldo Virtual Bus: $220.00
 
-**Resultado:** 2 cierres contables en el mismo día ✅
+**Resultado:** 2 cierres contables en el mismo día, con 1 sola transferencia a Varios ✅
 
 ---
 
@@ -839,8 +866,13 @@ ORDER BY t.numero_turno;
 
 ```sql
 -- ==========================================
--- FUNCIÓN: ejecutar_cierre_diario (v4.6)
+-- FUNCIÓN: ejecutar_cierre_diario (v4.7)
 -- ==========================================
+-- CAMBIOS v4.7:
+--   - 1 sola transferencia a Varios por día (sin importar cuántos turnos)
+--   - Si ya existe TRANSFERENCIA_ENTRANTE en CAJA_CHICA para p_fecha → skip
+--   - En ese caso: v_transferencia_efectiva = 0, v_deficit_caja_chica = 0
+--   - El efectivo disponible va todo a Tienda en el segundo turno
 -- CAMBIOS v4.6:
 --   - Distribución inteligente de efectivo (ya no lanza excepción por déficit)
 --   - Lógica "todo o nada" para Caja Chica:
@@ -853,9 +885,11 @@ ORDER BY t.numero_turno;
 --   - Fórmula corregida para venta_celular y venta_bus:
 --       venta = (saldo_anterior + agregado_dia) - saldo_final
 --   - Soporta recargas del proveedor CELULAR y compras de saldo BUS
+--   - CRÍTICO: Filtro de recargas_virtuales por created_at > último_cierre_at
+--       (NO por fecha = p_fecha) — captura recargas no aplicadas en cierres previos
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.ejecutar_cierre_diario(
+CREATE OR REPLACE FUNCTION public.ejecutar_cierre_diario(  -- v4.7
   p_turno_id                    UUID,
   p_fecha                       DATE,
   p_empleado_id                 INTEGER,
@@ -874,7 +908,7 @@ RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $function$
 DECLARE
   -- IDs de cajas (por código para evitar hardcodeo)
   v_caja_id          INTEGER;
@@ -892,15 +926,17 @@ DECLARE
   v_fondo_fijo           DECIMAL(12,2);
   v_transferencia_diaria DECIMAL(12,2);
 
-  -- Recargas virtuales del día (v4.5)
-  v_agregado_celular DECIMAL(12,2);
-  v_agregado_bus     DECIMAL(12,2);
+  -- Recargas virtuales pendientes (v4.5)
+  v_agregado_celular  DECIMAL(12,2);
+  v_agregado_bus      DECIMAL(12,2);
+  v_ultimo_cierre_at  TIMESTAMP; -- Timestamp del último cierre (para filtrar recargas no aplicadas)
 
   -- Distribución inteligente de efectivo (v4.6)
   v_efectivo_disponible        DECIMAL(12,2); -- Efectivo tras apartar el fondo
   v_transferencia_efectiva     DECIMAL(12,2); -- Lo que realmente va a Caja Chica (puede ser 0)
   v_deficit_caja_chica         DECIMAL(12,2); -- Lo que faltó para Caja Chica (0 si turno normal)
   v_dinero_a_depositar         DECIMAL(12,2); -- Lo que va a Caja Principal (>= 0 siempre)
+  v_transferencia_ya_hecha     BOOLEAN := FALSE; -- (v4.7) ¿Ya se transfirió a Varios hoy?
 
   -- Saldos finales
   v_saldo_final_caja           DECIMAL(12,2);
@@ -960,28 +996,47 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 4. RECARGAS VIRTUALES DEL DÍA (v4.5)
+  -- 4. OBTENER TIMESTAMP DEL ÚLTIMO CIERRE
   -- ==========================================
+
+  -- Busca el cierre más reciente (cualquier turno) para saber hasta dónde
+  -- ya se incorporaron las recargas virtuales
+  SELECT MAX(created_at)
+  INTO v_ultimo_cierre_at
+  FROM caja_fisica_diaria;
+
+  -- ==========================================
+  -- 5. RECARGAS VIRTUALES PENDIENTES (v4.5 CORREGIDO)
+  -- ==========================================
+  -- IMPORTANTE: Filtra por created_at > último cierre, NO por fecha = hoy
+  -- Esto captura todas las recargas no incorporadas en cierres previos,
+  -- incluso si tienen fecha anterior (ej: recarga del 21 cerrada el 23)
 
   SELECT COALESCE(SUM(monto_virtual), 0)
   INTO v_agregado_celular
-  FROM recargas_virtuales
-  WHERE fecha = p_fecha AND tipo_servicio_id = v_tipo_servicio_celular_id;
+  FROM recargas_virtuales rv
+  WHERE rv.tipo_servicio_id = v_tipo_servicio_celular_id
+    AND (v_ultimo_cierre_at IS NULL OR rv.created_at > v_ultimo_cierre_at);
 
   SELECT COALESCE(SUM(monto_virtual), 0)
   INTO v_agregado_bus
-  FROM recargas_virtuales
-  WHERE fecha = p_fecha AND tipo_servicio_id = v_tipo_servicio_bus_id;
+  FROM recargas_virtuales rv
+  WHERE rv.tipo_servicio_id = v_tipo_servicio_bus_id
+    AND (v_ultimo_cierre_at IS NULL OR rv.created_at > v_ultimo_cierre_at);
 
   -- ==========================================
-  -- 5. DISTRIBUCIÓN INTELIGENTE DE EFECTIVO (v4.6)
+  -- 6. DISTRIBUCIÓN INTELIGENTE DE EFECTIVO (v4.7)
   --
-  -- Prioridades:
+  -- Regla de negocio: solo 1 transferencia a Varios por día.
+  -- Si ya se transfirió en un turno anterior del mismo día → skip.
+  --
+  -- Prioridades (cuando no se ha transferido aún):
   --   1° Fondo fijo (para dar vueltos mañana)
   --   2° Caja Chica: todo o nada (si no alcanza el monto completo → $0)
   --   3° Caja Principal: lo que sobre (siempre >= 0)
   --
   -- Casos:
+  --   YA TRANSFERIDO HOY: chica = $0, deficit = $0, principal = efectivo - fondo
   --   NORMAL:          efectivo >= fondo + transferencia
   --                    → chica = transferencia (completo), principal = efectivo - fondo - transferencia
   --   DÉFICIT PARCIAL: fondo <= efectivo < fondo + transferencia
@@ -994,8 +1049,22 @@ BEGIN
   -- Efectivo disponible tras apartar el fondo (puede ser negativo si ni el fondo alcanza)
   v_efectivo_disponible := p_efectivo_recaudado - v_fondo_fijo;
 
-  -- Lógica todo o nada para Caja Chica
-  IF v_efectivo_disponible >= v_transferencia_diaria THEN
+  -- (v4.7) Verificar si ya se hizo la transferencia a Varios hoy
+  -- Usar columna `fecha` (TIMESTAMP WITH TIME ZONE, campo real de la tabla)
+  -- con timezone local para evitar desfase UTC en cierres nocturnos
+  SELECT EXISTS (
+    SELECT 1 FROM operaciones_cajas
+    WHERE caja_id        = v_caja_chica_id
+      AND tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
+      AND (fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+  ) INTO v_transferencia_ya_hecha;
+
+  IF v_transferencia_ya_hecha THEN
+    -- Ya se transfirió hoy en otro turno: Varios no recibe nada, sin déficit
+    v_transferencia_efectiva := 0;
+    v_deficit_caja_chica     := 0;
+    v_dinero_a_depositar     := GREATEST(0, v_efectivo_disponible);
+  ELSIF v_efectivo_disponible >= v_transferencia_diaria THEN
     -- CASO NORMAL: alcanza para transferencia completa
     v_transferencia_efectiva := v_transferencia_diaria;
     v_deficit_caja_chica     := 0;
@@ -1014,7 +1083,7 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 6. CALCULAR VENTAS VIRTUALES (v4.5)
+  -- 7. CALCULAR VENTAS VIRTUALES (v4.5)
   -- ==========================================
 
   v_venta_celular := (p_saldo_anterior_celular + v_agregado_celular) - p_saldo_celular_final;
@@ -1030,7 +1099,7 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 7. CALCULAR SALDOS FINALES
+  -- 8. CALCULAR SALDOS FINALES
   -- ==========================================
 
   v_saldo_final_caja           := p_saldo_anterior_caja         + v_dinero_a_depositar;
@@ -1039,7 +1108,7 @@ BEGIN
   v_saldo_final_caja_bus       := p_saldo_anterior_caja_bus     + v_venta_bus;
 
   -- ==========================================
-  -- 8. INSERTAR caja_fisica_diaria (con deficit_caja_chica)
+  -- 9. INSERTAR caja_fisica_diaria (con deficit_caja_chica)
   -- ==========================================
 
   INSERT INTO caja_fisica_diaria (
@@ -1052,7 +1121,7 @@ BEGIN
   RETURNING id INTO v_cierre_id;
 
   -- ==========================================
-  -- 9. OPERACIÓN EN CAJA PRINCIPAL
+  -- 10. OPERACIÓN EN CAJA PRINCIPAL
   -- Solo si hay algo que depositar
   -- ==========================================
 
@@ -1070,7 +1139,7 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 10. TRANSFERENCIA A CAJA_CHICA
+  -- 11. TRANSFERENCIA A CAJA_CHICA
   -- Solo si la transferencia es efectiva (no en déficit)
   -- ==========================================
 
@@ -1088,7 +1157,7 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 11. RECARGAS CELULAR
+  -- 12. RECARGAS CELULAR
   -- ==========================================
 
   INSERT INTO recargas (
@@ -1117,7 +1186,7 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 12. RECARGAS BUS
+  -- 13. RECARGAS BUS
   -- ==========================================
 
   INSERT INTO recargas (
@@ -1146,7 +1215,7 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 13. ACTUALIZAR SALDOS DE CAJAS
+  -- 14. ACTUALIZAR SALDOS DE CAJAS
   -- ==========================================
 
   UPDATE cajas SET saldo_actual = v_saldo_final_caja,          updated_at = NOW() WHERE id = v_caja_id;
@@ -1155,14 +1224,14 @@ BEGIN
   UPDATE cajas SET saldo_actual = v_saldo_final_caja_bus,      updated_at = NOW() WHERE id = v_caja_bus_id;
 
   -- ==========================================
-  -- 14. CERRAR TURNO
+  -- 15. CERRAR TURNO
   -- ==========================================
 
   UPDATE turnos_caja SET hora_cierre = NOW() WHERE id = p_turno_id;
   v_turno_cerrado := TRUE;
 
   -- ==========================================
-  -- 15. RETORNAR RESUMEN
+  -- 16. RETORNAR RESUMEN
   -- ==========================================
 
   RETURN json_build_object(
@@ -1171,7 +1240,7 @@ BEGIN
     'turno_id',      p_turno_id,
     'fecha',         p_fecha,
     'turno_cerrado', v_turno_cerrado,
-    'version',       '4.6',
+    'version',       '4.7',
     'configuracion', json_build_object(
       'fondo_fijo',           v_fondo_fijo,
       'transferencia_diaria', v_transferencia_diaria
@@ -1202,9 +1271,9 @@ BEGIN
 
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error en cierre diario v4.6: %', SQLERRM;
+    RAISE EXCEPTION 'Error en cierre diario v4.7: %', SQLERRM;
 END;
-$$;
+$function$;
 
 -- Permisos explícitos (evita problemas de caché en PostgREST)
 GRANT EXECUTE ON FUNCTION public.ejecutar_cierre_diario(
@@ -1220,7 +1289,34 @@ GRANT EXECUTE ON FUNCTION public.ejecutar_cierre_diario(
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.ejecutar_cierre_diario IS
-'Cierre diario v4.6 — Distribución inteligente de efectivo con registro de déficit en caja_fisica_diaria.';
+'Cierre diario v4.7 — 1 sola transferencia a Varios por día + distribución inteligente de efectivo con registro de déficit en caja_fisica_diaria.';
+```
+
+### 10.2. Función Auxiliar: `verificar_transferencia_caja_chica_hoy` (v4.7)
+
+Usada por la UI (`recargas.service.ts`) al pasar del Paso 1 al Paso 2 del cierre.
+Retorna `TRUE` si ya existe una `TRANSFERENCIA_ENTRANTE` en `CAJA_CHICA` para la fecha indicada.
+
+```sql
+CREATE OR REPLACE FUNCTION public.verificar_transferencia_caja_chica_hoy(p_fecha DATE)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM operaciones_cajas oc
+    JOIN cajas c ON c.id = oc.caja_id
+    WHERE c.codigo = 'CAJA_CHICA'
+      AND oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
+      AND (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+  );
+$function$;
+
+GRANT EXECUTE ON FUNCTION public.verificar_transferencia_caja_chica_hoy(DATE) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.verificar_transferencia_caja_chica_hoy(DATE) TO anon;
+
+NOTIFY pgrst, 'reload schema';
 ```
 
 ---
@@ -1359,6 +1455,48 @@ WHERE fecha = CURRENT_DATE;
 
 ## 📝 HISTORIAL DE VERSIONES
 
+### Versión 4.7 (2026-02-20 → 2026-02-21)
+
+**PostgreSQL (`ejecutar_cierre_diario`):**
+
+- ✅ **1 sola transferencia a Varios por día** — si ya existe `TRANSFERENCIA_ENTRANTE` en `CAJA_CHICA` para `p_fecha`, el turno actual no transfiere nada
+- ✅ Variable `v_transferencia_ya_hecha` — verifica con `(fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha` (timezone-safe)
+- ✅ En turno sin transferir aún: comportamiento idéntico a v4.6 (lógica "todo o nada")
+- ✅ En turno con transferencia ya hecha: `v_transferencia_efectiva = 0`, `v_deficit_caja_chica = 0`, sobrante todo a Tienda
+- ✅ Sin cambio en el schema — usa columna `fecha` existente en `operaciones_cajas`
+- ✅ Delimitador cambiado a `$function$` para compatibilidad con editor de Supabase
+
+**Nueva función auxiliar (`verificar_transferencia_caja_chica_hoy`):**
+
+- ✅ Función SQL simple que retorna `BOOLEAN` — usada por la UI antes de mostrar el Paso 2
+- ✅ Misma lógica timezone-safe que `ejecutar_cierre_diario`
+
+**TypeScript (`cierre-diario.page.ts`):**
+
+- ✅ Propiedad `transferenciaCajaChicaYaHecha = false` — flag que refleja el estado real de la BD
+- ✅ `siguientePaso()` consulta `verificarTransferenciaYaHecha()` antes de avanzar al Paso 2
+- ✅ Getter `transferenciaEfectivaCajaChica` → retorna 0 si ya se hizo hoy
+- ✅ Getter `deficitCajaChica` → retorna 0 si ya se hizo (no es déficit)
+- ✅ Getter `dineroADepositar` → si ya se hizo, todo el efectivo disponible va a Tienda
+
+**TypeScript (`recargas.service.ts`):**
+
+- ✅ Nuevo método `verificarTransferenciaYaHecha()` → llama a RPC `verificar_transferencia_caja_chica_hoy`
+
+**UI (`cierre-diario.page.html` / `.scss`):**
+
+- ✅ Paso 2 desglose: línea "Varios" muestra chip verde `✅ ya recibió hoy` y valor `$0` en verde
+- ✅ Verificación de cajas: VARIOS muestra chip verde + borde izquierdo verde
+- ✅ Instrucciones físicas: 5 bloques mutuamente excluyentes (sin superposición):
+  1. **Normal 1er turno** — acciones estándar con transferencia a Varios
+  2. **Normal 2do turno** — "Varios ya recibió hoy, no separar nada"
+  3. **Déficit parcial** — Varios no recibe, resto a Tienda
+  4. **Déficit total** — ni fondo ni Varios; condicional por `transferenciaCajaChicaYaHecha`
+  5. **Sin efectivo ($0)** — condicional por `transferenciaCajaChicaYaHecha`: muestra chip verde si ya recibió, o "faltaron $20" si no; nota omite "reponer a Varios" cuando ya se hizo
+- ✅ Bloque "sin efectivo": usa `transferenciaDiariaCajaChica` (el valor de config $20) en lugar de `deficitCajaChica` ($0 cuando ya hecha) — evita mostrar "faltaron $0.00"
+- ✅ Todos los textos "CAJA CHICA" → **"VARIOS"**, "CAJA PRINCIPAL" → **"TIENDA"** (coherente con UI labels)
+- ✅ Estilos `.ya-hecha-badge` con `@extend .deficit-badge` + colores verdes
+
 ### Versión 4.6 (2026-02-20)
 
 - ✅ **Distribución inteligente de efectivo** — ya no lanza excepción por déficit
@@ -1378,6 +1516,10 @@ WHERE fecha = CURRENT_DATE;
 - ✅ Módulo "Saldo Virtual" para registrar cargas del proveedor
 - ✅ Comisión CELULAR: `monto_a_pagar = monto_virtual * 0.95`
 - ✅ `getSaldoVirtualActual()` muestra cierre + cargas posteriores no aplicadas
+- ✅ **CRÍTICO:** Filtro de `recargas_virtuales` por `created_at > último_cierre_at` (NO por `fecha = p_fecha`)
+  - Captura recargas no incorporadas en cierres previos, sin importar su fecha
+  - Evita error "Venta negativa" cuando hay recargas con fecha anterior pendientes de aplicar
+  - Ejemplo: recarga del 21/02 puede aplicarse en cierre del 23/02 si no hubo cierre el 22/02
 
 ### Versión 4.1 (2026-02-07)
 
@@ -1415,6 +1557,6 @@ WHERE fecha = CURRENT_DATE;
 
 ---
 
-**Fecha de Actualización:** 2026-02-20
-**Versión:** 4.6 (Distribución inteligente de efectivo + Registro de déficit Caja Chica)
+**Fecha de Actualización:** 2026-02-21
+**Versión:** 4.7 (1 sola transferencia a Varios por día + Distribución inteligente de efectivo + Registro de déficit Caja Chica + 5 casos UI mutuamente excluyentes)
 **Autor:** Sistema Mi Tienda

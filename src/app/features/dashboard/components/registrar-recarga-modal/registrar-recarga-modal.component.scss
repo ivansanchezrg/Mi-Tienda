@@ -40,6 +40,12 @@
   gap: var(--spacing-sm);
 }
 
+.helper-text {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  margin-top: 2px;
+}
+
 .input-label {
   font-size: 14px;
   font-weight: var(--font-weight-semibold);
@@ -88,6 +94,44 @@
   }
 }
 
+// Card de disponibilidad BUS (saldo caja + ventas del día)
+.disponible-card {
+  background: var(--ion-item-background);
+  border: 1px solid var(--ion-color-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+
+  .disponible-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--ion-color-step-600);
+
+    &.total {
+      border-top: 1px solid var(--ion-color-step-150);
+      padding-top: var(--spacing-xs);
+      margin-top: var(--spacing-xs);
+      font-size: 14px;
+      font-weight: var(--font-weight-semibold);
+      color: var(--ion-text-color);
+    }
+  }
+
+  .valor-ventas {
+    color: var(--ion-color-secondary);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .valor-total {
+    color: var(--ion-color-secondary);
+    font-weight: var(--font-weight-bold);
+  }
+}
+
 // Cálculos
 .calculo-preview {
   background: var(--ion-item-background);
@@ -107,6 +151,13 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+
+    &.nota {
+      font-size: 11px;
+      color: var(--ion-color-medium);
+      font-style: italic;
+      justify-content: flex-start;
+    }
     font-size: 14px;
 
     span:first-child {

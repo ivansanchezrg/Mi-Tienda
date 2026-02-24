@@ -48,7 +48,7 @@
               autofocus>
           </div>
           <ion-note class="helper-text">
-            Saldo anterior: ${{ saldoAnteriorCelular | number:'1.2-2' }}
+            Saldo del sistema: ${{ saldoVirtualActualCelular | number:'1.2-2' }}
           </ion-note>
           @if (!ventaCelularValida && saldoCelularActual > 0) {
             <span class="error-text">
@@ -75,7 +75,7 @@
               appNumbersOnly>
           </div>
           <ion-note class="helper-text">
-            Saldo anterior: ${{ saldoAnteriorBus | number:'1.2-2' }}
+            Saldo del sistema: ${{ saldoVirtualActualBus | number:'1.2-2' }}
           </ion-note>
           @if (!ventaBusValida && saldoBusActual > 0) {
             <span class="error-text">
@@ -119,7 +119,7 @@
             <!-- Info adicional -->
             <div class="result-footer">
               <ion-icon name="information-circle-outline"></ion-icon>
-              <p>Deberías tener este monto en efectivo físico en tu caja</p>
+              <p>Efectivo recaudado por ventas de recargas hasta ahora. Se registra en caja al cerrar el día.</p>
             </div>
           </ion-card>
         }

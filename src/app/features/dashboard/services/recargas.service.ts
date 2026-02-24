@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
 import { SaldosAnteriores, DatosCierreDiario, ParamsCierreDiario } from '../models/saldos-anteriores.model';
+import { RecargasVirtualesService } from './recargas-virtuales.service';
 
 /**
  * Tipo de retorno de la query de saldo virtual
@@ -62,6 +63,7 @@ export interface RecargaHistorial {
 })
 export class RecargasService {
   private supabase = inject(SupabaseService);
+  private recargasVirtualesService = inject(RecargasVirtualesService);
 
   /**
    * Obtiene la fecha actual en formato YYYY-MM-DD en zona horaria local
@@ -109,6 +111,7 @@ export class RecargasService {
       )
     ]);
 
+    // Sin cierre previo → saldo anterior es 0. agregadoHoy ya cubre el balance actual.
     return {
       celular: celular?.saldo_virtual_actual ?? 0,
       bus: bus?.saldo_virtual_actual ?? 0
@@ -141,6 +144,11 @@ export class RecargasService {
     const celular = (celularRes.data || []).reduce((sum: number, r: any) => sum + (r.monto_virtual || 0), 0);
     const bus = (busRes.data || []).reduce((sum: number, r: any) => sum + (r.monto_virtual || 0), 0);
 
+    console.log('[agregadoHoy] fecha:', fechaHoy);
+    console.log('[agregadoHoy] celularRes.data:', celularRes.data, '| error:', celularRes.error);
+    console.log('[agregadoHoy] busRes.data:', busRes.data, '| error:', busRes.error);
+    console.log('[agregadoHoy] resultado → celular:', celular, '| bus:', bus);
+
     return { celular, bus };
   }
 
@@ -163,7 +171,7 @@ export class RecargasService {
   async getDatosCierreDiario(): Promise<DatosCierreDiario> {
     // Queries en paralelo para mejor performance
     const [saldosVirtuales, caja, cajaChica, cajaCelular, cajaBus, config, agregadoHoy] = await Promise.all([
-      // 1. Saldos virtuales (Celular y Bus)
+      // 1. Saldos virtuales anteriores (último saldo_virtual_actual de tabla recargas)
       this.getSaldosAnteriores(),
 
       // 2. Saldo actual de CAJA (principal)
@@ -428,6 +436,19 @@ export class RecargasService {
    * @param {ParamsCierreDiario} params Parámetros completos del cierre diario
    * @returns {Promise<any>} Resultado del cierre con información detallada
    */
+  /**
+   * Verifica si ya se realizó la transferencia diaria a CAJA_CHICA hoy (v4.7)
+   * Usa timezone local para evitar desfase UTC en cierres nocturnos.
+   * @returns {Promise<boolean>} true si ya existe TRANSFERENCIA_ENTRANTE en CAJA_CHICA para la fecha local de hoy
+   */
+  async verificarTransferenciaYaHecha(): Promise<boolean> {
+    const fechaHoy = this.getFechaLocal();
+    const { data, error } = await this.supabase.client
+      .rpc('verificar_transferencia_caja_chica_hoy', { p_fecha: fechaHoy });
+    if (error || data === null) return false;
+    return data as boolean;
+  }
+
   async ejecutarCierreDiario(params: ParamsCierreDiario): Promise<any> {
     const resultado = await this.supabase.call(
       this.supabase.client.rpc('ejecutar_cierre_diario', {
@@ -451,9 +472,9 @@ export class RecargasService {
   }
 
   /**
-   * Obtiene el historial completo de recargas ordenado del más reciente al más antiguo
-   *
-   * Calcula la venta del día como: saldo_virtual_anterior - saldo_virtual_actual
+   * Obtiene el historial completo de recargas ordenado del más reciente al más antiguo.
+   * Usa el campo venta_dia almacenado en la BD (calculado por la función SQL ejecutar_cierre_diario),
+   * que ya descuenta correctamente las recargas del proveedor (recargas_virtuales).
    *
    * @returns {Promise<RecargaHistorial[]>} Lista de recargas con toda la información
    */
@@ -465,6 +486,7 @@ export class RecargasService {
         fecha,
         saldo_virtual_anterior,
         saldo_virtual_actual,
+        venta_dia,
         created_at,
         tipos_servicio!inner(codigo)
       `)
@@ -475,14 +497,14 @@ export class RecargasService {
       throw response.error;
     }
 
-    // Transformar datos al formato esperado
+    // Usar venta_dia guardado en BD — NO recalcular (evita negativos por recargas del proveedor)
     const recargas: RecargaHistorial[] = (response.data || []).map((r: any) => ({
       id: r.id,
       fecha: r.fecha,
       servicio: r.tipos_servicio.codigo,
       saldo_anterior: r.saldo_virtual_anterior,
       saldo_actual: r.saldo_virtual_actual,
-      venta_dia: r.saldo_virtual_anterior - r.saldo_virtual_actual,
+      venta_dia: r.venta_dia,
       created_at: r.created_at
     }));
 

@@ -435,6 +435,13 @@ $caja-chica-color: #8b5cf6;
   padding-left: 8px;
 }
 
+// Badge verde "ya recibió hoy" — mismo patrón que .deficit-badge (v4.7)
+.ya-hecha-badge {
+  @extend .deficit-badge;
+  color: var(--ion-color-success-contrast);
+  background: var(--ion-color-success);
+}
+
 // Nota explicativa al pie de los bloques de déficit
 .deficit-nota {
   margin-top: var(--spacing-sm) !important;

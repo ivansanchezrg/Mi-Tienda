@@ -31,7 +31,7 @@
               <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular"></ion-icon>
               <ion-label position="stacked">
                 <strong>Saldo Virtual Celular</strong>
-                <ion-note>Consulta el saldo en el teléfono</ion-note>
+                <ion-note>Saldo anterior: ${{ saldoVirtualActualCelular | number:'1.2-2' }}</ion-note>
               </ion-label>
               <div class="input-wrapper">
                 <span class="currency-prefix">$</span>
@@ -61,7 +61,7 @@
               <ion-icon slot="start" name="bus-outline" class="item-icon bus"></ion-icon>
               <ion-label position="stacked">
                 <strong>Saldo Virtual Bus</strong>
-                <ion-note>Consulta el saldo en la máquina</ion-note>
+                <ion-note>Saldo anterior: ${{ saldoVirtualActualBus | number:'1.2-2' }}</ion-note>
               </ion-label>
               <div class="input-wrapper">
                 <span class="currency-prefix">$</span>
@@ -136,7 +136,7 @@
           <ion-card-content>
             <!-- Sección: Efectivo de Caja -->
             <div class="seccion-titulo">
-              <strong>Efectivo de Caja</strong>
+              <strong>Caja Fisica</strong>
             </div>
             <div class="venta-item">
               <div class="venta-header">
@@ -149,30 +149,56 @@
             </div>
 
             <!-- Desglose del efectivo -->
-            <div class="desglose-efectivo">
-              <div class="desglose-item">
-                <span class="desglose-label">Fondo Fijo (caja física)</span>
-                <span class="desglose-valor resta">-{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            @if (!haySinEfectivo) {
+              <div class="desglose-efectivo">
+                <div class="desglose-item">
+                  <span class="desglose-label">Fondo Fijo (caja física)</span>
+                  <span class="desglose-valor resta">-{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+                </div>
+                <div class="desglose-item">
+                  <span class="desglose-label">
+                    Varios
+                    @if (transferenciaCajaChicaYaHecha) {
+                      <span class="ya-hecha-badge">✅ ya recibió hoy</span>
+                    } @else if (hayDeficitCajaChica) {
+                      <span class="deficit-badge">déficit</span>
+                    }
+                  </span>
+                  <span class="desglose-valor resta" [class.deficit]="hayDeficitCajaChica" [class.ya-hecha]="transferenciaCajaChicaYaHecha">
+                    -{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}
+                  </span>
+                </div>
+                <div class="desglose-item resultado">
+                  <span class="desglose-label">
+                    <ion-icon name="checkmark-outline" class="desglose-icon"></ion-icon>
+                    A Tienda
+                  </span>
+                  <span class="desglose-valor destacado">{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+                </div>
               </div>
-              <div class="desglose-item">
-                <span class="desglose-label">
-                  Caja Chica
-                  @if (hayDeficitCajaChica) {
-                    <span class="deficit-badge">déficit</span>
-                  }
-                </span>
-                <span class="desglose-valor resta" [class.deficit]="hayDeficitCajaChica">
-                  -{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}
-                </span>
+            }
+            @if (haySinEfectivo) {
+              <div class="desglose-efectivo">
+                <div class="desglose-item">
+                  <span class="desglose-label">
+                    Varios
+                    @if (transferenciaCajaChicaYaHecha) {
+                      <span class="ya-hecha-badge">✅ ya recibió hoy</span>
+                    } @else {
+                      <span class="deficit-badge">déficit</span>
+                    }
+                  </span>
+                  <span class="desglose-valor resta deficit">-$0.00</span>
+                </div>
+                <div class="desglose-item resultado">
+                  <span class="desglose-label">
+                    <ion-icon name="checkmark-outline" class="desglose-icon"></ion-icon>
+                    A Tienda
+                  </span>
+                  <span class="desglose-valor destacado">$0.00</span>
+                </div>
               </div>
-              <div class="desglose-item resultado">
-                <span class="desglose-label">
-                  <ion-icon name="checkmark-outline" class="desglose-icon"></ion-icon>
-                  A Caja Principal
-                </span>
-                <span class="desglose-valor destacado">{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-              </div>
-            </div>
+            }
 
             
             <!-- Sección: Recargas -->
@@ -224,11 +250,13 @@
               </div>
             </div>
 
-            <div class="caja-verificacion" [class.con-deficit]="hayDeficitCajaChica">
+            <div class="caja-verificacion" [class.con-deficit]="hayDeficitCajaChica" [class.ya-hecha]="transferenciaCajaChicaYaHecha">
               <div class="caja-nombre">
                 <ion-icon name="wallet-outline" class="caja-icon caja-chica"></ion-icon>
-                <strong>CAJA CHICA</strong>
-                @if (hayDeficitCajaChica) {
+                <strong>VARIOS</strong>
+                @if (transferenciaCajaChicaYaHecha) {
+                  <span class="ya-hecha-badge">✅ ya recibió hoy</span>
+                } @else if (hayDeficitCajaChica) {
                   <span class="deficit-badge">-{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }} pendiente</span>
                 }
               </div>
@@ -271,37 +299,78 @@
           </ion-card-content>
         </ion-card>
 
-        <!-- Acciones físicas — CASO NORMAL -->
-        @if (!hayDeficitCajaChica) {
+        <!-- Acciones físicas — CASO SIN EFECTIVO ($0) -->
+        @if (haySinEfectivo) {
+          <div class="alerta-simple danger">
+            <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+            <div>
+              <p><strong>🚨 Turno sin efectivo recaudado</strong></p>
+              <ul>
+                <li>No hay efectivo para distribuir este turno</li>
+                @if (transferenciaCajaChicaYaHecha) {
+                  <li>✅ <strong>Varios ya recibió sus ${{ transferenciaDiariaCajaChica | number:'1.2-2' }} hoy</strong> — no separar nada para Varios</li>
+                } @else {
+                  <li>Varios <strong>no recibe nada</strong> este turno (faltaron {{ transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }})</li>
+                }
+                <li>Tienda <strong>no recibe nada</strong> este turno</li>
+              </ul>
+              @if (transferenciaCajaChicaYaHecha) {
+                <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo.</p>
+              } @else {
+                <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo y reponer <strong>{{ transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios.</p>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Acciones físicas — CASO NORMAL (1er turno del día: transfiere a Varios) -->
+        @if (!haySinEfectivo && !hayDeficitCajaChica && !transferenciaCajaChicaYaHecha) {
           <div class="alerta-simple info">
             <ion-icon name="information-circle-outline" color="primary"></ion-icon>
             <div>
               <p><strong>Acciones físicas a realizar:</strong></p>
               <ul>
-                <li>Coloca <strong>{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de CAJA CHICA</li>
+                <li>Coloca <strong>{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de VARIOS</li>
                 @if (dineroADepositar > 0) {
-                  <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de CAJA PRINCIPAL</li>
+                  <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de TIENDA</li>
                 }
-                <li>Deja <strong>{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física como fondo para mañana</li>
+                <li>Deja <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física como fondo para mañana</li>
               </ul>
             </div>
           </div>
         }
 
-        <!-- Acciones físicas — DÉFICIT PARCIAL (hay fondo pero no alcanza para Caja Chica) -->
-        @if (hayDeficitCajaChica && !hayDeficitTotal) {
+        <!-- Acciones físicas — 2DO TURNO DEL DÍA (Varios ya recibió su transferencia) -->
+        @if (!haySinEfectivo && !hayDeficitCajaChica && !hayDeficitTotal && transferenciaCajaChicaYaHecha) {
+          <div class="alerta-simple info">
+            <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+            <div>
+              <p><strong>Acciones físicas a realizar:</strong></p>
+              <ul>
+                <li>✅ <strong>Varios ya recibió sus ${{ transferenciaDiariaCajaChica | number:'1.2-2' }} hoy</strong> — no separar nada para Varios</li>
+                @if (dineroADepositar > 0) {
+                  <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de TIENDA</li>
+                }
+                <li>Deja <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física como fondo para mañana</li>
+              </ul>
+            </div>
+          </div>
+        }
+
+        <!-- Acciones físicas — DÉFICIT PARCIAL (hay fondo completo pero no alcanza para Varios) -->
+        @if (!haySinEfectivo && hayDeficitCajaChica && !hayDeficitTotal) {
           <div class="alerta-simple warning">
             <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
             <div>
-              <p><strong>⚠️ Efectivo insuficiente para Caja Chica</strong></p>
+              <p><strong>⚠️ Efectivo insuficiente para Varios</strong></p>
               <ul>
-                <li>Caja Chica <strong>no recibe nada</strong> este turno (faltaron {{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }})</li>
+                <li>Varios <strong>no recibe nada</strong> este turno (faltaron {{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }})</li>
                 @if (dineroADepositar > 0) {
-                  <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de CAJA PRINCIPAL</li>
+                  <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de TIENDA</li>
                 }
-                <li>Deja <strong>{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física como fondo para mañana</li>
+                <li>Deja <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física como fondo para mañana</li>
               </ul>
-              <p class="deficit-nota">El siguiente turno deberá reponer <strong>{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Caja Chica desde Caja Principal.</p>
+              <p class="deficit-nota">El siguiente turno deberá reponer <strong>{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios desde Tienda.</p>
             </div>
           </div>
         }
@@ -313,19 +382,29 @@
             <div>
               <p><strong>🚨 Efectivo insuficiente — Fondo incompleto</strong></p>
               <ul>
-                <li>Caja Chica <strong>no recibe nada</strong> este turno</li>
-                <li>Caja Principal <strong>no recibe nada</strong> este turno</li>
-                <li>Deja los <strong>{{ efectivoRecaudado | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> disponibles en la caja física</li>
+                @if (!transferenciaCajaChicaYaHecha) {
+                  <li>Varios <strong>no recibe nada</strong> este turno</li>
+                } @else {
+                  <li>✅ <strong>Varios ya recibió sus ${{ transferenciaDiariaCajaChica | number:'1.2-2' }} hoy</strong></li>
+                }
+                <li>Tienda <strong>no recibe nada</strong> este turno</li>
+                <li>Deja los <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> disponibles en la caja física</li>
               </ul>
-              <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Caja Principal para completar el fondo y reponer <strong>{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Caja Chica.</p>
+              @if (!transferenciaCajaChicaYaHecha) {
+                <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFaltante | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo y reponer <strong>{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios.</p>
+              } @else {
+                <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFaltante | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo.</p>
+              }
             </div>
           </div>
         }
 
-        <div class="alerta-simple warning">
-          <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
-          <p>Verifica el efectivo físico antes de confirmar el cierre.</p>
-        </div>
+        @if (!haySinEfectivo) {
+          <div class="alerta-simple warning">
+            <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
+            <p>Verifica el efectivo físico antes de confirmar el cierre.</p>
+          </div>
+        }
 
         <!-- Observaciones -->
         <ion-card class="observaciones-card" [formGroup]="cierreForm">

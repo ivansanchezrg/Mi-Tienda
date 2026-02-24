@@ -30,58 +30,91 @@
   </div>
 
   <!-- Estados -->
-  @if (loading && recargas.length === 0) {
+  @if (loading && items.length === 0) {
     <div class="empty-state">
       <ion-spinner name="crescent"></ion-spinner>
       <p>Cargando recargas...</p>
     </div>
   }
 
-  @if (!loading && recargas.length === 0) {
+  @if (!loading && items.length === 0) {
     <div class="empty-state">
       <ion-icon name="list-outline"></ion-icon>
       <p>No hay registros de recargas</p>
     </div>
   }
 
-  <!-- Lista de recargas agrupadas por fecha -->
-  @if (recargasAgrupadas.length > 0) {
-    @for (grupo of recargasAgrupadas; track grupo.fecha) {
-      <!-- Date Header -->
+  <!-- Lista agrupada por fecha -->
+  @if (itemsAgrupados.length > 0) {
+    @for (grupo of itemsAgrupados; track grupo.fecha) {
+
+      <!-- Encabezado de fecha -->
       <div class="date-header">
         <span class="date-text">{{ grupo.fechaDisplay }}</span>
       </div>
 
-      <!-- Card de recargas -->
+      <!-- Card del grupo -->
       <ion-card class="operations-card">
-        @for (recarga of grupo.recargas; track recarga.id; let last = $last) {
-          <div class="op-row">
-            <div class="op-icon" [attr.data-type]="getColorServicio(recarga.servicio)">
-              <ion-icon [name]="getIconoServicio(recarga.servicio)"></ion-icon>
-            </div>
+        @for (item of grupo.items; track item.id; let last = $last) {
 
-            <div class="op-details">
-              <div class="op-title-row">
-                <span class="op-title">{{ recarga.servicio }}</span>
+          @if (item.tipo === 'CARGA_VIRTUAL') {
+            <!-- ── RECARGA DEL PROVEEDOR ── -->
+            <div class="op-row">
+              <div class="op-icon" data-type="virtual">
+                <ion-icon name="cloud-download-outline"></ion-icon>
               </div>
 
-              <div class="recarga-info">
-                <span class="info-item">Anterior: ${{ recarga.saldo_anterior | number:'1.2-2' }}</span>
-                <span class="dot">·</span>
-                <span class="info-item">Actual: ${{ recarga.saldo_actual | number:'1.2-2' }}</span>
+              <div class="op-details">
+                <div class="op-title-row">
+                  <span class="op-title">{{ item.servicio }}</span>
+                  <span class="badge-virtual">Recarga proveedor</span>
+                </div>
+
+                <div class="op-footer">
+                  <span class="op-time">{{ formatearHora(item.created_at) }}</span>
+                  @if (!item.pagado) {
+                    <span class="badge-deuda">Pendiente pago</span>
+                  }
+                </div>
               </div>
 
-              <div class="op-footer">
-                <span class="op-time">{{ formatearHora(recarga.created_at) }}</span>
+              <div class="op-right">
+                <span class="op-amount" data-type="virtual">
+                  +${{ item.monto_virtual | number:'1.2-2' }}
+                </span>
               </div>
             </div>
 
-            <div class="op-right">
-              <span class="op-amount" [attr.data-type]="recarga.venta_dia >= 0 ? 'success' : 'danger'">
-                {{ recarga.venta_dia >= 0 ? '' : '' }}${{ recarga.venta_dia | number:'1.2-2' }}
-              </span>
+          } @else {
+            <!-- ── CIERRE DE TURNO ── -->
+            <div class="op-row">
+              <div class="op-icon" [attr.data-type]="getColorServicio(item.servicio)">
+                <ion-icon [name]="getIconoServicio(item.servicio)"></ion-icon>
+              </div>
+
+              <div class="op-details">
+                <div class="op-title-row">
+                  <span class="op-title">{{ item.servicio }}</span>
+                </div>
+
+                <div class="recarga-info">
+                  <span class="info-item">Anterior: ${{ item.saldo_anterior | number:'1.2-2' }}</span>
+                  <span class="dot">·</span>
+                  <span class="info-item">Actual: ${{ item.saldo_actual | number:'1.2-2' }}</span>
+                </div>
+
+                <div class="op-footer">
+                  <span class="op-time">{{ formatearHora(item.created_at) }}</span>
+                </div>
+              </div>
+
+              <div class="op-right">
+                <span class="op-amount" [attr.data-type]="(item.venta_dia ?? 0) >= 0 ? 'success' : 'danger'">
+                  ${{ item.venta_dia | number:'1.2-2' }}
+                </span>
+              </div>
             </div>
-          </div>
+          }
 
           @if (!last) {
             <div class="op-divider"></div>

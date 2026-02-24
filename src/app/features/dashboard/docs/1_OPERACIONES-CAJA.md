@@ -2,6 +2,20 @@
 
 Módulo para visualizar el historial de movimientos de cada caja del sistema.
 
+## Relación con otros módulos
+
+Este doc cubre la **visualización** del historial — la página que muestra lo que ya ocurrió.
+
+| Módulo | Doc | Qué hace |
+|--------|-----|----------|
+| **Este doc** | `1_OPERACIONES-CAJA.md` | Página de historial: scroll, filtros, agrupación por fecha, saldo dinámico |
+| Registro manual | `2_PROCESO_INGRESO_EGRESO.md` | Modal para crear un INGRESO o EGRESO nuevo: cámara, categoría, Storage, PostgreSQL |
+| Cierre diario | `3_PROCESO_CIERRE_CAJA.md` | Cierre por turno: distribuye efectivo automáticamente entre las 4 cajas |
+
+**Fuente de datos:** Esta página muestra *todas* las `operaciones_cajas` de una caja — tanto las creadas automáticamente por el cierre diario (`ejecutar_cierre_diario`) como las creadas manualmente por el usuario (`registrar_operacion_manual`).
+
+---
+
 ## Descripción General
 
 La página de operaciones de caja permite:
