@@ -39,9 +39,14 @@ export class RegistrarRecargaModalComponent implements OnInit {
   private ui = inject(UiService);
   private service = inject(RecargasVirtualesService);
 
+  // CELULAR
   montoVirtual: number | null = null;
-  comisionPct: number = 5;  // valor por defecto, se reemplaza con el de BD al abrir
-  saldoCajaBus: number = 0; // solo usado cuando tipo === 'BUS'
+  comisionPct: number = 5;
+
+  // BUS
+  saldoCajaBus: number = 0;
+  saldoVirtualSistemaBus: number = 0; // último cierre + recargas post-cierre
+  saldoVirtualMaquina: number | null = null; // lo que muestra la máquina ahora
 
   constructor() {
     addIcons({
@@ -58,32 +63,76 @@ export class RegistrarRecargaModalComponent implements OnInit {
     if (this.tipo === 'CELULAR') {
       this.comisionPct = await this.service.getPorcentajeComision('CELULAR');
     } else {
-      this.saldoCajaBus = await this.service.getSaldoCajaActual('CAJA_BUS');
+      const [saldoCaja, saldoVirtual] = await Promise.all([
+        this.service.getSaldoCajaActual('CAJA_BUS'),
+        this.service.getSaldoVirtualActual('BUS')
+      ]);
+      this.saldoCajaBus = saldoCaja;
+      this.saldoVirtualSistemaBus = saldoVirtual;
     }
+  }
+
+  // ──────────────────────────────
+  // Getters BUS
+  // ──────────────────────────────
+
+  /**
+   * Ventas del día = saldo que el sistema espera − saldo que la máquina muestra.
+   * Solo se calcula cuando el usuario ingresó el saldo de la máquina.
+   */
+  get ventaBusCalculada(): number {
+    if (this.saldoVirtualMaquina === null || this.saldoVirtualMaquina < 0) return 0;
+    return Math.max(0, this.saldoVirtualSistemaBus - this.saldoVirtualMaquina);
+  }
+
+  /**
+   * Total físico disponible para depositar:
+   *   saldo acumulado en CAJA_BUS + ventas de hoy (aún no en CAJA_BUS)
+   */
+  get disponibleParaDepositar(): number {
+    return this.saldoCajaBus + this.ventaBusCalculada;
+  }
+
+  /** true cuando el usuario ya ingresó el saldo de la máquina */
+  get maquinaIngresada(): boolean {
+    return this.saldoVirtualMaquina !== null && this.saldoVirtualMaquina >= 0;
   }
 
   get saldoBusInsuficiente(): boolean {
     if (this.tipo !== 'BUS' || !this.montoVirtual || this.montoVirtual <= 0) return false;
-    return this.montoVirtual > this.saldoCajaBus;
+    // Si el usuario no ingresó la máquina, validar solo contra CAJA_BUS (comportamiento anterior)
+    const limite = this.maquinaIngresada ? this.disponibleParaDepositar : this.saldoCajaBus;
+    return this.montoVirtual > limite;
   }
 
+  /**
+   * Saldo de CAJA_BUS después del depósito.
+   * Puede quedar negativo temporalmente — se corrige con el INGRESO del cierre diario.
+   */
   get saldoBusDespues(): number {
     return this.saldoCajaBus - (this.montoVirtual ?? 0);
   }
+
+  // ──────────────────────────────
+  // Getters comunes
+  // ──────────────────────────────
 
   get tituloModal(): string {
     return this.tipo === 'CELULAR' ? 'Recarga del Proveedor - Celular' : 'Comprar Saldo - Bus';
   }
 
   get labelMonto(): string {
-    return this.tipo === 'CELULAR' ? 'Monto virtual cargado' : 'Monto a comprar';
+    return this.tipo === 'CELULAR' ? 'Monto virtual cargado' : 'Monto a depositar';
   }
 
   get iconoServicio(): string {
     return this.tipo === 'CELULAR' ? 'phone-portrait-outline' : 'bus-outline';
   }
 
-  // Cálculos para CELULAR (usa porcentaje dinámico desde BD)
+  // ──────────────────────────────
+  // Getters CELULAR
+  // ──────────────────────────────
+
   get montoAPagar(): number {
     if (!this.montoVirtual || this.montoVirtual <= 0) return 0;
     return Math.round((this.montoVirtual * (1 - this.comisionPct / 100)) * 100) / 100;
@@ -97,6 +146,10 @@ export class RegistrarRecargaModalComponent implements OnInit {
   get mostrarCalculos(): boolean {
     return this.tipo === 'CELULAR' && !!this.montoVirtual && this.montoVirtual > 0;
   }
+
+  // ──────────────────────────────
+  // Acciones
+  // ──────────────────────────────
 
   cerrar() {
     this.modalCtrl.dismiss();
@@ -117,7 +170,6 @@ export class RegistrarRecargaModalComponent implements OnInit {
     let resultado;
 
     if (this.tipo === 'CELULAR') {
-      // UNA SOLA LLAMADA - TODO EN TRANSACCIÓN (v2.0 - solo crea la deuda)
       resultado = await this.service.registrarRecargaProveedorCelularCompleto({
         fecha: this.service.getFechaLocal(),
         empleado_id: empleado.id,
@@ -129,7 +181,6 @@ export class RegistrarRecargaModalComponent implements OnInit {
         return;
       }
 
-      // Mensaje enriquecido con datos del resultado
       await this.ui.showSuccess(
         `Recarga registrada: $${resultado.monto_virtual.toFixed(2)}\n` +
         `Deuda pendiente: $${resultado.monto_a_pagar.toFixed(2)}\n` +
@@ -137,24 +188,20 @@ export class RegistrarRecargaModalComponent implements OnInit {
         `Saldo Virtual Celular: $${resultado.saldo_virtual_celular.toFixed(2)}`
       );
 
-      // Cerrar modal con TODOS los datos actualizados
-      this.modalCtrl.dismiss({
-        success: true,
-        data: resultado  // Pasar resultado completo
-      });
+      this.modalCtrl.dismiss({ success: true, data: resultado });
+
     } else {
-      // BUS mantiene su flujo original (ya tiene EGRESO inmediato en su función)
+      // BUS — pasa saldo_virtual_maquina si fue ingresado (habilita validación extendida en SQL)
       resultado = await this.service.registrarCompraSaldoBus({
         fecha: this.service.getFechaLocal(),
         empleado_id: empleado.id,
-        monto: this.montoVirtual
+        monto: this.montoVirtual,
+        saldo_virtual_maquina: this.saldoVirtualMaquina ?? undefined
       });
 
       if (!resultado) return;
 
       await this.ui.showSuccess(`Compra registrada: $${this.montoVirtual.toFixed(2)}`);
-
-      // Cerrar modal con éxito
       this.modalCtrl.dismiss({ success: true });
     }
   }

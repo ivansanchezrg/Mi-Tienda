@@ -27,6 +27,7 @@ import { UiService } from '@core/services/ui.service';
 import { HasPendingChanges } from '@core/guards/pending-changes.guard';
 import { CurrencyService } from '@core/services/currency.service';
 import { RecargasService } from '../../services/recargas.service';
+import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
@@ -55,6 +56,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
   private recargasService = inject(RecargasService);
+  private recargasVirtualesService = inject(RecargasVirtualesService);
   private turnosCajaService = inject(TurnosCajaService);
   private authService = inject(AuthService);
   private alertCtrl = inject(AlertController);
@@ -69,6 +71,10 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   saldoAnteriorCelular = 0;
   saldoAnteriorBus = 0;
 
+  // Saldo virtual actual para mostrar en Paso 1 (getSaldoVirtualActual: último cierre + recargas posteriores)
+  saldoVirtualActualCelular = 0;
+  saldoVirtualActualBus = 0;
+
   // Agregado hoy de recargas virtuales (v4.5)
   agregadoCelularHoy = 0;
   agregadoBusHoy = 0;
@@ -82,6 +88,9 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   // Configuración del sistema (v4.0)
   fondoFijo = 40;
   transferenciaDiariaCajaChica = 20;
+
+  // (v4.7) Flag: indica si ya se transfirió a Varios hoy en un turno anterior
+  transferenciaCajaChicaYaHecha = false;
 
   // Formulario
   cierreForm: FormGroup;
@@ -139,15 +148,26 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    */
   async cargarDatosIniciales() {
     // Cargar todos los datos necesarios
-    const datos = await this.recargasService.getDatosCierreDiario();
+    const [datos, saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
+      this.recargasService.getDatosCierreDiario(),
+      this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
+      this.recargasVirtualesService.getSaldoVirtualActual('BUS')
+    ]);
 
-    // Saldos virtuales
+    // Saldo virtual actual para mostrar en Paso 1
+    this.saldoVirtualActualCelular = saldoVirtualCelular;
+    this.saldoVirtualActualBus = saldoVirtualBus;
+
+    // Saldos anteriores virtuales
     this.saldoAnteriorCelular = datos.saldosVirtuales.celular;
     this.saldoAnteriorBus = datos.saldosVirtuales.bus;
 
     // Agregado hoy (v4.5)
     this.agregadoCelularHoy = datos.agregadoCelularHoy;
     this.agregadoBusHoy = datos.agregadoBusHoy;
+
+    console.log('[cierre] saldoAnteriorCelular:', this.saldoAnteriorCelular, '| agregadoCelularHoy:', this.agregadoCelularHoy);
+    console.log('[cierre] saldoAnteriorBus:', this.saldoAnteriorBus, '| agregadoBusHoy:', this.agregadoBusHoy);
 
     // Saldos de cajas físicas
     this.saldoAnteriorCaja = datos.saldoCaja;
@@ -174,7 +194,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    * @returns {number} Efectivo recaudado (ingresado en Paso 1)
    */
   get efectivoRecaudado(): number {
-    return this.cierreForm.get('efectivoTotalRecaudado')?.value || 0;
+    return this.currencyService.parse(this.cierreForm.get('efectivoTotalRecaudado')?.value);
   }
 
   // ==========================================
@@ -187,8 +207,10 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    * @returns {number} Monto vendido en recargas celular
    */
   get ventaCelular(): number {
-    const saldoFinal = this.cierreForm.get('saldoVirtualCelularFinal')?.value || 0;
-    return (this.saldoAnteriorCelular + this.agregadoCelularHoy) - saldoFinal;
+    const saldoFinal = this.currencyService.parse(this.cierreForm.get('saldoVirtualCelularFinal')?.value);
+    const resultado = this.saldoVirtualActualCelular - saldoFinal;
+    console.log('[ventaCelular] saldoVirtualActual:', this.saldoVirtualActualCelular, '- final:', saldoFinal, '= resultado:', resultado);
+    return resultado;
   }
 
   /**
@@ -197,8 +219,10 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    * @returns {number} Monto vendido en recargas bus
    */
   get ventaBus(): number {
-    const saldoFinal = this.cierreForm.get('saldoVirtualBusFinal')?.value || 0;
-    return (this.saldoAnteriorBus + this.agregadoBusHoy) - saldoFinal;
+    const saldoFinal = this.currencyService.parse(this.cierreForm.get('saldoVirtualBusFinal')?.value);
+    const resultado = this.saldoVirtualActualBus - saldoFinal;
+    console.log('[ventaBus] saldoVirtualActual:', this.saldoVirtualActualBus, '- final:', saldoFinal, '= resultado:', resultado);
+    return resultado;
   }
 
   /**
@@ -230,10 +254,12 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
   /**
-   * Monto que realmente se transfiere a Caja Chica (v4.6)
-   * Política todo o nada: si no alcanza el monto completo → $0
+   * Monto que realmente se transfiere a Caja Chica (v4.7)
+   * - Si ya se transfirió hoy en otro turno → $0 (regla de 1 sola transferencia diaria)
+   * - Si no → política todo o nada: completo o $0
    */
   get transferenciaEfectivaCajaChica(): number {
+    if (this.transferenciaCajaChicaYaHecha) return 0; // (v4.7) ya se transfirió hoy
     if (this.efectivoDisponible >= this.transferenciaDiariaCajaChica) {
       return this.transferenciaDiariaCajaChica; // NORMAL: completo
     }
@@ -241,29 +267,61 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
   /**
-   * Monto que faltó transferir a Caja Chica (v4.6)
-   * 0 = turno normal, >0 = turno con déficit
+   * Monto que faltó transferir a Caja Chica (v4.7)
+   * Si ya se transfirió hoy → 0 (no hay déficit, ya está cubierto)
+   * Si no → diferencia entre lo esperado y lo efectivo
    */
   get deficitCajaChica(): number {
+    if (this.transferenciaCajaChicaYaHecha) return 0; // (v4.7) ya se transfirió hoy
     return this.transferenciaDiariaCajaChica - this.transferenciaEfectivaCajaChica;
   }
 
-  /** True si el turno cierra con déficit en Caja Chica */
-  get hayDeficitCajaChica(): boolean {
-    return this.efectivoRecaudado > 0 && this.deficitCajaChica > 0;
+  /** True si el usuario ingresó exactamente $0 de efectivo */
+  get haySinEfectivo(): boolean {
+    return this.efectivoRecaudado === 0;
   }
 
-  /** True si ni el fondo fijo alcanza (caso más crítico) */
+  /** True si el turno cierra con déficit en Caja Chica (incluye caso $0) */
+  get hayDeficitCajaChica(): boolean {
+    return this.deficitCajaChica > 0;
+  }
+
+  /** True si ni el fondo fijo alcanza (caso más crítico, excluye $0 que tiene su propio caso) */
   get hayDeficitTotal(): boolean {
     return this.efectivoRecaudado > 0 && this.efectivoDisponible <= 0;
   }
 
   /**
-   * Dinero a depositar en CAJA PRINCIPAL (v4.6)
-   * Nunca negativo: es el sobrante tras fondo y transferencia efectiva
+   * Cuánto efectivo queda físicamente en caja (lo que realmente se puede dejar como fondo)
+   * NORMAL/DÉFICIT PARCIAL: fondoFijo completo (efectivo >= fondo)
+   * DÉFICIT TOTAL:          solo lo que había (efectivo < fondo)
+   * SIN EFECTIVO:           $0
+   */
+  get fondoEnCajaFisica(): number {
+    if (this.haySinEfectivo) return 0;
+    return Math.min(this.efectivoRecaudado, this.fondoFijo);
+  }
+
+  /**
+   * Cuánto falta para completar el fondo fijo (lo que el siguiente turno debe reponer)
+   * NORMAL:          $0 (fondo completo)
+   * DÉFICIT PARCIAL: $0 (fondo completo, solo faltó Caja Chica)
+   * DÉFICIT TOTAL:   fondoFijo - efectivoRecaudado
+   * SIN EFECTIVO:    fondoFijo completo
+   */
+  get fondoFaltante(): number {
+    return Math.max(0, this.fondoFijo - this.efectivoRecaudado);
+  }
+
+  /**
+   * Dinero a depositar en CAJA PRINCIPAL (v4.7)
+   * - Si ya se transfirió hoy: todo el efectivo disponible va a Tienda (sin descontar transferencia)
+   * - Si no: sobrante tras fondo y transferencia efectiva
+   * Nunca negativo.
    */
   get dineroADepositar(): number {
     if (this.efectivoDisponible <= 0) return 0;             // DÉFICIT TOTAL
+    if (this.transferenciaCajaChicaYaHecha) return this.efectivoDisponible; // (v4.7) todo a Tienda
     return Math.max(0, this.efectivoDisponible - this.transferenciaEfectivaCajaChica);
   }
 
@@ -358,6 +416,9 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
         );
         return;
       }
+
+      // (v4.7) Verificar si ya se transfirió a Varios hoy (puede ser 2do turno del día)
+      this.transferenciaCajaChicaYaHecha = await this.recargasService.verificarTransferenciaYaHecha();
 
       this.pasoActual++;
     }

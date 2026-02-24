@@ -11,7 +11,7 @@ import {
   cashOutline, calculatorOutline, informationCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { RecargasService } from '../../services/recargas.service';
+import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 
@@ -33,17 +33,15 @@ export class CuadreCajaPage implements OnInit {
   private modalCtrl = inject(ModalController);
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
-  private recargasService = inject(RecargasService);
+  private recargasVirtualesService = inject(RecargasVirtualesService);
+
   form!: FormGroup;
   loading = true;
 
-  // Saldos anteriores (virtuales)
-  saldoAnteriorCelular = 0;
-  saldoAnteriorBus = 0;
-
-  // Agregado hoy de recargas virtuales (v4.5)
-  agregadoCelularHoy = 0;
-  agregadoBusHoy = 0;
+  // Saldo virtual actual del sistema (último cierre + recargas proveedor pendientes)
+  // Misma fórmula que en cierre-diario: getSaldoVirtualActual()
+  saldoVirtualActualCelular = 0;
+  saldoVirtualActualBus = 0;
 
   constructor() {
     addIcons({
@@ -62,23 +60,21 @@ export class CuadreCajaPage implements OnInit {
       saldoBusActual: [null, [Validators.required, Validators.min(0)]]
     });
 
-    await this.cargarSaldosAnteriores();
+    await this.cargarDatos();
   }
 
-  async cargarSaldosAnteriores() {
+  async cargarDatos() {
     this.loading = true;
     try {
-      const [saldos, agregado] = await Promise.all([
-        this.recargasService.getSaldosAnteriores(),
-        this.recargasService.getAgregadoVirtualHoy()
+      const [saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
+        this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
+        this.recargasVirtualesService.getSaldoVirtualActual('BUS')
       ]);
-      this.saldoAnteriorCelular = saldos.celular;
-      this.saldoAnteriorBus = saldos.bus;
-      this.agregadoCelularHoy = agregado.celular;
-      this.agregadoBusHoy = agregado.bus;
+      this.saldoVirtualActualCelular = saldoVirtualCelular;
+      this.saldoVirtualActualBus = saldoVirtualBus;
     } catch (error) {
-      console.error('Error al cargar saldos:', error);
-      await this.ui.showError('Error al cargar saldos anteriores');
+      console.error('Error al cargar datos:', error);
+      await this.ui.showError('Error al cargar datos del cuadre');
     } finally {
       this.loading = false;
     }
@@ -93,16 +89,16 @@ export class CuadreCajaPage implements OnInit {
     return this.form.get('saldoBusActual')?.value || 0;
   }
 
-  // Cálculos de ventas (efectivo vendido) - v4.5
+  // Ventas = saldo que el sistema espera − saldo que la máquina muestra ahora
+  // Misma fórmula que cierre-diario (v4.5)
   get ventaCelular(): number {
-    return (this.saldoAnteriorCelular + this.agregadoCelularHoy) - this.saldoCelularActual;
+    return this.saldoVirtualActualCelular - this.saldoCelularActual;
   }
 
   get ventaBus(): number {
-    return (this.saldoAnteriorBus + this.agregadoBusHoy) - this.saldoBusActual;
+    return this.saldoVirtualActualBus - this.saldoBusActual;
   }
 
-  // Validaciones (v4.5 — venta puede ser positiva incluso si saldo_actual > saldo_anterior)
   get ventaCelularValida(): boolean {
     return this.ventaCelular >= 0;
   }
@@ -122,5 +118,4 @@ export class CuadreCajaPage implements OnInit {
   limpiar() {
     this.form.reset();
   }
-
 }

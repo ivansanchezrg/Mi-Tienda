@@ -27,6 +27,7 @@ Es como una **calculadora visual** que responde:
 **Escenario:** Quieres saber cuánto efectivo físico deberías tener en este momento.
 
 **Ejemplo:**
+
 - Son las 14:00
 - Tienes turno abierto
 - Quieres verificar si tu efectivo cuadra
@@ -39,6 +40,7 @@ Es como una **calculadora visual** que responde:
 **Escenario:** Antes de hacer el cierre completo, quieres pre-verificar tus ventas.
 
 **Ejemplo:**
+
 - Vas a cerrar tu turno
 - Primero usas Cuadre para calcular
 - Luego cuentas el efectivo físico
@@ -48,17 +50,17 @@ Es como una **calculadora visual** que responde:
 
 ## 3. Diferencias con Cierre Diario
 
-| Aspecto | Cuadre de Caja | Cierre Diario |
-|---------|----------------|---------------|
-| **Propósito** | Solo verificar/calcular | Registrar cierre completo |
-| **Guarda en BD** | ❌ No | ✅ Sí |
-| **Actualiza Cajas** | ❌ No | ✅ Sí (4 cajas) |
-| **Crea Operaciones** | ❌ No | ✅ Sí (4 operaciones) |
-| **Registra Recargas** | ❌ No | ✅ Sí (2 registros) |
-| **Cierra Turno** | ❌ No | ✅ Sí |
-| **Requiere Efectivo** | ❌ No | ✅ Sí (efectivo_recaudado) |
-| **Cuántas veces** | Ilimitado | 1 vez por turno |
-| **Tiempo** | 10 segundos | 2-3 minutos |
+| Aspecto               | Cuadre de Caja          | Cierre Diario             |
+| --------------------- | ----------------------- | ------------------------- |
+| **Propósito**         | Solo verificar/calcular | Registrar cierre completo |
+| **Guarda en BD**      | ❌ No                    | ✅ Sí                      |
+| **Actualiza Cajas**   | ❌ No                    | ✅ Sí (4 cajas)            |
+| **Crea Operaciones**  | ❌ No                    | ✅ Sí (4 operaciones)      |
+| **Registra Recargas** | ❌ No                    | ✅ Sí (2 registros)        |
+| **Cierra Turno**      | ❌ No                    | ✅ Sí                      |
+| **Requiere Efectivo** | ❌ No                    | ✅ Sí (efectivo_recaudado) |
+| **Cuántas veces**     | Ilimitado               | 1 vez por turno           |
+| **Tiempo**            | 10 segundos             | 2-3 minutos               |
 
 ---
 
@@ -111,6 +113,7 @@ Es como una **calculadora visual** que responde:
 ### 4.2. Paso a Paso
 
 #### Paso 1: Cargar Saldos Anteriores
+
 ```typescript
 // Sistema obtiene último saldo de cada servicio
 const saldos = await recargasService.getSaldosAnteriores();
@@ -118,10 +121,12 @@ const saldos = await recargasService.getSaldosAnteriores();
 ```
 
 #### Paso 2: Usuario Ingresa Saldos Actuales
+
 - Saldo Celular Actual: `$75`
 - Saldo Bus Actual: `$250`
 
 #### Paso 3: Sistema Calcula (EN MEMORIA) — v4.5
+
 ```typescript
 // Incluye el agregado del proveedor cargado HOY (recargas_virtuales)
 ventaCelular = (saldoAnteriorCelular + agregadoCelularHoy) - saldoCelularActual
@@ -134,6 +139,7 @@ totalEfectivo = 25 + 35 = 60
 ```
 
 #### Paso 4: Sistema Muestra Resultado
+
 ```
 ┌──────────────────────────────┐
 │ Efectivo Físico Vendido      │
@@ -159,6 +165,7 @@ Venta = (Saldo Anterior + Agregado Proveedor Hoy) - Saldo Actual
 ```
 
 **Ejemplo Celular sin recarga del proveedor:**
+
 ```
 Saldo Anterior:           $100.00
 Agregado Proveedor Hoy:  +$  0.00
@@ -168,6 +175,7 @@ Venta:                    $ 25.00  ✅
 ```
 
 **Ejemplo Celular CON recarga del proveedor ($210.53):**
+
 ```
 Saldo Anterior:           $100.00
 Agregado Proveedor Hoy:  +$210.53
@@ -314,11 +322,13 @@ export class CuadreCajaPage {
 ### Ejemplo 1: Verificación Matutina
 
 **Contexto:**
+
 - Hora: 10:00 AM
 - Turno abierto desde las 08:00
 - Saldos de ayer: Celular $100, Bus $285
 
 **Acciones:**
+
 1. Ir a Cuadre de Caja
 2. Ver saldos anteriores cargados automáticamente
 3. Revisar sistema virtual → Celular: $90, Bus: $270
@@ -333,11 +343,13 @@ export class CuadreCajaPage {
 ### Ejemplo 2: Antes del Cierre
 
 **Contexto:**
+
 - Hora: 18:00
 - Vas a cerrar tu turno
 - Saldos anteriores: Celular $100, Bus $285
 
 **Acciones:**
+
 1. Primero: Usar Cuadre
 2. Ingresar saldos actuales: Celular $50, Bus $200
 3. Sistema muestra: Celular $50, Bus $85
@@ -351,9 +363,11 @@ export class CuadreCajaPage {
 ### Ejemplo 3: Detectar Error
 
 **Contexto:**
+
 - Saldos anteriores: Celular $100, Bus $285
 
 **Acciones:**
+
 1. Ingresar: Celular $75, Bus $250
 2. Sistema muestra: Celular $25, Bus $35
 3. Cuentas físico → Tienes $45 total ⚠️
@@ -366,17 +380,17 @@ export class CuadreCajaPage {
 
 ### Tabla Resumen
 
-| Característica | Cuadre | Cierre Diario |
-|----------------|--------|---------------|
-| Guarda en BD | No | Sí |
-| Tiempo | 10 seg | 2-3 min |
-| Veces por día | ∞ | 1 por turno |
-| Campos | 2 | 3 |
-| Cuentas efectivo | No necesario | Sí obligatorio |
-| Cierra turno | No | Sí |
-| Actualiza cajas | No | Sí (4 cajas) |
-| Crea operaciones | No | Sí (4 ops) |
-| Registra recargas | No | Sí (2 regs) |
+| Característica    | Cuadre       | Cierre Diario  |
+| ----------------- | ------------ | -------------- |
+| Guarda en BD      | No           | Sí             |
+| Tiempo            | 10 seg       | 2-3 min        |
+| Veces por día     | ∞            | 1 por turno    |
+| Campos            | 2            | 3              |
+| Cuentas efectivo  | No necesario | Sí obligatorio |
+| Cierra turno      | No           | Sí             |
+| Actualiza cajas   | No           | Sí (4 cajas)   |
+| Crea operaciones  | No           | Sí (4 ops)     |
+| Registra recargas | No           | Sí (2 regs)    |
 
 ### Flujo Ideal
 
@@ -402,12 +416,14 @@ export class CuadreCajaPage {
 ## 11. Archivos del Sistema
 
 ### Frontend
+
 - 💻 **Page TS**: `pages/cuadre-caja/cuadre-caja.page.ts`
 - 🎨 **Page HTML**: `pages/cuadre-caja/cuadre-caja.page.html`
 - 🎨 **Page SCSS**: `pages/cuadre-caja/cuadre-caja.page.scss`
 - 🔧 **Service**: `services/recargas.service.ts` → `getSaldosAnteriores()` + `getAgregadoVirtualHoy()` (v4.5)
 
 ### Backend
+
 - ❌ **NO hay función PostgreSQL** (todo en frontend)
 - ❌ **NO hay endpoints** (solo lectura de saldos)
 
@@ -416,6 +432,7 @@ export class CuadreCajaPage {
 ## 12. Resumen
 
 ### Lo Que ES
+
 ✅ Calculadora visual
 ✅ Verificación rápida
 ✅ Herramienta de pre-chequeo
@@ -423,6 +440,7 @@ export class CuadreCajaPage {
 ✅ Solo lectura
 
 ### Lo Que NO ES
+
 ❌ NO es un registro oficial
 ❌ NO guarda nada
 ❌ NO reemplaza el Cierre Diario

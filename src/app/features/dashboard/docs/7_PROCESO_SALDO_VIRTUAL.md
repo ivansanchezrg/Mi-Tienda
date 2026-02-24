@@ -1,7 +1,7 @@
 # PROCESO: Saldo Virtual (Recargas Virtuales)
 
-**Versión:** 1.5
-**Fecha:** 2026-02-20
+**Versión:** 1.6
+**Fecha:** 2026-02-24
 **Módulo:** Saldo Virtual (`/home/recargas-virtuales`)
 
 ---
@@ -218,25 +218,42 @@ La ganancia NO existe como efectivo hasta que se cobra a los clientes (via cierr
 
 ---
 
-### 4.3 Flujo BUS — Compra de Saldo
+### 4.3 Flujo BUS — Compra de Saldo (v2.0)
 
 **Cuándo ocurre:** Se realizó un depósito bancario al proveedor de bus para comprar saldo.
 
+#### Modo básico (sin saldo_virtual_maquina)
+
+Valida solo contra CAJA_BUS acumulada. Comportamiento original.
+
+#### Modo extendido (con saldo_virtual_maquina) — NUEVO v2.0
+
+Permite depositar el efectivo físico total: saldo CAJA_BUS + ventas del día aún no cerradas.
+
 ```
-Usuario registra monto depositado (+ notas opcionales)
+Usuario revisa la máquina → ingresa saldo actual de la máquina
         ↓
-registrar_compra_saldo_bus(fecha, empleado_id, monto, notas)
+Modal calcula:
+  ventaBusHoy = getSaldoVirtualActual('BUS') - saldo_máquina
+  disponible  = CAJA_BUS + ventaBusHoy
         ↓
-Valida: CAJA_BUS tiene saldo suficiente
+Usuario ingresa monto a depositar (≤ disponible)
         ↓
-INSERT en recargas_virtuales (pagado = true, monto_a_pagar = monto, ganancia = monto * 1%)
+registrar_compra_saldo_bus(fecha, empleado_id, monto, notas, saldo_virtual_maquina)
+        ↓
+SQL calcula ventaBus = saldoVirtualSistema - saldo_virtual_maquina
+Valida: CAJA_BUS + ventaBus >= monto
+        ↓
+INSERT en recargas_virtuales (pagado = true, ganancia = monto * 1%)
 INSERT en operaciones_cajas (EGRESO, CAJA_BUS)
-UPDATE cajas SET saldo_actual = saldo_anterior - monto (CAJA_BUS)
+UPDATE cajas CAJA_BUS saldo -= monto   ← puede quedar negativo temporalmente
         ↓
-Retorna: recarga_id, operacion_id, monto, saldo_anterior, saldo_nuevo
+Al cierre diario: INGRESO de ventaBus → CAJA_BUS vuelve a positivo ✓
 ```
 
-**Efecto:** Descuenta `monto` de CAJA_BUS inmediatamente. No queda deuda pendiente.
+**Efecto:** CAJA_BUS puede quedar negativa temporalmente. El cierre diario la corrige con el
+INGRESO de las ventas del día. El resultado final siempre cuadra:
+`CAJA_BUS_final = saldo_inicial - depósitos_del_día + ventas_del_día`
 
 ---
 
@@ -554,48 +571,70 @@ NOTIFY pgrst, 'reload schema';
 
 ### 6.2 `registrar_compra_saldo_bus`
 
-Registra la compra de saldo virtual BUS (compra directa con depósito bancario). El efectivo ya salió, por eso se crea EGRESO inmediato. Calcula y guarda la ganancia del 1% para su uso en el reporte mensual.
+Registra la compra de saldo virtual BUS (compra directa con depósito bancario). Versión 2.0 agrega
+parámetro opcional `p_saldo_virtual_maquina` que permite depositar las ventas del día antes del
+cierre, sin doble conteo (CAJA_BUS puede quedar negativa temporalmente; el cierre la corrige).
 
 ```sql
 -- ==========================================
 -- FUNCIÓN: registrar_compra_saldo_bus
+-- VERSIÓN: 2.0
+-- FECHA: 2026-02-24
 -- ==========================================
 -- Registra la compra de saldo virtual BUS (compra directa con depósito bancario).
 -- El efectivo YA salió (fue un depósito bancario), por lo que se crea EGRESO inmediato.
 -- Guarda ganancia = monto * 1% para que al fin del mes el proveedor liquide esa diferencia.
 --
+-- NUEVO v2.0: parámetro opcional p_saldo_virtual_maquina
+--   Si se provee: validación extendida — permite depositar ventas del día antes del cierre.
+--   Disponible = CAJA_BUS + ventas_del_día_calculadas
+--   CAJA_BUS puede quedar negativa temporalmente → el cierre diario la corrige con INGRESO.
+--   Si es NULL: validación original (CAJA_BUS >= monto).
+--
 -- Parámetros:
---   p_fecha         DATE     Fecha del depósito/compra
---   p_empleado_id   INT      Empleado que registra
---   p_monto         NUMERIC  Monto comprado/depositado (ej: 500.00)
---   p_notas         TEXT     Notas opcionales (ej: número de depósito)
+--   p_fecha                  DATE     Fecha del depósito/compra
+--   p_empleado_id            INT      Empleado que registra
+--   p_monto                  NUMERIC  Monto comprado/depositado (ej: 500.00)
+--   p_notas                  TEXT     Notas opcionales (ej: número de depósito)
+--   p_saldo_virtual_maquina  NUMERIC  Saldo que muestra la máquina ahora (opcional)
 -- ==========================================
 
 DROP FUNCTION IF EXISTS registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT);
+DROP FUNCTION IF EXISTS registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC);
 
 CREATE OR REPLACE FUNCTION registrar_compra_saldo_bus(
-  p_fecha       DATE,
-  p_empleado_id INTEGER,
-  p_monto       NUMERIC,
-  p_notas       TEXT DEFAULT NULL
+  p_fecha                 DATE,
+  p_empleado_id           INTEGER,
+  p_monto                 NUMERIC,
+  p_notas                 TEXT    DEFAULT NULL,
+  p_saldo_virtual_maquina NUMERIC DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
-  v_caja_bus_id        INTEGER;
-  v_tipo_bus_id        INTEGER;
-  v_tipo_ref_id        INTEGER;
-  v_categoria_eg011_id INTEGER;
-  v_comision_pct       NUMERIC;
-  v_ganancia           NUMERIC;
-  v_saldo_anterior     NUMERIC;
-  v_saldo_nuevo        NUMERIC;
-  v_operacion_id       UUID;
-  v_recarga_id         UUID;
+  v_caja_bus_id                  INTEGER;
+  v_tipo_bus_id                  INTEGER;
+  v_tipo_ref_id                  INTEGER;
+  v_categoria_eg011_id           INTEGER;
+  v_comision_pct                 NUMERIC;
+  v_ganancia                     NUMERIC;
+  v_saldo_anterior               NUMERIC;
+  v_saldo_nuevo                  NUMERIC;
+  v_operacion_id                 UUID;
+  v_recarga_id                   UUID;
+  -- Para validación extendida con ventas del día
+  v_saldo_ultimo_cierre_bus      NUMERIC;
+  v_fecha_ultimo_cierre_bus      TIMESTAMP;
+  v_suma_recargas_post_cierre    NUMERIC;
+  v_saldo_virtual_sistema        NUMERIC;
+  v_venta_bus_hoy                NUMERIC;
+  v_disponible_total             NUMERIC;
 BEGIN
   -- Obtener IDs necesarios y comisión BUS
-  SELECT id INTO v_caja_bus_id        FROM cajas WHERE codigo = 'CAJA_BUS';
+  SELECT id INTO v_caja_bus_id FROM cajas WHERE codigo = 'CAJA_BUS';
   SELECT id, porcentaje_comision INTO v_tipo_bus_id, v_comision_pct
     FROM tipos_servicio WHERE codigo = 'BUS';
   SELECT id INTO v_tipo_ref_id        FROM tipos_referencia WHERE codigo = 'RECARGAS_VIRTUALES';
@@ -616,14 +655,51 @@ BEGIN
   SELECT saldo_actual INTO v_saldo_anterior
   FROM cajas WHERE id = v_caja_bus_id;
 
-  IF v_saldo_anterior < p_monto THEN
-    RAISE EXCEPTION 'Saldo insuficiente en CAJA_BUS. Disponible: $%, Requerido: $%',
-      v_saldo_anterior, p_monto;
+  -- ==========================================
+  -- VALIDACIÓN DE SALDO
+  -- ==========================================
+  IF p_saldo_virtual_maquina IS NOT NULL THEN
+    -- MODO EXTENDIDO: considera también las ventas del día no cerradas
+    -- Calcula saldo virtual del sistema (mismo algoritmo que getSaldoVirtualActual TypeScript)
+    SELECT COALESCE(r.saldo_virtual_actual, 0), r.created_at
+    INTO v_saldo_ultimo_cierre_bus, v_fecha_ultimo_cierre_bus
+    FROM recargas r
+    JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
+    WHERE ts.codigo = 'BUS'
+    ORDER BY r.created_at DESC
+    LIMIT 1;
+
+    IF v_saldo_ultimo_cierre_bus IS NULL THEN
+      v_saldo_ultimo_cierre_bus  := 0;
+      v_fecha_ultimo_cierre_bus  := '1900-01-01'::timestamp;
+    END IF;
+
+    SELECT COALESCE(SUM(rv.monto_virtual), 0)
+    INTO v_suma_recargas_post_cierre
+    FROM recargas_virtuales rv
+    WHERE rv.tipo_servicio_id = v_tipo_bus_id
+      AND rv.created_at > v_fecha_ultimo_cierre_bus;
+
+    v_saldo_virtual_sistema := v_saldo_ultimo_cierre_bus + v_suma_recargas_post_cierre;
+    v_venta_bus_hoy         := GREATEST(v_saldo_virtual_sistema - p_saldo_virtual_maquina, 0);
+    v_disponible_total      := v_saldo_anterior + v_venta_bus_hoy;
+
+    IF v_disponible_total < p_monto THEN
+      RAISE EXCEPTION 'Efectivo insuficiente. Caja BUS: $% + ventas del día: $% = $%. Requerido: $%',
+        v_saldo_anterior, v_venta_bus_hoy, v_disponible_total, p_monto;
+    END IF;
+  ELSE
+    -- MODO BÁSICO: validación original solo contra CAJA_BUS
+    IF v_saldo_anterior < p_monto THEN
+      RAISE EXCEPTION 'Saldo insuficiente en CAJA_BUS. Disponible: $%, Requerido: $%',
+        v_saldo_anterior, p_monto;
+    END IF;
   END IF;
 
+  -- CAJA_BUS puede quedar negativa en modo extendido — se corrige con INGRESO del cierre diario
   v_saldo_nuevo  := v_saldo_anterior - p_monto;
-  v_operacion_id := uuid_generate_v4();
-  v_recarga_id   := uuid_generate_v4();
+  v_operacion_id := gen_random_uuid();
+  v_recarga_id   := gen_random_uuid();
 
   -- Crear EGRESO en operaciones_cajas PRIMERO
   -- (debe existir antes de recargas_virtuales por FK constraint operacion_pago_id)
@@ -642,8 +718,7 @@ BEGIN
     NOW()
   );
 
-  -- Registrar compra en recargas_virtuales DESPUÉS (referencia v_operacion_id que ya existe)
-  -- ganancia = 1% del monto (liquidación futura del proveedor)
+  -- Registrar compra en recargas_virtuales
   INSERT INTO recargas_virtuales (
     id, fecha, tipo_servicio_id, empleado_id,
     monto_virtual, monto_a_pagar, ganancia,
@@ -656,20 +731,21 @@ BEGIN
     p_notas, NOW()
   );
 
-  -- Actualizar saldo CAJA_BUS
+  -- Actualizar saldo CAJA_BUS (puede quedar negativo — corrección en cierre diario)
   UPDATE cajas
   SET saldo_actual = v_saldo_nuevo, updated_at = NOW()
   WHERE id = v_caja_bus_id;
 
   RETURN json_build_object(
-    'success',        true,
-    'recarga_id',     v_recarga_id,
-    'operacion_id',   v_operacion_id,
-    'monto',          p_monto,
-    'ganancia',       v_ganancia,
-    'saldo_anterior', v_saldo_anterior,
-    'saldo_nuevo',    v_saldo_nuevo,
-    'message',        'Compra de saldo Bus registrada: $' || p_monto || ' — Ganancia a liquidar: $' || v_ganancia
+    'success',           true,
+    'recarga_id',        v_recarga_id,
+    'operacion_id',      v_operacion_id,
+    'monto',             p_monto,
+    'ganancia',          v_ganancia,
+    'saldo_anterior',    v_saldo_anterior,
+    'saldo_nuevo',       v_saldo_nuevo,
+    'venta_bus_incluida', COALESCE(v_venta_bus_hoy, 0),
+    'message',           'Compra de saldo Bus registrada: $' || p_monto || ' — Ganancia a liquidar: $' || v_ganancia
   );
 
 EXCEPTION
@@ -679,7 +755,15 @@ END;
 $$;
 
 COMMENT ON FUNCTION registrar_compra_saldo_bus IS
-'Registra compra directa de saldo virtual BUS (depósito bancario). Crea EGRESO inmediato en CAJA_BUS. Guarda ganancia=1% para liquidación mensual del proveedor.';
+'v2.0 - Registra compra directa de saldo virtual BUS (depósito bancario). Crea EGRESO inmediato en
+CAJA_BUS. Con p_saldo_virtual_maquina permite depositar ventas del día antes del cierre
+(CAJA_BUS puede quedar negativa temporalmente; el cierre diario la corrige). Sin ese parámetro
+usa validación original.';
+
+GRANT EXECUTE ON FUNCTION registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) TO authenticated;
+GRANT EXECUTE ON FUNCTION registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) TO anon;
+
+NOTIFY pgrst, 'reload schema';
 ```
 
 ---
@@ -1089,11 +1173,12 @@ BUS (directo):
 
 ## 8. Historial de Versiones
 
-| Versión | Fecha      | Cambios                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1.0     | 2026-02-11 | Creación inicial — documenta módulo Saldo Virtual completo con las 3 funciones SQL embebidas                                                                                                                                                                                                                                                                                                                               |
-| 1.1     | 2026-02-11 | `registrar_compra_saldo_bus` — ahora calcula y guarda `ganancia = monto * 1%` en vez de 0                                                                                                                                                                                                                                                                                                                                  |
-| 1.2     | 2026-02-11 | ✨ **Nueva función transaccional completa**: `registrar_recarga_proveedor_celular_completo` — Unifica TODO el proceso en una transacción atómica (deuda + transferencia + saldos + retorno de datos). Depreca `registrar_recarga_virtual_celular` para uso con transferencia separada. Reduce queries de 6 a 3 (~50% mejora performance).                                                                                   |
-| 1.3     | 2026-02-19 | 🔔 **Notificación campana en Home**: las deudas pendientes CELULAR ahora aparecen como badge numérico en la campana del header (`home.page.ts`). Reemplaza el sistema anterior de notificaciones BUS (ganancias pendientes). Ver sección 5.4.                                                                                                                                                                              |
-| 1.4     | 2026-02-20 | 🐛 **Fix `registrar_recarga_proveedor_celular_completo` v2.0**: Eliminada la validación de saldo en CAJA_CELULAR y la transferencia CAJA_CELULAR → CAJA_CHICA. La función ahora solo crea la deuda (`pagado=false`). La ganancia no se mueve: queda en CAJA_CELULAR como diferencia entre ventas acumuladas y monto pagado al proveedor. JSON de retorno simplificado (sin `transferencia` ni `saldos_actualizados`).      |
-| 1.5     | 2026-02-20 | ✨ **`registrar_pago_proveedor_celular` v2.0**: Al pagar al proveedor, la ganancia acumulada (`SUM(recargas_virtuales.ganancia)` de las deudas pagadas) se transfiere automáticamente de CAJA_CELULAR a CAJA_CHICA. Se agregan TRANSFERENCIA_SALIENTE (CAJA_CELULAR) y TRANSFERENCIA_ENTRANTE (CAJA_CHICA). Validación actualizada: CAJA_CELULAR debe tener `monto_a_pagar + ganancia`. JSON retorna saldos de ambas cajas. |
+| Versión | Fecha      | Cambios                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1.0     | 2026-02-11 | Creación inicial — documenta módulo Saldo Virtual completo con las 3 funciones SQL embebidas                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 1.1     | 2026-02-11 | `registrar_compra_saldo_bus` — ahora calcula y guarda `ganancia = monto * 1%` en vez de 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 1.2     | 2026-02-11 | ✨ **Nueva función transaccional completa**: `registrar_recarga_proveedor_celular_completo` — Unifica TODO el proceso en una transacción atómica (deuda + transferencia + saldos + retorno de datos). Depreca `registrar_recarga_virtual_celular` para uso con transferencia separada. Reduce queries de 6 a 3 (~50% mejora performance).                                                                                                                                                                                                                                 |
+| 1.3     | 2026-02-19 | 🔔 **Notificación campana en Home**: las deudas pendientes CELULAR ahora aparecen como badge numérico en la campana del header (`home.page.ts`). Reemplaza el sistema anterior de notificaciones BUS (ganancias pendientes). Ver sección 5.4.                                                                                                                                                                                                                                                                                                                            |
+| 1.4     | 2026-02-20 | 🐛 **Fix `registrar_recarga_proveedor_celular_completo` v2.0**: Eliminada la validación de saldo en CAJA_CELULAR y la transferencia CAJA_CELULAR → CAJA_CHICA. La función ahora solo crea la deuda (`pagado=false`). La ganancia no se mueve: queda en CAJA_CELULAR como diferencia entre ventas acumuladas y monto pagado al proveedor. JSON de retorno simplificado (sin `transferencia` ni `saldos_actualizados`).                                                                                                                                                    |
+| 1.5     | 2026-02-20 | ✨ **`registrar_pago_proveedor_celular` v2.0**: Al pagar al proveedor, la ganancia acumulada (`SUM(recargas_virtuales.ganancia)` de las deudas pagadas) se transfiere automáticamente de CAJA_CELULAR a CAJA_CHICA. Se agregan TRANSFERENCIA_SALIENTE (CAJA_CELULAR) y TRANSFERENCIA_ENTRANTE (CAJA_CHICA). Validación actualizada: CAJA_CELULAR debe tener `monto_a_pagar + ganancia`. JSON retorna saldos de ambas cajas.                                                                                                                                               |
+| 1.6     | 2026-02-24 | ✨ **`registrar_compra_saldo_bus` v2.0**: Nuevo parámetro opcional `p_saldo_virtual_maquina`. Permite depositar el efectivo físico total (CAJA_BUS acumulada + ventas del día no cerradas) sin necesitar un cierre parcial. CAJA_BUS puede quedar negativa temporalmente; el cierre diario la corrige con el INGRESO de ventas. Sin el parámetro mantiene comportamiento v1.x. Agrega `SECURITY DEFINER`, `SET search_path`, `GRANT EXECUTE` y `NOTIFY pgrst` (faltaban). Modal BUS actualizado: nuevo input "Saldo en máquina" + card de disponibilidad (caja + ventas). |

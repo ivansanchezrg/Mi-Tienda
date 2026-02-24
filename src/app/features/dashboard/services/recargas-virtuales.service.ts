@@ -207,20 +207,28 @@ export class RecargasVirtualesService {
   }
 
   /**
-   * Registra la compra de saldo virtual BUS (EGRESO inmediato de CAJA_BUS)
+   * Registra la compra de saldo virtual BUS (EGRESO inmediato de CAJA_BUS).
+   *
+   * Si se provee `saldo_virtual_maquina`, la función SQL usa validación extendida:
+   *   disponible = CAJA_BUS + ventas_del_día_sin_cerrar
+   *   Permite que CAJA_BUS quede negativa temporalmente (se corrige al cierre diario).
+   *
+   * Si NO se provee, usa la validación original (solo CAJA_BUS >= monto).
    */
   async registrarCompraSaldoBus(params: {
     fecha: string;
     empleado_id: number;
     monto: number;
     notas?: string;
+    saldo_virtual_maquina?: number;
   }): Promise<any> {
     return this.supabase.call(
       this.supabase.client.rpc('registrar_compra_saldo_bus', {
-        p_fecha:       params.fecha,
-        p_empleado_id: params.empleado_id,
-        p_monto:       params.monto,
-        p_notas:       params.notas || null
+        p_fecha:                  params.fecha,
+        p_empleado_id:            params.empleado_id,
+        p_monto:                  params.monto,
+        p_notas:                  params.notas || null,
+        p_saldo_virtual_maquina:  params.saldo_virtual_maquina ?? null
       })
     );
   }

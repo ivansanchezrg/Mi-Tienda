@@ -36,12 +36,13 @@
     <div class="summary-card">
       <span class="label">Total Efectivo</span>
       <h1 class="amount">${{ totalEfectivo | number:'1.2-2' }}</h1>
-      <span class="sub-label">Último cierre: {{ fechaUltimoCierre }}</span>
+      <span class="sub-label">Hoy: {{ fechaActual }}</span>
     </div>
   </div>
 
   <div class="section-title">
     <h2>Cuentas</h2>
+    <span class="section-subtitle">Último cierre: {{ fechaUltimoCierre }}</span>
   </div>
 
   <div class="modern-list">
@@ -79,10 +80,14 @@
       </div>
       <div class="content">
         <span class="title">Celular</span>
-        <span class="subtitle">Saldo digital</span>
+        <span class="subtitle">Efectivo acum.</span>
+        <span class="subtitle">Saldo virtual</span>
       </div>
       <div class="amount-group">
-        <span class="value">${{ saldoCelular | number:'1.2-2' }}</span>
+        <div class="amount-col">
+          <span class="value">${{ saldoCelular | number:'1.2-2' }}</span>
+          <span class="virtual-amount">${{ saldoVirtualCelular | number:'1.2-2' }}</span>
+        </div>
         <ion-icon name="chevron-forward"></ion-icon>
       </div>
     </div>
@@ -93,10 +98,14 @@
       </div>
       <div class="content">
         <span class="title">Bus</span>
-        <span class="subtitle">Saldo digital</span>
+        <span class="subtitle">Efectivo acum.</span>
+        <span class="subtitle">Saldo virtual</span>
       </div>
       <div class="amount-group">
-        <span class="value">${{ saldoBus | number:'1.2-2' }}</span>
+        <div class="amount-col">
+          <span class="value">${{ saldoBus | number:'1.2-2' }}</span>
+          <span class="virtual-amount">${{ saldoVirtualBus | number:'1.2-2' }}</span>
+        </div>
         <ion-icon name="chevron-forward"></ion-icon>
       </div>
     </div>

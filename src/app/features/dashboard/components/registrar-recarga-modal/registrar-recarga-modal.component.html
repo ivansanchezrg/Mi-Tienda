@@ -24,7 +24,44 @@
       </p>
     </div>
 
-    <!-- Input monto -->
+    <!-- ── SECCIÓN BUS: saldo en máquina (paso previo) ── -->
+    @if (tipo === 'BUS') {
+      <div class="input-group">
+        <label class="input-label">Saldo actual en la máquina</label>
+        <div class="amount-wrapper" [class.filled]="saldoVirtualMaquina !== null">
+          <span class="currency">$</span>
+          <input
+            type="number"
+            inputmode="decimal"
+            placeholder="0.00"
+            [(ngModel)]="saldoVirtualMaquina"
+            appCurrencyInput
+            appNumbersOnly
+            autofocus>
+        </div>
+        <span class="helper-text">Lo que muestra la máquina de bus ahora mismo</span>
+      </div>
+
+      <!-- Info de disponibilidad (cuando ingresó saldo máquina) -->
+      @if (maquinaIngresada) {
+        <div class="disponible-card">
+          <div class="disponible-row">
+            <span>Caja BUS acumulada</span>
+            <span>${{ saldoCajaBus | number:'1.2-2' }}</span>
+          </div>
+          <div class="disponible-row">
+            <span>Ventas del día (sin cerrar)</span>
+            <span class="valor-ventas">+${{ ventaBusCalculada | number:'1.2-2' }}</span>
+          </div>
+          <div class="disponible-row total">
+            <span>Disponible para depositar</span>
+            <span class="valor-total">${{ disponibleParaDepositar | number:'1.2-2' }}</span>
+          </div>
+        </div>
+      }
+    }
+
+    <!-- Input monto a depositar / monto virtual -->
     <div class="input-group">
       <label class="input-label">{{ labelMonto }}</label>
       <div class="amount-wrapper" [class.filled]="montoVirtual">
@@ -36,7 +73,7 @@
           [(ngModel)]="montoVirtual"
           appCurrencyInput
           appNumbersOnly
-          autofocus>
+          [autofocus]="tipo === 'CELULAR'">
       </div>
     </div>
 
@@ -55,7 +92,7 @@
         @if (tipo === 'CELULAR') {
           Registrar deuda
         } @else {
-          Confirmar
+          Confirmar depósito
         }
       </button>
     </div>
@@ -74,16 +111,12 @@
       </div>
     }
 
-    <!-- Validación saldo (solo BUS) -->
+    <!-- Preview CAJA_BUS después del depósito (solo BUS con monto ingresado) -->
     @if (tipo === 'BUS' && montoVirtual && montoVirtual > 0) {
       <div class="calculo-preview" [class.error]="saldoBusInsuficiente">
         <div class="calculo-row">
-          <span>Saldo disponible CAJA BUS</span>
-          <span class="calculo-valor">${{ saldoCajaBus | number:'1.2-2' }}</span>
-        </div>
-        <div class="calculo-row">
-          <span>Saldo después</span>
-          <span [class.calculo-success]="!saldoBusInsuficiente" [class.calculo-danger]="saldoBusInsuficiente">
+          <span>CAJA BUS después del depósito</span>
+          <span [class.calculo-success]="saldoBusDespues >= 0" [class.calculo-danger]="saldoBusDespues < 0">
             ${{ saldoBusDespues | number:'1.2-2' }}
             @if (!saldoBusInsuficiente) {
               <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
@@ -92,14 +125,19 @@
             }
           </span>
         </div>
+        @if (saldoBusDespues < 0 && !saldoBusInsuficiente) {
+          <div class="calculo-row nota">
+            <span>El saldo negativo se corrige con el ingreso del cierre diario</span>
+          </div>
+        }
       </div>
 
       @if (saldoBusInsuficiente) {
         <div class="alerta-saldo">
           <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
           <div>
-            <strong>Saldo insuficiente</strong>
-            <p>Debe haber efectivo en Caja Bus para poder comprar saldo virtual</p>
+            <strong>Efectivo insuficiente</strong>
+            <p>El monto supera el efectivo disponible (${{ disponibleParaDepositar | number:'1.2-2' }})</p>
           </div>
         </div>
       }
