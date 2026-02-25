@@ -119,35 +119,61 @@ export class RecargasService {
   }
 
   /**
-   * Obtiene el monto total agregado HOY en recargas_virtuales (v4.5)
-   * Necesario para calcular correctamente la venta del día
-   * @returns {Promise<{ celular: number; bus: number }>}
+   * Obtiene el monto total de recargas virtuales NO INCORPORADAS en cierres previos (v4.5 CORREGIDO)
+   *
+   * CRÍTICO: Filtra por created_at > último_cierre_at (NO por fecha = hoy)
+   * Esto captura recargas pendientes sin importar su fecha de registro.
+   *
+   * Ejemplo: recarga del 21/02 puede aplicarse en cierre del 23/02 si no hubo cierre el 22/02
+   *
+   * @returns {Promise<{ celular: number; bus: number }>} Montos pendientes de cada servicio
    */
   async getAgregadoVirtualHoy(): Promise<{ celular: number; bus: number }> {
-    const fechaHoy = this.getFechaLocal();
-
-    // Query sin supabase.call para evitar loading spinner extra
-    const [celularRes, busRes] = await Promise.all([
+    // 1. Obtener created_at del último cierre de cada servicio
+    const [ultimoCierreCelular, ultimoCierreBus] = await Promise.all([
       this.supabase.client
-        .from('recargas_virtuales')
-        .select('monto_virtual, tipos_servicio!inner(codigo)')
+        .from('recargas')
+        .select('created_at, tipos_servicio!inner(codigo)')
         .eq('tipos_servicio.codigo', 'CELULAR')
-        .eq('fecha', fechaHoy),
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       this.supabase.client
-        .from('recargas_virtuales')
-        .select('monto_virtual, tipos_servicio!inner(codigo)')
+        .from('recargas')
+        .select('created_at, tipos_servicio!inner(codigo)')
         .eq('tipos_servicio.codigo', 'BUS')
-        .eq('fecha', fechaHoy)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
     ]);
+
+    const ultimoCierreAtCelular = ultimoCierreCelular.data?.created_at;
+    const ultimoCierreAtBus = ultimoCierreBus.data?.created_at;
+
+    // 2. Filtrar por created_at > último cierre (NO por fecha = hoy)
+    let queryCelular = this.supabase.client
+      .from('recargas_virtuales')
+      .select('monto_virtual, tipos_servicio!inner(codigo)')
+      .eq('tipos_servicio.codigo', 'CELULAR');
+
+    if (ultimoCierreAtCelular) {
+      queryCelular = queryCelular.gt('created_at', ultimoCierreAtCelular);
+    }
+
+    let queryBus = this.supabase.client
+      .from('recargas_virtuales')
+      .select('monto_virtual, tipos_servicio!inner(codigo)')
+      .eq('tipos_servicio.codigo', 'BUS');
+
+    if (ultimoCierreAtBus) {
+      queryBus = queryBus.gt('created_at', ultimoCierreAtBus);
+    }
+
+    const [celularRes, busRes] = await Promise.all([queryCelular, queryBus]);
 
     // Sumar los montos en TypeScript
     const celular = (celularRes.data || []).reduce((sum: number, r: any) => sum + (r.monto_virtual || 0), 0);
     const bus = (busRes.data || []).reduce((sum: number, r: any) => sum + (r.monto_virtual || 0), 0);
-
-    console.log('[agregadoHoy] fecha:', fechaHoy);
-    console.log('[agregadoHoy] celularRes.data:', celularRes.data, '| error:', celularRes.error);
-    console.log('[agregadoHoy] busRes.data:', busRes.data, '| error:', busRes.error);
-    console.log('[agregadoHoy] resultado → celular:', celular, '| bus:', bus);
 
     return { celular, bus };
   }
@@ -327,13 +353,6 @@ export class RecargasService {
     return empleado;
   }
 
-  /**
-   * Verifica si ya existe un cierre diario para la fecha actual (local) - Versión 3.0
-   * Verifica en la tabla caja_fisica_diaria
-   * Si no se pasa fecha, usa la fecha local actual
-   * @param {string} [fecha] Fecha en formato YYYY-MM-DD (opcional)
-   * @returns {Promise<boolean | null>} True si existe cierre, False si no existe, null si hay error
-   */
   /**
    * Verifica si el turno activo ya tiene un cierre registrado (v4.1)
    * En v4.1: Permite múltiples cierres por día (1 por turno)

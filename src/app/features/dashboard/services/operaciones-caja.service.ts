@@ -40,7 +40,6 @@ export class OperacionesCajaService {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error al obtener categorías:', error);
       throw new Error(`Error al obtener categorías: ${error.message}`);
     }
 
@@ -143,7 +142,6 @@ export class OperacionesCajaService {
         pathImagen = await this.storageService.uploadImage(fotoComprobante);
 
         if (!pathImagen) {
-          console.error('❌ [registrarOperacion] Error al subir imagen');
           await this.ui.hideLoading();
           await this.ui.showError('Error al subir el comprobante. Intenta de nuevo.');
           return false;
@@ -156,7 +154,6 @@ export class OperacionesCajaService {
       const empleado = await this.authService.getEmpleadoActual();
 
       if (!empleado) {
-        console.error('❌ [registrarOperacion] No se pudo obtener empleado');
         await this.ui.showError('No se pudo obtener información del empleado');
         return false;
       }
@@ -179,8 +176,6 @@ export class OperacionesCajaService {
 
       // Verificar si hubo error en la llamada RPC
       if (error) {
-        console.error('❌ [registrarOperacion] Error RPC:', error);
-
         // Si falla y ya subimos la imagen, eliminarla
         if (pathImagen) {
           await this.storageService.deleteFile(pathImagen);
@@ -192,8 +187,6 @@ export class OperacionesCajaService {
 
       // Verificar el resultado de la función
       if (!data || !data.success) {
-        console.error('❌ [registrarOperacion] Función retornó error:', data?.error);
-
         // Si falla y ya subimos la imagen, eliminarla
         if (pathImagen) {
           await this.storageService.deleteFile(pathImagen);
@@ -207,7 +200,6 @@ export class OperacionesCajaService {
       return true;
 
     } catch (error) {
-      console.error('❌ [registrarOperacion] Error catch:', error);
       await this.ui.hideLoading();
       await this.ui.showError('Error inesperado');
       return false;

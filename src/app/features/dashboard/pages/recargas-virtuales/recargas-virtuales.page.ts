@@ -100,8 +100,7 @@ export class RecargasVirtualesPage implements OnInit {
       this.saldoVirtualBus = saldoBus;
       this.deudasPendientes = deudas;
       this.gananciaBusCalculada = gananciaBus;
-    } catch (error) {
-      console.error('Error al cargar recargas virtuales:', error);
+    } catch {
       await this.ui.showError('Error al cargar los datos');
     } finally {
       this.loading = false;
@@ -143,8 +142,8 @@ export class RecargasVirtualesPage implements OnInit {
 
         this.saldoVirtualBus = saldoBus;
         this.gananciaBusCalculada = gananciaBus;
-      } catch (error) {
-        console.error('Error al actualizar datos:', error);
+      } catch {
+        await this.ui.showError('Error al actualizar los datos');
       } finally {
         this.loading = false;
       }

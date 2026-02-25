@@ -10,6 +10,7 @@ import {
   phonePortraitOutline, busOutline
 } from 'ionicons/icons';
 import { ModalController } from '@ionic/angular/standalone';
+import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 
 type TipoServicio = 'CELULAR' | 'BUS';
@@ -29,6 +30,7 @@ export class HistorialModalComponent implements OnInit {
   @Input() tipo: TipoServicio = 'CELULAR';
 
   private modalCtrl = inject(ModalController);
+  private ui = inject(UiService);
   private service = inject(RecargasVirtualesService);
 
   loading = true;
@@ -52,8 +54,8 @@ export class HistorialModalComponent implements OnInit {
     this.loading = true;
     try {
       this.historial = await this.service.obtenerHistorial(this.tipo);
-    } catch (error) {
-      console.error('Error al cargar historial:', error);
+    } catch {
+      await this.ui.showError('Error al cargar el historial');
     } finally {
       this.loading = false;
     }

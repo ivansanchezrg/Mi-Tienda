@@ -82,20 +82,22 @@ export class GastosDiariosPage implements OnInit {
    */
   async cargarGastos() {
     this.loading = true;
+    try {
+      const { fechaInicio, fechaFin } = this.obtenerRangoFechas();
 
-    const { fechaInicio, fechaFin } = this.obtenerRangoFechas();
+      const [gastos, total] = await Promise.all([
+        this.gastosService.getGastos(fechaInicio, fechaFin),
+        this.gastosService.getTotalGastos(fechaInicio, fechaFin)
+      ]);
 
-    // Cargar gastos y total en paralelo
-    const [gastos, total] = await Promise.all([
-      this.gastosService.getGastos(fechaInicio, fechaFin),
-      this.gastosService.getTotalGastos(fechaInicio, fechaFin)
-    ]);
-
-    this.gastos = gastos;
-    this.totalGastos = total;
-    this.agruparPorFecha();
-
-    this.loading = false;
+      this.gastos = gastos;
+      this.totalGastos = total;
+      this.agruparPorFecha();
+    } catch {
+      await this.ui.showError('Error al cargar los gastos. Verificá tu conexión.');
+    } finally {
+      this.loading = false;
+    }
   }
 
   /**
@@ -198,37 +200,31 @@ export class GastosDiariosPage implements OnInit {
   }
 
   /**
-   * Abre modal con detalles del gasto
-   */
-  async verDetalles(gasto: GastoDiario) {
-    // TODO: Implementar modal de detalles
-  }
-
-  /**
    * Abre la imagen del comprobante en modal
    */
   async verComprobante(event: Event, path: string) {
-    // Prevenir que el click propague al row
     event.stopPropagation();
 
-    // Generar URL firmada desde el path
     await this.ui.showLoading('Cargando comprobante...');
+    try {
+      const signedUrl = await this.storageService.getSignedUrl(path);
 
-    const signedUrl = await this.storageService.getSignedUrl(path);
+      if (!signedUrl) {
+        await this.ui.showError('No se pudo cargar el comprobante');
+        return;
+      }
 
-    await this.ui.hideLoading();
-
-    if (!signedUrl) {
+      const modal = await this.modalCtrl.create({
+        component: ComprobanteGastoModalComponent,
+        componentProps: { url: signedUrl },
+        cssClass: 'comprobante-modal'
+      });
+      await modal.present();
+    } catch {
       await this.ui.showError('No se pudo cargar el comprobante');
-      return;
+    } finally {
+      await this.ui.hideLoading();
     }
-
-    const modal = await this.modalCtrl.create({
-      component: ComprobanteGastoModalComponent,
-      componentProps: { url: signedUrl },
-      cssClass: 'comprobante-modal'
-    });
-    await modal.present();
   }
 }
 

@@ -41,7 +41,6 @@ export class GastosDiariosService {
         pathImagen = await this.storageService.uploadImage(gasto.fotoComprobante);
 
         if (!pathImagen) {
-          console.error('❌ [registrarGasto] Error al subir imagen');
           await this.ui.hideLoading();
           await this.ui.showError('Error al subir el comprobante. Intenta de nuevo.');
           return false;
@@ -54,7 +53,6 @@ export class GastosDiariosService {
       const empleado = await this.authService.getEmpleadoActual();
 
       if (!empleado) {
-        console.error('❌ [registrarGasto] No se pudo obtener empleado');
         await this.ui.showError('No se pudo obtener información del empleado');
         return false;
       }
@@ -80,8 +78,6 @@ export class GastosDiariosService {
       await this.ui.hideLoading();
 
       if (error) {
-        console.error('❌ [registrarGasto] Error en BD:', error);
-
         // Si falla y ya subimos la imagen, eliminarla
         if (pathImagen) {
           await this.storageService.deleteFile(pathImagen);
@@ -94,8 +90,7 @@ export class GastosDiariosService {
       await this.ui.showSuccess('Gasto registrado correctamente');
       return true;
 
-    } catch (error) {
-      console.error('❌ [registrarGasto] Error catch:', error);
+    } catch {
       await this.ui.hideLoading();
       await this.ui.showError('Error inesperado');
       return false;
@@ -109,43 +104,43 @@ export class GastosDiariosService {
    * @returns Lista de gastos con información del empleado y categoría
    */
   async getGastos(fechaInicio: string, fechaFin: string): Promise<GastoDiario[]> {
-    const { data, error } = await this.supabase.client
-      .from('gastos_diarios')
-      .select(`
-        id,
-        fecha,
-        empleado_id,
-        categoria_gasto_id,
-        monto,
-        observaciones,
-        comprobante_url,
-        created_at,
-        empleados!inner (
+    try {
+      const { data, error } = await this.supabase.client
+        .from('gastos_diarios')
+        .select(`
           id,
-          nombre
-        ),
-        categorias_gastos!inner (
-          id,
-          nombre,
-          codigo
-        )
-      `)
-      .gte('fecha', fechaInicio)
-      .lte('fecha', fechaFin)
-      .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false });
+          fecha,
+          empleado_id,
+          categoria_gasto_id,
+          monto,
+          observaciones,
+          comprobante_url,
+          created_at,
+          empleados!inner (
+            id,
+            nombre
+          ),
+          categorias_gastos!inner (
+            id,
+            nombre,
+            codigo
+          )
+        `)
+        .gte('fecha', fechaInicio)
+        .lte('fecha', fechaFin)
+        .order('fecha', { ascending: false })
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error al obtener gastos:', error);
+      if (error) return [];
+
+      return (data || []).map((gasto: any) => ({
+        ...gasto,
+        empleado_nombre: gasto.empleados?.nombre || 'Sin nombre',
+        categoria_nombre: gasto.categorias_gastos?.nombre || 'Sin categoría'
+      })) as any;
+    } catch {
       return [];
     }
-
-    // Mapear para incluir nombres del empleado y categoría
-    return (data || []).map((gasto: any) => ({
-      ...gasto,
-      empleado_nombre: gasto.empleados?.nombre || 'Sin nombre',
-      categoria_nombre: gasto.categorias_gastos?.nombre || 'Sin categoría'
-    })) as any;
   }
 
   /**
@@ -155,18 +150,19 @@ export class GastosDiariosService {
    * @returns Total de gastos
    */
   async getTotalGastos(fechaInicio: string, fechaFin: string): Promise<number> {
-    const { data, error } = await this.supabase.client
-      .from('gastos_diarios')
-      .select('monto')
-      .gte('fecha', fechaInicio)
-      .lte('fecha', fechaFin);
+    try {
+      const { data, error } = await this.supabase.client
+        .from('gastos_diarios')
+        .select('monto')
+        .gte('fecha', fechaInicio)
+        .lte('fecha', fechaFin);
 
-    if (error) {
-      console.error('Error al calcular total de gastos:', error);
+      if (error) return 0;
+
+      return (data || []).reduce((total, gasto) => total + gasto.monto, 0);
+    } catch {
       return 0;
     }
-
-    return (data || []).reduce((total, gasto) => total + gasto.monto, 0);
   }
 
   /**
@@ -174,18 +170,23 @@ export class GastosDiariosService {
    * @returns Lista de categorías de gastos
    */
   async getCategorias(): Promise<CategoriaGasto[]> {
-    const { data, error } = await this.supabase.client
-      .from('categorias_gastos')
-      .select('*')
-      .eq('activo', true)
-      .order('nombre', { ascending: true });
+    try {
+      const { data, error } = await this.supabase.client
+        .from('categorias_gastos')
+        .select('*')
+        .eq('activo', true)
+        .order('nombre', { ascending: true });
 
-    if (error) {
-      console.error('Error al obtener categorías de gastos:', error);
+      if (error) {
+        await this.ui.showError('Error al cargar las categorías de gastos');
+        return [];
+      }
+
+      return data || [];
+    } catch {
+      await this.ui.showError('Error al cargar las categorías de gastos');
       return [];
     }
-
-    return data || [];
   }
 
   /**
@@ -194,39 +195,40 @@ export class GastosDiariosService {
    * @returns Gasto con información del empleado y categoría
    */
   async getGastoById(id: string): Promise<GastoDiario | null> {
-    const { data, error } = await this.supabase.client
-      .from('gastos_diarios')
-      .select(`
-        id,
-        fecha,
-        empleado_id,
-        categoria_gasto_id,
-        monto,
-        observaciones,
-        comprobante_url,
-        created_at,
-        empleados!inner (
+    try {
+      const { data, error } = await this.supabase.client
+        .from('gastos_diarios')
+        .select(`
           id,
-          nombre
-        ),
-        categorias_gastos!inner (
-          id,
-          nombre,
-          codigo
-        )
-      `)
-      .eq('id', id)
-      .single();
+          fecha,
+          empleado_id,
+          categoria_gasto_id,
+          monto,
+          observaciones,
+          comprobante_url,
+          created_at,
+          empleados!inner (
+            id,
+            nombre
+          ),
+          categorias_gastos!inner (
+            id,
+            nombre,
+            codigo
+          )
+        `)
+        .eq('id', id)
+        .single();
 
-    if (error || !data) {
-      console.error('Error al obtener gasto:', error);
+      if (error || !data) return null;
+
+      return {
+        ...data,
+        empleado_nombre: (data as any).empleados?.nombre || 'Sin nombre',
+        categoria_nombre: (data as any).categorias_gastos?.nombre || 'Sin categoría'
+      } as any;
+    } catch {
       return null;
     }
-
-    return {
-      ...data,
-      empleado_nombre: (data as any).empleados?.nombre || 'Sin nombre',
-      categoria_nombre: (data as any).categorias_gastos?.nombre || 'Sin categoría'
-    } as any;
   }
 }

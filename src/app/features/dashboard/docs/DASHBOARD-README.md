@@ -20,6 +20,8 @@ Panel principal con 4 secciones:
 
 **Datos:** Conectado a Supabase mediante servicios.
 
+**Documentación completa:** Ver [8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)
+
 ---
 
 ### Cierre Diario (`pages/cierre-diario/`)
@@ -307,13 +309,13 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 ### Procesos de Negocio (Orden recomendado)
 
 1. **[1_OPERACIONES-CAJA.md](./1_OPERACIONES-CAJA.md)** - Historial de movimientos por caja, filtros, diseño híbrido y scroll infinito
-8. **[8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)** - Flujo de apertura de turno, modal de verificación de fondo, estados del banner y tabla turnos_caja
 2. **[2_PROCESO_INGRESO_EGRESO.md](./2_PROCESO_INGRESO_EGRESO.md)** - Sistema completo de operaciones con categorías contables y comprobantes fotográficos
 3. **[3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md)** - Flujo completo del cierre diario, arquitectura del sistema de 4 cajas, validaciones y trazabilidad
 4. **[4_PROCESO_CUADRE_RECARGAS.md](./4_PROCESO_CUADRE_RECARGAS.md)** - Calculadora de verificación de efectivo (solo vista, no guarda)
-5. **[5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md)** - Explicación detallada de Change Detection y Data Binding en Angular
+5. **[5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md)** - Patrón de actualización de UI post-operación (cargarDatos) y gotcha de Supabase INSERT/UPDATE devuelve data:null
 6. **[6_PROCESO_GASTOS_DIARIOS.md](./6_PROCESO_GASTOS_DIARIOS.md)** - Sistema de registro de gastos operativos con FAB y comprobantes
 7. **[7_PROCESO_SALDO_VIRTUAL.md](./7_PROCESO_SALDO_VIRTUAL.md)** - Sistema completo de gestión de saldo virtual (CELULAR/BUS), deudas, liquidaciones y comisiones
+8. **[8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)** - Flujo de apertura de turno, modal de verificación de fondo, estados del banner y tabla turnos_caja
 
 ### Otros Recursos
 

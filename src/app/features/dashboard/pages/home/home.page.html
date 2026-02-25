@@ -113,8 +113,8 @@
 
   <div class="action-footer-card" [ngClass]="estadoCaja.estado">
     <div class="info">
-      <h3>{{ estadoCaja.estado === 'TURNO_EN_CURSO' ? 'Turno Activo' : 'Sin Turno' }}</h3>
-      <p>{{ estadoCaja.empleadoNombre || 'Inicia sesión para operar' }}</p>
+      <h3>{{ estadoCaja.estado === 'TURNO_EN_CURSO' ? 'Turno Activo' : estadoCaja.estado === 'CERRADA' ? 'Turno Cerrado' : 'Sin Turno' }}</h3>
+      <p>{{ estadoCaja.estado === 'TURNO_EN_CURSO' ? estadoCaja.empleadoNombre : estadoCaja.estado === 'CERRADA' ? 'Caja cerrada por hoy' : 'Abrí turno para iniciar operaciones' }}</p>
     </div>
     
     <ion-button 

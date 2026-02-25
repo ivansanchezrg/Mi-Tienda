@@ -8,7 +8,11 @@
 -- IMPORTANTE: Ejecutar este script UNA SOLA VEZ al iniciar el proyecto.
 -- Para resetear el sistema, ejecutar nuevamente (incluye DROP de tablas).
 --
--- Fecha: 2026-02-20
+-- Fecha: 2026-02-24
+-- Versión: 4.7 - Limpieza de campos obsoletos en recargas
+--   • CAMBIOS v4.7: Eliminación de campos redundantes
+--   • Eliminados exceso_sobre_base y exceso_transferido de tabla recargas
+--   • Control de saldo virtual centralizado en recargas_virtuales
 -- Versión: 4.6 - Distribución inteligente de efectivo con registro de déficit
 --   • CAMBIOS v4.6: Manejo de déficit en cierre de turno
 --   • deficit_caja_chica en caja_fisica_diaria (monto que faltó transferir)
@@ -165,10 +169,6 @@ CREATE TABLE IF NOT EXISTS recargas (
 
     -- Validación
     validado BOOLEAN DEFAULT FALSE,
-
-    -- Control de exceso
-    exceso_sobre_base DECIMAL(12,2) DEFAULT 0,
-    exceso_transferido BOOLEAN DEFAULT FALSE,
 
     -- Auditoría
     observacion TEXT,
@@ -475,6 +475,11 @@ COMMENT ON COLUMN gastos_diarios.comprobante_url IS 'Path del comprobante en Sto
 -- El sistema está listo para comenzar a operar.
 -- Al hacer el primer cierre, se crearán los primeros registros de recargas.
 -- La trazabilidad completa de operaciones está habilitada mediante tipos_referencia.
+--
+-- CAMBIOS VERSIÓN 4.7:
+-- ✅ Eliminación de campos obsoletos en tabla recargas
+-- ✅ Removidos: exceso_sobre_base, exceso_transferido
+-- ✅ Control de saldo virtual centralizado en recargas_virtuales
 --
 -- CAMBIOS VERSIÓN 4.0:
 -- ✅ Ultra-simplificado: Solo 1 campo (efectivo_recaudado)

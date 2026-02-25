@@ -6,7 +6,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
   IonIcon, IonButton, IonCard, ModalController,
-  IonList, IonItem, IonLabel, IonText, IonCheckbox, ToastController, ActionSheetController
+  IonList, IonItem, IonLabel, IonText, IonCheckbox, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -55,7 +55,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private turnosCajaService = inject(TurnosCajaService);
   private modalCtrl = inject(ModalController);
   private toastCtrl = inject(ToastController);
-  private actionSheetCtrl = inject(ActionSheetController);
   private networkService = inject(NetworkService);
   private cdr = inject(ChangeDetectorRef);
   private networkSub?: Subscription;
@@ -182,51 +181,55 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
    * Todas las consultas en paralelo para un solo loading
    */
   async cargarDatos() {
-    const [estadoCaja, saldos, fechaUltimoCierre, deudasCelular, saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
-      this.turnosCajaService.obtenerEstadoCaja(),
-      this.cajasService.obtenerSaldosCajas(),
-      this.cajasService.obtenerFechaUltimoCierre(),
-      this.recargasVirtualesService.obtenerDeudasPendientesCelular(),
-      this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
-      this.recargasVirtualesService.getSaldoVirtualActual('BUS')
-    ]);
+    try {
+      const [estadoCaja, saldos, fechaUltimoCierre, deudasCelular, saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
+        this.turnosCajaService.obtenerEstadoCaja(),
+        this.cajasService.obtenerSaldosCajas(),
+        this.cajasService.obtenerFechaUltimoCierre(),
+        this.recargasVirtualesService.obtenerDeudasPendientesCelular(),
+        this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
+        this.recargasVirtualesService.getSaldoVirtualActual('BUS')
+      ]);
 
-    // Asignar estado de caja (crear nuevo objeto para forzar detección de cambios)
-    this.estadoCaja = { ...estadoCaja };
+      // Asignar estado de caja (crear nuevo objeto para forzar detección de cambios)
+      this.estadoCaja = { ...estadoCaja };
 
-    // Asignar saldos y cajas
-    if (saldos) {
-      this.saldoCaja = saldos.cajaPrincipal;
-      this.saldoCajaChica = saldos.cajaChica;
-      this.saldoCelular = saldos.cajaCelular;
-      this.saldoBus = saldos.cajaBus;
-      this.totalSaldos = saldos.total;
-      this.cajas = saldos.cajas;
+      // Asignar saldos y cajas
+      if (saldos) {
+        this.saldoCaja = saldos.cajaPrincipal;
+        this.saldoCajaChica = saldos.cajaChica;
+        this.saldoCelular = saldos.cajaCelular;
+        this.saldoBus = saldos.cajaBus;
+        this.totalSaldos = saldos.total;
+        this.cajas = saldos.cajas;
+      }
+
+      // Asignar saldos virtuales (último cierre + recargas nuevas desde entonces)
+      this.saldoVirtualCelular = saldoVirtualCelular;
+      this.saldoVirtualBus = saldoVirtualBus;
+
+      // Asignar fecha del último cierre
+      if (fechaUltimoCierre) {
+        const fecha = new Date(fechaUltimoCierre + 'T00:00:00');
+        this.fechaUltimoCierre = this.formatearFecha(fecha);
+      } else {
+        this.fechaUltimoCierre = 'Sin cierres registrados';
+      }
+
+      // Cargar usuario actual desde Preferences (rápido, sin consulta a BD)
+      const empleado = await this.authService.getEmpleadoActual();
+      this.nombreUsuario = empleado?.nombre || 'Usuario';
+
+      // Fecha actual
+      const hoy = new Date();
+      this.fechaActual = this.formatearFecha(hoy);
+
+      // Deudas pendientes CELULAR → campana
+      this.deudasPendientesCelular = deudasCelular;
+      this.notificacionesPendientes = deudasCelular.length > 0 ? 1 : 0;
+    } catch (error: any) {
+      await this.ui.showError('Error al cargar los datos. Verificá tu conexión e intentá de nuevo.');
     }
-
-    // Asignar saldos virtuales (último cierre + recargas nuevas desde entonces)
-    this.saldoVirtualCelular = saldoVirtualCelular;
-    this.saldoVirtualBus = saldoVirtualBus;
-
-    // Asignar fecha del último cierre
-    if (fechaUltimoCierre) {
-      const fecha = new Date(fechaUltimoCierre + 'T00:00:00');
-      this.fechaUltimoCierre = this.formatearFecha(fecha);
-    } else {
-      this.fechaUltimoCierre = 'Sin cierres registrados';
-    }
-
-    // Cargar usuario actual desde Preferences (rápido, sin consulta a BD)
-    const empleado = await this.authService.getEmpleadoActual();
-    this.nombreUsuario = empleado?.nombre || 'Usuario';
-
-    // Fecha actual
-    const hoy = new Date();
-    this.fechaActual = this.formatearFecha(hoy);
-
-    // Deudas pendientes CELULAR → campana
-    this.deudasPendientesCelular = deudasCelular;
-    this.notificacionesPendientes = deudasCelular.length > 0 ? 1 : 0;
   }
 
   /**
@@ -339,6 +342,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       await new Promise(resolve => setTimeout(resolve, 300));
       await this.cargarDatos();
       this.cdr.detectChanges();
+    } else {
+      await this.ui.showError('No se pudo abrir el turno. Verificá tu conexión e intentá de nuevo.');
     }
   }
 
@@ -396,39 +401,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     await this.router.navigate(['/home/cierre-diario']);
   }
 
-  /**
-   * Inicia el día llevando al usuario a la página de cierre diario
-   */
-  async onAbrirDia() {
-    const yaExisteCierre = await this.recargasService.existeCierreDiario();
-
-    if (yaExisteCierre === null) {
-      const toast = await this.toastCtrl.create({
-        message: 'No se pudo verificar el estado de la caja. Revisa tu conexión a internet.',
-        duration: 3000,
-        color: 'danger',
-        position: 'top',
-        icon: 'cloud-offline-outline'
-      });
-      await toast.present();
-      return;
-    }
-
-    if (yaExisteCierre === true) {
-      const toast = await this.toastCtrl.create({
-        message: 'La caja ya fue cerrada hoy. No puedes realizar otro cierre para la misma fecha.',
-        duration: 3000,
-        color: 'warning',
-        position: 'top',
-        icon: 'alert-circle-outline'
-      });
-      await toast.present();
-      return;
-    }
-
-    await this.router.navigate(['/home/cierre-diario']);
-  }
-
   async abrirNotificaciones() {
     const modal = await this.modalCtrl.create({
       component: NotificacionesModalComponent,
@@ -447,24 +419,29 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   async mostrarModalVerificacionFondo(): Promise<boolean> {
-    const [fondoFijo, deficit] = await Promise.all([
-      this.turnosCajaService.obtenerFondoFijo(),
-      this.turnosCajaService.obtenerDeficitTurnoAnterior()
-    ]);
+    try {
+      const [fondoFijo, deficit] = await Promise.all([
+        this.turnosCajaService.obtenerFondoFijo(),
+        this.turnosCajaService.obtenerDeficitTurnoAnterior()
+      ]);
 
-    const modal = await this.modalCtrl.create({
-      component: VerificarFondoModalComponent,
-      cssClass: 'verificar-fondo-modal',
-      componentProps: {
-        fondoFijo,
-        deficitCajaChica: deficit?.deficitCajaChica ?? 0,
-        fondoFaltante: deficit?.fondoFaltante ?? 0
-      }
-    });
+      const modal = await this.modalCtrl.create({
+        component: VerificarFondoModalComponent,
+        cssClass: 'verificar-fondo-modal',
+        componentProps: {
+          fondoFijo,
+          deficitCajaChica: deficit?.deficitCajaChica ?? 0,
+          fondoFaltante: deficit?.fondoFaltante ?? 0
+        }
+      });
 
-    await modal.present();
-    const { data, role } = await modal.onWillDismiss();
-    return role === 'confirm' && data?.confirmado === true;
+      await modal.present();
+      const { data, role } = await modal.onWillDismiss();
+      return role === 'confirm' && data?.confirmado === true;
+    } catch (error: any) {
+      await this.ui.showError('Error al cargar los datos de verificación. Intentá de nuevo.');
+      return false;
+    }
   }
 }
 
@@ -656,8 +633,16 @@ export class NotificacionesModalComponent {
               </div>
             }
 
-            <!-- Botón principal -->
+            <!-- Botones: Cancelar + Acción principal -->
             <div class="actions-section">
+              <ion-button
+                expand="block"
+                fill="clear"
+                color="medium"
+                [disabled]="registrando"
+                (click)="cancelar()">
+                Cancelar
+              </ion-button>
               <ion-button
                 expand="block"
                 color="warning"

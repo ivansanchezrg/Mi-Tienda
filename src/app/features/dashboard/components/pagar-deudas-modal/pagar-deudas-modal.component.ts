@@ -56,8 +56,7 @@ export class PagarDeudasModalComponent implements OnInit {
       ]);
       this.deudasPendientes = deudas;
       this.saldoDisponible = saldo;
-    } catch (error) {
-      console.error('Error al cargar deudas:', error);
+    } catch {
       await this.ui.showError('Error al cargar las deudas');
     } finally {
       this.loading = false;

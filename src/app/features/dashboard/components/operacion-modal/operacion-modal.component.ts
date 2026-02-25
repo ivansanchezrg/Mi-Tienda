@@ -12,6 +12,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Caja } from '../../services/cajas.service';
 import { CategoriaOperacion } from '../../models/categoria-operacion.model';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
+import { UiService } from '@core/services/ui.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 
@@ -48,6 +49,7 @@ export class OperacionModalComponent implements OnInit {
   private actionSheetCtrl = inject(ActionSheetController);
   private cdr = inject(ChangeDetectorRef);
   private operacionesService = inject(OperacionesCajaService);
+  private ui = inject(UiService);
 
   @Input() tipo!: 'INGRESO' | 'EGRESO';
   @Input() cajas: Caja[] = [];
@@ -102,9 +104,9 @@ export class OperacionModalComponent implements OnInit {
     try {
       this.cargandoCategorias = true;
       this.categorias = await this.operacionesService.obtenerCategorias(this.tipo);
-    } catch (error) {
-      console.error('Error al cargar categorías:', error);
+    } catch (error: any) {
       this.categorias = [];
+      await this.ui.showError('Error al cargar las categorías. Cerrá e intentá de nuevo.');
     } finally {
       this.cargandoCategorias = false;
     }
@@ -179,9 +181,8 @@ export class OperacionModalComponent implements OnInit {
 
       this.fotoComprobante = image.dataUrl || null;
       this.cdr.detectChanges(); // Forzar detección de cambios para web
-    } catch (error) {
-      console.error('Error al tomar/seleccionar foto:', error);
-      // Si el usuario cancela, no hacer nada
+    } catch {
+      // El plugin lanza excepción al cancelar — no mostrar error al usuario
     }
   }
 
