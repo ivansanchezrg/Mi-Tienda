@@ -57,8 +57,13 @@ export class GastoModalComponent implements OnInit {
 
   async cargarCategorias() {
     this.cargandoCategorias = true;
-    this.categorias = await this.gastosService.getCategorias();
-    this.cargandoCategorias = false;
+    try {
+      this.categorias = await this.gastosService.getCategorias();
+    } catch {
+      // El servicio maneja el error
+    } finally {
+      this.cargandoCategorias = false;
+    }
   }
 
   cancelar() {
@@ -108,9 +113,8 @@ export class GastoModalComponent implements OnInit {
 
       this.fotoComprobante = image.dataUrl || null;
       this.cdr.detectChanges(); // Forzar detección de cambios para web
-    } catch (error) {
-      console.error('Error al tomar/seleccionar foto:', error);
-      // Si el usuario cancela, no hacer nada
+    } catch {
+      // El plugin lanza excepción al cancelar
     }
   }
 

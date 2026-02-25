@@ -147,37 +147,37 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    * NOTA: La validación de cierre existente se hace en el home antes de navegar
    */
   async cargarDatosIniciales() {
-    // Cargar todos los datos necesarios
-    const [datos, saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
-      this.recargasService.getDatosCierreDiario(),
-      this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
-      this.recargasVirtualesService.getSaldoVirtualActual('BUS')
-    ]);
+    try {
+      const [datos, saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
+        this.recargasService.getDatosCierreDiario(),
+        this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
+        this.recargasVirtualesService.getSaldoVirtualActual('BUS')
+      ]);
 
-    // Saldo virtual actual para mostrar en Paso 1
-    this.saldoVirtualActualCelular = saldoVirtualCelular;
-    this.saldoVirtualActualBus = saldoVirtualBus;
+      // Saldo virtual actual para mostrar en Paso 1
+      this.saldoVirtualActualCelular = saldoVirtualCelular;
+      this.saldoVirtualActualBus = saldoVirtualBus;
 
-    // Saldos anteriores virtuales
-    this.saldoAnteriorCelular = datos.saldosVirtuales.celular;
-    this.saldoAnteriorBus = datos.saldosVirtuales.bus;
+      // Saldos anteriores virtuales
+      this.saldoAnteriorCelular = datos.saldosVirtuales.celular;
+      this.saldoAnteriorBus = datos.saldosVirtuales.bus;
 
-    // Agregado hoy (v4.5)
-    this.agregadoCelularHoy = datos.agregadoCelularHoy;
-    this.agregadoBusHoy = datos.agregadoBusHoy;
+      // Agregado hoy (v4.5)
+      this.agregadoCelularHoy = datos.agregadoCelularHoy;
+      this.agregadoBusHoy = datos.agregadoBusHoy;
 
-    console.log('[cierre] saldoAnteriorCelular:', this.saldoAnteriorCelular, '| agregadoCelularHoy:', this.agregadoCelularHoy);
-    console.log('[cierre] saldoAnteriorBus:', this.saldoAnteriorBus, '| agregadoBusHoy:', this.agregadoBusHoy);
+      // Saldos de cajas físicas
+      this.saldoAnteriorCaja = datos.saldoCaja;
+      this.saldoAnteriorCajaChica = datos.saldoCajaChica;
+      this.saldoAnteriorCajaCelular = datos.saldoCajaCelular;
+      this.saldoAnteriorCajaBus = datos.saldoCajaBus;
 
-    // Saldos de cajas físicas
-    this.saldoAnteriorCaja = datos.saldoCaja;
-    this.saldoAnteriorCajaChica = datos.saldoCajaChica;
-    this.saldoAnteriorCajaCelular = datos.saldoCajaCelular;
-    this.saldoAnteriorCajaBus = datos.saldoCajaBus;
-
-    // Configuración (v4.0)
-    this.fondoFijo = datos.fondoFijo;
-    this.transferenciaDiariaCajaChica = datos.transferenciaDiariaCajaChica;
+      // Configuración (v4.0)
+      this.fondoFijo = datos.fondoFijo;
+      this.transferenciaDiariaCajaChica = datos.transferenciaDiariaCajaChica;
+    } catch (error: any) {
+      await this.ui.showError('Error al cargar los datos del cierre. Verificá tu conexión e intentá de nuevo.');
+    }
   }
 
   hasPendingChanges(): boolean {
@@ -208,9 +208,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    */
   get ventaCelular(): number {
     const saldoFinal = this.currencyService.parse(this.cierreForm.get('saldoVirtualCelularFinal')?.value);
-    const resultado = this.saldoVirtualActualCelular - saldoFinal;
-    console.log('[ventaCelular] saldoVirtualActual:', this.saldoVirtualActualCelular, '- final:', saldoFinal, '= resultado:', resultado);
-    return resultado;
+    return this.saldoVirtualActualCelular - saldoFinal;
   }
 
   /**
@@ -220,9 +218,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    */
   get ventaBus(): number {
     const saldoFinal = this.currencyService.parse(this.cierreForm.get('saldoVirtualBusFinal')?.value);
-    const resultado = this.saldoVirtualActualBus - saldoFinal;
-    console.log('[ventaBus] saldoVirtualActual:', this.saldoVirtualActualBus, '- final:', saldoFinal, '= resultado:', resultado);
-    return resultado;
+    return this.saldoVirtualActualBus - saldoFinal;
   }
 
   /**
@@ -358,6 +354,29 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    */
   get saldoFinalCajaBus(): number {
     return this.saldoAnteriorCajaBus + this.ventaBus;
+  }
+
+  // ==========================================
+  // GETTERS: Depósito anticipado de Bus (v4.7.1)
+  // ==========================================
+
+  /**
+   * Detecta si hubo un depósito anticipado de Bus (CAJA_BUS negativa)
+   * Esto ocurre cuando se registra una compra de saldo usando el parámetro
+   * saldo_virtual_maquina, depositando efectivo + ventas del día antes del cierre.
+   * @returns {boolean} True si CAJA_BUS está negativa
+   */
+  get tieneDepositoAnticipadoBus(): boolean {
+    return this.saldoAnteriorCajaBus < 0;
+  }
+
+  /**
+   * Diferencia entre compras y ventas de Bus que causó el saldo negativo
+   * @returns {number} Monto de la diferencia (siempre positivo)
+   */
+  get diferenciaDepositoBus(): number {
+    if (!this.tieneDepositoAnticipadoBus) return 0;
+    return this.agregadoBusHoy - this.ventaBus;
   }
 
   /**

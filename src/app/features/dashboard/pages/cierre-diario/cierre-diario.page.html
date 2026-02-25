@@ -81,7 +81,7 @@
                 <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
                 <div>
                   <p><strong>⚠️ Venta negativa: {{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</strong></p>
-                  <p>Registrá la compra de saldo virtual en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
+                  <p>Registrá la recarga del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
                 </div>
               </div>
             }
@@ -136,7 +136,7 @@
           <ion-card-content>
             <!-- Sección: Efectivo de Caja -->
             <div class="seccion-titulo">
-              <strong>Caja Fisica</strong>
+              <strong>Caja Física</strong>
             </div>
             <div class="venta-item">
               <div class="venta-header">
@@ -283,6 +283,26 @@
               </div>
             </div>
 
+            <!-- Explicación de depósito anticipado de Bus (v4.7.1) -->
+            @if (tieneDepositoAnticipadoBus) {
+              <div class="alerta-simple info" style="margin-top: 16px;">
+                <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+                <div>
+                  <p><strong>Bus: Depósito anticipado</strong></p>
+                  <p>La caja Bus está negativa porque se depositó efectivo antes del cierre:</p>
+                  <ul>
+                    <li><strong>Compras del día:</strong> {{ agregadoBusHoy | currency:'USD':'symbol-narrow':'1.2-2' }}</li>
+                    <li><strong>Ventas del día:</strong> {{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</li>
+                    <li><strong>Diferencia depositada:</strong> {{ diferenciaDepositoBus | currency:'USD':'symbol-narrow':'1.2-2' }}</li>
+                  </ul>
+                  <p>
+                    Este cierre registrará las ventas (<strong>+{{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</strong>)
+                    y la caja quedará en <strong>{{ saldoFinalCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> ✓
+                  </p>
+                </div>
+              </div>
+            }
+
             <div class="caja-verificacion">
               <div class="caja-nombre">
                 <ion-icon name="bus-outline" class="caja-icon bus"></ion-icon>
@@ -313,6 +333,7 @@
                   <li>Varios <strong>no recibe nada</strong> este turno (faltaron {{ transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }})</li>
                 }
                 <li>Tienda <strong>no recibe nada</strong> este turno</li>
+                <li>Anotá el motivo en el campo <strong>Observaciones</strong></li>
               </ul>
               @if (transferenciaCajaChicaYaHecha) {
                 <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo.</p>

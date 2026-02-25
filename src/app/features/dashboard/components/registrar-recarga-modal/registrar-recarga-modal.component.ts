@@ -60,15 +60,19 @@ export class RegistrarRecargaModalComponent implements OnInit {
   }
 
   async ngOnInit() {
-    if (this.tipo === 'CELULAR') {
-      this.comisionPct = await this.service.getPorcentajeComision('CELULAR');
-    } else {
-      const [saldoCaja, saldoVirtual] = await Promise.all([
-        this.service.getSaldoCajaActual('CAJA_BUS'),
-        this.service.getSaldoVirtualActual('BUS')
-      ]);
-      this.saldoCajaBus = saldoCaja;
-      this.saldoVirtualSistemaBus = saldoVirtual;
+    try {
+      if (this.tipo === 'CELULAR') {
+        this.comisionPct = await this.service.getPorcentajeComision('CELULAR');
+      } else {
+        const [saldoCaja, saldoVirtual] = await Promise.all([
+          this.service.getSaldoCajaActual('CAJA_BUS'),
+          this.service.getSaldoVirtualActual('BUS')
+        ]);
+        this.saldoCajaBus = saldoCaja;
+        this.saldoVirtualSistemaBus = saldoVirtual;
+      }
+    } catch {
+      await this.ui.showError('Error al cargar los datos');
     }
   }
 
@@ -161,48 +165,52 @@ export class RegistrarRecargaModalComponent implements OnInit {
       return;
     }
 
-    const empleado = await this.service.obtenerEmpleadoActual();
-    if (!empleado) {
-      await this.ui.showError('No se pudo obtener el empleado');
-      return;
-    }
-
-    let resultado;
-
-    if (this.tipo === 'CELULAR') {
-      resultado = await this.service.registrarRecargaProveedorCelularCompleto({
-        fecha: this.service.getFechaLocal(),
-        empleado_id: empleado.id,
-        monto_virtual: this.montoVirtual
-      });
-
-      if (!resultado?.success) {
-        await this.ui.showError('Error al registrar recarga');
+    try {
+      const empleado = await this.service.obtenerEmpleadoActual();
+      if (!empleado) {
+        await this.ui.showError('No se pudo obtener el empleado');
         return;
       }
 
-      await this.ui.showSuccess(
-        `Recarga registrada: $${resultado.monto_virtual.toFixed(2)}\n` +
-        `Deuda pendiente: $${resultado.monto_a_pagar.toFixed(2)}\n` +
-        `Ganancia: $${resultado.ganancia.toFixed(2)}\n` +
-        `Saldo Virtual Celular: $${resultado.saldo_virtual_celular.toFixed(2)}`
-      );
+      let resultado;
 
-      this.modalCtrl.dismiss({ success: true, data: resultado });
+      if (this.tipo === 'CELULAR') {
+        resultado = await this.service.registrarRecargaProveedorCelularCompleto({
+          fecha: this.service.getFechaLocal(),
+          empleado_id: empleado.id,
+          monto_virtual: this.montoVirtual
+        });
 
-    } else {
-      // BUS — pasa saldo_virtual_maquina si fue ingresado (habilita validación extendida en SQL)
-      resultado = await this.service.registrarCompraSaldoBus({
-        fecha: this.service.getFechaLocal(),
-        empleado_id: empleado.id,
-        monto: this.montoVirtual,
-        saldo_virtual_maquina: this.saldoVirtualMaquina ?? undefined
-      });
+        if (!resultado?.success) {
+          await this.ui.showError('Error al registrar recarga');
+          return;
+        }
 
-      if (!resultado) return;
+        await this.ui.showSuccess(
+          `Recarga registrada: $${resultado.monto_virtual.toFixed(2)}\n` +
+          `Deuda pendiente: $${resultado.monto_a_pagar.toFixed(2)}\n` +
+          `Ganancia: $${resultado.ganancia.toFixed(2)}\n` +
+          `Saldo Virtual Celular: $${resultado.saldo_virtual_celular.toFixed(2)}`
+        );
 
-      await this.ui.showSuccess(`Compra registrada: $${this.montoVirtual.toFixed(2)}`);
-      this.modalCtrl.dismiss({ success: true });
+        this.modalCtrl.dismiss({ success: true, data: resultado });
+
+      } else {
+        // BUS — pasa saldo_virtual_maquina si fue ingresado (habilita validación extendida en SQL)
+        resultado = await this.service.registrarCompraSaldoBus({
+          fecha: this.service.getFechaLocal(),
+          empleado_id: empleado.id,
+          monto: this.montoVirtual,
+          saldo_virtual_maquina: this.saldoVirtualMaquina ?? undefined
+        });
+
+        if (!resultado) return;
+
+        await this.ui.showSuccess(`Compra registrada: $${this.montoVirtual.toFixed(2)}`);
+        this.modalCtrl.dismiss({ success: true });
+      }
+    } catch (error: any) {
+      await this.ui.showError(error?.message || 'Error inesperado');
     }
   }
 }

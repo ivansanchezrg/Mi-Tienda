@@ -66,14 +66,12 @@ export class MainLayoutPage {
     const { data, role } = await modal.onDidDismiss<GastoModalResult>();
 
     if (role === 'confirm' && data) {
-      const success = await this.gastosService.registrarGasto({
+      await this.gastosService.registrarGasto({
         categoria_gasto_id: data.categoria_gasto_id,
         monto: data.monto,
         observaciones: data.observaciones,
         fotoComprobante: data.fotoComprobante
       });
-
-      // El servicio ya muestra el toast de éxito/error
     }
   }
 

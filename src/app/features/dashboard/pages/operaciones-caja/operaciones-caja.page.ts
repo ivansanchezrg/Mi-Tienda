@@ -130,8 +130,8 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
           this.cajaSaldo = caja.saldo_actual;
         }
       }
-    } catch (error) {
-      console.error('Error al cargar saldo:', error);
+    } catch (error: any) {
+      await this.ui.showError('Error al cargar el saldo. Verificá tu conexión.');
     }
   }
 
@@ -357,24 +357,27 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   }
 
   async abrirModalOperacion(tipo: 'INGRESO' | 'EGRESO') {
-    // Obtener lista de cajas para el modal
-    const cajas = await this.cajasService.obtenerCajas();
-    if (!cajas) return;
+    try {
+      const cajas = await this.cajasService.obtenerCajas();
+      if (!cajas) return;
 
-    const modal = await this.modalCtrl.create({
-      component: OperacionModalComponent,
-      componentProps: {
-        tipo: tipo,
-        cajas: cajas,
-        cajaIdPreseleccionada: this.cajaId  // Pre-seleccionar la caja actual
+      const modal = await this.modalCtrl.create({
+        component: OperacionModalComponent,
+        componentProps: {
+          tipo: tipo,
+          cajas: cajas,
+          cajaIdPreseleccionada: this.cajaId
+        }
+      });
+
+      await modal.present();
+      const { data, role } = await modal.onDidDismiss<OperacionModalResult>();
+
+      if (role === 'confirm' && data) {
+        await this.ejecutarOperacion(tipo, data);
       }
-    });
-
-    await modal.present();
-    const { data, role } = await modal.onDidDismiss<OperacionModalResult>();
-
-    if (role === 'confirm' && data) {
-      await this.ejecutarOperacion(tipo, data);
+    } catch (error: any) {
+      await this.ui.showError('Error al abrir el formulario. Verificá tu conexión.');
     }
   }
 
@@ -389,33 +392,33 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     );
 
     if (success) {
-      // Recargar saldo y operaciones
       await this.cargarSaldoCaja();
       await this.cargarOperaciones(true);
-    } else {
-      console.error('❌ [ejecutarOperacion] Operación falló');
     }
   }
 
   async verComprobante(path: string) {
-    // Generar URL firmada desde el path
-    await this.ui.showLoading('Cargando comprobante...');
+    try {
+      await this.ui.showLoading('Cargando comprobante...');
 
-    const signedUrl = await this.storageService.getSignedUrl(path);
+      const signedUrl = await this.storageService.getSignedUrl(path);
 
-    await this.ui.hideLoading();
+      if (!signedUrl) {
+        await this.ui.showError('No se pudo cargar el comprobante');
+        return;
+      }
 
-    if (!signedUrl) {
-      await this.ui.showError('No se pudo cargar el comprobante');
-      return;
+      const modal = await this.modalCtrl.create({
+        component: ComprobanteModalComponent,
+        componentProps: { url: signedUrl },
+        cssClass: 'comprobante-modal'
+      });
+      await modal.present();
+    } catch (error: any) {
+      await this.ui.showError('Error al cargar el comprobante. Intentá de nuevo.');
+    } finally {
+      await this.ui.hideLoading();
     }
-
-    const modal = await this.modalCtrl.create({
-      component: ComprobanteModalComponent,
-      componentProps: { url: signedUrl },
-      cssClass: 'comprobante-modal'
-    });
-    await modal.present();
   }
 }
 

@@ -1,316 +1,204 @@
-# Operaciones de Caja
+# Operaciones de Caja — Referencia Técnica
 
-Módulo para visualizar el historial de movimientos de cada caja del sistema.
+## ¿Qué es?
 
-## Relación con otros módulos
+Página de **historial de movimientos** de una caja específica. Muestra todos los ingresos, egresos y transferencias registrados, con filtro por período y scroll infinito. Desde aquí también se realizan los ingresos/egresos manuales de efectivo.
 
-Este doc cubre la **visualización** del historial — la página que muestra lo que ya ocurrió.
+### Cajas del sistema
 
-| Módulo | Doc | Qué hace |
-|--------|-----|----------|
-| **Este doc** | `1_OPERACIONES-CAJA.md` | Página de historial: scroll, filtros, agrupación por fecha, saldo dinámico |
-| Registro manual | `2_PROCESO_INGRESO_EGRESO.md` | Modal para crear un INGRESO o EGRESO nuevo: cámara, categoría, Storage, PostgreSQL |
-| Cierre diario | `3_PROCESO_CIERRE_CAJA.md` | Cierre por turno: distribuye efectivo automáticamente entre las 4 cajas |
+El sistema maneja 4 cajas. Esta página puede mostrar el historial de cualquiera, pero **solo CAJA y CAJA_CHICA permiten operaciones manuales** (ingreso/egreso):
 
-**Fuente de datos:** Esta página muestra *todas* las `operaciones_cajas` de una caja — tanto las creadas automáticamente por el cierre diario (`ejecutar_cierre_diario`) como las creadas manualmente por el usuario (`registrar_operacion_manual`).
+| Código | Nombre | Operaciones manuales |
+|---|---|---|
+| `CAJA` | Caja Principal | ✅ Sí |
+| `CAJA_CHICA` | Caja Chica | ✅ Sí |
+| `CAJA_CELULAR` | Caja Celular | ❌ Solo automáticas (recargas) |
+| `CAJA_BUS` | Caja Bus | ❌ Solo automáticas (recargas) |
 
 ---
 
-## Descripción General
+## Archivos
 
-La página de operaciones de caja permite:
-- Ver el historial de movimientos de una caja específica
-- Filtrar por período (Hoy, Semana, Mes, Todo)
-- Ver el saldo disponible y resumen de entradas/salidas
-- Scroll infinito para cargar más registros
-- Diseño híbrido (Home pattern + estilo empresarial/bancario)
+| Archivo | Rol |
+|---|---|
+| `pages/operaciones-caja/operaciones-caja.page.ts` | Página de historial + `ComprobanteModalComponent` (clase inline al final del mismo archivo) |
+| `services/operaciones-caja.service.ts` | `obtenerOperacionesCaja()`, `obtenerCategorias()`, `registrarOperacion()` |
+| `services/cajas.service.ts` | `obtenerCajas()` — lee saldo actual de la caja |
+| `models/operacion-caja.model.ts` | `OperacionCaja`, `TipoOperacion`, `FiltroFecha`, `OperacionesPaginadas` |
 
-## Ubicación de Archivos
+### Fuente de datos
 
-```
-dashboard/
-├── pages/
-│   └── operaciones-caja/
-│       ├── operaciones-caja.page.ts
-│       ├── operaciones-caja.page.html
-│       └── operaciones-caja.page.scss
-├── services/
-│   ├── operaciones-caja.service.ts
-│   └── cajas.service.ts
-└── models/
-    └── operacion-caja.model.ts
-```
+`operaciones_cajas` contiene **dos tipos de registros**:
+- **Automáticos** — creados por `ejecutar_cierre_diario` (INGRESO/EGRESO del cierre, TRANSFERENCIA\_ENTRANTE a Varios, etc.) con `categoria_id = NULL`
+- **Manuales** — creados por `registrar_operacion_manual` vía el modal de ingreso/egreso
 
-## Estructura de la Página
+---
 
-### 1. Header con Saldo Dinámico
-
-```html
-<ion-header>
-  <ion-toolbar>
-    <ion-title>{{ cajaNombre }}</ion-title>
-    <!-- Saldo aparece al hacer scroll (>150px) -->
-    @if (showHeaderBalance) {
-      <span class="header-balance">${{ cajaSaldo }}</span>
-    }
-  </ion-toolbar>
-</ion-header>
-```
-
-**Comportamiento:**
-- Al hacer scroll, cuando el balance-card desaparece (~150px), el saldo aparece en el header
-- Utiliza `[scrollEvents]="true"` y `(ionScroll)="onScroll($event)"`
-
-### 2. Balance Card
-
-Tarjeta principal con:
-- **Saldo disponible** - Monto principal centrado, color primary
-- **Resumen de período** - Entradas (verde) y Salidas (rojo)
-- **Fondo sutil** - `rgba(var(--ion-color-primary-rgb), 0.06)`
-
-### 3. Barra de Filtros (Sticky)
-
-```html
-<div class="filter-bar">
-  <span class="filter-label">Movimientos</span>
-  <div class="filter-tabs">
-    @for (f of ['hoy', 'semana', 'mes', 'todas']; track f) {
-      <button class="filter-tab" [class.active]="filtro === f">
-        {{ f | titlecase }}
-      </button>
-    }
-  </div>
-</div>
-```
-
-**Características:**
-- `position: sticky` - Se mantiene fijo al hacer scroll
-- Estilo bancario con botones tipo tabs
-- Tab activo: fondo oscuro (#334155), texto blanco
-
-### 4. Lista de Operaciones
-
-Agrupadas por fecha con:
-- **Header de fecha** - "Hoy", "Ayer", o fecha completa
-- **Totales del día** - +$X.XX (verde) / -$X.XX (rojo)
-- **Cards de operaciones** - border-radius 20px (patrón Home)
-
-### 5. Item de Operación
+## Flujo de la página
 
 ```
-┌─────────────────────────────────────────────┐
-│ 🔽  Ingreso                      +$500.00   │
-│     Venta de productos                      │
-│     10:30 · Juan · Saldo: $1,500.00         │
-├─────────────────────────────────────────────┤
-│ 🔼  Egreso                       -$200.00   │
-│     Compra de insumos                       │
-│     11:15 · Ana · Saldo: $1,300.00          │
-└─────────────────────────────────────────────┘
+Navegación desde Home (state: { cajaId, cajaNombre })
+        ↓
+ionViewWillEnter()
+  ├─ cargarSaldoCaja()         → cajas.obtenerCajas() → cajaSaldo
+  └─ cargarOperaciones(reset)  → obtenerOperacionesCaja(cajaId, filtro, page=0)
+        ↓
+Página muestra:
+  ├─ Balance card: saldo actual + resumen del período (total INGRESOS y EGRESOS del filtro activo)
+  ├─ Filtros sticky: Hoy / Semana / Mes / Todo
+  └─ Lista agrupada por fecha con scroll infinito
+        ↓
+Usuario toca "⋮" (menú) — solo visible si la caja permite operaciones manuales
+  └─ mostrarMenuOperaciones() → ActionSheet: Ingreso / Egreso
+       └─ abrirModalOperacion(tipo) → OperacionModalComponent
+            └─ ejecutarOperacion() → registrarOperacion() → rpc('registrar_operacion_manual')
+                 └─ cargarSaldoCaja() + cargarOperaciones(reset)
 ```
 
-**Elementos:**
-- **Icono** - Con fondo semitransparente del color correspondiente
-- **Título** - Tipo de operación
-- **Monto** - Centrado verticalmente, color según tipo
-- **Descripción** - Opcional, texto secundario
-- **Footer** - Hora, empleado, saldo después de operación
-- **Divider** - Línea horizontal entre registros
+---
 
-## Modelo de Datos
+## Paginación y scroll infinito
 
-### `operacion-caja.model.ts`
-
-```typescript
-export interface OperacionCaja {
-  id: number;
-  caja_id: number;
-  tipo_operacion: TipoOperacion;
-  monto: number;
-  descripcion?: string;
-  fecha: string;
-  saldo_actual: number | null;
-  empleado?: {
-    id: number;
-    nombre: string;
-  };
-}
-
-export type TipoOperacion =
-  | 'INGRESO'
-  | 'EGRESO'
-  | 'TRANSFERENCIA_ENTRANTE'
-  | 'TRANSFERENCIA_SALIENTE'
-  | 'APERTURA'
-  | 'CIERRE'
-  | 'AJUSTE';
-
-export type FiltroFecha = 'hoy' | 'semana' | 'mes' | 'todas';
-
-export interface ResultadoOperaciones {
-  operaciones: OperacionCaja[];
-  total: number;
-  hasMore: boolean;
-}
+`PAGINATION_CONFIG.operacionesCaja.pageSize` registros por página. Definido en:
+```
+src/app/core/config/pagination.config.ts
 ```
 
-## Servicios
+El scroll infinito usa `IonInfiniteScroll` — cuando el usuario llega al final de la lista, se dispara `cargarMas()`:
+1. Incrementa `currentPage++`
+2. Llama `obtenerOperacionesCaja(cajaId, filtro, currentPage)` — trae la siguiente página
+3. **Append** (no replace) al array `operacionesAgrupadas`
+4. Si la respuesta tiene menos registros que `pageSize` → `infiniteScrollDisabled = true`
 
-### `operaciones-caja.service.ts`
+Al cambiar filtro → `cargarOperaciones(reset=true)` → `currentPage = 0`, reemplaza el array completo.
 
-```typescript
-async obtenerOperacionesCaja(
-  cajaId: number,
-  filtro: FiltroFecha,
-  page: number = 0
-): Promise<ResultadoOperaciones>
-```
+---
 
-**Filtros implementados:**
+## Servicio: `obtenerOperacionesCaja()`
+
+Query con JOIN a `cajas`, `empleados` y `categorias_operaciones`. Ordenado por `fecha DESC`, luego `created_at DESC`.
+
 | Filtro | Rango |
-|--------|-------|
-| `hoy` | Desde las 00:00 de hoy |
+|---|---|
+| `hoy` | Desde las 00:00 del día actual |
 | `semana` | Últimos 7 días |
 | `mes` | Últimos 30 días |
 | `todas` | Sin filtro de fecha |
 
-**Paginación:**
-- 20 registros por página
-- Ordenados por fecha descendente (más recientes primero)
+---
 
-### `cajas.service.ts`
+## Agrupación por fecha
+
+Las operaciones se agrupan client-side en `OperacionAgrupada[]` con subtotales por día:
+
+| Fecha | Display |
+|---|---|
+| Hoy | "Hoy" |
+| Ayer | "Ayer" |
+| Otros | "lunes, 3 feb" |
+
+Cada grupo tiene: `fecha`, `operaciones[]`, `totalIngresos`, `totalEgresos`.
+
+---
+
+## Tipos de operación
+
+| Tipo | Clasificación | Color | Icono |
+|---|---|---|---|
+| `INGRESO` | Entrada | success (verde) | arrow-down |
+| `EGRESO` | Salida | danger (rojo) | arrow-up |
+| `TRANSFERENCIA_ENTRANTE` | Entrada | success | arrow-down |
+| `TRANSFERENCIA_SALIENTE` | Salida | danger | arrow-up |
+| `APERTURA` | — | primary | lock-open |
+| `CIERRE` | — | medium | lock-closed |
+| `AJUSTE` | — | warning | create |
+
+`esIngreso()` y `esEgreso()` determinan el signo (+/−) en los subtotales del resumen.
+
+---
+
+## Función SQL: `registrar_operacion_manual`
+
+> 📄 Código fuente completo: [`docs/sql/registrar_operacion_manual.sql`](./sql/registrar_operacion_manual.sql)
+
+Llamada vía `supabase.rpc('registrar_operacion_manual', params)`. Transacción atómica — si falla cualquier paso, rollback completo.
+
+**Parámetros:**
+```
+p_caja_id          → ID de la caja
+p_empleado_id
+p_tipo_operacion   → 'INGRESO' | 'EGRESO' como TEXT
+                     ⚠️ PostgREST no castea strings a ENUMs automáticamente (genera 400).
+                     La función castea internamente: v_tipo := p_tipo_operacion::tipo_operacion_caja_enum
+p_categoria_id
+p_monto
+p_descripcion      → nullable
+p_comprobante_url  → PATH en Storage (no URL firmada), nullable
+```
+
+**Lo que ejecuta:**
+1. Cast `TEXT → tipo_operacion_caja_enum` interno
+2. `SELECT FOR UPDATE` en `cajas` → obtiene saldo y bloquea la fila (evita race conditions)
+3. Calcula `saldo_nuevo` — si EGRESO y `saldo_nuevo < 0` → lanza `'Saldo insuficiente'`
+4. `UPDATE cajas SET saldo_actual`
+5. `INSERT INTO operaciones_cajas`
+6. Retorna JSON `{ success, operacion_id, saldo_anterior, saldo_nuevo }`
+
+> **Caso especial:** Si la caja tiene déficit del turno anterior (`saldo_actual = 0` pero hay deuda), usar `reparar_deficit_turno` en lugar de un EGRESO normal — esta función bloquea si `saldo_nuevo < 0`.
+
+---
+
+## Comprobante (Storage)
+
+`registrarOperacion()` sube la foto **antes** de llamar al RPC:
+1. `storageService.uploadImage(dataUrl)` → retorna `path` en Storage (ej: `comprobantes/2026/02/abc123.jpg`)
+2. RPC guarda el `path` en `operaciones_cajas.comprobante_url` (no la URL firmada)
+3. Si el RPC falla → `storageService.deleteFile(path)` elimina la imagen huérfana
+
+Para ver el comprobante → `verComprobante(path)`:
+1. `storageService.getSignedUrl(path)` → URL temporal firmada (bucket privado)
+2. Abre `ComprobanteModalComponent` (clase inline al final del mismo `.ts`, muestra la imagen a pantalla completa)
+
+---
+
+## Navegación
+
+La página recibe datos vía **navigation state** (no query params ni route params):
 
 ```typescript
-async obtenerCajas(): Promise<Caja[]>
-```
-
-Se usa para obtener el saldo actual de la caja.
-
-## Estilos y Diseño
-
-### Patrón Híbrido
-
-Combina dos enfoques de diseño:
-
-**Del patrón Home:**
-- Cards con `border-radius: 20px`
-- Box-shadow suave `0 4px 20px rgba(0, 0, 0, 0.05)`
-- Variables CSS de Ionic para dark/light mode
-- Tipografía limpia
-
-**Toque empresarial/bancario:**
-- Balance card prominente con saldo centrado
-- Filtros estilo tabs bancarios
-- Información compacta y profesional
-- Header sticky con saldo dinámico
-
-### Colores por Tipo de Operación
-
-| Tipo | Color | Uso |
-|------|-------|-----|
-| INGRESO | `success` (verde) | Entradas de dinero |
-| EGRESO | `danger` (rojo) | Salidas de dinero |
-| TRANSFERENCIA_ENTRANTE | `success` | Recibido de otra caja |
-| TRANSFERENCIA_SALIENTE | `danger` | Enviado a otra caja |
-| APERTURA | `primary` | Apertura de caja |
-| CIERRE | `medium` | Cierre de caja |
-| AJUSTE | `warning` | Ajustes manuales |
-
-### Compatibilidad Dark/Light Mode
-
-Todos los estilos usan variables CSS de Ionic:
-- `--ion-color-primary`
-- `--ion-color-success`
-- `--ion-color-danger`
-- `--ion-text-color`
-- `--ion-background-color`
-- `--ion-color-step-*`
-
-## Flujo de Navegación
-
-```
-HomePage
-    │
-    ├── Click en tarjeta de caja
-    │         │
-    │         ▼
-    │   OperacionesCajaPage
-    │   (con state: { cajaId, cajaNombre })
-    │         │
-    │         ├── Cambiar filtro → Recargar operaciones
-    │         ├── Scroll → Cargar más (infinite scroll)
-    │         └── Botón volver → HomePage
-    │
-```
-
-### Pasar datos via Navigation State
-
-```typescript
-// Desde HomePage
+// Desde Home — al tocar una caja
 this.router.navigate(['/home/operaciones-caja'], {
-  state: {
-    cajaId: caja.id,
-    cajaNombre: caja.nombre
-  }
+  state: { cajaId: caja.id, cajaNombre: caja.nombre }
 });
 
-// En OperacionesCajaPage (constructor)
+// En el constructor de OperacionesCajaPage
 const navigation = this.router.getCurrentNavigation();
-if (navigation?.extras?.state) {
-  this.cajaId = navigation.extras.state['cajaId'];
-  this.cajaNombre = navigation.extras.state['cajaNombre'];
-}
+this.cajaId    = navigation?.extras?.state?.['cajaId'];
+this.cajaNombre = navigation?.extras?.state?.['cajaNombre'];
 ```
 
-## Lifecycle Hooks
+Si `cajaId` es `0` o `undefined` (navegación directa sin state, ej: reload en browser) → redirige a `/home`.
 
-```typescript
-// Ocultar tabs al entrar
-ionViewWillEnter() {
-  this.ui.hideTabs();
-  await this.cargarSaldoCaja();
-  await this.cargarOperaciones(true);
-}
+---
 
-// Mostrar tabs al salir
-ionViewWillLeave() {
-  this.ui.showTabs();
-}
+## Query de auditoría (Supabase SQL Editor)
+
+```sql
+-- Operaciones de una caja en los últimos 7 días
+SELECT
+  o.fecha AT TIME ZONE 'America/Guayaquil' AS fecha_local,
+  o.tipo_operacion,
+  c2.nombre AS categoria,
+  o.monto,
+  o.saldo_anterior,
+  o.saldo_actual,
+  e.nombre AS empleado,
+  o.descripcion
+FROM operaciones_cajas o
+JOIN cajas c ON o.caja_id = c.id
+LEFT JOIN categorias_operaciones c2 ON o.categoria_id = c2.id
+LEFT JOIN empleados e ON o.empleado_id = e.id
+WHERE o.caja_id = 1  -- cambiar por el ID de la caja deseada
+  AND o.fecha >= NOW() - INTERVAL '7 days'
+ORDER BY o.fecha DESC;
 ```
-
-## Agrupación por Fecha
-
-Las operaciones se agrupan por día para mejor visualización:
-
-```typescript
-interface OperacionAgrupada {
-  fecha: string;           // '2026-02-04'
-  fechaDisplay: string;    // 'Hoy', 'Ayer', 'lunes, 3 feb'
-  operaciones: OperacionCaja[];
-  totalIngresos: number;
-  totalEgresos: number;
-}
-```
-
-**Formato de fecha:**
-- Hoy → "Hoy"
-- Ayer → "Ayer"
-- Otros → "lunes, 3 feb" (capitalizado)
-
-## Mejoras Futuras
-
-- [ ] Búsqueda por descripción
-- [ ] Exportar a PDF/Excel (en desktop)
-- [ ] Filtro por tipo de operación
-- [ ] Vista de tabla para desktop (AG-Grid)
-- [ ] Detalle de operación al hacer tap
-
-## Dependencias
-
-| Archivo | Uso |
-|---------|-----|
-| `CommonModule` | Pipes (number, titlecase) |
-| `IonInfiniteScroll` | Paginación infinita |
-| `UiService` | hideTabs(), showTabs(), showError() |
-| `CajasService` | obtenerCajas() |
-| `OperacionesCajaService` | obtenerOperacionesCaja() |
