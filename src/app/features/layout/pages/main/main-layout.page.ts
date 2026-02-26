@@ -8,9 +8,9 @@ import {
 import { SidebarComponent } from 'src/app/shared/components/sidebar/sidebar.component';
 import { homeOutline, cartOutline, cubeOutline, barChartOutline, add, close, receiptOutline, clipboardOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { GastoModalComponent } from 'src/app/features/dashboard/components/gasto-modal/gasto-modal.component';
-import { GastosDiariosService } from 'src/app/features/dashboard/services/gastos-diarios.service';
-import { GastoModalResult } from 'src/app/features/dashboard/models/gasto-diario.model';
+import { GastoModalComponent } from 'src/app/features/gastos-diarios/components/gasto-modal/gasto-modal.component';
+import { GastosDiariosService } from 'src/app/features/gastos-diarios/services/gastos-diarios.service';
+import { GastoModalResult } from 'src/app/features/gastos-diarios/models/gasto-diario.model';
 import { CuadreCajaPage } from 'src/app/features/dashboard/pages/cuadre-caja/cuadre-caja.page';
 
 @Component({
@@ -87,3 +87,4 @@ export class MainLayoutPage {
     await modal.present();
   }
 }
+

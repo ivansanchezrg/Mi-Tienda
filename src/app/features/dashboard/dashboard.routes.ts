@@ -18,7 +18,7 @@ export const DASHBOARD_ROUTES: Routes = [
   },
   {
     path: 'gastos-diarios',
-    loadComponent: () => import('./pages/gastos-diarios/gastos-diarios.page').then(m => m.GastosDiariosPage)
+    loadComponent: () => import('../gastos-diarios/pages/gastos-diarios/gastos-diarios.page').then(m => m.GastosDiariosPage)
   },
   {
     path: 'historial-recargas',
@@ -26,10 +26,11 @@ export const DASHBOARD_ROUTES: Routes = [
   },
   {
     path: 'recargas-virtuales',
-    loadComponent: () => import('./pages/recargas-virtuales/recargas-virtuales.page').then(m => m.RecargasVirtualesPage)
+    loadComponent: () => import('../recargas-virtuales/pages/recargas-virtuales/recargas-virtuales.page').then(m => m.RecargasVirtualesPage)
   },
   {
     path: 'pagar-deudas',
-    loadComponent: () => import('./pages/pagar-deudas/pagar-deudas.page').then(m => m.PagarDeudasPage)
+    loadComponent: () => import('../recargas-virtuales/pages/pagar-deudas/pagar-deudas.page').then(m => m.PagarDeudasPage)
   }
 ];
+

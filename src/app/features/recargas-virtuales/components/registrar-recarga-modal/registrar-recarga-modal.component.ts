@@ -12,7 +12,7 @@ import {
   checkmarkCircleOutline, alertCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
+import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 
@@ -214,3 +214,4 @@ export class RegistrarRecargaModalComponent implements OnInit {
     }
   }
 }
+

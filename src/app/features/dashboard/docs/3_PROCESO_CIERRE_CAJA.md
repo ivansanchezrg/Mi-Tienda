@@ -1,35 +1,27 @@
 # Cierre Diario — Referencia Técnica (v4.7)
 
-## ¿Qué es?
-
-Proceso para **cerrar el turno de trabajo** al final del día. El operador ingresa el efectivo contado y los saldos de las máquinas de recarga; el sistema calcula la distribución del dinero y actualiza los saldos de las 4 cajas en una transacción atómica.
-
-**Punto de entrada:** Home → banner "Turno Activo" → botón "Cerrar Turno" → `CierreDiarioPage` (wizard de 2 pasos).
-
----
-
 ## 1. Arquitectura
 
 ### Tablas involucradas
 
-| Tabla | Rol |
-|---|---|
-| `turnos_caja` | Un turno por sesión de trabajo. El cierre cierra el turno automáticamente. |
-| `caja_fisica_diaria` | 1 registro por turno (`UNIQUE turno_id`). Guarda efectivo_recaudado y deficit_caja_chica. |
-| `recargas` | 1 registro por servicio por turno (`UNIQUE turno_id, tipo_servicio_id`). Guarda saldo_virtual antes y después. |
-| `recargas_virtuales` | Recargas del proveedor (aumentan saldo virtual). Se filtran por `created_at > último_cierre_at`. |
-| `operaciones_cajas` | Trazabilidad: cada movimiento contable con saldo anterior/posterior. |
-| `cajas` | Saldos actuales de las 4 cajas (se actualizan al cierre). |
-| `configuraciones` | `fondo_fijo_diario` y `caja_chica_transferencia_diaria`. Fuente de verdad. |
+| Tabla                | Rol                                                                                                            |
+| -------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `turnos_caja`        | Un turno por sesión de trabajo. El cierre cierra el turno automáticamente.                                     |
+| `caja_fisica_diaria` | 1 registro por turno (`UNIQUE turno_id`). Guarda efectivo_recaudado y deficit_caja_chica.                      |
+| `recargas`           | 1 registro por servicio por turno (`UNIQUE turno_id, tipo_servicio_id`). Guarda saldo_virtual antes y después. |
+| `recargas_virtuales` | Recargas del proveedor (aumentan saldo virtual). Se filtran por `created_at > último_cierre_at`.               |
+| `operaciones_cajas`  | Trazabilidad: cada movimiento contable con saldo anterior/posterior.                                           |
+| `cajas`              | Saldos actuales de las 4 cajas (se actualizan al cierre).                                                      |
+| `configuraciones`    | `fondo_fijo_diario` y `caja_chica_transferencia_diaria`. Fuente de verdad.                                     |
 
 ### Las 4 cajas
 
-| Código | UI | Qué recibe en el cierre |
-|---|---|---|
-| `CAJA` | Tienda | Efectivo depositado (sobrante tras fondo y Varios) |
-| `CAJA_CHICA` | Varios | Transferencia fija diaria (máximo 1 vez por día — ver §3) |
-| `CAJA_CELULAR` | Celular | Venta del turno de recargas celular |
-| `CAJA_BUS` | Bus | Venta del turno de recargas bus |
+| Código         | UI      | Qué recibe en el cierre                                   |
+| -------------- | ------- | --------------------------------------------------------- |
+| `CAJA`         | Tienda  | Efectivo depositado (sobrante tras fondo y Varios)        |
+| `CAJA_CHICA`   | Varios  | Transferencia fija diaria (máximo 1 vez por día — ver §3) |
+| `CAJA_CELULAR` | Celular | Venta del turno de recargas celular                       |
+| `CAJA_BUS`     | Bus     | Venta del turno de recargas bus                           |
 
 ---
 
@@ -38,6 +30,7 @@ Proceso para **cerrar el turno de trabajo** al final del día. El operador ingre
 ### Pre-condiciones (validadas en Home antes de navegar al cierre)
 
 `TurnosCajaService.obtenerEstadoCaja()` devuelve uno de:
+
 - `SIN_ABRIR` → sin turnos hoy
 - `TURNO_EN_CURSO` → turno abierto (permite cierre)
 - `CERRADA` → turno cerrado (ya se cerró el día)
@@ -46,12 +39,12 @@ Solo se puede llegar a la página de cierre desde `TURNO_EN_CURSO`. El turno act
 
 ### Datos que ingresa el usuario (Paso 1)
 
-| Campo | Obligatorio | Descripción |
-|---|---|---|
-| `efectivoTotalRecaudado` | Sí | Todo el efectivo físico contado al final del turno |
-| `saldoVirtualCelularFinal` | Sí | Saldo que muestra la app de recargas celular ahora |
-| `saldoVirtualBusFinal` | Sí | Saldo que muestra la máquina de bus ahora |
-| `observaciones` | No | Obligatorio usar si efectivo = $0 |
+| Campo                      | Obligatorio | Descripción                                        |
+| -------------------------- | ----------- | -------------------------------------------------- |
+| `efectivoTotalRecaudado`   | Sí          | Todo el efectivo físico contado al final del turno |
+| `saldoVirtualCelularFinal` | Sí          | Saldo que muestra la app de recargas celular ahora |
+| `saldoVirtualBusFinal`     | Sí          | Saldo que muestra la máquina de bus ahora          |
+| `observaciones`            | No          | Obligatorio usar si efectivo = $0                  |
 
 ### Cálculo del saldo virtual actual (lo que el sistema espera encontrar)
 
@@ -83,13 +76,13 @@ Config: `fondo_fijo` = $40, `transferencia_diaria` = $20 (valores de ejemplo del
 efectivo_disponible = efectivo_recaudado - fondo_fijo
 ```
 
-| Caso | Condición | Varios | Tienda | Déficit guardado |
-|---|---|---|---|---|
-| **Normal** (1er turno) | `efectivo_disponible >= transferencia` | completo | `efectivo_disponible - transferencia` | $0 |
-| **Déficit parcial** | `0 < efectivo_disponible < transferencia` | $0 | `efectivo_disponible` | `transferencia` |
-| **Déficit total** | `efectivo_disponible <= 0` | $0 | $0 | `transferencia` |
-| **Sin efectivo** | `efectivo_recaudado == 0` | $0 | $0 | `transferencia` (si 1er turno) |
-| **2do turno del día** | `transferencia_ya_hecha == true` | $0 (ya recibió) | `efectivo_disponible` | $0 |
+| Caso                   | Condición                                 | Varios          | Tienda                                | Déficit guardado               |
+| ---------------------- | ----------------------------------------- | --------------- | ------------------------------------- | ------------------------------ |
+| **Normal** (1er turno) | `efectivo_disponible >= transferencia`    | completo        | `efectivo_disponible - transferencia` | $0                             |
+| **Déficit parcial**    | `0 < efectivo_disponible < transferencia` | $0              | `efectivo_disponible`                 | `transferencia`                |
+| **Déficit total**      | `efectivo_disponible <= 0`                | $0              | $0                                    | `transferencia`                |
+| **Sin efectivo**       | `efectivo_recaudado == 0`                 | $0              | $0                                    | `transferencia` (si 1er turno) |
+| **2do turno del día**  | `transferencia_ya_hecha == true`          | $0 (ya recibió) | `efectivo_disponible`                 | $0                             |
 
 El campo `deficit_caja_chica` se guarda en `caja_fisica_diaria` para que el siguiente turno pueda repararlo.
 
@@ -102,6 +95,7 @@ El campo `deficit_caja_chica` se guarda en `caja_fisica_diaria` para que el sigu
 Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo ocurre en una transacción atómica — si falla cualquier paso, se hace rollback completo.
 
 **Para actualizar la función en Supabase:**
+
 - Si solo cambia el cuerpo → editá el `.sql` y ejecutalo directamente (`CREATE OR REPLACE` reemplaza sola).
 - Si cambia la firma (parámetros o tipo de retorno) → descomentá el bloque `DROP` al inicio del `.sql`, ejecutalo, volvé a comentarlo y hacé commit.
 
@@ -132,6 +126,7 @@ Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo ocurre en un
 2. Carga configuración (`fondo_fijo`, `transferencia_diaria`). Error si es NULL.
 3. Obtiene `MAX(created_at)` de `caja_fisica_diaria` → filtra `recargas_virtuales` pendientes
 4. Detecta si ya se transfirió a Varios hoy:
+   
    ```sql
    SELECT EXISTS (
      SELECT 1 FROM operaciones_cajas
@@ -167,6 +162,7 @@ Cuando se registra una compra de saldo Bus con el parámetro `saldo_virtual_maqu
 El cierre lo corrige: suma la `venta_bus` a ese saldo negativo y deja la caja en positivo.
 
 Detección en TypeScript:
+
 ```typescript
 get tieneDepositoAnticipadoBus(): boolean {
   return this.saldoAnteriorCajaBus < 0;

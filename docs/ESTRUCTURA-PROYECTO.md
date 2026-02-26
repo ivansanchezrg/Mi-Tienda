@@ -46,12 +46,14 @@ core/
 │   └── scrollable.page.ts    # Clase base para páginas con scroll
 │
 └── services/                  # Servicios centrales
-    ├── currency.service.ts   # Formateo de moneda
-    ├── logger.service.ts     # Logging centralizado
-    ├── network.service.ts    # Estado de conectividad
-    ├── storage.service.ts    # Almacenamiento local
-    ├── supabase.service.ts   # Manejo centralizado de consultas a Supabase
-    └── ui.service.ts         # Manejo de loading, toast y tabs
+    ├── currency.service.ts           # Formateo de moneda
+    ├── ganancias.service.ts          # Cálculo de ganancia BUS mensual + badge Home
+    ├── logger.service.ts             # Logging centralizado
+    ├── network.service.ts            # Estado de conectividad
+    ├── recargas-virtuales.service.ts # Saldo virtual, deudas, RPCs CELULAR/BUS
+    ├── storage.service.ts            # Almacenamiento local
+    ├── supabase.service.ts           # Manejo centralizado de consultas a Supabase
+    └── ui.service.ts                 # Manejo de loading, toast y tabs
 ```
 
 **Convención:**
@@ -96,11 +98,15 @@ features/
 │   │   ├── 3_PROCESO_CIERRE_CAJA.md
 │   │   ├── 4_PROCESO_CUADRE_RECARGAS.md
 │   │   ├── 5_ACTUALIZACION-UI-SIN-RECARGA.md
-│   │   ├── 6_PROCESO_GASTOS_DIARIOS.md
-│   │   └── 7_PROCESO_SALDO_VIRTUAL.md
+│   │   ├── 8_PROCESO_ABRIR_CAJA.md
+│   │   └── sql/                          # Funciones PostgreSQL del dashboard
+│   │       ├── ejecutar_cierre_diario.sql
+│   │       ├── registrar_operacion_manual.sql
+│   │       ├── reparar_deficit_turno.sql
+│   │       ├── agregar_categorias_deficit.sql # Migración: inserta EG-012 e IN-004
+│   │       └── insertar_datos_reales_recargas.sql # Script one-time de datos históricos
 │   ├── models/
 │   │   ├── categoria-operacion.model.ts  # Tipos/categorías de operación
-│   │   ├── gasto-diario.model.ts         # Interface de gastos
 │   │   ├── operacion-caja.model.ts       # Operaciones, filtros, paginación
 │   │   ├── saldos-anteriores.model.ts    # Modelo de saldos
 │   │   └── turno-caja.model.ts           # Interface del turno/caja
@@ -108,27 +114,44 @@ features/
 │   │   ├── home/                         # Dashboard principal
 │   │   ├── cierre-diario/                # Proceso de cierre de cajas
 │   │   ├── cuadre-caja/                  # Cuadre y verificación de caja
-│   │   ├── gastos-diarios/               # Registro de gastos del día
-│   │   ├── historial-recargas/           # Historial de recargas
-│   │   ├── operaciones-caja/             # Movimientos por caja (filtros, scroll infinito)
-│   │   ├── pagar-deudas/                 # Pago de deudas pendientes
-│   │   └── recargas-virtuales/           # Gestión de recargas virtuales
+│   │   ├── historial-recargas/           # Historial de recargas (cierres + virtuales)
+│   │   └── operaciones-caja/             # Movimientos por caja (filtros, scroll infinito)
 │   ├── components/
-│   │   ├── gasto-modal/                  # Modal para registrar gasto
-│   │   ├── historial-modal/              # Modal de historial de operaciones
-│   │   ├── liquidacion-bus-modal/        # Modal de liquidación bus
-│   │   ├── operacion-modal/              # Modal ingreso/egreso de caja
-│   │   ├── pagar-deudas-modal/           # Modal para pago de deudas
-│   │   └── registrar-recarga-modal/      # Modal para nueva recarga
+│   │   └── operacion-modal/              # Modal ingreso/egreso de caja
 │   ├── services/
 │   │   ├── cajas.service.ts              # CRUD de cajas y saldos
-│   │   ├── ganancias.service.ts          # Cálculo de ganancias mensuales
-│   │   ├── gastos-diarios.service.ts     # CRUD de gastos del día
 │   │   ├── operaciones-caja.service.ts   # Consulta de operaciones con filtros
-│   │   ├── recargas.service.ts           # Recargas celular y bus
-│   │   ├── recargas-virtuales.service.ts # Saldo virtual de recargas
+│   │   ├── recargas.service.ts           # Snapshots de saldo virtual (tabla recargas)
 │   │   └── turnos-caja.service.ts        # Gestión de turnos/apertura de caja
 │   └── dashboard.routes.ts
+│
+├── gastos-diarios/            # Feature de gastos operativos
+│   ├── docs/
+│   │   └── GASTOS-DIARIOS-README.md
+│   ├── models/
+│   │   └── gasto-diario.model.ts         # Interface de gastos
+│   ├── pages/
+│   │   └── gastos-diarios/               # Lista + FAB para registrar gastos
+│   ├── components/
+│   │   └── gasto-modal/                  # Modal para registrar gasto con comprobante
+│   └── services/
+│       └── gastos-diarios.service.ts     # CRUD de gastos del día
+│
+├── recargas-virtuales/        # Feature de saldo virtual CELULAR/BUS
+│   ├── docs/
+│   │   ├── RECARGAS-VIRTUALES-README.md
+│   │   └── sql/                          # Funciones PostgreSQL de recargas
+│   │       ├── registrar_recarga_proveedor_celular_completo.sql
+│   │       ├── registrar_pago_proveedor_celular.sql
+│   │       └── registrar_compra_saldo_bus.sql
+│   ├── pages/
+│   │   ├── recargas-virtuales/           # Panel principal con tabs CELULAR/BUS
+│   │   └── pagar-deudas/                 # Wizard de pago de deudas CELULAR
+│   └── components/
+│       ├── registrar-recarga-modal/      # Modal para nueva carga CELULAR o compra BUS
+│       ├── pagar-deudas-modal/           # Modal para pago de deudas
+│       ├── liquidacion-bus-modal/        # Modal de liquidación mensual BUS
+│       └── historial-modal/              # Modal de historial de recargas
 │
 ├── employees/                 # Feature de empleados
 │   ├── models/
@@ -178,47 +201,31 @@ Este es el módulo principal que agrupa funcionalidades relacionadas con el pane
 - Comparten modelos (OperacionCaja, FiltroFecha)
 - Son accedidos desde el mismo punto de entrada (home)
 
-**Cuándo separar en módulo propio:**
-
-- Si una subfuncionalidad crece a más de 4-5 pages propias
-- Si necesita servicios/modelos exclusivos que no comparte
-- Si se requiere lazy loading específico
+> `gastos-diarios` y `recargas-virtuales` fueron extraídos a features independientes porque tienen servicios/modelos exclusivos y flujos suficientemente complejos para justificarlo. Sus rutas siguen siendo registradas en `dashboard.routes.ts`.
 
 ```
 dashboard/
 ├── models/
 │   ├── operacion-caja.model.ts       # OperacionCaja, FiltroFecha, ResultadoOperaciones
-│   ├── saldos-anteriores.model.ts    # SaldosAnteriores
+│   ├── saldos-anteriores.model.ts    # SaldosAnteriores, DatosCierreDiario
 │   ├── categoria-operacion.model.ts  # CategoriaOperacion
-│   ├── gasto-diario.model.ts         # GastoDiario
 │   └── turno-caja.model.ts           # TurnoCaja
 │
 ├── services/
-│   ├── cajas.service.ts              # obtenerCajas(), actualizarSaldo()
+│   ├── cajas.service.ts              # obtenerCajas(), crearTransferencia()
 │   ├── operaciones-caja.service.ts   # obtenerOperacionesCaja() con filtros
-│   ├── ganancias.service.ts          # calcularGananciasPendientes()
-│   ├── gastos-diarios.service.ts     # CRUD gastos del día
-│   ├── recargas.service.ts           # recargas celular y bus
-│   ├── recargas-virtuales.service.ts # saldo virtual
+│   ├── recargas.service.ts           # snapshots de saldo virtual, cierre diario
 │   └── turnos-caja.service.ts        # abrirTurno(), cerrarTurno()
 │
 ├── components/
-│   ├── gasto-modal/
-│   ├── historial-modal/
-│   ├── liquidacion-bus-modal/
-│   ├── operacion-modal/
-│   ├── pagar-deudas-modal/
-│   └── registrar-recarga-modal/
+│   └── operacion-modal/              # Modal ingreso/egreso de caja
 │
 └── pages/
     ├── home/                         # Dashboard principal
     ├── cierre-diario/                # Cierre de cajas (v4.0 - 1 campo)
     ├── cuadre-caja/                  # Cuadre y verificación
-    ├── gastos-diarios/               # Gastos del día
-    ├── historial-recargas/           # Historial de recargas
-    ├── operaciones-caja/             # Movimientos (filtros, scroll infinito)
-    ├── pagar-deudas/                 # Pago de deudas
-    └── recargas-virtuales/           # Recargas virtuales
+    ├── historial-recargas/           # Historial de recargas (cierres + virtuales)
+    └── operaciones-caja/             # Movimientos (filtros, scroll infinito)
 ```
 
 ---
@@ -347,4 +354,4 @@ Generado por Capacitor. Contiene el proyecto Android Studio.
 
 **IMPORTANTE:** Este documento debe actualizarse cada vez que se agregue una nueva carpeta o feature importante al proyecto.
 
-*Última actualización: 2026-02-11*
+*Última actualización: 2026-02-25*

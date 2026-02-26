@@ -11,7 +11,7 @@ import {
 } from 'ionicons/icons';
 import { ModalController } from '@ionic/angular/standalone';
 import { UiService } from '@core/services/ui.service';
-import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
+import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
 
 type TipoServicio = 'CELULAR' | 'BUS';
 
@@ -82,3 +82,4 @@ export class HistorialModalComponent implements OnInit {
     this.modalCtrl.dismiss();
   }
 }
+

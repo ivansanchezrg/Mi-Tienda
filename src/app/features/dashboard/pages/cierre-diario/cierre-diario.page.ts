@@ -27,7 +27,7 @@ import { UiService } from '@core/services/ui.service';
 import { HasPendingChanges } from '@core/guards/pending-changes.guard';
 import { CurrencyService } from '@core/services/currency.service';
 import { RecargasService } from '../../services/recargas.service';
-import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
+import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
@@ -553,3 +553,4 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   }
 
 }
+

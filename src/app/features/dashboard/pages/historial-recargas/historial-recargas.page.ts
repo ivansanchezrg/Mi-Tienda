@@ -13,7 +13,7 @@ import {
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasService, RecargaHistorial } from '../../services/recargas.service';
-import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
+import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 
 /**
  * Tipo unificado para el historial: engloba tanto cierres de turno

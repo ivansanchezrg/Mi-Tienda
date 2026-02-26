@@ -6,14 +6,17 @@ Aplicación móvil híbrida para gestión de tienda, desarrollada con Ionic Angu
 
 ### General
 
-- **[Configuración Inicial](doc/configuracion-inicial.md)** - Guía paso a paso para configurar el proyecto desde cero
-- **[Estructura del Proyecto](doc/estructura-proyecto.md)** - Organización de carpetas y convenciones
-- **[Google OAuth Setup](doc/GOOGLE_OAUTH_SETUP.md)** - Configuración de Supabase con Google Cloud para OAuth
+- **[Configuración Inicial](docs/CONFIGURACION-INICIAL.md)** - Guía paso a paso para configurar el proyecto desde cero
+- **[Estructura del Proyecto](docs/ESTRUCTURA-PROYECTO.md)** - Organización de carpetas y convenciones
+- **[Google OAuth Setup](docs/GOOGLE_OAUTH_SETUP.md)** - Configuración de Supabase con Google Cloud para OAuth
+- **[Schema SQL](docs/schema.sql)** - Estructura completa de la base de datos (tablas, relaciones, tipos)
 
 ### Por Módulo
 
 - **[Auth](src/app/features/auth/docs/AUTH-README.md)** - Autenticación con Google OAuth (Supabase + Deep Links)
-- **[Dashboard](src/app/features/dashboard/docs/DASHBOARD-README.md)** - Home, Cierre Diario (incluye proceso de recargas, sistema de 4 cajas y trazabilidad completa)
+- **[Dashboard](src/app/features/dashboard/docs/DASHBOARD-README.md)** - Home, Cierre Diario, Cuadre, Apertura de caja (sistema de 4 cajas y trazabilidad completa)
+- **[Gastos Diarios](src/app/features/gastos-diarios/docs/GASTOS-DIARIOS-README.md)** - Registro de gastos operativos con FAB y comprobantes fotográficos
+- **[Recargas Virtuales](src/app/features/recargas-virtuales/docs/RECARGAS-VIRTUALES-README.md)** - Gestión de saldo virtual CELULAR/BUS, deudas, liquidaciones y comisiones
 
 ## 🚀 Stack Tecnológico
 
@@ -34,6 +37,7 @@ Este proyecto implementa un sistema de diseño consistente basado en **Flat Desi
 📖 **[Ver Guía Completa de Diseño →](./docs/DESIGN.md)**
 
 La guía incluye:
+
 - Principios del patrón de diseño
 - Tabla completa de design tokens (spacing, shadows, radius, etc.)
 - Ejemplos de código DO/DON'T
@@ -319,6 +323,7 @@ Despues de modificar `capacitor.config.ts` ejecutar `npx cap sync android`.
 Sistema automático que detecta pérdida de conexión y bloquea operaciones críticas.
 
 **Componentes:**
+
 - **NetworkService** (`core/services/network.service.ts`) - Monitoreo de conexión
 - **OfflineBannerComponent** - Banner rojo que aparece al perder internet
 - **Validación en operaciones** - Bloquea acciones sin conexión
@@ -347,6 +352,7 @@ async ejecutarOperacion() {
 ```
 
 **Banner automático:**
+
 - Aparece en toda la app al perder internet
 - Desaparece automáticamente al recuperar conexión
 - No requiere configuración adicional
@@ -411,6 +417,7 @@ async showError(message: string) {
 **✅ Solución:** Siempre cerrar el loading ANTES de navegar.
 
 **Ejemplo incorrecto:**
+
 ```typescript
 async ejecutarOperacion() {
   await this.ui.showLoading('Procesando...');
@@ -425,6 +432,7 @@ async ejecutarOperacion() {
 ```
 
 **Ejemplo correcto:**
+
 ```typescript
 async ejecutarOperacion() {
   await this.ui.showLoading('Procesando...');
@@ -456,6 +464,7 @@ async ejecutarOperacion() {
 **✅ Solución:** Usar `Promise.all()` para ejecutar consultas independientes en paralelo.
 
 **Ejemplo incorrecto:**
+
 ```typescript
 async cargarDatos() {
   const usuarios = await this.service.getUsuarios();    // Loading 1
@@ -466,6 +475,7 @@ async cargarDatos() {
 ```
 
 **Ejemplo correcto:**
+
 ```typescript
 async cargarDatos() {
   // ✅ Una sola consulta paralela, un solo loading
@@ -479,6 +489,7 @@ async cargarDatos() {
 ```
 
 **Ventajas:**
+
 - ⚡ Más rápido (consultas simultáneas)
 - 🎨 Mejor UX (un solo loading)
 - 🧠 El UiService maneja el contador automáticamente
@@ -552,11 +563,13 @@ export class HomePage extends ScrollablePage implements OnInit {
 ```
 
 **Flujo resultante:**
+
 - ✅ **Después de cierre**: Home se refresca automáticamente
 - ✅ **Navegación normal** (Configuración → Home): NO refresca, evita molestias
 - ✅ **Pull-to-refresh**: Siempre disponible para actualizaciones manuales
 
 **¿Por qué funciona?**
+
 - Ionic cachea las tabs, por eso `ngOnInit` solo se ejecuta una vez
 - `ionViewWillEnter` se ejecuta cada vez que se activa la tab
 - Query params permiten señalizar cuándo es necesario refrescar
@@ -569,6 +582,7 @@ export class HomePage extends ScrollablePage implements OnInit {
 ### NavigatorLockAcquireTimeoutError & Login en Android
 
 **Problema:**
+
 ```
 NavigatorLockAcquireTimeoutError: Acquiring an exclusive Navigator
 LockManager lock "lock:sb-xxx-auth-token" immediately failed
@@ -643,7 +657,7 @@ npm run lint
 
 ## 🏗️ Estructura del Proyecto
 
-Ver documentación completa en [doc/estructura-proyecto.md](doc/estructura-proyecto.md)
+Ver documentación completa en [docs/ESTRUCTURA-PROYECTO.md](docs/ESTRUCTURA-PROYECTO.md)
 
 ```
 src/app/
@@ -676,7 +690,7 @@ git commit -m "tipo(scope): descripción corta" -m "- Detalle 1
 
 Al agregar nuevas funcionalidades:
 
-1. Seguir la estructura de carpetas definida en `doc/estructura-proyecto.md`
+1. Seguir la estructura de carpetas definida en `docs/ESTRUCTURA-PROYECTO.md`
 2. **Seguir el sistema de diseño** definido en [`docs/DESIGN.md`](./docs/DESIGN.md) (design tokens, spacing, colores, step colors)
 3. Usar el patrón de servicios (UiService + SupabaseService)
 4. Actualizar la documentación si es necesario
@@ -689,9 +703,9 @@ Cada feature puede tener su propia documentación dentro de `features/{modulo}/d
 
 ```
 features/{modulo}/docs/MODULO-README.md
+features/{modulo}/docs/sql/   ← funciones SQL relacionadas (si aplica)
 ```
 
-- El nombre del archivo es **NOMBRE_DEL_MODULO + README** todo en **MAYÚSCULAS**
-- Ejemplo: `features/auth/docs/AUTH-README.md`
-- Ejemplo: `features/employees/docs/EMPLOYEES-README.md`
+- El nombre del archivo usa **NOMBRE_DEL_MODULO + README** todo en **MAYÚSCULAS**
+- Ejemplos: `AUTH-README.md`, `GASTOS-DIARIOS-README.md`, `RECARGAS-VIRTUALES-README.md`
 - Referenciar desde el README principal en la sección "Documentación > Por Módulo"

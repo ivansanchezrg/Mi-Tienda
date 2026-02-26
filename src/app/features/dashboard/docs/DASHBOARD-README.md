@@ -10,13 +10,13 @@ Feature principal de la app. Contiene el panel de inicio y las operaciones diari
 
 Panel principal con 4 secciones:
 
-| Sección             | Descripción                                                        | Visible           |
-| ------------------- | ------------------------------------------------------------------ | ----------------- |
-| Estado Banner       | Indicador verde/rojo si la caja está abierta o cerrada             | Siempre           |
-| Saldos              | Lista con saldos de Tienda, Varios, Celular, Bus + total efectivo  | Siempre           |
-| Operaciones Rápidas | Botones de Ingreso, Egreso, Transferir, Gasto                 | Solo caja abierta |
-| Cuadre de Caja      | Acceso rápido para iniciar un cuadre                          | Solo caja abierta |
-| Cierre Diario       | Botón para cerrar o abrir el día                              | Siempre           |
+| Sección             | Descripción                                                       | Visible           |
+| ------------------- | ----------------------------------------------------------------- | ----------------- |
+| Estado Banner       | Indicador verde/rojo si la caja está abierta o cerrada            | Siempre           |
+| Saldos              | Lista con saldos de Tienda, Varios, Celular, Bus + total efectivo | Siempre           |
+| Operaciones Rápidas | Botones de Ingreso, Egreso, Transferir, Gasto                     | Solo caja abierta |
+| Cuadre de Caja      | Acceso rápido para iniciar un cuadre                              | Solo caja abierta |
+| Cierre Diario       | Botón para cerrar o abrir el día                                  | Siempre           |
 
 **Datos:** Conectado a Supabase mediante servicios.
 
@@ -54,52 +54,11 @@ Wizard de 2 pasos para cerrar el día:
 
 ---
 
-### Recargas Virtuales (`pages/recargas-virtuales/`)
+### Recargas Virtuales
 
-Sistema completo de gestión de saldo virtual con dos tabs (CELULAR y BUS).
-
-**Características:**
-
-- 📱 **Tabs CELULAR/BUS** con diferentes modelos de negocio
-- 💰 **Saldo virtual en tiempo real** calculado desde BD
-- ➕ **Registrar recargas** (compra de saldo) mediante modal
-- 💳 **Pagar deudas pendientes** al proveedor (solo CELULAR)
-- 🚌 **Liquidación de compras** de saldo (solo BUS)
-- 📊 **Historial completo** de movimientos
-- 🔄 **Pull-to-refresh** para actualizar datos
-
-**Flujo:**
-
-1. Seleccionar tab (CELULAR o BUS)
-2. Ver saldo virtual actual
-3. Opciones según servicio:
-   - CELULAR: Registrar recarga, Pagar deudas, Ver historial
-   - BUS: Registrar recarga, Liquidar compra, Ver historial
-
-**Documentación completa:** Ver [7_PROCESO_SALDO_VIRTUAL.md](./7_PROCESO_SALDO_VIRTUAL.md)
-
----
-
-### Pagar Deudas (`pages/pagar-deudas/`)
-
-Wizard para gestionar el pago de deudas pendientes con proveedor de CELULAR.
-
-**Características:**
-
-- 📋 **Lista de deudas pendientes** (`pagado = false`)
-- ✅ **Selección múltiple** de deudas a pagar
-- 💰 **Cálculo automático** del monto total
-- 🏦 **Verificación de saldo** disponible en CAJA_CELULAR
-- 📸 **Comprobante obligatorio** de transferencia/pago
-- 💸 **Operación de EGRESO** transaccional
-
-**Flujo:**
-
-1. Cargar deudas pendientes desde `recargas_virtuales`
-2. Usuario selecciona deudas a pagar
-3. Sistema calcula total y verifica saldo
-4. Usuario sube comprobante de pago
-5. Confirma → Sistema marca como pagadas y crea EGRESO
+> ⚠️ **Movido a feature independiente:** `src/app/features/recargas-virtuales/`
+> Las páginas `recargas-virtuales` y `pagar-deudas` ya no están en `dashboard/pages/`. Las rutas `/home/recargas-virtuales` y `/home/pagar-deudas` siguen funcionando igual — solo cambió la ubicación física de los archivos.
+> **Documentación completa:** Ver [SALDO-VIRTUAL-README.md](../../../recargas-virtuales/docs/SALDO-VIRTUAL-README.md)
 
 ---
 
@@ -161,87 +120,25 @@ Historial de movimientos por caja con diseño híbrido (Home pattern + empresari
 
 ---
 
-### Gastos Diarios (`pages/gastos-diarios/`)
+### Gastos Diarios
 
-Página de consulta y gestión del historial de gastos operativos.
-
-**Características:**
-
-- 📊 **Historial completo** de gastos registrados
-- 🔍 **Filtros por fecha** (Hoy, Semana, Mes, Todo)
-- 📸 **Ver comprobantes** de gastos con imágenes
-- 🎨 **Diseño adaptativo** dark/light mode
-
-**Documentación completa:** Ver [6_PROCESO_GASTOS_DIARIOS.md](./6_PROCESO_GASTOS_DIARIOS.md)
+> ⚠️ **Movido a feature independiente:** `src/app/features/gastos-diarios/`
+> La página `gastos-diarios` y el componente `gasto-modal` ya no están en `dashboard/`. La ruta `/home/gastos-diarios` sigue funcionando igual.
+> **Documentación completa:** Ver [GASTOS-DIARIOS-README.md](../../../gastos-diarios/docs/GASTOS-DIARIOS-README.md)
 
 ---
 
 ## Componentes Modales
 
-### Gasto Modal (`components/gasto-modal/`)
+### Gasto Modal
 
-Modal de registro de gastos operativos con acceso desde FAB.
-
-**Características:**
-
-- 💰 **Acceso rápido** desde FAB (Floating Action Button)
-- 📝 **Formulario simplificado** con concepto y monto
-- 📸 **Comprobante opcional** con optimización automática de imágenes
-- ❌ **NO afecta saldos de cajas** (gastos operativos, no transacciones)
-- 🔍 **Trazabilidad completa** con empleado, fecha y concepto
+> ⚠️ **Movido a** `src/app/features/gastos-diarios/components/gasto-modal/`
 
 ---
 
-### Registrar Recarga Modal (`components/registrar-recarga-modal/`)
+### Registrar Recarga / Pagar Deudas / Liquidación Bus / Historial Modal
 
-Modal para registrar compras de saldo virtual (CELULAR o BUS).
-
-**Características:**
-
-- 📱 **Contexto dinámico** según servicio (CELULAR/BUS)
-- 💰 **Cálculo automático** de monto a pagar (solo CELULAR)
-- 📸 **Comprobante obligatorio** de compra al proveedor
-- 💸 **Operación de EGRESO** automática en caja correspondiente
-- ✅ **Validación de saldo** disponible antes de confirmar
-
----
-
-### Pagar Deudas Modal (`components/pagar-deudas-modal/`)
-
-Modal alternativo para pago rápido de deudas (usado desde recargas-virtuales).
-
-**Características:**
-
-- 📋 **Vista compacta** de deudas pendientes
-- ✅ **Selección rápida** de deudas a pagar
-- 💰 **Resumen de totales** en tiempo real
-- 📸 **Comprobante obligatorio** de pago
-
----
-
-### Liquidación Bus Modal (`components/liquidacion-bus-modal/`)
-
-Modal para registrar liquidación de compras de saldo BUS realizadas.
-
-**Características:**
-
-- 🚌 **Específico para BUS** (modelo de compra directa)
-- 💰 **Monto exacto** sin comisión
-- 📸 **Comprobante obligatorio** de depósito al proveedor
-- 💸 **Operación de EGRESO** desde CAJA_BUS
-
----
-
-### Historial Modal (`components/historial-modal/`)
-
-Modal para visualizar historial de movimientos en formato compacto.
-
-**Características:**
-
-- 📜 **Vista rápida** de historial
-- 🔍 **Filtros integrados**
-- 📊 **Agrupación por fecha**
-- 🎨 **Diseño adaptativo**
+> ⚠️ **Movidos a** `src/app/features/recargas-virtuales/components/`
 
 ---
 
@@ -277,15 +174,17 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 
 ## Servicios
 
-| Servicio                 | Archivo                                  | Descripción                                         |
-| ------------------------ | ---------------------------------------- | --------------------------------------------------- |
-| RecargasService          | `services/recargas.service.ts`           | Operaciones de cierre diario, historial de recargas |
-| RecargasVirtualesService | `services/recargas-virtuales.service.ts` | Gestión de saldo virtual, deudas, liquidaciones     |
-| CajasService             | `services/cajas.service.ts`              | Operaciones de cajas, transferencias, saldos        |
-| OperacionesCajaService   | `services/operaciones-caja.service.ts`   | Consulta de operaciones con filtros y paginación    |
-| GananciasService         | `services/ganancias.service.ts`          | Cálculo y verificación de ganancias mensuales       |
-| GastosDiariosService     | `services/gastos-diarios.service.ts`     | Registro de gastos operativos (NO afecta saldos)    |
-| TurnosCajaService        | `services/turnos-caja.service.ts`        | Gestión de turnos de caja (abrir/cerrar)            |
+| Servicio                 | Archivo                                                | Descripción                                         |
+| ------------------------ | ------------------------------------------------------ | --------------------------------------------------- |
+| RecargasService          | `dashboard/services/recargas.service.ts`               | Operaciones de cierre diario, historial de recargas |
+| CajasService             | `dashboard/services/cajas.service.ts`                  | Operaciones de cajas, transferencias, saldos        |
+| OperacionesCajaService   | `dashboard/services/operaciones-caja.service.ts`       | Consulta de operaciones con filtros y paginación    |
+| TurnosCajaService        | `dashboard/services/turnos-caja.service.ts`            | Gestión de turnos de caja (abrir/cerrar)            |
+| RecargasVirtualesService | `core/services/recargas-virtuales.service.ts` ⬆️       | Gestión de saldo virtual, deudas, liquidaciones     |
+| GananciasService         | `core/services/ganancias.service.ts` ⬆️                | Cálculo y verificación de ganancias mensuales       |
+| GastosDiariosService     | `gastos-diarios/services/gastos-diarios.service.ts` ⬆️ | Registro de gastos operativos (NO afecta saldos)    |
+
+> ⬆️ = Movido fuera de dashboard en el refactor de features (2026-02-25)
 
 ---
 
@@ -313,8 +212,8 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 3. **[3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md)** - Flujo completo del cierre diario, arquitectura del sistema de 4 cajas, validaciones y trazabilidad
 4. **[4_PROCESO_CUADRE_RECARGAS.md](./4_PROCESO_CUADRE_RECARGAS.md)** - Calculadora de verificación de efectivo (solo vista, no guarda)
 5. **[5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md)** - Patrón de actualización de UI post-operación (cargarDatos) y gotcha de Supabase INSERT/UPDATE devuelve data:null
-6. **[6_PROCESO_GASTOS_DIARIOS.md](./6_PROCESO_GASTOS_DIARIOS.md)** - Sistema de registro de gastos operativos con FAB y comprobantes
-7. **[7_PROCESO_SALDO_VIRTUAL.md](./7_PROCESO_SALDO_VIRTUAL.md)** - Sistema completo de gestión de saldo virtual (CELULAR/BUS), deudas, liquidaciones y comisiones
+6. **[GASTOS-DIARIOS-README.md](../../../gastos-diarios/docs/GASTOS-DIARIOS-README.md)** - Sistema de registro de gastos operativos con FAB y comprobantes
+7. **[SALDO-VIRTUAL-README.md](../../../recargas-virtuales/docs/SALDO-VIRTUAL-README.md)** - Sistema completo de gestión de saldo virtual (CELULAR/BUS), deudas, liquidaciones y comisiones
 8. **[8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)** - Flujo de apertura de turno, modal de verificación de fondo, estados del banner y tabla turnos_caja
 
 ### Otros Recursos
@@ -363,6 +262,7 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 ### Date Handling
 
 - **NUNCA usar** `new Date().toISOString()` (da UTC, zona horaria incorrecta)
+
 - **SIEMPRE usar** función personalizada `getFechaLocal()`:
   
   ```typescript
