@@ -1,22 +1,21 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCard
+  IonContent, IonIcon, IonCard, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  chevronBackOutline, checkmarkCircleOutline, walletOutline, cashOutline,
-  closeCircleOutline
+  closeOutline, checkmarkCircleOutline, cashOutline,
+  walletOutline, alertCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
+import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
 
 @Component({
-  selector: 'app-pagar-deudas',
-  templateUrl: './pagar-deudas.page.html',
-  styleUrls: ['./pagar-deudas.page.scss'],
+  selector: 'app-pagar-deudas-modal',
+  templateUrl: './pagar-deudas-modal.component.html',
+  styleUrls: ['./pagar-deudas-modal.component.scss'],
   standalone: true,
   imports: [
     CommonModule,
@@ -24,26 +23,23 @@ import { RecargasVirtualesService, RecargaVirtual } from '../../services/recarga
     IonContent, IonIcon, IonCard
   ]
 })
-export class PagarDeudasPage implements OnInit {
-  private router = inject(Router);
+export class PagarDeudasModalComponent implements OnInit {
+  private modalCtrl = inject(ModalController);
   private ui = inject(UiService);
   private service = inject(RecargasVirtualesService);
 
-  pasoActual = 1;
   loading = true;
-
-  // Datos
   deudasPendientes: RecargaVirtual[] = [];
   deudasSeleccionadas = new Set<string>();
   saldoDisponible = 0;
 
   constructor() {
     addIcons({
-      chevronBackOutline,
+      closeOutline,
       checkmarkCircleOutline,
-      walletOutline,
       cashOutline,
-      closeCircleOutline
+      walletOutline,
+      alertCircleOutline
     });
   }
 
@@ -51,32 +47,22 @@ export class PagarDeudasPage implements OnInit {
     await this.cargarDatos();
   }
 
-  ionViewWillEnter() {
-    this.ui.hideTabs();
-  }
-
-  ionViewWillLeave() {
-    this.ui.showTabs();
-  }
-
   async cargarDatos() {
     this.loading = true;
     try {
       const [deudas, saldo] = await Promise.all([
         this.service.obtenerDeudasPendientesCelular(),
-        this.service.getSaldoVirtualActual('CELULAR')
+        this.service.getSaldoCajaActual('CAJA_CELULAR')
       ]);
       this.deudasPendientes = deudas;
       this.saldoDisponible = saldo;
-    } catch (error) {
-      console.error('Error al cargar deudas:', error);
+    } catch {
       await this.ui.showError('Error al cargar las deudas');
     } finally {
       this.loading = false;
     }
   }
 
-  // Paso 1: Selección
   toggleDeuda(id: string) {
     if (this.deudasSeleccionadas.has(id)) {
       this.deudasSeleccionadas.delete(id);
@@ -99,36 +85,30 @@ export class PagarDeudasPage implements OnInit {
       .reduce((sum, d) => sum + d.monto_a_pagar, 0);
   }
 
+  get totalGananciaSeleccionada(): number {
+    return this.deudasPendientes
+      .filter(d => this.deudasSeleccionadas.has(d.id))
+      .reduce((sum, d) => sum + (d.ganancia ?? 0), 0);
+  }
+
   get totalDeudas(): number {
     return this.deudasPendientes.reduce((sum, d) => sum + d.monto_a_pagar, 0);
   }
 
-  async siguientePaso() {
-    if (this.deudasSeleccionadas.size === 0) {
-      await this.ui.showError('Seleccioná al menos una deuda');
-      return;
-    }
-    this.pasoActual = 2;
-  }
-
-  // Paso 2: Confirmación
   get saldoDespues(): number {
-    return this.saldoDisponible - this.totalSeleccionado;
+    return this.saldoDisponible - this.totalSeleccionado - this.totalGananciaSeleccionada;
   }
 
   get saldoSuficiente(): boolean {
     return this.saldoDespues >= 0;
   }
 
-  pasoAnterior() {
-    this.pasoActual = 1;
+  get puedeConfirmar(): boolean {
+    return this.deudasSeleccionadas.size > 0 && this.saldoSuficiente;
   }
 
   async confirmarPago() {
-    if (!this.saldoSuficiente) {
-      await this.ui.showError('Saldo insuficiente en CAJA CELULAR');
-      return;
-    }
+    if (!this.puedeConfirmar) return;
 
     const empleado = await this.service.obtenerEmpleadoActual();
     if (!empleado) {
@@ -143,8 +123,8 @@ export class PagarDeudasPage implements OnInit {
 
     if (!resultado) return;
 
-    await this.ui.showSuccess(`Pago registrado: $${this.totalSeleccionado.toFixed(2)}`);
-    this.router.navigate(['/home/recargas-virtuales'], { queryParams: { refresh: true } });
+    await this.ui.showSuccess(resultado.message ?? `Pago registrado: $${this.totalSeleccionado.toFixed(2)}`);
+    this.modalCtrl.dismiss({ success: true });
   }
 
   formatearFecha(fecha: string): string {
@@ -152,7 +132,8 @@ export class PagarDeudasPage implements OnInit {
     return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
-  volver() {
-    this.router.navigate(['/home/recargas-virtuales']);
+  cerrar() {
+    this.modalCtrl.dismiss();
   }
 }
+

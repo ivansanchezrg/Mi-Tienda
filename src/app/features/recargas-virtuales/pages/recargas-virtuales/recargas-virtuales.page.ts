@@ -15,8 +15,8 @@ import {
   listOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
-import { GananciasService } from '../../services/ganancias.service';
+import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
+import { GananciasService } from '@core/services/ganancias.service';
 import { RegistrarRecargaModalComponent } from '../../components/registrar-recarga-modal/registrar-recarga-modal.component';
 import { PagarDeudasModalComponent } from '../../components/pagar-deudas-modal/pagar-deudas-modal.component';
 import { HistorialModalComponent } from '../../components/historial-modal/historial-modal.component';
@@ -245,3 +245,4 @@ export class RecargasVirtualesPage implements OnInit {
     this.router.navigate(['/home']);
   }
 }
+

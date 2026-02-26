@@ -6,8 +6,11 @@
 -- );
 
 -- ==========================================
--- FUNCIÓN: reparar_deficit_turno (v1.0)
+-- FUNCIÓN: reparar_deficit_turno (v1.1)
 -- ==========================================
+-- CAMBIOS v1.1:
+--   - Reemplaza WHERE id = 1/2 por lookup dinámico con codigo
+--     (consistente con el resto de funciones del proyecto)
 -- Registra el ajuste contable del déficit del turno anterior.
 -- EGRESO de Tienda sin validación de saldo mínimo (el dinero existe físicamente).
 -- INGRESO a Varios solo si p_deficit_caja_chica > 0.
@@ -35,6 +38,8 @@ SET search_path = public
 AS $$
 DECLARE
   v_total_a_reponer DECIMAL(12,2);
+  v_caja_id         INTEGER;
+  v_caja_chica_id   INTEGER;
   v_saldo_tienda    DECIMAL(12,2);
   v_saldo_varios    DECIMAL(12,2);
   v_op_egreso_id    UUID;
@@ -51,8 +56,12 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'Los montos de déficit no pueden ser negativos');
   END IF;
 
+  -- Obtener IDs de cajas por código (consistente con el resto de funciones)
+  SELECT id INTO v_caja_id       FROM cajas WHERE codigo = 'CAJA';
+  SELECT id INTO v_caja_chica_id FROM cajas WHERE codigo = 'CAJA_CHICA';
+
   -- Obtener saldo actual de Tienda (con lock)
-  SELECT saldo_actual INTO v_saldo_tienda FROM cajas WHERE id = 1 FOR UPDATE;
+  SELECT saldo_actual INTO v_saldo_tienda FROM cajas WHERE id = v_caja_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN json_build_object('success', false, 'error', 'No se encontró la caja Tienda');
   END IF;
@@ -74,7 +83,7 @@ BEGIN
     id, caja_id, empleado_id, tipo_operacion, categoria_id,
     monto, saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
   ) VALUES (
-    gen_random_uuid(), 1, p_empleado_id, 'EGRESO', p_cat_egreso_id,
+    gen_random_uuid(), v_caja_id, p_empleado_id, 'EGRESO', p_cat_egreso_id,
     v_total_a_reponer, v_saldo_tienda, v_saldo_tienda - v_total_a_reponer,
     FORMAT(
       'Ajuste déficit turno anterior — Varios: $%s, Fondo: $%s',
@@ -84,11 +93,11 @@ BEGIN
     NULL, NOW()
   ) RETURNING id INTO v_op_egreso_id;
 
-  UPDATE cajas SET saldo_actual = v_saldo_tienda - v_total_a_reponer, updated_at = NOW() WHERE id = 1;
+  UPDATE cajas SET saldo_actual = v_saldo_tienda - v_total_a_reponer, updated_at = NOW() WHERE id = v_caja_id;
 
   -- 2. INGRESO a Varios (solo si hay déficit de caja chica)
   IF p_deficit_caja_chica > 0 THEN
-    SELECT saldo_actual INTO v_saldo_varios FROM cajas WHERE id = 2 FOR UPDATE;
+    SELECT saldo_actual INTO v_saldo_varios FROM cajas WHERE id = v_caja_chica_id FOR UPDATE;
     IF NOT FOUND THEN
       RETURN json_build_object('success', false, 'error', 'No se encontró la caja Varios');
     END IF;
@@ -97,13 +106,13 @@ BEGIN
       id, caja_id, empleado_id, tipo_operacion, categoria_id,
       monto, saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
     ) VALUES (
-      gen_random_uuid(), 2, p_empleado_id, 'INGRESO', p_cat_ingreso_id,
+      gen_random_uuid(), v_caja_chica_id, p_empleado_id, 'INGRESO', p_cat_ingreso_id,
       p_deficit_caja_chica, v_saldo_varios, v_saldo_varios + p_deficit_caja_chica,
       'Reposición déficit turno anterior — pendiente cobrado de Tienda',
       NULL, NOW()
     ) RETURNING id INTO v_op_ingreso_id;
 
-    UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_caja_chica, updated_at = NOW() WHERE id = 2;
+    UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_caja_chica, updated_at = NOW() WHERE id = v_caja_chica_id;
   END IF;
 
   RETURN json_build_object(
@@ -127,5 +136,6 @@ GRANT EXECUTE ON FUNCTION public.reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.reparar_deficit_turno IS
-  'Ajuste contable del déficit del turno anterior al abrir caja. '
-  'EGRESO de Tienda sin validación de saldo mínimo + INGRESO a Varios si hay déficit de caja chica.';
+  'v1.1 - Ajuste contable del déficit del turno anterior al abrir caja. '
+  'EGRESO de Tienda sin validación de saldo mínimo + INGRESO a Varios si hay déficit de caja chica. '
+  'Usa lookup por codigo en lugar de IDs hardcodeados.';

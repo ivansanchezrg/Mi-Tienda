@@ -1,4 +1,10 @@
-# Proceso: Saldo Virtual (Recargas Virtuales)
+# Recargas Virtuales
+
+Feature independiente para la gestión de saldo virtual de CELULAR y BUS. Permite registrar recargas del proveedor, pagar deudas, comprar saldo Bus y liquidar ganancias mensuales.
+
+**Punto de entrada:** Sidebar → Recargas Virtuales → `/home/recargas-virtuales`
+
+---
 
 ## ¿Qué es?
 
@@ -15,18 +21,81 @@ La tienda vende recargas de celular y pasajes de bus usando **saldo virtual** de
 
 ---
 
-## Archivos
+## Páginas
 
-| Archivo | Rol |
-|---|---|
-| `pages/recargas-virtuales/recargas-virtuales.page.ts` | Página principal con tabs CELULAR / BUS |
-| `pages/recargas-virtuales/recargas-virtuales.page.html` | UI: saldo actual, botones de acciones, deudas pendientes |
-| `components/registrar-recarga-modal/` | Modal compartido para CELULAR (registrar deuda) y BUS (registrar compra) |
-| `components/pagar-deudas-modal/` | Lista deudas CELULAR pendientes, permite seleccionar y pagar |
-| `components/liquidacion-bus-modal/` | Registra el saldo acreditado por el proveedor + transfiere ganancia mensual a CAJA_CHICA |
-| `components/historial-modal/` | Últimas 50 recargas del servicio activo (CELULAR o BUS) |
-| `services/recargas-virtuales.service.ts` | Toda la lógica: RPCs, lecturas de saldo, historial, deudas |
-| `services/ganancias.service.ts` | Calcula ganancia BUS del mes anterior + verifica si ya se transfirió (usado también en Home para el badge) |
+### Recargas Virtuales (`pages/recargas-virtuales/`)
+
+Panel principal con dos tabs (CELULAR / BUS):
+
+| Tab | Muestra | Acciones |
+| --- | --- | --- |
+| CELULAR | Saldo virtual actual + lista de deudas pendientes | Registrar recarga, Pagar deudas, Ver historial |
+| BUS | Saldo virtual actual + botón de liquidación si hay ganancia del mes anterior | Comprar saldo, Liquidar ganancia, Ver historial |
+
+**Ruta:** `/home/recargas-virtuales`
+
+---
+
+### Pagar Deudas (`pages/pagar-deudas/`)
+
+Wizard de 2 pasos para saldar deudas con el proveedor CELULAR:
+
+- **Paso 1:** Lista de deudas pendientes con selección individual o total
+- **Paso 2:** Confirmación con saldo antes/después y validación de fondos suficientes
+
+**Ruta:** `/home/pagar-deudas`
+
+---
+
+## Componentes Modales
+
+### Registrar Recarga Modal (`components/registrar-recarga-modal/`)
+
+Modal compartido para dos flujos según el `tipo` recibido:
+
+- **CELULAR:** Registra una carga del proveedor → crea deuda pendiente (`pagado=false`)
+- **BUS:** Registra una compra de saldo → EGRESO inmediato de CAJA_BUS (`pagado=true`)
+
+---
+
+### Pagar Deudas Modal (`components/pagar-deudas-modal/`)
+
+Lista deudas CELULAR pendientes con selección múltiple. Al confirmar llama a `registrar_pago_proveedor_celular` que descuenta de CAJA_CELULAR y transfiere la ganancia a CAJA_CHICA.
+
+---
+
+### Liquidación Bus Modal (`components/liquidacion-bus-modal/`)
+
+Registra el saldo acreditado por el proveedor BUS al fin de cada mes (1% de comisión) y transfiere la ganancia calculada a CAJA_CHICA.
+
+---
+
+### Historial Modal (`components/historial-modal/`)
+
+Muestra las últimas 50 recargas del servicio activo (CELULAR o BUS).
+
+---
+
+## Rutas
+
+```
+/home/recargas-virtuales  → RecargasVirtualesPage
+/home/pagar-deudas        → PagarDeudasPage
+```
+
+> Las rutas están definidas en `dashboard/dashboard.routes.ts` (el routing sigue siendo del dashboard).
+
+---
+
+## Servicios
+
+| Servicio | Ubicación | Descripción |
+| --- | --- | --- |
+| `RecargasVirtualesService` | `core/services/recargas-virtuales.service.ts` | Saldo virtual, deudas, RPCs de registro y pago |
+| `GananciasService` | `core/services/ganancias.service.ts` | Ganancia BUS del mes anterior + verificación de liquidación |
+| `CajasService` | `dashboard/services/cajas.service.ts` | Transferencia de ganancia BUS a CAJA_CHICA (liquidación) |
+
+> `RecargasVirtualesService` y `GananciasService` están en `core/` porque también los usan `dashboard` (Home, CuadreCaja, CierreDiario).
 
 ---
 
@@ -168,11 +237,11 @@ home.page.ts → cargarDatos()
 
 ## Funciones SQL
 
-> 📄 `registrar_recarga_proveedor_celular_completo` → [docs/sql/registrar_recarga_proveedor_celular_completo.sql]
+> 📄 `registrar_recarga_proveedor_celular_completo` → [sql/registrar_recarga_proveedor_celular_completo.sql](sql/registrar_recarga_proveedor_celular_completo.sql)
 
-> 📄 `registrar_pago_proveedor_celular` → [docs/sql/registrar_pago_proveedor_celular.sql]
+> 📄 `registrar_pago_proveedor_celular` → [sql/registrar_pago_proveedor_celular.sql](sql/registrar_pago_proveedor_celular.sql)
 
-> 📄 `registrar_compra_saldo_bus` → [docs/sql/registrar_compra_saldo_bus.sql]
+> 📄 `registrar_compra_saldo_bus` → [sql/registrar_compra_saldo_bus.sql](sql/registrar_compra_saldo_bus.sql)
 
 ---
 
@@ -181,3 +250,14 @@ home.page.ts → cargarDatos()
 - `RecargasVirtualesService` usa `throw response.error` en métodos de lectura directa (`getPorcentajeComision`, `getSaldoVirtualActual`, `obtenerDeudasPendientesCelular`, etc.). Los callers tienen try/catch.
 - `registrarRecargaProveedorCelularCompleto()` lanza `Error('respuesta vacía')` si `supabase.call()` retorna null. El `confirmar()` en `RegistrarRecargaModalComponent` tiene try/catch que lo captura y muestra `error.message`.
 - El porcentaje de comisión (5% CELULAR, 1% BUS) viene de la tabla `tipos_servicio`, no está hardcodeado en el código.
+
+---
+
+## Estado del Proyecto
+
+- ✅ Registro de recargas CELULAR (con deuda pendiente)
+- ✅ Pago al proveedor CELULAR (selección múltiple)
+- ✅ Compra de saldo BUS (modo básico y extendido)
+- ✅ Liquidación mensual de ganancia BUS
+- ✅ Historial de recargas por servicio
+- ✅ Badge de notificación en Home cuando hay ganancia BUS pendiente

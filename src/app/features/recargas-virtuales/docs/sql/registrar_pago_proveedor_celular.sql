@@ -1,8 +1,12 @@
 -- ==========================================
 -- FUNCIÓN: registrar_pago_proveedor_celular
--- VERSIÓN: 2.0
--- FECHA: 2026-02-20
+-- VERSIÓN: 2.1
+-- FECHA: 2026-02-25
 -- ==========================================
+-- CAMBIOS v2.1:
+--   - Eliminado lookup de TR-001 (no existe en categorias_operaciones)
+--   - categoria_id = NULL para TRANSFERENCIA_SALIENTE/ENTRANTE
+--     (consistente con ejecutar_cierre_diario y el schema actual)
 -- Registra el pago al proveedor CELULAR de forma atómica:
 --   1. Valida deudas y calcula totales (monto_a_pagar + ganancia)
 --   2. Crea EGRESO en operaciones_cajas (CAJA_CELULAR) — pago al proveedor
@@ -39,7 +43,6 @@ DECLARE
   v_caja_chica_id          INTEGER;
   v_tipo_ref_id            INTEGER;
   v_categoria_eg010_id     INTEGER;
-  v_categoria_tr_id        INTEGER;
   v_total_a_pagar          NUMERIC;
   v_total_ganancia         NUMERIC;
   v_total_egreso           NUMERIC;
@@ -62,7 +65,7 @@ BEGIN
   SELECT id INTO v_caja_chica_id   FROM cajas WHERE codigo = 'CAJA_CHICA';
   SELECT id INTO v_tipo_ref_id     FROM tipos_referencia WHERE codigo = 'RECARGAS_VIRTUALES';
   SELECT id INTO v_categoria_eg010_id FROM categorias_operaciones WHERE codigo = 'EG-010';
-  SELECT id INTO v_categoria_tr_id    FROM categorias_operaciones WHERE codigo = 'TR-001';
+  -- TRANSFERENCIA_SALIENTE/ENTRANTE no requieren categoria_id (NULL permitido en schema)
 
   IF v_caja_celular_id IS NULL THEN
     RAISE EXCEPTION 'Caja CAJA_CELULAR no encontrada';
@@ -152,13 +155,13 @@ BEGIN
     id, fecha, caja_id, empleado_id,
     tipo_operacion, monto,
     saldo_anterior, saldo_actual,
-    categoria_id, tipo_referencia_id,
+    tipo_referencia_id,
     descripcion, created_at
   ) VALUES (
     v_operacion_sal_id, NOW(), v_caja_celular_id, p_empleado_id,
     'TRANSFERENCIA_SALIENTE', v_total_ganancia,
     v_saldo_celular_ant - v_total_a_pagar, v_saldo_celular_nuevo,
-    v_categoria_tr_id, v_tipo_ref_id,
+    v_tipo_ref_id,
     'Ganancia celular → Caja Chica',
     NOW()
   );
@@ -170,13 +173,13 @@ BEGIN
     id, fecha, caja_id, empleado_id,
     tipo_operacion, monto,
     saldo_anterior, saldo_actual,
-    categoria_id, tipo_referencia_id,
+    tipo_referencia_id,
     descripcion, created_at
   ) VALUES (
     v_operacion_ent_id, NOW(), v_caja_chica_id, p_empleado_id,
     'TRANSFERENCIA_ENTRANTE', v_total_ganancia,
     v_saldo_chica_ant, v_saldo_chica_nuevo,
-    v_categoria_tr_id, v_tipo_ref_id,
+    v_tipo_ref_id,
     'Ganancia celular recibida desde Caja Celular',
     NOW()
   );
@@ -224,9 +227,10 @@ END;
 $$;
 
 COMMENT ON FUNCTION registrar_pago_proveedor_celular IS
-'v2.0 - Registra pago al proveedor CELULAR. Crea EGRESO en CAJA_CELULAR (monto_a_pagar)
+'v2.1 - Registra pago al proveedor CELULAR. Crea EGRESO en CAJA_CELULAR (monto_a_pagar)
 y transfiere la ganancia acumulada (de recargas_virtuales.ganancia) a CAJA_CHICA.
-Ganancia NO hardcodeada: se lee de cada deuda seleccionada.';
+Ganancia NO hardcodeada: se lee de cada deuda seleccionada.
+Las operaciones TRANSFERENCIA_SALIENTE/ENTRANTE no usan categoria_id (NULL).';
 
 GRANT EXECUTE ON FUNCTION registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) TO anon;

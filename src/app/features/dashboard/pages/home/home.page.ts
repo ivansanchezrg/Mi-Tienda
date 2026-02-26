@@ -26,7 +26,7 @@ import { RecargasService } from '../../services/recargas.service';
 import { CajasService, Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
-import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
+import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { EstadoCaja } from '../../models/turno-caja.model';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
@@ -1078,3 +1078,4 @@ export class VerificarFondoModalComponent {
     this.modalCtrl.dismiss({ confirmado: true }, 'confirm');
   }
 }
+

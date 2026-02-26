@@ -1,29 +1,25 @@
 # Abrir Caja — Referencia Técnica
 
-## ¿Qué es?
+## 1. Arquitectura
 
-Proceso para **abrir el turno de trabajo** al inicio del día. Crea el registro en `turnos_caja` que el cierre diario necesita para ejecutar `ejecutar_cierre_diario`. Si el turno anterior cerró con déficit, primero se repara ese déficit antes de abrir el nuevo turno.
+### Archivos involucrados
 
-**Principio clave:** Abrir caja **no afecta saldos**. Solo crea el `turno_id` del día.
-
----
-
-## 1. Archivos involucrados
-
-| Archivo | Rol |
-|---|---|
-| `pages/home/home.page.ts` | `onAbrirCaja()`, `mostrarModalVerificacionFondo()`, `VerificarFondoModalComponent` (inline) |
+| Archivo                           | Rol                                                                                                              |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `pages/home/home.page.ts`         | `onAbrirCaja()`, `mostrarModalVerificacionFondo()`, `VerificarFondoModalComponent` (inline)                      |
 | `services/turnos-caja.service.ts` | `abrirTurno()`, `obtenerEstadoCaja()`, `obtenerFondoFijo()`, `obtenerDeficitTurnoAnterior()`, `repararDeficit()` |
-| `models/turno-caja.model.ts` | `TurnoCaja`, `TurnoCajaConEmpleado`, `EstadoCaja` |
+| `models/turno-caja.model.ts`      | `TurnoCaja`, `TurnoCajaConEmpleado`, `EstadoCaja`                                                                |
 
-### Tablas involucradas
+### Tabla involucrada
 
-| Tabla | Rol |
-|---|---|
-| `turnos_caja` | 1 registro por apertura. `hora_cierre IS NULL` = turno activo. `hora_cierre` la escribe `ejecutar_cierre_diario` — no se cierra manualmente. |
-| `caja_fisica_diaria` | El cierre escribe aquí el `deficit_caja_chica`. Lo lee `obtenerDeficitTurnoAnterior()` al abrir el turno siguiente. |
-| `operaciones_cajas` | `repararDeficit()` inserta aquí el EGRESO de Tienda y el INGRESO a Varios. |
-| `configuraciones` | `fondo_fijo_diario` — cuánto debe haber en la caja física para operar. |
+| Tabla                | Rol                                                                                                                                          |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `turnos_caja`        | 1 registro por apertura. `hora_cierre IS NULL` = turno activo. `hora_cierre` la escribe `ejecutar_cierre_diario` — no se cierra manualmente. |
+| `caja_fisica_diaria` | El cierre escribe aquí el `deficit_caja_chica`. Lo lee `obtenerDeficitTurnoAnterior()` al abrir el turno siguiente.                          |
+| `operaciones_cajas`  | `repararDeficit()` inserta aquí el EGRESO de Tienda y el INGRESO a Varios.                                                                   |
+| `configuraciones`    | `fondo_fijo_diario` — cuánto debe haber en la caja física para operar.                                                                       |
+
+> **Principio clave:** Abrir caja **no afecta saldos**. Solo crea el `turno_id` que el cierre diario necesita para ejecutar `ejecutar_cierre_diario`.
 
 ---
 
@@ -64,11 +60,11 @@ cargarDatos() → refresca banner en Home
 
 ## 3. Estados del banner (Home)
 
-| Estado | Condición en BD | Título | Descripción | Botón |
-|---|---|---|---|---|
-| `SIN_ABRIR` | Sin turnos hoy | Sin Turno | "Abrí turno para iniciar operaciones" | Abrir Caja |
-| `TURNO_EN_CURSO` | Turno con `hora_cierre IS NULL` | Turno Activo | Nombre del empleado | Cerrar Turno |
-| `CERRADA` | Todos los turnos tienen `hora_cierre` | Turno Cerrado | "Caja cerrada por hoy" | Abrir Caja |
+| Estado           | Condición en BD                       | Título        | Descripción                           | Botón        |
+| ---------------- | ------------------------------------- | ------------- | ------------------------------------- | ------------ |
+| `SIN_ABRIR`      | Sin turnos hoy                        | Sin Turno     | "Abrí turno para iniciar operaciones" | Abrir Caja   |
+| `TURNO_EN_CURSO` | Turno con `hora_cierre IS NULL`       | Turno Activo  | Nombre del empleado                   | Cerrar Turno |
+| `CERRADA`        | Todos los turnos tienen `hora_cierre` | Turno Cerrado | "Caja cerrada por hoy"                | Abrir Caja   |
 
 `turnosHoy` se incluye en `EstadoCaja` — útil para saber si es el 1er o 2do turno del día.
 
@@ -91,6 +87,7 @@ Si ambos son `0` → no hay déficit → el modal salta directamente al Paso 2.
 > 📄 Código fuente completo: [`docs/sql/reparar_deficit_turno.sql`](./sql/reparar_deficit_turno.sql)
 
 `repararDeficit(deficitCajaChica, fondoFaltante)` llama a `rpc('reparar_deficit_turno', {...})` que en una transacción atómica:
+
 1. `EGRESO` de Tienda por `(deficitCajaChica + fondoFaltante)` — categoría `EG-012`
 2. `INGRESO` a Varios por `deficitCajaChica` si > 0 — categoría `IN-004`
 
@@ -103,6 +100,7 @@ Si el RPC retorna error → `repararDeficit()` devuelve `{ ok: false, errorMsg: 
 ## 5. `abrirTurno()`
 
 Validaciones (retorna `false` en cualquiera — Home muestra error al usuario):
+
 1. Ya existe un turno con `hora_cierre IS NULL` para la fecha de hoy → solo puede haber 1 activo
 2. No se pudo obtener el empleado desde Preferences → sesión inválida
 

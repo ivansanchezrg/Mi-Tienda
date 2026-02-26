@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
 import { SaldosAnteriores, DatosCierreDiario, ParamsCierreDiario } from '../models/saldos-anteriores.model';
-import { RecargasVirtualesService } from './recargas-virtuales.service';
+import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 
 /**
  * Tipo de retorno de la query de saldo virtual
