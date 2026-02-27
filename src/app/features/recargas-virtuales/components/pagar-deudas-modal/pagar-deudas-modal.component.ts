@@ -11,6 +11,7 @@ import {
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
+import { AuthService } from '../../../auth/services/auth.service';
 
 @Component({
   selector: 'app-pagar-deudas-modal',
@@ -27,6 +28,7 @@ export class PagarDeudasModalComponent implements OnInit {
   private modalCtrl = inject(ModalController);
   private ui = inject(UiService);
   private service = inject(RecargasVirtualesService);
+  private authService = inject(AuthService);
 
   loading = true;
   deudasPendientes: RecargaVirtual[] = [];
@@ -110,7 +112,7 @@ export class PagarDeudasModalComponent implements OnInit {
   async confirmarPago() {
     if (!this.puedeConfirmar) return;
 
-    const empleado = await this.service.obtenerEmpleadoActual();
+    const empleado = await this.authService.getEmpleadoActual();
     if (!empleado) {
       await this.ui.showError('No se pudo obtener el empleado');
       return;

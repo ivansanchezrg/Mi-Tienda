@@ -1,14 +1,13 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
+  IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
   IonContent, IonIcon, IonCard, IonSpinner,
   IonRefresher, IonRefresherContent
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  chevronBackOutline, phonePortraitOutline, busOutline, listOutline,
+  phonePortraitOutline, busOutline, listOutline,
   cloudDownloadOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
@@ -54,13 +53,12 @@ interface FiltroOption {
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
+    IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
     IonContent, IonIcon, IonCard, IonSpinner,
     IonRefresher, IonRefresherContent
   ]
 })
 export class HistorialRecargasPage implements OnInit {
-  private router = inject(Router);
   private ui = inject(UiService);
   private recargasService = inject(RecargasService);
   private recargasVirtualesService = inject(RecargasVirtualesService);
@@ -79,7 +77,6 @@ export class HistorialRecargasPage implements OnInit {
 
   constructor() {
     addIcons({
-      chevronBackOutline,
       phonePortraitOutline,
       busOutline,
       listOutline,
@@ -211,10 +208,6 @@ export class HistorialRecargasPage implements OnInit {
   async handleRefresh(event: any) {
     await this.cargarHistorial();
     event.target.complete();
-  }
-
-  volver() {
-    this.router.navigate(['/home']);
   }
 
   getIconoServicio(servicio: string): string {

@@ -1,4 +1,4 @@
-import { Directive, ElementRef, HostListener } from '@angular/core';
+import { Directive, ElementRef, HostListener, inject } from '@angular/core';
 
 /**
  * Directiva que permite solo números, punto y coma en campos de entrada
@@ -26,8 +26,7 @@ import { Directive, ElementRef, HostListener } from '@angular/core';
   standalone: true
 })
 export class NumbersOnlyDirective {
-
-  constructor(private el: ElementRef<HTMLInputElement>) {}
+  private el = inject<ElementRef<HTMLInputElement>>(ElementRef);
 
   /**
    * Regex que permite solo números, punto y coma

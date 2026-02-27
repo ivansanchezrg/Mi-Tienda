@@ -1,0 +1,93 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Nuevo Usuario</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cancelar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <form [formGroup]="form">
+    <div class="form-content">
+
+      <!-- Nombre -->
+      <div class="input-group">
+        <label class="input-label">
+          Nombre
+          <span class="required-badge">Obligatorio</span>
+        </label>
+        <input
+          type="text"
+          placeholder="Ej: María García"
+          formControlName="nombre"
+          autocomplete="off"
+          autofocus>
+        @if (form.get('nombre')?.invalid && form.get('nombre')?.touched) {
+          <span class="input-error">Ingresá el nombre del usuario</span>
+        }
+      </div>
+
+      <!-- Usuario -->
+      <div class="input-group">
+        <label class="input-label">
+          Usuario / Email
+          <span class="required-badge">Obligatorio</span>
+        </label>
+        <input
+          type="text"
+          placeholder="Ej: maria@tienda.com"
+          formControlName="usuario"
+          autocomplete="off"
+          autocapitalize="none">
+        @if (form.get('usuario')?.invalid && form.get('usuario')?.touched) {
+          <span class="input-error">Ingresá un email válido (ej: maria@gmail.com)</span>
+        }
+      </div>
+
+      <!-- Rol -->
+      <div class="input-group">
+        <label class="input-label">Rol</label>
+        <div class="rol-selector">
+          <div
+            class="rol-option"
+            [class.selected]="form.get('rol')?.value === 'EMPLEADO'"
+            (click)="form.get('rol')?.setValue('EMPLEADO')">
+            <div class="rol-icon empleado">E</div>
+            <div class="rol-info">
+              <div class="rol-name">Empleado</div>
+              <div class="rol-desc">Acceso a operaciones diarias</div>
+            </div>
+          </div>
+          <div
+            class="rol-option"
+            [class.selected]="form.get('rol')?.value === 'ADMIN'"
+            (click)="form.get('rol')?.setValue('ADMIN')">
+            <div class="rol-icon admin">A</div>
+            <div class="rol-info">
+              <div class="rol-name">Administrador</div>
+              <div class="rol-desc">Acceso completo al sistema</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botón -->
+      <button
+        type="button"
+        class="submit-btn"
+        [disabled]="form.invalid || guardando"
+        (click)="confirmar()">
+        @if (guardando) {
+          <ion-spinner name="crescent"></ion-spinner>
+          Registrando...
+        } @else {
+          Registrar Usuario
+        }
+      </button>
+
+    </div>
+  </form>
+</ion-content>

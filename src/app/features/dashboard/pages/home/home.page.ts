@@ -16,7 +16,8 @@ import {
   receiptOutline, clipboardOutline, notificationsOutline, close,
   notificationsOffOutline, cloudOfflineOutline, alertCircleOutline,
   ellipsisVertical, listOutline, lockOpenOutline, lockClosedOutline,
-  timeOutline, playOutline, stopOutline, briefcaseOutline
+  timeOutline, playOutline, stopOutline, briefcaseOutline,
+  eyeOutline, eyeOffOutline
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
@@ -98,6 +99,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   notificacionesPendientes = 0;
   deudasPendientesCelular: RecargaVirtual[] = [];
 
+  // Privacidad: ocultar/mostrar montos
+  montosOcultos = false;
+
   constructor() {
     super();
     addIcons({
@@ -107,7 +111,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       receiptOutline, clipboardOutline, notificationsOutline, close,
       notificationsOffOutline, cloudOfflineOutline, alertCircleOutline,
       ellipsisVertical, listOutline, lockOpenOutline, lockClosedOutline,
-      timeOutline, playOutline, stopOutline, briefcaseOutline
+      timeOutline, playOutline, stopOutline, briefcaseOutline,
+      eyeOutline, eyeOffOutline
     });
   }
 
@@ -250,6 +255,10 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   async handleRefresh(event: any) {
     await this.cargarDatos();
     event.target.complete();
+  }
+
+  toggleMontosOcultos() {
+    this.montosOcultos = !this.montosOcultos;
   }
 
   /**

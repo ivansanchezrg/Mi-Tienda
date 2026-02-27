@@ -10,6 +10,12 @@ ion-tab-bar {
   padding-bottom: var(--spacing-md);
 }
 
+// Oculta el tab-bar sin eliminarlo del DOM,
+// para que ion-tabs siga trackeando la tab activa.
+ion-tab-bar.tabs-oculto {
+  display: none;
+}
+
 // Contenedor del FAB como tab
 .fab-tab-container {
   display: flex;

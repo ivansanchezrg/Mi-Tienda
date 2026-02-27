@@ -1,0 +1,230 @@
+// ==========================================
+// EDITAR EMPLEADO MODAL
+// ==========================================
+
+.form-content {
+  padding: var(--spacing-xl) var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+// ==========================================
+// HEADER DEL EMPLEADO
+// ==========================================
+
+.employee-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  background: var(--ion-item-background);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-level-1);
+}
+
+.employee-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-full);
+  background: var(--ion-color-primary);
+  color: white;
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.employee-meta {
+  flex: 1;
+}
+
+.employee-usuario {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  font-weight: var(--font-weight-medium);
+}
+
+// ==========================================
+// INPUTS
+// ==========================================
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.input-label {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-text-color);
+}
+
+input {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: 1.5px solid var(--ion-color-step-150);
+  border-radius: var(--radius-xs);
+  font-size: 15px;
+  background: var(--ion-item-background);
+  color: var(--ion-text-color);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast);
+
+  &:focus {
+    border-color: var(--ion-color-primary);
+  }
+
+  &::placeholder {
+    color: var(--ion-color-medium);
+  }
+}
+
+.input-error {
+  font-size: 12px;
+  color: var(--ion-color-danger);
+}
+
+// ==========================================
+// ROL SELECTOR
+// ==========================================
+
+.rol-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.rol-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--ion-color-step-150);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  background: var(--ion-item-background);
+
+  &.selected {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
+  }
+}
+
+.rol-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &.empleado {
+    background: rgba(var(--ion-color-medium-rgb), var(--opacity-medium));
+    color: var(--ion-color-medium-shade);
+  }
+
+  &.admin {
+    background: rgba(var(--ion-color-primary-rgb), var(--opacity-medium));
+    color: var(--ion-color-primary);
+  }
+}
+
+.rol-name {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-text-color);
+}
+
+.rol-desc {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  margin-top: var(--spacing-xs);
+}
+
+// ==========================================
+// ESTADO SELECTOR
+// ==========================================
+
+.estado-selector {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.estado-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--ion-color-step-150);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-medium);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  background: var(--ion-item-background);
+
+  &.selected {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
+    color: var(--ion-text-color);
+  }
+}
+
+.estado-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+
+  &.activo {
+    background: var(--ion-color-success);
+  }
+
+  &.inactivo {
+    background: var(--ion-color-danger);
+  }
+}
+
+// ==========================================
+// BOTÓN
+// ==========================================
+
+.submit-btn {
+  width: 100%;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--ion-color-primary);
+  color: white;
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  transition: opacity var(--transition-fast);
+  margin-top: var(--spacing-xs);
+
+  &:disabled {
+    opacity: var(--opacity-disabled);
+    cursor: not-allowed;
+  }
+
+  ion-spinner {
+    width: 18px;
+    height: 18px;
+    --color: white;
+  }
+}

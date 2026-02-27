@@ -9,6 +9,12 @@
 -- Para resetear el sistema, ejecutar nuevamente (incluye DROP de tablas).
 --
 -- Fecha: 2026-02-24
+-- Versión: 4.8 - Sistema de roles en empleados
+--   • CAMBIOS v4.8: Campo `rol` en tabla empleados
+--   • Roles disponibles: 'ADMIN', 'EMPLEADO' (jerarquía: ADMIN ⊃ EMPLEADO)
+--   • Default: 'EMPLEADO' — el admin debe asignarse manualmente
+--   • Permite control de acceso por rutas en Angular (roleGuard)
+--   • Para BD existente: ALTER TABLE empleados ADD COLUMN rol VARCHAR(20) NOT NULL DEFAULT 'EMPLEADO' CHECK (rol IN ('ADMIN', 'EMPLEADO'));
 -- Versión: 4.7 - Limpieza de campos obsoletos en recargas
 --   • CAMBIOS v4.7: Eliminación de campos redundantes
 --   • Eliminados exceso_sobre_base y exceso_transferido de tabla recargas
@@ -89,6 +95,7 @@ CREATE TABLE IF NOT EXISTS empleados (
     id SERIAL PRIMARY KEY,
     nombre VARCHAR(255) NOT NULL,
     usuario VARCHAR(50) NOT NULL UNIQUE,        -- Email de Google OAuth
+    rol VARCHAR(20) NOT NULL DEFAULT 'EMPLEADO' CHECK (rol IN ('ADMIN', 'EMPLEADO')),
     activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -367,9 +374,9 @@ INSERT INTO categorias_operaciones (tipo, nombre, codigo, descripcion) VALUES
 INSERT INTO configuraciones (fondo_fijo_diario, celular_alerta_saldo_bajo, caja_chica_transferencia_diaria, bus_dias_antes_facturacion) VALUES
 (40.00, 50.00, 20.00, 3);
 
--- Empleado inicial del sistema
-INSERT INTO empleados (nombre, usuario) VALUES
-('Ivan Sanchez', 'ivansan2192@gmail.com');
+-- Empleado inicial del sistema (ADMIN por defecto)
+INSERT INTO empleados (nombre, usuario, rol) VALUES
+('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN');
 
 -- NOTA v4.1: Los registros de recargas se crean automáticamente con el primer cierre
 -- Ya no se insertan registros iniciales aquí porque requieren un turno_id
@@ -379,6 +386,7 @@ INSERT INTO empleados (nombre, usuario) VALUES
 -- COMENTARIOS PARA DOCUMENTACIÓN
 -- ==========================================
 COMMENT ON TABLE empleados IS 'Usuarios del sistema que pueden operar las cajas';
+COMMENT ON COLUMN empleados.rol IS 'Rol del empleado: ADMIN (acceso total) o EMPLEADO (acceso operativo). ADMIN ⊃ EMPLEADO — un admin tiene todos los permisos de empleado más los administrativos.';
 COMMENT ON TABLE cajas IS 'Cajas de efectivo físico (CAJA, CAJA_CHICA) y virtual (CELULAR, BUS)';
 COMMENT ON TABLE configuraciones IS 'Configuración global del sistema';
 COMMENT ON TABLE tipos_servicio IS 'Tipos de servicio de recarga con sus reglas de negocio';

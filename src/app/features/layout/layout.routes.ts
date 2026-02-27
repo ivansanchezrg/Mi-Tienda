@@ -11,8 +11,8 @@ export const LAYOUT_ROUTES: Routes = [
         loadChildren: () => import('../dashboard/dashboard.routes').then(m => m.DASHBOARD_ROUTES)
       },
       {
-        path: 'employees',
-        loadChildren: () => import('../employees/employees.routes').then(m => m.EMPLOYEES_ROUTES)
+        path: 'usuarios',
+        loadChildren: () => import('../usuarios/usuarios.routes').then(m => m.USUARIOS_ROUTES)
       },
       {
         path: 'ventas',

@@ -12,11 +12,8 @@ export class SupabaseService {
 
   public client: SupabaseClient = createClient(environment.supabaseUrl, environment.supabaseKey);
 
-  // Variable crítica para Android (según tu MD)  >>>> NUEVO
+  /** URL de deep-link pendiente de procesar (OAuth callback en Android) */
   public pendingDeepLinkUrl: string | null = null;
-
-
-  constructor() {}
 
   /**
    * Inicia el flujo de OAuth.
@@ -52,13 +49,16 @@ export class SupabaseService {
    * MÉTODO MAESTRO: Maneja Loading, Error y Data
    * @param promise La promesa de la query de Supabase
    * @param successMessage (Opcional) Mensaje para mostrar Toast si sale bien
+   * @param options.showLoading (Opcional) Si mostrar spinner de carga, default: true
    */
   async call<T>(
     promise: PromiseLike<any>,
-    successMessage?: string
+    successMessage?: string,
+    options?: { showLoading?: boolean }
   ): Promise<T | null> { // Retorna null si hay error
 
-    await this.ui.showLoading();
+    const showLoading = options?.showLoading !== false;
+    if (showLoading) await this.ui.showLoading();
 
     try {
       // 1. Ejecutamos la promesa
@@ -88,8 +88,8 @@ export class SupabaseService {
       return null; // Retornamos null para que la UI sepa que falló
 
     } finally {
-      // 6. Siempre cerrar el loading
-      await this.ui.hideLoading();
+      // 6. Cerrar el loading solo si se abrió
+      if (showLoading) await this.ui.hideLoading();
     }
   }
 }

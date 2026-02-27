@@ -1,9 +1,7 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-button (click)="volver()">
-        <ion-icon slot="icon-only" name="chevron-back-outline"></ion-icon>
-      </ion-button>
+      <ion-menu-button></ion-menu-button>
     </ion-buttons>
     <ion-title>Recargas Virtuales</ion-title>
   </ion-toolbar>
@@ -26,14 +24,7 @@
     </button>
   </div>
 
-  @if (loading) {
-    <div class="empty-state">
-      <ion-spinner name="crescent"></ion-spinner>
-      <p>Cargando...</p>
-    </div>
-  } @else {
-
-    <!-- ====================== -->
+  <!-- ====================== -->
     <!-- TAB CELULAR            -->
     <!-- ====================== -->
     @if (tabActivo === 'CELULAR') {
@@ -152,5 +143,4 @@
 
     }
 
-  }
 </ion-content>

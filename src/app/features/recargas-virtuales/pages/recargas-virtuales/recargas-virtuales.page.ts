@@ -1,16 +1,16 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router, ActivatedRoute } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonSpinner,
+  IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
+  IonContent, IonIcon,
   IonRefresher, IonRefresherContent,
   ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  chevronBackOutline, phonePortraitOutline, busOutline,
+  phonePortraitOutline, busOutline,
   cashOutline, checkmarkCircleOutline, alertCircleOutline,
   listOutline
 } from 'ionicons/icons';
@@ -32,13 +32,12 @@ type TabActivo = 'CELULAR' | 'BUS';
   imports: [
     CommonModule,
     FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonSpinner,
+    IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
+    IonContent, IonIcon,
     IonRefresher, IonRefresherContent,
   ]
 })
 export class RecargasVirtualesPage implements OnInit {
-  private router = inject(Router);
   private route = inject(ActivatedRoute);
   private ui = inject(UiService);
   private service = inject(RecargasVirtualesService);
@@ -46,7 +45,6 @@ export class RecargasVirtualesPage implements OnInit {
   private modalCtrl = inject(ModalController);
 
   tabActivo: TabActivo = 'CELULAR';
-  loading = true;
 
   // CELULAR
   saldoVirtualCelular = 0;
@@ -58,7 +56,6 @@ export class RecargasVirtualesPage implements OnInit {
 
   constructor() {
     addIcons({
-      chevronBackOutline,
       phonePortraitOutline,
       busOutline,
       cashOutline,
@@ -88,7 +85,6 @@ export class RecargasVirtualesPage implements OnInit {
   }
 
   async cargarDatos() {
-    this.loading = true;
     try {
       const [saldoCelular, saldoBus, deudas, gananciaBus] = await Promise.all([
         this.service.getSaldoVirtualActual('CELULAR'),
@@ -102,8 +98,6 @@ export class RecargasVirtualesPage implements OnInit {
       this.gananciaBusCalculada = gananciaBus;
     } catch {
       await this.ui.showError('Error al cargar los datos');
-    } finally {
-      this.loading = false;
     }
   }
 
@@ -133,7 +127,6 @@ export class RecargasVirtualesPage implements OnInit {
       this.deudasPendientes = resultado.deudas_pendientes.lista;
 
       // Solo recargar datos de BUS y ganancia (no relacionados con esta operación)
-      this.loading = true;
       try {
         const [saldoBus, gananciaBus] = await Promise.all([
           this.service.getSaldoVirtualActual('BUS'),
@@ -144,8 +137,6 @@ export class RecargasVirtualesPage implements OnInit {
         this.gananciaBusCalculada = gananciaBus;
       } catch {
         await this.ui.showError('Error al actualizar los datos');
-      } finally {
-        this.loading = false;
       }
     } else if (data?.success) {
       // Fallback: si no vienen datos completos, recargar todo
@@ -241,8 +232,5 @@ export class RecargasVirtualesPage implements OnInit {
     event.target.complete();
   }
 
-  volver() {
-    this.router.navigate(['/home']);
-  }
 }
 

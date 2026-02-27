@@ -4,6 +4,21 @@ import { StorageService } from '@core/services/storage.service';
 import { UiService } from '@core/services/ui.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { GastoDiario, GastoDiarioInput, CategoriaGasto } from '../models/gasto-diario.model';
+import { getFechaLocal } from '@core/utils/date.util';
+
+// Tipo interno para el response de Supabase con joins
+interface GastoDiarioResponse {
+  id: string;
+  fecha: string;
+  empleado_id: number;
+  categoria_gasto_id: number;
+  monto: number;
+  observaciones: string | null;
+  comprobante_url: string | null;
+  created_at: string;
+  empleados: { id: number; nombre: string } | null;
+  categorias_gastos: { id: number; nombre: string; codigo: string } | null;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -13,17 +28,6 @@ export class GastosDiariosService {
   private storageService = inject(StorageService);
   private ui = inject(UiService);
   private authService = inject(AuthService);
-
-  /**
-   * Obtiene la fecha local en formato YYYY-MM-DD
-   */
-  private getFechaLocal(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
 
   /**
    * Registra un nuevo gasto diario
@@ -58,7 +62,7 @@ export class GastosDiariosService {
       }
 
       // 3. Obtener fecha local
-      const fecha = this.getFechaLocal();
+      const fecha = getFechaLocal();
 
       // 4. Mostrar loading para guardar gasto
       await this.ui.showLoading('Registrando gasto...');
@@ -133,11 +137,11 @@ export class GastosDiariosService {
 
       if (error) return [];
 
-      return (data || []).map((gasto: any) => ({
+      return (data as unknown as GastoDiarioResponse[] || []).map((gasto) => ({
         ...gasto,
-        empleado_nombre: gasto.empleados?.nombre || 'Sin nombre',
-        categoria_nombre: gasto.categorias_gastos?.nombre || 'Sin categoría'
-      })) as any;
+        empleado_nombre: gasto.empleados?.nombre ?? 'Sin nombre',
+        categoria_nombre: gasto.categorias_gastos?.nombre ?? 'Sin categoría'
+      })) as GastoDiario[];
     } catch {
       return [];
     }
@@ -222,11 +226,12 @@ export class GastosDiariosService {
 
       if (error || !data) return null;
 
+      const typed = data as unknown as GastoDiarioResponse;
       return {
-        ...data,
-        empleado_nombre: (data as any).empleados?.nombre || 'Sin nombre',
-        categoria_nombre: (data as any).categorias_gastos?.nombre || 'Sin categoría'
-      } as any;
+        ...typed,
+        empleado_nombre: typed.empleados?.nombre ?? 'Sin nombre',
+        categoria_nombre: typed.categorias_gastos?.nombre ?? 'Sin categoría'
+      } as GastoDiario;
     } catch {
       return null;
     }

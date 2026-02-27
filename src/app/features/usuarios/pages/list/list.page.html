@@ -1,0 +1,66 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Usuarios</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Lista de usuarios -->
+  @if (loading) {
+    <div class="empty-state">
+      <ion-spinner name="crescent" color="primary"></ion-spinner>
+      <p>Cargando usuarios...</p>
+    </div>
+  } @else if (usuarios.length === 0) {
+    <div class="empty-state">
+      <ion-icon name="person-outline"></ion-icon>
+      <p>No hay usuarios registrados</p>
+      <span>Tocá el botón + para agregar uno</span>
+    </div>
+  } @else {
+    <div class="employees-list">
+      @for (usuario of usuarios; track usuario.id) {
+        <div class="employee-card" (click)="abrirEditar(usuario)">
+
+          <!-- Avatar -->
+          <div class="employee-avatar" [class.inactivo]="!usuario.activo">
+            {{ usuario.nombre.charAt(0).toUpperCase() }}
+          </div>
+
+          <!-- Info -->
+          <div class="employee-info">
+            <div class="employee-nombre">{{ usuario.nombre }}</div>
+            <div class="employee-usuario">{{ usuario.usuario }}</div>
+          </div>
+
+          <!-- Badges -->
+          <div class="employee-badges">
+            <span class="badge-rol" [class.admin]="usuario.rol === 'ADMIN'">
+              {{ usuario.rol === 'ADMIN' ? 'Admin' : 'Empleado' }}
+            </span>
+            @if (!usuario.activo) {
+              <span class="badge-inactivo">Inactivo</span>
+            }
+          </div>
+
+        </div>
+      }
+    </div>
+  }
+
+  <!-- FAB -->
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button (click)="abrirRegistrar()">
+      <ion-icon name="add-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+
+</ion-content>

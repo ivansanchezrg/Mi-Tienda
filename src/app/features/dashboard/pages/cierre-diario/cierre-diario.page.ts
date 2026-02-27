@@ -32,6 +32,7 @@ import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
+import { getFechaLocal } from '@core/utils/date.util';
 import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive';
 
 @Component({
@@ -495,7 +496,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
       }
 
       // 4. Preparar parámetros para la función (usa fecha local, no UTC)
-      const fechaLocal = this.recargasService.getFechaLocal();
+      const fechaLocal = getFechaLocal();
 
       // 5. Ejecutar cierre diario (transacción atómica) - Versión 4.1
       const resultado = await this.recargasService.ejecutarCierreDiario({

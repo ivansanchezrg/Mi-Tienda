@@ -1,4 +1,4 @@
-import { Component, inject, Input, OnInit } from '@angular/core';
+import { Component, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -16,6 +16,7 @@ import { CajasService } from '../../../dashboard/services/cajas.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
+import { getFechaLocal } from '@core/utils/date.util';
 
 @Component({
   selector: 'app-liquidacion-bus-modal',
@@ -31,7 +32,7 @@ import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive'
     NumbersOnlyDirective
   ]
 })
-export class LiquidacionBusModalComponent implements OnInit {
+export class LiquidacionBusModalComponent {
   /** Ganancia Bus calculada del mes anterior (SUM recargas_virtuales.ganancia) */
   @Input() gananciaBusCalculada = 0;
   /** Mes anterior en formato legible, ej: "Enero 2026" */
@@ -54,8 +55,6 @@ export class LiquidacionBusModalComponent implements OnInit {
       busOutline, informationCircleOutline
     });
   }
-
-  async ngOnInit() {}
 
   get puedeConfirmar(): boolean {
     return !!this.montoAcreditado && this.montoAcreditado > 0;
@@ -81,7 +80,7 @@ export class LiquidacionBusModalComponent implements OnInit {
 
       // 1. Registrar el saldo virtual recibido del proveedor como nueva compra BUS
       const resultadoCompra = await this.recargasService.registrarCompraSaldoBus({
-        fecha: this.recargasService.getFechaLocal(),
+        fecha: getFechaLocal(),
         empleado_id: empleado.id,
         monto: this.montoAcreditado,
         notas: `Liquidación ganancia proveedor ${this.mesDisplay}`
@@ -93,8 +92,8 @@ export class LiquidacionBusModalComponent implements OnInit {
 
       // 2. Transferir la ganancia calculada de CAJA_BUS a CAJA_CHICA
       await this.cajasService.crearTransferencia({
-        cajaOrigenId: 4,  // CAJA_BUS
-        cajaDestinoId: 2, // CAJA_CHICA
+        codigoOrigen: 'CAJA_BUS',
+        codigoDestino: 'CAJA_CHICA',
         monto: this.gananciaBusCalculada,
         empleadoId: empleado.id,
         descripcion: `Ganancia 1% ${this.mesAnterior}`

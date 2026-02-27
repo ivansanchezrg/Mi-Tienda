@@ -132,7 +132,7 @@ export class GananciasService {
         .from('operaciones_cajas')
         .select('id')
         .eq('tipo_operacion', 'TRANSFERENCIA_SALIENTE')
-        .ilike('descripcion', `%Ganancia 1% ${mes}%`)
+        .ilike('descripcion', `%Ganancia 1\\% ${mes}%`)
         .limit(1)
     );
 

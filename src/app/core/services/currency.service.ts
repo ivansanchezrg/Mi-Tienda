@@ -16,13 +16,9 @@ export class CurrencyService {
    * Utiliza la lógica de parse() para limpiar la entrada primero.
    */
   format(value: number | string | null | undefined): string {
-    const numericValue = this.parse(value);
-    
-    if (value === null || value === undefined || value === '') {
-      if (typeof value === 'number' && value === 0) return '0.00';
-      return '';
-    }
+    if (value === null || value === undefined || value === '') return '';
 
+    const numericValue = this.parse(value);
     return new Intl.NumberFormat(this.locale, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2

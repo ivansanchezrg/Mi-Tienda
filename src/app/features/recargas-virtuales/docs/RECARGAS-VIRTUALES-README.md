@@ -104,7 +104,7 @@ Muestra las últimas 50 recargas del servicio activo (CELULAR o BUS).
 | Tabla | Propósito |
 |---|---|
 | `recargas_virtuales` | Registro de TODAS las cargas/compras (CELULAR y BUS). Un registro = una transacción con el proveedor. |
-| `recargas` | Snapshot del cierre diario — guarda `saldo_virtual_actual` al momento del cierre |
+| `recargas` | Snapshot del saldo virtual — lo genera el cierre diario **y también el mini cierre** (cuando se compra saldo con ventas pendientes). Guarda `saldo_virtual_actual` al momento del evento. |
 | `cajas` | Saldos actuales de CAJA_CELULAR y CAJA_BUS |
 | `operaciones_cajas` | Historial de movimientos de efectivo generados al pagar o comprar |
 | `tipos_servicio` | Configuración del servicio: `codigo` ('CELULAR'/'BUS'), `porcentaje_comision` |
@@ -130,7 +130,9 @@ saldo_virtual_actual = último_cierre.saldo_virtual_actual
                            WHERE created_at > último_cierre.created_at)
 ```
 
-**Por qué `created_at` y no `fecha`:** `fecha` es la fecha del negocio (puede ser hoy o días anteriores). Lo que determina si una recarga ya fue incorporada al snapshot es cuándo se creó el registro (`created_at`). Si se creó después del último cierre, todavía no está en el snapshot.
+**Por qué `created_at` y no `fecha`:** `fecha` es la fecha del negocio (puede ser hoy o días anteriores). Lo que determina si una recarga ya fue incorporada al snapshot es cuándo se creó el registro (`created_at`). Si se creó después del último snapshot (cierre o mini cierre), todavía no está contada.
+
+**Por qué `clock_timestamp()` en el INSERT de `recargas_virtuales` (mini cierre):** `NOW()` es estable dentro de una transacción PostgreSQL — todas las llamadas devuelven el mismo valor. Si el snapshot (`recargas`) y la compra (`recargas_virtuales`) se insertan en la misma transacción con `NOW()`, quedan con `created_at` idéntico. El filtro `created_at > snapshot.created_at` no contaría la compra. `clock_timestamp()` avanza en tiempo real y garantiza que `recargas_virtuales.created_at` sea estrictamente posterior al snapshot.
 
 Implementado en: `RecargasVirtualesService.getSaldoVirtualActual()` (TypeScript) y dentro de `registrar_recarga_proveedor_celular_completo` (SQL).
 
@@ -188,17 +190,28 @@ RegistrarRecargaModalComponent (tipo='BUS')
   │    Muestra: saldo disponible, saldo_virtual del sistema, ventas calculadas del día
   └─ confirmar()
        └─ RPC: registrar_compra_saldo_bus(fecha, empleado_id, monto, notas?, saldo_virtual_maquina?)
-            ├─ Modo básico (sin saldo_virtual_maquina): valida CAJA_BUS >= monto
-            ├─ Modo extendido (con saldo_virtual_maquina ingresado por el usuario):
-            │    ventas_del_día = saldo_virtual_sistema - saldo_virtual_maquina
-            │    disponible = CAJA_BUS + ventas_del_día
-            │    → CAJA_BUS puede quedar negativa temporalmente (el cierre la corrige)
+
+            ── Modo básico (sin saldo_virtual_maquina) ──
+            ├─ Valida: CAJA_BUS >= monto
             ├─ INSERT operaciones_cajas EGRESO CAJA_BUS
-            ├─ INSERT recargas_virtuales (pagado=true, ganancia=monto*1%)
-            └─ UPDATE saldo CAJA_BUS (puede quedar en negativo)
+            ├─ INSERT recargas_virtuales (pagado=true, ganancia=monto*1%, created_at=clock_timestamp())
+            └─ UPDATE saldo CAJA_BUS
+
+            ── Modo con mini cierre (saldo_virtual_maquina ingresado y ventas > 0) ──
+            ├─ Calcula: ventas_del_día = saldo_virtual_sistema - saldo_virtual_maquina
+            ├─ Calcula: disponible = CAJA_BUS + ventas_del_día
+            ├─ Valida: disponible >= monto (lanza EXCEPTION si no)
+            ├─ INSERT recargas (snapshot/mini cierre): saldo_virtual_actual = saldo_virtual_maquina
+            │    ON CONFLICT (turno_id, tipo_servicio_id) → acumula si ya hubo un mini cierre hoy
+            ├─ INSERT operaciones_cajas INGRESO CAJA_BUS por ventas_del_día
+            ├─ INSERT operaciones_cajas EGRESO CAJA_BUS por monto
+            ├─ INSERT recargas_virtuales (pagado=true, ganancia=monto*1%, created_at=clock_timestamp())
+            └─ UPDATE saldo CAJA_BUS → nunca queda negativa
 ```
 
-> El modo extendido existe porque el efectivo de las ventas del día todavía no está en CAJA_BUS (se suma al cierre). Permite registrar el depósito sin esperar al cierre.
+> **Mini cierre:** cuando hay ventas del día sin cerrar, la función las registra como INGRESO en CAJA_BUS antes del EGRESO (depósito). Así CAJA_BUS siempre refleja la realidad y nunca queda negativa. El cierre diario (`ejecutar_cierre_diario`) detecta el mini cierre via `ON CONFLICT` y solo acumula las ventas restantes del resto del día.
+>
+> `clock_timestamp()` en `recargas_virtuales` garantiza que su `created_at` sea posterior al snapshot del mini cierre, para que `getSaldoVirtualActual` lo cuente correctamente.
 
 ### BUS — Liquidación mensual de ganancia
 

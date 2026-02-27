@@ -5,6 +5,9 @@
     </ion-buttons>
     <ion-title>Mi Tienda</ion-title>
     <ion-buttons slot="end">
+      <ion-button (click)="toggleMontosOcultos()" fill="clear">
+        <ion-icon slot="icon-only" [name]="montosOcultos ? 'eye-off-outline' : 'eye-outline'"></ion-icon>
+      </ion-button>
       <ion-button (click)="abrirNotificaciones()" fill="clear" class="notification-btn">
         <div class="bell-wrapper">
           <ion-icon name="notifications-outline"></ion-icon>
@@ -35,7 +38,7 @@
   <div class="hero-section">
     <div class="summary-card">
       <span class="label">Total Efectivo</span>
-      <h1 class="amount">${{ totalEfectivo | number:'1.2-2' }}</h1>
+      <h1 class="amount">{{ montosOcultos ? '••••' : ('$' + (totalEfectivo | number:'1.2-2')) }}</h1>
       <span class="sub-label">Hoy: {{ fechaActual }}</span>
     </div>
   </div>
@@ -55,7 +58,7 @@
         <span class="subtitle">Efectivo</span>
       </div>
       <div class="amount-group">
-        <span class="value">${{ saldoCaja | number:'1.2-2' }}</span>
+        <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCaja | number:'1.2-2')) }}</span>
         <ion-icon name="chevron-forward"></ion-icon>
       </div>
     </div>
@@ -69,7 +72,7 @@
         <span class="subtitle">Gastos menores</span>
       </div>
       <div class="amount-group">
-        <span class="value">${{ saldoCajaChica | number:'1.2-2' }}</span>
+        <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCajaChica | number:'1.2-2')) }}</span>
         <ion-icon name="chevron-forward"></ion-icon>
       </div>
     </div>
@@ -85,8 +88,8 @@
       </div>
       <div class="amount-group">
         <div class="amount-col">
-          <span class="value">${{ saldoCelular | number:'1.2-2' }}</span>
-          <span class="virtual-amount">${{ saldoVirtualCelular | number:'1.2-2' }}</span>
+          <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCelular | number:'1.2-2')) }}</span>
+          <span class="virtual-amount">{{ montosOcultos ? '••••' : ('$' + (saldoVirtualCelular | number:'1.2-2')) }}</span>
         </div>
         <ion-icon name="chevron-forward"></ion-icon>
       </div>
@@ -103,8 +106,8 @@
       </div>
       <div class="amount-group">
         <div class="amount-col">
-          <span class="value">${{ saldoBus | number:'1.2-2' }}</span>
-          <span class="virtual-amount">${{ saldoVirtualBus | number:'1.2-2' }}</span>
+          <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoBus | number:'1.2-2')) }}</span>
+          <span class="virtual-amount">{{ montosOcultos ? '••••' : ('$' + (saldoVirtualBus | number:'1.2-2')) }}</span>
         </div>
         <ion-icon name="chevron-forward"></ion-icon>
       </div>

@@ -1,0 +1,159 @@
+// ==========================================
+// REGISTRAR EMPLEADO MODAL
+// ==========================================
+
+.form-content {
+  padding: var(--spacing-xl) var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+// ==========================================
+// INPUTS
+// ==========================================
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.input-label {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-text-color);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.required-badge {
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-pill);
+  background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
+  color: var(--ion-color-primary);
+  letter-spacing: 0.3px;
+}
+
+input {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: 1.5px solid var(--ion-color-step-150);
+  border-radius: var(--radius-xs);
+  font-size: 15px;
+  background: var(--ion-item-background);
+  color: var(--ion-text-color);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast);
+
+  &:focus {
+    border-color: var(--ion-color-primary);
+  }
+
+  &::placeholder {
+    color: var(--ion-color-medium);
+  }
+}
+
+.input-error {
+  font-size: 12px;
+  color: var(--ion-color-danger);
+}
+
+// ==========================================
+// ROL SELECTOR
+// ==========================================
+
+.rol-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.rol-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--ion-color-step-150);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  background: var(--ion-item-background);
+
+  &.selected {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
+  }
+}
+
+.rol-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &.empleado {
+    background: rgba(var(--ion-color-medium-rgb), var(--opacity-medium));
+    color: var(--ion-color-medium-shade);
+  }
+
+  &.admin {
+    background: rgba(var(--ion-color-primary-rgb), var(--opacity-medium));
+    color: var(--ion-color-primary);
+  }
+}
+
+.rol-name {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-text-color);
+}
+
+.rol-desc {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  margin-top: var(--spacing-xs);
+}
+
+// ==========================================
+// BOTÓN
+// ==========================================
+
+.submit-btn {
+  width: 100%;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--ion-color-primary);
+  color: white;
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  transition: opacity var(--transition-fast);
+  margin-top: var(--spacing-xs);
+
+  &:disabled {
+    opacity: var(--opacity-disabled);
+    cursor: not-allowed;
+  }
+
+  ion-spinner {
+    width: 18px;
+    height: 18px;
+    --color: white;
+  }
+}

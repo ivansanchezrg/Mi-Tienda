@@ -7,60 +7,65 @@
 
 <!-- Capa 2: Tabs + Router Outlet (directo en el layout, NO extraer) -->
 <ion-tabs id="main-content">
-  @if (showTabs) {
-    <!-- Overlay oscuro (fuera del tab-bar) -->
-    @if (fabAbierto) {
-      <div class="fab-overlay" (click)="toggleFab()"></div>
-    }
 
-    <!-- Opciones con diseño pill/chip (fuera del tab-bar) -->
-    @if (fabAbierto) {
-      <div class="fab-options">
-        <!-- Cuadre -->
-        <div class="fab-option" (click)="irACuadre()">
-          <div class="fab-option-icon tertiary">
-            <ion-icon [icon]="clipboardIcon"></ion-icon>
-          </div>
-          <span class="fab-option-label">Cuadre</span>
-        </div>
-
-        <!-- Gasto -->
-        <div class="fab-option" (click)="irAGasto()">
-          <div class="fab-option-icon warning">
-            <ion-icon [icon]="receiptIcon"></ion-icon>
-          </div>
-          <span class="fab-option-label">Gastos</span>
-        </div>
-      </div>
-    }
-
-    <ion-tab-bar slot="bottom">
-      <ion-tab-button tab="home">
-        <ion-icon [icon]="homeIcon"></ion-icon>
-        <ion-label>Inicio</ion-label>
-      </ion-tab-button>
-
-      <ion-tab-button tab="ventas">
-        <ion-icon [icon]="ventasIcon"></ion-icon>
-        <ion-label>Ventas</ion-label>
-      </ion-tab-button>
-
-      <!-- FAB integrado como tab -->
-      <ion-tab-button class="fab-tab-container">
-        <ion-fab-button color="dark" (click)="toggleFab()" [class.fab-abierto]="fabAbierto">
-          <ion-icon [icon]="fabAbierto ? closeIcon : addIcon"></ion-icon>
-        </ion-fab-button>
-      </ion-tab-button>
-
-      <ion-tab-button tab="inventario">
-        <ion-icon [icon]="inventarioIcon"></ion-icon>
-        <ion-label>Inventario</ion-label>
-      </ion-tab-button>
-
-      <ion-tab-button tab="reportes">
-        <ion-icon [icon]="reportesIcon"></ion-icon>
-        <ion-label>Reportes</ion-label>
-      </ion-tab-button>
-    </ion-tab-bar>
+  <!-- Overlay oscuro del FAB (solo visible cuando tabs están activos) -->
+  @if (showTabs && fabAbierto) {
+    <div class="fab-overlay" (click)="toggleFab()"></div>
   }
+
+  <!-- Opciones del FAB (solo visible cuando tabs están activos) -->
+  @if (showTabs && fabAbierto) {
+    <div class="fab-options">
+      <!-- Cuadre -->
+      <div class="fab-option" (click)="irACuadre()">
+        <div class="fab-option-icon tertiary">
+          <ion-icon [icon]="clipboardIcon"></ion-icon>
+        </div>
+        <span class="fab-option-label">Cuadre</span>
+      </div>
+
+      <!-- Gasto -->
+      <div class="fab-option" (click)="irAGasto()">
+        <div class="fab-option-icon warning">
+          <ion-icon [icon]="receiptIcon"></ion-icon>
+        </div>
+        <span class="fab-option-label">Gastos</span>
+      </div>
+    </div>
+  }
+
+  <!--
+    ion-tab-bar siempre en el DOM para que ion-tabs mantenga
+    la tab activa al volver de páginas secundarias.
+    Se oculta con CSS, nunca se elimina del DOM.
+  -->
+  <ion-tab-bar slot="bottom" [class.tabs-oculto]="!showTabs">
+    <ion-tab-button tab="home">
+      <ion-icon [icon]="homeIcon"></ion-icon>
+      <ion-label>Inicio</ion-label>
+    </ion-tab-button>
+
+    <ion-tab-button tab="ventas">
+      <ion-icon [icon]="ventasIcon"></ion-icon>
+      <ion-label>Ventas</ion-label>
+    </ion-tab-button>
+
+    <!-- FAB integrado como tab -->
+    <ion-tab-button class="fab-tab-container">
+      <ion-fab-button color="dark" (click)="toggleFab()" [class.fab-abierto]="fabAbierto">
+        <ion-icon [icon]="fabAbierto ? closeIcon : addIcon"></ion-icon>
+      </ion-fab-button>
+    </ion-tab-button>
+
+    <ion-tab-button tab="inventario">
+      <ion-icon [icon]="inventarioIcon"></ion-icon>
+      <ion-label>Inventario</ion-label>
+    </ion-tab-button>
+
+    <ion-tab-button tab="reportes">
+      <ion-icon [icon]="reportesIcon"></ion-icon>
+      <ion-label>Reportes</ion-label>
+    </ion-tab-button>
+  </ion-tab-bar>
+
 </ion-tabs>

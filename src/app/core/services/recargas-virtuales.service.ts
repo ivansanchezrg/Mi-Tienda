@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
+import { getFechaLocal } from '@core/utils/date.util';
 
 export interface RecargaVirtual {
   id: string;
@@ -108,7 +109,7 @@ export class RecargasVirtualesService {
       .single();
 
     if (response.error) throw response.error;
-    return response.data?.saldo_actual || 0;
+    return response.data?.saldo_actual ?? 0;
   }
 
   /**
@@ -233,24 +234,4 @@ export class RecargasVirtualesService {
     );
   }
 
-  /**
-   * Obtiene el empleado actual desde la sesión
-   */
-  async obtenerEmpleadoActual(): Promise<{ id: number; nombre: string } | null> {
-    const { data: { user } } = await this.supabase.client.auth.getUser();
-    if (!user?.email) return null;
-
-    return this.supabase.call<{ id: number; nombre: string }>(
-      this.supabase.client
-        .from('empleados')
-        .select('id, nombre')
-        .eq('usuario', user.email)
-        .single()
-    );
-  }
-
-  getFechaLocal(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  }
 }

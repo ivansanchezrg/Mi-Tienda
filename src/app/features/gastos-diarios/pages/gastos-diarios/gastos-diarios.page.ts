@@ -1,8 +1,9 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent, IonBackButton,
-  IonButtons, IonButton, IonIcon, IonSpinner,
+  IonHeader, IonToolbar, IonTitle, IonContent,
+  IonButtons, IonMenuButton, IonButton, IonIcon, IonSpinner,
+  IonRefresher, IonRefresherContent,
   ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -19,8 +20,9 @@ import { StorageService } from '@core/services/storage.service';
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonContent, IonBackButton,
-    IonButtons, IonIcon, IonSpinner
+    IonHeader, IonToolbar, IonTitle, IonContent,
+    IonButtons, IonMenuButton, IonIcon, IonSpinner,
+    IonRefresher, IonRefresherContent
   ]
 })
 export class GastosDiariosPage implements OnInit {
@@ -67,6 +69,11 @@ export class GastosDiariosPage implements OnInit {
    */
   ionViewWillLeave() {
     this.ui.showTabs();
+  }
+
+  async handleRefresh(event: any) {
+    await this.cargarGastos();
+    event.target.complete();
   }
 
   /**

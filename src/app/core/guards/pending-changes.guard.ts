@@ -5,6 +5,10 @@ import { AlertController } from '@ionic/angular/standalone';
 export interface HasPendingChanges {
   hasPendingChanges: () => boolean;
   resetState: () => void;
+  /** Título del diálogo de confirmación (opcional) */
+  pendingChangesHeader?: string;
+  /** Mensaje del diálogo de confirmación (opcional) */
+  pendingChangesMessage?: string;
 }
 
 export const pendingChangesGuard: CanDeactivateFn<HasPendingChanges> = async (component) => {
@@ -16,8 +20,8 @@ export const pendingChangesGuard: CanDeactivateFn<HasPendingChanges> = async (co
   // Si hay cambios, mostrar alerta de confirmación
   const alertCtrl = inject(AlertController);
   const alert = await alertCtrl.create({
-    header: '¿Salir del Cierre?',
-    message: 'Si sales ahora, se perderán los datos que has ingresado. ¿Estás seguro?',
+    header: component.pendingChangesHeader ?? '¿Salir sin guardar?',
+    message: component.pendingChangesMessage ?? 'Si sales ahora, se perderán los datos que has ingresado. ¿Estás seguro?',
     buttons: [
       {
         text: 'Cancelar',
