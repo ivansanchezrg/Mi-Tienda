@@ -113,26 +113,17 @@
 
     <!-- Preview CAJA_BUS después del depósito (solo BUS con monto ingresado) -->
     @if (tipo === 'BUS' && montoVirtual && montoVirtual > 0) {
-      <div class="calculo-preview" [class.error]="saldoBusInsuficiente">
-        <div class="calculo-row">
-          <span>CAJA BUS después del depósito</span>
-          <span [class.calculo-success]="saldoBusDespues >= 0" [class.calculo-danger]="saldoBusDespues < 0">
-            ${{ saldoBusDespues | number:'1.2-2' }}
-            @if (!saldoBusInsuficiente) {
+      @if (!saldoBusInsuficiente) {
+        <div class="calculo-preview">
+          <div class="calculo-row">
+            <span>CAJA BUS después del depósito</span>
+            <span class="calculo-success">
+              ${{ saldoBusDespues | number:'1.2-2' }}
               <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
-            } @else {
-              <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
-            }
-          </span>
-        </div>
-        @if (saldoBusDespues < 0 && !saldoBusInsuficiente) {
-          <div class="calculo-row nota">
-            <span>El saldo negativo se corrige con el ingreso del cierre diario</span>
+            </span>
           </div>
-        }
-      </div>
-
-      @if (saldoBusInsuficiente) {
+        </div>
+      } @else {
         <div class="alerta-saldo">
           <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
           <div>

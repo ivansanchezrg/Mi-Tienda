@@ -2,6 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
 import { SaldosAnteriores, DatosCierreDiario, ParamsCierreDiario } from '../models/saldos-anteriores.model';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
+import { getFechaLocal } from '@core/utils/date.util';
+import { AuthService } from '../../auth/services/auth.service';
+import { EmpleadoActual } from '../../auth/models/empleado_actual.model';
 
 /**
  * Tipo de retorno de la query de saldo virtual
@@ -64,19 +67,7 @@ export interface RecargaHistorial {
 export class RecargasService {
   private supabase = inject(SupabaseService);
   private recargasVirtualesService = inject(RecargasVirtualesService);
-
-  /**
-   * Obtiene la fecha actual en formato YYYY-MM-DD en zona horaria local
-   * (Evita problemas de zona horaria con toISOString)
-   * @returns {string} Fecha local en formato YYYY-MM-DD
-   */
-  getFechaLocal(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
+  private authService = inject(AuthService);
 
   /**
    * Obtiene los saldos virtuales anteriores (últimos registros) de Celular y Bus
@@ -146,6 +137,9 @@ export class RecargasService {
         .limit(1)
         .maybeSingle()
     ]);
+
+    if (ultimoCierreCelular.error) throw new Error(`Error al obtener último cierre celular: ${ultimoCierreCelular.error.message}`);
+    if (ultimoCierreBus.error) throw new Error(`Error al obtener último cierre bus: ${ultimoCierreBus.error.message}`);
 
     const ultimoCierreAtCelular = ultimoCierreCelular.data?.created_at;
     const ultimoCierreAtBus = ultimoCierreBus.data?.created_at;
@@ -335,22 +329,12 @@ export class RecargasService {
   }
 
   /**
-   * Obtiene el empleado actual desde la sesión de Supabase
-   * @returns {Promise<any>} Datos del empleado o null
+   * Obtiene el empleado actual desde Preferences (lectura local, sin red).
+   * Delega a AuthService para evitar duplicar lógica y reducir queries a Supabase.
+   * @returns {Promise<EmpleadoActual | null>} Datos del empleado o null
    */
-  async obtenerEmpleadoActual(): Promise<any> {
-    const { data: { user } } = await this.supabase.client.auth.getUser();
-    if (!user?.email) return null;
-
-    const empleado = await this.supabase.call<{ id: number; nombre: string }>(
-      this.supabase.client
-        .from('empleados')
-        .select('id, nombre')
-        .eq('usuario', user.email)
-        .single()
-    );
-
-    return empleado;
+  async obtenerEmpleadoActual(): Promise<EmpleadoActual | null> {
+    return this.authService.getEmpleadoActual();
   }
 
   /**
@@ -361,7 +345,7 @@ export class RecargasService {
    */
   async existeCierreDiario(fecha?: string): Promise<boolean | null> {
     try {
-      const fechaBusqueda = fecha || this.getFechaLocal();
+      const fechaBusqueda = fecha || getFechaLocal();
 
       // 1. Obtener turno activo de hoy (sin hora_cierre)
       const turnoResponse = await this.supabase.client
@@ -461,7 +445,7 @@ export class RecargasService {
    * @returns {Promise<boolean>} true si ya existe TRANSFERENCIA_ENTRANTE en CAJA_CHICA para la fecha local de hoy
    */
   async verificarTransferenciaYaHecha(): Promise<boolean> {
-    const fechaHoy = this.getFechaLocal();
+    const fechaHoy = getFechaLocal();
     const { data, error } = await this.supabase.client
       .rpc('verificar_transferencia_caja_chica_hoy', { p_fecha: fechaHoy });
     if (error || data === null) return false;

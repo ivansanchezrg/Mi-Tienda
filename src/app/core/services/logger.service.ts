@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
+import { environment } from 'src/environments/environment';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -18,16 +19,14 @@ interface LogEntry {
 
 @Injectable({ providedIn: 'root' })
 export class LoggerService {
-  private readonly MAX_FILE_SIZE = 1024 * 1024; // 1MB
   private readonly MAX_FILES = 3;
   private readonly LOG_DIR = 'logs';
   private readonly LOG_FILE_PREFIX = 'app_log_';
 
-  // En producción solo ERROR y WARN, en desarrollo todos
-  private minLevel: LogLevel = LogLevel.DEBUG; // Cambiar a WARN en producción
+  private minLevel: LogLevel = environment.production ? LogLevel.WARN : LogLevel.DEBUG;
 
   private buffer: string[] = [];
-  private flushTimeout: any = null;
+  private flushTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.initLogDir();

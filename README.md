@@ -84,6 +84,29 @@ ionViewWillEnter() { this.ui.hideTabs(); }
 ionViewWillLeave() { this.ui.showTabs(); }
 ```
 
+> ⚠️ **Regla crítica — `ion-tab-bar` NUNCA dentro de `@if`**
+>
+> `hideTabs`/`showTabs` funciona con una señal que muestra/oculta el tab-bar. Si usás `@if` para eso, el `ion-tab-bar` se elimina del DOM y cuando vuelve **pierde la tab seleccionada** (el ítem activo se deselecciona).
+>
+> ✅ **Correcto** — ocultar con CSS, siempre en el DOM:
+> ```html
+> <!-- main-layout.page.html -->
+> <ion-tab-bar slot="bottom" [class.tabs-oculto]="!showTabs">
+>   ...
+> </ion-tab-bar>
+> ```
+> ```scss
+> /* main-layout.page.scss */
+> ion-tab-bar.tabs-oculto { display: none; }
+> ```
+>
+> ❌ **Incorrecto** — elimina del DOM, rompe la selección activa:
+> ```html
+> @if (showTabs) {
+>   <ion-tab-bar slot="bottom">...</ion-tab-bar>
+> }
+> ```
+
 #### LoggerService (`core/services/logger.service.ts`)
 
 Sistema de logs persistente para debugging:
@@ -115,29 +138,121 @@ await this.logger.clearLogs();
 
 #### SupabaseService (`core/services/supabase.service.ts`)
 
-Método maestro para consultas que maneja automáticamente loading, errores y data:
+Existen dos patrones válidos según el caso de uso:
+
+---
+
+##### Patrón A: `supabase.call()` → mutaciones y fetches simples
+
+Úsalo para **insert, update, delete y get by ID**. Maneja automáticamente loading overlay, errores y toast.
 
 ```typescript
-// Ejemplo de uso
-const data = await this.supabase.call<Employee[]>(
-  this.supabase.client.from('employees').select('*'),
-  'Empleados cargados exitosamente' // Toast opcional
+// ✅ Insert / Update / Delete / Get by ID
+const data = await this.supabase.call<Employee>(
+  this.supabase.client.from('empleados').insert({...}).select().single()
 );
 
 if (data) {
-  // Usar data - ya es tipado y limpio
-  console.log(data);
+  // data ya es tipado y limpio
 }
 // Si hay error, automáticamente muestra toast y retorna null
 ```
 
 **Ventajas:**
-
-- Loading automático
+- Loading overlay automático (ideal para acciones puntuales del usuario)
 - Manejo de errores centralizado
-- Toast de error/éxito automático
-- Data limpia y tipada
-- Código DRY (Don't Repeat Yourself)
+- Toast de éxito/error automático
+- Código DRY
+
+---
+
+##### Patrón B: Query directa → listas con pull-to-refresh o joins complejos
+
+Úsalo para **cargar listas**, historial, filtros dinámicos o queries con joins y transformaciones. Controlá el loading con un `loading` local en la página.
+
+```typescript
+// ✅ En el servicio: query directa
+async getGastos(fechaInicio: string, fechaFin: string): Promise<GastoDiario[]> {
+  const { data, error } = await this.supabase.client
+    .from('gastos_diarios')
+    .select(`*, empleados(nombre), categorias_gastos(nombre)`)
+    .gte('fecha', fechaInicio)
+    .lte('fecha', fechaFin);
+
+  if (error) return [];
+  return data ?? [];
+}
+
+// ✅ En la página: loading local inline
+loading = false;
+
+async cargarDatos() {
+  this.loading = true;
+  try {
+    this.items = await this.service.getItems();
+  } catch {
+    await this.ui.showError('Error al cargar los datos');
+  } finally {
+    this.loading = false;
+  }
+}
+```
+
+```html
+<!-- Spinner inline dentro del contenido (no bloquea toda la pantalla) -->
+@if (loading) {
+  <div class="empty-state">
+    <ion-spinner name="crescent"></ion-spinner>
+  </div>
+} @else {
+  <!-- lista de items -->
+}
+```
+
+**Pull-to-refresh (`ion-refresher`):** Siempre incluirlo en páginas que usan el Patrón B.
+
+```typescript
+// En el .ts — importar y agregar al array imports[]
+import { IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
+
+async handleRefresh(event: any) {
+  await this.cargarDatos();
+  event.target.complete();
+}
+```
+
+```html
+<!-- En el .html — primer hijo de <ion-content> -->
+<ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+  <ion-refresher-content></ion-refresher-content>
+</ion-refresher>
+```
+
+✅ **Conviene** — páginas de lista/historial:
+- `employees/list` — lista de empleados
+- `gastos-diarios` — historial de gastos
+- `historial-recargas` — historial de recargas
+
+❌ **NO conviene** — páginas de acción/wizard:
+- `cierre-diario` — wizard de 2 pasos, no tiene lista que refrescar
+- `recargas-virtuales` — página de opciones/dashboard, sin lista
+- Modales — no tienen contenido propio que refrescar
+
+**Ventajas:**
+- Spinner aparece **dentro del contenido** (menos invasivo que el overlay)
+- Pull-to-refresh funciona naturalmente con `slot="fixed"`
+- Control total sobre transforms y joins complejos
+
+---
+
+##### Cuándo usar cada uno
+
+| Operación | Patrón |
+|---|---|
+| Insert / Update / Delete | `supabase.call()` |
+| Get by ID simple | `supabase.call()` |
+| Listas con pull-to-refresh | Query directa + `loading` local |
+| Joins complejos con transformación | Query directa + `loading` local |
 
 ### Path Aliases
 
@@ -198,6 +313,30 @@ this.currencyService.format(1250.5);     // → "1,250.50"
 ```
 
 Se usa junto con `CurrencyInputDirective` en inputs de moneda.
+
+---
+
+### `getFechaLocal()` (`core/utils/date.util.ts`)
+
+Retorna la fecha actual en formato `YYYY-MM-DD` usando la zona horaria **local** del dispositivo.
+
+```typescript
+import { getFechaLocal } from '@core/utils/date.util';
+
+const fecha = getFechaLocal(); // "2026-02-26"
+```
+
+#### ⚠️ NUNCA usar `new Date().toISOString()`
+
+```typescript
+// ❌ Incorrecto — devuelve fecha en UTC
+new Date().toISOString().split('T')[0]; // Puede retornar mañana si son +7pm en Ecuador (UTC-5)
+
+// ✅ Correcto
+getFechaLocal(); // Siempre usa hora local
+```
+
+Se usa en **todas las operaciones de negocio** (gastos, cierres, recargas) porque el desfase UTC-5 de Ecuador hace que `toISOString()` pueda retornar la fecha de mañana a partir de las 7pm.
 
 ---
 
@@ -574,6 +713,41 @@ export class HomePage extends ScrollablePage implements OnInit {
 - `ionViewWillEnter` se ejecuta cada vez que se activa la tab
 - Query params permiten señalizar cuándo es necesario refrescar
 - Limpiar el param primero evita que se refresque en la próxima navegación
+
+---
+
+#### Variante: Refresh selectivo desde páginas secundarias
+
+Cuando el usuario abre una página secundaria (ej: `operaciones-caja`) y **solo a veces** hace cambios, no siempre tiene sentido recargar home al volver. Usar un flag `hayCambios`:
+
+```typescript
+// En operaciones-caja.page.ts (página secundaria)
+hayCambios = false;
+
+async ejecutarOperacion(tipo, data) {
+  const success = await this.service.registrarOperacion(...);
+  if (success) {
+    this.hayCambios = true;   // ← marcar que hubo cambio
+    await this.cargarOperaciones(true);
+  }
+}
+
+volver() {
+  if (this.hayCambios) {
+    // Solo refresca home si hubo cambios reales
+    this.router.navigate(['/home'], { queryParams: { refresh: true } });
+  } else {
+    // Vuelve limpio, home no recarga innecesariamente
+    this.router.navigate(['/home']);
+  }
+}
+```
+
+| Caso | Comportamiento |
+|---|---|
+| Usuario abre página y vuelve sin hacer nada | Home NO recarga |
+| Usuario hace ingreso/egreso y vuelve | Home SÍ recarga (saldos actualizados) |
+| Cierre diario (siempre hay cambio) | Home siempre recarga |
 
 ---
 

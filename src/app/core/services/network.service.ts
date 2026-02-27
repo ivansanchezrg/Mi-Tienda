@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Network } from '@capacitor/network';
 import { App } from '@capacitor/app';
-import { BehaviorSubject, Observable, interval } from 'rxjs';
+import { BehaviorSubject, Observable } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -9,7 +9,7 @@ import { BehaviorSubject, Observable, interval } from 'rxjs';
 export class NetworkService {
   private isOnline$ = new BehaviorSubject<boolean>(true);
   private initialized = false;
-  private pollingInterval: any;
+  private pollingInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.initializeNetworkMonitoring();

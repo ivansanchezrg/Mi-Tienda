@@ -1,0 +1,103 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Editar Usuario</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cancelar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <form [formGroup]="form">
+    <div class="form-content">
+
+      <!-- Header del usuario -->
+      <div class="employee-header">
+        <div class="employee-avatar">
+          {{ usuario.nombre.charAt(0).toUpperCase() }}
+        </div>
+        <div class="employee-meta">
+          <div class="employee-usuario">{{ usuario.usuario }}</div>
+        </div>
+      </div>
+
+      <!-- Nombre -->
+      <div class="input-group">
+        <label class="input-label">Nombre</label>
+        <input
+          type="text"
+          placeholder="Nombre del usuario"
+          formControlName="nombre"
+          autocomplete="off">
+        @if (form.get('nombre')?.invalid && form.get('nombre')?.touched) {
+          <span class="input-error">Ingresá el nombre del usuario</span>
+        }
+      </div>
+
+      <!-- Rol -->
+      <div class="input-group">
+        <label class="input-label">Rol</label>
+        <div class="rol-selector">
+          <div
+            class="rol-option"
+            [class.selected]="form.get('rol')?.value === 'EMPLEADO'"
+            (click)="form.get('rol')?.setValue('EMPLEADO')">
+            <div class="rol-icon empleado">E</div>
+            <div class="rol-info">
+              <div class="rol-name">Empleado</div>
+              <div class="rol-desc">Acceso a operaciones diarias</div>
+            </div>
+          </div>
+          <div
+            class="rol-option"
+            [class.selected]="form.get('rol')?.value === 'ADMIN'"
+            (click)="form.get('rol')?.setValue('ADMIN')">
+            <div class="rol-icon admin">A</div>
+            <div class="rol-info">
+              <div class="rol-name">Administrador</div>
+              <div class="rol-desc">Acceso completo al sistema</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Estado activo / inactivo -->
+      <div class="input-group">
+        <label class="input-label">Estado</label>
+        <div class="estado-selector">
+          <div
+            class="estado-option"
+            [class.selected]="form.get('activo')?.value === true"
+            (click)="form.get('activo')?.setValue(true)">
+            <div class="estado-dot activo"></div>
+            <span>Activo</span>
+          </div>
+          <div
+            class="estado-option"
+            [class.selected]="form.get('activo')?.value === false"
+            (click)="form.get('activo')?.setValue(false)">
+            <div class="estado-dot inactivo"></div>
+            <span>Inactivo</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botón -->
+      <button
+        type="button"
+        class="submit-btn"
+        [disabled]="form.invalid || guardando"
+        (click)="confirmar()">
+        @if (guardando) {
+          <ion-spinner name="crescent"></ion-spinner>
+          Guardando...
+        } @else {
+          Guardar Cambios
+        }
+      </button>
+
+    </div>
+  </form>
+</ion-content>

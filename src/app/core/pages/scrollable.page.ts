@@ -28,6 +28,6 @@ export abstract class ScrollablePage implements ViewWillEnter {
   @ViewChild(IonContent, { static: false }) content!: IonContent;
 
   ionViewWillEnter(): void {
-    this.content.scrollToTop(0);
+    this.content?.scrollToTop(0);
   }
 }

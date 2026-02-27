@@ -8,7 +8,7 @@ import {
 import { MenuController } from '@ionic/angular/standalone';
 import {
   peopleOutline, settingsOutline, logOutOutline, personCircleOutline,
-  receiptOutline, listOutline, swapHorizontalOutline
+  receiptOutline, listOutline, swapHorizontalOutline, homeOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 
@@ -16,6 +16,7 @@ interface MenuItem {
   title: string;
   url: string;
   icon: string;
+  exact?: boolean;
 }
 
 @Component({
@@ -45,11 +46,12 @@ export class SidebarComponent implements OnInit {
 
   // Rutas específicas del sidebar (NO están en los tabs)
   menuItems: MenuItem[] = [
-    { title: 'Gastos Diarios',     url: '/home/gastos-diarios',     icon: receiptOutline },
-    { title: 'Ventas Recargas',    url: '/home/historial-recargas', icon: listOutline },
-    { title: 'Saldo Virtual',      url: '/home/recargas-virtuales', icon: swapHorizontalOutline },
-    { title: 'Empleados',          url: '/employees',               icon: peopleOutline },
-    { title: 'Configuración',      url: '/configuracion',           icon: settingsOutline },
+    { title: 'Inicio',               url: '/home',                    icon: homeOutline, exact: true },
+    { title: 'Historial de Gastos',  url: '/home/gastos-diarios',     icon: receiptOutline },
+    { title: 'Historial de Recargas', url: '/home/historial-recargas', icon: listOutline },
+    { title: 'Saldo Virtual',        url: '/home/recargas-virtuales', icon: swapHorizontalOutline },
+    { title: 'Usuarios',             url: '/usuarios',                icon: peopleOutline },
+    { title: 'Configuración',        url: '/configuracion',           icon: settingsOutline },
   ];
 
   async ngOnInit() {

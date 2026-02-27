@@ -43,7 +43,11 @@
       "Bash(git mv \"src/app/features/recargas-virtuales/docs/SALDO-VIRTUAL.md\" \"src/app/features/recargas-virtuales/docs/SALDO-VIRTUAL-README.md\")",
       "Bash(Move-Item \"C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\dashboard\\\\docs\\\\agregar_categorias_deficit.sql\" \"C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\dashboard\\\\docs\\\\sql\\\\agregar_categorias_deficit.sql\")",
       "Bash(Move-Item \"C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\dashboard\\\\docs\\\\insertar_datos_reales_recargas.sql\" \"C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\dashboard\\\\docs\\\\sql\\\\insertar_datos_reales_recargas.sql\")",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Bash(npx ng build --configuration=production)",
+      "Bash(powershell -Command \":*)",
+      "Bash(powershell -Command \"Get-ChildItem -Path ''src\\\\app\\\\features\\\\usuarios'' -Recurse | Select-Object FullName\")",
+      "Bash(powershell -Command \"Remove-Item -Path ''C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\employees'' -Recurse -Force; Write-Host ''Carpeta employees eliminada''\")"
     ]
   }
 }

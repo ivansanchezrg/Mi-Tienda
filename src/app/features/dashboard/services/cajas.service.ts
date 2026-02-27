@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
+import { getFechaLocal } from '@core/utils/date.util';
 
 /**
  * Interfaz para la tabla cajas
@@ -37,6 +38,7 @@ export class CajasService {
 
   /**
    * Obtiene todas las cajas activas ordenadas por ID
+   * Usa supabase.call() → overlay automático. Para mutaciones o páginas sin spinner propio.
    */
   async obtenerCajas(): Promise<Caja[] | null> {
     const cajas = await this.supabase.call<Caja[]>(
@@ -50,6 +52,20 @@ export class CajasService {
   }
 
   /**
+   * Obtiene todas las cajas activas SIN overlay (Patrón B).
+   * Usar en páginas de lista que ya tienen su propio spinner local.
+   */
+  async obtenerCajasDirecto(): Promise<Caja[]> {
+    const { data, error } = await this.supabase.client
+      .from('cajas')
+      .select('id, codigo, nombre, saldo_actual, activo')
+      .eq('activo', true)
+      .order('id');
+    if (error) return [];
+    return data ?? [];
+  }
+
+  /**
    * Obtiene los saldos de todas las cajas con el total calculado
    */
   async obtenerSaldosCajas(): Promise<SaldosCajas | null> {
@@ -59,10 +75,10 @@ export class CajasService {
       return null;
     }
 
-    const cajaPrincipal = cajas.find(c => c.codigo === 'CAJA')?.saldo_actual || 0;
-    const cajaChica = cajas.find(c => c.codigo === 'CAJA_CHICA')?.saldo_actual || 0;
-    const cajaCelular = cajas.find(c => c.codigo === 'CAJA_CELULAR')?.saldo_actual || 0;
-    const cajaBus = cajas.find(c => c.codigo === 'CAJA_BUS')?.saldo_actual || 0;
+    const cajaPrincipal = cajas.find(c => c.codigo === 'CAJA')?.saldo_actual ?? 0;
+    const cajaChica = cajas.find(c => c.codigo === 'CAJA_CHICA')?.saldo_actual ?? 0;
+    const cajaCelular = cajas.find(c => c.codigo === 'CAJA_CELULAR')?.saldo_actual ?? 0;
+    const cajaBus = cajas.find(c => c.codigo === 'CAJA_BUS')?.saldo_actual ?? 0;
     const total = cajaPrincipal + cajaChica + cajaCelular + cajaBus;
 
     return {
@@ -162,7 +178,7 @@ export class CajasService {
    * @returns true si está abierta (NO hay cierre para hoy), false si está cerrada (SÍ hay cierre)
    */
   async verificarEstadoCaja(): Promise<boolean> {
-    const fechaHoy = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const fechaHoy = getFechaLocal();
 
     const cierre = await this.supabase.call<{ id: string }>(
       this.supabase.client
@@ -178,154 +194,40 @@ export class CajasService {
   }
 
   /**
-   * DEPRECADO en Versión 3.0
-   * La apertura ahora se representa implícitamente en caja_fisica_diaria
-   * Ya NO se crea operación APERTURA
+   * Crea una transferencia atómica entre dos cajas usando sus códigos.
+   * Delega en la función PostgreSQL `crear_transferencia` que garantiza
+   * atomicidad (todo o nada) y validación de saldo antes de operar.
    *
-   * @deprecated Ya no se usa - la apertura se maneja en el cierre diario
-   */
-  async abrirCaja(empleadoId: number): Promise<void> {
-    // Método deprecado - ya no hace nada
-    // La apertura se representa por la ausencia de cierre para el día actual
-    console.warn('abrirCaja() está deprecado en v3.0 - la apertura se maneja en caja_fisica_diaria');
-  }
-
-  /**
-   * Obtiene la hora de "apertura" del día actual (Versión 2.0)
-   * En v2.0, la apertura es implícita (cuando NO existe cierre para hoy)
-   * Este método devuelve null ya que no hay operación APERTURA específica
-   * @returns null - La apertura ya no tiene hora específica en v2.0
-   * @deprecated Ya no tiene sentido en v2.0 - considerar eliminar del UI
-   */
-  async obtenerHoraApertura(): Promise<string | null> {
-    // En v2.0, la apertura es implícita (ausencia de cierre)
-    // No hay hora de apertura específica
-    return null;
-  }
-
-  /**
-   * Registra una operación de ingreso o egreso en una caja
-   * @param params Parámetros de la operación
-   */
-  async registrarOperacion(params: {
-    cajaId: number;
-    empleadoId: number;
-    tipo: 'INGRESO' | 'EGRESO';
-    monto: number;
-    descripcion: string;
-  }): Promise<void> {
-    const { cajaId, empleadoId, tipo, monto, descripcion } = params;
-
-    // 1. Obtener caja y saldo actual
-    const caja = await this.obtenerCajaPorId(cajaId);
-    if (!caja) {
-      throw new Error('Caja no encontrada');
-    }
-
-    // 2. Validar saldo suficiente para egreso
-    if (tipo === 'EGRESO' && monto > caja.saldo_actual) {
-      throw new Error('Saldo insuficiente para realizar el egreso');
-    }
-
-    // 3. Calcular nuevo saldo
-    const nuevoSaldo = tipo === 'INGRESO'
-      ? caja.saldo_actual + monto
-      : caja.saldo_actual - monto;
-
-    // 4. Insertar operación
-    await this.supabase.call(
-      this.supabase.client
-        .from('operaciones_cajas')
-        .insert({
-          caja_id: cajaId,
-          empleado_id: empleadoId,
-          tipo_operacion: tipo,
-          monto: monto,
-          saldo_anterior: caja.saldo_actual,
-          saldo_actual: nuevoSaldo,
-          descripcion: descripcion || (tipo === 'INGRESO' ? 'Ingreso manual' : 'Egreso manual')
-        })
-    );
-
-    // 5. Actualizar saldo en tabla cajas
-    await this.supabase.call(
-      this.supabase.client
-        .from('cajas')
-        .update({ saldo_actual: nuevoSaldo })
-        .eq('id', cajaId)
-    );
-  }
-
-  /**
-   * Crea una transferencia entre dos cajas
-   * Genera dos operaciones: TRANSFERENCIA_SALIENTE y TRANSFERENCIA_ENTRANTE
-   * @param params Parámetros de la transferencia
+   * @param params.codigoOrigen  - Código de la caja origen (ej: 'CAJA_BUS')
+   * @param params.codigoDestino - Código de la caja destino (ej: 'CAJA_CHICA')
+   * @param params.monto         - Monto a transferir
+   * @param params.empleadoId    - ID del empleado que realiza la transferencia
+   * @param params.descripcion   - Descripción de la transferencia
+   * @throws Error si la función PostgreSQL devuelve success=false
    */
   async crearTransferencia(params: {
-    cajaOrigenId: number;
-    cajaDestinoId: number;
+    codigoOrigen: string;
+    codigoDestino: string;
     monto: number;
     empleadoId: number;
     descripcion: string;
   }): Promise<void> {
-    const { cajaOrigenId, cajaDestinoId, monto, empleadoId, descripcion } = params;
+    const { codigoOrigen, codigoDestino, monto, empleadoId, descripcion } = params;
 
-    // 1. Obtener saldos actuales
-    const cajaOrigen = await this.obtenerCajaPorId(cajaOrigenId);
-    const cajaDestino = await this.obtenerCajaPorId(cajaDestinoId);
+    const { data, error } = await this.supabase.client.rpc('crear_transferencia', {
+      p_codigo_origen:  codigoOrigen,
+      p_codigo_destino: codigoDestino,
+      p_monto:          monto,
+      p_empleado_id:    empleadoId,
+      p_descripcion:    descripcion
+    });
 
-    if (!cajaOrigen || !cajaDestino) {
-      throw new Error('Caja no encontrada');
+    if (error) {
+      throw new Error(error.message || 'Error de conexión al crear transferencia');
     }
 
-    // 2. Calcular nuevos saldos
-    const nuevoSaldoOrigen = cajaOrigen.saldo_actual - monto;
-    const nuevoSaldoDestino = cajaDestino.saldo_actual + monto;
-
-    // 3. Crear operación SALIENTE en caja origen
-    await this.supabase.call(
-      this.supabase.client
-        .from('operaciones_cajas')
-        .insert({
-          caja_id: cajaOrigenId,
-          empleado_id: empleadoId,
-          tipo_operacion: 'TRANSFERENCIA_SALIENTE',
-          monto: monto,
-          saldo_anterior: cajaOrigen.saldo_actual,
-          saldo_actual: nuevoSaldoOrigen,
-          descripcion: descripcion
-        })
-    );
-
-    // 4. Crear operación ENTRANTE en caja destino
-    await this.supabase.call(
-      this.supabase.client
-        .from('operaciones_cajas')
-        .insert({
-          caja_id: cajaDestinoId,
-          empleado_id: empleadoId,
-          tipo_operacion: 'TRANSFERENCIA_ENTRANTE',
-          monto: monto,
-          saldo_anterior: cajaDestino.saldo_actual,
-          saldo_actual: nuevoSaldoDestino,
-          descripcion: `${descripcion} desde ${cajaOrigen.nombre}`
-        })
-    );
-
-    // 5. Actualizar saldos en tabla cajas
-    await Promise.all([
-      this.supabase.call(
-        this.supabase.client
-          .from('cajas')
-          .update({ saldo_actual: nuevoSaldoOrigen })
-          .eq('id', cajaOrigenId)
-      ),
-      this.supabase.call(
-        this.supabase.client
-          .from('cajas')
-          .update({ saldo_actual: nuevoSaldoDestino })
-          .eq('id', cajaDestinoId)
-      )
-    ]);
+    if (!data?.success) {
+      throw new Error(data?.error || 'Error desconocido al crear transferencia');
+    }
   }
 }

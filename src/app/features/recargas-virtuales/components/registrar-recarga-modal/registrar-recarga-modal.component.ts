@@ -13,8 +13,10 @@ import {
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
+import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
+import { getFechaLocal } from '@core/utils/date.util';
 
 type TipoServicio = 'CELULAR' | 'BUS';
 
@@ -38,6 +40,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
   private modalCtrl = inject(ModalController);
   private ui = inject(UiService);
   private service = inject(RecargasVirtualesService);
+  private authService = inject(AuthService);
 
   // CELULAR
   montoVirtual: number | null = null;
@@ -111,9 +114,13 @@ export class RegistrarRecargaModalComponent implements OnInit {
 
   /**
    * Saldo de CAJA_BUS después del depósito.
-   * Puede quedar negativo temporalmente — se corrige con el INGRESO del cierre diario.
+   * Con mini cierre (maquinaIngresada + ventas > 0): incluye el INGRESO de ventas
+   * que registra el SQL v3.0 antes del EGRESO → nunca queda negativo si pasa la validación.
    */
   get saldoBusDespues(): number {
+    if (this.maquinaIngresada) {
+      return this.saldoCajaBus + this.ventaBusCalculada - (this.montoVirtual ?? 0);
+    }
     return this.saldoCajaBus - (this.montoVirtual ?? 0);
   }
 
@@ -166,7 +173,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
     }
 
     try {
-      const empleado = await this.service.obtenerEmpleadoActual();
+      const empleado = await this.authService.getEmpleadoActual();
       if (!empleado) {
         await this.ui.showError('No se pudo obtener el empleado');
         return;
@@ -176,7 +183,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
 
       if (this.tipo === 'CELULAR') {
         resultado = await this.service.registrarRecargaProveedorCelularCompleto({
-          fecha: this.service.getFechaLocal(),
+          fecha: getFechaLocal(),
           empleado_id: empleado.id,
           monto_virtual: this.montoVirtual
         });
@@ -198,7 +205,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
       } else {
         // BUS — pasa saldo_virtual_maquina si fue ingresado (habilita validación extendida en SQL)
         resultado = await this.service.registrarCompraSaldoBus({
-          fecha: this.service.getFechaLocal(),
+          fecha: getFechaLocal(),
           empleado_id: empleado.id,
           monto: this.montoVirtual,
           saldo_virtual_maquina: this.saldoVirtualMaquina ?? undefined

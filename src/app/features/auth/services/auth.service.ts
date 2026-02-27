@@ -2,8 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController } from '@ionic/angular/standalone';
 import { Preferences } from '@capacitor/preferences';
-import { SupabaseService } from '../../../core/services/supabase.service';
-import { UiService } from '../../../core/services/ui.service';
+import { SupabaseService } from '@core/services/supabase.service';
+import { UiService } from '@core/services/ui.service';
 import { environment } from '../../../../environments/environment';
 import { EmpleadoActual } from '../models/empleado_actual.model';
 

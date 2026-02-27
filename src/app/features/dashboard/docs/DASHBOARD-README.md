@@ -263,16 +263,13 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 
 - **NUNCA usar** `new Date().toISOString()` (da UTC, zona horaria incorrecta)
 
-- **SIEMPRE usar** función personalizada `getFechaLocal()`:
-  
+- **SIEMPRE usar** `getFechaLocal()` desde `@core/utils/date.util`:
+
   ```typescript
-  getFechaLocal(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-  }
+  import { getFechaLocal } from '@core/utils/date.util';
+
+  // Uso:
+  const fecha = getFechaLocal(); // → '2026-02-26'
   ```
 
 ### Gestión de Iconos
@@ -294,7 +291,7 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 
 ## Estado del Proyecto
 
-**Última actualización:** 2026-02-20
+**Última actualización:** 2026-02-26
 
 **Módulos completados:**
 

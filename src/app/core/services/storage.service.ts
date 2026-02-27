@@ -114,7 +114,11 @@ export class StorageService {
    */
   private dataURLtoBlob(dataUrl: string): Blob {
     const arr = dataUrl.split(',');
-    const mime = arr[0].match(/:(.*?);/)![1];
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch || arr.length < 2) {
+      throw new Error('Formato de imagen inválido. Se esperaba un DataURL válido.');
+    }
+    const mime = mimeMatch[1];
     const bstr = atob(arr[1]);
     let n = bstr.length;
     const u8arr = new Uint8Array(n);

@@ -1,11 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
+import { UiService } from '@core/services/ui.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
-
-// IDs de cajas (constantes del sistema)
-const CAJA_TIENDA_ID = 1;
-const CAJA_VARIOS_ID = 2;
+import { getFechaLocal } from '@core/utils/date.util';
 
 @Injectable({
   providedIn: 'root'
@@ -13,17 +11,7 @@ const CAJA_VARIOS_ID = 2;
 export class TurnosCajaService {
   private supabase = inject(SupabaseService);
   private authService = inject(AuthService);
-
-  /**
-   * Obtiene la fecha actual en formato YYYY-MM-DD en zona horaria local
-   */
-  private getFechaLocal(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
+  private ui = inject(UiService);
 
   /**
    * Obtiene el fondo fijo diario desde configuraciones
@@ -34,14 +22,14 @@ export class TurnosCajaService {
       .select('fondo_fijo_diario')
       .single();
 
-    return config.data?.fondo_fijo_diario || 40.00;
+    return config.data?.fondo_fijo_diario ?? 40.00;
   }
 
   /**
    * Obtiene el turno activo (abierto) de hoy, si existe
    */
   async obtenerTurnoActivo(): Promise<TurnoCajaConEmpleado | null> {
-    const fechaHoy = this.getFechaLocal();
+    const fechaHoy = getFechaLocal();
 
     const turno = await this.supabase.call<TurnoCajaConEmpleado>(
       this.supabase.client
@@ -56,25 +44,11 @@ export class TurnosCajaService {
   }
 
   /**
-   * Cuenta los turnos completados hoy (con hora_cierre)
-   */
-  private async contarTurnosHoy(): Promise<number> {
-    const fechaHoy = this.getFechaLocal();
-
-    const result = await this.supabase.client
-      .from('turnos_caja')
-      .select('id', { count: 'exact', head: true })
-      .eq('fecha', fechaHoy);
-
-    return result.count || 0;
-  }
-
-  /**
-   * Abre un nuevo turno de caja
-   * Valida que no haya un turno abierto antes de crear uno nuevo
+   * Abre un nuevo turno de caja.
+   * Valida que no haya un turno abierto antes de crear uno nuevo.
    */
   async abrirTurno(): Promise<boolean> {
-    const fechaHoy = this.getFechaLocal();
+    const fechaHoy = getFechaLocal();
 
     // Validar: no debe haber turno abierto
     const { data: turnoAbierto } = await this.supabase.client
@@ -100,29 +74,24 @@ export class TurnosCajaService {
       .select('id', { count: 'exact', head: true })
       .eq('fecha', fechaHoy);
 
-    const numeroTurno = (count || 0) + 1;
+    const numeroTurno = (count ?? 0) + 1;
 
     // Insertar turno
-    const respuestaCruda = await this.supabase.client
+    const { error } = await this.supabase.client
       .from('turnos_caja')
       .insert({
         fecha: fechaHoy,
         numero_turno: numeroTurno,
         empleado_id: empleado.id,
-        hora_apertura: new Date().toISOString()
+        hora_apertura: new Date().toISOString() // TIMESTAMPTZ: UTC correcto
       });
 
-    // Si hay error, retornar false
-    if (respuestaCruda.error) {
+    if (error) {
+      await this.ui.showError(error.message || 'Error al abrir el turno');
       return false;
     }
 
-    // Mostrar toast de éxito
-    await this.supabase.call(
-      Promise.resolve(respuestaCruda),
-      'Caja abierta'
-    );
-
+    await this.ui.showSuccess('Caja abierta');
     return true;
   }
 
@@ -130,23 +99,17 @@ export class TurnosCajaService {
    * Cierra el turno activo
    */
   async cerrarTurno(turnoId: string): Promise<boolean> {
-    // Actualizar turno con hora de cierre
-    const respuestaCruda = await this.supabase.client
+    const { error } = await this.supabase.client
       .from('turnos_caja')
-      .update({ hora_cierre: new Date().toISOString() })
+      .update({ hora_cierre: new Date().toISOString() }) // TIMESTAMPTZ: UTC correcto
       .eq('id', turnoId);
 
-    // Si hay error, retornar false
-    if (respuestaCruda.error) {
+    if (error) {
+      await this.ui.showError(error.message || 'Error al cerrar el turno');
       return false;
     }
 
-    // Mostrar toast de éxito
-    await this.supabase.call(
-      Promise.resolve(respuestaCruda),
-      'Caja cerrada'
-    );
-
+    await this.ui.showSuccess('Caja cerrada');
     return true;
   }
 
@@ -159,7 +122,6 @@ export class TurnosCajaService {
    * Retorna null si no hay cierre previo o si el cierre fue normal (sin déficit).
    */
   async obtenerDeficitTurnoAnterior(): Promise<{ deficitCajaChica: number; fondoFaltante: number; efectivoRecaudado: number } | null> {
-    // Consultar el último registro de caja_fisica_diaria ordenado por created_at
     const { data, error } = await this.supabase.client
       .from('caja_fisica_diaria')
       .select('efectivo_recaudado, deficit_caja_chica')
@@ -171,10 +133,8 @@ export class TurnosCajaService {
 
     const deficitCajaChica = data.deficit_caja_chica ?? 0;
 
-    // Si no hay déficit alguno, no mostrar alerta
     if (deficitCajaChica <= 0) return null;
 
-    // Calcular fondo faltante desde config
     const fondoFijo = await this.obtenerFondoFijo();
     const efectivoRecaudado = data.efectivo_recaudado ?? 0;
     const fondoFaltante = Math.max(0, fondoFijo - efectivoRecaudado);
@@ -184,8 +144,7 @@ export class TurnosCajaService {
 
   /**
    * Registra las operaciones contables para reparar el déficit del turno anterior.
-   * Usa la función dedicada `reparar_deficit_turno` que NO valida saldo mínimo en Tienda
-   * (necesario porque Tienda puede estar en $0 digital aunque el dinero exista físicamente).
+   * Usa la función dedicada `reparar_deficit_turno` que NO valida saldo mínimo en Tienda.
    *
    * Retorna { ok: true } si todo OK, o { ok: false, errorMsg } con el mensaje del RPC.
    */
@@ -193,7 +152,6 @@ export class TurnosCajaService {
     const empleado = await this.authService.getEmpleadoActual();
     if (!empleado) return { ok: false, errorMsg: 'No se pudo obtener el empleado actual' };
 
-    // Obtener IDs de categorías por código
     const { data: categorias, error: catError } = await this.supabase.client
       .from('categorias_operaciones')
       .select('id, codigo')
@@ -210,7 +168,6 @@ export class TurnosCajaService {
       return { ok: false, errorMsg: 'Categorías de ajuste incompletas en la base de datos.' };
     }
 
-    // Llamar a función dedicada que omite la validación de saldo mínimo
     const { data, error } = await this.supabase.client
       .rpc('reparar_deficit_turno', {
         p_empleado_id:        empleado.id,
@@ -233,12 +190,10 @@ export class TurnosCajaService {
 
   /**
    * Obtiene el estado completo de la caja para mostrar en el banner
-   * Usa supabase.call para participar en el loading de Promise.all
    */
   async obtenerEstadoCaja(): Promise<EstadoCaja> {
-    const fechaHoy = this.getFechaLocal();
+    const fechaHoy = getFechaLocal();
 
-    // Obtener turno activo (con empleado)
     const turnoActivo = await this.supabase.call<TurnoCajaConEmpleado>(
       this.supabase.client
         .from('turnos_caja')
@@ -248,13 +203,12 @@ export class TurnosCajaService {
         .maybeSingle()
     );
 
-    // Contar total de turnos hoy
     const { count } = await this.supabase.client
       .from('turnos_caja')
       .select('id', { count: 'exact', head: true })
       .eq('fecha', fechaHoy);
 
-    const turnosHoy = count || 0;
+    const turnosHoy = count ?? 0;
 
     let estado: EstadoCajaTipo;
     let empleadoNombre = '';

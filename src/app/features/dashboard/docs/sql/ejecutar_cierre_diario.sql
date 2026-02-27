@@ -30,7 +30,7 @@
 --       (NO por fecha = p_fecha) — captura recargas no aplicadas en cierres previos
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.ejecutar_cierre_diario(  -- v4.7
+CREATE OR REPLACE FUNCTION public.ejecutar_cierre_diario(  -- v4.8
   p_turno_id                    UUID,
   p_fecha                       DATE,
   p_empleado_id                 INTEGER,
@@ -326,7 +326,11 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 13. RECARGAS BUS
+  -- 13. RECARGAS BUS (v4.8)
+  -- ON CONFLICT: si hubo mini cierre durante el día (registrar_compra_saldo_bus v3.0),
+  -- ya existe un registro BUS para este turno en `recargas`.
+  -- En ese caso: acumula venta_dia (mañana + tarde) y actualiza saldo_virtual_actual final.
+  -- Sin mini cierre: comportamiento idéntico a v4.7 (INSERT normal).
   -- ==========================================
 
   INSERT INTO recargas (
@@ -339,6 +343,11 @@ BEGIN
     (v_venta_bus + p_saldo_bus_final) = (p_saldo_anterior_bus + v_agregado_bus),
     NOW()
   )
+  ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
+    venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
+    saldo_virtual_actual = EXCLUDED.saldo_virtual_actual,
+    validado             = EXCLUDED.validado,
+    created_at           = NOW()
   RETURNING id INTO v_recarga_bus_id;
 
   IF v_venta_bus > 0 THEN
@@ -380,7 +389,7 @@ BEGIN
     'turno_id',      p_turno_id,
     'fecha',         p_fecha,
     'turno_cerrado', v_turno_cerrado,
-    'version',       '4.7',
+    'version',       '4.8',
     'configuracion', json_build_object(
       'fondo_fijo',           v_fondo_fijo,
       'transferencia_diaria', v_transferencia_diaria
@@ -411,7 +420,7 @@ BEGIN
 
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error en cierre diario v4.7: %', SQLERRM;
+    RAISE EXCEPTION 'Error en cierre diario v4.8: %', SQLERRM;
 END;
 $function$;
 
@@ -433,4 +442,4 @@ GRANT EXECUTE ON FUNCTION public.ejecutar_cierre_diario(
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.ejecutar_cierre_diario IS
-'Cierre diario v4.7 — 1 sola transferencia a Varios por día + distribución inteligente de efectivo con registro de déficit en caja_fisica_diaria.';
+'Cierre diario v4.8 — ON CONFLICT en INSERT BUS de recargas: compatible con mini cierre de registrar_compra_saldo_bus v3.0. Acumula venta_dia (mañana + tarde) si ya existe snapshot del turno.';

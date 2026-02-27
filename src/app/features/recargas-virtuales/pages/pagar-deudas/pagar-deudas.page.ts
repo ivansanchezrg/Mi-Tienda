@@ -12,6 +12,7 @@ import {
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
+import { AuthService } from '../../../auth/services/auth.service';
 
 @Component({
   selector: 'app-pagar-deudas',
@@ -28,6 +29,7 @@ export class PagarDeudasPage implements OnInit {
   private router = inject(Router);
   private ui = inject(UiService);
   private service = inject(RecargasVirtualesService);
+  private authService = inject(AuthService);
 
   pasoActual = 1;
   loading = true;
@@ -130,7 +132,7 @@ export class PagarDeudasPage implements OnInit {
       return;
     }
 
-    const empleado = await this.service.obtenerEmpleadoActual();
+    const empleado = await this.authService.getEmpleadoActual();
     if (!empleado) {
       await this.ui.showError('No se pudo obtener el empleado');
       return;

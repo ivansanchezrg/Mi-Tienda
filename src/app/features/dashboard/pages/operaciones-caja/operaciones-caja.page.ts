@@ -78,6 +78,9 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   // Estado de conexión
   isOnline = true;
 
+  // Flag para saber si hubo cambios y refrescar home al volver
+  hayCambios = false;
+
   constructor() {
     addIcons({
       chevronBackOutline, arrowDownOutline, arrowUpOutline,
@@ -109,7 +112,6 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       this.isOnline = isOnline;
     });
 
-    await this.cargarSaldoCaja();
     await this.cargarOperaciones(true);
   }
 
@@ -119,20 +121,6 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.networkSub?.unsubscribe();
-  }
-
-  async cargarSaldoCaja() {
-    try {
-      const cajas = await this.cajasService.obtenerCajas();
-      if (cajas) {
-        const caja = cajas.find(c => c.id === this.cajaId);
-        if (caja) {
-          this.cajaSaldo = caja.saldo_actual;
-        }
-      }
-    } catch (error: any) {
-      await this.ui.showError('Error al cargar el saldo. Verificá tu conexión.');
-    }
   }
 
   async cargarOperaciones(reset = false) {
@@ -146,11 +134,14 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     this.loading = true;
 
     try {
-      const resultado = await this.service.obtenerOperacionesCaja(
-        this.cajaId,
-        this.filtro,
-        this.page
-      );
+      // Carga saldo y operaciones en paralelo con un único spinner local
+      const [cajas, resultado] = await Promise.all([
+        this.cajasService.obtenerCajasDirecto(),
+        this.service.obtenerOperacionesCaja(this.cajaId, this.filtro, this.page)
+      ]);
+
+      const caja = cajas.find(c => c.id === this.cajaId);
+      if (caja) this.cajaSaldo = caja.saldo_actual;
 
       if (reset) {
         this.operaciones = resultado.operaciones;
@@ -238,7 +229,11 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   }
 
   volver() {
-    this.router.navigate(['/home']);
+    if (this.hayCambios) {
+      this.router.navigate(['/home'], { queryParams: { refresh: true } });
+    } else {
+      this.router.navigate(['/home']);
+    }
   }
 
   getOperacionIcon(tipo: string): string {
@@ -392,7 +387,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     );
 
     if (success) {
-      await this.cargarSaldoCaja();
+      this.hayCambios = true;
       await this.cargarOperaciones(true);
     }
   }

@@ -11,7 +11,7 @@
 <!-- Items del Menú -->
 <ion-list lines="none" class="menu-list">
   <ion-menu-toggle *ngFor="let item of menuItems" auto-hide="false">
-    <ion-item button class="menu-item" [routerLink]="item.url" routerLinkActive="active-item" (click)="closeMenu()">
+    <ion-item button class="menu-item" [routerLink]="item.url" routerLinkActive="active-item" [routerLinkActiveOptions]="{exact: !!item.exact}" (click)="closeMenu()">
       <ion-icon [icon]="item.icon" slot="start"></ion-icon>
       <ion-label>{{ item.title }}</ion-label>
     </ion-item>
