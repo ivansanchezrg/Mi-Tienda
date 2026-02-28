@@ -30,12 +30,15 @@ export class TurnosCajaService {
    */
   async obtenerTurnoActivo(): Promise<TurnoCajaConEmpleado | null> {
     const fechaHoy = getFechaLocal();
+    const inicioDia = new Date(`${fechaHoy}T00:00:00`).toISOString();
+    const finDia = new Date(`${fechaHoy}T23:59:59`).toISOString();
 
     const turno = await this.supabase.call<TurnoCajaConEmpleado>(
       this.supabase.client
         .from('turnos_caja')
         .select('*, empleado:empleados(id, nombre)')
-        .eq('fecha', fechaHoy)
+        .gte('hora_fecha_apertura', inicioDia)
+        .lte('hora_fecha_apertura', finDia)
         .is('hora_cierre', null)
         .maybeSingle()
     );
@@ -49,12 +52,15 @@ export class TurnosCajaService {
    */
   async abrirTurno(): Promise<boolean> {
     const fechaHoy = getFechaLocal();
+    const inicioDia = new Date(`${fechaHoy}T00:00:00`).toISOString();
+    const finDia = new Date(`${fechaHoy}T23:59:59`).toISOString();
 
     // Validar: no debe haber turno abierto
     const { data: turnoAbierto } = await this.supabase.client
       .from('turnos_caja')
       .select('id')
-      .eq('fecha', fechaHoy)
+      .gte('hora_fecha_apertura', inicioDia)
+      .lte('hora_fecha_apertura', finDia)
       .is('hora_cierre', null)
       .maybeSingle();
 
@@ -63,7 +69,7 @@ export class TurnosCajaService {
     }
 
     // Obtener empleado actual
-    const empleado = await this.authService.getEmpleadoActual();
+    const empleado = await this.authService.getUsuarioActual();
     if (!empleado) {
       return false;
     }
@@ -72,7 +78,8 @@ export class TurnosCajaService {
     const { count } = await this.supabase.client
       .from('turnos_caja')
       .select('id', { count: 'exact', head: true })
-      .eq('fecha', fechaHoy);
+      .gte('hora_fecha_apertura', inicioDia)
+      .lte('hora_fecha_apertura', finDia);
 
     const numeroTurno = (count ?? 0) + 1;
 
@@ -80,10 +87,9 @@ export class TurnosCajaService {
     const { error } = await this.supabase.client
       .from('turnos_caja')
       .insert({
-        fecha: fechaHoy,
         numero_turno: numeroTurno,
         empleado_id: empleado.id,
-        hora_apertura: new Date().toISOString() // TIMESTAMPTZ: UTC correcto
+        hora_fecha_apertura: new Date().toISOString() // TIMESTAMPTZ: UTC correcto
       });
 
     if (error) {
@@ -149,7 +155,7 @@ export class TurnosCajaService {
    * Retorna { ok: true } si todo OK, o { ok: false, errorMsg } con el mensaje del RPC.
    */
   async repararDeficit(deficitCajaChica: number, fondoFaltante: number): Promise<{ ok: boolean; errorMsg?: string }> {
-    const empleado = await this.authService.getEmpleadoActual();
+    const empleado = await this.authService.getUsuarioActual();
     if (!empleado) return { ok: false, errorMsg: 'No se pudo obtener el empleado actual' };
 
     const { data: categorias, error: catError } = await this.supabase.client
@@ -193,12 +199,15 @@ export class TurnosCajaService {
    */
   async obtenerEstadoCaja(): Promise<EstadoCaja> {
     const fechaHoy = getFechaLocal();
+    const inicioDia = new Date(`${fechaHoy}T00:00:00`).toISOString();
+    const finDia = new Date(`${fechaHoy}T23:59:59`).toISOString();
 
     const turnoActivo = await this.supabase.call<TurnoCajaConEmpleado>(
       this.supabase.client
         .from('turnos_caja')
         .select('*, empleado:empleados(id, nombre)')
-        .eq('fecha', fechaHoy)
+        .gte('hora_fecha_apertura', inicioDia)
+        .lte('hora_fecha_apertura', finDia)
         .is('hora_cierre', null)
         .maybeSingle()
     );
@@ -206,7 +215,8 @@ export class TurnosCajaService {
     const { count } = await this.supabase.client
       .from('turnos_caja')
       .select('id', { count: 'exact', head: true })
-      .eq('fecha', fechaHoy);
+      .gte('hora_fecha_apertura', inicioDia)
+      .lte('hora_fecha_apertura', finDia);
 
     const turnosHoy = count ?? 0;
 
@@ -217,7 +227,7 @@ export class TurnosCajaService {
     if (turnoActivo) {
       estado = 'TURNO_EN_CURSO';
       empleadoNombre = turnoActivo.empleado?.nombre || '';
-      horaApertura = new Date(turnoActivo.hora_apertura).toLocaleTimeString('es-ES', {
+      horaApertura = new Date(turnoActivo.hora_fecha_apertura).toLocaleTimeString('es-ES', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: true

@@ -138,14 +138,13 @@ BEGIN
     tipo_operacion, monto,
     saldo_anterior, saldo_actual,
     categoria_id, tipo_referencia_id,
-    descripcion, created_at
+    descripcion
   ) VALUES (
     v_operacion_pago_id, NOW(), v_caja_celular_id, p_empleado_id,
     'EGRESO', v_total_a_pagar,
     v_saldo_celular_ant, v_saldo_celular_ant - v_total_a_pagar,
     v_categoria_eg010_id, v_tipo_ref_id,
-    COALESCE(p_notas, 'Pago al proveedor celular — ' || array_length(p_deuda_ids, 1) || ' deuda(s)'),
-    NOW()
+    COALESCE(p_notas, 'Pago al proveedor celular — ' || array_length(p_deuda_ids, 1) || ' deuda(s)')
   );
 
   -- ==========================================
@@ -156,14 +155,13 @@ BEGIN
     tipo_operacion, monto,
     saldo_anterior, saldo_actual,
     tipo_referencia_id,
-    descripcion, created_at
+    descripcion
   ) VALUES (
     v_operacion_sal_id, NOW(), v_caja_celular_id, p_empleado_id,
     'TRANSFERENCIA_SALIENTE', v_total_ganancia,
     v_saldo_celular_ant - v_total_a_pagar, v_saldo_celular_nuevo,
     v_tipo_ref_id,
-    'Ganancia celular → Caja Chica',
-    NOW()
+    'Ganancia celular → Caja Chica'
   );
 
   -- ==========================================
@@ -174,14 +172,13 @@ BEGIN
     tipo_operacion, monto,
     saldo_anterior, saldo_actual,
     tipo_referencia_id,
-    descripcion, created_at
+    descripcion
   ) VALUES (
     v_operacion_ent_id, NOW(), v_caja_chica_id, p_empleado_id,
     'TRANSFERENCIA_ENTRANTE', v_total_ganancia,
     v_saldo_chica_ant, v_saldo_chica_nuevo,
     v_tipo_ref_id,
-    'Ganancia celular recibida desde Caja Celular',
-    NOW()
+    'Ganancia celular recibida desde Caja Celular'
   );
 
   -- ==========================================

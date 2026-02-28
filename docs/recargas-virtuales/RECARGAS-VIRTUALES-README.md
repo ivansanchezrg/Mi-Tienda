@@ -250,11 +250,11 @@ home.page.ts → cargarDatos()
 
 ## Funciones SQL
 
-> 📄 `registrar_recarga_proveedor_celular_completo` → [sql/registrar_recarga_proveedor_celular_completo.sql](sql/registrar_recarga_proveedor_celular_completo.sql)
+> 📄 `registrar_recarga_proveedor_celular_completo` → [sql/functions/registrar_recarga_proveedor_celular_completo.sql](sql/functions/registrar_recarga_proveedor_celular_completo.sql)
 
-> 📄 `registrar_pago_proveedor_celular` → [sql/registrar_pago_proveedor_celular.sql](sql/registrar_pago_proveedor_celular.sql)
+> 📄 `registrar_pago_proveedor_celular` → [sql/functions/registrar_pago_proveedor_celular.sql](sql/functions/registrar_pago_proveedor_celular.sql)
 
-> 📄 `registrar_compra_saldo_bus` → [sql/registrar_compra_saldo_bus.sql](sql/registrar_compra_saldo_bus.sql)
+> 📄 `registrar_compra_saldo_bus` → [sql/functions/registrar_compra_saldo_bus.sql](sql/functions/registrar_compra_saldo_bus.sql)
 
 ---
 

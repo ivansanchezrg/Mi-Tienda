@@ -8,18 +8,21 @@ export class StorageService {
   private supabase = inject(SupabaseService);
 
   /**
-   * Sube una imagen a Supabase Storage
-   * @param dataUrl - DataURL de la imagen (desde Camera.getPhoto)
-   * @param bucket - Nombre del bucket ('comprobantes')
+   * Sube una imagen a Supabase Storage.
+   * @param dataUrl   - DataURL de la imagen (desde Camera.getPhoto)
+   * @param bucket    - Nombre del bucket (default: 'comprobantes')
+   * @param subfolder - Carpeta dentro de YYYY/MM/ que identifica el tipo.
+   *                    Valores actuales: 'operaciones' | 'gastos'
+   *                    Resultado: comprobantes/YYYY/MM/{subfolder}/{uuid}.jpg
    * @returns Path del archivo en Storage o null si falla
    */
-  async uploadImage(dataUrl: string, bucket: string = 'comprobantes'): Promise<string | null> {
+  async uploadImage(dataUrl: string, bucket: string = 'comprobantes', subfolder: string = 'general'): Promise<string | null> {
     try {
       // 1. Convertir DataURL a Blob
       const blob = this.dataURLtoBlob(dataUrl);
 
-      // 2. Generar nombre único con estructura de carpetas por fecha
-      const fileName = this.generateFileName();
+      // 2. Generar nombre único con estructura de carpetas por fecha y tipo
+      const fileName = this.generateFileName(subfolder);
 
       // 3. Subir a Supabase Storage
       const { data, error } = await this.supabase.client.storage
@@ -129,15 +132,15 @@ export class StorageService {
   }
 
   /**
-   * Genera nombre único para archivo con estructura de carpetas por fecha
-   * Formato: YYYY/MM/{uuid}.jpg
+   * Genera nombre único para archivo con estructura de carpetas por fecha y tipo
+   * Formato: YYYY/MM/{subfolder}/{uuid}.jpg
    */
-  private generateFileName(): string {
+  private generateFileName(subfolder: string): string {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const uuid = crypto.randomUUID();
 
-    return `${year}/${month}/${uuid}.jpg`;
+    return `${year}/${month}/${subfolder}/${uuid}.jpg`;
   }
 }

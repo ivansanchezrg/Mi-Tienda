@@ -4,7 +4,7 @@ import { SaldosAnteriores, DatosCierreDiario, ParamsCierreDiario } from '../mode
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 import { getFechaLocal } from '@core/utils/date.util';
 import { AuthService } from '../../auth/services/auth.service';
-import { EmpleadoActual } from '../../auth/models/empleado_actual.model';
+import { UsuarioActual } from '../../auth/models/usuario_actual.model';
 
 /**
  * Tipo de retorno de la query de saldo virtual
@@ -331,10 +331,10 @@ export class RecargasService {
   /**
    * Obtiene el empleado actual desde Preferences (lectura local, sin red).
    * Delega a AuthService para evitar duplicar lógica y reducir queries a Supabase.
-   * @returns {Promise<EmpleadoActual | null>} Datos del empleado o null
+   * @returns {Promise<UsuarioActual | null>} Datos del empleado o null
    */
-  async obtenerEmpleadoActual(): Promise<EmpleadoActual | null> {
-    return this.authService.getEmpleadoActual();
+  async obtenerUsuarioActual(): Promise<UsuarioActual | null> {
+    return this.authService.getUsuarioActual();
   }
 
   /**

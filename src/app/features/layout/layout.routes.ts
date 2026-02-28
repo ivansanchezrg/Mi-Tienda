@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { MainLayoutPage } from './pages/main/main-layout.page';
+import { roleGuard } from '../../core/guards/role.guard';
 
 export const LAYOUT_ROUTES: Routes = [
   {
@@ -12,6 +13,7 @@ export const LAYOUT_ROUTES: Routes = [
       },
       {
         path: 'usuarios',
+        canActivate: [roleGuard(['ADMIN'])],
         loadChildren: () => import('../usuarios/usuarios.routes').then(m => m.USUARIOS_ROUTES)
       },
       {
@@ -28,6 +30,7 @@ export const LAYOUT_ROUTES: Routes = [
       },
       {
         path: 'configuracion',
+        canActivate: [roleGuard(['ADMIN'])],
         loadChildren: () => import('../configuracion/configuracion.routes').then(m => m.CONFIGURACION_ROUTES)
       },
       {

@@ -212,13 +212,13 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 3. **[3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md)** - Flujo completo del cierre diario, arquitectura del sistema de 4 cajas, validaciones y trazabilidad
 4. **[4_PROCESO_CUADRE_RECARGAS.md](./4_PROCESO_CUADRE_RECARGAS.md)** - Calculadora de verificación de efectivo (solo vista, no guarda)
 5. **[5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md)** - Patrón de actualización de UI post-operación (cargarDatos) y gotcha de Supabase INSERT/UPDATE devuelve data:null
-6. **[GASTOS-DIARIOS-README.md](../../../gastos-diarios/docs/GASTOS-DIARIOS-README.md)** - Sistema de registro de gastos operativos con FAB y comprobantes
-7. **[SALDO-VIRTUAL-README.md](../../../recargas-virtuales/docs/SALDO-VIRTUAL-README.md)** - Sistema completo de gestión de saldo virtual (CELULAR/BUS), deudas, liquidaciones y comisiones
+6. **[GASTOS-DIARIOS-README.md](../gastos-diarios/GASTOS-DIARIOS-README.md)** - Sistema de registro de gastos operativos con FAB y comprobantes
+7. **[RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md)** - Sistema completo de gestión de saldo virtual (CELULAR/BUS), deudas, liquidaciones y comisiones
 8. **[8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)** - Flujo de apertura de turno, modal de verificación de fondo, estados del banner y tabla turnos_caja
 
 ### Otros Recursos
 
-- **[Schema de Base de Datos](../../../../docs/schema_inicial_completo.sql)** - Estructura completa de tablas, índices y datos iniciales
+- **[Schema de Base de Datos](../schema.sql)** - Estructura completa de tablas, índices y datos iniciales
 - **[SQL Queries](./sql/)** - Funciones PostgreSQL y queries comunes
 
 ---

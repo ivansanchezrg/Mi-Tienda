@@ -11,7 +11,7 @@
       <ion-button (click)="abrirNotificaciones()" fill="clear" class="notification-btn">
         <div class="bell-wrapper">
           <ion-icon name="notifications-outline"></ion-icon>
-          <span *ngIf="notificacionesPendientes > 0" class="notif-badge">{{ deudasPendientesCelular.length }}</span>
+          <span *ngIf="notificacionesPendientes > 0" class="notif-badge">{{ notificacionesPendientes }}</span>
         </div>
       </ion-button>
     </ion-buttons>

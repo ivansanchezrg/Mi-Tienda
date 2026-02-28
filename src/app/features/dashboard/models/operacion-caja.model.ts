@@ -28,7 +28,6 @@ export interface OperacionCaja {
   referencia_id: string | null;
   descripcion: string | null;
   comprobante_url: string | null;
-  created_at: string;
 
   // Relations (joins)
   caja?: {

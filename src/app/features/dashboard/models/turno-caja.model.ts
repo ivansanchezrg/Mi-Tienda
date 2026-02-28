@@ -1,12 +1,10 @@
 export interface TurnoCaja {
   id: string;
-  fecha: string;
   numero_turno: number;
   empleado_id: number;
-  hora_apertura: string;
+  hora_fecha_apertura: string;
   hora_cierre: string | null;
   observaciones: string | null;
-  created_at: string;
 }
 
 export interface TurnoCajaConEmpleado extends TurnoCaja {

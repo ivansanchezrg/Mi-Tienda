@@ -84,10 +84,10 @@ BEGIN
   -- 4. Insertar operación
   INSERT INTO operaciones_cajas (
     id, caja_id, empleado_id, tipo_operacion, categoria_id, monto,
-    saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
+    saldo_anterior, saldo_actual, descripcion, comprobante_url
   ) VALUES (
     gen_random_uuid(), p_caja_id, p_empleado_id, v_tipo, p_categoria_id, p_monto,
-    v_saldo_anterior, v_saldo_nuevo, p_descripcion, p_comprobante_url, NOW()
+    v_saldo_anterior, v_saldo_nuevo, p_descripcion, p_comprobante_url
   ) RETURNING id INTO v_operacion_id;
 
   -- 5. Retornar resultado

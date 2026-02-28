@@ -173,7 +173,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
     }
 
     try {
-      const empleado = await this.authService.getEmpleadoActual();
+      const empleado = await this.authService.getUsuarioActual();
       if (!empleado) {
         await this.ui.showError('No se pudo obtener el empleado');
         return;

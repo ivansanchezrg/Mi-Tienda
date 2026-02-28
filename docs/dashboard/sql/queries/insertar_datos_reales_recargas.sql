@@ -60,8 +60,7 @@ BEGIN
 
   INSERT INTO recargas (
     id, fecha, turno_id, tipo_servicio_id, empleado_id,
-    venta_dia, saldo_virtual_anterior, saldo_virtual_actual,
-    validado, created_at
+    venta_dia, saldo_virtual_anterior, saldo_virtual_actual
   ) VALUES (
     v_recarga_bus_id,
     v_fecha_cierre,
@@ -70,9 +69,7 @@ BEGIN
     v_empleado_id,
     73.95,      -- venta_dia (exacto del cuaderno)
     155.25,     -- saldo_virtual_anterior (exacto del cuaderno)
-    526.05,     -- saldo_virtual_actual (exacto del cuaderno)
-    true,
-    v_fecha_cierre + INTERVAL '17 hours'
+    526.05      -- saldo_virtual_actual (exacto del cuaderno)
   );
 
   RAISE NOTICE 'Recarga BUS: saldo_virtual 155.25 → 526.05, venta $73.95';
@@ -86,7 +83,6 @@ BEGIN
   INSERT INTO recargas (
     id, fecha, turno_id, tipo_servicio_id, empleado_id,
     venta_dia, saldo_virtual_anterior, saldo_virtual_actual,
-    validado, created_at
   ) VALUES (
     v_recarga_celular_id,
     v_fecha_cierre,
@@ -95,9 +91,7 @@ BEGIN
     v_empleado_id,
     34.29,      -- venta_dia (exacto del cuaderno)
     151.00,     -- saldo_virtual_anterior (exacto del cuaderno)
-    116.71,     -- saldo_virtual_actual (exacto del cuaderno)
-    true,
-    v_fecha_cierre + INTERVAL '17 hours'
+    116.71      -- saldo_virtual_actual (exacto del cuaderno)
   );
 
   RAISE NOTICE 'Recarga CELULAR: saldo_virtual 151.00 → 116.71, venta $34.29';

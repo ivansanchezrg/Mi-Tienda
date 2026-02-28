@@ -42,7 +42,7 @@ export class GastosDiariosService {
       if (gasto.fotoComprobante) {
         await this.ui.showLoading('Subiendo comprobante...');
 
-        pathImagen = await this.storageService.uploadImage(gasto.fotoComprobante);
+        pathImagen = await this.storageService.uploadImage(gasto.fotoComprobante, 'comprobantes', 'gastos');
 
         if (!pathImagen) {
           await this.ui.hideLoading();
@@ -54,7 +54,7 @@ export class GastosDiariosService {
       }
 
       // 2. Obtener empleado actual
-      const empleado = await this.authService.getEmpleadoActual();
+      const empleado = await this.authService.getUsuarioActual();
 
       if (!empleado) {
         await this.ui.showError('No se pudo obtener información del empleado');

@@ -81,7 +81,7 @@ BEGIN
   -- 1. EGRESO de Tienda
   INSERT INTO operaciones_cajas (
     id, caja_id, empleado_id, tipo_operacion, categoria_id,
-    monto, saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
+    monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
   ) VALUES (
     gen_random_uuid(), v_caja_id, p_empleado_id, 'EGRESO', p_cat_egreso_id,
     v_total_a_reponer, v_saldo_tienda, v_saldo_tienda - v_total_a_reponer,
@@ -90,7 +90,7 @@ BEGIN
       TO_CHAR(p_deficit_caja_chica, 'FM999990.00'),
       TO_CHAR(p_fondo_faltante, 'FM999990.00')
     ),
-    NULL, NOW()
+    NULL
   ) RETURNING id INTO v_op_egreso_id;
 
   UPDATE cajas SET saldo_actual = v_saldo_tienda - v_total_a_reponer, updated_at = NOW() WHERE id = v_caja_id;
@@ -104,12 +104,12 @@ BEGIN
 
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, categoria_id,
-      monto, saldo_anterior, saldo_actual, descripcion, comprobante_url, created_at
+      monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
     ) VALUES (
       gen_random_uuid(), v_caja_chica_id, p_empleado_id, 'INGRESO', p_cat_ingreso_id,
       p_deficit_caja_chica, v_saldo_varios, v_saldo_varios + p_deficit_caja_chica,
       'Reposición déficit turno anterior — pendiente cobrado de Tienda',
-      NULL, NOW()
+      NULL
     ) RETURNING id INTO v_op_ingreso_id;
 
     UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_caja_chica, updated_at = NOW() WHERE id = v_caja_chica_id;

@@ -3,12 +3,23 @@ ion-menu {
 }
 
 ion-tab-bar {
-  --background: var(--ion-item-background);
+  --background: transparent;
+  background: linear-gradient(
+    to bottom,
+    var(--ion-item-background) 68px,
+    var(--ion-background-color) 68px
+  );
   border-top: 1px solid var(--ion-color-step-100);
   box-shadow: var(--shadow-level-1);
-  height: 56px;
-  padding-bottom: var(--spacing-md);
+  height: calc(68px + env(safe-area-inset-bottom) / 2);
+  padding-bottom: calc(env(safe-area-inset-bottom) / 2);
+
 }
+
+ion-tab-button {
+  --padding-bottom: calc(env(safe-area-inset-bottom) / 2);
+}
+
 
 // Oculta el tab-bar sin eliminarlo del DOM,
 // para que ion-tabs siga trackeando la tab activa.
@@ -16,6 +27,8 @@ ion-tab-bar.tabs-oculto {
   display: none;
 }
 
+
+// ESTILOS PARA EL BOTON DEL MEDIO (+)
 // Contenedor del FAB como tab
 .fab-tab-container {
   display: flex;
@@ -66,7 +79,7 @@ ion-fab-button {
 // Contenedor de opciones (pills verticales) - fuera del tab-bar
 .fab-options {
   position: fixed;
-  bottom: 80px;
+  bottom: calc(80px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   display: flex;

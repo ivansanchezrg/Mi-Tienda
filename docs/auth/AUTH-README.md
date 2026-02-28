@@ -37,15 +37,15 @@ Módulo de autenticación usando Supabase Auth con Google como proveedor OAuth.
 - Guarda la URL completa (con tokens en el hash) en `supabase.pendingDeepLinkUrl`
 - Navega a `/auth/callback` usando `NgZone` para que Angular detecte el cambio
 
-### 4. Callback (procesamiento de tokens + validación empleado)
+### 4. Callback (procesamiento de tokens + validación usuario)
 
 **Archivo:** `features/auth/pages/callback/callback.page.ts`
 
 - **Web** (`handleWebCallback`): Verifica sesión con `getSession()`. Si no existe aún, se suscribe a `onAuthStateChange` esperando el evento `SIGNED_IN`. La suscripción se limpia en `ngOnDestroy()`.
 - **Android** (`handleAndroidCallback`): Lee `pendingDeepLinkUrl`, parsea el hash para extraer `access_token` y `refresh_token`, llama a `setSession()` para establecer la sesión manualmente.
-- Después de establecer sesión (ambas plataformas), llama a `validateAndRedirect()` que ejecuta `AuthService.validateEmployee()` para verificar que el email exista en la tabla `empleados` con `activo = true`
-- Si no es empleado válido → cierra sesión y redirige a `/auth/login`
-- Si es empleado válido → redirige a `/home`
+- Después de establecer sesión (ambas plataformas), llama a `validateAndRedirect()` que ejecuta `AuthService.validarUsuario()` para verificar que el email exista en la tabla `empleados` con `activo = true`
+- Si no es usuario válido → cierra sesión y redirige a `/auth/login`
+- Si es usuario válido → redirige a `/home`
 
 ### 5. Rutas
 
@@ -67,30 +67,35 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 - `hasLocalSession()` → verifica si hay sesión guardada en localStorage (sin llamada de red). Útil para soporte offline
 - `getSession()` → retorna la sesión actual de Supabase o null
 - `getUser()` → retorna el usuario actual o null
-- `validateEmployee()` → consulta tabla `empleados` por email. Retorna `true` si existe y `activo = true`. Si no, muestra error, cierra sesión y redirige al login. **Después de validar, guarda automáticamente el empleado en Preferences**
+- `validarUsuario()` → consulta tabla `empleados` por email, seleccionando también `rol`. Retorna `true` si existe y `activo = true`. Si no, muestra error, cierra sesión y redirige al login. **Después de validar, guarda automáticamente el usuario en Preferences**
 - `logout()` → muestra confirmación, cierra sesión y redirige a `/auth/login`. Funciona con o sin internet (limpia sesión local y Preferences)
 - `forceLogout()` → cierra sesión sin confirmación ni loading (uso interno). Limpia sesión local y Preferences
 
-#### Métodos de Empleado Actual (Capacitor Preferences)
+#### Métodos de Usuario Actual (Capacitor Preferences)
 
-**Nuevo sistema de caché local para evitar consultas repetidas a la base de datos:**
+**Sistema de caché local para evitar consultas repetidas a la base de datos:**
 
-- `getEmpleadoActual()` → Obtiene el empleado actual desde **Capacitor Preferences** (lectura local, instantánea). No hace consultas a la BD. Retorna `null` si no hay empleado guardado.
+- `getUsuarioActual()` → Obtiene el usuario actual desde **Capacitor Preferences** (lectura local, instantánea). No hace consultas a la BD. Retorna `null` si no hay usuario guardado.
 
-**Interfaz EmpleadoActual:**
+**Modelo `UsuarioActual`:**
 
 ```typescript
-export interface EmpleadoActual {
+// features/auth/models/usuario_actual.model.ts
+
+export type RolUsuario = 'ADMIN' | 'EMPLEADO';
+
+export interface UsuarioActual {
   id: number;
   nombre: string;
-  usuario: string;
+  usuario: string;  // Email (coincide con Google account)
   activo: boolean;
+  rol: RolUsuario;  // 'ADMIN' o 'EMPLEADO'
 }
 ```
 
 **¿Cuándo se guarda automáticamente?**
 
-Al iniciar sesión exitosamente, `validateEmployee()` consulta la tabla `empleados` UNA SOLA VEZ y guarda los datos en Preferences. A partir de ahí, todos los módulos pueden usar `getEmpleadoActual()` sin consultar Supabase.
+Al iniciar sesión exitosamente, `validarUsuario()` consulta la tabla `empleados` UNA SOLA VEZ y guarda los datos en Preferences. A partir de ahí, todos los módulos pueden usar `getUsuarioActual()` sin consultar Supabase.
 
 **¿Cuándo se limpia automáticamente?**
 
@@ -101,17 +106,18 @@ Al cerrar sesión (tanto `logout()` como `forceLogout()`), se limpian automátic
 ```typescript
 import { AuthService } from '../../../auth/services/auth.service';
 
-export class HomePage {
+export class MiPage {
   private authService = inject(AuthService);
 
   async cargarDatos() {
     // Lectura instantánea, sin consulta a BD
-    const empleado = await this.authService.getEmpleadoActual();
+    const usuario = await this.authService.getUsuarioActual();
 
-    if (empleado) {
-      console.log('ID:', empleado.id);
-      console.log('Nombre:', empleado.nombre);
-      console.log('Email:', empleado.usuario);
+    if (usuario) {
+      console.log('ID:', usuario.id);
+      console.log('Nombre:', usuario.nombre);
+      console.log('Email:', usuario.usuario);
+      console.log('Rol:', usuario.rol); // 'ADMIN' o 'EMPLEADO'
     }
   }
 }
@@ -192,7 +198,7 @@ Cuando expira el JWT:
 
 ### 8. Guards (protección de rutas)
 
-**Archivos:** `core/guards/auth.guard.ts`, `core/guards/public.guard.ts`
+**Archivos:** `core/guards/auth.guard.ts`, `core/guards/public.guard.ts`, `core/guards/role.guard.ts`
 
 #### authGuard (rutas privadas)
 
@@ -209,34 +215,76 @@ Usa `AuthService.hasLocalSession()` para verificar sesión guardada en localStor
 
 Protege el login. Con sesión activa → redirige a `/home`. Aplicado en `auth.routes.ts`.
 
-- **Importante:** `publicGuard` NO se aplica a `/auth/callback` para que el callback siempre se ejecute y valide al empleado
+- **Importante:** `publicGuard` NO se aplica a `/auth/callback` para que el callback siempre se ejecute y valide al usuario
 
-### 9. Datos del usuario en sidebar y configuración
+#### roleGuard (rutas por rol)
 
-**Archivos:** `shared/components/sidebar/sidebar.component.ts`, `features/configuracion/pages/main/configuracion.page.ts`
+**Archivo:** `core/guards/role.guard.ts`
 
-- En `ngOnInit()` obtienen el usuario via `AuthService.getUser()`
-- Muestran `full_name` y `email` del perfil de Google
+Protege rutas que requieren un rol específico. Lee el rol desde `getUsuarioActual()` (Preferences, sin consulta a BD).
+
+- Si el usuario no tiene el rol requerido → redirige a `/home` (no al login, ya está autenticado)
+- Si no hay usuario en caché → redirige a `/home`
+
+**Uso:**
+
+```typescript
+// layout.routes.ts
+{
+  path: 'usuarios',
+  canActivate: [roleGuard(['ADMIN'])],
+  loadChildren: () => import('../usuarios/usuarios.routes').then(...)
+},
+{
+  path: 'configuracion',
+  canActivate: [roleGuard(['ADMIN'])],
+  loadChildren: () => import('../configuracion/configuracion.routes').then(...)
+}
+```
+
+**Acceso por rol:**
+
+| Sección | EMPLEADO | ADMIN |
+|---|---|---|
+| Home / Dashboard | ✅ | ✅ |
+| Historial de Gastos | ✅ | ✅ |
+| Historial de Recargas | ✅ | ✅ |
+| Saldo Virtual | ✅ | ✅ |
+| Operaciones de Caja | ✅ | ✅ |
+| Cierre Diario | ✅ | ✅ |
+| Usuarios | ❌ | ✅ |
+| Configuración | ❌ | ✅ |
+
+### 9. Sidebar con datos reales del usuario
+
+**Archivo:** `shared/components/sidebar/sidebar.component.ts`
+
+- En `ngOnInit()` obtiene el usuario via `AuthService.getUsuarioActual()` (Preferences, sin consulta a BD)
+- Muestra `nombre`, `usuario` (email) y `rol` del usuario logueado
+- El rol se muestra como "Administrador" o "Empleado" (legible)
+- **Filtra los items del menú según el rol:** ADMIN ve "Usuarios" y "Configuración"; EMPLEADO no los ve
+- Los items con `soloAdmin: true` solo aparecen si `empleadoRol === 'ADMIN'`
 - Logout llama a `AuthService.logout()`
 
 ---
 
 ## Mapa rápido de archivos
 
-| Archivo                                                   | Qué tiene                                                              |
-| --------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `core/services/supabase.service.ts`                       | `signInWithGoogle()`, `pendingDeepLinkUrl`, detección/manejo JWT expirado |
-| `core/services/ui.service.ts`                             | `formatErrorMessage()` (convierte errores técnicos a mensajes amigables) |
-| `core/guards/auth.guard.ts`                               | Guard para rutas privadas                                              |
-| `core/guards/public.guard.ts`                             | Guard para rutas públicas                                              |
-| `app.component.ts`                                        | `setupDeepLinkListener()` + `Browser.close()` para Android             |
-| `app.routes.ts`                                           | `authGuard` aplicado a layout                                          |
-| `features/auth/pages/login/login.page.ts`                 | UI de login + botón Google                                             |
-| `features/auth/pages/callback/callback.page.ts`           | Procesa tokens web y Android                                           |
-| `features/auth/services/auth.service.ts`                  | `hasLocalSession()`, `getSession()`, `getUser()`, `validateEmployee()`, `logout()`, **`getEmpleadoActual()`** (Preferences) |
-| `features/auth/auth.routes.ts`                            | Rutas `/auth/login` (con `publicGuard`) y `/auth/callback` (sin guard) |
-| `shared/components/sidebar/sidebar.component.ts`          | Muestra datos del usuario, logout                                      |
-| `features/configuracion/pages/main/configuracion.page.ts` | Muestra datos del usuario, logout                                      |
+| Archivo | Qué tiene |
+|---|---|
+| `core/services/supabase.service.ts` | `signInWithGoogle()`, `pendingDeepLinkUrl`, detección/manejo JWT expirado |
+| `core/services/ui.service.ts` | `formatErrorMessage()` (convierte errores técnicos a mensajes amigables) |
+| `core/guards/auth.guard.ts` | Guard para rutas privadas (autenticación) |
+| `core/guards/public.guard.ts` | Guard para rutas públicas (evita login si ya hay sesión) |
+| `core/guards/role.guard.ts` | Guard para rutas por rol (`roleGuard(['ADMIN'])`) |
+| `app.component.ts` | `setupDeepLinkListener()` + `Browser.close()` para Android |
+| `app.routes.ts` | `authGuard` aplicado a layout |
+| `features/auth/models/usuario_actual.model.ts` | `UsuarioActual`, `RolUsuario` |
+| `features/auth/pages/login/login.page.ts` | UI de login + botón Google |
+| `features/auth/pages/callback/callback.page.ts` | Procesa tokens web y Android, llama `validarUsuario()` |
+| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()`, `logout()`, **`getUsuarioActual()`** (Preferences) |
+| `features/auth/auth.routes.ts` | Rutas `/auth/login` (con `publicGuard`) y `/auth/callback` (sin guard) |
+| `shared/components/sidebar/sidebar.component.ts` | Muestra datos del usuario, filtra items por rol, logout |
 
 ---
 

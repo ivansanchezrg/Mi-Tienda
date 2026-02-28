@@ -73,7 +73,7 @@ export class LiquidacionBusModalComponent {
     await this.ui.showLoading('Registrando liquidación...');
 
     try {
-      const empleado = await this.authService.getEmpleadoActual();
+      const empleado = await this.authService.getUsuarioActual();
       if (!empleado) {
         throw new Error('No se pudo obtener el empleado actual');
       }

@@ -80,19 +80,10 @@
       <div class="gastos-card">
         @for (gasto of grupo.gastos; track gasto.id; let last = $last) {
           <div class="gasto-row">
-            <!-- Icono (clickeable si hay comprobante) -->
-            @if (gasto.comprobante_url) {
-              <div
-                class="gasto-icon clickeable"
-                (click)="verComprobante($event, gasto.comprobante_url)"
-              >
-                <ion-icon name="receipt-outline"></ion-icon>
-              </div>
-            } @else {
-              <div class="gasto-icon">
-                <ion-icon name="receipt-outline"></ion-icon>
-              </div>
-            }
+            <!-- Icono -->
+            <div class="gasto-icon">
+              <ion-icon name="receipt-outline"></ion-icon>
+            </div>
 
             <!-- Detalles -->
             <div class="gasto-details">
@@ -106,18 +97,16 @@
                 <span class="gasto-user">{{ gasto.empleado_nombre || 'Sin nombre' }}</span>
                 <span class="dot">•</span>
                 <span class="gasto-time">{{ formatearHora(gasto.created_at) }}</span>
-                @if (gasto.comprobante_url) {
-                  <span class="dot">•</span>
-                  <span class="comprobante-badge" (click)="verComprobante($event, gasto.comprobante_url)">
-                    <ion-icon name="image-outline"></ion-icon>
-                    Ver comprobante
-                  </span>
-                }
               </div>
             </div>
 
-            <!-- Monto -->
+            <!-- Monto + Comprobante -->
             <div class="gasto-right">
+              @if (gasto.comprobante_url) {
+                <button class="comprobante-btn" (click)="verComprobante(gasto.comprobante_url)">
+                  <ion-icon name="document-attach-outline"></ion-icon>
+                </button>
+              }
               <div class="gasto-amount">${{ gasto.monto.toFixed(2) }}</div>
             </div>
           </div>
