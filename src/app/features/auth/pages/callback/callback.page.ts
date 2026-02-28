@@ -96,13 +96,13 @@ export class CallbackPage implements OnInit, OnDestroy {
     this.authSubscription = listener.subscription;
   }
 
-  /** Valida que el usuario exista en empleados antes de dejarlo entrar */
+  /** Valida que el usuario exista en la tabla antes de dejarlo entrar */
   private async validateAndRedirect() {
-    const isValid = await this.authService.validateEmployee();
+    const isValid = await this.authService.validarUsuario();
     if (isValid) {
       this.goHome();
     }
-    // Si no es válido, validateEmployee() ya cierra sesión y redirige
+    // Si no es válido, validarUsuario() ya cierra sesión y redirige
   }
 
   private goHome() {

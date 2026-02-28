@@ -47,7 +47,11 @@
       "Bash(npx ng build --configuration=production)",
       "Bash(powershell -Command \":*)",
       "Bash(powershell -Command \"Get-ChildItem -Path ''src\\\\app\\\\features\\\\usuarios'' -Recurse | Select-Object FullName\")",
-      "Bash(powershell -Command \"Remove-Item -Path ''C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\employees'' -Recurse -Force; Write-Host ''Carpeta employees eliminada''\")"
+      "Bash(powershell -Command \"Remove-Item -Path ''C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\employees'' -Recurse -Force; Write-Host ''Carpeta employees eliminada''\")",
+      "Bash(powershell -Command \"Rename-Item ''C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\auth\\\\models\\\\empleado_actual.model.ts'' ''usuario_actual.model.ts''; Write-Host ''OK''\")",
+      "Bash(powershell -Command \"New-Item -ItemType File -Path ''C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\core\\\\guards\\\\role.guard.ts'' -Force | Out-Null; Write-Host ''OK''\")",
+      "Bash(powershell -Command \"Remove-Item ''C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\fix-auth-refs.ps1''; $results = Select-String -Path ''C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\**\\\\*.ts'' -Pattern ''getEmpleadoActual|EmpleadoActual|empleado_actual'' -Recurse; if \\($results\\) { $results | ForEach-Object { Write-Host $_Filename '':'' $_LineNumber '':'' $_Line } } else { Write-Host ''Sin referencias antiguas - todo limpio'' }\")",
+      "Bash(xargs grep -l \"interface.*Notif\\\\|interface.*Deuda\")"
     ]
   }
 }

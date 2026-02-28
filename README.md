@@ -13,10 +13,10 @@ Aplicación móvil híbrida para gestión de tienda, desarrollada con Ionic Angu
 
 ### Por Módulo
 
-- **[Auth](src/app/features/auth/docs/AUTH-README.md)** - Autenticación con Google OAuth (Supabase + Deep Links)
-- **[Dashboard](src/app/features/dashboard/docs/DASHBOARD-README.md)** - Home, Cierre Diario, Cuadre, Apertura de caja (sistema de 4 cajas y trazabilidad completa)
-- **[Gastos Diarios](src/app/features/gastos-diarios/docs/GASTOS-DIARIOS-README.md)** - Registro de gastos operativos con FAB y comprobantes fotográficos
-- **[Recargas Virtuales](src/app/features/recargas-virtuales/docs/RECARGAS-VIRTUALES-README.md)** - Gestión de saldo virtual CELULAR/BUS, deudas, liquidaciones y comisiones
+- **[Auth](docs/auth/AUTH-README.md)** - Autenticación con Google OAuth (Supabase + Deep Links)
+- **[Dashboard](docs/dashboard/DASHBOARD-README.md)** - Home, Cierre Diario, Cuadre, Apertura de caja (sistema de 4 cajas y trazabilidad completa)
+- **[Gastos Diarios](docs/gastos-diarios/GASTOS-DIARIOS-README.md)** - Registro de gastos operativos con FAB y comprobantes fotográficos
+- **[Recargas Virtuales](docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md)** - Gestión de saldo virtual CELULAR/BUS, deudas, liquidaciones y comisiones
 
 ## 🚀 Stack Tecnológico
 
@@ -457,6 +457,122 @@ Despues de modificar `capacitor.config.ts` ejecutar `npx cap sync android`.
 
 ---
 
+### Estructura de Storage (Comprobantes)
+
+Los comprobantes se guardan en el bucket `comprobantes` de Supabase con esta estructura:
+
+```
+comprobantes/
+  YYYY/
+    MM/
+      operaciones/   ← storageService.uploadImage(foto, 'comprobantes', 'operaciones')
+      gastos/        ← storageService.uploadImage(foto, 'comprobantes', 'gastos')
+```
+
+**Subfolders registrados:**
+
+| Subfolder | Usado por |
+|---|---|
+| `operaciones` | `operaciones-caja.service.ts` — ingresos y egresos de caja |
+| `gastos` | `gastos-diarios.service.ts` — gastos diarios |
+
+**Para agregar un nuevo tipo**, pasar el subfolder como tercer parámetro:
+```typescript
+await this.storageService.uploadImage(foto, 'comprobantes', 'mi-tipo');
+```
+
+> El path generado (`YYYY/MM/subfolder/uuid.jpg`) es lo que se guarda en la BD. Para visualizarlo se genera un signed URL de 1 hora con `storageService.getSignedUrl(path)`.
+
+---
+
+### Sistema de Notificaciones (Campana del Home)
+
+Las notificaciones se muestran en la campana del header del Home. Para agregar un nuevo tipo:
+
+**1. Agregar el tipo en `NotificacionesService` (`dashboard/services/notificaciones.service.ts`)**
+
+```typescript
+// 1. Ampliar el tipo
+export interface Notificacion {
+  tipo: 'DEUDA_CELULAR' | 'SALDO_BAJO_BUS' | 'MI_NUEVO_TIPO';
+  titulo: string;
+  descripcion: string;
+  subtitulo?: string;
+}
+
+// 2. Agregar el chequeo en getNotificaciones()
+if (condicion) {
+  notifs.push({
+    tipo: 'MI_NUEVO_TIPO',
+    titulo: 'Título visible',
+    descripcion: 'Descripción corta'
+  });
+}
+```
+
+**2. Actualizar el modal (`dashboard/components/notificaciones-modal/notificaciones-modal.component.ts`)**
+
+Agregar el ícono y la navegación correspondiente en `navegar()`:
+
+```typescript
+async navegar(notif: Notificacion) {
+  await this.modalCtrl.dismiss({ reload: false });
+  const tab = notif.tipo === 'SALDO_BAJO_BUS' ? 'BUS'
+            : notif.tipo === 'MI_NUEVO_TIPO'   ? 'CELULAR'
+            : 'CELULAR';
+  await this.router.navigate(['/home/mi-ruta'], { queryParams: { tab } });
+}
+```
+
+Y en el template, agregar el ícono para el nuevo tipo en el binding `[name]`.
+
+> El badge del home muestra automáticamente el total de notificaciones activas (`notificaciones.length`).
+
+---
+
+### Safe Area en Android (Barra de Navegación del Sistema)
+
+En dispositivos Android con barra de navegación gestural (deslizar hacia arriba) o con botones de navegación por software, el contenido puede quedar tapado si no se respeta el **safe area inset**.
+
+#### Requisito previo
+
+El `viewport-fit=cover` ya está configurado en `src/index.html`, lo que habilita el uso de `env(safe-area-inset-bottom)`:
+
+```html
+<meta name="viewport" content="viewport-fit=cover, width=device-width, ..." />
+```
+
+#### Regla: Todo elemento fijo en la parte inferior debe usar `env(safe-area-inset-bottom)`
+
+```scss
+// ✅ Correcto — el tab-bar crece para no tapar los botones del sistema
+ion-tab-bar {
+  height: calc(56px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom); // Solo el safe area, sin padding extra
+}
+
+// ✅ Correcto — FABs o popups flotantes sobre el tab-bar también deben compensar
+.fab-options {
+  position: fixed;
+  bottom: calc(80px + env(safe-area-inset-bottom));
+}
+
+// ❌ Incorrecto — altura fija que tapa los botones del sistema
+ion-tab-bar {
+  height: 56px;
+  padding-bottom: 0;
+}
+```
+
+**¿Por qué `calc()`?**
+
+- En dispositivos **sin** barra de navegación visible: `env(safe-area-inset-bottom)` = `0` → no cambia nada
+- En dispositivos **con** barra gestural o botones soft: devuelve ~20–40px → el elemento crece exactamente lo necesario
+
+**Archivo de referencia:** `src/app/features/layout/pages/main/main-layout.page.scss`
+
+---
+
 ### Detección de Conexión a Internet
 
 Sistema automático que detecta pérdida de conexión y bloquea operaciones críticas.
@@ -871,15 +987,32 @@ Al agregar nuevas funcionalidades:
 
 ### Documentación por Módulo
 
-Cada feature puede tener su propia documentación dentro de `features/{modulo}/docs/`.
+Toda la documentación está centralizada en `docs/`, organizada por feature.
+
+**Estructura:**
+
+```
+docs/
+├── schema.sql                  ← esquema completo de BD (tablas, índices, datos iniciales)
+├── SCHEMA-CHANGELOG.md         ← historial de cambios al schema
+├── ESTRUCTURA-PROYECTO.md      ← árbol de carpetas y convenciones
+├── DESIGN.md                   ← sistema de diseño y design tokens
+├── {feature}/                  ← una carpeta por feature
+│   ├── {FEATURE}-README.md     ← doc principal del feature
+│   └── sql/
+│       ├── functions/          ← funciones PostgreSQL (CREATE OR REPLACE FUNCTION)
+│       └── queries/            ← scripts SQL ad-hoc (migraciones, datos one-time)
+```
+
+**Al agregar un nuevo feature:**
+
+1. Crear `docs/{nombre-feature}/{NOMBRE-FEATURE}-README.md`
+2. Si tiene funciones SQL → `docs/{nombre-feature}/sql/functions/*.sql`
+3. Si tiene scripts de datos → `docs/{nombre-feature}/sql/queries/*.sql`
+4. Agregar el link en este README en la sección "Por Módulo"
+5. Actualizar el árbol en `docs/ESTRUCTURA-PROYECTO.md`
 
 **Convención de nombres:**
-
-```
-features/{modulo}/docs/MODULO-README.md
-features/{modulo}/docs/sql/   ← funciones SQL relacionadas (si aplica)
-```
-
-- El nombre del archivo usa **NOMBRE_DEL_MODULO + README** todo en **MAYÚSCULAS**
-- Ejemplos: `AUTH-README.md`, `GASTOS-DIARIOS-README.md`, `RECARGAS-VIRTUALES-README.md`
-- Referenciar desde el README principal en la sección "Documentación > Por Módulo"
+- Carpeta del feature: `kebab-case` (igual que en `src/app/features/`)
+- README principal: `NOMBRE-FEATURE-README.md` en MAYÚSCULAS
+- Funciones SQL: `nombre_funcion.sql` (snake_case, igual que el nombre de la función en PostgreSQL)

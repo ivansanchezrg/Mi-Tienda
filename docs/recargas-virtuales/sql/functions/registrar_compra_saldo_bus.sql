@@ -150,8 +150,9 @@ BEGIN
     -- Requiere turno abierto para crear el snapshot en `recargas`
     SELECT id INTO v_turno_id
     FROM turnos_caja
-    WHERE fecha = p_fecha AND hora_cierre IS NULL
-    ORDER BY created_at DESC
+    WHERE (hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+      AND hora_cierre IS NULL
+    ORDER BY hora_fecha_apertura DESC
     LIMIT 1;
 
     IF v_turno_id IS NULL THEN
@@ -168,18 +169,14 @@ BEGIN
     -- El cierre diario (ejecutar_cierre_diario) tiene el mismo ON CONFLICT para cerrar el día
     INSERT INTO recargas (
       id, fecha, turno_id, empleado_id, tipo_servicio_id,
-      venta_dia, saldo_virtual_anterior, saldo_virtual_actual,
-      validado, created_at
+      venta_dia, saldo_virtual_anterior, saldo_virtual_actual
     ) VALUES (
       v_mini_cierre_id, p_fecha, v_turno_id, p_empleado_id, v_tipo_bus_id,
-      v_venta_bus_hoy, v_saldo_virtual_sistema, p_saldo_virtual_maquina,
-      false, NOW()
+      v_venta_bus_hoy, v_saldo_virtual_sistema, p_saldo_virtual_maquina
     )
     ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
       venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
-      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual,
-      validado             = false,
-      created_at           = NOW()
+      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual
     RETURNING id INTO v_mini_cierre_id;
 
     -- INGRESO CAJA_BUS por ventas acumuladas
@@ -191,14 +188,13 @@ BEGIN
       tipo_operacion, monto,
       saldo_anterior, saldo_actual,
       tipo_referencia_id, referencia_id,
-      descripcion, created_at
+      descripcion
     ) VALUES (
       v_operacion_ingreso_id, NOW(), v_caja_bus_id, p_empleado_id,
       'INGRESO', v_venta_bus_hoy,
       v_saldo_anterior, v_saldo_despues_ingreso,
       v_tipo_ref_recargas_id, v_mini_cierre_id,
-      'Ventas Bus pre-compra saldo — ' || p_fecha,
-      NOW()
+      'Ventas Bus pre-compra saldo — ' || p_fecha
     );
 
   ELSE
@@ -220,14 +216,13 @@ BEGIN
     tipo_operacion, monto,
     saldo_anterior, saldo_actual,
     categoria_id, tipo_referencia_id, referencia_id,
-    descripcion, created_at
+    descripcion
   ) VALUES (
     v_operacion_egreso_id, NOW(), v_caja_bus_id, p_empleado_id,
     'EGRESO', p_monto,
     v_saldo_despues_ingreso, v_saldo_nuevo,
     v_categoria_eg011_id, v_tipo_ref_rv_id, v_recarga_id,
-    COALESCE(p_notas, 'Compra saldo virtual Bus — ' || p_fecha),
-    NOW()
+    COALESCE(p_notas, 'Compra saldo virtual Bus — ' || p_fecha)
   );
 
   INSERT INTO recargas_virtuales (

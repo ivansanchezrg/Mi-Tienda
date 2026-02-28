@@ -76,7 +76,7 @@ Al cambiar filtro → `cargarOperaciones(reset=true)` → `currentPage = 0`, ree
 
 ## Servicio: `obtenerOperacionesCaja()`
 
-Query con JOIN a `cajas`, `empleados` y `categorias_operaciones`. Ordenado por `fecha DESC`, luego `created_at DESC`.
+Query con JOIN a `cajas`, `empleados` y `categorias_operaciones`. Ordenado por `fecha DESC`.
 
 | Filtro | Rango |
 |---|---|
@@ -119,7 +119,7 @@ Cada grupo tiene: `fecha`, `operaciones[]`, `totalIngresos`, `totalEgresos`.
 
 ## Función SQL: `registrar_operacion_manual`
 
-> 📄 Código fuente completo: [`docs/sql/registrar_operacion_manual.sql`](./sql/registrar_operacion_manual.sql)
+> 📄 Código fuente completo: [`docs/sql/functions/registrar_operacion_manual.sql`](./sql/functions/registrar_operacion_manual.sql)
 
 Llamada vía `supabase.rpc('registrar_operacion_manual', params)`. Transacción atómica — si falla cualquier paso, rollback completo.
 

@@ -84,7 +84,7 @@ cargarDatos() → refresca banner en Home
 
 Si ambos son `0` → no hay déficit → el modal salta directamente al Paso 2.
 
-> 📄 Código fuente completo: [`docs/sql/reparar_deficit_turno.sql`](./sql/reparar_deficit_turno.sql)
+> 📄 Código fuente completo: [`docs/sql/functions/reparar_deficit_turno.sql`](./sql/functions/reparar_deficit_turno.sql)
 
 `repararDeficit(deficitCajaChica, fondoFaltante)` llama a `rpc('reparar_deficit_turno', {...})` que en una transacción atómica:
 
@@ -104,7 +104,7 @@ Validaciones (retorna `false` en cualquiera — Home muestra error al usuario):
 1. Ya existe un turno con `hora_cierre IS NULL` para la fecha de hoy → solo puede haber 1 activo
 2. No se pudo obtener el empleado desde Preferences → sesión inválida
 
-Si todo OK → `INSERT turnos_caja` con `fecha = getFechaLocal()` y `hora_apertura = toISOString()` (UTC correcto para `TIMESTAMP WITH TIME ZONE`).
+Si todo OK → `INSERT turnos_caja` con `hora_fecha_apertura = toISOString()` (UTC correcto para `TIMESTAMP WITH TIME ZONE`).
 
 ---
 
@@ -112,16 +112,15 @@ Si todo OK → `INSERT turnos_caja` con `fecha = getFechaLocal()` y `hora_apertu
 
 ```sql
 CREATE TABLE turnos_caja (
-  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  fecha          DATE NOT NULL,                            -- Fecha local (getFechaLocal())
-  numero_turno   SMALLINT NOT NULL DEFAULT 1,              -- 1, 2, 3... por día
-  empleado_id    INTEGER NOT NULL REFERENCES empleados(id),
-  hora_apertura  TIMESTAMP WITH TIME ZONE NOT NULL,        -- UTC (toISOString())
-  hora_cierre    TIMESTAMP WITH TIME ZONE,                 -- NULL = abierto; lo escribe ejecutar_cierre_diario
-  observaciones  TEXT,
-  created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(fecha, numero_turno)
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  numero_turno        SMALLINT NOT NULL DEFAULT 1,              -- 1, 2, 3... por día
+  empleado_id         INTEGER NOT NULL REFERENCES empleados(id),
+  hora_fecha_apertura TIMESTAMP WITH TIME ZONE NOT NULL,        -- UTC (toISOString())
+  hora_cierre         TIMESTAMP WITH TIME ZONE,                 -- NULL = abierto; lo escribe ejecutar_cierre_diario
+  observaciones       TEXT
 );
+-- UNIQUE por fecha + turno (índice funcional sobre la fecha extraída del timestamp)
+CREATE UNIQUE INDEX idx_turnos_caja_fecha_turno ON turnos_caja ((CAST(hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS date)), numero_turno);
 ```
 
 ---
@@ -134,12 +133,12 @@ CREATE TABLE turnos_caja (
 SELECT
   t.numero_turno,
   e.nombre,
-  t.hora_apertura AT TIME ZONE 'America/Guayaquil' AS apertura,
-  t.hora_cierre   AT TIME ZONE 'America/Guayaquil' AS cierre,
+  t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS apertura,
+  t.hora_cierre         AT TIME ZONE 'America/Guayaquil' AS cierre,
   CASE WHEN t.hora_cierre IS NULL THEN 'ABIERTO' ELSE 'CERRADO' END AS estado
 FROM turnos_caja t
 JOIN empleados e ON t.empleado_id = e.id
-WHERE t.fecha = CURRENT_DATE
+WHERE (t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = CURRENT_DATE
 ORDER BY t.numero_turno;
 ```
 

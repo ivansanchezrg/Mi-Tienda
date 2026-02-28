@@ -270,12 +270,12 @@ BEGIN
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, monto,
       saldo_anterior, saldo_actual, descripcion,
-      tipo_referencia_id, referencia_id, created_at
+      tipo_referencia_id, referencia_id
     ) VALUES (
       gen_random_uuid(), v_caja_id, p_empleado_id, 'INGRESO', v_dinero_a_depositar,
       p_saldo_anterior_caja, v_saldo_final_caja,
       'Depósito del turno ' || p_fecha,
-      v_tipo_ref_caja_fisica_id, v_cierre_id, NOW()
+      v_tipo_ref_caja_fisica_id, v_cierre_id
     );
   END IF;
 
@@ -287,12 +287,12 @@ BEGIN
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, monto,
       saldo_anterior, saldo_actual, descripcion,
-      tipo_referencia_id, referencia_id, created_at
+      tipo_referencia_id, referencia_id
     ) VALUES (
       gen_random_uuid(), v_caja_chica_id, p_empleado_id, 'TRANSFERENCIA_ENTRANTE', v_transferencia_efectiva,
       p_saldo_anterior_caja_chica, v_saldo_final_caja_chica,
       'Transferencia diaria desde caja física - turno ' || p_fecha,
-      v_tipo_ref_caja_fisica_id, v_cierre_id, NOW()
+      v_tipo_ref_caja_fisica_id, v_cierre_id
     );
   END IF;
 
@@ -302,13 +302,10 @@ BEGIN
 
   INSERT INTO recargas (
     id, fecha, turno_id, empleado_id, tipo_servicio_id,
-    venta_dia, saldo_virtual_anterior, saldo_virtual_actual,
-    validado, created_at
+    venta_dia, saldo_virtual_anterior, saldo_virtual_actual
   ) VALUES (
     gen_random_uuid(), p_fecha, p_turno_id, p_empleado_id, v_tipo_servicio_celular_id,
-    v_venta_celular, p_saldo_anterior_celular, p_saldo_celular_final,
-    (v_venta_celular + p_saldo_celular_final) = (p_saldo_anterior_celular + v_agregado_celular),
-    NOW()
+    v_venta_celular, p_saldo_anterior_celular, p_saldo_celular_final
   )
   RETURNING id INTO v_recarga_celular_id;
 
@@ -316,12 +313,12 @@ BEGIN
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, monto,
       saldo_anterior, saldo_actual, descripcion,
-      tipo_referencia_id, referencia_id, created_at
+      tipo_referencia_id, referencia_id
     ) VALUES (
       gen_random_uuid(), v_caja_celular_id, p_empleado_id, 'INGRESO', v_venta_celular,
       p_saldo_anterior_caja_celular, v_saldo_final_caja_celular,
       'Venta celular del turno ' || p_fecha,
-      v_tipo_ref_recargas_id, v_recarga_celular_id, NOW()
+      v_tipo_ref_recargas_id, v_recarga_celular_id
     );
   END IF;
 
@@ -335,31 +332,26 @@ BEGIN
 
   INSERT INTO recargas (
     id, fecha, turno_id, empleado_id, tipo_servicio_id,
-    venta_dia, saldo_virtual_anterior, saldo_virtual_actual,
-    validado, created_at
+    venta_dia, saldo_virtual_anterior, saldo_virtual_actual
   ) VALUES (
     gen_random_uuid(), p_fecha, p_turno_id, p_empleado_id, v_tipo_servicio_bus_id,
-    v_venta_bus, p_saldo_anterior_bus, p_saldo_bus_final,
-    (v_venta_bus + p_saldo_bus_final) = (p_saldo_anterior_bus + v_agregado_bus),
-    NOW()
+    v_venta_bus, p_saldo_anterior_bus, p_saldo_bus_final
   )
   ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
     venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
-    saldo_virtual_actual = EXCLUDED.saldo_virtual_actual,
-    validado             = EXCLUDED.validado,
-    created_at           = NOW()
+    saldo_virtual_actual = EXCLUDED.saldo_virtual_actual
   RETURNING id INTO v_recarga_bus_id;
 
   IF v_venta_bus > 0 THEN
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, monto,
       saldo_anterior, saldo_actual, descripcion,
-      tipo_referencia_id, referencia_id, created_at
+      tipo_referencia_id, referencia_id
     ) VALUES (
       gen_random_uuid(), v_caja_bus_id, p_empleado_id, 'INGRESO', v_venta_bus,
       p_saldo_anterior_caja_bus, v_saldo_final_caja_bus,
       'Venta bus del turno ' || p_fecha,
-      v_tipo_ref_recargas_id, v_recarga_bus_id, NOW()
+      v_tipo_ref_recargas_id, v_recarga_bus_id
     );
   END IF;
 

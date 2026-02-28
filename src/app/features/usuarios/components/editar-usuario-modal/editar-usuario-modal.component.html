@@ -13,6 +13,14 @@
   <form [formGroup]="form">
     <div class="form-content">
 
+      <!-- Aviso si se está editando el propio perfil -->
+      @if (esMismoUsuario) {
+        <div class="aviso-propio">
+          <ion-icon name="warning-outline"></ion-icon>
+          <span>Estás editando tu propio perfil. No podés cambiar tu rol ni desactivarte.</span>
+        </div>
+      }
+
       <!-- Header del usuario -->
       <div class="employee-header">
         <div class="employee-avatar">

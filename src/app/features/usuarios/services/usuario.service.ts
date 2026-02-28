@@ -43,6 +43,21 @@ export class UsuarioService {
   }
 
   /**
+   * Cuenta cuántos usuarios con rol ADMIN existen y están activos.
+   * Usado para proteger al último administrador del sistema.
+   */
+  async contarAdmins(): Promise<number> {
+    const { count, error } = await this.supabase.client
+      .from('empleados')
+      .select('*', { count: 'exact', head: true })
+      .eq('rol', 'ADMIN')
+      .eq('activo', true);
+
+    if (error) return 0;
+    return count ?? 0;
+  }
+
+  /**
    * Actualiza los datos de un usuario (rol, activo, nombre)
    */
   async update(id: number, dto: UpdateUsuarioDto): Promise<Usuario | null> {

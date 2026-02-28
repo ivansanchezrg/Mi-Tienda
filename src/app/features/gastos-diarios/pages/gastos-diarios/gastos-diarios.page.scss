@@ -148,20 +148,6 @@
     border-radius: var(--radius-sm);
     transition: all var(--transition-fast);
 
-    &.clickeable {
-      cursor: pointer;
-      color: var(--ion-color-primary);
-
-      &:hover {
-        background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
-        transform: scale(1.05);
-      }
-
-      &:active {
-        background: rgba(var(--ion-color-primary-rgb), var(--opacity-medium));
-        transform: scale(0.95);
-      }
-    }
   }
 
   .gasto-details {
@@ -202,35 +188,10 @@
         font-weight: var(--font-weight-regular);
       }
 
-      .comprobante-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 11px;
-        color: var(--ion-color-primary);
-        cursor: pointer;
-        padding: var(--spacing-xs);
-        margin: calc(var(--spacing-xs) * -1);
-        border-radius: var(--radius-xs);
-        transition: all var(--transition-fast);
-
-        ion-icon {
-          font-size: 14px;
-        }
-
-        &:hover {
-          background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
-        }
-
-        &:active {
-          transform: scale(0.95);
-          background: rgba(var(--ion-color-primary-rgb), var(--opacity-medium));
-        }
-      }
     }
   }
 
-  // Columna derecha: monto
+  // Columna derecha: comprobante + monto
   .gasto-right {
     display: flex;
     flex-direction: column;
@@ -238,6 +199,34 @@
     justify-content: center;
     margin-left: var(--spacing-md);
     flex-shrink: 0;
+  }
+
+  // Botón de comprobante (arriba del monto, a la derecha)
+  .comprobante-btn {
+    background: none;
+    border: none;
+    padding: var(--spacing-xs);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: var(--radius-full);
+    transition: all var(--transition-normal);
+    color: var(--ion-color-primary);
+    flex-shrink: 0;
+
+    ion-icon {
+      font-size: 18px;
+    }
+
+    &:active {
+      background: rgba(var(--ion-color-primary-rgb), 0.15);
+      transform: scale(0.92);
+    }
+
+    &:hover {
+      background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
+    }
   }
 
   .gasto-amount {

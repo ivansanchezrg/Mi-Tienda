@@ -484,7 +484,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
       const observaciones = this.cierreForm.get('observaciones')?.value || null;
 
       // 2. Obtener ID del empleado actual desde Preferences (rápido, sin consulta a BD)
-      const empleado = await this.authService.getEmpleadoActual();
+      const empleado = await this.authService.getUsuarioActual();
       const empleadoId = empleado?.id || 1;
 
       // 3. Obtener turno activo (REQUERIDO en v4.1)

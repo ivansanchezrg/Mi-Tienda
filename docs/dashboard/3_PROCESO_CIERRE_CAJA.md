@@ -90,7 +90,7 @@ El campo `deficit_caja_chica` se guarda en `caja_fisica_diaria` para que el sigu
 
 ## 3. Función SQL: `ejecutar_cierre_diario`
 
-> 📄 Código fuente completo: [`docs/sql/ejecutar_cierre_diario.sql`](./sql/ejecutar_cierre_diario.sql)
+> 📄 Código fuente completo: [`docs/sql/functions/ejecutar_cierre_diario.sql`](./sql/functions/ejecutar_cierre_diario.sql)
 
 Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo ocurre en una transacción atómica — si falla cualquier paso, se hace rollback completo.
 
@@ -144,6 +144,8 @@ Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo ocurre en un
 11. Retorna JSON con resultado
 
 ### Función auxiliar: `verificar_transferencia_caja_chica_hoy`
+
+> 📄 Código fuente completo: [`docs/sql/functions/verificar_transferencia_caja_chica_hoy.sql`](./sql/functions/verificar_transferencia_caja_chica_hoy.sql)
 
 Usada desde TypeScript en `siguientePaso()` para mostrar la UI correcta en Paso 2 **antes** de ejecutar el cierre:
 
@@ -204,7 +206,7 @@ La función SQL usa categorías `EG-012` (egreso de Tienda) e `IN-004` (ingreso 
 SELECT
   t.numero_turno,
   e.nombre AS empleado,
-  t.hora_apertura,
+  t.hora_fecha_apertura,
   t.hora_cierre,
   cf.efectivo_recaudado,
   cf.deficit_caja_chica,
@@ -262,13 +264,13 @@ ORDER BY r.created_at;
 SELECT
   t.numero_turno,
   e.nombre,
-  t.hora_apertura,
+  t.hora_fecha_apertura,
   t.hora_cierre,
   CASE WHEN t.hora_cierre IS NULL THEN 'ABIERTO' ELSE 'CERRADO' END AS estado,
   CASE WHEN cf.id IS NOT NULL THEN 'SÍ' ELSE 'NO' END AS tiene_cierre
 FROM turnos_caja t
 JOIN empleados e ON t.empleado_id = e.id
 LEFT JOIN caja_fisica_diaria cf ON t.id = cf.turno_id
-WHERE t.fecha = '2026-02-07'
+WHERE (t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = '2026-02-07'
 ORDER BY t.numero_turno;
 ```

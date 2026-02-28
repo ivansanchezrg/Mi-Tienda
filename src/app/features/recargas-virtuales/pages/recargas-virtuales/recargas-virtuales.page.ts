@@ -12,7 +12,7 @@ import { addIcons } from 'ionicons';
 import {
   phonePortraitOutline, busOutline,
   cashOutline, checkmarkCircleOutline, alertCircleOutline,
-  listOutline
+  listOutline, chevronBackOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
@@ -61,15 +61,18 @@ export class RecargasVirtualesPage implements OnInit {
       cashOutline,
       checkmarkCircleOutline,
       alertCircleOutline,
-      listOutline
+      listOutline,
+      chevronBackOutline
     });
   }
 
   async ngOnInit() {
     await this.cargarDatos();
 
-    // Soporte para refresh al volver
     this.route.queryParams.subscribe(params => {
+      if (params['tab']) {
+        this.tabActivo = params['tab'] as TabActivo;
+      }
       if (params['refresh']) {
         this.cargarDatos();
       }
@@ -82,6 +85,7 @@ export class RecargasVirtualesPage implements OnInit {
 
   ionViewWillLeave() {
     this.ui.showTabs();
+    this.tabActivo = 'CELULAR';
   }
 
   async cargarDatos() {

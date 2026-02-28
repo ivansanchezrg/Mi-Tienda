@@ -9,6 +9,12 @@
 -- Para resetear el sistema, ejecutar nuevamente (incluye DROP de tablas).
 --
 -- Fecha: 2026-02-24
+-- Versión: 4.9 - Ajuste de configuraciones de negocio
+--   • CAMBIOS v4.9: Tabla configuraciones
+--   • Eliminado: celular_alerta_saldo_bajo (modelo de negocio ya no lo requiere)
+--   • Agregado: bus_alerta_saldo_bajo DECIMAL DEFAULT 75.00 (alerta saldo BUS en recargas_virtuales)
+--   • Actualizado: fondo_fijo_diario DEFAULT 20.00 (antes 40.00)
+--   • Para BD existente: ALTER TABLE configuraciones RENAME COLUMN celular_alerta_saldo_bajo TO bus_alerta_saldo_bajo; ALTER TABLE configuraciones ALTER COLUMN fondo_fijo_diario SET DEFAULT 20.00;
 -- Versión: 4.8 - Sistema de roles en empleados
 --   • CAMBIOS v4.8: Campo `rol` en tabla empleados
 --   • Roles disponibles: 'ADMIN', 'EMPLEADO' (jerarquía: ADMIN ⊃ EMPLEADO)
@@ -117,10 +123,10 @@ CREATE TABLE IF NOT EXISTS cajas (
 -- Configuración global del sistema
 CREATE TABLE IF NOT EXISTS configuraciones (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    fondo_fijo_diario DECIMAL(10,2) DEFAULT 40.00,      -- Fondo fijo que se deja en caja física cada día
-    celular_alerta_saldo_bajo DECIMAL(12,2),           -- Alerta cuando saldo virtual < este valor
-    caja_chica_transferencia_diaria DECIMAL(12,2),     -- Monto fijo diario a caja chica ($20)
-    bus_dias_antes_facturacion INTEGER,                -- Días de anticipación para facturación
+    fondo_fijo_diario DECIMAL(10,2) DEFAULT 20.00,          -- Fondo fijo que se deja en caja física cada día
+    caja_chica_transferencia_diaria DECIMAL(12,2),          -- Monto fijo diario a caja chica ($20)
+    bus_alerta_saldo_bajo DECIMAL(12,2) DEFAULT 75.00,      -- Alerta cuando el saldo virtual BUS en recargas_virtuales <= este valor
+    bus_dias_antes_facturacion INTEGER,                     -- Días de anticipación para facturación
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -133,10 +139,8 @@ CREATE TABLE IF NOT EXISTS tipos_servicio (
     nombre VARCHAR(100) NOT NULL,                    -- 'Recargas Bus', 'Recargas Celular'
 
     -- Reglas del negocio
-    fondo_base DECIMAL(12,2) NOT NULL,               -- Bus: 500, Celular: 200
     porcentaje_comision DECIMAL(5,2) NOT NULL,       -- Bus: 1%, Celular: 5% (descuento sobre monto_virtual: monto_a_pagar = monto_virtual * (1 - pct/100))
-    periodo_comision VARCHAR(20) NOT NULL,           -- 'MENSUAL', 'SEMANAL'
-    frecuencia_recarga VARCHAR(20) NOT NULL,         -- 'SEMANAL'
+    periodo_comision VARCHAR(20) NOT NULL,           -- 'MENSUAL' (BUS) / 'SEMANAL' (CELULAR) — ciclo de cobro del proveedor
 
     -- Control
     activo BOOLEAN DEFAULT TRUE,
@@ -148,14 +152,11 @@ CREATE TABLE IF NOT EXISTS tipos_servicio (
 -- Permite múltiples turnos por día con hora exacta de apertura y cierre
 CREATE TABLE IF NOT EXISTS turnos_caja (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    fecha DATE NOT NULL,
     numero_turno SMALLINT NOT NULL DEFAULT 1,
     empleado_id INTEGER NOT NULL REFERENCES empleados(id),
-    hora_apertura TIMESTAMP WITH TIME ZONE NOT NULL,
+    hora_fecha_apertura TIMESTAMP WITH TIME ZONE NOT NULL,  -- Fecha + hora exacta de apertura (reemplaza fecha + hora_apertura)
     hora_cierre TIMESTAMP WITH TIME ZONE,
-    observaciones TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(fecha, numero_turno)
+    observaciones TEXT
 );
 
 -- 6. Tabla: recargas
@@ -173,9 +174,6 @@ CREATE TABLE IF NOT EXISTS recargas (
     venta_dia DECIMAL(12,2) NOT NULL,                -- Venta del día
     saldo_virtual_anterior DECIMAL(12,2) NOT NULL,   -- Saldo del día anterior
     saldo_virtual_actual DECIMAL(12,2) NOT NULL,     -- Saldo resultante
-
-    -- Validación
-    validado BOOLEAN DEFAULT FALSE,
 
     -- Auditoría
     observacion TEXT,
@@ -266,8 +264,7 @@ CREATE TABLE IF NOT EXISTS operaciones_cajas (
     tipo_referencia_id INTEGER REFERENCES tipos_referencia(id),  -- Tipo de tabla que origina la operación
     referencia_id UUID,                              -- UUID del registro que origina la operación
     descripcion TEXT,
-    comprobante_url TEXT,                            -- URL del comprobante en Supabase Storage (obligatorio para egresos)
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    comprobante_url TEXT                             -- URL del comprobante en Supabase Storage (obligatorio para egresos)
 );
 
 -- 14. Tabla: recargas_virtuales
@@ -306,7 +303,8 @@ CREATE INDEX idx_recargas_empleado ON recargas(empleado_id);
 CREATE INDEX idx_caja_fisica_diaria_fecha ON caja_fisica_diaria(fecha);
 CREATE INDEX idx_caja_fisica_diaria_turno ON caja_fisica_diaria(turno_id);
 CREATE INDEX idx_caja_fisica_diaria_empleado ON caja_fisica_diaria(empleado_id);
-CREATE INDEX idx_turnos_caja_fecha ON turnos_caja(fecha);
+-- Índice funcional: unicidad por fecha (extraída de hora_fecha_apertura) y numero_turno
+CREATE UNIQUE INDEX idx_turnos_caja_fecha_turno ON turnos_caja ((CAST(hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS date)), numero_turno);
 CREATE INDEX idx_turnos_caja_empleado ON turnos_caja(empleado_id);
 CREATE INDEX idx_operaciones_cajas_fecha ON operaciones_cajas(fecha);
 CREATE INDEX idx_operaciones_cajas_caja ON operaciones_cajas(caja_id);
@@ -321,9 +319,9 @@ CREATE INDEX idx_recargas_virtuales_pagado ON recargas_virtuales(pagado);
 -- ==========================================
 
 -- Tipos de servicio según las reglas del negocio
-INSERT INTO tipos_servicio (codigo, nombre, fondo_base, porcentaje_comision, periodo_comision, frecuencia_recarga) VALUES
-('BUS', 'Recargas Bus', 500.00, 1.00, 'MENSUAL', 'SEMANAL'),
-('CELULAR', 'Recargas Celular', 200.00, 5.00, 'SEMANAL', 'SEMANAL');
+INSERT INTO tipos_servicio (codigo, nombre, porcentaje_comision, periodo_comision) VALUES
+('BUS', 'Recargas Bus', 1.00, 'MENSUAL'),
+('CELULAR', 'Recargas Celular', 5.00, 'SEMANAL');
 
 -- Las 4 cajas del sistema
 INSERT INTO cajas (codigo, nombre, descripcion, saldo_actual) VALUES
@@ -371,8 +369,8 @@ INSERT INTO categorias_operaciones (tipo, nombre, codigo, descripcion) VALUES
 ('INGRESO', 'Reposición Déficit Turno Anterior', 'IN-004', 'Ingreso a Varios por reposición del déficit pendiente del turno anterior');
 
 -- Configuración inicial del sistema
-INSERT INTO configuraciones (fondo_fijo_diario, celular_alerta_saldo_bajo, caja_chica_transferencia_diaria, bus_dias_antes_facturacion) VALUES
-(40.00, 50.00, 20.00, 3);
+INSERT INTO configuraciones (fondo_fijo_diario, caja_chica_transferencia_diaria, bus_alerta_saldo_bajo, bus_dias_antes_facturacion) VALUES
+(20.00, 20.00, 75.00, 3);
 
 -- Empleado inicial del sistema (ADMIN por defecto)
 INSERT INTO empleados (nombre, usuario, rol) VALUES
@@ -389,10 +387,13 @@ COMMENT ON TABLE empleados IS 'Usuarios del sistema que pueden operar las cajas'
 COMMENT ON COLUMN empleados.rol IS 'Rol del empleado: ADMIN (acceso total) o EMPLEADO (acceso operativo). ADMIN ⊃ EMPLEADO — un admin tiene todos los permisos de empleado más los administrativos.';
 COMMENT ON TABLE cajas IS 'Cajas de efectivo físico (CAJA, CAJA_CHICA) y virtual (CELULAR, BUS)';
 COMMENT ON TABLE configuraciones IS 'Configuración global del sistema';
+COMMENT ON COLUMN configuraciones.bus_alerta_saldo_bajo IS 'Umbral de alerta para saldo virtual BUS: se notifica cuando el saldo disponible en recargas_virtuales <= este valor';
 COMMENT ON TABLE tipos_servicio IS 'Tipos de servicio de recarga con sus reglas de negocio';
 COMMENT ON TABLE recargas IS 'Registro de control de saldo virtual por servicio (v4.1: un registro por turno y tipo servicio)';
 COMMENT ON TABLE caja_fisica_diaria IS 'Registro de la caja física por turno (v4.6: distribución inteligente con registro de déficit cuando el efectivo no alcanza)';
+COMMENT ON TABLE categorias_gastos IS 'Catálogo de categorías para clasificar gastos diarios operativos (ej: GS-001 Transporte, GS-002 Limpieza)';
 COMMENT ON TABLE gastos_diarios IS 'Registro de gastos operativos pagados desde efectivo de ventas del día (no afecta CAJA PRINCIPAL, comprobante opcional)';
+COMMENT ON TABLE recargas_virtuales IS 'Registro de saldo virtual: CELULAR (crédito del proveedor → deuda pendiente) y BUS (compra directa → pagado=true desde el inicio)';
 COMMENT ON TABLE tipos_referencia IS 'Catálogo de tablas que pueden originar operaciones en cajas (para trazabilidad)';
 COMMENT ON TABLE categorias_operaciones IS 'Catálogo de categorías contables para clasificar ingresos y egresos (permite reportes por tipo de gasto)';
 COMMENT ON TABLE turnos_caja IS 'Registro de turnos de apertura/cierre de caja (independiente del cierre contable diario)';
@@ -402,11 +403,10 @@ COMMENT ON COLUMN cajas.saldo_actual IS 'Saldo actual de la caja (se actualiza c
 COMMENT ON COLUMN configuraciones.caja_chica_transferencia_diaria IS 'Monto fijo diario que se transfiere a caja chica ($20)';
 COMMENT ON COLUMN caja_fisica_diaria.efectivo_recaudado IS 'Total efectivo contado al final del día (el único campo necesario)';
 COMMENT ON COLUMN caja_fisica_diaria.deficit_caja_chica IS 'Monto que faltó transferir a Caja Chica por efectivo insuficiente. 0 = turno normal. >0 = el siguiente turno debe reponer este monto desde Caja Principal al abrir caja';
-COMMENT ON COLUMN configuraciones.fondo_fijo_diario IS 'Fondo fijo que se deja en caja física todos los días ($40 por defecto)';
+COMMENT ON COLUMN configuraciones.fondo_fijo_diario IS 'Fondo fijo que se deja en caja física todos los días ($20 por defecto)';
 COMMENT ON COLUMN recargas.venta_dia IS 'Monto vendido en el día';
 COMMENT ON COLUMN recargas.saldo_virtual_anterior IS 'Saldo del día anterior (viene del saldo_virtual_actual previo)';
 COMMENT ON COLUMN recargas.saldo_virtual_actual IS 'Saldo resultante: saldo_virtual_anterior - venta_dia';
-COMMENT ON COLUMN recargas.validado IS 'Validación: venta_dia + saldo_virtual_actual = saldo_virtual_anterior';
 COMMENT ON COLUMN operaciones_cajas.saldo_anterior IS 'Saldo de la caja ANTES de esta operación';
 COMMENT ON COLUMN operaciones_cajas.saldo_actual IS 'Saldo de la caja DESPUÉS de esta operación';
 COMMENT ON COLUMN operaciones_cajas.categoria_id IS 'FK a categorias_operaciones - Clasificación contable de la operación (obligatorio para INGRESO/EGRESO)';
@@ -502,207 +502,15 @@ COMMENT ON COLUMN gastos_diarios.comprobante_url IS 'Path del comprobante en Sto
 -- ==========================================
 -- FUNCIONES POSTGRESQL
 -- ==========================================
--- ⚠️  IMPORTANTE: Ejecutar SOLO este bloque en Supabase SQL Editor para crear o actualizar
---                 las funciones. NO ejecutar el schema.sql completo (borraría todos los datos).
---
--- Funciones disponibles en este archivo:
---   • registrar_compra_saldo_bus          → v2.0  (abajo)
---
--- Otras funciones del sistema (en sus propios docs):
---   • registrar_recarga_proveedor_celular_completo → docs/7_PROCESO_SALDO_VIRTUAL.md §6.3
---   • registrar_pago_proveedor_celular             → docs/7_PROCESO_SALDO_VIRTUAL.md §6.1
---   • ejecutar_cierre_diario                       → docs/3_PROCESO_CIERRE_CAJA.md §10
+-- Las funciones del sistema están en sus propios archivos .sql dentro de cada feature:
+--   • registrar_compra_saldo_bus                   → recargas-virtuales/docs/sql/registrar_compra_saldo_bus.sql
+--   • registrar_recarga_proveedor_celular_completo → recargas-virtuales/docs/sql/registrar_recarga_proveedor_celular_completo.sql
+--   • registrar_pago_proveedor_celular             → recargas-virtuales/docs/sql/registrar_pago_proveedor_celular.sql
+--   • registrar_operacion_manual                   → dashboard/docs/sql/registrar_operacion_manual.sql
+--   • reparar_deficit_turno                        → dashboard/docs/sql/reparar_deficit_turno.sql
+--   • ejecutar_cierre_diario                       → dashboard/docs/sql/ejecutar_cierre_diario.sql
 -- ==========================================
 
--- ------------------------------------------
--- FUNCIÓN: registrar_compra_saldo_bus v2.0
--- ------------------------------------------
--- Registra la compra de saldo virtual BUS (compra directa con depósito bancario).
--- El efectivo YA salió (fue un depósito bancario), por lo que se crea EGRESO inmediato.
--- Guarda ganancia = monto * 1% para que al fin del mes el proveedor liquide esa diferencia.
---
--- NUEVO v2.0: parámetro opcional p_saldo_virtual_maquina
---   Si se provee: validación extendida — permite depositar ventas del día antes del cierre.
---   Disponible = CAJA_BUS + ventas_del_día_calculadas
---   CAJA_BUS puede quedar negativa temporalmente → el cierre diario la corrige con INGRESO.
---   Si es NULL: validación original (CAJA_BUS >= monto).
---
--- Incluye SECURITY DEFINER + SET search_path + GRANT + NOTIFY para evitar problemas
--- de caché de PostgREST después de reinicios (~24h).
--- ------------------------------------------
-
--- Borrar TODOS los overloads posibles (cubre distintos órdenes de parámetros)
-DROP FUNCTION IF EXISTS public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT);
-DROP FUNCTION IF EXISTS public.registrar_compra_saldo_bus(INTEGER, DATE, NUMERIC, TEXT);
-DROP FUNCTION IF EXISTS public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC);
-DROP FUNCTION IF EXISTS public.registrar_compra_saldo_bus(INTEGER, DATE, NUMERIC, TEXT, NUMERIC);
-
-CREATE OR REPLACE FUNCTION public.registrar_compra_saldo_bus(
-  p_fecha                 DATE,
-  p_empleado_id           INTEGER,
-  p_monto                 NUMERIC,
-  p_notas                 TEXT    DEFAULT NULL,
-  p_saldo_virtual_maquina NUMERIC DEFAULT NULL
-)
-RETURNS JSON
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_caja_bus_id                  INTEGER;
-  v_tipo_bus_id                  INTEGER;
-  v_tipo_ref_id                  INTEGER;
-  v_categoria_eg011_id           INTEGER;
-  v_comision_pct                 NUMERIC;
-  v_ganancia                     NUMERIC;
-  v_saldo_anterior               NUMERIC;
-  v_saldo_nuevo                  NUMERIC;
-  v_operacion_id                 UUID;
-  v_recarga_id                   UUID;
-  -- Para validación extendida con ventas del día
-  v_saldo_ultimo_cierre_bus      NUMERIC;
-  v_fecha_ultimo_cierre_bus      TIMESTAMP;
-  v_suma_recargas_post_cierre    NUMERIC;
-  v_saldo_virtual_sistema        NUMERIC;
-  v_venta_bus_hoy                NUMERIC;
-  v_disponible_total             NUMERIC;
-BEGIN
-  -- Obtener IDs necesarios y comisión BUS
-  SELECT id INTO v_caja_bus_id FROM cajas WHERE codigo = 'CAJA_BUS';
-  SELECT id, porcentaje_comision INTO v_tipo_bus_id, v_comision_pct
-    FROM tipos_servicio WHERE codigo = 'BUS';
-  SELECT id INTO v_tipo_ref_id        FROM tipos_referencia WHERE codigo = 'RECARGAS_VIRTUALES';
-  SELECT id INTO v_categoria_eg011_id FROM categorias_operaciones WHERE codigo = 'EG-011';
-
-  IF v_caja_bus_id IS NULL THEN
-    RAISE EXCEPTION 'Caja CAJA_BUS no encontrada';
-  END IF;
-
-  IF p_monto <= 0 THEN
-    RAISE EXCEPTION 'El monto de compra debe ser mayor a cero';
-  END IF;
-
-  -- Calcular ganancia: el proveedor liquida 1% del monto comprado al fin del mes
-  v_ganancia := ROUND(p_monto * (v_comision_pct / 100.0), 2);
-
-  -- Obtener saldo actual de CAJA_BUS
-  SELECT saldo_actual INTO v_saldo_anterior
-  FROM cajas WHERE id = v_caja_bus_id;
-
-  -- ==========================================
-  -- VALIDACIÓN DE SALDO
-  -- ==========================================
-  IF p_saldo_virtual_maquina IS NOT NULL THEN
-    -- MODO EXTENDIDO: considera también las ventas del día no cerradas
-    -- Calcula saldo virtual del sistema (mismo algoritmo que getSaldoVirtualActual TypeScript)
-    SELECT COALESCE(r.saldo_virtual_actual, 0), r.created_at
-    INTO v_saldo_ultimo_cierre_bus, v_fecha_ultimo_cierre_bus
-    FROM recargas r
-    JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
-    WHERE ts.codigo = 'BUS'
-    ORDER BY r.created_at DESC
-    LIMIT 1;
-
-    IF v_saldo_ultimo_cierre_bus IS NULL THEN
-      v_saldo_ultimo_cierre_bus  := 0;
-      v_fecha_ultimo_cierre_bus  := '1900-01-01'::timestamp;
-    END IF;
-
-    SELECT COALESCE(SUM(rv.monto_virtual), 0)
-    INTO v_suma_recargas_post_cierre
-    FROM recargas_virtuales rv
-    WHERE rv.tipo_servicio_id = v_tipo_bus_id
-      AND rv.created_at > v_fecha_ultimo_cierre_bus;
-
-    v_saldo_virtual_sistema := v_saldo_ultimo_cierre_bus + v_suma_recargas_post_cierre;
-    v_venta_bus_hoy         := GREATEST(v_saldo_virtual_sistema - p_saldo_virtual_maquina, 0);
-    v_disponible_total      := v_saldo_anterior + v_venta_bus_hoy;
-
-    IF v_disponible_total < p_monto THEN
-      RAISE EXCEPTION 'Efectivo insuficiente. Caja BUS: $% + ventas del día: $% = $%. Requerido: $%',
-        v_saldo_anterior, v_venta_bus_hoy, v_disponible_total, p_monto;
-    END IF;
-  ELSE
-    -- MODO BÁSICO: validación original solo contra CAJA_BUS
-    IF v_saldo_anterior < p_monto THEN
-      RAISE EXCEPTION 'Saldo insuficiente en CAJA_BUS. Disponible: $%, Requerido: $%',
-        v_saldo_anterior, p_monto;
-    END IF;
-  END IF;
-
-  -- CAJA_BUS puede quedar negativa en modo extendido — se corrige con INGRESO del cierre diario
-  v_saldo_nuevo  := v_saldo_anterior - p_monto;
-  v_operacion_id := gen_random_uuid();
-  v_recarga_id   := gen_random_uuid();
-
-  -- Crear EGRESO en operaciones_cajas PRIMERO
-  -- (debe existir antes de recargas_virtuales por FK constraint operacion_pago_id)
-  INSERT INTO operaciones_cajas (
-    id, fecha, caja_id, empleado_id,
-    tipo_operacion, monto,
-    saldo_anterior, saldo_actual,
-    categoria_id, tipo_referencia_id, referencia_id,
-    descripcion, created_at
-  ) VALUES (
-    v_operacion_id, NOW(), v_caja_bus_id, p_empleado_id,
-    'EGRESO', p_monto,
-    v_saldo_anterior, v_saldo_nuevo,
-    v_categoria_eg011_id, v_tipo_ref_id, v_recarga_id,
-    COALESCE(p_notas, 'Compra saldo virtual Bus — ' || p_fecha),
-    NOW()
-  );
-
-  -- Registrar compra en recargas_virtuales
-  INSERT INTO recargas_virtuales (
-    id, fecha, tipo_servicio_id, empleado_id,
-    monto_virtual, monto_a_pagar, ganancia,
-    pagado, fecha_pago, operacion_pago_id,
-    notas, created_at
-  ) VALUES (
-    v_recarga_id, p_fecha, v_tipo_bus_id, p_empleado_id,
-    p_monto, p_monto, v_ganancia,
-    true, p_fecha, v_operacion_id,
-    p_notas, NOW()
-  );
-
-  -- Actualizar saldo CAJA_BUS (puede quedar negativo — corrección en cierre diario)
-  UPDATE cajas
-  SET saldo_actual = v_saldo_nuevo, updated_at = NOW()
-  WHERE id = v_caja_bus_id;
-
-  RETURN json_build_object(
-    'success',            true,
-    'recarga_id',         v_recarga_id,
-    'operacion_id',       v_operacion_id,
-    'monto',              p_monto,
-    'ganancia',           v_ganancia,
-    'saldo_anterior',     v_saldo_anterior,
-    'saldo_nuevo',        v_saldo_nuevo,
-    'venta_bus_incluida', COALESCE(v_venta_bus_hoy, 0),
-    'message',            'Compra de saldo Bus registrada: $' || p_monto || ' — Ganancia a liquidar: $' || v_ganancia
-  );
-
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al registrar compra saldo bus: %', SQLERRM;
-END;
-$$;
-
-COMMENT ON FUNCTION public.registrar_compra_saldo_bus IS
-'v2.0 - Registra compra directa de saldo virtual BUS (depósito bancario). Crea EGRESO inmediato en
-CAJA_BUS. Con p_saldo_virtual_maquina permite depositar ventas del día antes del cierre
-(CAJA_BUS puede quedar negativa temporalmente; el cierre diario la corrige). Sin ese parámetro
-usa validación original.';
-
-GRANT EXECUTE ON FUNCTION public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) TO anon;
-
-NOTIFY pgrst, 'reload schema';
-
--- ==========================================
--- FIN FUNCIONES POSTGRESQL
--- ==========================================
 
 --
 -- CAMBIOS VERSIÓN 4.2:

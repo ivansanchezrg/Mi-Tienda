@@ -1,6 +1,26 @@
 // ==========================================
-// EDITAR EMPLEADO MODAL
+// EDITAR USUARIO MODAL
 // ==========================================
+
+// Banner de aviso al editar el propio perfil
+.aviso-propio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: rgba(var(--ion-color-warning-rgb), 0.12);
+  border: 1px solid rgba(var(--ion-color-warning-rgb), 0.4);
+  border-radius: var(--radius-md);
+  color: var(--ion-color-warning-shade);
+  font-size: 13px;
+  line-height: 1.4;
+
+  ion-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+}
 
 .form-content {
   padding: var(--spacing-xl) var(--spacing-lg);

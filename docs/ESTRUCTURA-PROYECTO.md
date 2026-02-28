@@ -17,7 +17,42 @@ mi-tienda/
 │   ├── environments/          # Configuración de entornos
 │   └── theme/                 # Estilos globales
 ├── android/                   # Proyecto nativo Android
-├── docs/                      # Documentación del proyecto
+├── docs/                      # Toda la documentación centralizada
+│   ├── schema.sql             # Esquema completo de la base de datos
+│   ├── ESTRUCTURA-PROYECTO.md
+│   ├── SCHEMA-CHANGELOG.md
+│   ├── CONFIGURACION-INICIAL.md
+│   ├── DESIGN.md
+│   ├── GOOGLE_OAUTH_SETUP.md
+│   ├── auth/
+│   │   └── AUTH-README.md
+│   ├── dashboard/
+│   │   ├── DASHBOARD-README.md
+│   │   ├── 1_OPERACIONES-CAJA.md
+│   │   ├── 2_PROCESO_INGRESO_EGRESO.md
+│   │   ├── 3_PROCESO_CIERRE_CAJA.md
+│   │   ├── 4_PROCESO_CUADRE_RECARGAS.md
+│   │   ├── 5_ACTUALIZACION-UI-SIN-RECARGA.md
+│   │   ├── 8_PROCESO_ABRIR_CAJA.md
+│   │   └── sql/
+│   │       ├── functions/
+│   │       │   ├── ejecutar_cierre_diario.sql
+│   │       │   ├── registrar_operacion_manual.sql
+│   │       │   ├── reparar_deficit_turno.sql
+│   │       │   ├── crear_transferencia.sql
+│   │       │   └── verificar_transferencia_caja_chica_hoy.sql
+│   │       └── queries/
+│   │           ├── agregar_categorias_deficit.sql
+│   │           └── insertar_datos_reales_recargas.sql
+│   ├── gastos-diarios/
+│   │   └── GASTOS-DIARIOS-README.md
+│   └── recargas-virtuales/
+│       ├── RECARGAS-VIRTUALES-README.md
+│       └── sql/
+│           └── functions/
+│               ├── registrar_recarga_proveedor_celular_completo.sql
+│               ├── registrar_pago_proveedor_celular.sql
+│               └── registrar_compra_saldo_bus.sql
 └── capacitor.config.ts        # Configuración de Capacitor
 ```
 
@@ -79,8 +114,6 @@ features/
 │   └── layout.routes.ts      # Rutas hijas del layout
 │
 ├── auth/                      # Feature de autenticación
-│   ├── docs/
-│   │   └── AUTH-README.md
 │   ├── models/
 │   │   └── empleado_actual.model.ts  # Interface del empleado en sesión
 │   ├── pages/
@@ -91,20 +124,6 @@ features/
 │   └── auth.routes.ts
 │
 ├── dashboard/                 # Feature principal (home y operaciones de caja)
-│   ├── docs/
-│   │   ├── DASHBOARD-README.md
-│   │   ├── 1_OPERACIONES-CAJA.md
-│   │   ├── 2_PROCESO_INGRESO_EGRESO.md
-│   │   ├── 3_PROCESO_CIERRE_CAJA.md
-│   │   ├── 4_PROCESO_CUADRE_RECARGAS.md
-│   │   ├── 5_ACTUALIZACION-UI-SIN-RECARGA.md
-│   │   ├── 8_PROCESO_ABRIR_CAJA.md
-│   │   └── sql/                          # Funciones PostgreSQL del dashboard
-│   │       ├── ejecutar_cierre_diario.sql
-│   │       ├── registrar_operacion_manual.sql
-│   │       ├── reparar_deficit_turno.sql
-│   │       ├── agregar_categorias_deficit.sql # Migración: inserta EG-012 e IN-004
-│   │       └── insertar_datos_reales_recargas.sql # Script one-time de datos históricos
 │   ├── models/
 │   │   ├── categoria-operacion.model.ts  # Tipos/categorías de operación
 │   │   ├── operacion-caja.model.ts       # Operaciones, filtros, paginación
@@ -126,8 +145,6 @@ features/
 │   └── dashboard.routes.ts
 │
 ├── gastos-diarios/            # Feature de gastos operativos
-│   ├── docs/
-│   │   └── GASTOS-DIARIOS-README.md
 │   ├── models/
 │   │   └── gasto-diario.model.ts         # Interface de gastos
 │   ├── pages/
@@ -138,12 +155,6 @@ features/
 │       └── gastos-diarios.service.ts     # CRUD de gastos del día
 │
 ├── recargas-virtuales/        # Feature de saldo virtual CELULAR/BUS
-│   ├── docs/
-│   │   ├── RECARGAS-VIRTUALES-README.md
-│   │   └── sql/                          # Funciones PostgreSQL de recargas
-│   │       ├── registrar_recarga_proveedor_celular_completo.sql
-│   │       ├── registrar_pago_proveedor_celular.sql
-│   │       └── registrar_compra_saldo_bus.sql
 │   ├── pages/
 │   │   ├── recargas-virtuales/           # Panel principal con tabs CELULAR/BUS
 │   │   └── pagar-deudas/                 # Wizard de pago de deudas CELULAR

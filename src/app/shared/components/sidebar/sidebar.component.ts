@@ -11,12 +11,14 @@ import {
   receiptOutline, listOutline, swapHorizontalOutline, homeOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
+import { RolUsuario } from '../../../features/auth/models/usuario_actual.model';
 
 interface MenuItem {
   title: string;
   url: string;
   icon: string;
   exact?: boolean;
+  soloAdmin?: boolean;
 }
 
 @Component({
@@ -42,24 +44,33 @@ export class SidebarComponent implements OnInit {
   // Datos del usuario
   empleadoNombre = '';
   empleadoEmail = '';
-  empleadoRol = 'Empleado';
+  empleadoRol: RolUsuario = 'EMPLEADO';
 
-  // Rutas específicas del sidebar (NO están en los tabs)
-  menuItems: MenuItem[] = [
-    { title: 'Inicio',               url: '/home',                    icon: homeOutline, exact: true },
-    { title: 'Historial de Gastos',  url: '/home/gastos-diarios',     icon: receiptOutline },
+  // Todas las rutas del sidebar
+  private readonly todosLosItems: MenuItem[] = [
+    { title: 'Inicio',                url: '/home',                    icon: homeOutline,             exact: true },
+    { title: 'Historial de Gastos',   url: '/home/gastos-diarios',     icon: receiptOutline },
     { title: 'Historial de Recargas', url: '/home/historial-recargas', icon: listOutline },
-    { title: 'Saldo Virtual',        url: '/home/recargas-virtuales', icon: swapHorizontalOutline },
-    { title: 'Usuarios',             url: '/usuarios',                icon: peopleOutline },
-    { title: 'Configuración',        url: '/configuracion',           icon: settingsOutline },
+    { title: 'Saldo Virtual',         url: '/home/recargas-virtuales', icon: swapHorizontalOutline },
+    { title: 'Usuarios',              url: '/usuarios',                icon: peopleOutline,           soloAdmin: true },
+    { title: 'Configuración',         url: '/configuracion',           icon: settingsOutline,         soloAdmin: true },
   ];
 
+  // Items filtrados según el rol del usuario
+  menuItems: MenuItem[] = [];
+
   async ngOnInit() {
-    const user = await this.authService.getUser();
-    if (user) {
-      this.empleadoNombre = user.user_metadata?.['full_name'] || user.user_metadata?.['name'] || 'Usuario';
-      this.empleadoEmail = user.email || '';
+    const usuario = await this.authService.getUsuarioActual();
+    if (usuario) {
+      this.empleadoNombre = usuario.nombre;
+      this.empleadoEmail  = usuario.usuario;
+      this.empleadoRol    = usuario.rol;
     }
+
+    // Filtrar items: ADMIN ve todo, EMPLEADO solo ve los no-admin
+    this.menuItems = this.todosLosItems.filter(item =>
+      !item.soloAdmin || this.empleadoRol === 'ADMIN'
+    );
   }
 
   async closeMenu() {

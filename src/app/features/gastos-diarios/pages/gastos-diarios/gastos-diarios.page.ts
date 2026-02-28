@@ -7,7 +7,7 @@ import {
   ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, receiptOutline, personOutline, imageOutline, calendarOutline, close } from 'ionicons/icons';
+import { arrowBackOutline, receiptOutline, personOutline, documentAttachOutline, calendarOutline, close } from 'ionicons/icons';
 import { GastosDiariosService } from '../../services/gastos-diarios.service';
 import { GastoDiario } from '../../models/gasto-diario.model';
 import { UiService } from '@core/services/ui.service';
@@ -47,7 +47,7 @@ export class GastosDiariosPage implements OnInit {
       arrowBackOutline,
       receiptOutline,
       personOutline,
-      imageOutline,
+      documentAttachOutline,
       calendarOutline,
       close
     });
@@ -209,9 +209,7 @@ export class GastosDiariosPage implements OnInit {
   /**
    * Abre la imagen del comprobante en modal
    */
-  async verComprobante(event: Event, path: string) {
-    event.stopPropagation();
-
+  async verComprobante(path: string) {
     await this.ui.showLoading('Cargando comprobante...');
     try {
       const signedUrl = await this.storageService.getSignedUrl(path);
