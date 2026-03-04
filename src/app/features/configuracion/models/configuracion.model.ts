@@ -5,7 +5,6 @@ export interface Configuracion {
   bus_alerta_saldo_bajo: number;
   bus_dias_antes_facturacion: number;
   created_at?: string;
-  updated_at?: string;
 }
 
 export type UpdateConfiguracionDto = Pick<

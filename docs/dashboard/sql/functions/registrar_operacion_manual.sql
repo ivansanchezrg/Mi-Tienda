@@ -77,8 +77,7 @@ BEGIN
 
   -- 3. Actualizar saldo de la caja
   UPDATE cajas
-  SET saldo_actual = v_saldo_nuevo,
-      updated_at   = NOW()
+  SET saldo_actual = v_saldo_nuevo
   WHERE id = p_caja_id;
 
   -- 4. Insertar operación

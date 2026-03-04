@@ -96,8 +96,8 @@ export class HistorialRecargasPage implements OnInit {
     this.ui.showTabs();
   }
 
-  async cargarHistorial() {
-    this.loading = true;
+  async cargarHistorial(silencioso = false) {
+    if (!silencioso) this.loading = true;
     try {
       const [recargas, virtualesCelular, virtualesBus] = await Promise.all([
         this.recargasService.obtenerHistorialRecargas(),
@@ -205,9 +205,9 @@ export class HistorialRecargasPage implements OnInit {
     }
   }
 
-  async handleRefresh(event: any) {
-    await this.cargarHistorial();
-    event.target.complete();
+  async handleRefresh(event: CustomEvent) {
+    await this.cargarHistorial(true);
+    (event.target as HTMLIonRefresherElement).complete();
   }
 
   getIconoServicio(servicio: string): string {

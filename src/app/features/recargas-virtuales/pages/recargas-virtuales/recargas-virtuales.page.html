@@ -112,8 +112,9 @@
         <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
       </div>
 
-      <!-- BOTÓN: Liquidar Ganancia del Proveedor -->
-      @if (gananciaBusCalculada > 0) {
+      <!-- BOTÓN: Liquidar Ganancia -->
+      @if (gananciaBusMesAnterior > 0) {
+        <!-- Estado 1: Ganancia pendiente del mes anterior → habilitado -->
         <div class="action-card-large success" (click)="abrirModalLiquidacionBus()">
           <div class="action-icon success">
             <ion-icon name="cash-outline"></ion-icon>
@@ -121,11 +122,22 @@
           <div class="action-content">
             <h3>
               Liquidar Ganancia
-              <span class="badge success">${{ gananciaBusCalculada | number:'1.2-2' }}</span>
+              <span class="badge success">${{ gananciaBusMesAnterior | number:'1.2-2' }}</span>
             </h3>
-            <p>Proveedor acredita 1% del mes anterior</p>
+            <p>Proveedor acredita ganancia del mes anterior</p>
           </div>
           <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
+        </div>
+      } @else if (gananciaBusMesActual > 0) {
+        <!-- Estado 2: Mes en curso con ventas → deshabilitado, muestra cuándo estará disponible -->
+        <div class="action-card-large disabled">
+          <div class="action-icon">
+            <ion-icon name="lock-closed-outline"></ion-icon>
+          </div>
+          <div class="action-content">
+            <h3>Liquidar Ganancia</h3>
+            <p>Disponible el {{ proximoMesDisplay }} · Acumulado: ${{ gananciaBusMesActual | number:'1.2-2' }}</p>
+          </div>
         </div>
       }
 

@@ -12,7 +12,7 @@
 --   - Reemplaza WHERE id = 1/2 por lookup dinámico con codigo
 --     (consistente con el resto de funciones del proyecto)
 -- Registra el ajuste contable del déficit del turno anterior.
--- EGRESO de Tienda sin validación de saldo mínimo (el dinero existe físicamente).
+-- EGRESO de Tienda con validación de saldo: si Tienda no tiene suficiente, retorna error con mensaje.
 -- INGRESO a Varios solo si p_deficit_caja_chica > 0.
 -- ==========================================
 -- Llamada desde: TurnosCajaService.repararDeficit()
@@ -93,7 +93,7 @@ BEGIN
     NULL
   ) RETURNING id INTO v_op_egreso_id;
 
-  UPDATE cajas SET saldo_actual = v_saldo_tienda - v_total_a_reponer, updated_at = NOW() WHERE id = v_caja_id;
+  UPDATE cajas SET saldo_actual = v_saldo_tienda - v_total_a_reponer WHERE id = v_caja_id;
 
   -- 2. INGRESO a Varios (solo si hay déficit de caja chica)
   IF p_deficit_caja_chica > 0 THEN
@@ -112,7 +112,7 @@ BEGIN
       NULL
     ) RETURNING id INTO v_op_ingreso_id;
 
-    UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_caja_chica, updated_at = NOW() WHERE id = v_caja_chica_id;
+    UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_caja_chica WHERE id = v_caja_chica_id;
   END IF;
 
   RETURN json_build_object(
@@ -137,5 +137,5 @@ NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.reparar_deficit_turno IS
   'v1.1 - Ajuste contable del déficit del turno anterior al abrir caja. '
-  'EGRESO de Tienda sin validación de saldo mínimo + INGRESO a Varios si hay déficit de caja chica. '
+  'EGRESO de Tienda con validación de saldo (retorna error si Tienda no tiene suficiente) + INGRESO a Varios si hay déficit de caja chica. '
   'Usa lookup por codigo en lugar de IDs hardcodeados.';

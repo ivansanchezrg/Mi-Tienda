@@ -31,7 +31,7 @@ BEGIN
   SELECT id INTO v_caja_bus_id FROM cajas WHERE codigo = 'CAJA_BUS' LIMIT 1;
   SELECT id INTO v_caja_celular_id FROM cajas WHERE codigo = 'CAJA_CELULAR' LIMIT 1;
   SELECT id INTO v_categoria_ventas_id FROM categorias_operaciones WHERE codigo = 'IN-001' LIMIT 1;
-  SELECT id INTO v_tipo_ref_recargas_id FROM tipos_referencia WHERE codigo = 'RECARGAS' LIMIT 1;
+  SELECT id INTO v_tipo_ref_recargas_id FROM tipos_referencia WHERE tabla = 'recargas' LIMIT 1;
 
   -- ============================================================
   -- 2. CREAR TURNO

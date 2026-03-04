@@ -90,8 +90,8 @@
             <ion-item class="input-item">
               <ion-icon slot="start" name="wallet-outline" class="item-icon efectivo"></ion-icon>
               <ion-label position="stacked">
-                <strong>Efectivo Total Recaudado</strong>
-                <ion-note>Suma de todo el efectivo del día</ion-note>
+                <strong>Efectivo Recaudado — Tienda</strong>
+                <ion-note>Solo el efectivo de la caja registradora de tienda. No incluir el de celular ni bus.</ion-note>
               </ion-label>
               <div class="input-wrapper">
                 <span class="currency-prefix">$</span>
@@ -136,12 +136,12 @@
           <ion-card-content>
             <!-- Sección: Efectivo de Caja -->
             <div class="seccion-titulo">
-              <strong>Caja Física</strong>
+              <strong>Caja Física — Tienda</strong>
             </div>
             <div class="venta-item">
               <div class="venta-header">
                 <ion-icon name="cash-outline" class="venta-icon efectivo"></ion-icon>
-                <span class="venta-nombre">Efectivo Recaudado</span>
+                <span class="venta-nombre">Efectivo Caja Tienda</span>
               </div>
               <div class="venta-detalle">
                 <span class="venta-monto">{{ efectivoRecaudado | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
@@ -152,8 +152,13 @@
             @if (!haySinEfectivo) {
               <div class="desglose-efectivo">
                 <div class="desglose-item">
-                  <span class="desglose-label">Fondo Fijo (caja física)</span>
-                  <span class="desglose-valor resta">-{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+                  <span class="desglose-label">
+                    Fondo Fijo (caja física)
+                    @if (hayDeficitTotal) {
+                      <span class="deficit-badge">parcial</span>
+                    }
+                  </span>
+                  <span class="desglose-valor resta">-{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                 </div>
                 <div class="desglose-item">
                   <span class="desglose-label">
@@ -161,11 +166,15 @@
                     @if (transferenciaCajaChicaYaHecha) {
                       <span class="ya-hecha-badge">✅ ya recibió hoy</span>
                     } @else if (hayDeficitCajaChica) {
-                      <span class="deficit-badge">déficit</span>
+                      <span class="deficit-badge">déficit -{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                     }
                   </span>
                   <span class="desglose-valor resta" [class.deficit]="hayDeficitCajaChica" [class.ya-hecha]="transferenciaCajaChicaYaHecha">
-                    -{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}
+                    @if (transferenciaEfectivaCajaChica > 0) {
+                      -{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}
+                    } @else {
+                      $0.00
+                    }
                   </span>
                 </div>
                 <div class="desglose-item resultado">
@@ -185,10 +194,10 @@
                     @if (transferenciaCajaChicaYaHecha) {
                       <span class="ya-hecha-badge">✅ ya recibió hoy</span>
                     } @else {
-                      <span class="deficit-badge">déficit</span>
+                      <span class="deficit-badge">déficit -{{ transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
                     }
                   </span>
-                  <span class="desglose-valor resta deficit">-$0.00</span>
+                  <span class="desglose-valor resta deficit">$0.00</span>
                 </div>
                 <div class="desglose-item resultado">
                   <span class="desglose-label">
@@ -203,7 +212,7 @@
             
             <!-- Sección: Recargas -->
             <div class="seccion-titulo">
-              <strong>Efectivo Recargas</strong>
+              <strong>Ventas de Recargas</strong>
             </div>
             <div class="venta-item">
               <div class="venta-header">
@@ -239,7 +248,7 @@
             <div class="caja-verificacion">
               <div class="caja-nombre">
                 <ion-icon name="cash-outline" class="caja-icon caja"></ion-icon>
-                <strong>CAJA</strong>
+                <strong>TIENDA</strong>
               </div>
               <div class="caja-calculo">
                 <span class="saldo">{{ saldoAnteriorCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
@@ -412,9 +421,15 @@
                 <li>Deja los <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> disponibles en la caja física</li>
               </ul>
               @if (!transferenciaCajaChicaYaHecha) {
-                <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFaltante | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo y reponer <strong>{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios.</p>
+                @if (fondoFaltante > 0) {
+                  <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFaltante | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo y reponer <strong>{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios.</p>
+                } @else {
+                  <p class="deficit-nota">El siguiente turno deberá reponer <strong>{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios desde Tienda.</p>
+                }
               } @else {
-                <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFaltante | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo.</p>
+                @if (fondoFaltante > 0) {
+                  <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFaltante | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo.</p>
+                }
               }
             </div>
           </div>

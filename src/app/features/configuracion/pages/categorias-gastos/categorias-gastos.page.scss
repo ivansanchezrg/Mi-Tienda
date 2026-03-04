@@ -1,0 +1,101 @@
+ion-content {
+  --background: var(--ion-color-light);
+}
+
+.page-container {
+  padding: var(--spacing-md);
+  padding-bottom: 100px;
+}
+
+// ── Estados ───────────────────────────────────────────────────────────────────
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-3xl);
+  color: var(--ion-color-medium);
+  font-size: 15px;
+
+  p { margin: 0; }
+}
+
+// ── Tarjeta de categoría ──────────────────────────────────────────────────────
+.categoria-item {
+  background: var(--ion-item-background, white);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
+  box-shadow: var(--shadow-level-1);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+
+  &.inactiva {
+    opacity: 0.5;
+  }
+
+  &:active {
+    transform: scale(0.99);
+    opacity: 0.85;
+  }
+
+  .chevron {
+    font-size: 18px;
+    color: var(--ion-color-step-400);
+    flex-shrink: 0;
+  }
+}
+
+// ── Info ──────────────────────────────────────────────────────────────────────
+.cat-info {
+  flex: 1;
+  min-width: 0;
+
+  .cat-badges {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-xs);
+    flex-wrap: wrap;
+  }
+
+  .cat-codigo {
+    font-size: 12px;
+    font-weight: var(--font-weight-bold);
+    color: var(--ion-color-warning-shade);
+    font-family: monospace;
+    background: rgba(var(--ion-color-warning-rgb), 0.12);
+    padding: 2px 6px;
+    border-radius: var(--radius-xs);
+  }
+
+  .badge-inactiva {
+    font-size: 11px;
+    color: var(--ion-color-medium);
+    background: var(--ion-color-step-100);
+    padding: 2px var(--spacing-xs);
+    border-radius: var(--radius-xs);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .cat-nombre {
+    font-size: 15px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+    margin: 0;
+  }
+
+  .cat-desc {
+    font-size: 13px;
+    color: var(--ion-color-medium);
+    margin: var(--spacing-xs) 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

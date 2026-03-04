@@ -28,7 +28,7 @@ export class ConfiguracionService {
     return this.supabase.call<Configuracion>(
       this.supabase.client
         .from('configuraciones')
-        .update({ ...dto, updated_at: new Date().toISOString() })
+        .update({ ...dto })
         .eq('id', id)
         .select()
         .single()

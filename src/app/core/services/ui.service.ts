@@ -16,11 +16,20 @@ export class UiService {
 
   private loadingCount = 0;
   private loadingElement: HTMLIonLoadingElement | null = null;
+  private hideLoadingTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  /** Muestra Loading (Conteo inteligente) */
+  /** Muestra Loading (Conteo inteligente + anti-doble-overlay) */
   async showLoading(msg = 'Procesando...') {
+    // Cancela cualquier dismiss pendiente (gap entre llamadas secuenciales)
+    if (this.hideLoadingTimeout) {
+      clearTimeout(this.hideLoadingTimeout);
+      this.hideLoadingTimeout = null;
+    }
     this.loadingCount++;
-    if (this.loadingCount === 1) {
+    // Solo crea un overlay si no existe uno ya. Cubre el caso en que count
+    // llega a 0 entre dos supabase.call() secuenciales pero el debounce aún
+    // no cerró el overlay → reutiliza el existente en lugar de crear uno nuevo.
+    if (this.loadingCount === 1 && !this.loadingElement) {
       this.loadingElement = await this.loadingCtrl.create({
         message: msg,
         spinner: 'crescent',
@@ -30,15 +39,22 @@ export class UiService {
     }
   }
 
-  /** Oculta Loading (Conteo inteligente) */
+  /** Oculta Loading (Conteo inteligente + debounce 50ms anti-doble-overlay) */
   async hideLoading() {
     this.loadingCount--;
     if (this.loadingCount <= 0) {
       this.loadingCount = 0;
-      if (this.loadingElement) {
-        await this.loadingElement.dismiss();
-        this.loadingElement = null;
-      }
+      // Debounce: espera 50ms antes de cerrar el overlay.
+      // Si llega otro showLoading() en ese intervalo, lo cancela y reutiliza
+      // el overlay existente → un solo "Procesando" visible en todo momento.
+      this.hideLoadingTimeout = setTimeout(async () => {
+        this.hideLoadingTimeout = null;
+        if (this.loadingCount <= 0 && this.loadingElement) {
+          const el = this.loadingElement;
+          this.loadingElement = null; // Limpia referencia antes del dismiss
+          await el.dismiss().catch(() => {});
+        }
+      }, 50);
     }
   }
 

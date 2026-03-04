@@ -14,7 +14,7 @@
 
 | Tabla                | Rol                                                                                                                                          |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `turnos_caja`        | 1 registro por apertura. `hora_cierre IS NULL` = turno activo. `hora_cierre` la escribe `ejecutar_cierre_diario` — no se cierra manualmente. |
+| `turnos_caja`        | 1 registro por apertura. `hora_fecha_cierre IS NULL` = turno activo. `hora_fecha_cierre` la escribe `ejecutar_cierre_diario` — no se cierra manualmente. |
 | `caja_fisica_diaria` | El cierre escribe aquí el `deficit_caja_chica`. Lo lee `obtenerDeficitTurnoAnterior()` al abrir el turno siguiente.                          |
 | `operaciones_cajas`  | `repararDeficit()` inserta aquí el EGRESO de Tienda y el INGRESO a Varios.                                                                   |
 | `configuraciones`    | `fondo_fijo_diario` — cuánto debe haber en la caja física para operar.                                                                       |
@@ -48,7 +48,7 @@ onAbrirCaja()
        → "Cancelar" → modal descarta sin crear turno
         ↓
 abrirTurno()
-  ├─ Valida: no hay turno con hora_cierre IS NULL para la fecha de hoy
+  ├─ Valida: no hay turno con hora_fecha_cierre IS NULL para la fecha de hoy
   ├─ Obtiene empleado desde Preferences (sin BD)
   ├─ Calcula numero_turno = COUNT(turnos hoy) + 1
   └─ INSERT turnos_caja
@@ -63,8 +63,8 @@ cargarDatos() → refresca banner en Home
 | Estado           | Condición en BD                       | Título        | Descripción                           | Botón        |
 | ---------------- | ------------------------------------- | ------------- | ------------------------------------- | ------------ |
 | `SIN_ABRIR`      | Sin turnos hoy                        | Sin Turno     | "Abrí turno para iniciar operaciones" | Abrir Caja   |
-| `TURNO_EN_CURSO` | Turno con `hora_cierre IS NULL`       | Turno Activo  | Nombre del empleado                   | Cerrar Turno |
-| `CERRADA`        | Todos los turnos tienen `hora_cierre` | Turno Cerrado | "Caja cerrada por hoy"                | Abrir Caja   |
+| `TURNO_EN_CURSO` | Turno con `hora_fecha_cierre IS NULL`       | Turno Activo  | Nombre del empleado                   | Cerrar Turno |
+| `CERRADA`        | Todos los turnos tienen `hora_fecha_cierre` | Turno Cerrado | "Caja cerrada por hoy"                | Abrir Caja   |
 
 `turnosHoy` se incluye en `EstadoCaja` — útil para saber si es el 1er o 2do turno del día.
 
@@ -91,7 +91,7 @@ Si ambos son `0` → no hay déficit → el modal salta directamente al Paso 2.
 1. `EGRESO` de Tienda por `(deficitCajaChica + fondoFaltante)` — categoría `EG-012`
 2. `INGRESO` a Varios por `deficitCajaChica` si > 0 — categoría `IN-004`
 
-> **Nota:** No valida saldo mínimo en Tienda — el dinero existe físicamente aunque el saldo digital sea bajo.
+> **Nota:** Sí valida saldo en Tienda — si `saldo_actual de CAJA < total_a_reponer`, el RPC retorna error y el modal muestra el mensaje para que el operador registre primero un ingreso manual en Tienda.
 
 Si el RPC retorna error → `repararDeficit()` devuelve `{ ok: false, errorMsg: '...' }`. El modal muestra el mensaje y no avanza.
 
@@ -101,7 +101,7 @@ Si el RPC retorna error → `repararDeficit()` devuelve `{ ok: false, errorMsg: 
 
 Validaciones (retorna `false` en cualquiera — Home muestra error al usuario):
 
-1. Ya existe un turno con `hora_cierre IS NULL` para la fecha de hoy → solo puede haber 1 activo
+1. Ya existe un turno con `hora_fecha_cierre IS NULL` para la fecha de hoy → solo puede haber 1 activo
 2. No se pudo obtener el empleado desde Preferences → sesión inválida
 
 Si todo OK → `INSERT turnos_caja` con `hora_fecha_apertura = toISOString()` (UTC correcto para `TIMESTAMP WITH TIME ZONE`).
@@ -116,7 +116,7 @@ CREATE TABLE turnos_caja (
   numero_turno        SMALLINT NOT NULL DEFAULT 1,              -- 1, 2, 3... por día
   empleado_id         INTEGER NOT NULL REFERENCES empleados(id),
   hora_fecha_apertura TIMESTAMP WITH TIME ZONE NOT NULL,        -- UTC (toISOString())
-  hora_cierre         TIMESTAMP WITH TIME ZONE,                 -- NULL = abierto; lo escribe ejecutar_cierre_diario
+  hora_fecha_cierre         TIMESTAMP WITH TIME ZONE,                 -- NULL = abierto; lo escribe ejecutar_cierre_diario
   observaciones       TEXT
 );
 -- UNIQUE por fecha + turno (índice funcional sobre la fecha extraída del timestamp)
@@ -134,8 +134,8 @@ SELECT
   t.numero_turno,
   e.nombre,
   t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS apertura,
-  t.hora_cierre         AT TIME ZONE 'America/Guayaquil' AS cierre,
-  CASE WHEN t.hora_cierre IS NULL THEN 'ABIERTO' ELSE 'CERRADO' END AS estado
+  t.hora_fecha_cierre         AT TIME ZONE 'America/Guayaquil' AS cierre,
+  CASE WHEN t.hora_fecha_cierre IS NULL THEN 'ABIERTO' ELSE 'CERRADO' END AS estado
 FROM turnos_caja t
 JOIN empleados e ON t.empleado_id = e.id
 WHERE (t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = CURRENT_DATE

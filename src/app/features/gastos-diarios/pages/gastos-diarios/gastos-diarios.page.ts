@@ -71,9 +71,9 @@ export class GastosDiariosPage implements OnInit {
     this.ui.showTabs();
   }
 
-  async handleRefresh(event: any) {
-    await this.cargarGastos();
-    event.target.complete();
+  async handleRefresh(event: CustomEvent) {
+    await this.cargarGastos(true);
+    (event.target as HTMLIonRefresherElement).complete();
   }
 
   /**
@@ -87,8 +87,8 @@ export class GastosDiariosPage implements OnInit {
   /**
    * Carga los gastos según el filtro activo
    */
-  async cargarGastos() {
-    this.loading = true;
+  async cargarGastos(silencioso = false) {
+    if (!silencioso) this.loading = true;
     try {
       const { fechaInicio, fechaFin } = this.obtenerRangoFechas();
 
@@ -222,7 +222,9 @@ export class GastosDiariosPage implements OnInit {
       const modal = await this.modalCtrl.create({
         component: ComprobanteGastoModalComponent,
         componentProps: { url: signedUrl },
-        cssClass: 'comprobante-modal'
+        cssClass: 'comprobante-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1
       });
       await modal.present();
     } catch {

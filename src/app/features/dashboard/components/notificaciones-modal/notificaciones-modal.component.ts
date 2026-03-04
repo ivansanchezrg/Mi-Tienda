@@ -8,7 +8,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  close, phonePortraitOutline, busOutline,
+  close, phonePortraitOutline, busOutline, calendarOutline,
   notificationsOffOutline, chevronForwardOutline
 } from 'ionicons/icons';
 import { Notificacion } from '../../services/notificaciones.service';
@@ -34,8 +34,8 @@ import { Notificacion } from '../../services/notificaciones.service';
             <ion-item button (click)="navegar(notif)">
               <ion-icon
                 slot="start"
-                [name]="notif.tipo === 'DEUDA_CELULAR' ? 'phone-portrait-outline' : 'bus-outline'"
-                [color]="notif.tipo === 'DEUDA_CELULAR' ? 'secondary' : 'warning'">
+                [name]="notif.tipo === 'DEUDA_CELULAR' ? 'phone-portrait-outline' : (notif.tipo === 'SALDO_BAJO_BUS' ? 'bus-outline' : 'calendar-outline')"
+                [color]="notif.tipo === 'DEUDA_CELULAR' ? 'secondary' : (notif.tipo === 'FACTURACION_BUS_PENDIENTE' ? 'danger' : 'warning')">
               </ion-icon>
               <ion-label>
                 <h2>{{ notif.titulo }}</h2>
@@ -77,7 +77,7 @@ export class NotificacionesModalComponent {
   notificaciones: Notificacion[] = [];
 
   constructor() {
-    addIcons({ close, phonePortraitOutline, busOutline, notificationsOffOutline, chevronForwardOutline });
+    addIcons({ close, phonePortraitOutline, busOutline, calendarOutline, notificationsOffOutline, chevronForwardOutline });
   }
 
   cerrar() {

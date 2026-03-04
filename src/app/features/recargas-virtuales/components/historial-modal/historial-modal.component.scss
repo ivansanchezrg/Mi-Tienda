@@ -109,6 +109,12 @@
       background: rgba(var(--ion-color-warning-rgb), 0.12);
       color: var(--ion-color-warning-shade);
     }
+
+    // BUS: la compra ya se pagó con depósito; solo falta la liquidación mensual de la ganancia
+    &.sin-liquidar {
+      background: var(--ion-color-step-100);
+      color: var(--ion-color-medium);
+    }
   }
 
   .historial-monto {

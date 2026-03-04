@@ -59,7 +59,9 @@ export class MainLayoutPage {
     this.fabAbierto = false;
 
     const modal = await this.modalCtrl.create({
-      component: GastoModalComponent
+      component: GastoModalComponent,
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
     await modal.present();
@@ -82,7 +84,9 @@ export class MainLayoutPage {
     this.fabAbierto = false;
 
     const modal = await this.modalCtrl.create({
-      component: CuadreCajaPage
+      component: CuadreCajaPage,
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
     await modal.present();
   }

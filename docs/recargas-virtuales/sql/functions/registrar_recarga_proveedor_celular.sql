@@ -1,5 +1,5 @@
 -- ==========================================
--- FUNCIÓN: registrar_recarga_proveedor_celular_completo
+-- FUNCIÓN: registrar_recarga_proveedor_celular
 -- VERSIÓN: 2.0
 -- FECHA: 2026-02-24
 -- ==========================================
@@ -19,9 +19,9 @@
 -- ==========================================
 
 -- Descomentar solo si cambia la firma (parámetros o tipo de retorno):
--- DROP FUNCTION IF EXISTS registrar_recarga_proveedor_celular_completo(DATE, INTEGER, NUMERIC);
+-- DROP FUNCTION IF EXISTS registrar_recarga_proveedor_celular(DATE, INTEGER, NUMERIC);
 
-CREATE OR REPLACE FUNCTION registrar_recarga_proveedor_celular_completo(
+CREATE OR REPLACE FUNCTION registrar_recarga_proveedor_celular(
   p_fecha         DATE,
   p_empleado_id   INTEGER,
   p_monto_virtual NUMERIC
@@ -165,15 +165,15 @@ BEGIN
 
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al registrar recarga proveedor celular completo: %', SQLERRM;
+    RAISE EXCEPTION 'Error al registrar recarga proveedor celular: %', SQLERRM;
 END;
 $$;
 
-COMMENT ON FUNCTION registrar_recarga_proveedor_celular_completo IS
+COMMENT ON FUNCTION registrar_recarga_proveedor_celular IS
 'v2.0 - Registra deuda con proveedor CELULAR. Solo crea la deuda (pagado=false).
 Sin transferencia de ganancia: la ganancia queda en CAJA_CELULAR como diferencia entre ventas y pago.';
 
-GRANT EXECUTE ON FUNCTION registrar_recarga_proveedor_celular_completo(DATE, INTEGER, NUMERIC) TO authenticated;
-GRANT EXECUTE ON FUNCTION registrar_recarga_proveedor_celular_completo(DATE, INTEGER, NUMERIC) TO anon;
+GRANT EXECUTE ON FUNCTION registrar_recarga_proveedor_celular(DATE, INTEGER, NUMERIC) TO authenticated;
+GRANT EXECUTE ON FUNCTION registrar_recarga_proveedor_celular(DATE, INTEGER, NUMERIC) TO anon;
 
 NOTIFY pgrst, 'reload schema';

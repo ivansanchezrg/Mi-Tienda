@@ -12,7 +12,6 @@ import {
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
-import { CajasService } from '../../../dashboard/services/cajas.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
@@ -43,7 +42,6 @@ export class LiquidacionBusModalComponent {
   private modalCtrl = inject(ModalController);
   private ui = inject(UiService);
   private recargasService = inject(RecargasVirtualesService);
-  private cajasService = inject(CajasService);
   private authService = inject(AuthService);
 
   /** Monto acreditado por el proveedor como saldo virtual BUS */
@@ -83,25 +81,23 @@ export class LiquidacionBusModalComponent {
         fecha: getFechaLocal(),
         empleado_id: empleado.id,
         monto: this.montoAcreditado,
-        notas: `Liquidación ganancia proveedor ${this.mesDisplay}`
+        observaciones: `Liquidación ganancia proveedor ${this.mesDisplay}`
       });
 
       if (!resultadoCompra) {
         throw new Error('Error al registrar el saldo virtual recibido');
       }
 
-      // 2. Transferir la ganancia calculada de CAJA_BUS a CAJA_CHICA
-      await this.cajasService.crearTransferencia({
-        codigoOrigen: 'CAJA_BUS',
-        codigoDestino: 'CAJA_CHICA',
-        monto: this.gananciaBusCalculada,
-        empleadoId: empleado.id,
-        descripcion: `Ganancia 1% ${this.mesAnterior}`
+      // 2. Liquidar ganancias BUS del mes anterior:
+      //    transfiere CAJA_BUS → CAJA_CHICA y marca las compras del mes como pagado=true
+      const resultadoLiquidacion = await this.recargasService.liquidarGananciasBus({
+        mes: this.mesAnterior,
+        empleado_id: empleado.id
       });
 
       await this.ui.hideLoading();
       await this.ui.showSuccess(
-        `Liquidación registrada. Saldo virtual +$${this.montoAcreditado.toFixed(2)}. Ganancia $${this.gananciaBusCalculada.toFixed(2)} transferida a Caja Chica.`
+        `Liquidación registrada. Saldo virtual +$${this.montoAcreditado.toFixed(2)}. Ganancia $${resultadoLiquidacion.total_ganancia.toFixed(2)} transferida a Varios.`
       );
 
       this.modalCtrl.dismiss({ success: true });

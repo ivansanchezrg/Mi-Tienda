@@ -430,6 +430,51 @@ Estos componentes se alinean bien con nuestro sistema de diseño:
 
 ---
 
+### 📋 Patrón Estándar de Modales (Sheet Modal)
+
+**Todos los modales del proyecto deben abrirse como sheet desde abajo** (igual que el modal de "Crear nuevo usuario"). Esto aplica a **todos los features** sin excepción.
+
+#### Reglas
+
+| Regla | Valor | Por qué |
+|---|---|---|
+| `breakpoints` | `[0, 1]` | Permite cerrar arrastrando hacia abajo |
+| `initialBreakpoint` | `1` | Abre al 100% de altura |
+| Botón cerrar | `slot="end"` (lado derecho) | Estándar UX del proyecto |
+| Ícono cerrar | `close-outline` | Consistencia visual |
+
+#### TypeScript — `modalCtrl.create()`
+
+```typescript
+const modal = await this.modalCtrl.create({
+  component: MiModalComponent,
+  componentProps: { /* props opcionales */ },
+  breakpoints: [0, 1],
+  initialBreakpoint: 1
+});
+await modal.present();
+const { data } = await modal.onWillDismiss();
+```
+
+#### HTML — Header del modal
+
+```html
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Título del Modal</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cerrar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+```
+
+> **Importante:** `<ion-title>` siempre antes de `<ion-buttons>`. El ícono `close-outline` debe estar registrado en el constructor del componente: `addIcons({ closeOutline })`.
+
+---
+
 ### ⚠️ Componentes que Requieren Personalización
 
 Estos componentes funcionan pero necesitan ajustes:
@@ -670,6 +715,6 @@ div.container > .card-wrapper .card {
 
 ---
 
-**Última actualización:** 2026-02-11
-**Versión:** 2.0
+**Última actualización:** 2026-03-03
+**Versión:** 2.1
 **Mantenido por:** Equipo Mi Tienda

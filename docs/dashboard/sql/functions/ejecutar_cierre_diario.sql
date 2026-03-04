@@ -7,8 +7,14 @@
 -- );
 
 -- ==========================================
--- FUNCIÓN: ejecutar_cierre_diario (v4.7)
+-- FUNCIÓN: ejecutar_cierre_diario (v4.9)
 -- ==========================================
+-- CAMBIOS v4.9:
+--   - v_transferencia_ya_hecha también detecta INGRESO IN-004 (ajuste apertura)
+--   - Si hoy se reparó el déficit de ayer al abrir caja → Varios ya recibió su $20
+--   - En ese caso: no se duplica la transferencia diaria a Varios
+-- CAMBIOS v4.8:
+--   - ON CONFLICT en INSERT BUS: compatible con mini cierre registrar_compra_saldo_bus v3.0
 -- CAMBIOS v4.7:
 --   - 1 sola transferencia a Varios por día (sin importar cuántos turnos)
 --   - Si ya existe TRANSFERENCIA_ENTRANTE en CAJA_CHICA para p_fecha → skip
@@ -30,7 +36,7 @@
 --       (NO por fecha = p_fecha) — captura recargas no aplicadas en cierres previos
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.ejecutar_cierre_diario(  -- v4.8
+CREATE OR REPLACE FUNCTION public.ejecutar_cierre_diario(  -- v4.9
   p_turno_id                    UUID,
   p_fecha                       DATE,
   p_empleado_id                 INTEGER,
@@ -105,12 +111,12 @@ BEGIN
     RAISE EXCEPTION 'El turno ya tiene un cierre registrado';
   END IF;
 
-  IF EXISTS (SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND hora_cierre IS NOT NULL) THEN
+  IF EXISTS (SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND hora_fecha_cierre IS NOT NULL) THEN
     RAISE EXCEPTION 'El turno ya está cerrado';
   END IF;
 
   -- ==========================================
-  -- 2. OBTENER IDs POR CÓDIGO
+  -- 2. OBTENER IDs POR CÓDIGO / TABLA
   -- ==========================================
 
   SELECT id INTO v_caja_id          FROM cajas WHERE codigo = 'CAJA';
@@ -120,8 +126,8 @@ BEGIN
 
   SELECT id INTO v_tipo_servicio_celular_id FROM tipos_servicio   WHERE codigo = 'CELULAR';
   SELECT id INTO v_tipo_servicio_bus_id     FROM tipos_servicio   WHERE codigo = 'BUS';
-  SELECT id INTO v_tipo_ref_caja_fisica_id  FROM tipos_referencia WHERE codigo = 'CAJA_FISICA_DIARIA';
-  SELECT id INTO v_tipo_ref_recargas_id     FROM tipos_referencia WHERE codigo = 'RECARGAS';
+  SELECT id INTO v_tipo_ref_caja_fisica_id  FROM tipos_referencia WHERE tabla = 'caja_fisica_diaria';
+  SELECT id INTO v_tipo_ref_recargas_id     FROM tipos_referencia WHERE tabla = 'recargas';
 
   -- ==========================================
   -- 3. OBTENER CONFIGURACIÓN
@@ -189,14 +195,26 @@ BEGIN
 
   v_efectivo_disponible := p_efectivo_recaudado - v_fondo_fijo;
 
-  -- (v4.7) Verificar si ya se hizo la transferencia a Varios hoy
-  -- Usar columna `fecha` (TIMESTAMP WITH TIME ZONE) con timezone local
-  -- para evitar desfase UTC en cierres nocturnos
+  -- (v4.9) Verificar si Varios ya recibió su transferencia diaria hoy.
+  -- Cubre dos casos:
+  --   1. Cierre normal anterior del día     → TRANSFERENCIA_ENTRANTE en CAJA_CHICA
+  --   2. Ajuste de apertura (reparar déficit) → INGRESO categoría IN-004 en CAJA_CHICA
+  -- El ajuste de apertura cuenta como la transferencia del día para evitar duplicar el envío.
   SELECT EXISTS (
-    SELECT 1 FROM operaciones_cajas
-    WHERE caja_id        = v_caja_chica_id
-      AND tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
-      AND (fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+    SELECT 1
+    FROM operaciones_cajas oc
+    WHERE oc.caja_id = v_caja_chica_id
+      AND (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+      AND (
+        oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
+        OR (
+          oc.tipo_operacion = 'INGRESO'
+          AND EXISTS (
+            SELECT 1 FROM categorias_operaciones co
+            WHERE co.id = oc.categoria_id AND co.codigo = 'IN-004'
+          )
+        )
+      )
   ) INTO v_transferencia_ya_hecha;
 
   IF v_transferencia_ya_hecha THEN
@@ -359,16 +377,16 @@ BEGIN
   -- 14. ACTUALIZAR SALDOS DE CAJAS
   -- ==========================================
 
-  UPDATE cajas SET saldo_actual = v_saldo_final_caja,         updated_at = NOW() WHERE id = v_caja_id;
-  UPDATE cajas SET saldo_actual = v_saldo_final_caja_chica,   updated_at = NOW() WHERE id = v_caja_chica_id;
-  UPDATE cajas SET saldo_actual = v_saldo_final_caja_celular, updated_at = NOW() WHERE id = v_caja_celular_id;
-  UPDATE cajas SET saldo_actual = v_saldo_final_caja_bus,     updated_at = NOW() WHERE id = v_caja_bus_id;
+  UPDATE cajas SET saldo_actual = v_saldo_final_caja         WHERE id = v_caja_id;
+  UPDATE cajas SET saldo_actual = v_saldo_final_caja_chica   WHERE id = v_caja_chica_id;
+  UPDATE cajas SET saldo_actual = v_saldo_final_caja_celular WHERE id = v_caja_celular_id;
+  UPDATE cajas SET saldo_actual = v_saldo_final_caja_bus     WHERE id = v_caja_bus_id;
 
   -- ==========================================
   -- 15. CERRAR TURNO
   -- ==========================================
 
-  UPDATE turnos_caja SET hora_cierre = NOW() WHERE id = p_turno_id;
+  UPDATE turnos_caja SET hora_fecha_cierre = NOW() WHERE id = p_turno_id;
   v_turno_cerrado := TRUE;
 
   -- ==========================================
@@ -434,4 +452,4 @@ GRANT EXECUTE ON FUNCTION public.ejecutar_cierre_diario(
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.ejecutar_cierre_diario IS
-'Cierre diario v4.8 — ON CONFLICT en INSERT BUS de recargas: compatible con mini cierre de registrar_compra_saldo_bus v3.0. Acumula venta_dia (mañana + tarde) si ya existe snapshot del turno.';
+'Cierre diario v4.9 — v_transferencia_ya_hecha detecta TRANSFERENCIA_ENTRANTE o INGRESO IN-004 (ajuste apertura): evita duplicar envío a Varios cuando el déficit de ayer se reparó al abrir caja hoy. ON CONFLICT en INSERT BUS: compatible con mini cierre registrar_compra_saldo_bus v3.0.';

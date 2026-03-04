@@ -151,7 +151,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
 
   get ganancia(): number {
     if (!this.montoVirtual || this.montoVirtual <= 0) return 0;
-    return Math.round((this.montoVirtual - this.montoAPagar) * 100) / 100;
+    return Math.round((this.montoVirtual * (this.comisionPct / 100)) * 100) / 100;
   }
 
   get mostrarCalculos(): boolean {
@@ -182,7 +182,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
       let resultado;
 
       if (this.tipo === 'CELULAR') {
-        resultado = await this.service.registrarRecargaProveedorCelularCompleto({
+        resultado = await this.service.registrarRecargaProveedorCelular({
           fecha: getFechaLocal(),
           empleado_id: empleado.id,
           monto_virtual: this.montoVirtual
@@ -211,7 +211,10 @@ export class RegistrarRecargaModalComponent implements OnInit {
           saldo_virtual_maquina: this.saldoVirtualMaquina ?? undefined
         });
 
-        if (!resultado) return;
+        if (!resultado?.success) {
+          await this.ui.showError('Error al registrar compra BUS');
+          return;
+        }
 
         await this.ui.showSuccess(`Compra registrada: $${this.montoVirtual.toFixed(2)}`);
         this.modalCtrl.dismiss({ success: true });

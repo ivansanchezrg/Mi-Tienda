@@ -2,8 +2,10 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonSpinner, ModalController
+  IonContent, IonSpinner, IonIcon, ModalController
 } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { closeOutline } from 'ionicons/icons';
 import { LoggerService } from '@core/services/logger.service';
 
 @Component({
@@ -13,7 +15,9 @@ import { LoggerService } from '@core/services/logger.service';
       <ion-toolbar>
         <ion-title>Logs de la App</ion-title>
         <ion-buttons slot="end">
-          <ion-button (click)="cerrar()">Cerrar</ion-button>
+          <ion-button (click)="cerrar()">
+            <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+          </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
@@ -46,7 +50,7 @@ import { LoggerService } from '@core/services/logger.service';
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonSpinner
+    IonContent, IonSpinner, IonIcon
   ]
 })
 export class LogsModalComponent implements OnInit {
@@ -55,6 +59,10 @@ export class LogsModalComponent implements OnInit {
 
   logs = '';
   loading = true;
+
+  constructor() {
+    addIcons({ closeOutline });
+  }
 
   async ngOnInit() {
     this.logs = await this.logger.getLogs();

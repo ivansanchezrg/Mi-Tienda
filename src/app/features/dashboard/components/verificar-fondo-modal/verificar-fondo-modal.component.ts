@@ -8,7 +8,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  close, alertCircleOutline, checkmarkCircle, checkmarkCircleOutline,
+  closeOutline, alertCircleOutline, checkmarkCircle, checkmarkCircleOutline,
   walletOutline, cashOutline, briefcaseOutline,
   timeOutline, lockOpenOutline
 } from 'ionicons/icons';
@@ -23,7 +23,7 @@ import { TurnosCajaService } from '../../services/turnos-caja.service';
         <ion-buttons slot="end">
           @if (!hayDeficit || pasoActual === 2) {
             <ion-button (click)="cancelar()">
-              <ion-icon slot="icon-only" name="close"></ion-icon>
+              <ion-icon slot="icon-only" name="close-outline"></ion-icon>
             </ion-button>
           }
         </ion-buttons>
@@ -463,7 +463,7 @@ export class VerificarFondoModalComponent {
 
   constructor() {
     addIcons({
-      close, alertCircleOutline, checkmarkCircle, checkmarkCircleOutline,
+      closeOutline, alertCircleOutline, checkmarkCircle, checkmarkCircleOutline,
       walletOutline, cashOutline, briefcaseOutline,
       timeOutline, lockOpenOutline
     });

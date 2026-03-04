@@ -5,7 +5,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonProgressBar, IonContent, IonList, IonItem, IonLabel,
   IonInput, IonIcon, IonNote, IonCard, IonCardHeader, IonCardTitle,
-  IonCardContent, IonTextarea, AlertController, ToastController
+  IonCardContent, IonTextarea, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -61,7 +61,6 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   private turnosCajaService = inject(TurnosCajaService);
   private authService = inject(AuthService);
   private alertCtrl = inject(AlertController);
-  private toastCtrl = inject(ToastController);
   private currencyService = inject(CurrencyService);
 
   // Estado
@@ -283,9 +282,9 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     return this.deficitCajaChica > 0;
   }
 
-  /** True si ni el fondo fijo alcanza (caso más crítico, excluye $0 que tiene su propio caso) */
+  /** True si ni el fondo fijo alcanza (efectivo < fondo, excluye $0 que tiene su propio caso) */
   get hayDeficitTotal(): boolean {
-    return this.efectivoRecaudado > 0 && this.efectivoDisponible <= 0;
+    return this.efectivoRecaudado > 0 && this.efectivoDisponible < 0;
   }
 
   /**
@@ -317,7 +316,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    * Nunca negativo.
    */
   get dineroADepositar(): number {
-    if (this.efectivoDisponible <= 0) return 0;             // DÉFICIT TOTAL
+    if (this.efectivoDisponible <= 0) return 0;             // DÉFICIT TOTAL o PARCIAL exacto (sin sobrante)
     if (this.transferenciaCajaChicaYaHecha) return this.efectivoDisponible; // (v4.7) todo a Tienda
     return Math.max(0, this.efectivoDisponible - this.transferenciaEfectivaCajaChica);
   }

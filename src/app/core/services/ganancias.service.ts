@@ -8,7 +8,7 @@ export interface GananciasPendientes {
   mes: string;              // '2026-01' formato
   mesDisplay: string;       // 'Enero 2026' para mostrar
   gananciaCelular: number;  // siempre 0 en este contexto (BUS only)
-  gananciaBus: number;      // SUM(recargas_virtuales.ganancia WHERE tipo=BUS AND mes=anterior)
+  gananciaBus: number;      // ROUND(SUM(monto_a_pagar) * comision% WHERE tipo=BUS AND pagado=false AND mes=anterior)
   total: number;
 }
 
@@ -17,7 +17,7 @@ export interface GananciasPendientes {
  *
  * - CELULAR: ganancia transferida automáticamente a Caja Chica al registrar cada recarga del proveedor
  *   (flujo en RegistrarRecargaModalComponent, no requiere notificación)
- * - BUS: ganancia = monto * 1% (liquidación mensual via LiquidacionBusModalComponent)
+ * - BUS: ganancia = ROUND(SUM(monto_a_pagar) * porcentaje_comision%, 2) (liquidación mensual via LiquidacionBusModalComponent)
  */
 @Injectable({
   providedIn: 'root'
@@ -94,12 +94,37 @@ export class GananciasService {
     return `${nombreMesCapitalizado} ${year}`;
   }
 
+  /**
+   * Obtiene el mes actual en formato 'YYYY-MM'
+   */
+  getMesActual(): string {
+    const hoy = new Date();
+    const year  = hoy.getFullYear();
+    const month = String(hoy.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
+  /**
+   * Calcula la ganancia BUS acumulada del mes en curso.
+   * Usada para el recordatorio de fin de mes en notificaciones.
+   * @returns Total de ganancias BUS del mes actual
+   */
+  async calcularGananciaBusMesActual(): Promise<number> {
+    return this.calcularGananciaMes('BUS', this.getMesActual());
+  }
+
   // ==========================================
   // MÉTODOS PRIVADOS
   // ==========================================
 
   /**
-   * Suma la ganancia real almacenada en recargas_virtuales para un servicio y mes específico.
+   * Suma la ganancia de recargas_virtuales para un servicio y mes específico.
+   *
+   * - CELULAR: suma la columna `ganancia` (calculada y almacenada en el momento del registro)
+   * - BUS: monto_a_pagar = monto completo de la compra (igual que monto_virtual).
+   *   Ganancia = ROUND(SUM(monto_a_pagar) * comision%, 2) — sin redondeo por fila.
+   *   Solo se suman filas con pagado=false (pendientes de liquidar).
+   *
    * @param servicio 'CELULAR' | 'BUS'
    * @param mes Mes en formato 'YYYY-MM'
    * @returns Total de ganancias del mes para ese servicio
@@ -108,6 +133,27 @@ export class GananciasService {
     const inicioMes = `${mes}-01`;
     const finMes = this.getSiguienteMes(mes);
 
+    if (servicio === 'BUS') {
+      // BUS: monto_a_pagar = monto completo de cada compra (igual que monto_virtual).
+      // La ganancia del mes = ROUND(SUM(monto_a_pagar) * comision%, 2) — mismo cálculo que liquidar_ganancias_bus.
+      // Se obtiene porcentaje_comision del join para no hacer una query extra.
+      const result = await this.supabase.call<Array<{ monto_a_pagar: number; tipos_servicio: { porcentaje_comision: number } }>>(
+        this.supabase.client
+          .from('recargas_virtuales')
+          .select('monto_a_pagar, tipos_servicio!inner(codigo, porcentaje_comision)')
+          .eq('tipos_servicio.codigo', 'BUS')
+          .eq('pagado', false)
+          .gte('fecha', inicioMes)
+          .lt('fecha', finMes)
+      );
+
+      if (!result || result.length === 0) return 0;
+      const comision = (result[0] as any).tipos_servicio?.porcentaje_comision ?? 1;
+      const totalCompras = result.reduce((sum, r) => sum + Number(r.monto_a_pagar), 0);
+      return Math.round(totalCompras * (comision / 100) * 100) / 100;
+    }
+
+    // CELULAR: ganancia almacenada directamente en la columna `ganancia`
     const result = await this.supabase.call<{ ganancia: number }[]>(
       this.supabase.client
         .from('recargas_virtuales')
@@ -122,21 +168,29 @@ export class GananciasService {
   }
 
   /**
-   * Verifica si ya existen transferencias de ganancias BUS para un mes específico.
+   * Verifica si las ganancias BUS de un mes ya fueron liquidadas.
+   * Consulta recargas_virtuales: si existe al menos una fila BUS con pagado=true
+   * en ese mes, significa que la liquidación ya se realizó.
+   *
    * @param mes Mes en formato 'YYYY-MM'
-   * @returns true si ya se transfirió, false si no
+   * @returns true si ya se liquidó, false si no
    */
   private async yaSeTransfirio(mes: string): Promise<boolean> {
-    const transferencias = await this.supabase.call<any[]>(
+    const inicioMes = `${mes}-01`;
+    const finMes = this.getSiguienteMes(mes);
+
+    const result = await this.supabase.call<{ id: string }[]>(
       this.supabase.client
-        .from('operaciones_cajas')
-        .select('id')
-        .eq('tipo_operacion', 'TRANSFERENCIA_SALIENTE')
-        .ilike('descripcion', `%Ganancia 1\\% ${mes}%`)
+        .from('recargas_virtuales')
+        .select('id, tipos_servicio!inner(codigo)')
+        .eq('tipos_servicio.codigo', 'BUS')
+        .eq('pagado', true)
+        .gte('fecha', inicioMes)
+        .lt('fecha', finMes)
         .limit(1)
     );
 
-    return transferencias ? transferencias.length > 0 : false;
+    return result ? result.length > 0 : false;
   }
 
   /**

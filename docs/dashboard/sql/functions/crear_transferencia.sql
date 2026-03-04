@@ -18,6 +18,7 @@ CREATE OR REPLACE FUNCTION crear_transferencia(
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_caja_origen_id   INTEGER;
@@ -95,6 +96,11 @@ EXCEPTION WHEN OTHERS THEN
   RETURN json_build_object('success', false, 'error', SQLERRM);
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) TO anon;
+
+NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) IS
   'Transfiere monto entre dos cajas por código. Operación atómica con validación de saldo. v1.0';

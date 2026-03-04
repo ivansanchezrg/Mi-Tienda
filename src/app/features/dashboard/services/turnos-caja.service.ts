@@ -39,7 +39,7 @@ export class TurnosCajaService {
         .select('*, empleado:empleados(id, nombre)')
         .gte('hora_fecha_apertura', inicioDia)
         .lte('hora_fecha_apertura', finDia)
-        .is('hora_cierre', null)
+        .is('hora_fecha_cierre', null)
         .maybeSingle()
     );
 
@@ -61,7 +61,7 @@ export class TurnosCajaService {
       .select('id')
       .gte('hora_fecha_apertura', inicioDia)
       .lte('hora_fecha_apertura', finDia)
-      .is('hora_cierre', null)
+      .is('hora_fecha_cierre', null)
       .maybeSingle();
 
     if (turnoAbierto) {
@@ -102,24 +102,6 @@ export class TurnosCajaService {
   }
 
   /**
-   * Cierra el turno activo
-   */
-  async cerrarTurno(turnoId: string): Promise<boolean> {
-    const { error } = await this.supabase.client
-      .from('turnos_caja')
-      .update({ hora_cierre: new Date().toISOString() }) // TIMESTAMPTZ: UTC correcto
-      .eq('id', turnoId);
-
-    if (error) {
-      await this.ui.showError(error.message || 'Error al cerrar el turno');
-      return false;
-    }
-
-    await this.ui.showSuccess('Caja cerrada');
-    return true;
-  }
-
-  /**
    * Obtiene el déficit del último cierre registrado.
    * Si el turno anterior cerró con déficit, el siguiente turno debe reponer:
    *  - deficit_caja_chica: lo que faltó transferir a Caja Chica
@@ -137,20 +119,22 @@ export class TurnosCajaService {
 
     if (error || !data) return null;
 
-    const deficitCajaChica = data.deficit_caja_chica ?? 0;
-
-    if (deficitCajaChica <= 0) return null;
-
-    const fondoFijo = await this.obtenerFondoFijo();
+    const deficitCajaChica  = data.deficit_caja_chica ?? 0;
     const efectivoRecaudado = data.efectivo_recaudado ?? 0;
-    const fondoFaltante = Math.max(0, fondoFijo - efectivoRecaudado);
+
+    const fondoFijo      = await this.obtenerFondoFijo();
+    const fondoFaltante  = Math.max(0, fondoFijo - efectivoRecaudado);
+
+    // Retorna null solo si NO hay ningún tipo de déficit
+    if (deficitCajaChica <= 0 && fondoFaltante <= 0) return null;
 
     return { deficitCajaChica, fondoFaltante, efectivoRecaudado };
   }
 
   /**
    * Registra las operaciones contables para reparar el déficit del turno anterior.
-   * Usa la función dedicada `reparar_deficit_turno` que NO valida saldo mínimo en Tienda.
+   * Usa la función dedicada `reparar_deficit_turno`.
+   * El RPC valida que Tienda tenga saldo suficiente — si no, retorna error con mensaje.
    *
    * Retorna { ok: true } si todo OK, o { ok: false, errorMsg } con el mensaje del RPC.
    */
@@ -208,7 +192,7 @@ export class TurnosCajaService {
         .select('*, empleado:empleados(id, nombre)')
         .gte('hora_fecha_apertura', inicioDia)
         .lte('hora_fecha_apertura', finDia)
-        .is('hora_cierre', null)
+        .is('hora_fecha_cierre', null)
         .maybeSingle()
     );
 

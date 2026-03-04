@@ -3,7 +3,7 @@ export interface TurnoCaja {
   numero_turno: number;
   empleado_id: number;
   hora_fecha_apertura: string;
-  hora_cierre: string | null;
+  hora_fecha_cierre: string | null;
   observaciones: string | null;
 }
 
