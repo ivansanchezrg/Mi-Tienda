@@ -1,0 +1,65 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/configuracion"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Categorías de Gastos</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="page-container">
+
+    @if (loading) {
+      <div class="loading-state">
+        <ion-spinner name="crescent"></ion-spinner>
+        <p>Cargando categorías...</p>
+      </div>
+
+    } @else if (categorias.length === 0) {
+      <div class="empty-state">
+        <p>No hay categorías de gastos registradas</p>
+      </div>
+
+    } @else {
+      @for (cat of categorias; track cat.id) {
+        <div
+          class="categoria-item"
+          [class.inactiva]="!cat.activo"
+          (click)="onItemClick(cat)">
+
+          <!-- Información -->
+          <div class="cat-info">
+            <div class="cat-badges">
+              <span class="cat-codigo">{{ cat.codigo }}</span>
+              @if (!cat.activo) {
+                <span class="badge-inactiva">Inactiva</span>
+              }
+            </div>
+            <p class="cat-nombre">{{ cat.nombre }}</p>
+            @if (cat.descripcion) {
+              <p class="cat-desc">{{ cat.descripcion }}</p>
+            }
+          </div>
+
+          <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
+
+        </div>
+      }
+    }
+
+  </div>
+
+  <!-- FAB: Nueva categoría -->
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button (click)="abrirModalNueva()" color="primary">
+      <ion-icon name="add-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+
+</ion-content>

@@ -50,18 +50,20 @@ export class ListPage implements OnInit {
     this.ui.showTabs();
   }
 
-  async loadUsuarios() {
-    this.loading = true;
+  async loadUsuarios(silencioso = false) {
+    if (!silencioso) this.loading = true;
     try {
       this.usuarios = await this.usuarioService.getAll();
+    } catch {
+      await this.ui.showError('Error al cargar los usuarios. Verificá tu conexión.');
     } finally {
       this.loading = false;
     }
   }
 
-  async handleRefresh(event: any) {
-    await this.loadUsuarios();
-    event.target.complete();
+  async handleRefresh(event: CustomEvent) {
+    await this.loadUsuarios(true);
+    (event.target as HTMLIonRefresherElement).complete();
   }
 
   /**

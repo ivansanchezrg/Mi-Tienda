@@ -12,7 +12,6 @@ export interface Caja {
   saldo_actual: number;
   activo: boolean;
   created_at?: string;
-  updated_at?: string;
 }
 
 /**
@@ -124,7 +123,7 @@ export class CajasService {
   }
 
   /**
-   * Obtiene una caja por su nombre display (ej: 'Caja Principal')
+   * Obtiene una caja por su nombre display (ej: 'Tienda', 'Varios', 'Celular', 'Bus')
    */
   async obtenerCajaPorNombre(nombreCaja: string): Promise<Caja | null> {
     const caja = await this.supabase.call<Caja>(

@@ -3,39 +3,28 @@ ion-content {
 }
 
 .page-container {
-  padding: var(--spacing-lg);
-  padding-bottom: var(--spacing-3xl);
+  padding: var(--spacing-md) var(--spacing-lg) var(--spacing-3xl);
 }
 
-// ── Estado de carga ──────────────────────────────────────────────────────────
-.loading-state {
-  display: flex;
-  justify-content: center;
-  padding: var(--spacing-3xl);
+// ── Etiqueta de sección (estilo iOS Settings) ─────────────────────────────────
+.section-label {
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: var(--spacing-lg) var(--spacing-sm) var(--spacing-xs);
+
+  &:first-child {
+    padding-top: var(--spacing-md);
+  }
 }
 
-// ── Cards ────────────────────────────────────────────────────────────────────
+// ── Card contenedor de items ──────────────────────────────────────────────────
 ion-card {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-level-1);
-  margin-bottom: var(--spacing-lg);
-
-  ion-card-title {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    font-size: 17px;
-    font-weight: var(--font-weight-bold);
-
-    ion-icon {
-      font-size: 22px;
-      color: var(--ion-color-primary);
-    }
-  }
-
-  ion-card-content {
-    padding: 0;
-  }
+  margin: 0 0 var(--spacing-md);
 
   ion-list {
     background: transparent;
@@ -45,10 +34,10 @@ ion-card {
   ion-item {
     --padding-start: var(--spacing-lg);
     --padding-end: var(--spacing-lg);
-    --min-height: 60px;
+    --min-height: 62px;
 
     ion-icon[slot="start"] {
-      font-size: 24px;
+      font-size: 22px;
       margin-right: var(--spacing-lg);
     }
 
@@ -64,116 +53,5 @@ ion-card {
       color: var(--ion-color-medium);
       margin: 0;
     }
-  }
-}
-
-// ── Formulario de configuración ──────────────────────────────────────────────
-.config-form {
-  padding: var(--spacing-lg);
-}
-
-.input-group {
-  margin-bottom: var(--spacing-xl);
-
-  .input-label {
-    display: block;
-    font-size: 12px;
-    font-weight: var(--font-weight-semibold);
-    color: var(--ion-color-medium);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: var(--spacing-sm);
-  }
-
-  .input-with-prefix,
-  .input-with-suffix {
-    display: flex;
-    align-items: stretch;
-    background: var(--ion-item-background, var(--ion-background-color));
-    border: 1.5px solid var(--ion-color-step-200);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    transition: border-color var(--transition-normal);
-
-    &:focus-within {
-      border-color: var(--ion-color-primary);
-    }
-
-    .prefix,
-    .suffix {
-      padding: 0 var(--spacing-md);
-      color: var(--ion-color-medium);
-      font-size: 15px;
-      font-weight: var(--font-weight-semibold);
-      background: var(--ion-color-step-50);
-      display: flex;
-      align-items: center;
-    }
-
-    .prefix {
-      border-right: 1.5px solid var(--ion-color-step-200);
-    }
-
-    .suffix {
-      border-left: 1.5px solid var(--ion-color-step-200);
-    }
-
-    input {
-      flex: 1;
-      padding: var(--spacing-md);
-      border: none;
-      outline: none;
-      background: transparent;
-      font-size: 16px;
-      color: var(--ion-text-color);
-      font-weight: var(--font-weight-semibold);
-      min-width: 0;
-
-      // Ocultar flechas nativas del input type=number
-      &[type="number"] {
-        -moz-appearance: textfield;
-
-        &::-webkit-outer-spin-button,
-        &::-webkit-inner-spin-button {
-          -webkit-appearance: none;
-          margin: 0;
-        }
-      }
-    }
-  }
-
-  .input-hint {
-    display: block;
-    font-size: 12px;
-    color: var(--ion-color-medium);
-    margin-top: var(--spacing-xs);
-  }
-}
-
-// ── Botón guardar ─────────────────────────────────────────────────────────────
-.submit-btn {
-  width: 100%;
-  height: 48px;
-  background: var(--ion-color-primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 15px;
-  font-weight: var(--font-weight-bold);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  margin-top: var(--spacing-sm);
-
-  &:disabled {
-    opacity: var(--opacity-muted);
-    cursor: not-allowed;
-  }
-
-  ion-spinner {
-    width: 18px;
-    height: 18px;
   }
 }

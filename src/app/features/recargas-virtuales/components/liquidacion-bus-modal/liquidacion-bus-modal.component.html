@@ -1,11 +1,11 @@
 <ion-header>
   <ion-toolbar>
-    <ion-buttons slot="start">
+    <ion-title>Liquidación Ganancia Bus</ion-title>
+    <ion-buttons slot="end">
       <ion-button (click)="cerrar()">
         <ion-icon slot="icon-only" name="close-outline"></ion-icon>
       </ion-button>
     </ion-buttons>
-    <ion-title>Liquidación Ganancia Bus</ion-title>
   </ion-toolbar>
 </ion-header>
 
@@ -16,8 +16,8 @@
     <div class="hint-card">
       <ion-icon name="bus-outline"></ion-icon>
       <p>
-        El proveedor acredita el <strong>1%</strong> de las ventas del mes
-        como saldo virtual. Ingresá el monto recibido.
+        El proveedor te acredita saldo virtual por las ventas del mes.
+        Ingresá el monto recibido.
       </p>
     </div>
 
@@ -28,7 +28,7 @@
         <span class="calculo-success">${{ gananciaBusCalculada | number:'1.2-2' }}</span>
       </div>
       <div class="calculo-sub">
-        Este monto se transferirá de Caja Bus a Caja Chica
+        Este monto se transferirá de Caja Bus a Varios
       </div>
     </div>
 
@@ -53,7 +53,7 @@
       <ion-icon name="information-circle-outline"></ion-icon>
       <p>
         Tomá físicamente <strong>${{ gananciaBusCalculada | number:'1.2-2' }}</strong>
-        de Caja Bus y llevalo a Caja Chica antes de confirmar.
+        de Caja Bus y llevalo a Varios antes de confirmar.
       </p>
     </div>
 

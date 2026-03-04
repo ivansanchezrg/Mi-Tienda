@@ -81,6 +81,14 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   totalSaldos     = 0;
   cajas: Caja[]   = [];
 
+  // Mapa tipo-UI → codigo DB (única fuente de verdad para la navegación)
+  private readonly TIPO_CODIGO: Record<string, string> = {
+    'caja':      'CAJA',
+    'cajaChica': 'CAJA_CHICA',
+    'celular':   'CAJA_CELULAR',
+    'bus':       'CAJA_BUS'
+  };
+
   // Saldos virtuales
   saldoVirtualCelular = 0;
   saldoVirtualBus     = 0;
@@ -203,14 +211,12 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     this.montosOcultos = !this.montosOcultos;
   }
 
+  cajaNombreFor(codigo: string): string {
+    return this.cajas.find(c => c.codigo === codigo)?.nombre ?? '';
+  }
+
   onSaldoClick(tipo: string) {
-    const cajas: Record<string, { id: number; nombre: string }> = {
-      'caja':      { id: 1, nombre: 'Tienda' },
-      'cajaChica': { id: 2, nombre: 'Varios' },
-      'celular':   { id: 3, nombre: 'Celular' },
-      'bus':       { id: 4, nombre: 'Bus' }
-    };
-    const caja = cajas[tipo];
+    const caja = this.cajas.find(c => c.codigo === this.TIPO_CODIGO[tipo]);
     if (!caja) return;
     this.router.navigate(['/home/operaciones-caja'], { state: { cajaId: caja.id, cajaNombre: caja.nombre } });
   }
@@ -223,12 +229,15 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     }
 
     const tipoOperacion = tipo.toUpperCase() as 'INGRESO' | 'EGRESO';
-    const cajaIds: Record<string, number> = { 'caja': 1, 'cajaChica': 2, 'celular': 3, 'bus': 4 };
-    const cajaIdPreseleccionada = tipoCaja ? cajaIds[tipoCaja] : undefined;
+    const cajaIdPreseleccionada = tipoCaja
+      ? this.cajas.find(c => c.codigo === this.TIPO_CODIGO[tipoCaja])?.id
+      : undefined;
 
     const modal = await this.modalCtrl.create({
       component: OperacionModalComponent,
-      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada }
+      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada },
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
     await modal.present();
@@ -277,16 +286,12 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     await this.ui.hideLoading();
 
     if (existeCierre === null) {
-      const toast = await this.toastCtrl.create({
-        message: 'No se pudo verificar el estado de la caja. Revisa tu conexión a internet.',
-        duration: 3000, color: 'danger', position: 'top', icon: 'cloud-offline-outline'
-      });
-      await toast.present();
+      await this.ui.showError('No se pudo verificar el estado del turno. Revisá tu conexión e intentá de nuevo.');
       return;
     }
 
     if (existeCierre === true) {
-      await this.ui.showToast('Ya existe un cierre registrado para el día de hoy', 'warning');
+      await this.ui.showToast('El turno ya tiene un cierre registrado', 'warning');
       return;
     }
 
@@ -297,7 +302,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     const modal = await this.modalCtrl.create({
       component: NotificacionesModalComponent,
       cssClass: 'notificaciones-modal',
-      componentProps: { notificaciones: this.notificaciones }
+      componentProps: { notificaciones: this.notificaciones },
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
     await modal.present();
     const { data } = await modal.onWillDismiss();
@@ -318,7 +325,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
           fondoFijo,
           deficitCajaChica: deficit?.deficitCajaChica ?? 0,
           fondoFaltante:    deficit?.fondoFaltante ?? 0
-        }
+        },
+        breakpoints: [0, 1],
+        initialBreakpoint: 1
       });
 
       await modal.present();

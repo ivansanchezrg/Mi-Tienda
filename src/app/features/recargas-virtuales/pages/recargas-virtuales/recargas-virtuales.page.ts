@@ -1,7 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
   IonContent, IonIcon,
@@ -12,7 +11,7 @@ import { addIcons } from 'ionicons';
 import {
   phonePortraitOutline, busOutline,
   cashOutline, checkmarkCircleOutline, alertCircleOutline,
-  listOutline, chevronBackOutline
+  listOutline, chevronBackOutline, trendingUpOutline, lockClosedOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
@@ -31,7 +30,6 @@ type TabActivo = 'CELULAR' | 'BUS';
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
     IonContent, IonIcon,
     IonRefresher, IonRefresherContent,
@@ -52,7 +50,8 @@ export class RecargasVirtualesPage implements OnInit {
 
   // BUS
   saldoVirtualBus = 0;
-  gananciaBusCalculada = 0;  // SUM ganancia BUS mes anterior para mostrar botón de liquidación
+  gananciaBusMesAnterior = 0;  // ganancia mes anterior sin liquidar → muestra botón de liquidación
+  gananciaBusMesActual = 0;    // ganancia acumulada mes en curso → solo informativa
 
   constructor() {
     addIcons({
@@ -62,25 +61,23 @@ export class RecargasVirtualesPage implements OnInit {
       checkmarkCircleOutline,
       alertCircleOutline,
       listOutline,
-      chevronBackOutline
+      chevronBackOutline,
+      trendingUpOutline,
+      lockClosedOutline
     });
   }
 
-  async ngOnInit() {
-    await this.cargarDatos();
-
+  ngOnInit() {
     this.route.queryParams.subscribe(params => {
       if (params['tab']) {
         this.tabActivo = params['tab'] as TabActivo;
-      }
-      if (params['refresh']) {
-        this.cargarDatos();
       }
     });
   }
 
   ionViewWillEnter() {
     this.ui.hideTabs();
+    this.cargarDatos();
   }
 
   ionViewWillLeave() {
@@ -90,16 +87,18 @@ export class RecargasVirtualesPage implements OnInit {
 
   async cargarDatos() {
     try {
-      const [saldoCelular, saldoBus, deudas, gananciaBus] = await Promise.all([
+      const [saldoCelular, saldoBus, deudas, gananciasPendientes, gananciaMesActual] = await Promise.all([
         this.service.getSaldoVirtualActual('CELULAR'),
         this.service.getSaldoVirtualActual('BUS'),
         this.service.obtenerDeudasPendientesCelular(),
-        this.gananciasService.calcularGananciaBusMesAnterior()
+        this.gananciasService.verificarGananciasPendientes(),
+        this.gananciasService.calcularGananciaBusMesActual()
       ]);
       this.saldoVirtualCelular = saldoCelular;
       this.saldoVirtualBus = saldoBus;
       this.deudasPendientes = deudas;
-      this.gananciaBusCalculada = gananciaBus;
+      this.gananciaBusMesAnterior = gananciasPendientes?.gananciaBus ?? 0;
+      this.gananciaBusMesActual = gananciaMesActual;
     } catch {
       await this.ui.showError('Error al cargar los datos');
     }
@@ -116,32 +115,20 @@ export class RecargasVirtualesPage implements OnInit {
   async abrirModalRecarga() {
     const modal = await this.modalCtrl.create({
       component: RegistrarRecargaModalComponent,
-      componentProps: { tipo: 'CELULAR' }
+      componentProps: { tipo: 'CELULAR' },
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
     await modal.present();
     const { data } = await modal.onWillDismiss();
 
     if (data?.success && data?.data) {
-      // Usar datos del resultado (SIN queries adicionales para CELULAR)
+      // El RPC ya devuelve todo lo necesario. BUS/ganancia no cambian
+      // con una recarga CELULAR → sin queries adicionales ni segundo loading.
       const resultado = data.data;
-
-      // Actualizar UI con datos del resultado
       this.saldoVirtualCelular = resultado.saldo_virtual_celular;
       this.deudasPendientes = resultado.deudas_pendientes.lista;
-
-      // Solo recargar datos de BUS y ganancia (no relacionados con esta operación)
-      try {
-        const [saldoBus, gananciaBus] = await Promise.all([
-          this.service.getSaldoVirtualActual('BUS'),
-          this.gananciasService.calcularGananciaBusMesAnterior()
-        ]);
-
-        this.saldoVirtualBus = saldoBus;
-        this.gananciaBusCalculada = gananciaBus;
-      } catch {
-        await this.ui.showError('Error al actualizar los datos');
-      }
     } else if (data?.success) {
       // Fallback: si no vienen datos completos, recargar todo
       await this.cargarDatos();
@@ -151,14 +138,24 @@ export class RecargasVirtualesPage implements OnInit {
   async abrirModalCompraBus() {
     const modal = await this.modalCtrl.create({
       component: RegistrarRecargaModalComponent,
-      componentProps: { tipo: 'BUS' }
+      componentProps: { tipo: 'BUS' },
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
     await modal.present();
     const { data } = await modal.onWillDismiss();
 
     if (data?.success) {
-      await this.cargarDatos();
+      // Actualiza saldo BUS y ganancia acumulada del mes en paralelo.
+      // getSaldoVirtualActual usa supabase.client (silencioso).
+      // calcularGananciaBusMesActual usa supabase.call (muestra overlay brevemente).
+      const [saldoBus, gananciaMesActual] = await Promise.all([
+        this.service.getSaldoVirtualActual('BUS'),
+        this.gananciasService.calcularGananciaBusMesActual()
+      ]);
+      this.saldoVirtualBus = saldoBus;
+      this.gananciaBusMesActual = gananciaMesActual;
     }
   }
 
@@ -166,10 +163,12 @@ export class RecargasVirtualesPage implements OnInit {
     const modal = await this.modalCtrl.create({
       component: LiquidacionBusModalComponent,
       componentProps: {
-        gananciaBusCalculada: this.gananciaBusCalculada,
+        gananciaBusCalculada: this.gananciaBusMesAnterior,
         mesDisplay: this.gananciasService.getMesAnteriorDisplay(),
         mesAnterior: this.gananciasService.getMesAnterior()
-      }
+      },
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
     await modal.present();
@@ -186,7 +185,9 @@ export class RecargasVirtualesPage implements OnInit {
 
   async navegarAPagarDeudas() {
     const modal = await this.modalCtrl.create({
-      component: PagarDeudasModalComponent
+      component: PagarDeudasModalComponent,
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
     await modal.present();
@@ -204,7 +205,9 @@ export class RecargasVirtualesPage implements OnInit {
   async abrirHistorial() {
     const modal = await this.modalCtrl.create({
       component: HistorialModalComponent,
-      componentProps: { tipo: this.tabActivo }
+      componentProps: { tipo: this.tabActivo },
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
     await modal.present();
@@ -213,6 +216,15 @@ export class RecargasVirtualesPage implements OnInit {
   // ==========================================
   // GETTERS: Deudas pendientes
   // ==========================================
+
+  /** "1 de Abril 2026" — fecha desde la que se podrá liquidar la ganancia del mes actual */
+  get proximoMesDisplay(): string {
+    const hoy = new Date();
+    const primerDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+    const nombreMes = primerDia.toLocaleDateString('es-ES', { month: 'long' });
+    const capitalizado = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
+    return `1 de ${capitalizado} ${primerDia.getFullYear()}`;
+  }
 
   get cantidadDeudasPendientes(): number {
     return this.deudasPendientes.length;
@@ -232,8 +244,8 @@ export class RecargasVirtualesPage implements OnInit {
   }
 
   async handleRefresh(event: any) {
-    await this.cargarDatos();
-    event.target.complete();
+    event.target.complete(); // Cierra el spinner del refresher de inmediato
+    await this.cargarDatos(); // El overlay de cargarDatos() ya informa el estado
   }
 
 }

@@ -1,19 +1,26 @@
 -- ==========================================
 -- FUNCIÓN: verificar_transferencia_caja_chica_hoy
--- VERSIÓN: 1.0
+-- VERSIÓN: 1.1
 -- ==========================================
--- Verifica si ya se realizó la transferencia diaria a CAJA_CHICA
--- para la fecha indicada (timezone local Ecuador para evitar desfase UTC).
+-- CAMBIOS v1.1:
+--   - También detecta INGRESO con categoría IN-004 (Reposición Déficit Turno Anterior)
+--   - Si hoy se reparó el déficit de ayer al abrir caja, eso cuenta como
+--     la transferencia diaria de hoy → no se duplica el envío a Varios
+--
+-- Verifica si Varios ya recibió su transferencia diaria para la fecha indicada.
+-- Cubre dos casos:
+--   1. Cierre normal anterior del día     → TRANSFERENCIA_ENTRANTE en CAJA_CHICA
+--   2. Ajuste de apertura (reparar déficit) → INGRESO categoría IN-004 en CAJA_CHICA
 --
 -- Usada en CierreDiarioPage (Paso 2) antes de ejecutar el cierre:
--- si ya existe → muestra aviso, no repite la transferencia.
+-- si ya existe → muestra "✅ ya recibió hoy", no repite la transferencia.
 --
 -- Parámetros:
 --   p_fecha DATE  — Fecha local (obtenida con getFechaLocal() en TypeScript)
 --
 -- Retorna:
---   TRUE  → ya existe TRANSFERENCIA_ENTRANTE en CAJA_CHICA para esa fecha
---   FALSE → no existe (cierre aún no realizado)
+--   TRUE  → Varios ya recibió su $20 hoy (por cierre anterior o por ajuste apertura)
+--   FALSE → no existe ninguna de las dos (cierre aún no realizado)
 -- ==========================================
 
 -- Descomentar solo si cambia la firma (parámetros o tipo de retorno):
@@ -35,10 +42,22 @@ BEGIN
 
   SELECT EXISTS (
     SELECT 1
-    FROM operaciones_cajas
-    WHERE caja_id        = v_caja_chica_id
-      AND tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
-      AND (fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+    FROM operaciones_cajas oc
+    WHERE oc.caja_id = v_caja_chica_id
+      AND (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+      AND (
+        -- Caso 1: cierre normal anterior del día
+        oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
+        OR
+        -- Caso 2: ajuste de apertura por déficit del turno anterior (IN-004)
+        (
+          oc.tipo_operacion = 'INGRESO'
+          AND EXISTS (
+            SELECT 1 FROM categorias_operaciones co
+            WHERE co.id = oc.categoria_id AND co.codigo = 'IN-004'
+          )
+        )
+      )
   ) INTO v_existe;
 
   RETURN v_existe;
@@ -53,7 +72,8 @@ GRANT EXECUTE ON FUNCTION public.verificar_transferencia_caja_chica_hoy(DATE) TO
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.verificar_transferencia_caja_chica_hoy IS
-  'v1.0 - Retorna TRUE si ya existe TRANSFERENCIA_ENTRANTE en CAJA_CHICA para p_fecha. '
-  'Usa AT TIME ZONE America/Guayaquil para convertir el TIMESTAMPTZ a fecha local '
-  'y evitar desfase UTC en cierres nocturnos. '
+  'v1.1 - Retorna TRUE si Varios ya recibió su transferencia diaria hoy: '
+  'TRANSFERENCIA_ENTRANTE (cierre normal anterior) o INGRESO categoría IN-004 (ajuste apertura). '
+  'El ajuste de apertura cuenta como la transferencia del día para evitar duplicar el envío a Varios. '
+  'Usa AT TIME ZONE America/Guayaquil para evitar desfase UTC en cierres nocturnos. '
   'Llamada desde RecargasService.verificarTransferenciaYaHecha().';

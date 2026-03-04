@@ -11,6 +11,17 @@ export interface CategoriaGasto {
 }
 
 /**
+ * DTO para crear/actualizar una categoría de gasto (uso exclusivo del CRUD admin)
+ * `codigo` es opcional: el trigger fn_set_codigo_categoria_gasto() lo genera automáticamente (GS-XXX)
+ */
+export interface CategoriaGastoInsert {
+  codigo?: string;
+  nombre: string;
+  descripcion?: string;
+  activo?: boolean;
+}
+
+/**
  * Modelo de Gasto Diario
  * Gastos operativos pagados con efectivo del día (NO afectan cajas registradas)
  */

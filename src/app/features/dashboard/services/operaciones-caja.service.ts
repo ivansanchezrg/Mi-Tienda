@@ -31,6 +31,7 @@ export class OperacionesCajaService {
       .from('categorias_operaciones')
       .select('*')
       .eq('activo', true)
+      .eq('seleccionable', true)   // excluye categorías del sistema (EG-010/011/012, IN-004)
       .order('codigo', { ascending: true });
 
     if (tipo) {

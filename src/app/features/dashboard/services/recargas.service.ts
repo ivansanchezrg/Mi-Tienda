@@ -346,43 +346,43 @@ export class RecargasService {
   async existeCierreDiario(fecha?: string): Promise<boolean | null> {
     try {
       const fechaBusqueda = fecha || getFechaLocal();
+      const inicioDia = new Date(`${fechaBusqueda}T00:00:00`).toISOString();
+      const finDia    = new Date(`${fechaBusqueda}T23:59:59`).toISOString();
 
-      // 1. Obtener turno activo de hoy (sin hora_cierre)
+      // 1. Obtener turno activo de hoy (sin hora_fecha_cierre)
       const turnoResponse = await this.supabase.client
         .from('turnos_caja')
         .select('id')
-        .eq('fecha', fechaBusqueda)
-        .is('hora_cierre', null)
+        .gte('hora_fecha_apertura', inicioDia)
+        .lte('hora_fecha_apertura', finDia)
+        .is('hora_fecha_cierre', null)
         .maybeSingle();
 
-      // Si hay error al buscar turno
       if (turnoResponse.error) {
-        console.error('Error al verificar turno activo:', turnoResponse.error);
+        console.error('[existeCierreDiario] Error al buscar turno activo:', turnoResponse.error.message);
         return null;
       }
 
-      // Si no hay turno activo, no hay cierre pendiente
+      // Sin turno activo → no hay cierre pendiente
       if (!turnoResponse.data) {
         return false;
       }
 
-      // 2. Verificar si ese turno tiene cierre
+      // 2. Verificar si ese turno ya tiene cierre registrado
       const cierreResponse = await this.supabase.client
         .from('caja_fisica_diaria')
         .select('id')
         .eq('turno_id', turnoResponse.data.id)
         .maybeSingle();
 
-      // Si hay error al buscar cierre
       if (cierreResponse.error) {
-        console.error('Error al verificar cierre del turno:', cierreResponse.error);
+        console.error('[existeCierreDiario] Error al buscar cierre del turno:', cierreResponse.error.message);
         return null;
       }
 
-      // Retorna true si el turno activo ya tiene cierre
       return cierreResponse.data !== null;
-    } catch (error) {
-      console.error('Error en existeCierreDiario:', error);
+    } catch (error: any) {
+      console.error('[existeCierreDiario] Excepción inesperada:', error?.message ?? error);
       return null;
     }
   }
@@ -420,7 +420,7 @@ export class RecargasService {
     await this.supabase.call(
       this.supabase.client
         .from('cajas')
-        .update({ saldo_actual: nuevoSaldo, updated_at: new Date().toISOString() })
+        .update({ saldo_actual: nuevoSaldo })
         .eq('id', cajaId)
     );
   }

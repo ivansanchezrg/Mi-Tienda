@@ -1,0 +1,104 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/configuracion"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Parámetros del Negocio</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <div class="page-container">
+
+    @if (cargando) {
+      <div class="loading-state">
+        <ion-spinner name="crescent"></ion-spinner>
+        <p>Cargando parámetros...</p>
+      </div>
+    } @else {
+
+      <form [formGroup]="form" class="config-form">
+
+        <!-- Fondo fijo diario -->
+        <div class="input-group">
+          <label class="input-label">Fondo fijo diario</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              min="0"
+              formControlName="fondo_fijo_diario"
+              autocomplete="off">
+          </div>
+          <span class="input-hint">Efectivo que queda en caja para el día siguiente</span>
+        </div>
+
+        <!-- Transferencia diaria a Caja Chica -->
+        <div class="input-group">
+          <label class="input-label">Transferencia diaria a Caja Chica</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              min="0"
+              formControlName="caja_chica_transferencia_diaria"
+              autocomplete="off">
+          </div>
+          <span class="input-hint">Monto fijo que se transfiere a Caja Chica en cada cierre</span>
+        </div>
+
+        <!-- Alerta saldo bajo BUS -->
+        <div class="input-group">
+          <label class="input-label">Alerta saldo bajo (BUS)</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              min="0"
+              formControlName="bus_alerta_saldo_bajo"
+              autocomplete="off">
+          </div>
+          <span class="input-hint">Se muestra alerta cuando el saldo virtual BUS llega a este valor o menos</span>
+        </div>
+
+        <!-- Días antes de facturación BUS -->
+        <div class="input-group">
+          <label class="input-label">Días antes de facturación (BUS)</label>
+          <div class="input-with-suffix">
+            <input
+              type="number"
+              inputmode="numeric"
+              step="1"
+              min="1"
+              formControlName="bus_dias_antes_facturacion"
+              autocomplete="off">
+            <span class="suffix">días</span>
+          </div>
+          <span class="input-hint">Anticipación para recordar la facturación mensual de Bus</span>
+        </div>
+
+        <!-- Botón Guardar -->
+        <button
+          type="button"
+          class="submit-btn"
+          [disabled]="form.invalid || guardando"
+          (click)="guardar()">
+          @if (guardando) {
+            <ion-spinner name="crescent"></ion-spinner>
+            Guardando...
+          } @else {
+            Guardar Cambios
+          }
+        </button>
+
+      </form>
+
+    }
+  </div>
+</ion-content>

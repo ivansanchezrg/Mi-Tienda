@@ -7,12 +7,13 @@ export interface RecargaVirtual {
   fecha: string;
   tipo_servicio_id: number;
   servicio: string;
+  empleado_nombre: string | null;
   monto_virtual: number;
   monto_a_pagar: number;
   ganancia: number;
   pagado: boolean;
   fecha_pago: string | null;
-  notas: string | null;
+  observaciones: string | null;
   created_at: string;
 }
 
@@ -85,7 +86,7 @@ export class RecargasVirtualesService {
   async obtenerHistorial(servicio: 'CELULAR' | 'BUS'): Promise<RecargaVirtual[]> {
     const response = await this.supabase.client
       .from('recargas_virtuales')
-      .select('*, tipos_servicio!inner(codigo)')
+      .select('*, tipos_servicio!inner(codigo), empleados!inner(nombre)')
       .eq('tipos_servicio.codigo', servicio)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -94,7 +95,8 @@ export class RecargasVirtualesService {
 
     return (response.data || []).map((r: any) => ({
       ...r,
-      servicio: r.tipos_servicio.codigo
+      servicio: r.tipos_servicio.codigo,
+      empleado_nombre: r.empleados?.nombre ?? null
     }));
   }
 
@@ -154,29 +156,20 @@ export class RecargasVirtualesService {
   }
 
   /**
-   * Registra cuando el proveedor CELULAR carga saldo virtual (versión completa transaccional v1.0)
+   * Registra cuando el proveedor CELULAR carga saldo virtual.
    *
-   * Ejecuta TODO el proceso en una sola transacción atómica:
-   * 1. INSERT en recargas_virtuales (crear deuda)
-   * 2. CREATE operaciones de transferencia CAJA_CELULAR → CAJA_CHICA
-   * 3. UPDATE saldos de ambas cajas
-   * 4. CALCULAR saldo virtual actualizado
-   * 5. OBTENER lista de deudas pendientes
-   *
-   * Beneficios:
-   * - Transacción atómica (todo o nada) con rollback automático
-   * - Reduce round-trips (1 RPC en vez de 4+ queries)
-   * - Retorna todos los datos necesarios para actualizar UI
+   * Solo crea la deuda (pagado=false) — NO mueve dinero de cajas.
+   * El pago se realiza más adelante con registrarPagoProveedorCelular().
    *
    * @returns {Promise<RegistroRecargaCompletoResult>} Todos los datos actualizados en un solo JSON
    */
-  async registrarRecargaProveedorCelularCompleto(params: {
+  async registrarRecargaProveedorCelular(params: {
     fecha: string;
     empleado_id: number;
     monto_virtual: number;
   }): Promise<RegistroRecargaCompletoResult> {
     const result = await this.supabase.call<RegistroRecargaCompletoResult>(
-      this.supabase.client.rpc('registrar_recarga_proveedor_celular_completo', {
+      this.supabase.client.rpc('registrar_recarga_proveedor_celular', {
         p_fecha:         params.fecha,
         p_empleado_id:   params.empleado_id,
         p_monto_virtual: params.monto_virtual
@@ -196,15 +189,40 @@ export class RecargasVirtualesService {
   async registrarPagoProveedorCelular(params: {
     empleado_id: number;
     deuda_ids: string[];
-    notas?: string;
+    observaciones?: string;
   }): Promise<any> {
     return this.supabase.call(
       this.supabase.client.rpc('registrar_pago_proveedor_celular', {
-        p_empleado_id: params.empleado_id,
-        p_deuda_ids:   params.deuda_ids,
-        p_notas:       params.notas || null
+        p_empleado_id:   params.empleado_id,
+        p_deuda_ids:     params.deuda_ids,
+        p_observaciones: params.observaciones || null
       })
     );
+  }
+
+  /**
+   * Liquida las ganancias BUS pendientes de un mes.
+   *
+   * Delega en `liquidar_ganancias_bus` (SQL): operación atómica que suma
+   * monto_a_pagar WHERE tipo=BUS AND pagado=false AND fecha IN mes,
+   * transfiere CAJA_BUS → CAJA_CHICA y marca las filas como pagado=true.
+   */
+  async liquidarGananciasBus(params: {
+    mes: string;
+    empleado_id: number;
+  }): Promise<{ success: boolean; mes: string; total_ganancia: number; filas_afectadas: number; message: string }> {
+    const result = await this.supabase.call<{ success: boolean; mes: string; total_ganancia: number; filas_afectadas: number; message: string }>(
+      this.supabase.client.rpc('liquidar_ganancias_bus', {
+        p_mes:         params.mes,
+        p_empleado_id: params.empleado_id
+      })
+    );
+
+    if (!result) {
+      throw new Error('Error al liquidar ganancias BUS: respuesta vacía del servidor');
+    }
+
+    return result;
   }
 
   /**
@@ -220,7 +238,7 @@ export class RecargasVirtualesService {
     fecha: string;
     empleado_id: number;
     monto: number;
-    notas?: string;
+    observaciones?: string;
     saldo_virtual_maquina?: number;
   }): Promise<any> {
     return this.supabase.call(
@@ -228,7 +246,7 @@ export class RecargasVirtualesService {
         p_fecha:                  params.fecha,
         p_empleado_id:            params.empleado_id,
         p_monto:                  params.monto,
-        p_notas:                  params.notas || null,
+        p_observaciones:          params.observaciones || null,
         p_saldo_virtual_maquina:  params.saldo_virtual_maquina ?? null
       })
     );

@@ -1,4 +1,4 @@
-# Cierre Diario — Referencia Técnica (v4.7)
+# Cierre Diario — Referencia Técnica (v4.9)
 
 ## 1. Arquitectura
 
@@ -14,14 +14,39 @@
 | `cajas`              | Saldos actuales de las 4 cajas (se actualizan al cierre).                                                      |
 | `configuraciones`    | `fondo_fijo_diario` y `caja_chica_transferencia_diaria`. Fuente de verdad.                                     |
 
-### Las 4 cajas
+### Las 4 cajas y sus fundas físicas
 
-| Código         | UI      | Qué recibe en el cierre                                   |
-| -------------- | ------- | --------------------------------------------------------- |
-| `CAJA`         | Tienda  | Efectivo depositado (sobrante tras fondo y Varios)        |
-| `CAJA_CHICA`   | Varios  | Transferencia fija diaria (máximo 1 vez por día — ver §3) |
-| `CAJA_CELULAR` | Celular | Venta del turno de recargas celular                       |
-| `CAJA_BUS`     | Bus     | Venta del turno de recargas bus                           |
+Cada caja del sistema corresponde a un **sobre/funda físico** que el operador maneja de forma independiente. Este es el principio fundamental del modelo:
+
+| Código         | UI      | Funda física | Qué contiene la funda                               | Qué recibe en el cierre del sistema                 |
+| -------------- | ------- | ------------ | --------------------------------------------------- | --------------------------------------------------- |
+| `CAJA`         | Tienda  | 💵 Tienda    | Efectivo de ventas generales de la tienda           | Sobrante tras fondo y transferencia a Varios        |
+| `CAJA_CHICA`   | Varios  | 💼 Varios    | Efectivo para gastos menores                        | Transferencia fija diaria (máximo 1 vez por día)    |
+| `CAJA_CELULAR` | Celular | 📱 Celular   | Efectivo cobrado a clientes por recargas de celular | Venta del turno (INGRESO)                           |
+| `CAJA_BUS`     | Bus     | 🚌 Bus       | Efectivo cobrado a clientes por recargas de bus     | Venta del turno (INGRESO)                           |
+
+> **Regla crítica:** el `efectivoRecaudado` del cierre es **únicamente el dinero de la funda Tienda**. El efectivo de celular y bus se cuenta y guarda en sus fundas separadas — si se mezclara, los saldos quedarían duplicados.
+
+### Flujo del efectivo por funda
+
+**Funda Tienda (`CAJA`):**
+- Acumula ventas generales del turno.
+- Al cierre se distribuye: `fondo_fijo` queda en la caja física, `transferencia_diaria` va a funda Varios, el sobrante va al depósito de Tienda.
+
+**Funda Varios (`CAJA_CHICA`):**
+- Recibe una transferencia fija diaria ($20) desde la funda Tienda, **máximo 1 vez por día** aunque haya varios turnos.
+- Se usa para gastos menores de la tienda (insumos, servicios, etc.).
+
+**Funda Celular (`CAJA_CELULAR`) — modelo crédito:**
+- Cada venta de recarga celular: el cliente paga → efectivo va a la funda Celular.
+- El cierre registra la `venta_celular` como INGRESO a `CAJA_CELULAR`.
+- Periódicamente se paga al proveedor (95% de lo vendido) con el efectivo de esa funda, y el 5% de comisión se transfiere a funda Varios.
+
+**Funda Bus (`CAJA_BUS`) — modelo depósito anticipado:**
+- La empresa compra crédito virtual al proveedor **antes** de las ventas (EGRESO de funda Bus).
+- Cada venta de recarga bus: el cliente paga → efectivo va a la funda Bus.
+- El cierre registra la `venta_bus` como INGRESO a `CAJA_BUS`, reconciliando el depósito anticipado.
+- Comisión del 1% mensual: el proveedor la acredita como crédito virtual extra.
 
 ---
 
@@ -35,16 +60,16 @@
 - `TURNO_EN_CURSO` → turno abierto (permite cierre)
 - `CERRADA` → turno cerrado (ya se cerró el día)
 
-Solo se puede llegar a la página de cierre desde `TURNO_EN_CURSO`. El turno activo se identifica por `hora_cierre IS NULL`.
+Solo se puede llegar a la página de cierre desde `TURNO_EN_CURSO`. El turno activo se identifica por `hora_fecha_cierre IS NULL`.
 
 ### Datos que ingresa el usuario (Paso 1)
 
-| Campo                      | Obligatorio | Descripción                                        |
-| -------------------------- | ----------- | -------------------------------------------------- |
-| `efectivoTotalRecaudado`   | Sí          | Todo el efectivo físico contado al final del turno |
-| `saldoVirtualCelularFinal` | Sí          | Saldo que muestra la app de recargas celular ahora |
-| `saldoVirtualBusFinal`     | Sí          | Saldo que muestra la máquina de bus ahora          |
-| `observaciones`            | No          | Obligatorio usar si efectivo = $0                  |
+| Campo                      | Obligatorio | Descripción                                                                                                                                    |
+| -------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `efectivoTotalRecaudado`   | Sí          | **Solo el efectivo de la funda Tienda** (caja física de tienda). ⚠️ NO incluir el efectivo de celular ni bus — esos van en fundas separadas. |
+| `saldoVirtualCelularFinal` | Sí          | Saldo que muestra la app del proveedor de recargas celular en este momento.                                                                    |
+| `saldoVirtualBusFinal`     | Sí          | Saldo que muestra la máquina de bus en este momento.                                                                                           |
+| `observaciones`            | No          | Obligatorio usar si efectivo = $0. Describir el motivo.                                                                                        |
 
 ### Cálculo del saldo virtual actual (lo que el sistema espera encontrar)
 
@@ -68,21 +93,26 @@ Si cualquiera resulta **negativa**: falta registrar una recarga del proveedor en
 
 ### Distribución de efectivo (v4.7)
 
+> Este cálculo aplica **únicamente al efectivo de la funda Tienda**. Las fundas Celular y Bus no participan en esta distribución — cada una gestiona su propio efectivo.
+
 Config: `fondo_fijo` = $40, `transferencia_diaria` = $20 (valores de ejemplo del negocio actual).
 
-**Prioridades:** 1° fondo fijo → 2° Varios (todo o nada) → 3° Tienda (sobrante).
+**Prioridades:** 1° fondo fijo → 2° funda Varios (todo o nada) → 3° funda Tienda (sobrante).
 
 ```
-efectivo_disponible = efectivo_recaudado - fondo_fijo
+efectivo_disponible = efectivo_recaudado (funda Tienda) - fondo_fijo
 ```
 
-| Caso                   | Condición                                 | Varios          | Tienda                                | Déficit guardado               |
-| ---------------------- | ----------------------------------------- | --------------- | ------------------------------------- | ------------------------------ |
-| **Normal** (1er turno) | `efectivo_disponible >= transferencia`    | completo        | `efectivo_disponible - transferencia` | $0                             |
-| **Déficit parcial**    | `0 < efectivo_disponible < transferencia` | $0              | `efectivo_disponible`                 | `transferencia`                |
-| **Déficit total**      | `efectivo_disponible <= 0`                | $0              | $0                                    | `transferencia`                |
-| **Sin efectivo**       | `efectivo_recaudado == 0`                 | $0              | $0                                    | `transferencia` (si 1er turno) |
-| **2do turno del día**  | `transferencia_ya_hecha == true`          | $0 (ya recibió) | `efectivo_disponible`                 | $0                             |
+| Caso                              | Condición                                                     | Funda Varios    | Funda Tienda                          | Déficit guardado               |
+| --------------------------------- | ------------------------------------------------------------- | --------------- | ------------------------------------- | ------------------------------ |
+| **Normal** (1er turno)            | `efectivo_disponible >= transferencia`                        | completo ($20)  | `efectivo_disponible - transferencia` | $0                             |
+| **Déficit parcial**               | `0 < efectivo_disponible < transferencia`                     | $0              | `efectivo_disponible`                 | `transferencia`                |
+| **Déficit total**                 | `efectivo_disponible < 0`                                     | $0              | $0                                    | `transferencia`                |
+| **Sin efectivo**                  | `efectivo_recaudado == 0`                                     | $0              | $0                                    | `transferencia` (si 1er turno) |
+| **2do turno del día**             | `transferencia_ya_hecha == true` (TRANSFERENCIA_ENTRANTE hoy) | $0 (ya recibió) | `efectivo_disponible`                 | $0                             |
+| **Ajuste apertura hecho hoy**     | `transferencia_ya_hecha == true` (INGRESO IN-004 hoy)         | $0 (ya recibió) | `efectivo_disponible`                 | $0                             |
+
+> **v4.9 — Ajuste de apertura como transferencia diaria:** Si al abrir caja se reparó el déficit de ayer (INGRESO IN-004 a Varios), ese ingreso **cuenta como la transferencia diaria de hoy**. El cierre del mismo día no intenta dar otro $20 a Varios. Esto evita duplicar el envío y mantiene la regla de 1 sola transferencia diaria a Varios.
 
 El campo `deficit_caja_chica` se guarda en `caja_fisica_diaria` para que el siguiente turno pueda repararlo.
 
@@ -125,14 +155,23 @@ Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo ocurre en un
 1. Valida el turno: existe, no tiene cierre previo, no está cerrado
 2. Carga configuración (`fondo_fijo`, `transferencia_diaria`). Error si es NULL.
 3. Obtiene `MAX(created_at)` de `caja_fisica_diaria` → filtra `recargas_virtuales` pendientes
-4. Detecta si ya se transfirió a Varios hoy:
-   
+4. Detecta si Varios ya recibió su transferencia diaria hoy (v4.9):
+
    ```sql
    SELECT EXISTS (
-     SELECT 1 FROM operaciones_cajas
-     WHERE caja_id = v_caja_chica_id
-       AND tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
-       AND (fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+     SELECT 1 FROM operaciones_cajas oc
+     WHERE oc.caja_id = v_caja_chica_id
+       AND (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+       AND (
+         oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'         -- cierre normal anterior
+         OR (
+           oc.tipo_operacion = 'INGRESO'
+           AND EXISTS (
+             SELECT 1 FROM categorias_operaciones co
+             WHERE co.id = oc.categoria_id AND co.codigo = 'IN-004'
+           )
+         )                                                    -- ajuste de apertura hoy
+       )
    )
    ```
 5. Aplica distribución de efectivo (ver tabla §2)
@@ -140,7 +179,7 @@ Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo ocurre en un
 7. `INSERT INTO recargas` × 2 (celular y bus, con venta_dia calculada)
 8. `INSERT INTO operaciones_cajas` × 3 o 4 (CAJA: INGRESO, CAJA_CHICA: TRANSFERENCIA_ENTRANTE si aplica, CAJA_CELULAR: INGRESO, CAJA_BUS: INGRESO)
 9. `UPDATE cajas` × 4 (saldo_actual de las 4 cajas)
-10. `UPDATE turnos_caja SET hora_cierre = NOW()` — cierra el turno automáticamente
+10. `UPDATE turnos_caja SET hora_fecha_cierre = NOW()` — cierra el turno automáticamente
 11. Retorna JSON con resultado
 
 ### Función auxiliar: `verificar_transferencia_caja_chica_hoy`
@@ -194,7 +233,9 @@ Si hay déficit, el Home muestra un banner y el usuario puede ejecutar la repara
 // → rpc('reparar_deficit_turno', { p_deficit_caja_chica, p_fondo_faltante, ... })
 ```
 
-La función SQL usa categorías `EG-012` (egreso de Tienda) e `IN-004` (ingreso a Varios) y **no valida saldo mínimo** en Tienda (el dinero existe físicamente aunque el saldo digital sea $0).
+La función SQL usa categorías `EG-012` (egreso de Tienda) e `IN-004` (ingreso a Varios) y **sí valida que Tienda tenga saldo suficiente** — si no, retorna error con mensaje para el operador.
+
+> **v4.9 — Efecto sobre el cierre del mismo día:** tras ejecutar `reparar_deficit_turno`, el INGRESO IN-004 queda registrado en `CAJA_CHICA` con la fecha local de hoy. Cuando ese día se ejecuta el cierre, `ejecutar_cierre_diario` detecta ese INGRESO y trata a Varios como "ya recibió hoy" → no registra `deficit_caja_chica` ni intenta otra transferencia.
 
 ---
 
@@ -207,7 +248,7 @@ SELECT
   t.numero_turno,
   e.nombre AS empleado,
   t.hora_fecha_apertura,
-  t.hora_cierre,
+  t.hora_fecha_cierre,
   cf.efectivo_recaudado,
   cf.deficit_caja_chica,
   (cf.efectivo_recaudado - c.fondo_fijo_diario - c.caja_chica_transferencia_diaria) AS deposito_tienda
@@ -265,8 +306,8 @@ SELECT
   t.numero_turno,
   e.nombre,
   t.hora_fecha_apertura,
-  t.hora_cierre,
-  CASE WHEN t.hora_cierre IS NULL THEN 'ABIERTO' ELSE 'CERRADO' END AS estado,
+  t.hora_fecha_cierre,
+  CASE WHEN t.hora_fecha_cierre IS NULL THEN 'ABIERTO' ELSE 'CERRADO' END AS estado,
   CASE WHEN cf.id IS NOT NULL THEN 'SÍ' ELSE 'NO' END AS tiene_cierre
 FROM turnos_caja t
 JOIN empleados e ON t.empleado_id = e.id

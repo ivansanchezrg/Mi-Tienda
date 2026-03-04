@@ -42,3 +42,16 @@
  * Estilos personalizados de la aplicación
  */
 
+/**
+ * Safe Area — Android navigation bar
+ * -----------------------------------------------------
+ * Cuando el teléfono tiene activa la barra de navegación del sistema
+ * (botones o gestos), esta empuja los FAB hacia arriba para que no
+ * queden tapados. Funciona gracias a viewport-fit=cover en index.html.
+ * En dispositivos sin barra (o con gestos que no consumen espacio) env()
+ * devuelve 0 y el margin no tiene efecto visible.
+ */
+ion-fab {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+

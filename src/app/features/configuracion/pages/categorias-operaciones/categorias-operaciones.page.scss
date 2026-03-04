@@ -1,0 +1,155 @@
+ion-content {
+  --background: var(--ion-color-light);
+}
+
+// ── Segment moderno (pill flotante) ───────────────────────────────────────────
+// Fuera del ion-content → estático al hacer scroll
+.segment-wrapper {
+  background: var(--ion-color-light);
+  padding: var(--spacing-md) var(--spacing-md) var(--spacing-sm);
+
+  ion-segment {
+    --background: var(--ion-item-background, white);
+    border-radius: 14px;
+    box-shadow: var(--shadow-level-1);
+    padding: 3px;
+  }
+
+  ion-segment-button {
+    --border-radius: 11px;
+    --color: var(--ion-color-medium);
+    --color-checked: white;
+    --background-checked: var(--ion-color-primary);
+    --indicator-height: 0;
+    --indicator-color: transparent;
+    --padding-top: 0;
+    --padding-bottom: 0;
+    --margin-top: 0;
+    --margin-bottom: 0;
+    min-height: 40px;
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+}
+
+// ── Lista ──────────────────────────────────────────────────────────────────────
+.page-container {
+  padding: var(--spacing-md);
+  padding-bottom: 100px;
+}
+
+// ── Estados ───────────────────────────────────────────────────────────────────
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-3xl);
+  color: var(--ion-color-medium);
+  font-size: 15px;
+
+  p { margin: 0; }
+}
+
+// ── Tarjeta de categoría ──────────────────────────────────────────────────────
+.categoria-item {
+  background: var(--ion-item-background, white);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
+  box-shadow: var(--shadow-level-1);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  transition: opacity var(--transition-fast);
+  cursor: default;
+
+  &.inactiva {
+    opacity: 0.5;
+  }
+
+  // Categorías editables: feedback visual al tocar
+  &.clickable {
+    cursor: pointer;
+
+    &:active {
+      transform: scale(0.99);
+      opacity: 0.85;
+    }
+  }
+
+  .chevron {
+    font-size: 18px;
+    color: var(--ion-color-step-400);
+    flex-shrink: 0;
+  }
+}
+
+// ── Info ──────────────────────────────────────────────────────────────────────
+.cat-info {
+  flex: 1;
+  min-width: 0;
+
+  .cat-badges {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-xs);
+    flex-wrap: wrap;
+  }
+
+  .cat-codigo {
+    font-size: 12px;
+    font-weight: var(--font-weight-bold);
+    color: var(--ion-color-primary);
+    font-family: monospace;
+    background: rgba(var(--ion-color-primary-rgb), 0.08);
+    padding: 2px 6px;
+    border-radius: var(--radius-xs);
+  }
+
+  .badge-sistema {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    color: var(--ion-color-medium);
+    background: var(--ion-color-step-100);
+    padding: 2px var(--spacing-xs);
+    border-radius: var(--radius-xs);
+    font-weight: var(--font-weight-medium);
+
+    ion-icon {
+      font-size: 11px;
+    }
+  }
+
+  .badge-inactiva {
+    font-size: 11px;
+    color: var(--ion-color-warning-shade);
+    background: rgba(var(--ion-color-warning-rgb), 0.15);
+    padding: 2px var(--spacing-xs);
+    border-radius: var(--radius-xs);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .cat-nombre {
+    font-size: 15px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+    margin: 0;
+  }
+
+  .cat-desc {
+    font-size: 13px;
+    color: var(--ion-color-medium);
+    margin: var(--spacing-xs) 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

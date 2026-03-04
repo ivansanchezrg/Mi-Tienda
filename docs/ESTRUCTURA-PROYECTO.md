@@ -50,7 +50,7 @@ mi-tienda/
 │       ├── RECARGAS-VIRTUALES-README.md
 │       └── sql/
 │           └── functions/
-│               ├── registrar_recarga_proveedor_celular_completo.sql
+│               ├── registrar_recarga_proveedor_celular.sql
 │               ├── registrar_pago_proveedor_celular.sql
 │               └── registrar_compra_saldo_bus.sql
 └── capacitor.config.ts        # Configuración de Capacitor
@@ -190,13 +190,19 @@ features/
 │   │   └── reportes.page.ts
 │   └── reportes.routes.ts
 │
-└── configuracion/             # Feature de configuración
+└── configuracion/             # Feature de configuración (solo ADMIN)
     ├── components/
-    │   └── logs-modal/       # Modal de logs del sistema
-    ├── pages/main/
-    │   ├── configuracion.page.ts
-    │   ├── configuracion.page.html
-    │   └── configuracion.page.scss
+    │   ├── logs-modal/                    # Modal de logs del sistema
+    │   └── categoria-operacion-modal/     # Modal crear/editar categoría de operación
+    ├── pages/
+    │   ├── main/                          # Página principal (parámetros + catálogos + sistema)
+    │   │   ├── configuracion.page.ts
+    │   │   ├── configuracion.page.html
+    │   │   └── configuracion.page.scss
+    │   └── categorias-operaciones/        # CRUD de categorías de ingreso/egreso
+    │       ├── categorias-operaciones.page.ts
+    │       ├── categorias-operaciones.page.html
+    │       └── categorias-operaciones.page.scss
     └── configuracion.routes.ts
 ```
 
@@ -325,6 +331,8 @@ Generado por Capacitor. Contiene el proyecto Android Studio.
 | Servicio global (red, storage, etc.) | `core/services/`                 |
 | Constante de configuración global    | `core/config/`                   |
 | Nueva feature (ej: productos)        | `features/productos/`            |
+| CRUD de catálogo admin               | `features/configuracion/pages/`  |
+| Modal de configuración/catálogo      | `features/configuracion/components/` |
 
 ---
 
@@ -365,4 +373,4 @@ Generado por Capacitor. Contiene el proyecto Android Studio.
 
 **IMPORTANTE:** Este documento debe actualizarse cada vez que se agregue una nueva carpeta o feature importante al proyecto.
 
-*Última actualización: 2026-02-25*
+*Última actualización: 2026-02-28*

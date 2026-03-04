@@ -22,7 +22,7 @@
 -- Parámetros:
 --   p_empleado_id   INT      Empleado que registra el pago
 --   p_deuda_ids     UUID[]   Array de IDs de recargas_virtuales a pagar
---   p_notas         TEXT     Notas opcionales del pago
+--   p_observaciones         TEXT     Notas opcionales del pago
 -- ==========================================
 
 -- Descomentar solo si cambia la firma (parámetros o tipo de retorno):
@@ -31,7 +31,7 @@
 CREATE OR REPLACE FUNCTION registrar_pago_proveedor_celular(
   p_empleado_id  INTEGER,
   p_deuda_ids    UUID[],
-  p_notas        TEXT DEFAULT NULL
+  p_observaciones        TEXT DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -63,7 +63,7 @@ BEGIN
   -- ==========================================
   SELECT id INTO v_caja_celular_id FROM cajas WHERE codigo = 'CAJA_CELULAR';
   SELECT id INTO v_caja_chica_id   FROM cajas WHERE codigo = 'CAJA_CHICA';
-  SELECT id INTO v_tipo_ref_id     FROM tipos_referencia WHERE codigo = 'RECARGAS_VIRTUALES';
+  SELECT id INTO v_tipo_ref_id     FROM tipos_referencia WHERE tabla = 'recargas_virtuales';
   SELECT id INTO v_categoria_eg010_id FROM categorias_operaciones WHERE codigo = 'EG-010';
   -- TRANSFERENCIA_SALIENTE/ENTRANTE no requieren categoria_id (NULL permitido en schema)
 
@@ -144,7 +144,7 @@ BEGIN
     'EGRESO', v_total_a_pagar,
     v_saldo_celular_ant, v_saldo_celular_ant - v_total_a_pagar,
     v_categoria_eg010_id, v_tipo_ref_id,
-    COALESCE(p_notas, 'Pago al proveedor celular — ' || array_length(p_deuda_ids, 1) || ' deuda(s)')
+    COALESCE(p_observaciones, 'Pago al proveedor celular — ' || array_length(p_deuda_ids, 1) || ' deuda(s)')
   );
 
   -- ==========================================
@@ -194,11 +194,11 @@ BEGIN
   -- 10. ACTUALIZAR SALDOS DE CAJAS
   -- ==========================================
   UPDATE cajas
-  SET saldo_actual = v_saldo_celular_nuevo, updated_at = NOW()
+  SET saldo_actual = v_saldo_celular_nuevo
   WHERE id = v_caja_celular_id;
 
   UPDATE cajas
-  SET saldo_actual = v_saldo_chica_nuevo, updated_at = NOW()
+  SET saldo_actual = v_saldo_chica_nuevo
   WHERE id = v_caja_chica_id;
 
   -- ==========================================
