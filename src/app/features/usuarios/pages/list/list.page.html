@@ -15,45 +15,68 @@
 
   <!-- Lista de usuarios -->
   @if (loading) {
-    <div class="empty-state">
-      <ion-spinner name="crescent" color="primary"></ion-spinner>
-      <p>Cargando usuarios...</p>
-    </div>
-  } @else if (usuarios.length === 0) {
-    <div class="empty-state">
-      <ion-icon name="person-outline"></ion-icon>
-      <p>No hay usuarios registrados</p>
-      <span>Tocá el botón + para agregar uno</span>
-    </div>
-  } @else {
-    <div class="employees-list">
-      @for (usuario of usuarios; track usuario.id) {
-        <div class="employee-card" (click)="abrirEditar(usuario)">
+  <div class="employees-list" style="padding: 16px;">
+    @for (i of [1,2,3,4,5]; track i) {
+    <div class="employee-card">
+      <!-- Avatar Skeleton -->
+      <div class="employee-avatar" style="background: transparent;">
+        <ion-skeleton-text animated
+          style="width: 100%; height: 100%; border-radius: 50%; opacity: 0;"></ion-skeleton-text>
+      </div>
 
-          <!-- Avatar -->
-          <div class="employee-avatar" [class.inactivo]="!usuario.activo">
-            {{ usuario.nombre.charAt(0).toUpperCase() }}
-          </div>
-
-          <!-- Info -->
-          <div class="employee-info">
-            <div class="employee-nombre">{{ usuario.nombre }}</div>
-            <div class="employee-usuario">{{ usuario.usuario }}</div>
-          </div>
-
-          <!-- Badges -->
-          <div class="employee-badges">
-            <span class="badge-rol" [class.admin]="usuario.rol === 'ADMIN'">
-              {{ usuario.rol === 'ADMIN' ? 'Admin' : 'Empleado' }}
-            </span>
-            @if (!usuario.activo) {
-              <span class="badge-inactivo">Inactivo</span>
-            }
-          </div>
-
+      <!-- Info Skeleton -->
+      <div class="employee-info">
+        <div class="employee-nombre">
+          <ion-skeleton-text animated style="width: 70%; height: 18px; border-radius: 4px;"></ion-skeleton-text>
         </div>
-      }
+        <div class="employee-usuario" style="margin-top: 6px;">
+          <ion-skeleton-text animated style="width: 40%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+        </div>
+      </div>
+
+      <!-- Badge Skeleton -->
+      <div class="employee-badges">
+        <ion-skeleton-text animated
+          style="width: 60px; height: 24px; border-radius: 12px; margin: 0;"></ion-skeleton-text>
+      </div>
     </div>
+    }
+  </div>
+  } @else if (usuarios.length === 0) {
+  <div class="empty-state">
+    <ion-icon name="person-outline"></ion-icon>
+    <p>No hay usuarios registrados</p>
+    <span>Tocá el botón + para agregar uno</span>
+  </div>
+  } @else {
+  <div class="employees-list">
+    @for (usuario of usuarios; track usuario.id) {
+    <div class="employee-card" (click)="abrirEditar(usuario)">
+
+      <!-- Avatar -->
+      <div class="employee-avatar" [class.inactivo]="!usuario.activo">
+        {{ usuario.nombre.charAt(0).toUpperCase() }}
+      </div>
+
+      <!-- Info -->
+      <div class="employee-info">
+        <div class="employee-nombre">{{ usuario.nombre }}</div>
+        <div class="employee-usuario">{{ usuario.usuario }}</div>
+      </div>
+
+      <!-- Badges -->
+      <div class="employee-badges">
+        <span class="badge-rol" [class.admin]="usuario.rol === 'ADMIN'">
+          {{ usuario.rol === 'ADMIN' ? 'Admin' : 'Empleado' }}
+        </span>
+        @if (!usuario.activo) {
+        <span class="badge-inactivo">Inactivo</span>
+        }
+      </div>
+
+    </div>
+    }
+  </div>
   }
 
   <!-- FAB -->

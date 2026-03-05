@@ -2,8 +2,8 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
-  IonContent, IonIcon, IonCard, IonSpinner,
-  IonRefresher, IonRefresherContent
+  IonContent, IonIcon, IonCard,
+  IonRefresher, IonRefresherContent, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -11,7 +11,7 @@ import {
   cloudDownloadOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { RecargasService, RecargaHistorial } from '../../services/recargas.service';
+import { RecargasService, RecargaHistorial } from '../../../dashboard/services/recargas.service';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 
 /**
@@ -54,8 +54,8 @@ interface FiltroOption {
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
-    IonContent, IonIcon, IonCard, IonSpinner,
-    IonRefresher, IonRefresherContent
+    IonContent, IonIcon, IonCard,
+    IonRefresher, IonRefresherContent, IonSkeletonText
   ]
 })
 export class HistorialRecargasPage implements OnInit {

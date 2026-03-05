@@ -11,7 +11,9 @@
       <ion-button (click)="abrirNotificaciones()" fill="clear" class="notification-btn">
         <div class="bell-wrapper">
           <ion-icon name="notifications-outline"></ion-icon>
-          <span *ngIf="notificacionesPendientes > 0" class="notif-badge">{{ notificacionesPendientes }}</span>
+          @if (notificacionesPendientes > 0) {
+          <span class="notif-badge">{{ notificacionesPendientes }}</span>
+          }
         </div>
       </ion-button>
     </ion-buttons>
@@ -29,16 +31,23 @@
       <span class="label">
         {{ estadoCaja.estado === 'TURNO_EN_CURSO' ? 'Caja Abierta' : 'Caja Cerrada' }}
       </span>
-      <span class="time" *ngIf="estadoCaja.estado === 'TURNO_EN_CURSO'">
+      @if (estadoCaja.estado === 'TURNO_EN_CURSO') {
+      <span class="time">
         • {{ estadoCaja.horaApertura }}
       </span>
+      }
     </div>
   </div>
 
   <div class="hero-section">
     <div class="summary-card">
       <span class="label">Total Efectivo</span>
+      @if (cargando) {
+      <ion-skeleton-text animated
+        style="width: 60%; height: 40px; margin: 8px auto; border-radius: var(--radius-xs);"></ion-skeleton-text>
+      } @else {
       <h1 class="amount">{{ montosOcultos ? '••••' : ('$' + (totalEfectivo | number:'1.2-2')) }}</h1>
+      }
       <span class="sub-label">Hoy: {{ fechaActual }}</span>
     </div>
   </div>
@@ -49,7 +58,8 @@
   </div>
 
   <div class="modern-list">
-    <div class="flat-item" (click)="onSaldoClick('caja')">
+    <div class="flat-item ion-activatable" (click)="onSaldoClick('caja')">
+      <ion-ripple-effect></ion-ripple-effect>
       <div class="icon-wrapper primary">
         <ion-icon name="cash-outline"></ion-icon>
       </div>
@@ -58,12 +68,18 @@
         <span class="subtitle">Efectivo</span>
       </div>
       <div class="amount-group">
+        @if (cargando) {
+        <ion-skeleton-text animated
+          style="width: 60px; height: 16px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+        } @else {
         <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCaja | number:'1.2-2')) }}</span>
+        }
         <ion-icon name="chevron-forward"></ion-icon>
       </div>
     </div>
 
-    <div class="flat-item" (click)="onSaldoClick('cajaChica')">
+    <div class="flat-item ion-activatable" (click)="onSaldoClick('cajaChica')">
+      <ion-ripple-effect></ion-ripple-effect>
       <div class="icon-wrapper tertiary">
         <ion-icon name="wallet-outline"></ion-icon>
       </div>
@@ -72,43 +88,60 @@
         <span class="subtitle">Gastos menores</span>
       </div>
       <div class="amount-group">
+        @if (cargando) {
+        <ion-skeleton-text animated
+          style="width: 60px; height: 16px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+        } @else {
         <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCajaChica | number:'1.2-2')) }}</span>
+        }
         <ion-icon name="chevron-forward"></ion-icon>
       </div>
     </div>
 
-    <div class="flat-item" (click)="onSaldoClick('celular')">
+    <div class="flat-item ion-activatable" (click)="onSaldoClick('celular')">
+      <ion-ripple-effect></ion-ripple-effect>
       <div class="icon-wrapper secondary">
         <ion-icon name="phone-portrait-outline"></ion-icon>
       </div>
       <div class="content">
         <span class="title">{{ cajaNombreFor('CAJA_CELULAR') }}</span>
         <span class="subtitle">Efectivo acum.</span>
-        <span class="subtitle">Saldo virtual</span>
       </div>
       <div class="amount-group">
+        @if (cargando) {
+        <ion-skeleton-text animated
+          style="width: 70px; height: 32px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+        } @else {
         <div class="amount-col">
           <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCelular | number:'1.2-2')) }}</span>
-          <span class="virtual-amount">{{ montosOcultos ? '••••' : ('$' + (saldoVirtualCelular | number:'1.2-2')) }}</span>
+          <span class="virtual-badge">Virtual: {{ montosOcultos ? '••••' : ('$' + (saldoVirtualCelular |
+            number:'1.2-2')) }}</span>
         </div>
+        }
         <ion-icon name="chevron-forward"></ion-icon>
       </div>
     </div>
 
-    <div class="flat-item" (click)="onSaldoClick('bus')">
+    <div class="flat-item ion-activatable" (click)="onSaldoClick('bus')">
+      <ion-ripple-effect></ion-ripple-effect>
       <div class="icon-wrapper warning">
         <ion-icon name="bus-outline"></ion-icon>
       </div>
       <div class="content">
         <span class="title">{{ cajaNombreFor('CAJA_BUS') }}</span>
         <span class="subtitle">Efectivo acum.</span>
-        <span class="subtitle">Saldo virtual</span>
       </div>
       <div class="amount-group">
+        @if (cargando) {
+        <ion-skeleton-text animated
+          style="width: 70px; height: 32px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+        } @else {
         <div class="amount-col">
           <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoBus | number:'1.2-2')) }}</span>
-          <span class="virtual-amount">{{ montosOcultos ? '••••' : ('$' + (saldoVirtualBus | number:'1.2-2')) }}</span>
+          <span class="virtual-badge">Virtual: {{ montosOcultos ? '••••' : ('$' + (saldoVirtualBus | number:'1.2-2'))
+            }}</span>
         </div>
+        }
         <ion-icon name="chevron-forward"></ion-icon>
       </div>
     </div>
@@ -116,25 +149,20 @@
 
   <div class="action-footer-card" [ngClass]="estadoCaja.estado">
     <div class="info">
-      <h3>{{ estadoCaja.estado === 'TURNO_EN_CURSO' ? 'Turno Activo' : estadoCaja.estado === 'CERRADA' ? 'Turno Cerrado' : 'Sin Turno' }}</h3>
-      <p>{{ estadoCaja.estado === 'TURNO_EN_CURSO' ? estadoCaja.empleadoNombre : estadoCaja.estado === 'CERRADA' ? 'Caja cerrada por hoy' : 'Abrí turno para iniciar operaciones' }}</p>
+      <h3>{{ estadoCaja.estado === 'TURNO_EN_CURSO' ? 'Turno Activo' : estadoCaja.estado === 'CERRADA' ? 'Turno Cerrado'
+        : 'Sin Turno' }}</h3>
+      <p>{{ estadoCaja.estado === 'TURNO_EN_CURSO' ? estadoCaja.empleadoNombre : estadoCaja.estado === 'CERRADA' ? 'Caja
+        cerrada por hoy' : 'Abrí turno para iniciar operaciones' }}</p>
     </div>
-    
-    <ion-button 
-      *ngIf="estadoCaja.estado === 'TURNO_EN_CURSO'" 
-      fill="clear" 
-      class="btn-action danger" 
-      (click)="onCerrarCaja()">
+
+    @if (estadoCaja.estado === 'TURNO_EN_CURSO') {
+    <ion-button fill="clear" class="btn-action danger" (click)="onCerrarCaja()">
       Cerrar Turno
     </ion-button>
-    
-    <ion-button 
-      *ngIf="estadoCaja.estado !== 'TURNO_EN_CURSO'" 
-      fill="solid" 
-      color="dark" 
-      class="btn-action" 
-      (click)="onAbrirCaja()">
+    } @else {
+    <ion-button fill="solid" color="dark" class="btn-action" (click)="onAbrirCaja()">
       Abrir Caja
     </ion-button>
+    }
   </div>
 </ion-content>

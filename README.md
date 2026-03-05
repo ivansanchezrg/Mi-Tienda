@@ -142,117 +142,58 @@ Existen dos patrones válidos según el caso de uso:
 
 ---
 
-##### Patrón A: `supabase.call()` → mutaciones y fetches simples
+##### Patrón A: `supabase.call()` → Mutaciones (Insert / Update / Delete)
 
-Úsalo para **insert, update, delete y get by ID**. Maneja automáticamente loading overlay, errores y toast.
+A partir de la estandarización "Opt-In", `supabase.call()` no muestra spinner por defecto. Habilitalo explícitamente pasando `{ showLoading: true }` para acciones que bloquean la UI.
 
 ```typescript
-// ✅ Insert / Update / Delete / Get by ID
+// ✅ Insert / Update / Delete con Loading Overlay
 const data = await this.supabase.call<Employee>(
-  this.supabase.client.from('empleados').insert({...}).select().single()
+  this.supabase.client.from('empleados').insert({...}).select().single(),
+  { showLoading: true }
 );
-
-if (data) {
-  // data ya es tipado y limpio
-}
-// Si hay error, automáticamente muestra toast y retorna null
 ```
 
-**Ventajas:**
-- Loading overlay automático (ideal para acciones puntuales del usuario)
-- Manejo de errores centralizado
-- Toast de éxito/error automático
-- Código DRY
+**Ventajas:** Manejo automático de errores, loading bloqueante y toasts centralizados.
 
 ---
 
-##### Patrón B: Query directa → listas con pull-to-refresh o joins complejos
+##### Patrón B: Consultas de Lectura (Get / List / Dashboard)
 
-Úsalo para **cargar listas**, historial, filtros dinámicos o queries con joins y transformaciones. Controlá el loading con un `loading` local en la página.
+Usalo para recupoerar listas, dashboards o datos iniciales. Controlá la carga localmente con una variable `loading = true` renderizando *Skeleton Screens* en el HTML.
 
 ```typescript
-// ✅ En el servicio: query directa
+// ✅ En el servicio: carga silenciosa implícita
 async getGastos(fechaInicio: string, fechaFin: string): Promise<GastoDiario[]> {
-  const { data, error } = await this.supabase.client
-    .from('gastos_diarios')
-    .select(`*, empleados(nombre), categorias_gastos(nombre)`)
-    .gte('fecha', fechaInicio)
-    .lte('fecha', fechaFin);
-
-  if (error) return [];
+  const data = await this.supabase.call<GastoDiario[]>(
+     this.supabase.client.from('gastos_diarios').select('*'),
+     { showLoading: false }
+  );
   return data ?? [];
 }
-
-// ✅ En la página: loading local inline
-loading = false;
-
-async cargarDatos() {
-  this.loading = true;
-  try {
-    this.items = await this.service.getItems();
-  } catch {
-    await this.ui.showError('Error al cargar los datos');
-  } finally {
-    this.loading = false;
-  }
-}
 ```
-
-```html
-<!-- Spinner inline dentro del contenido (no bloquea toda la pantalla) -->
-@if (loading) {
-  <div class="empty-state">
-    <ion-spinner name="crescent"></ion-spinner>
-  </div>
-} @else {
-  <!-- lista de items -->
-}
-```
-
-**Pull-to-refresh (`ion-refresher`):** Siempre incluirlo en páginas que usan el Patrón B.
 
 ```typescript
-// En el .ts — importar y agregar al array imports[]
-import { IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
-
-async handleRefresh(event: any) {
-  await this.cargarDatos();
-  event.target.complete();
+// ✅ En la página: loading local
+loading = true;
+async cargarDatos(isRefresh = false) {
+  if (!isRefresh) this.loading = true;
+  // ... Promise.all([...])
+  this.loading = false; // Finally
 }
 ```
 
-```html
-<!-- En el .html — primer hijo de <ion-content> -->
-<ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
-  <ion-refresher-content></ion-refresher-content>
-</ion-refresher>
-```
-
-✅ **Conviene** — páginas de lista/historial:
-- `employees/list` — lista de empleados
-- `gastos-diarios` — historial de gastos
-- `historial-recargas` — historial de recargas
-
-❌ **NO conviene** — páginas de acción/wizard:
-- `cierre-diario` — wizard de 2 pasos, no tiene lista que refrescar
-- `recargas-virtuales` — página de opciones/dashboard, sin lista
-- Modales — no tienen contenido propio que refrescar
-
-**Ventajas:**
-- Spinner aparece **dentro del contenido** (menos invasivo que el overlay)
-- Pull-to-refresh funciona naturalmente con `slot="fixed"`
-- Control total sobre transforms y joins complejos
+**Pull-to-refresh (`ion-refresher`):** Pasá `isRefresh=true` para actualizar el array silenciosamente sin disparar *Skeletons*. (Ver `DESIGN.md` para más información sobre Lineamientos de UX).
 
 ---
 
-##### Cuándo usar cada uno
+##### Cuándo usar cada patrón
 
-| Operación | Patrón |
+| Operación | Patrón de Código |
 |---|---|
-| Insert / Update / Delete | `supabase.call()` |
-| Get by ID simple | `supabase.call()` |
-| Listas con pull-to-refresh | Query directa + `loading` local |
-| Joins complejos con transformación | Query directa + `loading` local |
+| Mutaciones (Crear/Editar) | `supabase.call(..., { showLoading: true })` |
+| Lecturas en Frío / Pantallas | `loading=true` + `supabase.call(..., { showLoading: false })` |
+| Refresco Manual (Pull) | `<ion-refresher>` + `isRefresh=true` (silencioso) |
 
 ### Path Aliases
 

@@ -170,10 +170,12 @@ export class RecargasVirtualesService {
   }): Promise<RegistroRecargaCompletoResult> {
     const result = await this.supabase.call<RegistroRecargaCompletoResult>(
       this.supabase.client.rpc('registrar_recarga_proveedor_celular', {
-        p_fecha:         params.fecha,
-        p_empleado_id:   params.empleado_id,
+        p_fecha: params.fecha,
+        p_empleado_id: params.empleado_id,
         p_monto_virtual: params.monto_virtual
-      })
+      }),
+      undefined,
+      { showLoading: true }
     );
 
     if (!result) {
@@ -193,10 +195,12 @@ export class RecargasVirtualesService {
   }): Promise<any> {
     return this.supabase.call(
       this.supabase.client.rpc('registrar_pago_proveedor_celular', {
-        p_empleado_id:   params.empleado_id,
-        p_deuda_ids:     params.deuda_ids,
+        p_empleado_id: params.empleado_id,
+        p_deuda_ids: params.deuda_ids,
         p_observaciones: params.observaciones || null
-      })
+      }),
+      undefined,
+      { showLoading: true }
     );
   }
 
@@ -213,9 +217,11 @@ export class RecargasVirtualesService {
   }): Promise<{ success: boolean; mes: string; total_ganancia: number; filas_afectadas: number; message: string }> {
     const result = await this.supabase.call<{ success: boolean; mes: string; total_ganancia: number; filas_afectadas: number; message: string }>(
       this.supabase.client.rpc('liquidar_ganancias_bus', {
-        p_mes:         params.mes,
+        p_mes: params.mes,
         p_empleado_id: params.empleado_id
-      })
+      }),
+      undefined,
+      { showLoading: true }
     );
 
     if (!result) {
@@ -243,12 +249,14 @@ export class RecargasVirtualesService {
   }): Promise<any> {
     return this.supabase.call(
       this.supabase.client.rpc('registrar_compra_saldo_bus', {
-        p_fecha:                  params.fecha,
-        p_empleado_id:            params.empleado_id,
-        p_monto:                  params.monto,
-        p_observaciones:          params.observaciones || null,
-        p_saldo_virtual_maquina:  params.saldo_virtual_maquina ?? null
-      })
+        p_fecha: params.fecha,
+        p_empleado_id: params.empleado_id,
+        p_monto: params.monto,
+        p_observaciones: params.observaciones || null,
+        p_saldo_virtual_maquina: params.saldo_virtual_maquina ?? null
+      }),
+      undefined,
+      { showLoading: true }
     );
   }
 
