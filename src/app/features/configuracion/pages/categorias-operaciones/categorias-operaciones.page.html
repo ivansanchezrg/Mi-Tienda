@@ -28,53 +28,64 @@
   <div class="page-container">
 
     @if (loading) {
-      <div class="loading-state">
-        <ion-spinner name="crescent"></ion-spinner>
-        <p>Cargando categorías...</p>
+    <div class="skeleton-list">
+      @for (i of [1,2,3,4,5]; track i) {
+      <div class="categoria-item">
+        <div class="cat-info" style="width: 100%;">
+          <div class="cat-badges" style="display: flex; gap: 4px;">
+            <ion-skeleton-text animated style="width: 60px; height: 22px; border-radius: 4px;"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 70px; height: 22px; border-radius: 4px;"></ion-skeleton-text>
+          </div>
+          <ion-skeleton-text animated
+            style="width: 70%; height: 18px; margin-top: 8px; border-radius: 4px;"></ion-skeleton-text>
+          <ion-skeleton-text animated
+            style="width: 90%; height: 14px; margin-top: 4px; border-radius: 4px;"></ion-skeleton-text>
+        </div>
+        <ion-skeleton-text animated
+          style="width: 24px; height: 24px; border-radius: 50%; margin-left: 16px;"></ion-skeleton-text>
       </div>
+      }
+    </div>
 
     } @else if (categoriasFiltradas.length === 0) {
-      <div class="empty-state">
-        <p>No hay categorías de tipo {{ segmentoActual }}</p>
-      </div>
+    <div class="empty-state">
+      <p>No hay categorías de tipo {{ segmentoActual }}</p>
+    </div>
 
     } @else {
-      @for (cat of categoriasFiltradas; track cat.id) {
-        <div
-          class="categoria-item"
-          [class.inactiva]="!cat.activo"
-          [class.clickable]="cat.seleccionable"
-          (click)="onItemClick(cat)">
+    @for (cat of categoriasFiltradas; track cat.id) {
+    <div class="categoria-item" [class.inactiva]="!cat.activo" [class.clickable]="cat.seleccionable"
+      (click)="onItemClick(cat)">
 
-          <!-- Información -->
-          <div class="cat-info">
-            <div class="cat-badges">
-              <span class="cat-codigo">{{ cat.codigo }}</span>
+      <!-- Información -->
+      <div class="cat-info">
+        <div class="cat-badges">
+          <span class="cat-codigo">{{ cat.codigo }}</span>
 
-              @if (!cat.seleccionable) {
-                <span class="badge-sistema">
-                  <ion-icon name="lock-closed-outline"></ion-icon>
-                  Sistema
-                </span>
-              }
-
-              @if (!cat.activo) {
-                <span class="badge-inactiva">Inactiva</span>
-              }
-            </div>
-            <p class="cat-nombre">{{ cat.nombre }}</p>
-            @if (cat.descripcion) {
-              <p class="cat-desc">{{ cat.descripcion }}</p>
-            }
-          </div>
-
-          <!-- Chevron solo para ítems editables -->
-          @if (cat.seleccionable) {
-            <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
+          @if (!cat.seleccionable) {
+          <span class="badge-sistema">
+            <ion-icon name="lock-closed-outline"></ion-icon>
+            Sistema
+          </span>
           }
 
+          @if (!cat.activo) {
+          <span class="badge-inactiva">Inactiva</span>
+          }
         </div>
+        <p class="cat-nombre">{{ cat.nombre }}</p>
+        @if (cat.descripcion) {
+        <p class="cat-desc">{{ cat.descripcion }}</p>
+        }
+      </div>
+
+      <!-- Chevron solo para ítems editables -->
+      @if (cat.seleccionable) {
+      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
       }
+
+    </div>
+    }
     }
 
   </div>

@@ -38,7 +38,6 @@ export class TurnosCajaService {
         .from('turnos_caja')
         .select('*, empleado:empleados(id, nombre)')
         .gte('hora_fecha_apertura', inicioDia)
-        .lte('hora_fecha_apertura', finDia)
         .is('hora_fecha_cierre', null)
         .maybeSingle()
     );
@@ -84,16 +83,20 @@ export class TurnosCajaService {
     const numeroTurno = (count ?? 0) + 1;
 
     // Insertar turno
-    const { error } = await this.supabase.client
-      .from('turnos_caja')
-      .insert({
-        numero_turno: numeroTurno,
-        empleado_id: empleado.id,
-        hora_fecha_apertura: new Date().toISOString() // TIMESTAMPTZ: UTC correcto
-      });
+    const response = await this.supabase.call(
+      this.supabase.client
+        .from('turnos_caja')
+        .insert({
+          numero_turno: numeroTurno,
+          empleado_id: empleado.id,
+          hora_fecha_apertura: new Date().toISOString() // TIMESTAMPTZ: UTC correcto
+        }),
+      undefined,
+      { showLoading: true }
+    );
 
-    if (error) {
-      await this.ui.showError(error.message || 'Error al abrir el turno');
+    if (response === null) {
+      // El error ya lo maneja supabase.call con ui.showError
       return false;
     }
 
@@ -119,11 +122,11 @@ export class TurnosCajaService {
 
     if (error || !data) return null;
 
-    const deficitCajaChica  = data.deficit_caja_chica ?? 0;
+    const deficitCajaChica = data.deficit_caja_chica ?? 0;
     const efectivoRecaudado = data.efectivo_recaudado ?? 0;
 
-    const fondoFijo      = await this.obtenerFondoFijo();
-    const fondoFaltante  = Math.max(0, fondoFijo - efectivoRecaudado);
+    const fondoFijo = await this.obtenerFondoFijo();
+    const fondoFaltante = Math.max(0, fondoFijo - efectivoRecaudado);
 
     // Retorna null solo si NO hay ningún tipo de déficit
     if (deficitCajaChica <= 0 && fondoFaltante <= 0) return null;
@@ -158,18 +161,23 @@ export class TurnosCajaService {
       return { ok: false, errorMsg: 'Categorías de ajuste incompletas en la base de datos.' };
     }
 
-    const { data, error } = await this.supabase.client
-      .rpc('reparar_deficit_turno', {
-        p_empleado_id:        empleado.id,
+    const response = await this.supabase.call(
+      this.supabase.client.rpc('reparar_deficit_turno', {
+        p_empleado_id: empleado.id,
         p_deficit_caja_chica: deficitCajaChica,
-        p_fondo_faltante:     fondoFaltante,
-        p_cat_egreso_id:      catEgreso.id,
-        p_cat_ingreso_id:     catIngreso.id
-      });
+        p_fondo_faltante: fondoFaltante,
+        p_cat_egreso_id: catEgreso.id,
+        p_cat_ingreso_id: catIngreso.id
+      }),
+      undefined,
+      { showLoading: true }
+    );
 
-    if (error) {
-      return { ok: false, errorMsg: error.message || 'Error de conexión con el servidor' };
+    if (response === null) {
+      return { ok: false, errorMsg: 'Error de conexión con el servidor' };
     }
+
+    const data = response as any;
 
     if (!data?.success) {
       return { ok: false, errorMsg: data?.error || 'Error desconocido al registrar el ajuste' };
@@ -191,9 +199,10 @@ export class TurnosCajaService {
         .from('turnos_caja')
         .select('*, empleado:empleados(id, nombre)')
         .gte('hora_fecha_apertura', inicioDia)
-        .lte('hora_fecha_apertura', finDia)
         .is('hora_fecha_cierre', null)
-        .maybeSingle()
+        .maybeSingle(),
+      undefined,
+      { showLoading: false }
     );
 
     const { count } = await this.supabase.client

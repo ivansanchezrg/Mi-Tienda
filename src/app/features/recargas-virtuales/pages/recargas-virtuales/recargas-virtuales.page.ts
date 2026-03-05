@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
   IonContent, IonIcon,
-  IonRefresher, IonRefresherContent,
+  IonRefresher, IonRefresherContent, IonSkeletonText,
   ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -32,7 +32,7 @@ type TabActivo = 'CELULAR' | 'BUS';
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
     IonContent, IonIcon,
-    IonRefresher, IonRefresherContent,
+    IonRefresher, IonRefresherContent, IonSkeletonText
   ]
 })
 export class RecargasVirtualesPage implements OnInit {
@@ -43,6 +43,7 @@ export class RecargasVirtualesPage implements OnInit {
   private modalCtrl = inject(ModalController);
 
   tabActivo: TabActivo = 'CELULAR';
+  loading = true;
 
   // CELULAR
   saldoVirtualCelular = 0;
@@ -85,7 +86,10 @@ export class RecargasVirtualesPage implements OnInit {
     this.tabActivo = 'CELULAR';
   }
 
-  async cargarDatos() {
+  async cargarDatos(isRefresh = false) {
+    if (!isRefresh) {
+      this.loading = true;
+    }
     try {
       const [saldoCelular, saldoBus, deudas, gananciasPendientes, gananciaMesActual] = await Promise.all([
         this.service.getSaldoVirtualActual('CELULAR'),
@@ -101,6 +105,8 @@ export class RecargasVirtualesPage implements OnInit {
       this.gananciaBusMesActual = gananciaMesActual;
     } catch {
       await this.ui.showError('Error al cargar los datos');
+    } finally {
+      this.loading = false;
     }
   }
 
@@ -244,8 +250,8 @@ export class RecargasVirtualesPage implements OnInit {
   }
 
   async handleRefresh(event: any) {
-    event.target.complete(); // Cierra el spinner del refresher de inmediato
-    await this.cargarDatos(); // El overlay de cargarDatos() ya informa el estado
+    await this.cargarDatos(true);
+    event.target.complete();
   }
 
 }

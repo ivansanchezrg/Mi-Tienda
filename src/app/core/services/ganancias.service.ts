@@ -99,7 +99,7 @@ export class GananciasService {
    */
   getMesActual(): string {
     const hoy = new Date();
-    const year  = hoy.getFullYear();
+    const year = hoy.getFullYear();
     const month = String(hoy.getMonth() + 1).padStart(2, '0');
     return `${year}-${month}`;
   }

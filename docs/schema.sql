@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS configuraciones CASCADE;
 DROP TABLE IF EXISTS tipos_servicio CASCADE;
 DROP TABLE IF EXISTS empleados CASCADE;
 DROP TYPE IF EXISTS tipo_operacion_caja_enum CASCADE;
+DROP TYPE IF EXISTS rol_usuario_enum CASCADE;
 
 -- ==========================================
 -- TIPOS ENUMERADOS
@@ -34,6 +35,10 @@ DROP TYPE IF EXISTS tipo_operacion_caja_enum CASCADE;
 CREATE TYPE tipo_operacion_caja_enum AS ENUM (
     'APERTURA', 'CIERRE', 'INGRESO', 'EGRESO',
     'AJUSTE', 'TRANSFERENCIA_ENTRANTE', 'TRANSFERENCIA_SALIENTE'
+);
+
+CREATE TYPE rol_usuario_enum AS ENUM (
+    'ADMIN', 'EMPLEADO'
 );
 
 -- ==========================================
@@ -45,7 +50,7 @@ CREATE TABLE IF NOT EXISTS empleados (
     id         SERIAL PRIMARY KEY,
     nombre     VARCHAR(255) NOT NULL,
     usuario    VARCHAR(50)  NOT NULL UNIQUE,  -- Email Google OAuth
-    rol        VARCHAR(20)  NOT NULL DEFAULT 'EMPLEADO' CHECK (rol IN ('ADMIN', 'EMPLEADO')),
+    rol        rol_usuario_enum NOT NULL DEFAULT 'EMPLEADO',
     activo     BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -99,7 +104,7 @@ CREATE TABLE IF NOT EXISTS recargas (
     turno_id              UUID    NOT NULL REFERENCES turnos_caja(id),
     tipo_servicio_id      INTEGER NOT NULL REFERENCES tipos_servicio(id),
     empleado_id           INTEGER NOT NULL REFERENCES empleados(id),
-    venta_dia             DECIMAL(12,2) NOT NULL,
+    venta_dia             DECIMAL(12,2) NOT NULL CHECK (venta_dia >= 0),
     saldo_virtual_anterior DECIMAL(12,2) NOT NULL,
     saldo_virtual_actual  DECIMAL(12,2) NOT NULL,  -- saldo_anterior - venta_dia
     observaciones         TEXT,
@@ -209,8 +214,8 @@ CREATE TABLE IF NOT EXISTS recargas_virtuales (
     fecha             DATE    NOT NULL,
     tipo_servicio_id  INTEGER NOT NULL REFERENCES tipos_servicio(id),
     empleado_id       INTEGER NOT NULL REFERENCES empleados(id),
-    monto_virtual     DECIMAL(12,2) NOT NULL,       -- Saldo que subió al sistema
-    monto_a_pagar     DECIMAL(12,2) NOT NULL,       -- Lo que se debe al proveedor
+    monto_virtual     DECIMAL(12,2) NOT NULL CHECK (monto_virtual >= 0),       -- Saldo que subió al sistema
+    monto_a_pagar     DECIMAL(12,2) NOT NULL CHECK (monto_a_pagar >= 0),       -- Lo que se debe al proveedor
     ganancia          DECIMAL(12,2) NOT NULL DEFAULT 0,
     pagado            BOOLEAN DEFAULT false,
     fecha_pago        DATE,
