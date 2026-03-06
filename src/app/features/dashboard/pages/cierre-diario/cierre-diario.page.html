@@ -18,458 +18,519 @@
 
     <!-- PASO 1: Ingresar Saldos -->
     @if (pasoActual === 1) {
-      <div class="paso">
-        <div class="paso-header">
-          <h2>Ingresar Saldos</h2>
-          <p>Registra los montos finales del día</p>
-        </div>
-
-        <form [formGroup]="cierreForm">
-          <ion-list class="input-list">
-            <!-- Saldo Virtual Celular -->
-            <ion-item class="input-item">
-              <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular"></ion-icon>
-              <ion-label position="stacked">
-                <strong>Saldo Virtual Celular</strong>
-                <ion-note>Saldo anterior: ${{ saldoVirtualActualCelular | number:'1.2-2' }}</ion-note>
-              </ion-label>
-              <div class="input-wrapper">
-                <span class="currency-prefix">$</span>
-                <ion-input
-                  appNumbersOnly
-                  appCurrencyInput
-                  formControlName="saldoVirtualCelularFinal"
-                  type="text"
-                  inputmode="decimal"
-                  placeholder="0.00">
-                </ion-input>
-              </div>
-            </ion-item>
-
-            @if (ventaCelular < 0 && cierreForm.get('saldoVirtualCelularFinal')?.value) {
-              <div class="alerta-simple danger">
-                <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
-                <div>
-                  <p><strong>⚠️ Venta negativa: {{ ventaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</strong></p>
-                  <p>Registrá la recarga del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
-                </div>
-              </div>
-            }
-
-            <!-- Saldo Virtual Bus -->
-            <ion-item class="input-item">
-              <ion-icon slot="start" name="bus-outline" class="item-icon bus"></ion-icon>
-              <ion-label position="stacked">
-                <strong>Saldo Virtual Bus</strong>
-                <ion-note>Saldo anterior: ${{ saldoVirtualActualBus | number:'1.2-2' }}</ion-note>
-              </ion-label>
-              <div class="input-wrapper">
-                <span class="currency-prefix">$</span>
-                <ion-input
-                  appNumbersOnly
-                  appCurrencyInput
-                  formControlName="saldoVirtualBusFinal"
-                  type="text"
-                  inputmode="decimal"
-                  placeholder="0.00">
-                </ion-input>
-              </div>
-            </ion-item>
-
-            @if (ventaBus < 0 && cierreForm.get('saldoVirtualBusFinal')?.value) {
-              <div class="alerta-simple danger">
-                <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
-                <div>
-                  <p><strong>⚠️ Venta negativa: {{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</strong></p>
-                  <p>Registrá la recarga del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
-                </div>
-              </div>
-            }
-
-            <!-- Efectivo Total Recaudado -->
-            <ion-item class="input-item">
-              <ion-icon slot="start" name="wallet-outline" class="item-icon efectivo"></ion-icon>
-              <ion-label position="stacked">
-                <strong>Efectivo Recaudado — Tienda</strong>
-                <ion-note>Solo el efectivo de la caja registradora de tienda. No incluir el de celular ni bus.</ion-note>
-              </ion-label>
-              <div class="input-wrapper">
-                <span class="currency-prefix">$</span>
-                <ion-input
-                  appNumbersOnly
-                  appCurrencyInput
-                  formControlName="efectivoTotalRecaudado"
-                  type="text"
-                  inputmode="decimal"
-                  placeholder="0.00">
-                </ion-input>
-              </div>
-            </ion-item>
-          </ion-list>
-        </form>
-
-        <div class="paso-actions">
-          <ion-button expand="block" size="large" (click)="siguientePaso()" [disabled]="cierreForm.invalid || hayVentaNegativa">
-            Siguiente
-            <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
-          </ion-button>
-        </div>
+    <div class="paso">
+      <div class="paso-header">
+        <h2>Ingresar Saldos</h2>
+        <p>Registra los montos finales del día</p>
       </div>
+
+      @if (!cargandoDatos) {
+      <form [formGroup]="cierreForm">
+        <ion-list class="input-list">
+          <!-- Saldo Virtual Celular -->
+          <ion-item class="input-item">
+            <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular"></ion-icon>
+            <ion-label position="stacked">
+              <strong>Saldo Virtual Celular</strong>
+              <ion-note>Saldo anterior: ${{ saldoVirtualActualCelular | number:'1.2-2' }}</ion-note>
+            </ion-label>
+            <div class="input-wrapper">
+              <span class="currency-prefix">$</span>
+              <ion-input appNumbersOnly appCurrencyInput formControlName="saldoVirtualCelularFinal" type="text"
+                inputmode="decimal" placeholder="0.00">
+              </ion-input>
+            </div>
+          </ion-item>
+
+          @if (ventaCelular < 0 && cierreForm.get('saldoVirtualCelularFinal')?.value) { <div
+            class="alerta-simple danger">
+            <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+            <div>
+              <p><strong>⚠️ Venta negativa: {{ ventaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</strong></p>
+              <p>Registrá la recarga del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
+            </div>
+    </div>
     }
 
-    <!-- PASO 2: Verificación -->
-    @if (pasoActual === 2) {
-      <div class="paso">
-        <div class="paso-header">
-          <h2>Verificación Final</h2>
-          <p>Revisa los cálculos antes de confirmar</p>
+    <!-- Saldo Virtual Bus -->
+    <ion-item class="input-item">
+      <ion-icon slot="start" name="bus-outline" class="item-icon bus"></ion-icon>
+      <ion-label position="stacked">
+        <strong>Saldo Virtual Bus</strong>
+        <ion-note>Saldo anterior: ${{ saldoVirtualActualBus | number:'1.2-2' }}</ion-note>
+      </ion-label>
+      <div class="input-wrapper">
+        <span class="currency-prefix">$</span>
+        <ion-input appNumbersOnly appCurrencyInput formControlName="saldoVirtualBusFinal" type="text"
+          inputmode="decimal" placeholder="0.00">
+        </ion-input>
+      </div>
+    </ion-item>
+
+    @if (ventaBus < 0 && cierreForm.get('saldoVirtualBusFinal')?.value) { <div class="alerta-simple danger">
+      <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+      <div>
+        <p><strong>⚠️ Venta negativa: {{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</strong></p>
+        <p>Registrá la recarga del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
+      </div>
+  </div>
+  }
+
+  <!-- Efectivo Total Recaudado -->
+  <ion-item class="input-item">
+    <ion-icon slot="start" name="wallet-outline" class="item-icon efectivo"></ion-icon>
+    <ion-label position="stacked">
+      <strong>Efectivo Recaudado — Tienda</strong>
+      <ion-note>Solo el efectivo de la caja registradora de tienda. No incluir el de celular ni bus.</ion-note>
+    </ion-label>
+    <div class="input-wrapper">
+      <span class="currency-prefix">$</span>
+      <ion-input appNumbersOnly appCurrencyInput formControlName="efectivoTotalRecaudado" type="text"
+        inputmode="decimal" placeholder="0.00">
+      </ion-input>
+    </div>
+  </ion-item>
+  </ion-list>
+  </form>
+
+  <div class="paso-actions">
+    <ion-button expand="block" size="large" (click)="siguientePaso()"
+      [disabled]="cierreForm.invalid || hayVentaNegativa">
+      Siguiente
+      <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
+    </ion-button>
+  </div>
+  } @else {
+  <!-- Skeleton Loading State -->
+  <ion-list class="input-list skeleton-form">
+    <!-- Dummy Celular -->
+    <ion-item class="input-item">
+      <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular" style="opacity: 0.5;"></ion-icon>
+      <ion-label position="stacked">
+        <ion-skeleton-text animated style="width: 50%; height: 18px; border-radius: 4px;"></ion-skeleton-text>
+        <ion-skeleton-text animated
+          style="width: 40%; height: 14px; margin-top: 6px; border-radius: 4px;"></ion-skeleton-text>
+      </ion-label>
+      <div class="input-wrapper" style="border-bottom-color: transparent;">
+        <ion-skeleton-text animated
+          style="width: 100%; height: 40px; margin-top: 12px; border-radius: 8px;"></ion-skeleton-text>
+      </div>
+    </ion-item>
+
+    <!-- Dummy Bus -->
+    <ion-item class="input-item">
+      <ion-icon slot="start" name="bus-outline" class="item-icon bus" style="opacity: 0.5;"></ion-icon>
+      <ion-label position="stacked">
+        <ion-skeleton-text animated style="width: 40%; height: 18px; border-radius: 4px;"></ion-skeleton-text>
+        <ion-skeleton-text animated
+          style="width: 35%; height: 14px; margin-top: 6px; border-radius: 4px;"></ion-skeleton-text>
+      </ion-label>
+      <div class="input-wrapper" style="border-bottom-color: transparent;">
+        <ion-skeleton-text animated
+          style="width: 100%; height: 40px; margin-top: 12px; border-radius: 8px;"></ion-skeleton-text>
+      </div>
+    </ion-item>
+
+    <!-- Dummy Efectivo -->
+    <ion-item class="input-item">
+      <ion-icon slot="start" name="wallet-outline" class="item-icon efectivo" style="opacity: 0.5;"></ion-icon>
+      <ion-label position="stacked">
+        <ion-skeleton-text animated style="width: 65%; height: 18px; border-radius: 4px;"></ion-skeleton-text>
+        <ion-skeleton-text animated
+          style="width: 90%; height: 14px; margin-top: 6px; border-radius: 4px;"></ion-skeleton-text>
+      </ion-label>
+      <div class="input-wrapper" style="border-bottom-color: transparent;">
+        <ion-skeleton-text animated
+          style="width: 100%; height: 40px; margin-top: 12px; border-radius: 8px;"></ion-skeleton-text>
+      </div>
+    </ion-item>
+  </ion-list>
+
+  <div class="paso-actions">
+    <ion-skeleton-text animated style="width: 100%; height: 48px; border-radius: 8px;"></ion-skeleton-text>
+  </div>
+  }
+  </div>
+  }
+
+  <!-- PASO 2: Verificación -->
+  @if (pasoActual === 2) {
+  <div class="paso">
+    <div class="paso-header">
+      <h2>Verificación Final</h2>
+      <p>Revisa los cálculos antes de confirmar</p>
+    </div>
+
+    <!-- Ventas del Día -->
+    <ion-card class="resumen-card">
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="trending-up-outline"></ion-icon>
+          Ventas del Día
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <!-- Sección: Efectivo de Caja -->
+        <div class="seccion-titulo">
+          <strong>Caja Física — Tienda</strong>
+        </div>
+        <div class="venta-item">
+          <div class="venta-header">
+            <ion-icon name="cash-outline" class="venta-icon efectivo"></ion-icon>
+            <span class="venta-nombre">Efectivo Caja Tienda</span>
+          </div>
+          <div class="venta-detalle">
+            <span class="venta-monto">{{ efectivoRecaudado | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+          </div>
         </div>
 
-        <!-- Ventas del Día -->
-        <ion-card class="resumen-card">
-          <ion-card-header>
-            <ion-card-title>
-              <ion-icon name="trending-up-outline"></ion-icon>
-              Ventas del Día
-            </ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <!-- Sección: Efectivo de Caja -->
-            <div class="seccion-titulo">
-              <strong>Caja Física — Tienda</strong>
-            </div>
-            <div class="venta-item">
-              <div class="venta-header">
-                <ion-icon name="cash-outline" class="venta-icon efectivo"></ion-icon>
-                <span class="venta-nombre">Efectivo Caja Tienda</span>
-              </div>
-              <div class="venta-detalle">
-                <span class="venta-monto">{{ efectivoRecaudado | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-              </div>
-            </div>
-
-            <!-- Desglose del efectivo -->
-            @if (!haySinEfectivo) {
-              <div class="desglose-efectivo">
-                <div class="desglose-item">
-                  <span class="desglose-label">
-                    Fondo Fijo (caja física)
-                    @if (hayDeficitTotal) {
-                      <span class="deficit-badge">parcial</span>
-                    }
-                  </span>
-                  <span class="desglose-valor resta">-{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                </div>
-                <div class="desglose-item">
-                  <span class="desglose-label">
-                    Varios
-                    @if (transferenciaCajaChicaYaHecha) {
-                      <span class="ya-hecha-badge">✅ ya recibió hoy</span>
-                    } @else if (hayDeficitCajaChica) {
-                      <span class="deficit-badge">déficit -{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                    }
-                  </span>
-                  <span class="desglose-valor resta" [class.deficit]="hayDeficitCajaChica" [class.ya-hecha]="transferenciaCajaChicaYaHecha">
-                    @if (transferenciaEfectivaCajaChica > 0) {
-                      -{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}
-                    } @else {
-                      $0.00
-                    }
-                  </span>
-                </div>
-                <div class="desglose-item resultado">
-                  <span class="desglose-label">
-                    <ion-icon name="checkmark-outline" class="desglose-icon"></ion-icon>
-                    A Tienda
-                  </span>
-                  <span class="desglose-valor destacado">{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                </div>
-              </div>
-            }
-            @if (haySinEfectivo) {
-              <div class="desglose-efectivo">
-                <div class="desglose-item">
-                  <span class="desglose-label">
-                    Varios
-                    @if (transferenciaCajaChicaYaHecha) {
-                      <span class="ya-hecha-badge">✅ ya recibió hoy</span>
-                    } @else {
-                      <span class="deficit-badge">déficit -{{ transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                    }
-                  </span>
-                  <span class="desglose-valor resta deficit">$0.00</span>
-                </div>
-                <div class="desglose-item resultado">
-                  <span class="desglose-label">
-                    <ion-icon name="checkmark-outline" class="desglose-icon"></ion-icon>
-                    A Tienda
-                  </span>
-                  <span class="desglose-valor destacado">$0.00</span>
-                </div>
-              </div>
-            }
-
-            
-            <!-- Sección: Recargas -->
-            <div class="seccion-titulo">
-              <strong>Ventas de Recargas</strong>
-            </div>
-            <div class="venta-item">
-              <div class="venta-header">
-                <ion-icon name="phone-portrait-outline" class="venta-icon celular"></ion-icon>
-                <span class="venta-nombre">Celular</span>
-              </div>
-              <div class="venta-detalle">
-                <span class="venta-monto">{{ ventaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-              </div>
-            </div>
-
-            <div class="venta-item">
-              <div class="venta-header">
-                <ion-icon name="bus-outline" class="venta-icon bus"></ion-icon>
-                <span class="venta-nombre">Bus</span>
-              </div>
-              <div class="venta-detalle">
-                <span class="venta-monto">{{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-              </div>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Verificación de Cajas -->
-        <ion-card class="verificacion-card">
-          <ion-card-header>
-            <ion-card-title>
-              <ion-icon name="calculator-outline"></ion-icon>
-              Verificación de Cajas
-            </ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <div class="caja-verificacion">
-              <div class="caja-nombre">
-                <ion-icon name="cash-outline" class="caja-icon caja"></ion-icon>
-                <strong>TIENDA</strong>
-              </div>
-              <div class="caja-calculo">
-                <span class="saldo">{{ saldoAnteriorCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                <span class="operador">+</span>
-                <span class="operacion">{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                <span class="operador">=</span>
-                <span class="resultado">{{ saldoFinalCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-              </div>
-            </div>
-
-            <div class="caja-verificacion" [class.con-deficit]="hayDeficitCajaChica" [class.ya-hecha]="transferenciaCajaChicaYaHecha">
-              <div class="caja-nombre">
-                <ion-icon name="wallet-outline" class="caja-icon caja-chica"></ion-icon>
-                <strong>VARIOS</strong>
-                @if (transferenciaCajaChicaYaHecha) {
-                  <span class="ya-hecha-badge">✅ ya recibió hoy</span>
-                } @else if (hayDeficitCajaChica) {
-                  <span class="deficit-badge">-{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }} pendiente</span>
-                }
-              </div>
-              <div class="caja-calculo">
-                <span class="saldo">{{ saldoAnteriorCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                <span class="operador">+</span>
-                <span class="operacion">{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                <span class="operador">=</span>
-                <span class="resultado">{{ saldoFinalCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-              </div>
-            </div>
-
-            <div class="caja-verificacion">
-              <div class="caja-nombre">
-                <ion-icon name="phone-portrait-outline" class="caja-icon celular"></ion-icon>
-                <strong>CELULAR</strong>
-              </div>
-              <div class="caja-calculo">
-                <span class="saldo">{{ saldoAnteriorCajaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                <span class="operador">+</span>
-                <span class="operacion">{{ ventaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                <span class="operador">=</span>
-                <span class="resultado">{{ saldoFinalCajaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-              </div>
-            </div>
-
-            <!-- Explicación de depósito anticipado de Bus (v4.7.1) -->
-            @if (tieneDepositoAnticipadoBus) {
-              <div class="alerta-simple info" style="margin-top: 16px;">
-                <ion-icon name="information-circle-outline" color="primary"></ion-icon>
-                <div>
-                  <p><strong>Bus: Depósito anticipado</strong></p>
-                  <p>La caja Bus está negativa porque se depositó efectivo antes del cierre:</p>
-                  <ul>
-                    <li><strong>Compras del día:</strong> {{ agregadoBusHoy | currency:'USD':'symbol-narrow':'1.2-2' }}</li>
-                    <li><strong>Ventas del día:</strong> {{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</li>
-                    <li><strong>Diferencia depositada:</strong> {{ diferenciaDepositoBus | currency:'USD':'symbol-narrow':'1.2-2' }}</li>
-                  </ul>
-                  <p>
-                    Este cierre registrará las ventas (<strong>+{{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</strong>)
-                    y la caja quedará en <strong>{{ saldoFinalCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> ✓
-                  </p>
-                </div>
-              </div>
-            }
-
-            <div class="caja-verificacion">
-              <div class="caja-nombre">
-                <ion-icon name="bus-outline" class="caja-icon bus"></ion-icon>
-                <strong>BUS</strong>
-              </div>
-              <div class="caja-calculo">
-                <span class="saldo">{{ saldoAnteriorCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                <span class="operador">+</span>
-                <span class="operacion">{{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-                <span class="operador">=</span>
-                <span class="resultado">{{ saldoFinalCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
-              </div>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Acciones físicas — CASO SIN EFECTIVO ($0) -->
-        @if (haySinEfectivo) {
-          <div class="alerta-simple danger">
-            <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
-            <div>
-              <p><strong>🚨 Turno sin efectivo recaudado</strong></p>
-              <ul>
-                <li>No hay efectivo para distribuir este turno</li>
-                @if (transferenciaCajaChicaYaHecha) {
-                  <li>✅ <strong>Varios ya recibió sus ${{ transferenciaDiariaCajaChica | number:'1.2-2' }} hoy</strong> — no separar nada para Varios</li>
-                } @else {
-                  <li>Varios <strong>no recibe nada</strong> este turno (faltaron {{ transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }})</li>
-                }
-                <li>Tienda <strong>no recibe nada</strong> este turno</li>
-                <li>Anotá el motivo en el campo <strong>Observaciones</strong></li>
-              </ul>
-              @if (transferenciaCajaChicaYaHecha) {
-                <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo.</p>
-              } @else {
-                <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo y reponer <strong>{{ transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios.</p>
-              }
-            </div>
-          </div>
-        }
-
-        <!-- Acciones físicas — CASO NORMAL (1er turno del día: transfiere a Varios) -->
-        @if (!haySinEfectivo && !hayDeficitCajaChica && !transferenciaCajaChicaYaHecha) {
-          <div class="alerta-simple info">
-            <ion-icon name="information-circle-outline" color="primary"></ion-icon>
-            <div>
-              <p><strong>Acciones físicas a realizar:</strong></p>
-              <ul>
-                <li>Coloca <strong>{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de VARIOS</li>
-                @if (dineroADepositar > 0) {
-                  <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de TIENDA</li>
-                }
-                <li>Deja <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física como fondo para mañana</li>
-              </ul>
-            </div>
-          </div>
-        }
-
-        <!-- Acciones físicas — 2DO TURNO DEL DÍA (Varios ya recibió su transferencia) -->
-        @if (!haySinEfectivo && !hayDeficitCajaChica && !hayDeficitTotal && transferenciaCajaChicaYaHecha) {
-          <div class="alerta-simple info">
-            <ion-icon name="information-circle-outline" color="primary"></ion-icon>
-            <div>
-              <p><strong>Acciones físicas a realizar:</strong></p>
-              <ul>
-                <li>✅ <strong>Varios ya recibió sus ${{ transferenciaDiariaCajaChica | number:'1.2-2' }} hoy</strong> — no separar nada para Varios</li>
-                @if (dineroADepositar > 0) {
-                  <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de TIENDA</li>
-                }
-                <li>Deja <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física como fondo para mañana</li>
-              </ul>
-            </div>
-          </div>
-        }
-
-        <!-- Acciones físicas — DÉFICIT PARCIAL (hay fondo completo pero no alcanza para Varios) -->
-        @if (!haySinEfectivo && hayDeficitCajaChica && !hayDeficitTotal) {
-          <div class="alerta-simple warning">
-            <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
-            <div>
-              <p><strong>⚠️ Efectivo insuficiente para Varios</strong></p>
-              <ul>
-                <li>Varios <strong>no recibe nada</strong> este turno (faltaron {{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }})</li>
-                @if (dineroADepositar > 0) {
-                  <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de TIENDA</li>
-                }
-                <li>Deja <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física como fondo para mañana</li>
-              </ul>
-              <p class="deficit-nota">El siguiente turno deberá reponer <strong>{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios desde Tienda.</p>
-            </div>
-          </div>
-        }
-
-        <!-- Acciones físicas — DÉFICIT TOTAL (ni el fondo alcanza) -->
-        @if (hayDeficitTotal) {
-          <div class="alerta-simple danger">
-            <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
-            <div>
-              <p><strong>🚨 Efectivo insuficiente — Fondo incompleto</strong></p>
-              <ul>
-                @if (!transferenciaCajaChicaYaHecha) {
-                  <li>Varios <strong>no recibe nada</strong> este turno</li>
-                } @else {
-                  <li>✅ <strong>Varios ya recibió sus ${{ transferenciaDiariaCajaChica | number:'1.2-2' }} hoy</strong></li>
-                }
-                <li>Tienda <strong>no recibe nada</strong> este turno</li>
-                <li>Deja los <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> disponibles en la caja física</li>
-              </ul>
-              @if (!transferenciaCajaChicaYaHecha) {
-                @if (fondoFaltante > 0) {
-                  <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFaltante | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo y reponer <strong>{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios.</p>
-                } @else {
-                  <p class="deficit-nota">El siguiente turno deberá reponer <strong>{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios desde Tienda.</p>
-                }
-              } @else {
-                @if (fondoFaltante > 0) {
-                  <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFaltante | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo.</p>
-                }
-              }
-            </div>
-          </div>
-        }
-
+        <!-- Desglose del efectivo -->
         @if (!haySinEfectivo) {
-          <div class="alerta-simple warning">
-            <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
-            <p>Verifica el efectivo físico antes de confirmar el cierre.</p>
+        <div class="desglose-efectivo">
+          <div class="desglose-item">
+            <span class="desglose-label">
+              Fondo Fijo (caja física)
+              @if (hayDeficitTotal) {
+              <span class="deficit-badge">parcial</span>
+              }
+            </span>
+            <span class="desglose-valor resta">-{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
           </div>
+          <div class="desglose-item">
+            <span class="desglose-label">
+              Varios
+              @if (transferenciaCajaChicaYaHecha) {
+              <span class="ya-hecha-badge">✅ ya recibió hoy</span>
+              } @else if (hayDeficitCajaChica) {
+              <span class="deficit-badge">déficit -{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2'
+                }}</span>
+              }
+            </span>
+            <span class="desglose-valor resta" [class.deficit]="hayDeficitCajaChica"
+              [class.ya-hecha]="transferenciaCajaChicaYaHecha">
+              @if (transferenciaEfectivaCajaChica > 0) {
+              -{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}
+              } @else {
+              $0.00
+              }
+            </span>
+          </div>
+          <div class="desglose-item resultado">
+            <span class="desglose-label">
+              <ion-icon name="checkmark-outline" class="desglose-icon"></ion-icon>
+              A Tienda
+            </span>
+            <span class="desglose-valor destacado">{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2'
+              }}</span>
+          </div>
+        </div>
+        }
+        @if (haySinEfectivo) {
+        <div class="desglose-efectivo">
+          <div class="desglose-item">
+            <span class="desglose-label">
+              Varios
+              @if (transferenciaCajaChicaYaHecha) {
+              <span class="ya-hecha-badge">✅ ya recibió hoy</span>
+              } @else {
+              <span class="deficit-badge">déficit -{{ transferenciaDiariaCajaChica |
+                currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+              }
+            </span>
+            <span class="desglose-valor resta deficit">$0.00</span>
+          </div>
+          <div class="desglose-item resultado">
+            <span class="desglose-label">
+              <ion-icon name="checkmark-outline" class="desglose-icon"></ion-icon>
+              A Tienda
+            </span>
+            <span class="desglose-valor destacado">$0.00</span>
+          </div>
+        </div>
         }
 
-        <!-- Observaciones -->
-        <ion-card class="observaciones-card" [formGroup]="cierreForm">
-          <ion-card-header>
-            <ion-card-title>Observaciones (Opcional)</ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <ion-item class="observaciones-item" lines="none">
-              <ion-textarea
-                formControlName="observaciones"
-                placeholder="Agrega notas sobre el cierre del día..."
-                rows="3"
-                maxlength="500">
-              </ion-textarea>
-            </ion-item>
-          </ion-card-content>
-        </ion-card>
 
-        <div class="paso-actions">
-          <ion-button expand="block" fill="outline" (click)="pasoAnterior()">
-            <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
-            Atrás
-          </ion-button>
-          <ion-button expand="block" color="success" (click)="confirmarCierre()">
-            <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
-            Confirmar Cierre
-          </ion-button>
+        <!-- Sección: Recargas -->
+        <div class="seccion-titulo">
+          <strong>Ventas de Recargas</strong>
         </div>
+        <div class="venta-item">
+          <div class="venta-header">
+            <ion-icon name="phone-portrait-outline" class="venta-icon celular"></ion-icon>
+            <span class="venta-nombre">Celular</span>
+          </div>
+          <div class="venta-detalle">
+            <span class="venta-monto">{{ ventaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <div class="venta-item">
+          <div class="venta-header">
+            <ion-icon name="bus-outline" class="venta-icon bus"></ion-icon>
+            <span class="venta-nombre">Bus</span>
+          </div>
+          <div class="venta-detalle">
+            <span class="venta-monto">{{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+          </div>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Verificación de Cajas -->
+    <ion-card class="verificacion-card">
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="calculator-outline"></ion-icon>
+          Verificación de Cajas
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <div class="caja-verificacion">
+          <div class="caja-nombre">
+            <ion-icon name="cash-outline" class="caja-icon caja"></ion-icon>
+            <strong>TIENDA</strong>
+          </div>
+          <div class="caja-calculo">
+            <span class="saldo">{{ saldoAnteriorCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            <span class="operador">+</span>
+            <span class="operacion">{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            <span class="operador">=</span>
+            <span class="resultado">{{ saldoFinalCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <div class="caja-verificacion" [class.con-deficit]="hayDeficitCajaChica"
+          [class.ya-hecha]="transferenciaCajaChicaYaHecha">
+          <div class="caja-nombre">
+            <ion-icon name="wallet-outline" class="caja-icon caja-chica"></ion-icon>
+            <strong>VARIOS</strong>
+            @if (transferenciaCajaChicaYaHecha) {
+            <span class="ya-hecha-badge">✅ ya recibió hoy</span>
+            } @else if (hayDeficitCajaChica) {
+            <span class="deficit-badge">-{{ deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}
+              pendiente</span>
+            }
+          </div>
+          <div class="caja-calculo">
+            <span class="saldo">{{ saldoAnteriorCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            <span class="operador">+</span>
+            <span class="operacion">{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            <span class="operador">=</span>
+            <span class="resultado">{{ saldoFinalCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <div class="caja-verificacion">
+          <div class="caja-nombre">
+            <ion-icon name="phone-portrait-outline" class="caja-icon celular"></ion-icon>
+            <strong>CELULAR</strong>
+          </div>
+          <div class="caja-calculo">
+            <span class="saldo">{{ saldoAnteriorCajaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            <span class="operador">+</span>
+            <span class="operacion">{{ ventaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            <span class="operador">=</span>
+            <span class="resultado">{{ saldoFinalCajaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <!-- Explicación de depósito anticipado de Bus (v4.7.1) -->
+        @if (tieneDepositoAnticipadoBus) {
+        <div class="alerta-simple info" style="margin-top: 16px;">
+          <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+          <div>
+            <p><strong>Bus: Depósito anticipado</strong></p>
+            <p>La caja Bus está negativa porque se depositó efectivo antes del cierre:</p>
+            <ul>
+              <li><strong>Compras del día:</strong> {{ agregadoBusHoy | currency:'USD':'symbol-narrow':'1.2-2' }}</li>
+              <li><strong>Ventas del día:</strong> {{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</li>
+              <li><strong>Diferencia depositada:</strong> {{ diferenciaDepositoBus |
+                currency:'USD':'symbol-narrow':'1.2-2' }}</li>
+            </ul>
+            <p>
+              Este cierre registrará las ventas (<strong>+{{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2'
+                }}</strong>)
+              y la caja quedará en <strong>{{ saldoFinalCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> ✓
+            </p>
+          </div>
+        </div>
+        }
+
+        <div class="caja-verificacion">
+          <div class="caja-nombre">
+            <ion-icon name="bus-outline" class="caja-icon bus"></ion-icon>
+            <strong>BUS</strong>
+          </div>
+          <div class="caja-calculo">
+            <span class="saldo">{{ saldoAnteriorCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            <span class="operador">+</span>
+            <span class="operacion">{{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            <span class="operador">=</span>
+            <span class="resultado">{{ saldoFinalCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+          </div>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Acciones físicas — CASO SIN EFECTIVO ($0) -->
+    @if (haySinEfectivo) {
+    <div class="alerta-simple danger">
+      <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+      <div>
+        <p><strong>🚨 Turno sin efectivo recaudado</strong></p>
+        <ul>
+          <li>No hay efectivo para distribuir este turno</li>
+          @if (transferenciaCajaChicaYaHecha) {
+          <li>✅ <strong>Varios ya recibió sus ${{ transferenciaDiariaCajaChica | number:'1.2-2' }} hoy</strong> — no
+            separar nada para Varios</li>
+          } @else {
+          <li>Varios <strong>no recibe nada</strong> este turno (faltaron {{ transferenciaDiariaCajaChica |
+            currency:'USD':'symbol-narrow':'1.2-2' }})</li>
+          }
+          <li>Tienda <strong>no recibe nada</strong> este turno</li>
+          <li>Anotá el motivo en el campo <strong>Observaciones</strong></li>
+        </ul>
+        @if (transferenciaCajaChicaYaHecha) {
+        <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFijo |
+            currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo.</p>
+        } @else {
+        <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFijo |
+            currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo y reponer <strong>{{
+            transferenciaDiariaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios.</p>
+        }
       </div>
+    </div>
     }
+
+    <!-- Acciones físicas — CASO NORMAL (1er turno del día: transfiere a Varios) -->
+    @if (!haySinEfectivo && !hayDeficitCajaChica && !transferenciaCajaChicaYaHecha) {
+    <div class="alerta-simple info">
+      <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+      <div>
+        <p><strong>Acciones físicas a realizar:</strong></p>
+        <ul>
+          <li>Coloca <strong>{{ transferenciaEfectivaCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en
+            la funda de VARIOS</li>
+          @if (dineroADepositar > 0) {
+          <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de
+            TIENDA</li>
+          }
+          <li>Deja <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física
+            como fondo para mañana</li>
+        </ul>
+      </div>
+    </div>
+    }
+
+    <!-- Acciones físicas — 2DO TURNO DEL DÍA (Varios ya recibió su transferencia) -->
+    @if (!haySinEfectivo && !hayDeficitCajaChica && !hayDeficitTotal && transferenciaCajaChicaYaHecha) {
+    <div class="alerta-simple info">
+      <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+      <div>
+        <p><strong>Acciones físicas a realizar:</strong></p>
+        <ul>
+          <li>✅ <strong>Varios ya recibió sus ${{ transferenciaDiariaCajaChica | number:'1.2-2' }} hoy</strong> — no
+            separar nada para Varios</li>
+          @if (dineroADepositar > 0) {
+          <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de
+            TIENDA</li>
+          }
+          <li>Deja <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física
+            como fondo para mañana</li>
+        </ul>
+      </div>
+    </div>
+    }
+
+    <!-- Acciones físicas — DÉFICIT PARCIAL (hay fondo completo pero no alcanza para Varios) -->
+    @if (!haySinEfectivo && hayDeficitCajaChica && !hayDeficitTotal) {
+    <div class="alerta-simple warning">
+      <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
+      <div>
+        <p><strong>⚠️ Efectivo insuficiente para Varios</strong></p>
+        <ul>
+          <li>Varios <strong>no recibe nada</strong> este turno (faltaron {{ deficitCajaChica |
+            currency:'USD':'symbol-narrow':'1.2-2' }})</li>
+          @if (dineroADepositar > 0) {
+          <li>Coloca <strong>{{ dineroADepositar | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la funda de
+            TIENDA</li>
+          }
+          <li>Deja <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> en la caja física
+            como fondo para mañana</li>
+        </ul>
+        <p class="deficit-nota">El siguiente turno deberá reponer <strong>{{ deficitCajaChica |
+            currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios desde Tienda.</p>
+      </div>
+    </div>
+    }
+
+    <!-- Acciones físicas — DÉFICIT TOTAL (ni el fondo alcanza) -->
+    @if (hayDeficitTotal) {
+    <div class="alerta-simple danger">
+      <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+      <div>
+        <p><strong>🚨 Efectivo insuficiente — Fondo incompleto</strong></p>
+        <ul>
+          @if (!transferenciaCajaChicaYaHecha) {
+          <li>Varios <strong>no recibe nada</strong> este turno</li>
+          } @else {
+          <li>✅ <strong>Varios ya recibió sus ${{ transferenciaDiariaCajaChica | number:'1.2-2' }} hoy</strong></li>
+          }
+          <li>Tienda <strong>no recibe nada</strong> este turno</li>
+          <li>Deja los <strong>{{ fondoEnCajaFisica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> disponibles en
+            la caja física</li>
+        </ul>
+        @if (!transferenciaCajaChicaYaHecha) {
+        @if (fondoFaltante > 0) {
+        <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFaltante |
+            currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo y reponer <strong>{{
+            deficitCajaChica | currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios.</p>
+        } @else {
+        <p class="deficit-nota">El siguiente turno deberá reponer <strong>{{ deficitCajaChica |
+            currency:'USD':'symbol-narrow':'1.2-2' }}</strong> a Varios desde Tienda.</p>
+        }
+        } @else {
+        @if (fondoFaltante > 0) {
+        <p class="deficit-nota">El siguiente turno deberá tomar <strong>{{ fondoFaltante |
+            currency:'USD':'symbol-narrow':'1.2-2' }}</strong> de Tienda para completar el fondo.</p>
+        }
+        }
+      </div>
+    </div>
+    }
+
+    @if (!haySinEfectivo) {
+    <div class="alerta-simple warning">
+      <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
+      <p>Verifica el efectivo físico antes de confirmar el cierre.</p>
+    </div>
+    }
+
+    <!-- Observaciones -->
+    <ion-card class="observaciones-card" [formGroup]="cierreForm">
+      <ion-card-header>
+        <ion-card-title>Observaciones (Opcional)</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-item class="observaciones-item" lines="none">
+          <ion-textarea formControlName="observaciones" placeholder="Agrega notas sobre el cierre del día..." rows="3"
+            maxlength="500">
+          </ion-textarea>
+        </ion-item>
+      </ion-card-content>
+    </ion-card>
+
+    <div class="paso-actions">
+      <ion-button expand="block" fill="outline" (click)="pasoAnterior()">
+        <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
+        Atrás
+      </ion-button>
+      <ion-button expand="block" color="success" (click)="confirmarCierre()">
+        <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+        Confirmar Cierre
+      </ion-button>
+    </div>
+  </div>
+  }
   </div>
 </ion-content>

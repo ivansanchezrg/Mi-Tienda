@@ -396,6 +396,38 @@ A diferencia de versiones anteriores, Ionic 8 con `dark.system.css` **no genera*
 
 ---
 
+## ⏳ Patrones de Carga (Loading UX)
+
+Para mantener una experiencia fluida y moderna, la aplicación diferencia drásticamente entre consultas de Solo Lectura (Queries) y Escrituras/Mutaciones (Mutations).
+
+### 1. Consultas de Lectura (GET) -> 💀 Skeleton Screens
+Cuando el usuario abre una página o recarga datos (Pull to Refresh), **NUNCA debe bloquearse la pantalla con un spinner estático**. 
+En su lugar, la UI debe cargar de inmediato y utilizar `<ion-skeleton-text animated>` para simular la estructura del contenido mientras los datos llegan en segundo plano.
+
+**Regla de Oro:** Para consultas, puedes usar `supabase.call()` de forma normal, ya que el loading ahora viene desactivado por defecto en la aplicación.
+
+```typescript
+// ✅ CORRECTO: El loading global está desactivado por defecto para Skeletons locales
+const cajas = await this.supabase.call<Caja[]>(
+  this.supabase.client.from('cajas').select('*')
+);
+```
+
+### 2. Escrituras y Mutaciones (POST/PUT/DELETE) -> 🔄 Spinner Bloqueante
+Cuando el usuario envía un formulario, abre caja, o transfiere dinero, **SÍ debe bloquearse la pantalla**. 
+Debes activar explícitamente el loading global pasando `{ showLoading: true }` a `supabase.call()` (Loaders en modo Opt-In). Esto previene dobles clicks accidentales y problemas de concurrencia.
+
+```typescript
+// ✅ CORRECTO: Obligatorio activar showLoading para proteger transacciones y evitar doble click
+await this.supabase.call(
+  this.supabase.client.from('turnos_caja').insert(nuevoTurno),
+  undefined,
+  { showLoading: true }
+); 
+```
+
+---
+
 ## Componentes Ionic
 
 ### ✅ Componentes Recomendados

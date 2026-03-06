@@ -213,17 +213,23 @@ export class CajasService {
   }): Promise<void> {
     const { codigoOrigen, codigoDestino, monto, empleadoId, descripcion } = params;
 
-    const { data, error } = await this.supabase.client.rpc('crear_transferencia', {
-      p_codigo_origen:  codigoOrigen,
-      p_codigo_destino: codigoDestino,
-      p_monto:          monto,
-      p_empleado_id:    empleadoId,
-      p_descripcion:    descripcion
-    });
+    const response = await this.supabase.call(
+      this.supabase.client.rpc('crear_transferencia', {
+        p_codigo_origen: codigoOrigen,
+        p_codigo_destino: codigoDestino,
+        p_monto: monto,
+        p_empleado_id: empleadoId,
+        p_descripcion: descripcion
+      }),
+      undefined,
+      { showLoading: true }
+    );
 
-    if (error) {
-      throw new Error(error.message || 'Error de conexión al crear transferencia');
+    if (response === null) {
+      throw new Error('Error de conexión al crear transferencia');
     }
+
+    const data = response as any;
 
     if (!data?.success) {
       throw new Error(data?.error || 'Error desconocido al crear transferencia');

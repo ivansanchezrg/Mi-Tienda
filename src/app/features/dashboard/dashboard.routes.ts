@@ -21,10 +21,6 @@ export const DASHBOARD_ROUTES: Routes = [
     loadComponent: () => import('../gastos-diarios/pages/gastos-diarios/gastos-diarios.page').then(m => m.GastosDiariosPage)
   },
   {
-    path: 'historial-recargas',
-    loadComponent: () => import('./pages/historial-recargas/historial-recargas.page').then(m => m.HistorialRecargasPage)
-  },
-  {
     path: 'recargas-virtuales',
     loadComponent: () => import('../recargas-virtuales/pages/recargas-virtuales/recargas-virtuales.page').then(m => m.RecargasVirtualesPage)
   },

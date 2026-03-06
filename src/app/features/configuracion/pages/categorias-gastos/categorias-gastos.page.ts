@@ -5,7 +5,7 @@ import {
   IonButtons, IonBackButton, IonIcon, IonSpinner,
   IonRefresher, IonRefresherContent,
   IonFab, IonFabButton,
-  ModalController
+  ModalController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { addOutline, chevronForwardOutline } from 'ionicons/icons';
@@ -22,15 +22,15 @@ import { UiService } from '@core/services/ui.service';
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonBackButton, IonIcon, IonSpinner,
+    IonButtons, IonBackButton, IonIcon, IonSkeletonText,
     IonRefresher, IonRefresherContent,
     IonFab, IonFabButton
   ]
 })
 export class CategoriasGastosPage implements OnInit {
-  private service   = inject(CategoriasGastosService);
+  private service = inject(CategoriasGastosService);
   private modalCtrl = inject(ModalController);
-  private ui        = inject(UiService);
+  private ui = inject(UiService);
 
   categorias: CategoriaGasto[] = [];
   loading = false;

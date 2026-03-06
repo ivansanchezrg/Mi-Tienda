@@ -3,9 +3,10 @@ import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCard, IonSpinner, IonChip,
+  IonContent, IonIcon, IonCard, IonChip,
   IonInfiniteScroll, IonInfiniteScrollContent,
-  ModalController, ActionSheetController
+  IonRefresher, IonRefresherContent,
+  ModalController, ActionSheetController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -39,8 +40,9 @@ interface OperacionAgrupada {
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonCard, IonSpinner, IonChip,
-    IonInfiniteScroll, IonInfiniteScrollContent
+    IonContent, IonIcon, IonCard, IonChip,
+    IonInfiniteScroll, IonInfiniteScrollContent, IonSkeletonText,
+    IonRefresher, IonRefresherContent
   ]
 })
 export class OperacionesCajaPage implements OnInit, OnDestroy {
@@ -123,15 +125,19 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     this.networkSub?.unsubscribe();
   }
 
-  async cargarOperaciones(reset = false) {
+  async cargarOperaciones(reset = false, isRefresh = false) {
     if (reset) {
       this.page = 0;
-      this.operaciones = [];
-      this.totalIngresos = 0;
-      this.totalEgresos = 0;
+      if (!isRefresh) {
+        this.operaciones = [];
+        this.totalIngresos = 0;
+        this.totalEgresos = 0;
+      }
     }
 
-    this.loading = true;
+    if (!isRefresh) {
+      this.loading = true;
+    }
 
     try {
       // Carga saldo y operaciones en paralelo con un único spinner local
@@ -303,6 +309,11 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  async handleRefresh(event: CustomEvent) {
+    await this.cargarOperaciones(true, true);
+    (event.target as HTMLIonRefresherElement).complete();
   }
 
   onScroll(event: any) {

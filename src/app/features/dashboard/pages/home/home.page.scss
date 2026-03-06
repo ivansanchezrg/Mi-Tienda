@@ -15,6 +15,7 @@ ion-toolbar {
   --background: var(--bg-soft);
   --border-width: 0;
   padding: 0 8px;
+
   ion-title {
     font-weight: 700;
     letter-spacing: -0.5px;
@@ -60,16 +61,32 @@ ion-toolbar {
 // Hero Section (Balance Total)
 .hero-section {
   padding: 20px;
+
   .summary-card {
-    background: var(--ion-item-background, #fff); // Adaptativo
+    background: var(--ion-item-background, var(--ion-color-step-50, #fff)); // Adaptativo mejorado
     padding: 30px 20px;
     border-radius: var(--radius-lg);
     text-align: center;
     box-shadow: var(--shadow-soft);
-    
-    .label { font-size: 13px; color: var(--ion-color-medium); text-transform: uppercase; letter-spacing: 1px; }
-    .amount { font-size: 38px; font-weight: 800; margin: 8px 0; color: var(--ion-text-color); }
-    .sub-label { font-size: 12px; color: var(--ion-color-step-400); }
+
+    .label {
+      font-size: 13px;
+      color: var(--ion-color-medium);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .amount {
+      font-size: 38px;
+      font-weight: 800;
+      margin: 8px 0;
+      color: var(--ion-text-color);
+    }
+
+    .sub-label {
+      font-size: 12px;
+      color: var(--ion-color-step-400);
+    }
   }
 }
 
@@ -78,44 +95,80 @@ ion-toolbar {
   display: flex;
   justify-content: center;
   margin-top: 10px;
-  
+
   .flat-chip {
     display: flex;
     align-items: center;
     padding: 6px 16px;
-    background: var(--ion-item-background, #fff);
+    background: var(--ion-item-background, var(--ion-color-step-50, #fff));
     border-radius: 100px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.03);
-    
-    .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-    &.TURNO_EN_CURSO .dot { background: var(--ion-color-success); }
-    &.CERRADA .dot { background: var(--ion-color-medium); }
-    &.SIN_ABRIR .dot { background: var(--ion-color-medium); }
-    
-    .label { font-size: 12px; font-weight: 600; }
-    .time { font-size: 12px; color: var(--ion-color-medium); margin-left: 4px; }
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+
+    &.TURNO_EN_CURSO .dot {
+      background: var(--ion-color-success);
+    }
+
+    &.CERRADA .dot {
+      background: var(--ion-color-medium);
+    }
+
+    &.SIN_ABRIR .dot {
+      background: var(--ion-color-medium);
+    }
+
+    .label {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .time {
+      font-size: 12px;
+      color: var(--ion-color-medium);
+      margin-left: 4px;
+    }
   }
 }
 
 // Modern List Items
 .section-title {
   padding: 0 24px;
-  h2 { font-size: 20px; font-weight: 700; }
-  .section-subtitle { font-size: 12px; color: var(--ion-color-medium); }
+
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .section-subtitle {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+  }
 }
 
 .modern-list {
   padding: 10px 20px;
+
   .flat-item {
-    background: var(--ion-item-background, #fff);
+    background: var(--ion-item-background, var(--ion-color-step-50, #fff));
     margin-bottom: 12px;
-    padding: 16px;
+    padding: var(--spacing-lg);
     border-radius: var(--radius-md);
     display: flex;
     align-items: flex-start;
     transition: transform 0.2s;
+    position: relative;
+    overflow: hidden;
 
-    &:active { transform: scale(0.98); }
+    &:active {
+      transform: scale(0.98);
+    }
 
     .icon-wrapper {
       width: 48px;
@@ -127,20 +180,45 @@ ion-toolbar {
       font-size: 24px;
       margin-right: 16px;
       align-self: center;
-      
+
       // Colores con transparencia para respetar el modo oscuro
-      &.primary { background: rgba(var(--ion-color-primary-rgb), 0.12); color: var(--ion-color-primary); }
-      &.tertiary { background: rgba(var(--ion-color-tertiary-rgb), 0.12); color: var(--ion-color-tertiary); }
-      &.secondary { background: rgba(var(--ion-color-secondary-rgb), 0.12); color: var(--ion-color-secondary); }
-      
+      &.primary {
+        background: rgba(var(--ion-color-primary-rgb), 0.12);
+        color: var(--ion-color-primary);
+      }
+
+      &.tertiary {
+        background: rgba(var(--ion-color-tertiary-rgb), 0.12);
+        color: var(--ion-color-tertiary);
+      }
+
+      &.secondary {
+        background: rgba(var(--ion-color-secondary-rgb), 0.12);
+        color: var(--ion-color-secondary);
+      }
+
       // ESTILO PARA EL BUS (Agregado)
-      &.warning { background: rgba(var(--ion-color-warning-rgb), 0.12); color: var(--ion-color-warning); }
+      &.warning {
+        background: rgba(var(--ion-color-warning-rgb), 0.12);
+        color: var(--ion-color-warning);
+      }
     }
 
     .content {
       flex: 1;
-      .title { display: block; font-size: 15px; font-weight: 600; color: var(--ion-text-color); }
-      .subtitle { display: block; font-size: 12px; color: var(--ion-color-medium); }
+
+      .title {
+        display: block;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--ion-text-color);
+      }
+
+      .subtitle {
+        display: block;
+        font-size: 12px;
+        color: var(--ion-color-medium);
+      }
     }
 
     .amount-group {
@@ -148,8 +226,16 @@ ion-toolbar {
       align-items: center;
       align-self: center;
       gap: 8px;
-      .value { font-weight: 700; font-size: 16px; color: var(--ion-text-color); }
-      ion-icon { color: var(--ion-color-step-300); }
+
+      .value {
+        font-weight: 700;
+        font-size: 16px;
+        color: var(--ion-text-color);
+      }
+
+      ion-icon {
+        color: var(--ion-color-step-300);
+      }
 
       .amount-col {
         display: flex;
@@ -157,10 +243,16 @@ ion-toolbar {
         align-items: flex-end;
         gap: 2px;
       }
-      .virtual-amount {
+
+      .virtual-badge {
         font-size: 11px;
+        background: var(--ion-color-step-100, #f4f5f8);
         color: var(--ion-color-medium);
-        font-weight: 500;
+        padding: 2px 6px;
+        border-radius: var(--radius-xs);
+        font-weight: 600;
+        margin-top: 2px;
+        display: inline-block;
       }
     }
   }
@@ -174,16 +266,29 @@ ion-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--ion-item-background, #fff);
+  background: var(--ion-item-background, var(--ion-color-step-50, #fff));
   border: 1px solid var(--ion-color-step-100);
 
-  h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ion-text-color); }
-  p { margin: 2px 0 0; font-size: 12px; color: var(--ion-color-medium); }
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ion-text-color);
+  }
+
+  p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--ion-color-medium);
+  }
 
   .btn-action {
     --border-radius: 12px;
     font-weight: 600;
     margin: 0;
-    &.danger { --color: var(--ion-color-danger); }
+
+    &.danger {
+      --color: var(--ion-color-danger);
+    }
   }
 }

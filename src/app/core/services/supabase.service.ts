@@ -49,7 +49,7 @@ export class SupabaseService {
    * MÉTODO MAESTRO: Maneja Loading, Error y Data
    * @param promise La promesa de la query de Supabase
    * @param successMessage (Opcional) Mensaje para mostrar Toast si sale bien
-   * @param options.showLoading (Opcional) Si mostrar spinner de carga, default: true
+   * @param options.showLoading (Opcional) Si mostrar spinner de carga, default: false
    */
   async call<T>(
     promise: PromiseLike<any>,
@@ -57,7 +57,7 @@ export class SupabaseService {
     options?: { showLoading?: boolean }
   ): Promise<T | null> { // Retorna null si hay error
 
-    const showLoading = options?.showLoading !== false;
+    const showLoading = options?.showLoading === true;
     if (showLoading) await this.ui.showLoading();
 
     try {

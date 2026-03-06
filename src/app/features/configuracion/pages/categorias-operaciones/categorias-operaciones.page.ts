@@ -6,7 +6,7 @@ import {
   IonRefresher, IonRefresherContent,
   IonFab, IonFabButton,
   IonSegment, IonSegmentButton,
-  ModalController
+  ModalController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { addOutline, lockClosedOutline, chevronForwardOutline } from 'ionicons/icons';
@@ -23,18 +23,18 @@ import { UiService } from '@core/services/ui.service';
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonBackButton, IonIcon, IonSpinner, IonLabel,
+    IonButtons, IonBackButton, IonIcon, IonSkeletonText, IonLabel,
     IonRefresher, IonRefresherContent,
     IonFab, IonFabButton,
     IonSegment, IonSegmentButton
   ]
 })
 export class CategoriasOperacionesPage implements OnInit {
-  private service   = inject(CategoriasOperacionesService);
+  private service = inject(CategoriasOperacionesService);
   private modalCtrl = inject(ModalController);
-  private ui        = inject(UiService);
+  private ui = inject(UiService);
 
-  categorias:     CategoriaOperacion[] = [];
+  categorias: CategoriaOperacion[] = [];
   segmentoActual: 'EGRESO' | 'INGRESO' = 'EGRESO';
   loading = false;
 
