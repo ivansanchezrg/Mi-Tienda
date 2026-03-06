@@ -12,6 +12,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ==========================================
 -- LIMPIEZA (orden: más dependiente → menos)
 -- ==========================================
+DROP TABLE IF EXISTS ventas_detalles CASCADE;
+DROP TABLE IF EXISTS kardex_inventario CASCADE;
+DROP TABLE IF EXISTS ventas CASCADE;
+DROP TABLE IF EXISTS productos CASCADE;
+DROP TABLE IF EXISTS categorias_productos CASCADE;
+DROP TABLE IF EXISTS clientes CASCADE;
 DROP TABLE IF EXISTS operaciones_cajas CASCADE;
 DROP TABLE IF EXISTS caja_fisica_diaria CASCADE;
 DROP TABLE IF EXISTS gastos_diarios CASCADE;
@@ -26,6 +32,7 @@ DROP TABLE IF EXISTS cajas CASCADE;
 DROP TABLE IF EXISTS configuraciones CASCADE;
 DROP TABLE IF EXISTS tipos_servicio CASCADE;
 DROP TABLE IF EXISTS empleados CASCADE;
+DROP TYPE IF EXISTS tipo_comprobante_enum CASCADE;
 DROP TYPE IF EXISTS tipo_operacion_caja_enum CASCADE;
 DROP TYPE IF EXISTS rol_usuario_enum CASCADE;
 
@@ -39,6 +46,10 @@ CREATE TYPE tipo_operacion_caja_enum AS ENUM (
 
 CREATE TYPE rol_usuario_enum AS ENUM (
     'ADMIN', 'EMPLEADO'
+);
+
+CREATE TYPE tipo_comprobante_enum AS ENUM (
+    'TICKET', 'NOTA_VENTA', 'FACTURA'
 );
 
 -- ==========================================
@@ -225,6 +236,95 @@ CREATE TABLE IF NOT EXISTS recargas_virtuales (
 );
 
 -- ==========================================
+-- MÓDULO POS E INVENTARIO (v5.0)
+-- ==========================================
+
+-- 14. categorias_productos
+CREATE TABLE IF NOT EXISTS categorias_productos (
+    id          SERIAL PRIMARY KEY,
+    nombre      VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    activo      BOOLEAN DEFAULT TRUE,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 15. productos
+CREATE TABLE IF NOT EXISTS productos (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    categoria_id    INTEGER REFERENCES categorias_productos(id),
+    codigo_barras   VARCHAR(50) UNIQUE,
+    nombre          VARCHAR(150) NOT NULL,
+    descripcion     TEXT,
+    precio_costo    DECIMAL(12,2) NOT NULL DEFAULT 0,
+    precio_venta    DECIMAL(12,2) NOT NULL,
+    stock_actual    DECIMAL(12,2) DEFAULT 0,
+    stock_minimo    INTEGER DEFAULT 5,
+    tiene_iva       BOOLEAN DEFAULT FALSE,
+    activo          BOOLEAN DEFAULT TRUE,
+    imagen_url      TEXT,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 16. clientes (Consumidor Final y otros)
+CREATE TABLE IF NOT EXISTS clientes (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    identificacion  VARCHAR(20) UNIQUE,
+    nombre          VARCHAR(255) NOT NULL,
+    telefono        VARCHAR(20),
+    email           VARCHAR(100),
+    es_consumidor_final BOOLEAN DEFAULT FALSE,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 17. ventas (Cabecera Maestra)
+CREATE TABLE IF NOT EXISTS ventas (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    turno_id        UUID NOT NULL REFERENCES turnos_caja(id),
+    cliente_id      UUID REFERENCES clientes(id),
+    empleado_id     INTEGER NOT NULL REFERENCES empleados(id),
+    fecha           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    subtotal        DECIMAL(12,2) NOT NULL,
+    descuento       DECIMAL(12,2) DEFAULT 0,
+    total           DECIMAL(12,2) NOT NULL,
+    metodo_pago     VARCHAR(20) DEFAULT 'EFECTIVO' CHECK (metodo_pago IN ('EFECTIVO', 'DEUNA', 'TRANSFERENCIA', 'FIADO')),
+    
+    base_iva_0      DECIMAL(12,2) DEFAULT 0,
+    base_iva_15     DECIMAL(12,2) DEFAULT 0,
+    iva_valor       DECIMAL(12,2) DEFAULT 0,
+    tipo_comprobante tipo_comprobante_enum DEFAULT 'TICKET',
+    secuencial_sri   VARCHAR(17),
+    clave_acceso_sri VARCHAR(49),
+    estado_sri       VARCHAR(20) CHECK (estado_sri IN ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO', 'NO_ENVIADO')) DEFAULT 'NO_ENVIADO',
+    
+    estado          VARCHAR(20) DEFAULT 'COMPLETADA' CHECK (estado IN ('COMPLETADA', 'ANULADA')),
+    observaciones   TEXT
+);
+
+-- 18. ventas_detalles (El Recibo Físico)
+CREATE TABLE IF NOT EXISTS ventas_detalles (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    venta_id        UUID NOT NULL REFERENCES ventas(id) ON DELETE CASCADE,
+    producto_id     UUID NOT NULL REFERENCES productos(id),
+    cantidad        DECIMAL(12,2) NOT NULL,
+    precio_unitario DECIMAL(12,2) NOT NULL,
+    subtotal        DECIMAL(12,2) NOT NULL
+);
+
+-- 19. kardex_inventario (Auditoría Anti-Fraude Bodega)
+CREATE TABLE IF NOT EXISTS kardex_inventario (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    producto_id     UUID NOT NULL REFERENCES productos(id),
+    fecha           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    tipo_movimiento VARCHAR(20) CHECK (tipo_movimiento IN ('VENTA', 'COMPRA', 'AJUSTE_POSITIVO', 'AJUSTE_NEGATIVO', 'ANULACION_VENTA')),
+    cantidad        DECIMAL(12,2) NOT NULL,
+    stock_anterior  DECIMAL(12,2) NOT NULL,
+    stock_nuevo     DECIMAL(12,2) NOT NULL,
+    referencia_id   UUID,
+    observaciones   TEXT
+);
+
+-- ==========================================
 -- ÍNDICES
 -- ==========================================
 CREATE INDEX idx_recargas_fecha                ON recargas(fecha);
@@ -244,9 +344,15 @@ CREATE INDEX idx_operaciones_cajas_categoria   ON operaciones_cajas(categoria_id
 CREATE INDEX idx_recargas_virtuales_fecha      ON recargas_virtuales(fecha);
 CREATE INDEX idx_recargas_virtuales_servicio   ON recargas_virtuales(tipo_servicio_id);
 CREATE INDEX idx_recargas_virtuales_pagado     ON recargas_virtuales(pagado);
+CREATE INDEX idx_productos_codigo_barras       ON productos(codigo_barras);
+CREATE INDEX idx_ventas_fecha                  ON ventas(fecha);
+CREATE INDEX idx_ventas_turno_id               ON ventas(turno_id);
+CREATE INDEX idx_ventas_cliente_id             ON ventas(cliente_id);
+CREATE INDEX idx_ventas_detalles_venta_id      ON ventas_detalles(venta_id);
+CREATE INDEX idx_kardex_inventario_producto_id ON kardex_inventario(producto_id);
 
 -- ==========================================
--- TRIGGERS — AUTO-GENERACIÓN DE CÓDIGOS
+-- TRIGGERS — AUTO-GENERACIÓN DE CÓDIGOS Y POS
 -- ==========================================
 -- Van aquí (después de CREATE TABLE, antes de INSERT) porque el DROP TABLE
 -- CASCADE del inicio borra los triggers existentes junto con la tabla.
@@ -313,6 +419,69 @@ CREATE TRIGGER trg_set_codigo_categoria_operacion
   FOR EACH ROW
   EXECUTE FUNCTION fn_set_codigo_categoria_operacion();
 
+-- ── TRIGGERS POS E INVENTARIO ──
+
+-- A. Descontar Stock y grabar Kardex al vender
+CREATE OR REPLACE FUNCTION fn_actualizar_stock_venta()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_stock_actual DECIMAL(12,2);
+BEGIN
+    SELECT stock_actual INTO v_stock_actual FROM productos WHERE id = NEW.producto_id;
+    
+    UPDATE productos 
+    SET stock_actual = stock_actual - NEW.cantidad
+    WHERE id = NEW.producto_id;
+    
+    INSERT INTO kardex_inventario (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_nuevo, referencia_id, observaciones)
+    VALUES (NEW.producto_id, 'VENTA', NEW.cantidad, v_stock_actual, v_stock_actual - NEW.cantidad, NEW.venta_id, 'Descuento automático por Venta POS');
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_descontar_stock_venta
+    AFTER INSERT ON ventas_detalles
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_actualizar_stock_venta();
+
+-- B. Actualizar Saldo Físico de CAJA Principal (Ingrego Automático del Efectivo)
+CREATE OR REPLACE FUNCTION fn_actualizar_saldo_caja_venta()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_caja_id INTEGER;
+    v_categoria_id INTEGER;
+    v_tipo_referencia_id INTEGER;
+    v_saldo_actual_caja DECIMAL(12,2);
+BEGIN
+    IF NEW.metodo_pago = 'EFECTIVO' AND NEW.estado = 'COMPLETADA' THEN
+        SELECT id INTO v_caja_id FROM cajas WHERE codigo = 'CAJA';
+        SELECT id INTO v_categoria_id FROM categorias_operaciones WHERE tipo = 'INGRESO' AND nombre ILIKE '%Ventas%' LIMIT 1;
+        SELECT id INTO v_tipo_referencia_id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1;
+
+        IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN
+            SELECT saldo_actual INTO v_saldo_actual_caja FROM cajas WHERE id = v_caja_id;
+            
+            INSERT INTO operaciones_cajas (
+                caja_id, empleado_id, tipo_operacion, monto, saldo_anterior, saldo_actual, categoria_id, tipo_referencia_id, referencia_id, descripcion
+            ) VALUES (
+                v_caja_id, NEW.empleado_id, 'INGRESO', NEW.total, v_saldo_actual_caja, v_saldo_actual_caja + NEW.total, v_categoria_id, v_tipo_referencia_id, NEW.id, 'Venta POS Efectivo'
+            );
+            
+            UPDATE cajas
+            SET saldo_actual = saldo_actual + NEW.total
+            WHERE id = v_caja_id;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_actualizar_caja_por_venta
+    AFTER INSERT ON ventas
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_actualizar_saldo_caja_venta();
+
 -- ==========================================
 -- DATOS INICIALES
 -- ==========================================
@@ -331,7 +500,21 @@ INSERT INTO tipos_referencia (tabla, descripcion) VALUES
 ('recargas',           'Operaciones originadas desde recargas diarias'),
 ('caja_fisica_diaria', 'Operaciones originadas desde el cierre físico diario'),
 ('turnos_caja',        'Registro de turnos de apertura/cierre'),
-('recargas_virtuales', 'Pagos al proveedor celular y compras de saldo bus');
+('recargas_virtuales', 'Pagos al proveedor celular y compras de saldo bus'),
+('ventas',             'Operaciones originadas desde ventas POS');
+
+-- Agregar Consumidor Final Básico
+INSERT INTO clientes (identificacion, nombre, es_consumidor_final) 
+VALUES ('9999999999999', 'CONSUMIDOR FINAL', TRUE);
+
+-- Categorías de Productos Iniciales (Semilla)
+INSERT INTO categorias_productos (nombre, descripcion) VALUES
+('Bebidas',         'Gaseosas, jugos, aguas, cervezas, etc.'),
+('Snacks',          'Papas procesadas, nachos, doritos, galletas, etc.'),
+('Abarrotes',       'Arroz, azúcar, fideos, aceites, enlatados, etc.'),
+('Lácteos',         'Leche, yogur, quesos, mantequilla, etc.'),
+('Limpieza',        'Cloro, desinfectante, jabones de lavar, etc.'),
+('Aseo Personal',   'Shampoo, jabón de baño, papel higiénico, pasta dental, etc.');
 
 -- codigo se omite: el trigger fn_set_codigo_categoria_gasto() lo genera automáticamente (GS-001, GS-002...)
 INSERT INTO categorias_gastos (nombre, descripcion) VALUES
@@ -371,22 +554,34 @@ INSERT INTO empleados (nombre, usuario, rol) VALUES
 ('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN');
 
 -- ==========================================
+-- DATOS DE PRUEBA ADICIONALES
+-- ==========================================
+
+-- Insertar 3 productos de prueba (Asumiendo IDs 1 a 6 que se generan secuencialmente arriba)
+-- 1 = Bebidas, 2 = Snacks, 4 = Lácteos
+INSERT INTO productos (categoria_id, codigo_barras, nombre, descripcion, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva) VALUES
+(1, '786123456001', 'Coca-Cola 1L', 'Bebida azucarada', 0.80, 1.25, 24, 5, TRUE),
+(2, '786123456002', 'Ruffles Natural 50g', 'Papas fritas', 0.35, 0.50, 50, 10, TRUE),
+(4, '786123456003', 'Yogur Toni Fresa 200ml', 'Yogur bebible', 0.40, 0.60, 15, 5, FALSE);
+
+-- ==========================================
 -- RESUMEN
 -- ==========================================
--- ✅ 13 Tablas | 1 Enum | 17 Índices
+-- ✅ 19 Tablas | 2 Enums | 22 Índices
 -- ✅ 2 Tipos de servicio (BUS, CELULAR)
--- ✅ 4 Tipos de referencia
+-- ✅ 5 Tipos de referencia
 -- ✅ 16 Categorías de operaciones (12 egresos + 4 ingresos)
 -- ✅ 7 Categorías de gastos
 -- ✅ 4 Cajas inicializadas en $0.00
 -- ✅ Configuración: fondo=$20 | caja_chica=$20 | alerta_bus=$75 | dias_fact=3
 -- ✅ Admin inicial: Ivan Sanchez
+-- ✅ 3 Productos de prueba
 --
 -- ⚠️  FUNCIONES POSTGRESQL (archivos separados, no van en este schema):
---   • ejecutar_cierre_diario           → docs/dashboard/sql/functions/
---   • registrar_operacion_manual       → docs/dashboard/sql/functions/
---   • reparar_deficit_turno            → docs/dashboard/sql/functions/
---   • registrar_compra_saldo_bus       → docs/recargas-virtuales/sql/functions/
---   • registrar_recarga_proveedor_*    → docs/recargas-virtuales/sql/functions/
---   • registrar_pago_proveedor_celular → docs/recargas-virtuales/sql/functions/
+--   • fn_ejecutar_cierre_diario           → docs/dashboard/sql/functions/
+--   • fn_registrar_operacion_manual       → docs/dashboard/sql/functions/
+--   • fn_reparar_deficit_turno            → docs/dashboard/sql/functions/
+--   • fn_registrar_compra_saldo_bus       → docs/recargas-virtuales/sql/functions/
+--   • fn_registrar_recarga_proveedor_*    → docs/recargas-virtuales/sql/functions/
+--   • fn_registrar_pago_proveedor_celular → docs/recargas-virtuales/sql/functions/
 -- ==========================================

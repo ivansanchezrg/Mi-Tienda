@@ -1,0 +1,132 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Punto de Venta</ion-title>
+    <ion-buttons slot="end">
+      <!-- Botón para escanear con cámara -->
+      <ion-button color="primary" fill="clear" (click)="abrirEscanerCamara()">
+        <ion-icon slot="icon-only" name="barcode-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+
+  <ion-toolbar class="search-toolbar">
+    <div style="position: relative;">
+      <ion-searchbar [(ngModel)]="buscarTexto" (ionInput)="buscarProducto($event)"
+        placeholder="Escanear EAN o buscar por nombre..." animated="true" mode="ios" [debounce]="450">
+      </ion-searchbar>
+      <!-- Spinner de búsqueda -->
+      @if (buscando) {
+      <ion-spinner name="crescent" class="search-spinner" color="medium"></ion-spinner>
+      }
+    </div>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content color="light">
+
+  <!-- LISTA FLOTANTE DE SUGERENCIAS (fuera del header, dentro del content) -->
+  @if (productosBusqueda.length > 0) {
+  <div class="search-results-wrapper p-xs">
+    <ion-list class="search-results-list" lines="full">
+      @for (prod of productosBusqueda; track prod.id) {
+      <ion-item button (click)="seleccionarProductoBusqueda(prod)">
+        <ion-icon name="cube-outline" slot="start" color="primary"></ion-icon>
+        <ion-label>
+          <h2>{{ prod.nombre }}</h2>
+          <p>Stock: {{ prod.stock_actual }} · ${{ currencyService.format(prod.precio_venta) }}</p>
+        </ion-label>
+        <ion-icon name="add-circle-outline" slot="end" color="primary"></ion-icon>
+      </ion-item>
+      }
+    </ion-list>
+  </div>
+  }
+
+  <div class="p-md">
+
+    @if (carrito.length === 0) {
+    <!-- Estado vacío del carrito -->
+    <div class="empty-state text-center p-xl mt-xl">
+      <ion-icon name="cart-outline" color="medium" style="font-size: 72px;"></ion-icon>
+      <h2 class="text-secondary mt-md">Carrito Vacío</h2>
+      <p class="text-muted">Busca un producto o escanea su código de barras para comenzar.</p>
+    </div>
+    } @else {
+    <!-- Lista del Carrito -->
+    <ion-list class="cart-list" lines="none">
+      @for (item of carrito; track item.id) {
+      <ion-item-sliding class="cart-sliding">
+
+        <ion-item class="cart-item" lines="none">
+
+          <!-- Ícono decorativo -->
+          <div slot="start" class="item-icon-box">
+            <ion-icon name="cube-outline"></ion-icon>
+          </div>
+
+          <!-- Nombre y precio unitario -->
+          <div class="item-main">
+            <p class="product-name">{{ item.nombre }}</p>
+            <div class="price-row">
+              <span class="unit-price">${{ currencyService.format(item.precio_venta) }} c/u</span>
+              @if (item.stock_actual <= item.cantidad) { <ion-badge color="warning" class="stock-badge">
+                ¡Último!</ion-badge>
+                }
+            </div>
+          </div>
+
+          <!-- Total + Stepper -->
+          <div slot="end" class="item-actions">
+            <span class="total-price">${{ currencyService.format(item.subtotal) }}</span>
+
+            <div class="stepper-wrapper">
+              <button class="stepper-btn" (click)="decrementar(item)" [disabled]="item.cantidad <= 1">
+                <ion-icon name="remove-outline"></ion-icon>
+              </button>
+              <span class="stepper-val">{{ item.cantidad }}</span>
+              <button class="stepper-btn" (click)="incrementar(item)">
+                <ion-icon name="add-outline"></ion-icon>
+              </button>
+            </div>
+          </div>
+
+        </ion-item>
+
+        <!-- Swipe to delete -->
+        <ion-item-options side="end">
+          <ion-item-option color="danger" (click)="eliminar(item)" class="delete-option">
+            <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+          </ion-item-option>
+        </ion-item-options>
+
+      </ion-item-sliding>
+      }
+    </ion-list>
+    }
+
+  </div>
+</ion-content>
+
+<!-- Footer Fijo de Cobro -->
+<ion-footer class="ion-no-border">
+  <div class="pos-footer p-md">
+    <div class="totals-row mb-md">
+      <div class="items-count text-muted">
+        {{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}
+      </div>
+      <div class="total-label">
+        <span class="text-muted text-sm">Total a pagar</span>
+        <span class="total-amount">${{ currencyService.format(totalPagar) }}</span>
+      </div>
+    </div>
+
+    <ion-button expand="block" shape="round" color="primary" class="btn-charge" (click)="cobrar()"
+      [disabled]="carrito.length === 0">
+      <ion-icon name="cash-outline" slot="start"></ion-icon>
+      Cobrar · ${{ currencyService.format(totalPagar) }}
+    </ion-button>
+  </div>
+</ion-footer>

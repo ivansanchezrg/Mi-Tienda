@@ -29,8 +29,8 @@ El sistema maneja 4 cajas. Esta página puede mostrar el historial de cualquiera
 ### Fuente de datos
 
 `operaciones_cajas` contiene **dos tipos de registros**:
-- **Automáticos** — creados por `ejecutar_cierre_diario` (INGRESO/EGRESO del cierre, TRANSFERENCIA\_ENTRANTE a Varios, etc.) con `categoria_id = NULL`
-- **Manuales** — creados por `registrar_operacion_manual` vía el modal de ingreso/egreso
+- **Automáticos** — creados por `fn_ejecutar_cierre_diario` (INGRESO/EGRESO del cierre, TRANSFERENCIA\_ENTRANTE a Varios, etc.) con `categoria_id = NULL`
+- **Manuales** — creados por `fn_registrar_operacion_manual` vía el modal de ingreso/egreso
 
 ---
 
@@ -51,7 +51,7 @@ Página muestra:
 Usuario toca "⋮" (menú) — solo visible si la caja permite operaciones manuales
   └─ mostrarMenuOperaciones() → ActionSheet: Ingreso / Egreso
        └─ abrirModalOperacion(tipo) → OperacionModalComponent
-            └─ ejecutarOperacion() → registrarOperacion() → rpc('registrar_operacion_manual')
+            └─ ejecutarOperacion() → registrarOperacion() → rpc('fn_registrar_operacion_manual')
                  └─ cargarSaldoCaja() + cargarOperaciones(reset)
 ```
 
@@ -117,11 +117,11 @@ Cada grupo tiene: `fecha`, `operaciones[]`, `totalIngresos`, `totalEgresos`.
 
 ---
 
-## Función SQL: `registrar_operacion_manual`
+## Función SQL: `fn_registrar_operacion_manual`
 
-> 📄 Código fuente completo: [`docs/sql/functions/registrar_operacion_manual.sql`](./sql/functions/registrar_operacion_manual.sql)
+> 📄 Código fuente completo: [`docs/sql/functions/fn_registrar_operacion_manual.sql`](./sql/functions/fn_registrar_operacion_manual.sql)
 
-Llamada vía `supabase.rpc('registrar_operacion_manual', params)`. Transacción atómica — si falla cualquier paso, rollback completo.
+Llamada vía `supabase.rpc('fn_registrar_operacion_manual', params)`. Transacción atómica — si falla cualquier paso, rollback completo.
 
 **Parámetros:**
 ```
@@ -144,7 +144,7 @@ p_comprobante_url  → PATH en Storage (no URL firmada), nullable
 5. `INSERT INTO operaciones_cajas`
 6. Retorna JSON `{ success, operacion_id, saldo_anterior, saldo_nuevo }`
 
-> **Caso especial:** Si la caja tiene déficit del turno anterior (`saldo_actual = 0` pero hay deuda), usar `reparar_deficit_turno` en lugar de un EGRESO normal — esta función bloquea si `saldo_nuevo < 0`.
+> **Caso especial:** Si la caja tiene déficit del turno anterior (`saldo_actual = 0` pero hay deuda), usar `fn_reparar_deficit_turno` en lugar de un EGRESO normal — esta función bloquea si `saldo_nuevo < 0`.
 
 ---
 

@@ -1,20 +1,112 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
     <ion-title>Inventario</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="abrirModalCrear()" color="primary" fill="clear">
+        <ion-icon slot="start" name="add-outline"></ion-icon>
+        Nuevo
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+
+  <ion-toolbar>
+    <ion-searchbar [(ngModel)]="buscarTexto" (ionInput)="aplicarFiltro()" placeholder="Buscar por nombre o EAN..."
+      animated="true" mode="ios" [debounce]="500"></ion-searchbar>
+  </ion-toolbar>
+
+  <ion-toolbar class="categories-toolbar">
+    <div class="filter-tabs scrollable-tabs">
+      <div class="filter-tab" [class.active]="!categoriaSeleccionada"
+        (click)="categoriaSeleccionada = undefined; aplicarFiltro()">
+        Todos
+      </div>
+      @for (cat of categorias; track cat.id) {
+      <div class="filter-tab" [class.active]="categoriaSeleccionada === cat.id"
+        (click)="categoriaSeleccionada = cat.id; aplicarFiltro()">
+        {{ cat.nombre }}
+      </div>
+      }
+    </div>
   </ion-toolbar>
 </ion-header>
 
-<ion-content>
-  <app-under-construction
-    title="Inventario"
-    icon="cube-outline"
-    description="Aquí podrás gestionar el inventario de productos."
-    [features]="[
-      { label: 'Control de stock' },
-      { label: 'Registro de productos' }
-    ]">
-  </app-under-construction>
+<ion-content color="light">
+  <ion-refresher slot="fixed" (ionRefresh)="cargarDatos($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="p-md">
+    @if (cargando) {
+    <div class="products-grid">
+      @for (i of [1,2,3,4,5,6]; track i) {
+      <ion-card class="product-card skeleton-card flat-item">
+        <ion-skeleton-text animated
+          style="height: 120px; width: 100%; border-radius: var(--radius-lg) var(--radius-lg) 0 0;"></ion-skeleton-text>
+        <ion-card-content>
+          <ion-skeleton-text animated style="width: 80%; height: 20px; margin-bottom: 8px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 50%; height: 16px; margin-bottom: 12px;"></ion-skeleton-text>
+          <div class="card-footer">
+            <ion-skeleton-text animated style="width: 40%; height: 24px;"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 30%; height: 16px;"></ion-skeleton-text>
+          </div>
+        </ion-card-content>
+      </ion-card>
+      }
+    </div>
+    } @else {
+    @if (productos.length === 0) {
+    <div class="empty-state text-center p-xl mt-xl">
+      <ion-icon name="cube-outline" color="medium" style="font-size: 64px;"></ion-icon>
+      <h2 class="text-secondary mt-md">No hay productos</h2>
+      <p class="text-muted">Añade tu primer producto al inventario usando el botón superior.</p>
+    </div>
+    } @else {
+    <div class="products-grid">
+      @for (prod of productos; track prod.id) {
+      <ion-card class="product-card flat-item" (click)="abrirModalEditar(prod)">
+
+        <div class="product-image-container">
+          @if (prod.imagen_url) {
+          <img [src]="prod.imagen_url" [alt]="prod.nombre" class="real-image" />
+          } @else {
+          <div class="placeholder-image">
+            <ion-icon name="barcode-outline"></ion-icon>
+          </div>
+          }
+
+          @if (prod.stock_actual <= prod.stock_minimo) { <div class="stock-badge danger shadow-1">
+            <ion-icon name="alert-circle-outline"></ion-icon>
+            {{ prod.stock_actual }} left
+        </div>
+        } @else {
+        <div class="stock-badge success shadow-1">
+          {{ prod.stock_actual }}
+        </div>
+        }
+    </div>
+
+    <ion-card-content>
+      <h3 class="product-name truncate-2">{{ prod.nombre }}</h3>
+      <p class="product-category text-muted">
+        {{ prod.categoria?.nombre || 'Sin categoría' }}
+      </p>
+
+      <div class="card-footer mt-md">
+        <div class="price text-primary">
+          ${{ currencyService.format(prod.precio_venta) }}
+        </div>
+        <div class="cost-price text-muted text-sm">
+          Costo: ${{ currencyService.format(prod.precio_costo) }}
+        </div>
+      </div>
+    </ion-card-content>
+    </ion-card>
+    }
+  </div>
+  }
+  }
+  </div>
 </ion-content>

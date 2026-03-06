@@ -1,0 +1,75 @@
+<ion-header class="ion-no-border">
+    <ion-toolbar>
+        <ion-title>
+            <div class="kardex-title">
+                Kárdex de Inventario
+                <span class="product-name text-muted">{{ productoNombre }}</span>
+            </div>
+        </ion-title>
+        <ion-buttons slot="end">
+            <ion-button (click)="cerrar()">
+                <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+            </ion-button>
+        </ion-buttons>
+    </ion-toolbar>
+</ion-header>
+
+<ion-content color="light">
+    <div class="p-md">
+
+        @if (cargando) {
+        <div class="p-xl text-center">
+            <ion-spinner name="crescent"></ion-spinner>
+            <p class="mt-md text-muted">Cargando auditoría de inventario...</p>
+        </div>
+        } @else {
+        @if (kardex.length === 0) {
+        <div class="empty-state text-center p-xl mt-xl">
+            <ion-icon name="document-text-outline" color="medium" style="font-size: 64px;"></ion-icon>
+            <h2 class="text-secondary mt-md">Sin Movimientos</h2>
+            <p class="text-muted">Este producto no registra actividad en su Kárdex todavía.</p>
+        </div>
+        } @else {
+        <div class="timeline p-sm">
+            @for (mov of kardex; track mov.id) {
+            <ion-card class="timeline-item shadow-1 m-0 mb-md">
+                <div class="timeline-icon" [ngClass]="getColorMovimiento(mov.tipo_movimiento)">
+                    <ion-icon [name]="getIconoMovimiento(mov.tipo_movimiento)"></ion-icon>
+                </div>
+
+                <ion-card-content class="p-md">
+                    <div class="timeline-header">
+                        <h4 class="m-0 text-bold">{{ mov.tipo_movimiento | titlecase }}</h4>
+                        <span class="text-xs text-muted">
+                            <ion-icon name="time-outline" class="align-middle"></ion-icon>
+                            {{ formatDate(mov.fecha) }}
+                        </span>
+                    </div>
+
+                    <div class="timeline-body mt-sm">
+                        <div class="stock-change text-lg text-bold"
+                            [ngClass]="'text-' + getColorMovimiento(mov.tipo_movimiento)">
+                            {{ (mov.tipo_movimiento === 'VENTA' || mov.tipo_movimiento === 'AJUSTE_NEGATIVO') ? '-' :
+                            '+' }}{{ mov.cantidad }}
+                        </div>
+
+                        <div class="stock-details text-sm">
+                            <span class="text-muted">Anterior: </span>{{ mov.stock_anterior }}
+                            <ion-icon name="arrow-forward-outline" class="mx-xs"></ion-icon>
+                            <span class="text-bold">Quedan: {{ mov.stock_nuevo }}</span>
+                        </div>
+                    </div>
+
+                    @if (mov.observaciones) {
+                    <div class="timeline-footer mt-xs text-xs text-medium">
+                        "{{ mov.observaciones }}"
+                    </div>
+                    }
+                </ion-card-content>
+            </ion-card>
+            }
+        </div>
+        }
+        }
+    </div>
+</ion-content>
