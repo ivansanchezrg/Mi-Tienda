@@ -10,28 +10,28 @@
 
   <!-- Overlay oscuro del FAB (solo visible cuando tabs están activos) -->
   @if (showTabs && fabAbierto) {
-    <div class="fab-overlay" (click)="toggleFab()"></div>
+  <div class="fab-overlay" (click)="toggleFab()"></div>
   }
 
   <!-- Opciones del FAB (solo visible cuando tabs están activos) -->
   @if (showTabs && fabAbierto) {
-    <div class="fab-options">
-      <!-- Cuadre -->
-      <div class="fab-option" (click)="irACuadre()">
-        <div class="fab-option-icon tertiary">
-          <ion-icon [icon]="clipboardIcon"></ion-icon>
-        </div>
-        <span class="fab-option-label">Cuadre</span>
+  <div class="fab-options">
+    <!-- Cuadre -->
+    <div class="fab-option" (click)="irACuadre()">
+      <div class="fab-option-icon tertiary">
+        <ion-icon [icon]="clipboardIcon"></ion-icon>
       </div>
-
-      <!-- Gasto -->
-      <div class="fab-option" (click)="irAGasto()">
-        <div class="fab-option-icon warning">
-          <ion-icon [icon]="receiptIcon"></ion-icon>
-        </div>
-        <span class="fab-option-label">Gastos</span>
-      </div>
+      <span class="fab-option-label">Cuadre</span>
     </div>
+
+    <!-- Gasto -->
+    <div class="fab-option" (click)="irAGasto()">
+      <div class="fab-option-icon warning">
+        <ion-icon [icon]="receiptIcon"></ion-icon>
+      </div>
+      <span class="fab-option-label">Gastos</span>
+    </div>
+  </div>
   }
 
   <!--
@@ -45,9 +45,9 @@
       <ion-label>Inicio</ion-label>
     </ion-tab-button>
 
-    <ion-tab-button tab="ventas">
-      <ion-icon [icon]="ventasIcon"></ion-icon>
-      <ion-label>Ventas</ion-label>
+    <ion-tab-button tab="pos">
+      <ion-icon [icon]="posIcon"></ion-icon>
+      <ion-label>Vender</ion-label>
     </ion-tab-button>
 
     <!-- FAB integrado como tab -->

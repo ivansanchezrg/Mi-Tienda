@@ -1,0 +1,136 @@
+<ion-header class="ion-no-border">
+    <ion-toolbar>
+        <ion-title>{{ modo === 'CREAR' ? 'Nuevo Producto' : 'Editar Producto' }}</ion-title>
+        <ion-buttons slot="end">
+            <ion-button (click)="cerrar()">
+                <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+            </ion-button>
+        </ion-buttons>
+    </ion-toolbar>
+</ion-header>
+
+<ion-content color="light">
+    <form [formGroup]="productoForm" class="p-lg form-container" (ngSubmit)="guardar()">
+
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+                <h3 class="section-title">Información Principal</h3>
+
+                <!-- Código de Barras -->
+                <div class="input-group mb-md">
+                    <ion-item class="custom-input flat-item" lines="none"
+                        [class.ion-invalid]="esCampoInvalido('codigo_barras')">
+                        <ion-icon name="barcode-outline" slot="start" color="medium"></ion-icon>
+                        <ion-input formControlName="codigo_barras" label="EAN / Código de Barras"
+                            labelPlacement="floating" type="text"
+                            placeholder="Escanea o digita el código..."></ion-input>
+                    </ion-item>
+                </div>
+
+                <!-- Nombre -->
+                <div class="input-group mb-md">
+                    <ion-item class="custom-input flat-item" lines="none"
+                        [class.ion-invalid]="esCampoInvalido('nombre')">
+                        <ion-input formControlName="nombre" label="Nombre del Producto *" labelPlacement="floating"
+                            type="text" placeholder="Ej. Funda Grande"></ion-input>
+                    </ion-item>
+                    @if (esCampoInvalido('nombre')) {
+                    <span class="error-text">El nombre es requerido (mín. 3 letras)</span>
+                    }
+                </div>
+
+                <!-- Categoría -->
+                <div class="input-group">
+                    <ion-item class="custom-input flat-item" lines="none">
+                        <ion-select formControlName="categoria_id" label="Categoría" labelPlacement="floating"
+                            interface="action-sheet" placeholder="Seleccione Categoría">
+                            @for (cat of categorias; track cat.id) {
+                            <ion-select-option [value]="cat.id">{{ cat.nombre }}</ion-select-option>
+                            }
+                        </ion-select>
+                    </ion-item>
+                </div>
+            </ion-card-content>
+        </ion-card>
+
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+                <h3 class="section-title">Precios e Impuestos</h3>
+
+                <div class="grid-2-cols">
+                    <!-- Costo -->
+                    <div class="input-group">
+                        <ion-item class="custom-input flat-item" lines="none"
+                            [class.ion-invalid]="esCampoInvalido('precio_costo')">
+                            <ion-input appNumbersOnly appCurrencyInput formControlName="precio_costo"
+                                label="Costo ($) *" labelPlacement="floating" type="text" inputmode="decimal"
+                                placeholder="0.00"></ion-input>
+                        </ion-item>
+                    </div>
+
+                    <!-- Venta -->
+                    <div class="input-group">
+                        <ion-item class="custom-input flat-item" lines="none"
+                            [class.ion-invalid]="esCampoInvalido('precio_venta')">
+                            <ion-input appNumbersOnly appCurrencyInput formControlName="precio_venta"
+                                label="Precio Venta ($) *" labelPlacement="floating" type="text" inputmode="decimal"
+                                placeholder="0.00"></ion-input>
+                        </ion-item>
+                    </div>
+                </div>
+
+                <div class="mt-md">
+                    <ion-item class="custom-input flat-item" lines="none">
+                        <ion-toggle formControlName="tiene_iva" color="primary">Genera IVA (Impuesto)</ion-toggle>
+                    </ion-item>
+                </div>
+            </ion-card-content>
+        </ion-card>
+
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--ion-color-step-100); padding-bottom: var(--spacing-xs); margin-bottom: var(--spacing-md);">
+                    <h3 class="section-title" style="border: none; margin: 0; padding: 0;">Inventario</h3>
+                    @if (modo === 'EDITAR') {
+                    <ion-button fill="clear" size="small" (click)="abrirKardex()">
+                        <ion-icon slot="start" name="document-text-outline"></ion-icon>
+                        Auditar Kárdex
+                    </ion-button>
+                    }
+                </div>
+
+                <div class="grid-2-cols">
+                    <!-- Stock Actual -->
+                    <div class="input-group">
+                        <ion-item class="custom-input flat-item" lines="none"
+                            [class.ion-invalid]="esCampoInvalido('stock_actual')">
+                            <ion-input appNumbersOnly formControlName="stock_actual" label="Stock Bodega *"
+                                labelPlacement="floating" type="text" inputmode="numeric"
+                                [readonly]="modo === 'EDITAR'"></ion-input>
+                        </ion-item>
+                        @if (modo === 'EDITAR') {
+                        <p class="help-text">El stock solo se ajusta en Ventas o Kárdex</p>
+                        }
+                    </div>
+
+                    <!-- Mínimo -->
+                    <div class="input-group">
+                        <ion-item class="custom-input flat-item" lines="none">
+                            <ion-input appNumbersOnly formControlName="stock_minimo" label="Aviso Mínimo *"
+                                labelPlacement="floating" type="text" inputmode="numeric"></ion-input>
+                        </ion-item>
+                    </div>
+                </div>
+            </ion-card-content>
+        </ion-card>
+
+        <div class="p-md">
+            <ion-button expand="block" type="submit" class="main-button rounded-sm" [disabled]="productoForm.invalid">
+                <ion-icon slot="start" name="save-outline"></ion-icon>
+                Guardar Producto
+            </ion-button>
+        </div>
+    </form>
+</ion-content>

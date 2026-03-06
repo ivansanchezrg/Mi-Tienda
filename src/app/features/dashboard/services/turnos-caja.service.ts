@@ -82,7 +82,8 @@ export class TurnosCajaService {
 
     const numeroTurno = (count ?? 0) + 1;
 
-    // Insertar turno
+    // Insertar turno (.select().single() necesario: INSERT sin select devuelve data:null
+    // aunque sea exitoso, lo que supabase.call() interpreta incorrectamente como error)
     const response = await this.supabase.call(
       this.supabase.client
         .from('turnos_caja')
@@ -90,7 +91,9 @@ export class TurnosCajaService {
           numero_turno: numeroTurno,
           empleado_id: empleado.id,
           hora_fecha_apertura: new Date().toISOString() // TIMESTAMPTZ: UTC correcto
-        }),
+        })
+        .select()
+        .single(),
       undefined,
       { showLoading: true }
     );

@@ -6,7 +6,7 @@ import {
   ModalController
 } from '@ionic/angular/standalone';
 import { SidebarComponent } from 'src/app/shared/components/sidebar/sidebar.component';
-import { homeOutline, cartOutline, cubeOutline, barChartOutline, add, close, receiptOutline, clipboardOutline } from 'ionicons/icons';
+import { homeOutline, cartOutline, cubeOutline, barChartOutline, add, close, receiptOutline, clipboardOutline, barcodeOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { GastoModalComponent } from 'src/app/features/gastos-diarios/components/gasto-modal/gasto-modal.component';
 import { GastosDiariosService } from 'src/app/features/gastos-diarios/services/gastos-diarios.service';
@@ -32,6 +32,7 @@ export class MainLayoutPage {
 
   // Iconos importados como objetos (patrón Ionic Standalone)
   homeIcon = homeOutline;
+  posIcon = barcodeOutline;
   ventasIcon = cartOutline;
   inventarioIcon = cubeOutline;
   reportesIcon = barChartOutline;

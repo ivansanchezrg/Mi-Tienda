@@ -38,6 +38,10 @@ export const LAYOUT_ROUTES: Routes = [
         loadChildren: () => import('../configuracion/configuracion.routes').then(m => m.CONFIGURACION_ROUTES)
       },
       {
+        path: 'pos',
+        loadChildren: () => import('../pos/pos.routes').then(m => m.POS_ROUTES)
+      },
+      {
         path: '',
         redirectTo: 'home',
         pathMatch: 'full'

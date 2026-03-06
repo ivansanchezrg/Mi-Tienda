@@ -101,14 +101,14 @@ Google OAuth limita emails a ~40 chars (Gmail: 30 username + @gmail.com). `VARCH
 
 Inconsistencia con `hora_fecha_apertura`. Ambas columnas son TIMESTAMPTZ y deberían seguir el mismo patrón de nombre.
 
-Archivos afectados: `schema.sql`, `turno-caja.model.ts`, `turnos-caja.service.ts`, `recargas.service.ts`, `ejecutar_cierre_diario.sql`, `registrar_compra_saldo_bus.sql`, `3_PROCESO_CIERRE_CAJA.md`, `8_PROCESO_ABRIR_CAJA.md`
+Archivos afectados: `schema.sql`, `turno-caja.model.ts`, `turnos-caja.service.ts`, `recargas.service.ts`, `fn_ejecutar_cierre_diario.sql`, `fn_registrar_compra_saldo_bus.sql`, `3_PROCESO_CIERRE_CAJA.md`, `8_PROCESO_ABRIR_CAJA.md`
 
 - [x] `schema.sql` — renombrar columna
 - [x] `turno-caja.model.ts` — interface
 - [x] `turnos-caja.service.ts` — queries + update
 - [x] `recargas.service.ts` — N/A (no usa el campo)
-- [x] `ejecutar_cierre_diario.sql` — validación + UPDATE (también removido `updated_at = NOW()` en UPDATE cajas — columna ya eliminada en Task 3)
-- [x] `registrar_compra_saldo_bus.sql` — query (también removido `updated_at = NOW()` en UPDATE cajas)
+- [x] `fn_ejecutar_cierre_diario.sql` — validación + UPDATE (también removido `updated_at = NOW()` en UPDATE cajas — columna ya eliminada en Task 3)
+- [x] `fn_registrar_compra_saldo_bus.sql` — query (también removido `updated_at = NOW()` en UPDATE cajas)
 - [x] `3_PROCESO_CIERRE_CAJA.md` + `8_PROCESO_ABRIR_CAJA.md` — docs
 
 ---
@@ -121,9 +121,9 @@ TypeScript nunca usa esta tabla directamente; solo las funciones SQL la consulta
 
 - [x] Confirmar que TypeScript no usa `tipos_referencia` — confirmado, 0 referencias
 - [x] Eliminar `codigo` de `tipos_referencia` en `schema.sql` (definición + seed INSERT)
-- [x] `ejecutar_cierre_diario.sql` → `WHERE tabla = 'caja_fisica_diaria'` / `'recargas'`
-- [x] `registrar_compra_saldo_bus.sql` → `WHERE tabla = 'recargas_virtuales'` / `'recargas'`
-- [x] `registrar_pago_proveedor_celular.sql` → `WHERE tabla = 'recargas_virtuales'` (+ fix `updated_at` en UPDATE cajas)
+- [x] `fn_ejecutar_cierre_diario.sql` → `WHERE tabla = 'caja_fisica_diaria'` / `'recargas'`
+- [x] `fn_registrar_compra_saldo_bus.sql` → `WHERE tabla = 'recargas_virtuales'` / `'recargas'`
+- [x] `fn_registrar_pago_proveedor_celular.sql` → `WHERE tabla = 'recargas_virtuales'` (+ fix `updated_at` en UPDATE cajas)
 - [x] `insertar_datos_reales_recargas.sql` → `WHERE tabla = 'recargas'`
 
 ---
@@ -191,5 +191,5 @@ Columnas derivadas guardadas deliberadamente para evitar JOINs frecuentes:
 | `models/turno-caja.model.ts`                                    | Renombrado `hora_apertura` → `hora_fecha_apertura`, eliminados `fecha` y `created_at` |
 | `models/operacion-caja.model.ts`                                | Eliminado `created_at`                                                                |
 | `services/turnos-caja.service.ts`                               | Filtros por fecha usando rango en `hora_fecha_apertura`, INSERT actualizado           |
-| `docs/dashboard/sql/functions/ejecutar_cierre_diario.sql`       | Actualizado                                                                           |
+| `docs/dashboard/sql/functions/fn_ejecutar_cierre_diario.sql`       | Actualizado                                                                           |
 | `docs/dashboard/sql/queries/insertar_datos_reales_recargas.sql` | Actualizado                                                                           |

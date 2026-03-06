@@ -68,13 +68,13 @@ Modal compartido para dos flujos según el `tipo` recibido:
 
 ### Pagar Deudas Modal (`components/pagar-deudas-modal/`)
 
-Lista deudas CELULAR pendientes con selección múltiple. Al confirmar llama a `registrar_pago_proveedor_celular` que descuenta de CAJA_CELULAR y transfiere la ganancia a CAJA_CHICA.
+Lista deudas CELULAR pendientes con selección múltiple. Al confirmar llama a `fn_registrar_pago_proveedor_celular` que descuenta de CAJA_CELULAR y transfiere la ganancia a CAJA_CHICA.
 
 ---
 
 ### Liquidación Bus Modal (`components/liquidacion-bus-modal/`)
 
-Registra la ganancia mensual acreditada por el proveedor BUS. La ganancia se calcula dinámicamente como `ROUND(SUM(monto_a_pagar) * porcentaje_comision%, 2)` sobre los registros BUS del mes anterior con `pagado=false`. Llama al RPC `liquidar_ganancias_bus` que, en una sola transacción atómica, marca los registros como `pagado=true` y transfiere la ganancia a Varios (CAJA_CHICA).
+Registra la ganancia mensual acreditada por el proveedor BUS. La ganancia se calcula dinámicamente como `ROUND(SUM(monto_a_pagar) * porcentaje_comision%, 2)` sobre los registros BUS del mes anterior con `pagado=false`. Llama al RPC `fn_liquidar_ganancias_bus` que, en una sola transacción atómica, marca los registros como `pagado=true` y transfiere la ganancia a Varios (CAJA_CHICA).
 
 ---
 
@@ -146,7 +146,7 @@ saldo_virtual_actual = último_cierre.saldo_virtual_actual
 
 **Por qué `clock_timestamp()` en el INSERT de `recargas_virtuales` (mini cierre):** `NOW()` es estable dentro de una transacción PostgreSQL — todas las llamadas devuelven el mismo valor. Si el snapshot (`recargas`) y la compra (`recargas_virtuales`) se insertan en la misma transacción con `NOW()`, quedan con `created_at` idéntico. El filtro `created_at > snapshot.created_at` no contaría la compra. `clock_timestamp()` avanza en tiempo real y garantiza que `recargas_virtuales.created_at` sea estrictamente posterior al snapshot.
 
-Implementado en: `RecargasVirtualesService.getSaldoVirtualActual()` (TypeScript) y dentro de `registrar_compra_saldo_bus` (SQL, vía `clock_timestamp()` en el INSERT de `recargas_virtuales`).
+Implementado en: `RecargasVirtualesService.getSaldoVirtualActual()` (TypeScript) y dentro de `fn_registrar_compra_saldo_bus` (SQL, vía `clock_timestamp()` en el INSERT de `recargas_virtuales`).
 
 ---
 
@@ -161,7 +161,7 @@ RegistrarRecargaModalComponent (tipo='CELULAR')
   ├─ ngOnInit: getPorcentajeComision('CELULAR') → 5% (de tipos_servicio)
   │    Muestra preview: monto_a_pagar=$200.00, ganancia=$10.53
   └─ confirmar()
-       └─ RPC: registrar_recarga_proveedor_celular(fecha, empleado_id, monto_virtual)
+       └─ RPC: fn_registrar_recarga_proveedor_celular(fecha, empleado_id, monto_virtual)
             ├─ Calcula monto_a_pagar = monto_virtual * 0.95
             ├─ INSERT recargas_virtuales (pagado=false)  ← crea la deuda
             ├─ Calcula saldo_virtual_celular actualizado (fórmula de arriba)
@@ -180,7 +180,7 @@ PagarDeudasModalComponent
   ├─ Carga deudas pendientes + saldo CAJA_CELULAR
   ├─ Usuario selecciona qué deudas pagar (puede ser parcial)
   └─ confirmarPago()
-       └─ RPC: registrar_pago_proveedor_celular(empleado_id, deuda_ids[], notas?)
+       └─ RPC: fn_registrar_pago_proveedor_celular(empleado_id, deuda_ids[], notas?)
             ├─ Valida: todas las deudas existen, no pagadas, son de tipo CELULAR
             ├─ Calcula: total_a_pagar (SUM monto_a_pagar) + total_ganancia (SUM ganancia)
             ├─ Valida: CAJA_CELULAR >= total_a_pagar + total_ganancia (lanza EXCEPTION si no)
@@ -201,7 +201,7 @@ RegistrarRecargaModalComponent (tipo='BUS')
   ├─ ngOnInit: getSaldoCajaActual('CAJA_BUS') + getSaldoVirtualActual('BUS')
   │    Muestra: saldo disponible, saldo_virtual del sistema, ventas calculadas del día
   └─ confirmar()
-       └─ RPC: registrar_compra_saldo_bus(fecha, empleado_id, monto, notas?, saldo_virtual_maquina?)
+       └─ RPC: fn_registrar_compra_saldo_bus(fecha, empleado_id, monto, notas?, saldo_virtual_maquina?)
 
             ── Modo básico (sin saldo_virtual_maquina) ──
             ├─ Valida: CAJA_BUS >= monto
@@ -221,7 +221,7 @@ RegistrarRecargaModalComponent (tipo='BUS')
             └─ UPDATE saldo CAJA_BUS → nunca queda negativa
 ```
 
-> **Mini cierre:** cuando hay ventas del día sin cerrar, la función las registra como INGRESO en CAJA_BUS antes del EGRESO (depósito). Así CAJA_BUS siempre refleja la realidad y nunca queda negativa. El cierre diario (`ejecutar_cierre_diario`) detecta el mini cierre via `ON CONFLICT` y solo acumula las ventas restantes del resto del día.
+> **Mini cierre:** cuando hay ventas del día sin cerrar, la función las registra como INGRESO en CAJA_BUS antes del EGRESO (depósito). Así CAJA_BUS siempre refleja la realidad y nunca queda negativa. El cierre diario (`fn_ejecutar_cierre_diario`) detecta el mini cierre via `ON CONFLICT` y solo acumula las ventas restantes del resto del día.
 >
 > `clock_timestamp()` en `recargas_virtuales` garantiza que su `created_at` sea posterior al snapshot del mini cierre, para que `getSaldoVirtualActual` lo cuente correctamente.
 
@@ -240,7 +240,7 @@ recargas-virtuales.page.ts
 
 LiquidacionBusModalComponent
   └─ confirmar()
-       └─ RPC: liquidar_ganancias_bus(mes, empleado_id)
+       └─ RPC: fn_liquidar_ganancias_bus(mes, empleado_id)
             ├─ Calcula ganancia: ROUND(SUM(monto_a_pagar) * comision%, 2) WHERE tipo=BUS AND pagado=false AND mes
             ├─ TRANSFERENCIA_SALIENTE CAJA_BUS → TRANSFERENCIA_ENTRANTE CAJA_CHICA (Varios) por ganancia
             ├─ UPDATE recargas_virtuales: pagado=true, fecha_pago=hoy WHERE tipo=BUS AND pagado=false AND mes
@@ -274,7 +274,7 @@ home.page.ts → cargarDatos()
                  → notificación visible hasta que se liquide
 
 Al liquidar (LiquidacionBusModalComponent):
-  └─ RPC: liquidar_ganancias_bus(mes, empleado_id)
+  └─ RPC: fn_liquidar_ganancias_bus(mes, empleado_id)
        → marca pagado=true en recargas_virtuales → yaSeTransfirio() pasa a retornar true → notificación desaparece
 ```
 
@@ -301,13 +301,13 @@ Si no hay FACTURACION_BUS_PENDIENTE y diasHastaFinMes <= bus_dias_antes_facturac
 
 ## Funciones SQL
 
-> 📄 `registrar_recarga_proveedor_celular` → [sql/functions/registrar_recarga_proveedor_celular.sql](sql/functions/registrar_recarga_proveedor_celular.sql)
+> 📄 `fn_registrar_recarga_proveedor_celular` → [sql/functions/fn_registrar_recarga_proveedor_celular.sql](sql/functions/fn_registrar_recarga_proveedor_celular.sql)
 
-> 📄 `registrar_pago_proveedor_celular` → [sql/functions/registrar_pago_proveedor_celular.sql](sql/functions/registrar_pago_proveedor_celular.sql)
+> 📄 `fn_registrar_pago_proveedor_celular` → [sql/functions/fn_registrar_pago_proveedor_celular.sql](sql/functions/fn_registrar_pago_proveedor_celular.sql)
 
-> 📄 `registrar_compra_saldo_bus` → [sql/functions/registrar_compra_saldo_bus.sql](sql/functions/registrar_compra_saldo_bus.sql)
+> 📄 `fn_registrar_compra_saldo_bus` → [sql/functions/fn_registrar_compra_saldo_bus.sql](sql/functions/fn_registrar_compra_saldo_bus.sql)
 
-> 📄 `liquidar_ganancias_bus` → [sql/functions/liquidar_ganancias_bus.sql](sql/functions/liquidar_ganancias_bus.sql)
+> 📄 `fn_liquidar_ganancias_bus` → [sql/functions/fn_liquidar_ganancias_bus.sql](sql/functions/fn_liquidar_ganancias_bus.sql)
 
 ---
 

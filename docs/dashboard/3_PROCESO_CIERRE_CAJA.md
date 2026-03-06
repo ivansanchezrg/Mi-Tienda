@@ -118,11 +118,11 @@ El campo `deficit_caja_chica` se guarda en `caja_fisica_diaria` para que el sigu
 
 ---
 
-## 3. Función SQL: `ejecutar_cierre_diario`
+## 3. Función SQL: `fn_ejecutar_cierre_diario`
 
-> 📄 Código fuente completo: [`docs/sql/functions/ejecutar_cierre_diario.sql`](./sql/functions/ejecutar_cierre_diario.sql)
+> 📄 Código fuente completo: [`docs/sql/functions/fn_ejecutar_cierre_diario.sql`](./sql/functions/fn_ejecutar_cierre_diario.sql)
 
-Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo ocurre en una transacción atómica — si falla cualquier paso, se hace rollback completo.
+Llamada vía `supabase.rpc('fn_ejecutar_cierre_diario', params)`. Todo ocurre en una transacción atómica — si falla cualquier paso, se hace rollback completo.
 
 **Para actualizar la función en Supabase:**
 
@@ -182,15 +182,15 @@ Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo ocurre en un
 10. `UPDATE turnos_caja SET hora_fecha_cierre = NOW()` — cierra el turno automáticamente
 11. Retorna JSON con resultado
 
-### Función auxiliar: `verificar_transferencia_caja_chica_hoy`
+### Función auxiliar: `fn_verificar_transferencia_caja_chica_hoy`
 
-> 📄 Código fuente completo: [`docs/sql/functions/verificar_transferencia_caja_chica_hoy.sql`](./sql/functions/verificar_transferencia_caja_chica_hoy.sql)
+> 📄 Código fuente completo: [`docs/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql`](./sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql)
 
 Usada desde TypeScript en `siguientePaso()` para mostrar la UI correcta en Paso 2 **antes** de ejecutar el cierre:
 
 ```typescript
 // RecargasService.verificarTransferenciaYaHecha()
-await supabase.rpc('verificar_transferencia_caja_chica_hoy', { p_fecha: fechaHoy })
+await supabase.rpc('fn_verificar_transferencia_caja_chica_hoy', { p_fecha: fechaHoy })
 // → boolean
 ```
 
@@ -230,12 +230,12 @@ Si hay déficit, el Home muestra un banner y el usuario puede ejecutar la repara
 
 ```typescript
 // TurnosCajaService.repararDeficit(deficitCajaChica, fondoFaltante)
-// → rpc('reparar_deficit_turno', { p_deficit_caja_chica, p_fondo_faltante, ... })
+// → rpc('fn_reparar_deficit_turno', { p_deficit_caja_chica, p_fondo_faltante, ... })
 ```
 
 La función SQL usa categorías `EG-012` (egreso de Tienda) e `IN-004` (ingreso a Varios) y **sí valida que Tienda tenga saldo suficiente** — si no, retorna error con mensaje para el operador.
 
-> **v4.9 — Efecto sobre el cierre del mismo día:** tras ejecutar `reparar_deficit_turno`, el INGRESO IN-004 queda registrado en `CAJA_CHICA` con la fecha local de hoy. Cuando ese día se ejecuta el cierre, `ejecutar_cierre_diario` detecta ese INGRESO y trata a Varios como "ya recibió hoy" → no registra `deficit_caja_chica` ni intenta otra transferencia.
+> **v4.9 — Efecto sobre el cierre del mismo día:** tras ejecutar `fn_reparar_deficit_turno`, el INGRESO IN-004 queda registrado en `CAJA_CHICA` con la fecha local de hoy. Cuando ese día se ejecuta el cierre, `fn_ejecutar_cierre_diario` detecta ese INGRESO y trata a Varios como "ya recibió hoy" → no registra `deficit_caja_chica` ni intenta otra transferencia.
 
 ---
 

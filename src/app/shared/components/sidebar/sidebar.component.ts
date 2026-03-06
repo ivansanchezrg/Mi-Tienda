@@ -8,7 +8,7 @@ import {
 import { MenuController } from '@ionic/angular/standalone';
 import {
   peopleOutline, settingsOutline, logOutOutline, personCircleOutline,
-  receiptOutline, listOutline, swapHorizontalOutline, homeOutline
+  receiptOutline, listOutline, swapHorizontalOutline, homeOutline, cubeOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 import { RolUsuario } from '../../../features/auth/models/usuario_actual.model';

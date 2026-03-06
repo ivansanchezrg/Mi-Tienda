@@ -14,12 +14,12 @@
 
 | Tabla                | Rol                                                                                                                                          |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `turnos_caja`        | 1 registro por apertura. `hora_fecha_cierre IS NULL` = turno activo. `hora_fecha_cierre` la escribe `ejecutar_cierre_diario` — no se cierra manualmente. |
+| `turnos_caja`        | 1 registro por apertura. `hora_fecha_cierre IS NULL` = turno activo. `hora_fecha_cierre` la escribe `fn_ejecutar_cierre_diario` — no se cierra manualmente. |
 | `caja_fisica_diaria` | El cierre escribe aquí el `deficit_caja_chica`. Lo lee `obtenerDeficitTurnoAnterior()` al abrir el turno siguiente.                          |
 | `operaciones_cajas`  | `repararDeficit()` inserta aquí el EGRESO de Tienda y el INGRESO a Varios.                                                                   |
 | `configuraciones`    | `fondo_fijo_diario` — cuánto debe haber en la caja física para operar.                                                                       |
 
-> **Principio clave:** Abrir caja **no afecta saldos**. Solo crea el `turno_id` que el cierre diario necesita para ejecutar `ejecutar_cierre_diario`.
+> **Principio clave:** Abrir caja **no afecta saldos**. Solo crea el `turno_id` que el cierre diario necesita para ejecutar `fn_ejecutar_cierre_diario`.
 
 ---
 
@@ -84,9 +84,9 @@ cargarDatos() → refresca banner en Home
 
 Si ambos son `0` → no hay déficit → el modal salta directamente al Paso 2.
 
-> 📄 Código fuente completo: [`docs/sql/functions/reparar_deficit_turno.sql`](./sql/functions/reparar_deficit_turno.sql)
+> 📄 Código fuente completo: [`docs/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql)
 
-`repararDeficit(deficitCajaChica, fondoFaltante)` llama a `rpc('reparar_deficit_turno', {...})` que en una transacción atómica:
+`repararDeficit(deficitCajaChica, fondoFaltante)` llama a `rpc('fn_reparar_deficit_turno', {...})` que en una transacción atómica:
 
 1. `EGRESO` de Tienda por `(deficitCajaChica + fondoFaltante)` — categoría `EG-012`
 2. `INGRESO` a Varios por `deficitCajaChica` si > 0 — categoría `IN-004`
@@ -116,7 +116,7 @@ CREATE TABLE turnos_caja (
   numero_turno        SMALLINT NOT NULL DEFAULT 1,              -- 1, 2, 3... por día
   empleado_id         INTEGER NOT NULL REFERENCES empleados(id),
   hora_fecha_apertura TIMESTAMP WITH TIME ZONE NOT NULL,        -- UTC (toISOString())
-  hora_fecha_cierre         TIMESTAMP WITH TIME ZONE,                 -- NULL = abierto; lo escribe ejecutar_cierre_diario
+  hora_fecha_cierre         TIMESTAMP WITH TIME ZONE,                 -- NULL = abierto; lo escribe fn_ejecutar_cierre_diario
   observaciones       TEXT
 );
 -- UNIQUE por fecha + turno (índice funcional sobre la fecha extraída del timestamp)

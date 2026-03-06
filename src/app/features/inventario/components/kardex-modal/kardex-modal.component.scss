@@ -1,0 +1,140 @@
+.kardex-title {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+
+    .product-name {
+        font-size: 11px;
+        font-weight: normal;
+    }
+}
+
+.timeline {
+    position: relative;
+
+    // The vertical line
+    &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 24px;
+        bottom: 0;
+        width: 2px;
+        background: var(--ion-color-step-150);
+    }
+}
+
+.timeline-item {
+    position: relative;
+    margin-left: 48px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--ion-color-step-100);
+    background: var(--ion-item-background);
+
+    .timeline-icon {
+        position: absolute;
+        top: 16px;
+        left: -40px;
+        width: 32px;
+        height: 32px;
+        border-radius: var(--radius-circle);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        box-shadow: 0 0 0 4px var(--ion-background-color);
+        z-index: 1;
+
+        ion-icon {
+            font-size: 16px;
+        }
+
+        &.danger {
+            background: var(--ion-color-danger);
+        }
+
+        &.success {
+            background: var(--ion-color-success);
+        }
+
+        &.warning {
+            background: var(--ion-color-warning);
+        }
+
+        &.tertiary {
+            background: var(--ion-color-tertiary);
+        }
+
+        &.medium {
+            background: var(--ion-color-medium);
+        }
+    }
+}
+
+.timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+
+    h4 {
+        font-size: 14px;
+        color: var(--ion-text-color);
+    }
+
+    span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+        font-size: 11px;
+    }
+}
+
+.timeline-body {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+
+    .stock-change {
+        font-size: 18px;
+        min-width: 48px;
+    }
+
+    .stock-details {
+        display: flex;
+        align-items: center;
+        background: var(--ion-color-step-50);
+        padding: 4px 12px;
+        border-radius: var(--radius-pill);
+        color: var(--ion-color-step-600);
+    }
+}
+
+.timeline-footer {
+    border-top: 1px dashed var(--ion-color-step-150);
+    padding-top: var(--spacing-sm);
+    color: var(--ion-color-step-500);
+    font-style: italic;
+}
+
+// Helper colors for dynamic text
+.text-danger {
+    color: var(--ion-color-danger);
+}
+
+.text-success {
+    color: var(--ion-color-success);
+}
+
+.text-warning {
+    color: var(--ion-color-warning);
+}
+
+.text-tertiary {
+    color: var(--ion-color-tertiary);
+}
+
+.text-medium {
+    color: var(--ion-color-medium);
+}

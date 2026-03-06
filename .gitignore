@@ -68,3 +68,7 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Environment files with credentials (never commit these)
+src/environments/environment.ts
+src/environments/environment.prod.ts

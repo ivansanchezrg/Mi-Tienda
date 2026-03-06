@@ -36,23 +36,35 @@ mi-tienda/
 │   │   ├── 8_PROCESO_ABRIR_CAJA.md
 │   │   └── sql/
 │   │       ├── functions/
-│   │       │   ├── ejecutar_cierre_diario.sql
-│   │       │   ├── registrar_operacion_manual.sql
-│   │       │   ├── reparar_deficit_turno.sql
-│   │       │   ├── crear_transferencia.sql
-│   │       │   └── verificar_transferencia_caja_chica_hoy.sql
+│   │       │   ├── fn_ejecutar_cierre_diario.sql
+│   │       │   ├── fn_registrar_operacion_manual.sql
+│   │       │   ├── fn_reparar_deficit_turno.sql
+│   │       │   ├── fn_crear_transferencia.sql
+│   │       │   └── fn_verificar_transferencia_caja_chica_hoy.sql
 │   │       └── queries/
 │   │           ├── agregar_categorias_deficit.sql
 │   │           └── insertar_datos_reales_recargas.sql
 │   ├── gastos-diarios/
 │   │   └── GASTOS-DIARIOS-README.md
-│   └── recargas-virtuales/
-│       ├── RECARGAS-VIRTUALES-README.md
+│   ├── recargas-virtuales/
+│   │   ├── RECARGAS-VIRTUALES-README.md
+│   │   └── sql/
+│   │       └── functions/
+│   │           ├── fn_registrar_recarga_proveedor_celular.sql
+│   │           ├── fn_registrar_pago_proveedor_celular.sql
+│   │           └── fn_registrar_compra_saldo_bus.sql
+│   ├── pos/
+│   │   └── sql/
+│   │       ├── functions/
+│   │       │   └── fn_registrar_venta_pos.sql
+│   │       └── triggers/
+│   │           ├── trg_descontar_stock_venta.sql
+│   │           └── trg_actualizar_caja_por_venta.sql
+│   └── configuracion/
 │       └── sql/
-│           └── functions/
-│               ├── registrar_recarga_proveedor_celular.sql
-│               ├── registrar_pago_proveedor_celular.sql
-│               └── registrar_compra_saldo_bus.sql
+│           └── triggers/
+│               ├── trg_set_codigo_categoria_gasto.sql
+│               └── trg_set_codigo_categoria_operacion.sql
 └── capacitor.config.ts        # Configuración de Capacitor
 ```
 
@@ -90,6 +102,14 @@ core/
     ├── supabase.service.ts           # Manejo centralizado de consultas a Supabase
     └── ui.service.ts                 # Manejo de loading, toast y tabs
 ```
+
+### Notas sobre UIService y Sincronización (Toasts / Loaders)
+
+Ionic encola los "Overlays" (`LoadingController`, `ToastController`). Si existe latencia de red, es posible que la orden asíncrona de ocultar un Loader choque con la orden de mostrar un Toast de Error devuelto por Supabase. 
+
+Para evitar lag visual o "Toasts fantasma":
+1. `ui.service.ts` tiene un timeout de `30000ms` (30s) en su `showLoading` para soportar conexiones 3G lentas (no se auto-cerrará prematuramente a los 15s dejándote ciego ante un lag de BD).
+2. Es obligatorio invocar `await this.ui.hideLoading()` *antes* de invocar una alerta o toast, especialmente en bloques `catch()`.
 
 **Convención:**
 
@@ -374,3 +394,4 @@ Generado por Capacitor. Contiene el proyecto Android Studio.
 **IMPORTANTE:** Este documento debe actualizarse cada vez que se agregue una nueva carpeta o feature importante al proyecto.
 
 *Última actualización: 2026-02-28*
+

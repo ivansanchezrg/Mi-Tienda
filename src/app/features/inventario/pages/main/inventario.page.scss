@@ -1,0 +1,187 @@
+// Variables de diseño Flat 2.0
+:host {
+    --bg-soft: var(--ion-background-color, #f8f9fa);
+}
+
+ion-content {
+    --background: var(--bg-soft);
+}
+
+// Header estético igual a inicio (Ventas)
+ion-toolbar {
+    --background: var(--bg-soft);
+    --border-width: 0;
+    padding: 0 8px;
+
+    ion-title {
+        font-weight: 700;
+        letter-spacing: -0.5px;
+    }
+}
+
+.categories-toolbar {
+    --background: var(--bg-soft);
+    padding-bottom: var(--spacing-sm);
+}
+
+.scrollable-tabs {
+    display: flex;
+    overflow-x: auto;
+    padding: var(--spacing-xs) var(--spacing-md) var(--spacing-sm);
+    gap: var(--spacing-md);
+
+    // Hide scrollbar
+    &::-webkit-scrollbar {
+        display: none;
+    }
+
+    scrollbar-width: none;
+}
+
+.filter-tab {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-pill);
+    background: var(--ion-color-step-100);
+    color: var(--ion-color-step-600);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+    transition: all var(--transition-fast);
+    cursor: pointer;
+
+    &.active {
+        background: var(--ion-color-primary);
+        color: var(--ion-color-primary-contrast);
+        box-shadow: var(--shadow-level-1);
+        transform: scale(1.02);
+    }
+}
+
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.product-card {
+    margin: 0; // El grid gap se encarga del espaciado exterior
+    box-shadow: var(--shadow-level-1);
+    border-radius: var(--radius-lg);
+    background: var(--ion-item-background);
+    transition: transform var(--transition-fast);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+
+    &:active {
+        transform: scale(0.97);
+    }
+
+    ion-card-content {
+        padding: var(--spacing-md);
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+    }
+}
+
+.product-image-container {
+    height: 120px;
+    background: var(--ion-color-step-50);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid var(--ion-color-step-100);
+
+    .placeholder-image {
+        ion-icon {
+            font-size: 48px;
+            color: var(--ion-color-step-300);
+        }
+    }
+
+    .real-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .stock-badge {
+        position: absolute;
+        top: var(--spacing-sm);
+        right: var(--spacing-sm);
+        padding: 2px 8px;
+        border-radius: var(--radius-pill);
+        font-size: 11px;
+        font-weight: var(--font-weight-bold);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+
+        &.danger {
+            background: var(--ion-color-danger);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        &.success {
+            background: rgba(var(--ion-color-success-rgb), 0.15);
+            color: var(--ion-color-success);
+        }
+    }
+}
+
+.product-name {
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+    line-height: 1.3;
+}
+
+// Truncate para limitar a 2 líneas
+.truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.product-category {
+    margin: 0;
+    font-size: 11px;
+}
+
+.card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-top: 1px dashed var(--ion-color-step-150);
+    padding-top: var(--spacing-sm);
+    margin-top: auto;
+
+    .price {
+        font-size: 16px;
+        font-weight: var(--font-weight-bold);
+    }
+
+    .text-sm {
+        font-size: 11px;
+    }
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
