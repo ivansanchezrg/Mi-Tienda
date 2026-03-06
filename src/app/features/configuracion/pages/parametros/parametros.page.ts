@@ -2,7 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
-  IonSpinner
+  IonSpinner, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { UiService } from '@core/services/ui.service';
 import { ConfiguracionService } from '../../services/configuracion.service';
@@ -15,26 +15,26 @@ import { ConfiguracionService } from '../../services/configuracion.service';
   imports: [
     ReactiveFormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
-    IonSpinner
+    IonSpinner, IonSkeletonText
   ]
 })
 export class ParametrosPage implements OnInit {
-  private fb                   = inject(FormBuilder);
+  private fb = inject(FormBuilder);
   private configuracionService = inject(ConfiguracionService);
-  private ui                   = inject(UiService);
+  private ui = inject(UiService);
 
   form!: FormGroup;
-  cargando  = true;
+  cargando = true;
   guardando = false;
 
   private configuracionId = '';
 
   ngOnInit() {
     this.form = this.fb.group({
-      fondo_fijo_diario:               [null, [Validators.required, Validators.min(0)]],
+      fondo_fijo_diario: [null, [Validators.required, Validators.min(0)]],
       caja_chica_transferencia_diaria: [null, [Validators.required, Validators.min(0)]],
-      bus_alerta_saldo_bajo:           [null, [Validators.required, Validators.min(0)]],
-      bus_dias_antes_facturacion:      [null, [Validators.required, Validators.min(1)]]
+      bus_alerta_saldo_bajo: [null, [Validators.required, Validators.min(0)]],
+      bus_dias_antes_facturacion: [null, [Validators.required, Validators.min(1)]]
     });
 
     this.cargarConfiguracion();
@@ -55,10 +55,10 @@ export class ParametrosPage implements OnInit {
       if (config) {
         this.configuracionId = config.id;
         this.form.patchValue({
-          fondo_fijo_diario:               config.fondo_fijo_diario,
+          fondo_fijo_diario: config.fondo_fijo_diario,
           caja_chica_transferencia_diaria: config.caja_chica_transferencia_diaria,
-          bus_alerta_saldo_bajo:           config.bus_alerta_saldo_bajo,
-          bus_dias_antes_facturacion:      config.bus_dias_antes_facturacion
+          bus_alerta_saldo_bajo: config.bus_alerta_saldo_bajo,
+          bus_dias_antes_facturacion: config.bus_dias_antes_facturacion
         });
       }
     } catch {
@@ -77,10 +77,10 @@ export class ParametrosPage implements OnInit {
     this.guardando = true;
     try {
       const updated = await this.configuracionService.update(this.configuracionId, {
-        fondo_fijo_diario:               Number(this.form.value.fondo_fijo_diario),
+        fondo_fijo_diario: Number(this.form.value.fondo_fijo_diario),
         caja_chica_transferencia_diaria: Number(this.form.value.caja_chica_transferencia_diaria),
-        bus_alerta_saldo_bajo:           Number(this.form.value.bus_alerta_saldo_bajo),
-        bus_dias_antes_facturacion:      Number(this.form.value.bus_dias_antes_facturacion)
+        bus_alerta_saldo_bajo: Number(this.form.value.bus_alerta_saldo_bajo),
+        bus_dias_antes_facturacion: Number(this.form.value.bus_dias_antes_facturacion)
       });
 
       if (updated) {

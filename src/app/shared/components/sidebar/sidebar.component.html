@@ -4,26 +4,32 @@
     <ion-icon [icon]="userIcon"></ion-icon>
   </ion-avatar>
   <h3>{{ empleadoNombre }}</h3>
-  <p>{{ empleadoEmail }}</p>
   <span class="menu-role">{{ empleadoRol === 'ADMIN' ? 'Administrador' : 'Empleado' }}</span>
 </div>
 
 <!-- Items del Menú -->
 <ion-list lines="none" class="menu-list">
   <ion-menu-toggle *ngFor="let item of menuItems" auto-hide="false">
-    <ion-item button class="menu-item" [routerLink]="item.url" routerLinkActive="active-item" [routerLinkActiveOptions]="{exact: !!item.exact}" (click)="closeMenu()">
+    <ion-item button class="menu-item" [routerLink]="item.url" routerLinkActive="active-item"
+      [routerLinkActiveOptions]="{exact: !!item.exact}" (click)="closeMenu()">
       <ion-icon [icon]="item.icon" slot="start"></ion-icon>
       <ion-label>{{ item.title }}</ion-label>
     </ion-item>
   </ion-menu-toggle>
 </ion-list>
 
-<!-- Footer con Logout -->
+<!-- Footer con Settings y Logout -->
 <div class="menu-footer">
-  <ion-menu-toggle auto-hide="false">
-    <ion-button expand="block" color="medium" fill="outline" (click)="logout()">
+  <div class="footer-actions">
+    <ion-button fill="clear" class="btn-logout" color="medium" (click)="logout()">
       <ion-icon [icon]="logoutIcon" slot="start"></ion-icon>
       Cerrar Sesión
     </ion-button>
-  </ion-menu-toggle>
+
+    @if (empleadoRol === 'ADMIN') {
+    <ion-button fill="clear" color="medium" class="btn-settings" [routerLink]="'/configuracion'" (click)="closeMenu()">
+      <ion-icon [icon]="settingsIcon" slot="icon-only"></ion-icon>
+    </ion-button>
+    }
+  </div>
 </div>

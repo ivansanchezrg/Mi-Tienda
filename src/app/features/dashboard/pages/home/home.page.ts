@@ -4,7 +4,8 @@ import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-  IonIcon, IonButton, ModalController, ToastController
+  IonIcon, IonButton, ModalController, ToastController,
+  IonRippleEffect, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -37,24 +38,24 @@ import { OperacionModalComponent, OperacionModalResult } from '../../components/
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-    IonIcon, IonButton
+    IonIcon, IonButton, IonRippleEffect, IonSkeletonText
   ]
 })
 export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
-  private router                  = inject(Router);
-  private route                   = inject(ActivatedRoute);
-  private ui                      = inject(UiService);
-  private recargasService         = inject(RecargasService);
-  private cajasService            = inject(CajasService);
-  private operacionesCajaService  = inject(OperacionesCajaService);
-  private authService             = inject(AuthService);
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+  private ui = inject(UiService);
+  private recargasService = inject(RecargasService);
+  private cajasService = inject(CajasService);
+  private operacionesCajaService = inject(OperacionesCajaService);
+  private authService = inject(AuthService);
   private recargasVirtualesService = inject(RecargasVirtualesService);
-  private turnosCajaService       = inject(TurnosCajaService);
-  private notificacionesService   = inject(NotificacionesService);
-  private modalCtrl               = inject(ModalController);
-  private toastCtrl               = inject(ToastController);
-  private networkService          = inject(NetworkService);
-  private cdr                     = inject(ChangeDetectorRef);
+  private turnosCajaService = inject(TurnosCajaService);
+  private notificacionesService = inject(NotificacionesService);
+  private modalCtrl = inject(ModalController);
+  private toastCtrl = inject(ToastController);
+  private networkService = inject(NetworkService);
+  private cdr = inject(ChangeDetectorRef);
   private networkSub?: Subscription;
 
   // Estado del turno de caja
@@ -70,35 +71,38 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     return this.estadoCaja.estado === 'TURNO_EN_CURSO';
   }
 
+  // Estado de carga local (para Skeletons UI)
+  cargando = true;
+
   // Estado de conexión
   isOnline = true;
 
   // Saldos de cajas
-  saldoCaja       = 0;
-  saldoCajaChica  = 0;
-  saldoCelular    = 0;
-  saldoBus        = 0;
-  totalSaldos     = 0;
-  cajas: Caja[]   = [];
+  saldoCaja = 0;
+  saldoCajaChica = 0;
+  saldoCelular = 0;
+  saldoBus = 0;
+  totalSaldos = 0;
+  cajas: Caja[] = [];
 
   // Mapa tipo-UI → codigo DB (única fuente de verdad para la navegación)
   private readonly TIPO_CODIGO: Record<string, string> = {
-    'caja':      'CAJA',
+    'caja': 'CAJA',
     'cajaChica': 'CAJA_CHICA',
-    'celular':   'CAJA_CELULAR',
-    'bus':       'CAJA_BUS'
+    'celular': 'CAJA_CELULAR',
+    'bus': 'CAJA_BUS'
   };
 
   // Saldos virtuales
   saldoVirtualCelular = 0;
-  saldoVirtualBus     = 0;
+  saldoVirtualBus = 0;
 
   // Usuario
   nombreUsuario = '';
 
   // Fechas
   fechaUltimoCierre = '';
-  fechaActual       = '';
+  fechaActual = '';
 
   // Notificaciones
   notificaciones: Notificacion[] = [];
@@ -150,6 +154,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   async cargarDatos() {
+    this.cargando = true;
     try {
       const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones] = await Promise.all([
         this.turnosCajaService.obtenerEstadoCaja(),
@@ -163,31 +168,34 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       this.estadoCaja = { ...estadoCaja };
 
       if (saldos) {
-        this.saldoCaja      = saldos.cajaPrincipal;
+        this.saldoCaja = saldos.cajaPrincipal;
         this.saldoCajaChica = saldos.cajaChica;
-        this.saldoCelular   = saldos.cajaCelular;
-        this.saldoBus       = saldos.cajaBus;
-        this.totalSaldos    = saldos.total;
-        this.cajas          = saldos.cajas;
+        this.saldoCelular = saldos.cajaCelular;
+        this.saldoBus = saldos.cajaBus;
+        this.totalSaldos = saldos.total;
+        this.cajas = saldos.cajas;
       }
 
       this.saldoVirtualCelular = saldoVirtualCelular;
-      this.saldoVirtualBus     = saldoVirtualBus;
+      this.saldoVirtualBus = saldoVirtualBus;
 
       if (fechaUltimoCierre) {
         this.fechaUltimoCierre = this.formatearFecha(new Date(fechaUltimoCierre + 'T00:00:00'));
       } else {
-        this.fechaUltimoCierre = 'Sin cierres registrados';
+        this.fechaUltimoCierre = 'Hoy es tu primer turno';
       }
 
       const empleado = await this.authService.getUsuarioActual();
       this.nombreUsuario = empleado?.nombre || 'Usuario';
-      this.fechaActual   = this.formatearFecha(new Date());
+      this.fechaActual = this.formatearFecha(new Date());
 
-      this.notificaciones          = notificaciones;
+      this.notificaciones = notificaciones;
       this.notificacionesPendientes = notificaciones.length;
     } catch (error: any) {
       await this.ui.showError('Error al cargar los datos. Verificá tu conexión e intentá de nuevo.');
+    } finally {
+      this.cargando = false;
+      this.cdr.detectChanges();
     }
   }
 
@@ -324,7 +332,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
         componentProps: {
           fondoFijo,
           deficitCajaChica: deficit?.deficitCajaChica ?? 0,
-          fondoFaltante:    deficit?.fondoFaltante ?? 0
+          fondoFaltante: deficit?.fondoFaltante ?? 0
         },
         breakpoints: [0, 1],
         initialBreakpoint: 1

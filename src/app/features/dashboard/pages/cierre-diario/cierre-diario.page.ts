@@ -5,7 +5,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonProgressBar, IonContent, IonList, IonItem, IonLabel,
   IonInput, IonIcon, IonNote, IonCard, IonCardHeader, IonCardTitle,
-  IonCardContent, IonTextarea, AlertController
+  IonCardContent, IonTextarea, AlertController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -46,7 +46,7 @@ import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive'
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonProgressBar, IonContent, IonList, IonItem, IonLabel,
     IonInput, IonIcon, IonNote, IonCard, IonCardHeader, IonCardTitle,
-    IonCardContent, IonTextarea,
+    IonCardContent, IonTextarea, IonSkeletonText,
     CurrencyInputDirective,
     NumbersOnlyDirective,
     ScrollResetDirective
@@ -66,6 +66,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   // Estado
   pasoActual = 1;
   totalPasos = 2;
+  cargandoDatos = true;
 
   // Saldos anteriores virtuales (del último registro de recargas)
   saldoAnteriorCelular = 0;
@@ -147,6 +148,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    * NOTA: La validación de cierre existente se hace en el home antes de navegar
    */
   async cargarDatosIniciales() {
+    this.cargandoDatos = true;
     try {
       const [datos, saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
         this.recargasService.getDatosCierreDiario(),
@@ -177,6 +179,8 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
       this.transferenciaDiariaCajaChica = datos.transferenciaDiariaCajaChica;
     } catch (error: any) {
       await this.ui.showError('Error al cargar los datos del cierre. Verificá tu conexión e intentá de nuevo.');
+    } finally {
+      this.cargandoDatos = false;
     }
   }
 
@@ -385,9 +389,9 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    */
   get totalAnterior(): number {
     return this.saldoAnteriorCaja +
-           this.saldoAnteriorCajaChica +
-           this.saldoAnteriorCajaCelular +
-           this.saldoAnteriorCajaBus;
+      this.saldoAnteriorCajaChica +
+      this.saldoAnteriorCajaCelular +
+      this.saldoAnteriorCajaBus;
   }
 
   /**
@@ -396,9 +400,9 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
    */
   get totalFinal(): number {
     return this.saldoFinalCaja +
-           this.saldoFinalCajaChica +
-           this.saldoFinalCajaCelular +
-           this.saldoFinalCajaBus;
+      this.saldoFinalCajaChica +
+      this.saldoFinalCajaCelular +
+      this.saldoFinalCajaBus;
   }
 
   volver() {

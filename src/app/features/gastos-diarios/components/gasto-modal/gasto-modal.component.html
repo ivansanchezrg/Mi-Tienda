@@ -23,17 +23,15 @@
         </label>
 
         @if (cargandoCategorias) {
-          <div class="loading-categorias">
-            <ion-spinner name="crescent" color="primary"></ion-spinner>
-            <span>Cargando categorías...</span>
-          </div>
+        <ion-skeleton-text animated
+          style="width: 100%; height: 48px; border-radius: 8px; margin-top: 8px;"></ion-skeleton-text>
         } @else {
-          <select formControlName="categoria_gasto_id" autofocus>
-            <option [value]="null" disabled>Seleccionar categoría</option>
-            @for (categoria of categorias; track categoria.id) {
-              <option [value]="categoria.id">{{ categoria.nombre }}</option>
-            }
-          </select>
+        <select formControlName="categoria_gasto_id" autofocus>
+          <option [value]="null" disabled>Seleccionar categoría</option>
+          @for (categoria of categorias; track categoria.id) {
+          <option [value]="categoria.id">{{ categoria.nombre }}</option>
+          }
+        </select>
         }
       </div>
 
@@ -42,12 +40,7 @@
         <label class="input-label">Monto</label>
         <div class="amount-wrapper">
           <span class="currency">$</span>
-          <input
-            type="number"
-            inputmode="decimal"
-            placeholder="0.00"
-            formControlName="monto"
-            appCurrencyInput
+          <input type="number" inputmode="decimal" placeholder="0.00" formControlName="monto" appCurrencyInput
             appNumbersOnly>
         </div>
       </div>
@@ -60,36 +53,29 @@
         </label>
 
         @if (!fotoComprobante) {
-          <button type="button" class="upload-btn" (click)="seleccionarFoto()">
-            <ion-icon name="camera-outline"></ion-icon>
-            <span>Tomar foto o seleccionar de galería</span>
-          </button>
+        <button type="button" class="upload-btn" (click)="seleccionarFoto()">
+          <ion-icon name="camera-outline"></ion-icon>
+          <span>Tomar foto o seleccionar de galería</span>
+        </button>
         } @else {
-          <div class="photo-preview">
-            <img [src]="fotoComprobante" alt="Comprobante">
-            <button type="button" class="remove-photo" (click)="removerFoto()">
-              <ion-icon name="close-circle"></ion-icon>
-            </button>
-          </div>
+        <div class="photo-preview">
+          <img [src]="fotoComprobante" alt="Comprobante">
+          <button type="button" class="remove-photo" (click)="removerFoto()">
+            <ion-icon name="close-circle"></ion-icon>
+          </button>
+        </div>
         }
       </div>
 
       <!-- Observaciones (Opcional) -->
       <div class="input-group">
         <label class="input-label">Observaciones (opcional)</label>
-        <textarea
-          placeholder="Detalles adicionales..."
-          formControlName="observaciones"
-          rows="3">
+        <textarea placeholder="Detalles adicionales..." formControlName="observaciones" rows="3">
         </textarea>
       </div>
 
       <!-- Botón -->
-      <button
-        type="button"
-        class="submit-btn"
-        [disabled]="form.invalid"
-        (click)="confirmar()">
+      <button type="button" class="submit-btn" [disabled]="form.invalid" (click)="confirmar()">
         Registrar Gasto
       </button>
     </div>

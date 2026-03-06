@@ -2,7 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonButton, IonIcon, IonSpinner,
+  IonButtons, IonMenuButton, IonButton, IonIcon, IonSkeletonText,
   IonRefresher, IonRefresherContent,
   ModalController
 } from '@ionic/angular/standalone';
@@ -21,7 +21,7 @@ import { StorageService } from '@core/services/storage.service';
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton, IonIcon, IonSpinner,
+    IonButtons, IonMenuButton, IonIcon, IonSkeletonText,
     IonRefresher, IonRefresherContent
   ]
 })

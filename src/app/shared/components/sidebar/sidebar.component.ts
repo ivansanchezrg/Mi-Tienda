@@ -40,6 +40,7 @@ export class SidebarComponent implements OnInit {
   // Iconos
   userIcon = personCircleOutline;
   logoutIcon = logOutOutline;
+  settingsIcon = settingsOutline;
 
   // Datos del usuario
   empleadoNombre = '';
@@ -48,12 +49,11 @@ export class SidebarComponent implements OnInit {
 
   // Todas las rutas del sidebar
   private readonly todosLosItems: MenuItem[] = [
-    { title: 'Inicio',                url: '/home',                    icon: homeOutline,             exact: true },
-    { title: 'Historial de Gastos',   url: '/home/gastos-diarios',     icon: receiptOutline },
-    { title: 'Historial de Recargas', url: '/home/historial-recargas', icon: listOutline },
-    { title: 'Saldo Virtual',         url: '/home/recargas-virtuales', icon: swapHorizontalOutline },
-    { title: 'Usuarios',              url: '/usuarios',                icon: peopleOutline,           soloAdmin: true },
-    { title: 'Configuración',         url: '/configuracion',           icon: settingsOutline,         soloAdmin: true },
+    { title: 'Inicio', url: '/home', icon: homeOutline, exact: true },
+    { title: 'Historial de Gastos', url: '/home/gastos-diarios', icon: receiptOutline },
+    { title: 'Historial de Recargas', url: '/historial-recargas', icon: listOutline },
+    { title: 'Saldo Virtual', url: '/home/recargas-virtuales', icon: swapHorizontalOutline },
+    { title: 'Usuarios', url: '/usuarios', icon: peopleOutline, soloAdmin: true }
   ];
 
   // Items filtrados según el rol del usuario
@@ -63,8 +63,8 @@ export class SidebarComponent implements OnInit {
     const usuario = await this.authService.getUsuarioActual();
     if (usuario) {
       this.empleadoNombre = usuario.nombre;
-      this.empleadoEmail  = usuario.usuario;
-      this.empleadoRol    = usuario.rol;
+      this.empleadoEmail = usuario.usuario;
+      this.empleadoRol = usuario.rol;
     }
 
     // Filtrar items: ADMIN ve todo, EMPLEADO solo ve los no-admin

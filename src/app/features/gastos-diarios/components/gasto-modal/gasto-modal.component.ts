@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonSpinner,
+  IonContent, IonIcon, IonSkeletonText,
   ModalController, ActionSheetController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -23,7 +23,7 @@ import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive'
     CommonModule,
     ReactiveFormsModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonSpinner,
+    IonContent, IonIcon, IonSkeletonText,
     CurrencyInputDirective,
     NumbersOnlyDirective
   ]

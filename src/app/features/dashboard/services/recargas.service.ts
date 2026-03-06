@@ -200,7 +200,9 @@ export class RecargasService {
           .from('cajas')
           .select('saldo_actual')
           .eq('codigo', 'CAJA')
-          .single()
+          .single(),
+        undefined,
+        { showLoading: false }
       ),
 
       // 3. Saldo actual de CAJA_CHICA
@@ -209,7 +211,9 @@ export class RecargasService {
           .from('cajas')
           .select('saldo_actual')
           .eq('codigo', 'CAJA_CHICA')
-          .single()
+          .single(),
+        undefined,
+        { showLoading: false }
       ),
 
       // 4. Saldo actual de CAJA_CELULAR
@@ -218,7 +222,9 @@ export class RecargasService {
           .from('cajas')
           .select('saldo_actual')
           .eq('codigo', 'CAJA_CELULAR')
-          .single()
+          .single(),
+        undefined,
+        { showLoading: false }
       ),
 
       // 5. Saldo actual de CAJA_BUS
@@ -295,28 +301,36 @@ export class RecargasService {
           .from('cajas')
           .select('id')
           .eq('codigo', 'CAJA')
-          .single()
+          .single(),
+        undefined,
+        { showLoading: false }
       ),
       this.supabase.call<{ id: number }>(
         this.supabase.client
           .from('cajas')
           .select('id')
           .eq('codigo', 'CAJA_CHICA')
-          .single()
+          .single(),
+        undefined,
+        { showLoading: false }
       ),
       this.supabase.call<{ id: number }>(
         this.supabase.client
           .from('cajas')
           .select('id')
           .eq('codigo', 'CAJA_CELULAR')
-          .single()
+          .single(),
+        undefined,
+        { showLoading: false }
       ),
       this.supabase.call<{ id: number }>(
         this.supabase.client
           .from('cajas')
           .select('id')
           .eq('codigo', 'CAJA_BUS')
-          .single()
+          .single(),
+        undefined,
+        { showLoading: false }
       )
     ]);
 
@@ -347,7 +361,7 @@ export class RecargasService {
     try {
       const fechaBusqueda = fecha || getFechaLocal();
       const inicioDia = new Date(`${fechaBusqueda}T00:00:00`).toISOString();
-      const finDia    = new Date(`${fechaBusqueda}T23:59:59`).toISOString();
+      const finDia = new Date(`${fechaBusqueda}T23:59:59`).toISOString();
 
       // 1. Obtener turno activo de hoy (sin hora_fecha_cierre)
       const turnoResponse = await this.supabase.client
@@ -395,7 +409,9 @@ export class RecargasService {
     await this.supabase.call(
       this.supabase.client
         .from('recargas')
-        .insert(recarga)
+        .insert(recarga),
+      undefined,
+      { showLoading: true }
     );
   }
 
@@ -407,7 +423,9 @@ export class RecargasService {
     await this.supabase.call(
       this.supabase.client
         .from('operaciones_cajas')
-        .insert(operacion)
+        .insert(operacion),
+      undefined,
+      { showLoading: true }
     );
   }
 
@@ -421,7 +439,9 @@ export class RecargasService {
       this.supabase.client
         .from('cajas')
         .update({ saldo_actual: nuevoSaldo })
-        .eq('id', cajaId)
+        .eq('id', cajaId),
+      undefined,
+      { showLoading: true }
     );
   }
 
@@ -468,7 +488,9 @@ export class RecargasService {
         p_saldo_anterior_caja_celular: params.saldo_anterior_caja_celular,
         p_saldo_anterior_caja_bus: params.saldo_anterior_caja_bus,
         p_observaciones: params.observaciones || null
-      })
+      }),
+      undefined,
+      { showLoading: true }
     );
 
     return resultado;
