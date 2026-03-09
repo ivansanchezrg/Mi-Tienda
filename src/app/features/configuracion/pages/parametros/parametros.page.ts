@@ -32,7 +32,7 @@ export class ParametrosPage implements OnInit {
   ngOnInit() {
     this.form = this.fb.group({
       fondo_fijo_diario: [null, [Validators.required, Validators.min(0)]],
-      caja_chica_transferencia_diaria: [null, [Validators.required, Validators.min(0)]],
+      varios_transferencia_diaria: [null, [Validators.required, Validators.min(0)]],
       bus_alerta_saldo_bajo: [null, [Validators.required, Validators.min(0)]],
       bus_dias_antes_facturacion: [null, [Validators.required, Validators.min(1)]]
     });
@@ -56,7 +56,7 @@ export class ParametrosPage implements OnInit {
         this.configuracionId = config.id;
         this.form.patchValue({
           fondo_fijo_diario: config.fondo_fijo_diario,
-          caja_chica_transferencia_diaria: config.caja_chica_transferencia_diaria,
+          varios_transferencia_diaria: config.varios_transferencia_diaria,
           bus_alerta_saldo_bajo: config.bus_alerta_saldo_bajo,
           bus_dias_antes_facturacion: config.bus_dias_antes_facturacion
         });
@@ -78,7 +78,7 @@ export class ParametrosPage implements OnInit {
     try {
       const updated = await this.configuracionService.update(this.configuracionId, {
         fondo_fijo_diario: Number(this.form.value.fondo_fijo_diario),
-        caja_chica_transferencia_diaria: Number(this.form.value.caja_chica_transferencia_diaria),
+        varios_transferencia_diaria: Number(this.form.value.varios_transferencia_diaria),
         bus_alerta_saldo_bajo: Number(this.form.value.bus_alerta_saldo_bajo),
         bus_dias_antes_facturacion: Number(this.form.value.bus_dias_antes_facturacion)
       });

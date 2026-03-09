@@ -54,7 +54,7 @@ export class AuthService {
   }
 
   /**
-   * Valida que el email del usuario logueado exista en la tabla empleados y esté activo.
+   * Valida que el email del usuario logueado exista en la tabla usuarios y esté activo.
    * Retorna true si es válido, false si no.
    * Si no es válido, cierra sesión automáticamente.
    * Si es válido, guarda los datos del usuario en Preferences para acceso rápido.
@@ -67,7 +67,7 @@ export class AuthService {
     }
 
     const { data, error } = await this.supabase.client
-      .from('empleados')
+      .from('usuarios')
       .select('id, nombre, usuario, activo, rol')
       .eq('usuario', user.email)
       .single();

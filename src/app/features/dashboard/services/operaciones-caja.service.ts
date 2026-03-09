@@ -63,7 +63,7 @@ export class OperacionesCajaService {
       .select(`
         *,
         caja:cajas!inner(id, nombre, codigo),
-        empleado:empleados(id, nombre),
+        empleado:usuarios(id, nombre),
         categoria:categorias_operaciones(id, nombre, codigo, tipo)
       `, { count: 'exact' })
       .eq('caja_id', cajaId)

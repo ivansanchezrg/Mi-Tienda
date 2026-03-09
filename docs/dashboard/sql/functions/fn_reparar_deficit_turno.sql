@@ -6,20 +6,33 @@
 -- );
 
 -- ==========================================
--- FUNCIÓN: reparar_deficit_turno (v1.1)
+-- FUNCIÓN: reparar_deficit_turno (v1.4)
 -- ==========================================
+-- CAMBIOS v1.4:
+--   - El déficit de VARIOS y del fondo son costos operacionales del negocio.
+--     NO se tocan deudas_empleados — esa tabla solo registra faltantes de
+--     conteo físico (cuando empleado tiene menos efectivo del esperado al contar).
+--     Las deudas del empleado se saldan MANUALMENTE desde la UI.
+-- CAMBIOS v1.3:
+--   - Agrega apertura de turno al final de la misma transacción.
+--     Antes: la reparación y la apertura eran 2 operaciones separadas (TypeScript).
+--     Ahora: todo es atómico — si algo falla, nada queda a medias.
+--   - Retorna turno_id del turno recién abierto.
+-- CAMBIOS v1.2 (Refactor v5):
+--   - Cambio: busca caja por codigo 'VARIOS' (antes 'CAJA_CHICA')
 -- CAMBIOS v1.1:
 --   - Reemplaza WHERE id = 1/2 por lookup dinámico con codigo
---     (consistente con el resto de funciones del proyecto)
--- Registra el ajuste contable del déficit del turno anterior.
--- EGRESO de Tienda con validación de saldo: si Tienda no tiene suficiente, retorna error con mensaje.
--- INGRESO a Varios solo si p_deficit_caja_chica > 0.
+--
+-- Registra el ajuste contable del déficit del turno anterior Y abre el nuevo turno,
+-- todo en una sola transacción atómica.
+-- EGRESO de Tienda con validación de saldo: si Tienda no tiene suficiente, retorna error.
+-- INGRESO a VARIOS solo si p_deficit_caja_chica > 0.
 -- ==========================================
 -- Llamada desde: TurnosCajaService.repararDeficit()
 -- Parámetros:
 --   p_empleado_id        — empleado que abre el turno
---   p_deficit_caja_chica — monto pendiente a Varios del turno anterior
---   p_fondo_faltante     — fondo que faltó para el día (fondo_fijo - efectivo_recaudado_anterior)
+--   p_deficit_caja_chica — monto pendiente a VARIOS del turno anterior
+--   p_fondo_faltante     — fondo que faltó para el día
 --   p_cat_egreso_id      — ID de categoría EG-012 (Ajuste Déficit Turno Anterior)
 --   p_cat_ingreso_id     — ID de categoría IN-004 (Reposición Déficit Turno Anterior)
 -- ==========================================
@@ -39,11 +52,15 @@ AS $$
 DECLARE
   v_total_a_reponer DECIMAL(12,2);
   v_caja_id         INTEGER;
-  v_caja_chica_id   INTEGER;
+  v_varios_id       INTEGER;
   v_saldo_tienda    DECIMAL(12,2);
   v_saldo_varios    DECIMAL(12,2);
   v_op_egreso_id    UUID;
   v_op_ingreso_id   UUID;
+  -- Apertura de turno
+  v_inicio_dia      TIMESTAMPTZ;
+  v_numero_turno    INTEGER;
+  v_turno_id        UUID;
 BEGIN
   v_total_a_reponer := p_deficit_caja_chica + p_fondo_faltante;
 
@@ -56,9 +73,9 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'Los montos de déficit no pueden ser negativos');
   END IF;
 
-  -- Obtener IDs de cajas por código (consistente con el resto de funciones)
-  SELECT id INTO v_caja_id       FROM cajas WHERE codigo = 'CAJA';
-  SELECT id INTO v_caja_chica_id FROM cajas WHERE codigo = 'CAJA_CHICA';
+  -- Obtener IDs de cajas por código
+  SELECT id INTO v_caja_id   FROM cajas WHERE codigo = 'CAJA';
+  SELECT id INTO v_varios_id FROM cajas WHERE codigo = 'VARIOS';
 
   -- Obtener saldo actual de Tienda (con lock)
   SELECT saldo_actual INTO v_saldo_tienda FROM cajas WHERE id = v_caja_id FOR UPDATE;
@@ -78,7 +95,9 @@ BEGIN
     );
   END IF;
 
+  -- ==========================================
   -- 1. EGRESO de Tienda
+  -- ==========================================
   INSERT INTO operaciones_cajas (
     id, caja_id, empleado_id, tipo_operacion, categoria_id,
     monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
@@ -95,9 +114,11 @@ BEGIN
 
   UPDATE cajas SET saldo_actual = v_saldo_tienda - v_total_a_reponer WHERE id = v_caja_id;
 
-  -- 2. INGRESO a Varios (solo si hay déficit de caja chica)
+  -- ==========================================
+  -- 2. INGRESO a VARIOS (solo si hay déficit de la transferencia diaria)
+  -- ==========================================
   IF p_deficit_caja_chica > 0 THEN
-    SELECT saldo_actual INTO v_saldo_varios FROM cajas WHERE id = v_caja_chica_id FOR UPDATE;
+    SELECT saldo_actual INTO v_saldo_varios FROM cajas WHERE id = v_varios_id FOR UPDATE;
     IF NOT FOUND THEN
       RETURN json_build_object('success', false, 'error', 'No se encontró la caja Varios');
     END IF;
@@ -106,17 +127,50 @@ BEGIN
       id, caja_id, empleado_id, tipo_operacion, categoria_id,
       monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
     ) VALUES (
-      gen_random_uuid(), v_caja_chica_id, p_empleado_id, 'INGRESO', p_cat_ingreso_id,
+      gen_random_uuid(), v_varios_id, p_empleado_id, 'INGRESO', p_cat_ingreso_id,
       p_deficit_caja_chica, v_saldo_varios, v_saldo_varios + p_deficit_caja_chica,
       'Reposición déficit turno anterior — pendiente cobrado de Tienda',
       NULL
     ) RETURNING id INTO v_op_ingreso_id;
 
-    UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_caja_chica WHERE id = v_caja_chica_id;
+    UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_caja_chica WHERE id = v_varios_id;
   END IF;
 
+  -- ==========================================
+  -- 3. ABRIR TURNO (mismo proceso atómico)
+  -- ==========================================
+
+  -- Inicio del día en zona horaria local para filtrar turnos de hoy
+  v_inicio_dia := (
+    (NOW() AT TIME ZONE 'America/Guayaquil')::DATE::TIMESTAMP AT TIME ZONE 'America/Guayaquil'
+  );
+
+  -- Validar que no haya turno abierto (no debería, pero doble check)
+  IF EXISTS (
+    SELECT 1 FROM turnos_caja
+    WHERE hora_fecha_apertura >= v_inicio_dia
+      AND hora_fecha_apertura <  v_inicio_dia + INTERVAL '1 day'
+      AND hora_fecha_cierre IS NULL
+  ) THEN
+    RETURN json_build_object('success', false, 'error', 'Ya hay un turno abierto hoy');
+  END IF;
+
+  -- Número de turno: siguiente al último del día
+  SELECT COUNT(*) + 1 INTO v_numero_turno
+  FROM turnos_caja
+  WHERE hora_fecha_apertura >= v_inicio_dia
+    AND hora_fecha_apertura <  v_inicio_dia + INTERVAL '1 day';
+
+  INSERT INTO turnos_caja (numero_turno, empleado_id, hora_fecha_apertura)
+  VALUES (v_numero_turno, p_empleado_id, NOW())
+  RETURNING id INTO v_turno_id;
+
+  -- ==========================================
+  -- RESULTADO
+  -- ==========================================
   RETURN json_build_object(
     'success',            true,
+    'turno_id',           v_turno_id,
     'op_egreso_id',       v_op_egreso_id,
     'op_ingreso_id',      v_op_ingreso_id,
     'total_retirado',     v_total_a_reponer,
@@ -136,6 +190,8 @@ GRANT EXECUTE ON FUNCTION public.reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.reparar_deficit_turno IS
-  'v1.1 - Ajuste contable del déficit del turno anterior al abrir caja. '
-  'EGRESO de Tienda con validación de saldo (retorna error si Tienda no tiene suficiente) + INGRESO a Varios si hay déficit de caja chica. '
-  'Usa lookup por codigo en lugar de IDs hardcodeados.';
+  'v1.4 - Reparación déficit operacional + apertura de turno en una sola transacción atómica. '
+  'EGRESO de Tienda (validando saldo) + INGRESO a VARIOS (si hay déficit de transferencia) + INSERT en turnos_caja. '
+  'El déficit de VARIOS y del fondo son costos operacionales — NO son deudas del empleado. '
+  'deudas_empleados se gestiona independientemente (solo registra faltantes de conteo físico). '
+  'Retorna turno_id del turno abierto. Si algo falla, rollback completo — sin operaciones a medias.';

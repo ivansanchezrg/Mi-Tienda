@@ -1,6 +1,23 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
-import { CategoriaGasto, CategoriaGastoInsert } from '../../gastos-diarios/models/gasto-diario.model';
+
+/** Categoría de gasto (tabla categorias_gastos — solo admin) */
+export interface CategoriaGasto {
+  id: number;
+  nombre: string;
+  codigo: string;
+  descripcion: string | null;
+  activo: boolean;
+  created_at: string;
+}
+
+/** DTO para crear/actualizar una categoría de gasto */
+export interface CategoriaGastoInsert {
+  codigo?: string;
+  nombre: string;
+  descripcion?: string;
+  activo?: boolean;
+}
 
 @Injectable({ providedIn: 'root' })
 export class CategoriasGastosService {

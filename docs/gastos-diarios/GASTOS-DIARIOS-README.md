@@ -1,3 +1,12 @@
+# ~~Proceso: Gastos Diarios~~ — ⚠️ DEPRECADO EN v5 (2026-03-06)
+
+> **Este módulo fue eliminado en el Refactor v5.** Las tablas `gastos_diarios` y `categorias_gastos` fueron dropeadas de la base de datos.
+> Los gastos operativos ahora se registran como **EGRESO desde CAJA_CHICA** usando el modal de Operaciones de Caja (`operacion-modal.component`), con su categoría contable correspondiente.
+> La carpeta `src/app/features/gastos-diarios/` fue eliminada del proyecto.
+> Ver: `docs/REFACTOR-V5.md` para el plan completo de la migración.
+
+---
+
 # Proceso: Gastos Diarios
 
 ## ¿Qué es?

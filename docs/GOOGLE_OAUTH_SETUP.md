@@ -130,7 +130,7 @@ const redirectTo = Capacitor.isNativePlatform()
 3. Google redirige a `/auth/callback#access_token=xxx`
 4. Supabase detecta el token en `window.location.hash` automaticamente
 5. CallbackPage verifica sesion con `getSession()` o `onAuthStateChange`
-6. Valida que el email exista en tabla `empleados` con `activo = true`
+6. Valida que el email exista en tabla `usuarios` con `activo = true`
 7. Redirige a `/home`
 
 ### Android
@@ -145,7 +145,7 @@ const redirectTo = Capacitor.isNativePlatform()
 8. Guarda la URL en `supabaseService.pendingDeepLinkUrl` y navega a `/auth/callback`
 9. CallbackPage extrae `access_token` y `refresh_token` de la URL guardada
 10. Setea la sesion manualmente con `auth.setSession()`
-11. Valida que el email exista en tabla `empleados` con `activo = true`
+11. Valida que el email exista en tabla `usuarios` con `activo = true`
 12. Redirige a `/home`
 
 **Diferencia clave:** En web Supabase detecta el token del hash automaticamente (`skipBrowserRedirect: false`). En Android se usa `skipBrowserRedirect: true` + `Browser.open()` para controlar la pestaña y poder cerrarla con `Browser.close()` al volver.
@@ -206,14 +206,14 @@ La app esta en modo desarrollo en Google Cloud. Agregar los emails de prueba en 
 
 ### Usuario autenticado pero sin acceso
 
-El email no esta en la tabla `empleados` o tiene `activo = false`. Verificar en Supabase > Table Editor > `empleados`.
+El email no esta en la tabla `usuarios` o tiene `activo = false`. Verificar en Supabase > Table Editor > `usuarios`.
 
 ---
 
-## Base de Datos: Tabla empleados
+## Base de Datos: Tabla usuarios
 
 ```sql
-CREATE TABLE IF NOT EXISTS public.empleados (
+CREATE TABLE IF NOT EXISTS public.usuarios (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   nombre TEXT NOT NULL,
   usuario TEXT NOT NULL UNIQUE,
@@ -221,10 +221,10 @@ CREATE TABLE IF NOT EXISTS public.empleados (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-ALTER TABLE public.empleados ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Permitir lectura a usuarios autenticados"
-ON public.empleados FOR SELECT TO authenticated USING (true);
+ON public.usuarios FOR SELECT TO authenticated USING (true);
 ```
 
 ---

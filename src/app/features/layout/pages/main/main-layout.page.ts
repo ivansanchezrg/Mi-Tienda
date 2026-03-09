@@ -6,11 +6,8 @@ import {
   ModalController
 } from '@ionic/angular/standalone';
 import { SidebarComponent } from 'src/app/shared/components/sidebar/sidebar.component';
-import { homeOutline, cartOutline, cubeOutline, barChartOutline, add, close, receiptOutline, clipboardOutline, barcodeOutline } from 'ionicons/icons';
+import { homeOutline, cartOutline, cubeOutline, barChartOutline, add, close, clipboardOutline, barcodeOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { GastoModalComponent } from 'src/app/features/gastos-diarios/components/gasto-modal/gasto-modal.component';
-import { GastosDiariosService } from 'src/app/features/gastos-diarios/services/gastos-diarios.service';
-import { GastoModalResult } from 'src/app/features/gastos-diarios/models/gasto-diario.model';
 import { CuadreCajaPage } from 'src/app/features/dashboard/pages/cuadre-caja/cuadre-caja.page';
 
 @Component({
@@ -28,7 +25,6 @@ import { CuadreCajaPage } from 'src/app/features/dashboard/pages/cuadre-caja/cua
 export class MainLayoutPage {
   private ui = inject(UiService);
   private modalCtrl = inject(ModalController);
-  private gastosService = inject(GastosDiariosService);
 
   // Iconos importados como objetos (patrón Ionic Standalone)
   homeIcon = homeOutline;
@@ -38,7 +34,6 @@ export class MainLayoutPage {
   reportesIcon = barChartOutline;
   addIcon = add;
   closeIcon = close;
-  receiptIcon = receiptOutline;
   clipboardIcon = clipboardOutline;
 
   // Estado del FAB
@@ -51,31 +46,6 @@ export class MainLayoutPage {
    */
   toggleFab() {
     this.fabAbierto = !this.fabAbierto;
-  }
-
-  /**
-   * Abre modal para registrar un gasto diario
-   */
-  async irAGasto() {
-    this.fabAbierto = false;
-
-    const modal = await this.modalCtrl.create({
-      component: GastoModalComponent,
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-
-    await modal.present();
-    const { data, role } = await modal.onDidDismiss<GastoModalResult>();
-
-    if (role === 'confirm' && data) {
-      await this.gastosService.registrarGasto({
-        categoria_gasto_id: data.categoria_gasto_id,
-        monto: data.monto,
-        observaciones: data.observaciones,
-        fotoComprobante: data.fotoComprobante
-      });
-    }
   }
 
   /**

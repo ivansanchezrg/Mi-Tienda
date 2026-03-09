@@ -15,11 +15,12 @@ export interface Caja {
 }
 
 /**
- * Respuesta con los saldos de todas las cajas
+ * Respuesta con los saldos de todas las cajas (v5: 5 cajas)
  */
 export interface SaldosCajas {
-  cajaPrincipal: number;
-  cajaChica: number;
+  cajaPrincipal: number; // CAJA — bóveda/depósito principal
+  cajaChica: number;     // CAJA_CHICA — cajón físico diario (v5: nuevo)
+  varios: number;        // VARIOS — fondo de emergencia (v5: antes era CAJA_CHICA)
   cajaCelular: number;
   cajaBus: number;
   total: number;
@@ -76,13 +77,15 @@ export class CajasService {
 
     const cajaPrincipal = cajas.find(c => c.codigo === 'CAJA')?.saldo_actual ?? 0;
     const cajaChica = cajas.find(c => c.codigo === 'CAJA_CHICA')?.saldo_actual ?? 0;
+    const varios = cajas.find(c => c.codigo === 'VARIOS')?.saldo_actual ?? 0;
     const cajaCelular = cajas.find(c => c.codigo === 'CAJA_CELULAR')?.saldo_actual ?? 0;
     const cajaBus = cajas.find(c => c.codigo === 'CAJA_BUS')?.saldo_actual ?? 0;
-    const total = cajaPrincipal + cajaChica + cajaCelular + cajaBus;
+    const total = cajaPrincipal + cajaChica + varios + cajaCelular + cajaBus;
 
     return {
       cajaPrincipal,
       cajaChica,
+      varios,
       cajaCelular,
       cajaBus,
       total,
@@ -154,42 +157,54 @@ export class CajasService {
   }
 
   /**
-   * Obtiene la fecha del último cierre registrado
-   * Consulta la tabla caja_fisica_diaria ordenada por fecha descendente
-   * @returns Fecha en formato YYYY-MM-DD o null si no hay cierres
+   * Obtiene la fecha del último cierre registrado (v5)
+   * Consulta turnos_caja buscando el turno más reciente que ya fue cerrado (hora_fecha_cierre IS NOT NULL)
+   * @returns Fecha en formato YYYY-MM-DD (fecha local) o null si no hay cierres
    */
   async obtenerFechaUltimoCierre(): Promise<string | null> {
-    const cierre = await this.supabase.call<{ fecha: string }>(
+    const turno = await this.supabase.call<{ hora_fecha_cierre: string }>(
       this.supabase.client
-        .from('caja_fisica_diaria')
-        .select('fecha')
-        .order('fecha', { ascending: false })
+        .from('turnos_caja')
+        .select('hora_fecha_cierre')
+        .not('hora_fecha_cierre', 'is', null)
+        .order('hora_fecha_cierre', { ascending: false })
         .limit(1)
         .maybeSingle()
     );
 
-    return cierre?.fecha || null;
+    if (!turno?.hora_fecha_cierre) return null;
+
+    // Convertir TIMESTAMPTZ a fecha local (YYYY-MM-DD)
+    const fechaCierre = new Date(turno.hora_fecha_cierre);
+    const año = fechaCierre.getFullYear();
+    const mes = String(fechaCierre.getMonth() + 1).padStart(2, '0');
+    const dia = String(fechaCierre.getDate()).padStart(2, '0');
+    return `${año}-${mes}-${dia}`;
   }
 
   /**
-   * Verifica si la caja está abierta o cerrada (Versión 3.0)
-   * Consulta la tabla caja_fisica_diaria
-   * @returns true si está abierta (NO hay cierre para hoy), false si está cerrada (SÍ hay cierre)
+   * Verifica si la caja está abierta o cerrada (v5)
+   * En v5 el cierre cierra el turno (hora_fecha_cierre IS NOT NULL).
+   * Consulta turnos_caja buscando un turno activo hoy (sin hora_fecha_cierre).
+   * @returns true si está abierta (hay turno sin cierre hoy), false si no hay turno activo
    */
   async verificarEstadoCaja(): Promise<boolean> {
     const fechaHoy = getFechaLocal();
+    const inicioDia = new Date(`${fechaHoy}T00:00:00`).toISOString();
+    const finDia = new Date(`${fechaHoy}T23:59:59`).toISOString();
 
-    const cierre = await this.supabase.call<{ id: string }>(
+    const turno = await this.supabase.call<{ id: string }>(
       this.supabase.client
-        .from('caja_fisica_diaria')
+        .from('turnos_caja')
         .select('id')
-        .eq('fecha', fechaHoy)
+        .gte('hora_fecha_apertura', inicioDia)
+        .lte('hora_fecha_apertura', finDia)
+        .is('hora_fecha_cierre', null)
         .maybeSingle()
     );
 
-    // Si NO existe cierre para hoy → está ABIERTA
-    // Si SÍ existe cierre para hoy → está CERRADA
-    return cierre === null;
+    // Hay turno activo → ABIERTA
+    return turno !== null;
   }
 
   /**

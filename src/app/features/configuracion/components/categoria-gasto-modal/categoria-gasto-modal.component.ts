@@ -8,7 +8,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline } from 'ionicons/icons';
-import { CategoriaGasto, CategoriaGastoInsert } from '../../../gastos-diarios/models/gasto-diario.model';
+import { CategoriaGasto, CategoriaGastoInsert } from '../../../dashboard/services/categorias-gastos.service';
 
 @Component({
   selector: 'app-categoria-gasto-modal',

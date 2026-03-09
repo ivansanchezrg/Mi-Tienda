@@ -34,16 +34,16 @@ Incluye gestión de caja (sistema de 4 cajas), ventas, recargas virtuales (celul
 
 ## Módulos
 
-| Módulo               | Estado             | Descripción                                                              |
-| -------------------- | ------------------ | ------------------------------------------------------------------------ |
-| Auth                 | ✅ Completo        | Autenticación con Google OAuth via Supabase + Deep Links                 |
-| Dashboard            | ✅ Completo        | Home, apertura/cierre de caja, cuadre y operaciones (sistema de 4 cajas) |
-| Recargas Virtuales   | ✅ Completo        | Gestión de saldo CELULAR/BUS, deudas, liquidaciones y comisiones         |
-| Gastos Diarios       | ✅ Completo        | Registro de gastos operativos con FAB y comprobantes fotográficos        |
-| Inventario           | 🚧 En desarrollo   | Control de stock de productos                                            |
-| POS                  | 🚧 En desarrollo   | Punto de venta para registro de ventas                                   |
-| Reportes             | 🚧 En desarrollo   | Reportes e historial de movimientos                                      |
-| Usuarios             | ✅ Completo        | Gestión de usuarios y permisos                                           |
+| Módulo             | Estado           | Descripción                                                              |
+| ------------------ | ---------------- | ------------------------------------------------------------------------ |
+| Auth               | ✅ Completo       | Autenticación con Google OAuth via Supabase + Deep Links                 |
+| Dashboard          | ✅ Completo       | Home, apertura/cierre de caja, cuadre y operaciones (sistema de 4 cajas) |
+| Recargas Virtuales | ✅ Completo       | Gestión de saldo CELULAR/BUS, deudas, liquidaciones y comisiones         |
+| Gastos Diarios     | ✅ Completo       | Registro de gastos operativos con FAB y comprobantes fotográficos        |
+| Inventario         | 🚧 En desarrollo | Control de stock de productos                                            |
+| POS                | 🚧 En desarrollo | Punto de venta para registro de ventas                                   |
+| Reportes           | 🚧 En desarrollo | Reportes e historial de movimientos                                      |
+| Usuarios           | ✅ Completo       | Gestión de usuarios y permisos                                           |
 
 ---
 
@@ -92,7 +92,7 @@ export const environment = {
 ```
 
 > Obtén estas credenciales en tu [Supabase Dashboard](https://supabase.com/dashboard) → Project Settings → API.
->
+> 
 > El `anon key` es seguro para usar en el cliente. La seguridad de los datos se gestiona mediante **Row Level Security (RLS)** en Supabase.
 
 Haz lo mismo para producción:
@@ -134,9 +134,11 @@ npx cap run android    # Instala el APK en el dispositivo conectado
 ```
 
 > **Primer uso:** Si ves el error `SDK location not found`, crea el archivo `android/local.properties`:
+> 
 > ```properties
 > sdk.dir=C\:\\Users\\TU_USUARIO\\AppData\\Local\\Android\\Sdk
 > ```
+> 
 > Reemplaza `TU_USUARIO` con tu nombre de usuario de Windows.
 
 ---
@@ -145,22 +147,22 @@ npx cap run android    # Instala el APK en el dispositivo conectado
 
 ### General
 
-| Documento | Descripción |
-| --------- | ----------- |
-| [Configuración Inicial](docs/CONFIGURACION-INICIAL.md) | Guía paso a paso para configurar el proyecto desde cero |
-| [Estructura del Proyecto](docs/ESTRUCTURA-PROYECTO.md) | Organización de carpetas y convenciones de código |
-| [Sistema de Diseño](docs/DESIGN.md) | Design tokens, patrones UI y guía de componentes Ionic |
-| [Google OAuth Setup](docs/GOOGLE_OAUTH_SETUP.md) | Configuración de Supabase + Google Cloud para OAuth |
-| [Schema SQL](docs/schema.sql) | Estructura completa de la base de datos (tablas, tipos, funciones) |
-| [Core y Utilidades](docs/core/CORE-README.md) | UiService, manejo de loading, formateo de moneda y utilidades compartidas |
+| Documento                                              | Descripción                                                               |
+| ------------------------------------------------------ | ------------------------------------------------------------------------- |
+| [Configuración Inicial](docs/CONFIGURACION-INICIAL.md) | Guía paso a paso para configurar el proyecto desde cero                   |
+| [Estructura del Proyecto](docs/ESTRUCTURA-PROYECTO.md) | Organización de carpetas y convenciones de código                         |
+| [Sistema de Diseño](docs/DESIGN.md)                    | Design tokens, patrones UI y guía de componentes Ionic                    |
+| [Google OAuth Setup](docs/GOOGLE_OAUTH_SETUP.md)       | Configuración de Supabase + Google Cloud para OAuth                       |
+| [Schema SQL](docs/schema.sql)                          | Estructura completa de la base de datos (tablas, tipos, funciones)        |
+| [Core y Utilidades](docs/core/CORE-README.md)          | UiService, manejo de loading, formateo de moneda y utilidades compartidas |
 
 ### Por Módulo
 
-| Módulo | Documento |
-| ------ | --------- |
-| Auth | [AUTH-README.md](docs/auth/AUTH-README.md) |
-| Dashboard | [DASHBOARD-README.md](docs/dashboard/DASHBOARD-README.md) |
-| Gastos Diarios | [GASTOS-DIARIOS-README.md](docs/gastos-diarios/GASTOS-DIARIOS-README.md) |
+| Módulo             | Documento                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| Auth               | [AUTH-README.md](docs/auth/AUTH-README.md)                                           |
+| Dashboard          | [DASHBOARD-README.md](docs/dashboard/DASHBOARD-README.md)                            |
+| Gastos Diarios     | [GASTOS-DIARIOS-README.md](docs/gastos-diarios/GASTOS-DIARIOS-README.md)             |
 | Recargas Virtuales | [RECARGAS-VIRTUALES-README.md](docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md) |
 
 ---
