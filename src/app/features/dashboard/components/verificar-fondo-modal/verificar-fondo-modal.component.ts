@@ -9,10 +9,10 @@ import {
 import { addIcons } from 'ionicons';
 import {
   closeOutline, alertCircleOutline, checkmarkCircle, checkmarkCircleOutline,
-  walletOutline, cashOutline, briefcaseOutline,
-  timeOutline, lockOpenOutline
+  walletOutline, cashOutline, briefcaseOutline, lockOpenOutline
 } from 'ionicons/icons';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
+import { UiService } from '@core/services/ui.service';
 
 @Component({
   selector: 'app-verificar-fondo-modal',
@@ -107,11 +107,33 @@ import { TurnosCajaService } from '../../services/turnos-caja.service';
                 @if (fondoFaltante > 0) {
                   <div class="instruccion-paso">
                     <div class="paso-numero">{{ deficitCajaChica > 0 ? 3 : 2 }}</div>
-                    <p>Deja <strong>\${{ fondoFaltante | number:'1.2-2' }}</strong> en la <strong>caja física</strong></p>
+                    <p>Pon <strong>\${{ fondoFaltante | number:'1.2-2' }}</strong> en el <strong>cajón</strong> (fondo del día)</p>
                   </div>
                 }
               </div>
             </div>
+
+            <div class="actions-section">
+              <ion-button
+                expand="block"
+                fill="clear"
+                color="medium"
+                (click)="cancelar()">
+                Cancelar
+              </ion-button>
+              <ion-button
+                expand="block"
+                color="warning"
+                (click)="avanzarPaso2()"
+                style="--border-radius: 8px">
+                <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
+                Ya lo hice — Continuar
+              </ion-button>
+            </div>
+          }
+
+          <!-- ====== PASO 2: VERIFICAR FONDO ====== -->
+          @if (!hayDeficit || pasoActual === 2) {
 
             @if (errorMsg) {
               <div class="error-banner">
@@ -120,43 +142,21 @@ import { TurnosCajaService } from '../../services/turnos-caja.service';
               </div>
             }
 
-            <div class="actions-section">
-              <ion-button
-                expand="block"
-                fill="clear"
-                color="medium"
-                [disabled]="registrando"
-                (click)="cancelar()">
-                Cancelar
-              </ion-button>
-              <ion-button
-                expand="block"
-                color="warning"
-                [disabled]="registrando"
-                (click)="registrarYAvanzar()"
-                style="--border-radius: 8px">
-                @if (registrando) {
-                  <ion-icon name="time-outline" slot="start"></ion-icon>
-                  Registrando...
-                } @else {
-                  <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
-                  Ya lo hice — Registrar en sistema
-                }
-              </ion-button>
-            </div>
-          }
-
-          <!-- ====== PASO 2: VERIFICAR FONDO ====== -->
-          @if (!hayDeficit || pasoActual === 2) {
-
             @if (hayDeficit && pasoActual === 2) {
               <div class="paso1-ok">
                 <ion-icon name="checkmark-circle" color="success"></ion-icon>
                 <div class="paso1-ok-text">
-                  <strong>Operaciones registradas</strong>
-                  <span>EGRESO Tienda −\${{ totalAReponer | number:'1.2-2' }}
+                  <strong>Listo — acciones físicas completadas</strong>
+                  <span>
+                    Al confirmar se registrará: EGRESO Tienda −\${{ totalAReponer | number:'1.2-2' }}
                     @if (deficitCajaChica > 0) { · INGRESO Varios +\${{ deficitCajaChica | number:'1.2-2' }} }
                   </span>
+                  @if (fondoFaltante > 0) {
+                    <span class="paso1-fondo-aviso">
+                      <ion-icon name="checkmark-circle-outline"></ion-icon>
+                      Fondo del día: \${{ fondoFaltante | number:'1.2-2' }} en el cajón
+                    </span>
+                  }
                 </div>
               </div>
             }
@@ -188,7 +188,7 @@ import { TurnosCajaService } from '../../services/turnos-caja.service';
                 (click)="abrirCaja()"
                 style="--border-radius: 8px">
                 <ion-icon name="lock-open-outline" slot="start"></ion-icon>
-                Abrir Caja
+                Confirmar y Abrir Caja
               </ion-button>
               <ion-button
                 expand="block"
@@ -394,6 +394,20 @@ import { TurnosCajaService } from '../../services/turnos-caja.service';
           gap: 2px;
           strong { font-size: 13px; color: var(--ion-color-success-shade); }
           span { font-size: 12px; color: var(--ion-color-medium); }
+
+          .paso1-fondo-aviso {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 4px;
+            padding: 5px 8px;
+            background: rgba(var(--ion-color-warning-rgb), 0.12);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--ion-color-warning-shade);
+            ion-icon { font-size: 13px; flex-shrink: 0; }
+          }
         }
       }
 
@@ -447,8 +461,9 @@ import { TurnosCajaService } from '../../services/turnos-caja.service';
   ]
 })
 export class VerificarFondoModalComponent {
-  private modalCtrl        = inject(ModalController);
+  private modalCtrl         = inject(ModalController);
   private turnosCajaService = inject(TurnosCajaService);
+  private ui                = inject(UiService);
 
   // Props recibidas
   fondoFijo        = 40.00;
@@ -457,15 +472,13 @@ export class VerificarFondoModalComponent {
 
   // Estado interno
   pasoActual: 1 | 2 = 1;
-  confirmado  = false;
-  registrando = false;
-  errorMsg    = '';
+  confirmado = false;
+  errorMsg   = '';
 
   constructor() {
     addIcons({
       closeOutline, alertCircleOutline, checkmarkCircle, checkmarkCircleOutline,
-      walletOutline, cashOutline, briefcaseOutline,
-      timeOutline, lockOpenOutline
+      walletOutline, cashOutline, briefcaseOutline, lockOpenOutline
     });
   }
 
@@ -477,22 +490,8 @@ export class VerificarFondoModalComponent {
     return this.deficitCajaChica + this.fondoFaltante;
   }
 
-  async registrarYAvanzar(): Promise<void> {
-    this.registrando = true;
-    this.errorMsg    = '';
-
-    const result = await this.turnosCajaService.repararDeficit(
-      this.deficitCajaChica,
-      this.fondoFaltante
-    );
-
-    this.registrando = false;
-
-    if (!result.ok) {
-      this.errorMsg = result.errorMsg || 'Error al registrar. Verifica tu conexión e intenta de nuevo.';
-      return;
-    }
-
+  /** Step 1: solo avanza — sin tocar la BD */
+  avanzarPaso2(): void {
     this.pasoActual = 2;
   }
 
@@ -500,7 +499,28 @@ export class VerificarFondoModalComponent {
     this.modalCtrl.dismiss(null, 'cancel');
   }
 
-  abrirCaja() {
-    this.modalCtrl.dismiss({ confirmado: true }, 'confirm');
+  /** Step 2: registra déficit (si aplica) y abre caja — todo en un solo clic */
+  async abrirCaja(): Promise<void> {
+    if (!this.hayDeficit) {
+      this.modalCtrl.dismiss({ confirmado: true }, 'confirm');
+      return;
+    }
+
+    this.errorMsg = '';
+    await this.ui.showLoading('Abriendo caja...');
+
+    const result = await this.turnosCajaService.repararDeficit(
+      this.deficitCajaChica,
+      this.fondoFaltante
+    );
+
+    await this.ui.hideLoading();
+
+    if (!result.ok) {
+      this.errorMsg = result.errorMsg || 'Error al registrar. Verifica tu conexión e intenta de nuevo.';
+      return;
+    }
+
+    this.modalCtrl.dismiss({ confirmado: true, turnoId: result.turnoId }, 'confirm');
   }
 }

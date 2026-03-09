@@ -69,9 +69,9 @@ export class OperacionModalComponent implements OnInit {
 
   async ngOnInit() {
     // Filtrar solo cajas donde se permite ingreso/egreso manual
-    // Por ahora: CAJA y CAJA_CHICA
+    // v5: CAJA (vault), CAJA_CHICA (cajón diario), VARIOS (fondo emergencia)
     this.cajasFiltradas = this.cajas.filter(c =>
-      ['CAJA', 'CAJA_CHICA'].includes(c.codigo)
+      ['CAJA', 'CAJA_CHICA', 'VARIOS'].includes(c.codigo)
     );
 
     // Pre-seleccionar caja si se especificó

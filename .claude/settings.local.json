@@ -56,7 +56,8 @@
       "Bash(node -e \":*)",
       "Bash(git -C \"/c/Users/ivan/Desktop/Proyectos/mi-tienda\" check-ignore src/environments/environment.ts)",
       "Bash(git -C \"/c/Users/ivan/Desktop/Proyectos/mi-tienda\" log --oneline --all -- src/environments/environment.ts)",
-      "Bash(xargs grep -l \"turno\\\\|abrir\\\\|apertura\" -i)"
+      "Bash(xargs grep -l \"turno\\\\|abrir\\\\|apertura\" -i)",
+      "Bash(npx tsc --noEmit)"
     ]
   }
 }

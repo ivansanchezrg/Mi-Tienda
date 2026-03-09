@@ -86,7 +86,7 @@ export class RecargasVirtualesService {
   async obtenerHistorial(servicio: 'CELULAR' | 'BUS'): Promise<RecargaVirtual[]> {
     const response = await this.supabase.client
       .from('recargas_virtuales')
-      .select('*, tipos_servicio!inner(codigo), empleados!inner(nombre)')
+      .select('*, tipos_servicio!inner(codigo), usuarios!inner(nombre)')
       .eq('tipos_servicio.codigo', servicio)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -96,7 +96,7 @@ export class RecargasVirtualesService {
     return (response.data || []).map((r: any) => ({
       ...r,
       servicio: r.tipos_servicio.codigo,
-      empleado_nombre: r.empleados?.nombre ?? null
+      empleado_nombre: r.usuarios?.nombre ?? null
     }));
   }
 

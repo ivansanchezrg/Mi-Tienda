@@ -197,7 +197,7 @@ SELECT
 FROM operaciones_cajas o
 JOIN cajas c ON o.caja_id = c.id
 LEFT JOIN categorias_operaciones c2 ON o.categoria_id = c2.id
-LEFT JOIN empleados e ON o.empleado_id = e.id
+LEFT JOIN usuarios e ON o.empleado_id = e.id
 WHERE o.caja_id = 1  -- cambiar por el ID de la caja deseada
   AND o.fecha >= NOW() - INTERVAL '7 days'
 ORDER BY o.fecha DESC;

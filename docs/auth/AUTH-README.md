@@ -43,7 +43,7 @@ Módulo de autenticación usando Supabase Auth con Google como proveedor OAuth.
 
 - **Web** (`handleWebCallback`): Verifica sesión con `getSession()`. Si no existe aún, se suscribe a `onAuthStateChange` esperando el evento `SIGNED_IN`. La suscripción se limpia en `ngOnDestroy()`.
 - **Android** (`handleAndroidCallback`): Lee `pendingDeepLinkUrl`, parsea el hash para extraer `access_token` y `refresh_token`, llama a `setSession()` para establecer la sesión manualmente.
-- Después de establecer sesión (ambas plataformas), llama a `validateAndRedirect()` que ejecuta `AuthService.validarUsuario()` para verificar que el email exista en la tabla `empleados` con `activo = true`
+- Después de establecer sesión (ambas plataformas), llama a `validateAndRedirect()` que ejecuta `AuthService.validarUsuario()` para verificar que el email exista en la tabla `usuarios` con `activo = true`
 - Si no es usuario válido → cierra sesión y redirige a `/auth/login`
 - Si es usuario válido → redirige a `/home`
 
@@ -67,7 +67,7 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 - `hasLocalSession()` → verifica si hay sesión guardada en localStorage (sin llamada de red). Útil para soporte offline
 - `getSession()` → retorna la sesión actual de Supabase o null
 - `getUser()` → retorna el usuario actual o null
-- `validarUsuario()` → consulta tabla `empleados` por email, seleccionando también `rol`. Retorna `true` si existe y `activo = true`. Si no, muestra error, cierra sesión y redirige al login. **Después de validar, guarda automáticamente el usuario en Preferences**
+- `validarUsuario()` → consulta tabla `usuarios` por email, seleccionando también `rol`. Retorna `true` si existe y `activo = true`. Si no, muestra error, cierra sesión y redirige al login. **Después de validar, guarda automáticamente el usuario en Preferences**
 - `logout()` → muestra confirmación, cierra sesión y redirige a `/auth/login`. Funciona con o sin internet (limpia sesión local y Preferences)
 - `forceLogout()` → cierra sesión sin confirmación ni loading (uso interno). Limpia sesión local y Preferences
 
@@ -95,7 +95,7 @@ export interface UsuarioActual {
 
 **¿Cuándo se guarda automáticamente?**
 
-Al iniciar sesión exitosamente, `validarUsuario()` consulta la tabla `empleados` UNA SOLA VEZ y guarda los datos en Preferences. A partir de ahí, todos los módulos pueden usar `getUsuarioActual()` sin consultar Supabase.
+Al iniciar sesión exitosamente, `validarUsuario()` consulta la tabla `usuarios` UNA SOLA VEZ y guarda los datos en Preferences. A partir de ahí, todos los módulos pueden usar `getUsuarioActual()` sin consultar Supabase.
 
 **¿Cuándo se limpia automáticamente?**
 

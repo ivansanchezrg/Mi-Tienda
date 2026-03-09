@@ -25,7 +25,7 @@ BEGIN
   -- 1. OBTENER IDs NECESARIOS
   -- ============================================================
 
-  SELECT id INTO v_empleado_id FROM empleados WHERE usuario = 'ivansan2192@gmail.com' LIMIT 1;
+  SELECT id INTO v_empleado_id FROM usuarios WHERE usuario = 'ivansan2192@gmail.com' LIMIT 1;
   SELECT id INTO v_tipo_bus_id FROM tipos_servicio WHERE codigo = 'BUS' LIMIT 1;
   SELECT id INTO v_tipo_celular_id FROM tipos_servicio WHERE codigo = 'CELULAR' LIMIT 1;
   SELECT id INTO v_caja_bus_id FROM cajas WHERE codigo = 'CAJA_BUS' LIMIT 1;

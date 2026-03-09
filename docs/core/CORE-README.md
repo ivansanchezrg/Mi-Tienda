@@ -41,7 +41,7 @@ Manejo centralizado de consultas a la base de datos PostgreSQL. Existen dos patr
 
 ```typescript
 const data = await this.supabase.call<Employee>(
-  this.supabase.client.from('empleados').insert({...}).select().single(),
+  this.supabase.client.from('usuarios').insert({...}).select().single(),
   { showLoading: true }
 );
 ```

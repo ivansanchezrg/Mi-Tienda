@@ -36,7 +36,7 @@ export class TurnosCajaService {
     const turno = await this.supabase.call<TurnoCajaConEmpleado>(
       this.supabase.client
         .from('turnos_caja')
-        .select('*, empleado:empleados(id, nombre)')
+        .select('*, empleado:usuarios(id, nombre)')
         .gte('hora_fecha_apertura', inicioDia)
         .is('hora_fecha_cierre', null)
         .maybeSingle()
@@ -108,33 +108,90 @@ export class TurnosCajaService {
   }
 
   /**
-   * Obtiene el déficit del último cierre registrado.
-   * Si el turno anterior cerró con déficit, el siguiente turno debe reponer:
-   *  - deficit_caja_chica: lo que faltó transferir a Caja Chica
-   *  - fondoFaltante: lo que faltó dejar en caja física (calculado desde config)
+   * Detecta si el último cierre tuvo déficit en la transferencia a VARIOS (v5).
    *
-   * Retorna null si no hay cierre previo o si el cierre fue normal (sin déficit).
+   * En v5 no existe caja_fisica_diaria. El déficit se detecta verificando si VARIOS
+   * recibió su TRANSFERENCIA_ENTRANTE en el último día con cierre.
+   * Si NO la recibió → deficit = varios_transferencia_diaria (monto completo).
+   *
+   * Retorna null si no hay cierre previo o si el último cierre fue normal (sin déficit).
    */
-  async obtenerDeficitTurnoAnterior(): Promise<{ deficitCajaChica: number; fondoFaltante: number; efectivoRecaudado: number } | null> {
-    const { data, error } = await this.supabase.client
-      .from('caja_fisica_diaria')
-      .select('efectivo_recaudado, deficit_caja_chica')
-      .order('created_at', { ascending: false })
+  async obtenerDeficitTurnoAnterior(): Promise<{ deficitCajaChica: number; fondoFaltante: number } | null> {
+    // 1. Obtener el último turno cerrado con su estado de fondo
+    const { data: ultimoTurno, error: turnoError } = await this.supabase.client
+      .from('turnos_caja')
+      .select('hora_fecha_cierre, fondo_cubierto')
+      .not('hora_fecha_cierre', 'is', null)
+      .order('hora_fecha_cierre', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (error || !data) return null;
+    if (turnoError || !ultimoTurno) return null;
 
-    const deficitCajaChica = data.deficit_caja_chica ?? 0;
-    const efectivoRecaudado = data.efectivo_recaudado ?? 0;
+    // 2. Obtener fecha local del último cierre
+    const fechaUltimoCierre = new Date(ultimoTurno.hora_fecha_cierre);
+    const anio = fechaUltimoCierre.getFullYear();
+    const mes = String(fechaUltimoCierre.getMonth() + 1).padStart(2, '0');
+    const dia = String(fechaUltimoCierre.getDate()).padStart(2, '0');
+    const fechaLocalCierre = `${anio}-${mes}-${dia}`;
 
-    const fondoFijo = await this.obtenerFondoFijo();
-    const fondoFaltante = Math.max(0, fondoFijo - efectivoRecaudado);
+    // 3. Verificar si VARIOS recibió su transferencia ese día en paralelo con config
+    const [variosRes, configRes] = await Promise.all([
+      this.supabase.client.from('cajas').select('id').eq('codigo', 'VARIOS').single(),
+      this.supabase.client.from('configuraciones').select('fondo_fijo_diario, varios_transferencia_diaria').single()
+    ]);
 
-    // Retorna null solo si NO hay ningún tipo de déficit
+    if (!variosRes.data) return null;
+
+    const inicioDia = `${fechaLocalCierre}T00:00:00`;
+    const finDia    = `${fechaLocalCierre}T23:59:59`;
+    const inicioUtc = new Date(inicioDia).toISOString();
+    const finUtc    = new Date(finDia).toISOString();
+
+    // Busca cualquier operación que marque el pago a VARIOS ese día:
+    //   TRANSFERENCIA_ENTRANTE → cierre normal
+    //   INGRESO categoria IN-004 → reparación de déficit al abrir (reparar_deficit_turno)
+    const [transferenciaRes, ingresoDeficitRes] = await Promise.all([
+      this.supabase.client
+        .from('operaciones_cajas')
+        .select('id')
+        .eq('caja_id', variosRes.data.id)
+        .gte('fecha', inicioUtc)
+        .lte('fecha', finUtc)
+        .eq('tipo_operacion', 'TRANSFERENCIA_ENTRANTE')
+        .limit(1)
+        .maybeSingle(),
+
+      this.supabase.client
+        .from('operaciones_cajas')
+        .select('id, categoria_id, categorias_operaciones!inner(codigo)')
+        .eq('caja_id', variosRes.data.id)
+        .gte('fecha', inicioUtc)
+        .lte('fecha', finUtc)
+        .eq('tipo_operacion', 'INGRESO')
+        .eq('categorias_operaciones.codigo', 'IN-004')
+        .limit(1)
+        .maybeSingle()
+    ]);
+
+    // 4. Calcular montos independientemente para los dos déficits posibles:
+    //    - deficitCajaChica: 0 si VARIOS ya cobró (transferencia o INGRESO IN-004), monto config si no
+    //    - fondoFaltante:    0 si fondo_cubierto = TRUE, monto config si FALSE
+    //    Ambos son independientes: puede haber solo uno, ambos, o ninguno.
+    const variosYaCobro = !!(transferenciaRes.data || ingresoDeficitRes.data);
+
+    const deficitCajaChica = variosYaCobro
+      ? 0
+      : (configRes.data?.varios_transferencia_diaria ?? 0);
+
+    const fondoFaltante = ultimoTurno.fondo_cubierto === false
+      ? (configRes.data?.fondo_fijo_diario ?? 0)
+      : 0;
+
+    // Solo hay déficit si al menos uno de los dos montos es positivo
     if (deficitCajaChica <= 0 && fondoFaltante <= 0) return null;
 
-    return { deficitCajaChica, fondoFaltante, efectivoRecaudado };
+    return { deficitCajaChica, fondoFaltante };
   }
 
   /**
@@ -144,7 +201,7 @@ export class TurnosCajaService {
    *
    * Retorna { ok: true } si todo OK, o { ok: false, errorMsg } con el mensaje del RPC.
    */
-  async repararDeficit(deficitCajaChica: number, fondoFaltante: number): Promise<{ ok: boolean; errorMsg?: string }> {
+  async repararDeficit(deficitCajaChica: number, fondoFaltante: number): Promise<{ ok: boolean; turnoId?: string; errorMsg?: string }> {
     const empleado = await this.authService.getUsuarioActual();
     if (!empleado) return { ok: false, errorMsg: 'No se pudo obtener el empleado actual' };
 
@@ -186,7 +243,60 @@ export class TurnosCajaService {
       return { ok: false, errorMsg: data?.error || 'Error desconocido al registrar el ajuste' };
     }
 
-    return { ok: true };
+    return { ok: true, turnoId: data.turno_id };
+  }
+
+  /**
+   * Resumen de ingresos y egresos del cajón para el turno activo (v5).
+   *
+   * Usado en el Paso 2 del wizard de cierre para mostrar la conciliación real:
+   *   + Ventas POS en efectivo  (tabla ventas, turno_id + metodo_pago = EFECTIVO)
+   *   + Otros ingresos manuales (= saldoCajaChicaDigital - ventasPOS + egresos)
+   *   − Egresos / gastos        (operaciones_cajas EGRESO en CAJA_CHICA)
+   *   = Neto del turno          (= saldoCajaChicaDigital)
+   *
+   * @param turnoId       UUID del turno activo
+   * @param horaApertura  ISO timestamp de apertura del turno (para filtrar operaciones)
+   */
+  async getResumenTurnoActual(
+    turnoId: string,
+    horaApertura: string
+  ): Promise<{ ventasPosEfectivo: number; egresos: number }> {
+    // 1. ID de CAJA_CHICA (sin overlay — lectura rápida)
+    const { data: cajaChica } = await this.supabase.client
+      .from('cajas')
+      .select('id')
+      .eq('codigo', 'CAJA_CHICA')
+      .single();
+
+    if (!cajaChica) return { ventasPosEfectivo: 0, egresos: 0 };
+
+    // 2. Ventas POS en efectivo del turno + egresos del cajón en paralelo
+    const [ventasRes, egresosRes] = await Promise.all([
+      // Ventas POS: efectivo completadas en este turno
+      this.supabase.client
+        .from('ventas')
+        .select('total')
+        .eq('turno_id', turnoId)
+        .eq('metodo_pago', 'EFECTIVO')
+        .eq('estado', 'COMPLETADA'),
+
+      // Egresos registrados en CAJA_CHICA desde la apertura del turno
+      this.supabase.client
+        .from('operaciones_cajas')
+        .select('monto')
+        .eq('caja_id', cajaChica.id)
+        .eq('tipo_operacion', 'EGRESO')
+        .gte('fecha', horaApertura)
+    ]);
+
+    const ventasPosEfectivo = (ventasRes.data ?? [])
+      .reduce((sum: number, v: any) => sum + (v.total ?? 0), 0);
+
+    const egresos = (egresosRes.data ?? [])
+      .reduce((sum: number, o: any) => sum + (o.monto ?? 0), 0);
+
+    return { ventasPosEfectivo, egresos };
   }
 
   /**
@@ -200,7 +310,7 @@ export class TurnosCajaService {
     const turnoActivo = await this.supabase.call<TurnoCajaConEmpleado>(
       this.supabase.client
         .from('turnos_caja')
-        .select('*, empleado:empleados(id, nombre)')
+        .select('*, empleado:usuarios(id, nombre)')
         .gte('hora_fecha_apertura', inicioDia)
         .is('hora_fecha_cierre', null)
         .maybeSingle(),

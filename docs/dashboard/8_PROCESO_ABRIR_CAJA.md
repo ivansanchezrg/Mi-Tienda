@@ -1,57 +1,58 @@
-# Abrir Caja — Referencia Técnica
+# Abrir Caja — Referencia Técnica (v5.1 — 2026-03-09)
 
 ## 1. Arquitectura
 
 ### Archivos involucrados
 
-| Archivo                           | Rol                                                                                                              |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `pages/home/home.page.ts`         | `onAbrirCaja()`, `mostrarModalVerificacionFondo()`, `VerificarFondoModalComponent` (inline)                      |
-| `services/turnos-caja.service.ts` | `abrirTurno()`, `obtenerEstadoCaja()`, `obtenerFondoFijo()`, `obtenerDeficitTurnoAnterior()`, `repararDeficit()` |
-| `models/turno-caja.model.ts`      | `TurnoCaja`, `TurnoCajaConEmpleado`, `EstadoCaja`                                                                |
+| Archivo | Rol |
+| --- | --- |
+| `pages/home/home.page.ts` | `onAbrirCaja()`, `mostrarModalVerificacionFondo()` |
+| `components/verificar-fondo-modal/verificar-fondo-modal.component.ts` | Modal multi-paso: verifica fondo y repara déficit |
+| `services/turnos-caja.service.ts` | `obtenerFondoFijo()`, `obtenerDeficitTurnoAnterior()`, `abrirTurno()`, `repararDeficit()` |
+| `models/turno-caja.model.ts` | `TurnoCaja`, `TurnoCajaConEmpleado`, `EstadoCaja` |
 
-### Tabla involucrada
+### Tablas involucradas
 
-| Tabla                | Rol                                                                                                                                          |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `turnos_caja`        | 1 registro por apertura. `hora_fecha_cierre IS NULL` = turno activo. `hora_fecha_cierre` la escribe `fn_ejecutar_cierre_diario` — no se cierra manualmente. |
-| `caja_fisica_diaria` | El cierre escribe aquí el `deficit_caja_chica`. Lo lee `obtenerDeficitTurnoAnterior()` al abrir el turno siguiente.                          |
-| `operaciones_cajas`  | `repararDeficit()` inserta aquí el EGRESO de Tienda y el INGRESO a Varios.                                                                   |
-| `configuraciones`    | `fondo_fijo_diario` — cuánto debe haber en la caja física para operar.                                                                       |
+| Tabla | Rol |
+| --- | --- |
+| `turnos_caja` | 1 registro por apertura. `hora_fecha_cierre IS NULL` = turno activo. `fondo_cubierto` indica si el fondo físico estuvo completo al cierre anterior. |
+| `operaciones_cajas` | `repararDeficit()` inserta el EGRESO de CAJA y el INGRESO a VARIOS cuando hay déficit. |
+| `configuraciones` | `fondo_fijo_diario` y `varios_transferencia_diaria`. Fuente de verdad. |
 
-> **Principio clave:** Abrir caja **no afecta saldos**. Solo crea el `turno_id` que el cierre diario necesita para ejecutar `fn_ejecutar_cierre_diario`.
+> **Principio clave:** En el caso normal, abrir caja **no afecta saldos** — solo crea el registro en `turnos_caja`. Cuando hay déficit, `fn_reparar_deficit_turno` mueve saldos (EGRESO de CAJA + INGRESO a VARIOS) **y** abre el turno en la misma transacción atómica.
+
+> ⚠️ **Primer uso del sistema (solo una vez):** El fondo físico no se autoconstituye. Antes de abrir caja por primera vez:
+> 1. Tomar físicamente `fondo_fijo_diario` (ej. $20) de la funda **Tienda**.
+> 2. Ponerlo en el cajón físico.
+> 3. Registrar un **EGRESO manual en Tienda** por ese monto (para que el saldo digital refleje los $20 que salieron).
+> 4. **No registrar INGRESO en Cajón** — rompería la fórmula del cierre (`efectivo_esperado = saldo_digital + fondo_fijo`).
+>
+> A partir del segundo día el fondo se gestiona automáticamente (ver §7).
 
 ---
 
 ## 2. Flujo del proceso
 
 ```
-Usuario presiona "Abrir Caja"
-        ↓
 onAbrirCaja()
   └─ mostrarModalVerificacionFondo()
        ├─ obtenerFondoFijo()             → fondo_fijo_diario desde configuraciones
-       └─ obtenerDeficitTurnoAnterior()  → último caja_fisica_diaria con déficit
+       └─ obtenerDeficitTurnoAnterior()  → ver §4
         ↓
-[Modal: VerificarFondoModalComponent]
+[VerificarFondoModalComponent]
   │
-  ├─ PASO 1 (solo si hayDeficit)
-  │    → Muestra montos: fondoFaltante + deficitCajaChica + totalAReponer
-  │    → Instrucciones físicas numeradas
-  │    → "Ya lo hice — Registrar en sistema"  →  repararDeficit()
-  │    → "Cancelar"  →  modal descarta sin crear turno
+  ├─ Sin déficit  (hayDeficit = false)
+  │    └─ Paso 2 directamente: verifica fondo → "Confirmar y Abrir Caja"
+  │         → dismiss { confirmado: true }  ← sin turnoId
+  │         → home llama abrirTurno()       ← INSERT en turnos_caja
   │
-  └─ PASO 2 (siempre)
-       → Muestra fondoFijo desde configuraciones
-       → Checkbox obligatorio: "He verificado el fondo en la caja"
-       → "Abrir Caja" (habilitado solo con checkbox) → role: 'confirm'
-       → "Cancelar" → modal descarta sin crear turno
-        ↓
-abrirTurno()
-  ├─ Valida: no hay turno con hora_fecha_cierre IS NULL para la fecha de hoy
-  ├─ Obtiene empleado desde Preferences (sin BD)
-  ├─ Calcula numero_turno = COUNT(turnos hoy) + 1
-  └─ INSERT turnos_caja
+  └─ Con déficit  (hayDeficit = true)
+       ├─ Paso 1: montos del déficit + instrucciones físicas
+       │    → "Ya lo hice — Continuar"  (avanza el paso, sin tocar BD)
+       └─ Paso 2: verifica fondo → "Confirmar y Abrir Caja"
+            → llama repararDeficit(deficitCajaChica, fondoFaltante)
+            → dismiss { confirmado: true, turnoId: uuid }  ← el turno ya está abierto
+            → home detecta turnoId → NO llama abrirTurno()
         ↓
 cargarDatos() → refresca banner en Home
 ```
@@ -60,93 +61,211 @@ cargarDatos() → refresca banner en Home
 
 ## 3. Estados del banner (Home)
 
-| Estado           | Condición en BD                       | Título        | Descripción                           | Botón        |
-| ---------------- | ------------------------------------- | ------------- | ------------------------------------- | ------------ |
-| `SIN_ABRIR`      | Sin turnos hoy                        | Sin Turno     | "Abrí turno para iniciar operaciones" | Abrir Caja   |
-| `TURNO_EN_CURSO` | Turno con `hora_fecha_cierre IS NULL`       | Turno Activo  | Nombre del empleado                   | Cerrar Turno |
-| `CERRADA`        | Todos los turnos tienen `hora_fecha_cierre` | Turno Cerrado | "Caja cerrada por hoy"                | Abrir Caja   |
+| Estado | Condición en BD | Botón |
+| --- | --- | --- |
+| `SIN_ABRIR` | Sin turnos hoy | Abrir Caja |
+| `TURNO_EN_CURSO` | Turno con `hora_fecha_cierre IS NULL` | Cerrar Turno |
+| `CERRADA` | Todos los turnos tienen `hora_fecha_cierre` | Abrir Caja |
 
-`turnosHoy` se incluye en `EstadoCaja` — útil para saber si es el 1er o 2do turno del día.
+`turnosHoy` en `EstadoCaja` indica si es el 1° o 2° turno del día.
 
 ---
 
-## 4. Reparación de déficit
+## 4. Detección de déficit: `obtenerDeficitTurnoAnterior()`
 
-`obtenerDeficitTurnoAnterior()` consulta el último registro de `caja_fisica_diaria` y retorna:
+Determina si el último turno cerrado tuvo déficit y cuánto debe reponerse al abrir.
+
+### Lógica (en orden)
+
+1. Obtiene el último turno cerrado: `hora_fecha_cierre IS NOT NULL ORDER BY hora_fecha_cierre DESC LIMIT 1`. Incluye `fondo_cubierto`.
+2. Extrae la **fecha local** del cierre (sin desfase UTC).
+3. En paralelo: busca el ID de VARIOS en `cajas` y lee `fondo_fijo_diario` + `varios_transferencia_diaria` de `configuraciones`.
+4. Verifica si VARIOS ya cobró ese día buscando en `operaciones_cajas` cualquiera de:
+   - `tipo_operacion = 'TRANSFERENCIA_ENTRANTE'` → cierre normal sin déficit
+   - `tipo_operacion = 'INGRESO'` + `categorias_operaciones.codigo = 'IN-004'` → reparación de apertura ya ejecutada hoy
+5. Calcula los dos déficits **de forma independiente**:
+
+```typescript
+const variosYaCobro = !!(transferenciaEncontrada || ingresoIN004Encontrado);
+
+// Los dos déficits son independientes — puede haber uno, ambos o ninguno
+const deficitCajaChica = variosYaCobro
+  ? 0
+  : varios_transferencia_diaria;
+
+const fondoFaltante = (ultimoTurno.fondo_cubierto === false)
+  ? fondo_fijo_diario
+  : 0;
+
+if (deficitCajaChica <= 0 && fondoFaltante <= 0) return null;
+return { deficitCajaChica, fondoFaltante };
+```
+
+### Los 4 escenarios posibles
+
+| VARIOS cobró | `fondo_cubierto` | `deficitCajaChica` | `fondoFaltante` | Acción en modal |
+| :---: | :---: | :---: | :---: | --- |
+| No | `true` | $20 | $0 | Paso 1 + Paso 2 |
+| No | `false` | $20 | $20 | Paso 1 + Paso 2 |
+| Sí | `true` | $0 | $0 | `null` → solo Paso 2 |
+| Sí | `false` | $0 | $20 | Paso 1 + Paso 2 |
+
+> `fondo_cubierto` lo escribe `fn_ejecutar_cierre_diario`: `TRUE` si `p_efectivo_fisico >= fondo_fijo_diario`, `FALSE` si el cajón no tenía suficiente ni para el fondo.
+
+### Por qué se verifica INGRESO IN-004 además de TRANSFERENCIA_ENTRANTE
+
+Cuando un cierre tuvo déficit en VARIOS, `fn_reparar_deficit_turno` inserta un `INGRESO` (cat `IN-004`) en VARIOS — no una `TRANSFERENCIA_ENTRANTE`. Sin esta verificación doble, el sistema re-detectaría el déficit al re-abrir el mismo día y mostraría el modal de reparación por segunda vez.
+
+---
+
+## 5. Reparación de déficit: `repararDeficit(deficitCajaChica, fondoFaltante)`
+
+Llama a `rpc('reparar_deficit_turno', params)`. Todo en una sola transacción atómica — si algo falla, rollback completo (sin operaciones a medias).
+
+> 📄 Código fuente: [`docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql)
+
+### Parámetros
 
 ```typescript
 {
-  deficitCajaChica: number,  // monto que faltó transferir a Varios en el turno anterior
-  fondoFaltante:    number,  // max(0, fondo_fijo - efectivo_recaudado_anterior)
-  efectivoRecaudado: number
+  p_empleado_id:        number,   // empleado que abre
+  p_deficit_caja_chica: number,   // monto a VARIOS (0 si ya cobró)
+  p_fondo_faltante:     number,   // monto del fondo físico faltante (0 si fondo_cubierto = true)
+  p_cat_egreso_id:      number,   // ID de categoría EG-012 (Ajuste Déficit Turno Anterior)
+  p_cat_ingreso_id:     number    // ID de categoría IN-004 (Reposición Déficit Turno Anterior)
 }
 ```
 
-Si ambos son `0` → no hay déficit → el modal salta directamente al Paso 2.
+### Lo que ejecuta (atómico)
 
-> 📄 Código fuente completo: [`docs/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql)
+1. **Valida saldo** de CAJA ≥ `deficitCajaChica + fondoFaltante`. Si no alcanza, retorna error con mensaje descriptivo.
+2. **EGRESO** de CAJA por el total — categoría `EG-012`.
+3. **INGRESO** a VARIOS por `deficitCajaChica` (solo si > 0) — categoría `IN-004`. Este INGRESO es lo que `obtenerDeficitTurnoAnterior()` detecta el día siguiente para no re-detectar el déficit.
+4. **INSERT** en `turnos_caja` — abre el turno nuevo (mismo proceso que `abrirTurno()` pero dentro de la transacción).
 
-`repararDeficit(deficitCajaChica, fondoFaltante)` llama a `rpc('fn_reparar_deficit_turno', {...})` que en una transacción atómica:
+> **Nota:** el déficit de VARIOS y del fondo son costos operacionales del negocio — no se tocan `deudas_empleados`. Las deudas del empleado (faltantes de conteo físico) se saldan manualmente desde la UI.
 
-1. `EGRESO` de Tienda por `(deficitCajaChica + fondoFaltante)` — categoría `EG-012`
-2. `INGRESO` a Varios por `deficitCajaChica` si > 0 — categoría `IN-004`
+### Retorno
 
-> **Nota:** Sí valida saldo en Tienda — si `saldo_actual de CAJA < total_a_reponer`, el RPC retorna error y el modal muestra el mensaje para que el operador registre primero un ingreso manual en Tienda.
+```typescript
+// Éxito
+{ success: true, turno_id: uuid, op_egreso_id, op_ingreso_id, total_retirado, saldo_tienda_nuevo }
 
-Si el RPC retorna error → `repararDeficit()` devuelve `{ ok: false, errorMsg: '...' }`. El modal muestra el mensaje y no avanza.
+// Error
+{ success: false, error: 'Saldo insuficiente en Tienda ($X) para cubrir el ajuste de $Y...' }
+```
 
----
-
-## 5. `abrirTurno()`
-
-Validaciones (retorna `false` en cualquiera — Home muestra error al usuario):
-
-1. Ya existe un turno con `hora_fecha_cierre IS NULL` para la fecha de hoy → solo puede haber 1 activo
-2. No se pudo obtener el empleado desde Preferences → sesión inválida
-
-Si todo OK → `INSERT turnos_caja` con `hora_fecha_apertura = toISOString()` (UTC correcto para `TIMESTAMP WITH TIME ZONE`).
+Si retorna error, el modal muestra el mensaje y el operador debe registrar primero un INGRESO manual en CAJA antes de reintentar.
 
 ---
 
-## 6. Esquema DB: `turnos_caja`
+## 6. Apertura normal (sin déficit): `abrirTurno()`
+
+1. Valida que no exista turno activo hoy (`hora_fecha_cierre IS NULL`).
+2. Obtiene el empleado actual.
+3. Calcula `numero_turno = COUNT(turnos hoy) + 1`.
+4. `INSERT turnos_caja` con `hora_fecha_apertura = new Date().toISOString()` (UTC correcto para TIMESTAMPTZ).
+
+Retorna `false` si ya hay turno activo o si no se pudo obtener el empleado. `home.page.ts` gestiona ambos casos y reintenta leyendo el turno activo (tolera lock timeouts de Supabase).
+
+---
+
+## 7. El fondo fijo: por qué no genera operación contable en aperturas normales
+
+CAJA_CHICA siempre termina en **$0 digital** al cierre (`UPDATE cajas SET saldo_actual = 0`). El fondo físico ($20) permanece en el cajón pero **no está reflejado en el saldo digital**.
+
+El cierre lo compensa con: `efectivo_esperado = saldo_digital + fondo_fijo`. Si el saldo digital del cajón es $30 y el fondo es $20, el sistema espera contar $50 físicos. Esta fórmula absorbe correctamente el fondo sin necesidad de registrarlo al abrir.
+
+Registrar un INGRESO a CAJA_CHICA por el fondo en cada apertura rompería la fórmula: el cierre esperaría `$20 (ingreso fondo) + $20 (constante fondo) = $40`, generando siempre un ajuste negativo de $20.
+
+**El fondo solo genera operación contable cuando hay déficit:** `fn_reparar_deficit_turno` registra el EGRESO de CAJA que representa el dinero físico que se saca para reponer el cajón. A partir del segundo día el fondo queda en el cajón si `fondo_cubierto = true`, o se repone automáticamente si `fondo_cubierto = false`.
+
+---
+
+## 8. Esquema DB: `turnos_caja`
 
 ```sql
 CREATE TABLE turnos_caja (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  numero_turno        SMALLINT NOT NULL DEFAULT 1,              -- 1, 2, 3... por día
-  empleado_id         INTEGER NOT NULL REFERENCES empleados(id),
-  hora_fecha_apertura TIMESTAMP WITH TIME ZONE NOT NULL,        -- UTC (toISOString())
-  hora_fecha_cierre         TIMESTAMP WITH TIME ZONE,                 -- NULL = abierto; lo escribe fn_ejecutar_cierre_diario
+  numero_turno        SMALLINT NOT NULL DEFAULT 1,           -- 1, 2, 3... por día
+  empleado_id         INTEGER NOT NULL REFERENCES usuarios(id),
+  hora_fecha_apertura TIMESTAMPTZ NOT NULL,                  -- UTC (toISOString())
+  hora_fecha_cierre   TIMESTAMPTZ,                           -- NULL = activo; escrito por fn_ejecutar_cierre_diario
+  fondo_cubierto      BOOLEAN,                               -- TRUE si efectivo_fisico >= fondo_fijo al cierre; NULL hasta que se cierra
   observaciones       TEXT
 );
--- UNIQUE por fecha + turno (índice funcional sobre la fecha extraída del timestamp)
-CREATE UNIQUE INDEX idx_turnos_caja_fecha_turno ON turnos_caja ((CAST(hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS date)), numero_turno);
+
+CREATE UNIQUE INDEX idx_turnos_caja_fecha_turno
+  ON turnos_caja
+  ((hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date, numero_turno);
 ```
 
 ---
 
-## 7. Queries de auditoría
+## 9. Queries de auditoría
 
-### Turnos del día
+### Estado de turnos del día
 
 ```sql
 SELECT
   t.numero_turno,
   e.nombre,
-  t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS apertura,
-  t.hora_fecha_cierre         AT TIME ZONE 'America/Guayaquil' AS cierre,
+  t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS apertura_local,
+  t.hora_fecha_cierre   AT TIME ZONE 'America/Guayaquil' AS cierre_local,
+  t.fondo_cubierto,
   CASE WHEN t.hora_fecha_cierre IS NULL THEN 'ABIERTO' ELSE 'CERRADO' END AS estado
 FROM turnos_caja t
-JOIN empleados e ON t.empleado_id = e.id
+JOIN usuarios e ON t.empleado_id = e.id
 WHERE (t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = CURRENT_DATE
 ORDER BY t.numero_turno;
 ```
 
-### Verificar si hay déficit para el turno que va a abrir
+### Verificar déficit del último cierre
 
 ```sql
-SELECT efectivo_recaudado, deficit_caja_chica
-FROM caja_fisica_diaria
-ORDER BY created_at DESC
+-- Muestra si el último cierre tuvo fondo_cubierto = false y si VARIOS ya cobró hoy
+SELECT
+  t.hora_fecha_cierre AT TIME ZONE 'America/Guayaquil' AS cierre_local,
+  t.fondo_cubierto,
+  oc.tipo_operacion,
+  co.codigo AS categoria,
+  oc.monto
+FROM turnos_caja t
+LEFT JOIN operaciones_cajas oc
+  ON oc.caja_id = (SELECT id FROM cajas WHERE codigo = 'VARIOS')
+  AND (oc.fecha AT TIME ZONE 'America/Guayaquil')::date =
+      (t.hora_fecha_cierre AT TIME ZONE 'America/Guayaquil')::date
+  AND (
+    oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
+    OR (
+      oc.tipo_operacion = 'INGRESO'
+      AND EXISTS (
+        SELECT 1 FROM categorias_operaciones co
+        WHERE co.id = oc.categoria_id AND co.codigo = 'IN-004'
+      )
+    )
+  )
+LEFT JOIN categorias_operaciones co ON co.id = oc.categoria_id
+WHERE t.hora_fecha_cierre IS NOT NULL
+ORDER BY t.hora_fecha_cierre DESC
 LIMIT 1;
+```
+
+### Operaciones de reparación de déficit (apertura)
+
+```sql
+-- Muestra las reparaciones de déficit registradas hoy al abrir
+SELECT
+  oc.tipo_operacion,
+  c.codigo AS caja,
+  co.codigo AS categoria,
+  oc.monto,
+  oc.descripcion,
+  oc.fecha AT TIME ZONE 'America/Guayaquil' AS fecha_local
+FROM operaciones_cajas oc
+JOIN cajas c ON c.id = oc.caja_id
+JOIN categorias_operaciones co ON co.id = oc.categoria_id
+WHERE co.codigo IN ('EG-012', 'IN-004')
+  AND (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = CURRENT_DATE
+ORDER BY oc.fecha;
 ```

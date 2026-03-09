@@ -24,7 +24,8 @@ interface CajaQuery {
  * Tipo de retorno de la query de configuraciones
  */
 interface ConfiguracionQuery {
-  caja_chica_transferencia_diaria: number;
+  fondo_fijo_diario: number;
+  varios_transferencia_diaria: number;
 }
 
 /**
@@ -36,11 +37,12 @@ interface TiposServicioIds {
 }
 
 /**
- * Tipo de retorno para IDs de cajas
+ * Tipo de retorno para IDs de cajas (v5: 5 cajas)
  */
 interface CajasIds {
   caja: number;
-  cajaChica: number;
+  cajaChica: number; // CAJA_CHICA — cajón físico diario (v5: nuevo)
+  varios: number;    // VARIOS — fondo de emergencia (v5: antes era CAJA_CHICA)
   cajaCelular: number;
   cajaBus: number;
 }
@@ -173,39 +175,22 @@ export class RecargasService {
   }
 
   /**
-   * Obtiene todos los datos necesarios para el cierre diario (v4.5)
+   * Obtiene todos los datos necesarios para el cierre diario (v5.0)
    *
-   * Realiza queries en paralelo para obtener:
-   * - Saldos virtuales anteriores (Celular y Bus) desde tabla recargas
-   * - Saldos actuales de las 4 cajas desde tabla cajas
-   * - Configuración (fondo_fijo y transferencia_diaria) desde tabla configuraciones
-   * - Agregado hoy desde recargas_virtuales (v4.5)
+   * Cambios v5:
+   * - Eliminada query de CAJA: la función SQL la lee internamente
+   * - Eliminada transferencia_diaria de config: la función SQL la lee internamente
+   * - saldoCajaChicaDigital: saldo del cajón físico diario (antes saldoCajaChica)
    *
-   * @returns {Promise<DatosCierreDiario>} Objeto con todos los datos necesarios para el cierre
-   *
-   * @example
-   * const datos = await recargasService.getDatosCierreDiario();
-   * console.log(datos.fondoFijo); // 40.00
-   * console.log(datos.transferenciaDiariaCajaChica); // 20.00
+   * @returns {Promise<DatosCierreDiario>} Datos para el wizard de cierre
    */
   async getDatosCierreDiario(): Promise<DatosCierreDiario> {
     // Queries en paralelo para mejor performance
-    const [saldosVirtuales, caja, cajaChica, cajaCelular, cajaBus, config, agregadoHoy] = await Promise.all([
+    const [saldosVirtuales, cajaChica, cajaCelular, cajaBus, config, agregadoHoy] = await Promise.all([
       // 1. Saldos virtuales anteriores (último saldo_virtual_actual de tabla recargas)
       this.getSaldosAnteriores(),
 
-      // 2. Saldo actual de CAJA (principal)
-      this.supabase.call<CajaQuery>(
-        this.supabase.client
-          .from('cajas')
-          .select('saldo_actual')
-          .eq('codigo', 'CAJA')
-          .single(),
-        undefined,
-        { showLoading: false }
-      ),
-
-      // 3. Saldo actual de CAJA_CHICA
+      // 2. Saldo digital actual de CAJA_CHICA (cajón físico diario)
       this.supabase.call<CajaQuery>(
         this.supabase.client
           .from('cajas')
@@ -216,7 +201,7 @@ export class RecargasService {
         { showLoading: false }
       ),
 
-      // 4. Saldo actual de CAJA_CELULAR
+      // 3. Saldo actual de CAJA_CELULAR
       this.supabase.call<CajaQuery>(
         this.supabase.client
           .from('cajas')
@@ -227,7 +212,7 @@ export class RecargasService {
         { showLoading: false }
       ),
 
-      // 5. Saldo actual de CAJA_BUS
+      // 4. Saldo actual de CAJA_BUS
       this.supabase.call<CajaQuery>(
         this.supabase.client
           .from('cajas')
@@ -236,27 +221,26 @@ export class RecargasService {
           .single()
       ),
 
-      // 6. Configuración (fondo_fijo y transferencia_diaria)
-      this.supabase.call<{ fondo_fijo_diario: number; caja_chica_transferencia_diaria: number }>(
+      // 5. Configuración (fondo_fijo + transferencia_diaria para el preview del Paso 3)
+      this.supabase.call<ConfiguracionQuery>(
         this.supabase.client
           .from('configuraciones')
-          .select('fondo_fijo_diario, caja_chica_transferencia_diaria')
+          .select('fondo_fijo_diario, varios_transferencia_diaria')
           .limit(1)
           .single()
       ),
 
-      // 7. Agregado hoy de recargas virtuales (v4.5)
+      // 6. Agregado pendiente de recargas virtuales
       this.getAgregadoVirtualHoy()
     ]);
 
     return {
       saldosVirtuales,
-      saldoCaja: caja?.saldo_actual ?? 0,
-      saldoCajaChica: cajaChica?.saldo_actual ?? 0,
+      saldoCajaChicaDigital: cajaChica?.saldo_actual ?? 0,
       saldoCajaCelular: cajaCelular?.saldo_actual ?? 0,
       saldoCajaBus: cajaBus?.saldo_actual ?? 0,
       fondoFijo: config?.fondo_fijo_diario ?? 40,
-      transferenciaDiariaCajaChica: config?.caja_chica_transferencia_diaria ?? 20,
+      transferenciaDiariaVarios: config?.varios_transferencia_diaria ?? 20,
       agregadoCelularHoy: agregadoHoy.celular,
       agregadoBusHoy: agregadoHoy.bus
     };
@@ -291,11 +275,11 @@ export class RecargasService {
   }
 
   /**
-   * Obtiene los IDs de las 4 cajas del sistema
+   * Obtiene los IDs de las 5 cajas del sistema (v5)
    * @returns {Promise<CajasIds>} IDs de las cajas
    */
   async obtenerIdsCajas(): Promise<CajasIds> {
-    const [caja, cajaChica, cajaCelular, cajaBus] = await Promise.all([
+    const [caja, cajaChica, varios, cajaCelular, cajaBus] = await Promise.all([
       this.supabase.call<{ id: number }>(
         this.supabase.client
           .from('cajas')
@@ -310,6 +294,15 @@ export class RecargasService {
           .from('cajas')
           .select('id')
           .eq('codigo', 'CAJA_CHICA')
+          .single(),
+        undefined,
+        { showLoading: false }
+      ),
+      this.supabase.call<{ id: number }>(
+        this.supabase.client
+          .from('cajas')
+          .select('id')
+          .eq('codigo', 'VARIOS')
           .single(),
         undefined,
         { showLoading: false }
@@ -337,6 +330,7 @@ export class RecargasService {
     return {
       caja: caja?.id ?? 0,
       cajaChica: cajaChica?.id ?? 0,
+      varios: varios?.id ?? 0,
       cajaCelular: cajaCelular?.id ?? 0,
       cajaBus: cajaBus?.id ?? 0
     };
@@ -352,10 +346,11 @@ export class RecargasService {
   }
 
   /**
-   * Verifica si el turno activo ya tiene un cierre registrado (v4.1)
-   * En v4.1: Permite múltiples cierres por día (1 por turno)
+   * Verifica si el turno de hoy ya tiene un cierre registrado (v5)
+   * En v5: el cierre setea hora_fecha_cierre en turnos_caja (no usa caja_fisica_diaria).
+   * Si el último turno de hoy tiene hora_fecha_cierre → ya se realizó el cierre.
    *
-   * @returns true si el turno activo tiene cierre, false si no, null si hay error
+   * @returns true si el turno de hoy ya fue cerrado, false si no, null si hay error
    */
   async existeCierreDiario(fecha?: string): Promise<boolean | null> {
     try {
@@ -363,38 +358,26 @@ export class RecargasService {
       const inicioDia = new Date(`${fechaBusqueda}T00:00:00`).toISOString();
       const finDia = new Date(`${fechaBusqueda}T23:59:59`).toISOString();
 
-      // 1. Obtener turno activo de hoy (sin hora_fecha_cierre)
+      // Buscar el turno más reciente de hoy
       const turnoResponse = await this.supabase.client
         .from('turnos_caja')
-        .select('id')
+        .select('id, hora_fecha_cierre')
         .gte('hora_fecha_apertura', inicioDia)
         .lte('hora_fecha_apertura', finDia)
-        .is('hora_fecha_cierre', null)
+        .order('hora_fecha_apertura', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (turnoResponse.error) {
-        console.error('[existeCierreDiario] Error al buscar turno activo:', turnoResponse.error.message);
+        console.error('[existeCierreDiario] Error al buscar turno:', turnoResponse.error.message);
         return null;
       }
 
-      // Sin turno activo → no hay cierre pendiente
-      if (!turnoResponse.data) {
-        return false;
-      }
+      // Sin turno hoy → no hay cierre
+      if (!turnoResponse.data) return false;
 
-      // 2. Verificar si ese turno ya tiene cierre registrado
-      const cierreResponse = await this.supabase.client
-        .from('caja_fisica_diaria')
-        .select('id')
-        .eq('turno_id', turnoResponse.data.id)
-        .maybeSingle();
-
-      if (cierreResponse.error) {
-        console.error('[existeCierreDiario] Error al buscar cierre del turno:', cierreResponse.error.message);
-        return null;
-      }
-
-      return cierreResponse.data !== null;
+      // Turno con hora_fecha_cierre → ya fue cerrado
+      return turnoResponse.data.hora_fecha_cierre !== null;
     } catch (error: any) {
       console.error('[existeCierreDiario] Excepción inesperada:', error?.message ?? error);
       return null;
@@ -472,19 +455,28 @@ export class RecargasService {
     return data as boolean;
   }
 
+  /**
+   * Ejecuta el cierre diario completo usando función PostgreSQL (v5)
+   *
+   * Cambios v5:
+   * - p_efectivo_fisico reemplaza p_efectivo_recaudado (conteo físico del empleado)
+   * - Eliminados p_saldo_anterior_caja y p_saldo_anterior_caja_chica (el SQL los lee de BD)
+   * - La función SQL calcula el ajuste, la transferencia a VARIOS y el depósito a CAJA
+   *
+   * @param {ParamsCierreDiario} params Parámetros del cierre diario
+   * @returns {Promise<any>} Resultado JSON del cierre con conteo_fisico y distribución
+   */
   async ejecutarCierreDiario(params: ParamsCierreDiario): Promise<any> {
     const resultado = await this.supabase.call(
       this.supabase.client.rpc('ejecutar_cierre_diario', {
         p_turno_id: params.turno_id,
         p_fecha: params.fecha,
         p_empleado_id: params.empleado_id,
-        p_efectivo_recaudado: params.efectivo_recaudado,
+        p_efectivo_fisico: params.efectivo_fisico,
         p_saldo_celular_final: params.saldo_celular_final,
         p_saldo_bus_final: params.saldo_bus_final,
         p_saldo_anterior_celular: params.saldo_anterior_celular,
         p_saldo_anterior_bus: params.saldo_anterior_bus,
-        p_saldo_anterior_caja: params.saldo_anterior_caja,
-        p_saldo_anterior_caja_chica: params.saldo_anterior_caja_chica,
         p_saldo_anterior_caja_celular: params.saldo_anterior_caja_celular,
         p_saldo_anterior_caja_bus: params.saldo_anterior_caja_bus,
         p_observaciones: params.observaciones || null

@@ -22,7 +22,7 @@ export class PosService {
      *   1. INSERT en `ventas`
      *   2. INSERT en `ventas_detalles` (por cada ítem)
      *   3. Trigger `trg_descontar_stock_venta` → descuenta stock + graba kardex
-     *   4. Trigger `trg_actualizar_caja_por_venta` → sube saldo CAJA si es EFECTIVO
+     *   4. Trigger `trg_actualizar_caja_por_venta` → sube saldo CAJA_CHICA si es EFECTIVO (v5)
      */
     async procesarVenta(carrito: CartItem[], totalPagar: number, metodoPago: string = 'EFECTIVO') {
         // 1. Obtener el turno activo (requerido por la BD)

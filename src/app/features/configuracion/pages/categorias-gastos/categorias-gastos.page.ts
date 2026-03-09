@@ -10,7 +10,7 @@ import {
 import { addIcons } from 'ionicons';
 import { addOutline, chevronForwardOutline } from 'ionicons/icons';
 import { CategoriasGastosService } from '../../../dashboard/services/categorias-gastos.service';
-import { CategoriaGasto, CategoriaGastoInsert } from '../../../gastos-diarios/models/gasto-diario.model';
+import { CategoriaGasto, CategoriaGastoInsert } from '../../../dashboard/services/categorias-gastos.service';
 import { CategoriaGastoModalComponent } from '../../components/categoria-gasto-modal/categoria-gasto-modal.component';
 import { UiService } from '@core/services/ui.service';
 

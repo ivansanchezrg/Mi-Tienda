@@ -81,11 +81,11 @@
     <div class="flat-item ion-activatable" (click)="onSaldoClick('cajaChica')">
       <ion-ripple-effect></ion-ripple-effect>
       <div class="icon-wrapper tertiary">
-        <ion-icon name="wallet-outline"></ion-icon>
+        <ion-icon name="cash-outline"></ion-icon>
       </div>
       <div class="content">
         <span class="title">{{ cajaNombreFor('CAJA_CHICA') }}</span>
-        <span class="subtitle">Gastos menores</span>
+        <span class="subtitle">Cajón diario</span>
       </div>
       <div class="amount-group">
         @if (cargando) {
@@ -93,6 +93,26 @@
           style="width: 60px; height: 16px; border-radius: var(--radius-xs);"></ion-skeleton-text>
         } @else {
         <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCajaChica | number:'1.2-2')) }}</span>
+        }
+        <ion-icon name="chevron-forward"></ion-icon>
+      </div>
+    </div>
+
+    <div class="flat-item ion-activatable" (click)="onSaldoClick('varios')">
+      <ion-ripple-effect></ion-ripple-effect>
+      <div class="icon-wrapper tertiary">
+        <ion-icon name="wallet-outline"></ion-icon>
+      </div>
+      <div class="content">
+        <span class="title">{{ cajaNombreFor('VARIOS') }}</span>
+        <span class="subtitle">Fondo emergencia</span>
+      </div>
+      <div class="amount-group">
+        @if (cargando) {
+        <ion-skeleton-text animated
+          style="width: 60px; height: 16px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+        } @else {
+        <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoVarios | number:'1.2-2')) }}</span>
         }
         <ion-icon name="chevron-forward"></ion-icon>
       </div>

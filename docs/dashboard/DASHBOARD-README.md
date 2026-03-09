@@ -28,25 +28,23 @@ Panel principal con 4 secciones:
 
 ### Cierre Diario (`pages/cierre-diario/`)
 
-Wizard de 2 pasos para cerrar el día:
+Wizard de **2 pasos** para cerrar el día (v5 — 2026-03-06):
 
-**Paso 1 - Ingresar Saldos:**
+**Paso 1 — Datos del Turno (3 inputs):**
+- Saldo virtual celular final (input)
+- Saldo virtual bus final (input)
+- Efectivo contado en cajón (input `.destacado`)
+- Feedback en tiempo real: ventas calculadas, diferencia de conteo, alertas
+- Bloquea "Ver Resumen" si algún campo es inválido o hay ventas negativas
 
-- Saldo virtual celular final
-- Saldo virtual bus final
-- Efectivo total recaudado
-- Inputs con `CurrencyInputDirective` para formato automático
-
-**Paso 2 - Verificación Final:**
-
-- Ventas del día (calculadas automáticamente)
-- Verificación de cajas (fórmula visible)
-- Alertas informativas
-- Observaciones opcionales
-- Botón de confirmación
+**Paso 2 — Resumen y Confirmación:**
+- Ventas de recargas del turno (celular + bus)
+- Distribución del cajón: desglose efectivo → VARIOS → CAJA; cajón queda en $0
+- Alerta de déficit si VARIOS no recibió su fondo hoy
+- Verificación antes→después de los 4 saldos: Tienda, Varios, Celular, Bus
+- Observaciones opcionales + botón "Cerrar Caja"
 
 **Patrones utilizados:**
-
 - `ScrollResetDirective` para scroll al top al cambiar de paso
 - `PendingChangesGuard` para prevenir salida accidental con datos sin guardar
 - `CurrencyService` para parseo inteligente de moneda
@@ -122,21 +120,9 @@ Historial de movimientos por caja con diseño híbrido (Home pattern + empresari
 
 ---
 
-### Gastos Diarios
-
-> ⚠️ **Movido a feature independiente:** `src/app/features/gastos-diarios/`
-> La página `gastos-diarios` y el componente `gasto-modal` ya no están en `dashboard/`. La ruta `/home/gastos-diarios` sigue funcionando igual.
-> **Documentación completa:** Ver [GASTOS-DIARIOS-README.md](../../../gastos-diarios/docs/GASTOS-DIARIOS-README.md)
-
 ---
 
 ## Componentes Modales
-
-### Gasto Modal
-
-> ⚠️ **Movido a** `src/app/features/gastos-diarios/components/gasto-modal/`
-
----
 
 ### Registrar Recarga / Pagar Deudas / Liquidación Bus / Historial Modal
 
@@ -169,7 +155,6 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 /home/recargas-virtuales     → RecargasVirtualesPage
 /home/pagar-deudas           → PagarDeudasPage
 /home/historial-recargas     → HistorialRecargasPage
-/home/gastos-diarios         → GastosDiariosPage
 ```
 
 ---
@@ -185,8 +170,6 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 | NotificacionesService    | `dashboard/services/notificaciones.service.ts`         | Agrega y expone todas las notificaciones de la app  |
 | RecargasVirtualesService | `core/services/recargas-virtuales.service.ts` ⬆️       | Gestión de saldo virtual, deudas, liquidaciones     |
 | GananciasService         | `core/services/ganancias.service.ts` ⬆️                | Cálculo y verificación de ganancias mensuales BUS   |
-| GastosDiariosService     | `gastos-diarios/services/gastos-diarios.service.ts` ⬆️ | Registro de gastos operativos (NO afecta saldos)    |
-
 > ⬆️ = Movido fuera de dashboard en el refactor de features (2026-02-25)
 
 ---
@@ -215,8 +198,8 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 3. **[3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md)** - Flujo completo del cierre diario, arquitectura del sistema de 4 cajas, validaciones y trazabilidad
 4. **[4_PROCESO_CUADRE_RECARGAS.md](./4_PROCESO_CUADRE_RECARGAS.md)** - Calculadora de verificación de efectivo (solo vista, no guarda)
 5. **[5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md)** - Patrón de actualización de UI post-operación (cargarDatos) y gotcha de Supabase INSERT/UPDATE devuelve data:null
-6. **[GASTOS-DIARIOS-README.md](../gastos-diarios/GASTOS-DIARIOS-README.md)** - Sistema de registro de gastos operativos con FAB y comprobantes
-7. **[RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md)** - Sistema completo de gestión de saldo virtual (CELULAR/BUS), deudas, liquidaciones y comisiones
+6. **[RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md)** - Sistema completo de gestión de saldo virtual (CELULAR/BUS), deudas, liquidaciones y comisiones
+7. ~~**GASTOS-DIARIOS-README.md**~~ — **ELIMINADO en v5** (2026-03-06). Los gastos operativos se registran como EGRESO desde CAJA_CHICA en `operacion-modal`.
 8. **[8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)** - Flujo de apertura de turno, modal de verificación de fondo, estados del banner y tabla turnos_caja
 
 ### Otros Recursos
@@ -294,18 +277,17 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 
 ## Estado del Proyecto
 
-**Última actualización:** 2026-02-26
+**Última actualización:** 2026-03-06 — **Refactor v5** (arquitectura 5 cajas, elimina módulo gastos-diarios)
 
 **Módulos completados:**
 
-- ✅ Home con saldos en tiempo real
-- ✅ Cierre Diario (v4.0 ultra-simplificado)
+- ✅ Home con saldos en tiempo real (CAJA, CAJA_CHICA, VARIOS, CELULAR, BUS)
+- ✅ Cierre Diario (v5 — wizard 3 pasos, CAJA_CHICA como cajón diario)
 - ✅ Operaciones de Caja con historial
 - ✅ Cuadre de Caja (calculadora)
 - ✅ Recargas Virtuales (CELULAR/BUS)
 - ✅ Pagar Deudas con comprobantes
-- ✅ Gastos Diarios con FAB
-- ✅ Ingreso/Egreso con categorías contables
+- ✅ Ingreso/Egreso con categorías contables (reemplaza Gastos Diarios)
 
 **Pendientes:**
 

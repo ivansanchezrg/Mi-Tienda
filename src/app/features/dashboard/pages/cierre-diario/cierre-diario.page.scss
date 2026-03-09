@@ -60,6 +60,10 @@ $caja-chica-color: #8b5cf6;
     border-radius: var(--radius-sm);
     box-shadow: var(--shadow-level-1);
 
+    &::part(native) {
+      align-items: center;
+    }
+
     .item-icon {
       font-size: 36px;
       margin-right: var(--spacing-lg);
@@ -248,6 +252,15 @@ $caja-chica-color: #8b5cf6;
         font-weight: var(--font-weight-bold);
       }
 
+      &.sobrante {
+        color: var(--ion-color-success);
+        font-weight: var(--font-weight-bold);
+      }
+
+      &.muted {
+        color: var(--ion-color-medium);
+      }
+
       &.destacado {
         font-size: 16px;
         font-weight: var(--font-weight-bold);
@@ -391,6 +404,11 @@ $caja-chica-color: #8b5cf6;
         font-weight: var(--font-weight-bold);
       }
     }
+  }
+
+  &.success {
+    background: rgba(var(--ion-color-success-rgb), 0.10);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.20);
   }
 
   &.info {

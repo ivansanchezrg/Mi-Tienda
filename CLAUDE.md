@@ -6,7 +6,7 @@ Contexto rápido del proyecto para IAs. Lee esto antes de cualquier tarea.
 
 ## Qué es este proyecto
 
-App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sistema de 4 cajas físicas/virtuales), ventas, recargas de saldo celular/bus, inventario y gastos operativos con comprobantes fotográficos.
+App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sistema de **5 cajas** físicas/virtuales: CAJA, CAJA_CHICA, VARIOS, CAJA_CELULAR, CAJA_BUS), ventas POS, recargas de saldo celular/bus e inventario.
 
 **No es un e-commerce ni una web app.** Es una herramienta interna de administración para una sola tienda.
 
@@ -28,14 +28,14 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 
 | Módulo              | Estado           |
 | ------------------- | ---------------- |
-| `auth`              | ✅ Completo      |
-| `dashboard`         | ✅ Completo      |
-| `recargas-virtuales`| ✅ Completo      |
-| `gastos-diarios`    | ✅ Completo      |
-| `usuarios`          | ✅ Completo      |
-| `inventario`        | 🚧 En desarrollo |
-| `pos`               | 🚧 En desarrollo |
-| `reportes`          | 🚧 En desarrollo |
+| `auth`              | ✅ Completo                                  |
+| `dashboard`         | ✅ Completo (v5 — 5 cajas, cierre wizard 3p) |
+| `recargas-virtuales`| ✅ Completo                                  |
+| `usuarios`          | ✅ Completo                                  |
+| `inventario`        | 🚧 En desarrollo                             |
+| `pos`               | 🚧 En desarrollo                             |
+| `reportes`          | 🚧 En desarrollo                             |
+| ~~`gastos-diarios`~~| ❌ Eliminado en v5 (2026-03-06) — los gastos van como EGRESO en `operacion-modal` |
 
 ---
 
@@ -185,7 +185,7 @@ Camera.getPhoto({ quality: 80, width: 1200, height: 1600, correctOrientation: tr
 ```
 
 ### Configuración — NUNCA hardcodear valores de negocio
-Los valores como `fondo_fijo_diario`, `caja_chica_transferencia_diaria` viven en la tabla `configuraciones`. Leerlos con query, no hardcodearlos en el código.
+Los valores como `fondo_fijo_diario`, `varios_transferencia_diaria` viven en la tabla `configuraciones`. Leerlos con query, no hardcodearlos en el código.
 
 ---
 
@@ -198,16 +198,18 @@ Los valores como `fondo_fijo_diario`, `caja_chica_transferencia_diaria` viven en
 
 ---
 
-## Nombres de cajas (UI vs BD)
+## Nombres de cajas (UI vs BD) — 5 cajas en v5
 
-| Código BD    | Nombre en UI | Subtítulo       |
-| ------------ | ------------ | --------------- |
-| `CAJA`       | Tienda       | Efectivo        |
-| `CAJA_CHICA` | Varios       | Gastos menores  |
-| `CAJA_CELULAR` | Celular    | Saldo digital   |
-| `CAJA_BUS`   | Bus          | Saldo digital   |
+| Código BD      | Nombre en UI | Subtítulo       | Rol                                      |
+| -------------- | ------------ | --------------- | ---------------------------------------- |
+| `CAJA`         | Tienda       | Efectivo        | Vault de depósitos acumulados            |
+| `CAJA_CHICA`   | Cajón        | Cajón diario    | Efectivo del día (ventas POS + recargas) |
+| `VARIOS`       | Varios       | Fondo emergencia| Ex-CAJA_CHICA. Fondo fijo de gastos.    |
+| `CAJA_CELULAR` | Celular      | Saldo digital   | Efectivo recargas celular                |
+| `CAJA_BUS`     | Bus          | Saldo digital   | Efectivo recargas bus                    |
 
 > No renombrar los códigos de BD. Solo los labels de UI difieren.
+> **v5 (2026-03-06):** `CAJA_CHICA` es ahora el cajón físico diario. `VARIOS` es el fondo de emergencia (antes era `CAJA_CHICA` en BD). Ver `docs/REFACTOR-V5.md`.
 
 ---
 
@@ -231,7 +233,7 @@ Los valores como `fondo_fijo_diario`, `caja_chica_transferencia_diaria` viven en
 | Dashboard           | `docs/dashboard/DASHBOARD-README.md`                       |
 | Auth                | `docs/auth/AUTH-README.md`                                 |
 | Recargas Virtuales  | `docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md`     |
-| Gastos Diarios      | `docs/gastos-diarios/GASTOS-DIARIOS-README.md`             |
+| ~~Gastos Diarios~~  | `docs/gastos-diarios/GASTOS-DIARIOS-README.md` (**DEPRECADO en v5**)  |
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
 | Sistema de diseño   | `docs/DESIGN.md`                                           |
 | Schema BD           | `docs/schema.sql`                                          |

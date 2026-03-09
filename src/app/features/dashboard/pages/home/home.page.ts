@@ -77,9 +77,10 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   // Estado de conexión
   isOnline = true;
 
-  // Saldos de cajas
+  // Saldos de cajas (v5: 5 cajas)
   saldoCaja = 0;
-  saldoCajaChica = 0;
+  saldoCajaChica = 0; // CAJA_CHICA — cajón físico diario
+  saldoVarios = 0;    // VARIOS — fondo de emergencia (v5: antes era CAJA_CHICA)
   saldoCelular = 0;
   saldoBus = 0;
   totalSaldos = 0;
@@ -89,6 +90,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private readonly TIPO_CODIGO: Record<string, string> = {
     'caja': 'CAJA',
     'cajaChica': 'CAJA_CHICA',
+    'varios': 'VARIOS',
     'celular': 'CAJA_CELULAR',
     'bus': 'CAJA_BUS'
   };
@@ -170,6 +172,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       if (saldos) {
         this.saldoCaja = saldos.cajaPrincipal;
         this.saldoCajaChica = saldos.cajaChica;
+        this.saldoVarios = saldos.varios;
         this.saldoCelular = saldos.cajaCelular;
         this.saldoBus = saldos.cajaBus;
         this.totalSaldos = saldos.total;
@@ -261,16 +264,40 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   async onAbrirCaja() {
-    const confirmado = await this.mostrarModalVerificacionFondo();
-    if (!confirmado) return;
+    const resultado = await this.mostrarModalVerificacionFondo();
+    if (!resultado) return;
 
+    // Si el modal ya abrió el turno (caso con déficit, atómico en SQL), no hace falta llamar abrirTurno()
+    if (resultado.turnoId) {
+      await this.ui.showSuccess('Caja abierta');
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await this.cargarDatos();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // Caso sin déficit: abre el turno normalmente
+    await this.ui.showLoading('Abriendo caja...');
     const success = await this.turnosCajaService.abrirTurno();
+    await this.ui.hideLoading();
+
     if (success) {
       await new Promise(resolve => setTimeout(resolve, 300));
       await this.cargarDatos();
       this.cdr.detectChanges();
     } else {
-      await this.ui.showError('No se pudo abrir el turno. Verificá tu conexión e intentá de nuevo.');
+      // abrirTurno() devuelve false tanto si ya hay turno abierto (RPC abrió pero Supabase
+      // JS falló al devolver la respuesta) como si hubo un error real. Verificar cuál es:
+      const turnoActivo = await this.turnosCajaService.obtenerTurnoActivo();
+      if (turnoActivo) {
+        // El turno ya estaba abierto (caso de lock timeout de Supabase) — solo recargar
+        await this.ui.showSuccess('Caja abierta');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await this.cargarDatos();
+        this.cdr.detectChanges();
+      } else {
+        await this.ui.showError('No se pudo abrir el turno. Verificá tu conexión e intentá de nuevo.');
+      }
     }
   }
 
@@ -319,12 +346,14 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     if (data?.reload) await this.cargarDatos();
   }
 
-  async mostrarModalVerificacionFondo(): Promise<boolean> {
+  async mostrarModalVerificacionFondo(): Promise<{ turnoId: string | null } | null> {
     try {
+      await this.ui.showLoading('Verificando...');
       const [fondoFijo, deficit] = await Promise.all([
         this.turnosCajaService.obtenerFondoFijo(),
         this.turnosCajaService.obtenerDeficitTurnoAnterior()
       ]);
+      await this.ui.hideLoading();
 
       const modal = await this.modalCtrl.create({
         component: VerificarFondoModalComponent,
@@ -340,10 +369,12 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
       await modal.present();
       const { data, role } = await modal.onWillDismiss();
-      return role === 'confirm' && data?.confirmado === true;
+      if (role !== 'confirm' || !data?.confirmado) return null;
+      return { turnoId: data?.turnoId ?? null };
     } catch (error: any) {
+      await this.ui.hideLoading();
       await this.ui.showError('Error al cargar los datos de verificación. Intentá de nuevo.');
-      return false;
+      return null;
     }
   }
 }
