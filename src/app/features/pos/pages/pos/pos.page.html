@@ -46,9 +46,17 @@
         <ion-icon name="person-outline"></ion-icon>
         Cliente
       </span>
-      <span class="chr-value">
-        {{ clienteSeleccionado?.nombre || 'Consumidor Final' }}
-        <ion-icon name="chevron-forward-outline"></ion-icon>
+      <span class="chr-value" [class.chr-value--error]="errorCliente">
+        @if (cargandoCliente) {
+          <ion-spinner name="crescent" style="width:14px;height:14px;"></ion-spinner>
+        } @else if (errorCliente) {
+          <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+          <span>Error — toca para reintentar</span>
+          <ion-icon name="refresh-outline" color="danger"></ion-icon>
+        } @else {
+          {{ clienteSeleccionado?.nombre || 'Consumidor Final' }}
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        }
       </span>
     </div>
   </ion-toolbar>
@@ -140,13 +148,13 @@
     }
 
   </div>
+
+
 </ion-content>
 
 <!-- Footer Fijo de Cobro -->
 <ion-footer class="ion-no-border">
   <div class="pos-footer p-md">
-
-
     <!-- Desglose fiscal: solo visible en FACTURA -->
     @if (mostrarDesglose) {
     <div class="breakdown mb-xs">
@@ -171,7 +179,7 @@
     }
 
     <!-- Fila total (siempre visible) -->
-    <div class="total-row mb-md">
+    <div class="total-row ">
       <div class="total-left">
         <span class="total-label">Total</span>
         <span class="total-articles">
@@ -186,5 +194,6 @@
       <ion-icon name="cash-outline" slot="start"></ion-icon>
       Cobrar · ${{ currencyService.format(totalPagar) }}
     </ion-button>
+
   </div>
 </ion-footer>

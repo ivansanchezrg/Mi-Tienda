@@ -1,4 +1,4 @@
-# Cierre Diario — Referencia Técnica (v5.2 — 2026-03-10)
+# Cierre Diario — Referencia Técnica (v5.3 — 2026-03-12)
 
 ## 1. Arquitectura
 
@@ -31,7 +31,7 @@
 
 ## 2. Flujo del proceso (UI — wizard 2 pasos)
 
-### Pre-condiciones (validadas en Home antes de navegar)
+### Pre-condiciones (validadas en `onCerrarCaja()` antes de navegar)
 
 `obtenerEstadoCaja()` devuelve uno de:
 
@@ -39,7 +39,17 @@
 - `TURNO_EN_CURSO` → turno abierto (permite cierre)
 - `CERRADA` → ya se cerró el día
 
-Solo se puede llegar al cierre desde `TURNO_EN_CURSO`. En `cargarDatosIniciales()` se carga en paralelo:
+`onCerrarCaja()` ejecuta las siguientes validaciones **en orden** antes de navegar a `/home/cierre-diario`:
+
+| # | Validación | Resultado si falla |
+| --- | --- | --- |
+| 1 | `estadoCaja.estado === 'TURNO_EN_CURSO'` | Toast warning: "No hay un turno activo en este momento." |
+| 2 | `existeCierreDiario()` — verifica en BD que no exista ya un cierre para este turno | Error de conexión → toast error. Cierre ya registrado → toast warning. |
+| 3 | `turnoEmpleadoId === empleadoActualId` — el empleado logueado es quien abrió el turno | Error: "Solo [nombre] puede realizar el cierre de este turno." |
+
+Solo si las 3 pasan → `router.navigate(['/home/cierre-diario'])` sin overlay activo (evita colisión con el ciclo de vida de `ionViewWillEnter`).
+
+En `cargarDatosIniciales()` se carga en paralelo:
 - Saldos virtuales actuales (CELULAR + BUS) desde `RecargasVirtualesService`
 - Datos del cierre (saldos de cajas, fondo fijo) desde `RecargasService`
 - Flag `transferenciaCajaChicaYaHecha` desde `RecargasService.verificarTransferenciaYaHecha()` — ver §4

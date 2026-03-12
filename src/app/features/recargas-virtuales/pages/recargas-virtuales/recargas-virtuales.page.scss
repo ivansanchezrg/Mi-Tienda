@@ -1,3 +1,11 @@
+ion-toolbar {
+    ion-title {
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        padding-inline-start: 0;
+    }
+}
+
 // Filter bar (tabs CELULAR/BUS) - Sin esquinas redondeadas
 .filter-bar {
   display: flex;

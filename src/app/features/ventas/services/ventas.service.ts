@@ -1,8 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { Venta, VentaDetalle, VentasResumen } from '../models/venta.model';
+import { DEFAULT_PAGE_SIZE } from '../../../core/constants/app.constants';
 
-export const VENTAS_PAGE_SIZE = 10;
+export const VENTAS_PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
 @Injectable({
     providedIn: 'root'

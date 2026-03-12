@@ -1,4 +1,4 @@
-# Abrir Caja — Referencia Técnica (v5.2 — 2026-03-10)
+# Abrir Caja — Referencia Técnica (v5.3 — 2026-03-12)
 
 ## 1. Arquitectura
 
@@ -37,6 +37,11 @@
 
 ```
 onAbrirCaja()
+  │
+  ├─ [Guard] estadoCaja.estado === 'TURNO_EN_CURSO'
+  │    └─ Error: "Ya hay un turno abierto por [nombre]. Solo ese empleado puede cerrarlo."
+  │         → return (no navega, no abre modal)
+  │
   └─ mostrarModalVerificacionFondo()
        ├─ obtenerFondoFijo()             → fondo_fijo_diario desde configuraciones
        └─ obtenerDeficitTurnoAnterior()  → ver §4
@@ -63,11 +68,16 @@ cargarDatos() → refresca banner en Home
 
 ## 3. Estados del banner (Home)
 
-| Estado | Condición en BD | Botón |
-| --- | --- | --- |
-| `SIN_ABRIR` | Sin turnos hoy | Abrir Caja |
-| `TURNO_EN_CURSO` | Turno con `hora_fecha_cierre IS NULL` | Cerrar Turno |
-| `CERRADA` | Todos los turnos tienen `hora_fecha_cierre` | Abrir Caja |
+El banner usa `estadoCaja.estado` + el getter `esMiTurno` (compara `turnoActivo.empleado_id === empleadoActualId`) para determinar qué mostrar.
+
+| Estado | `esMiTurno` | Título | Subtítulo | Botón | Estilo card |
+| --- | --- | --- | --- | --- | --- |
+| `SIN_ABRIR` | — | Sin Turno | "Abrí turno para iniciar operaciones" | Abrir Caja | Normal |
+| `TURNO_EN_CURSO` | `true` | Turno Activo | Nombre del empleado | Cerrar Turno | Normal |
+| `TURNO_EN_CURSO` | `false` | Turno en Progreso | "Abierto por [nombre]" | — (sin botón) | Tinte amarillo (`.ajeno`) |
+| `CERRADA` | — | Turno Cerrado | "Caja cerrada por hoy" | Abrir Caja | Normal |
+
+> **Turno en Progreso:** cuando el turno activo pertenece a otro empleado, el card muestra la información de forma pasiva (sin acción disponible). El empleado logueado no puede ni abrir ni cerrar — solo el dueño del turno puede cerrarlo.
 
 `turnosHoy` en `EstadoCaja` indica si es el 1° o 2° turno del día.
 
@@ -174,7 +184,13 @@ Delega en `rpc('abrir_turno', { p_empleado_id })`. La función SQL ejecuta en un
 
 **Ventaja sobre el enfoque anterior** (3 queries separadas): elimina la race condition TOCTOU — el check y el INSERT ocurren en la misma transacción con lock implícito.
 
-`abrirTurno()` retorna `false` tanto si la función reporta error como si hay fallo de conexión. `home.page.ts` gestiona ambos casos releyendo el turno activo (tolera el caso donde el turno se abrió pero la respuesta se perdió por timeout).
+`abrirTurno()` retorna `false` tanto si la función reporta error como si hay fallo de conexión. `home.page.ts` gestiona tres sub-casos releyendo el turno activo con `obtenerTurnoActivo()`:
+
+| Sub-caso | Condición | Resultado |
+| --- | --- | --- |
+| Lock timeout propio | Turno existe y `empleado_id === empleadoActualId` | Toast éxito + `cargarDatos()` |
+| Datos desactualizados | Turno existe y `empleado_id !== empleadoActualId` | Error con nombre del otro empleado + `cargarDatos()` |
+| Error real | No existe turno activo | Error: "No se pudo abrir el turno. Verificá tu conexión." |
 
 ---
 
@@ -210,7 +226,36 @@ CREATE UNIQUE INDEX idx_turnos_caja_fecha_turno
 
 ---
 
-## 9. Queries de auditoría
+## 9. Restricciones de sesión (v5.3)
+
+### Turno único activo
+
+Solo puede existir un turno activo a la vez. La restricción opera en dos capas:
+
+| Capa | Dónde | Qué hace |
+| --- | --- | --- |
+| **Frontend** | `onAbrirCaja()` — guard al inicio | Bloquea inmediatamente si `estadoCaja.estado === 'TURNO_EN_CURSO'` con mensaje que incluye el nombre del empleado que lo tiene abierto |
+| **BD** | `fn_abrir_turno` — `IF EXISTS (... hora_fecha_cierre IS NULL)` | Validación atómica: retorna `{ success: false }` si ya hay turno abierto, independientemente del estado del frontend |
+
+### Logout bloqueado con turno activo
+
+`SidebarComponent.logout()` verifica antes de cerrar sesión:
+
+```typescript
+const turno = await this.turnosCajaService.obtenerTurnoActivo();
+if (turno && turno.empleado_id === this.empleadoId) {
+  // Bloquea: el empleado tiene el turno abierto
+  showError('Tienes un turno activo. Realizá el cierre diario antes de cerrar sesión.');
+  return;
+}
+// Procede con logout
+```
+
+Solo se bloquea si **el turno activo pertenece al usuario logueado**. Si el turno es de otro empleado, el logout procede normalmente.
+
+---
+
+## 10. Queries de auditoría
 
 ### Estado de turnos del día
 

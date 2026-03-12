@@ -128,14 +128,6 @@
       <p class="fiado-nota">Pendiente de cobro</p>
       }
 
-      <!-- Cliente en pie (TICKET / NOTA_VENTA con cliente real, no en FACTURA) -->
-      @if (!esFactura && tieneClienteReal) {
-      <p class="cliente-pie">
-        <ion-icon name="person-outline"></ion-icon>
-        {{ venta.cliente_nombre }}
-      </p>
-      }
-
       <p class="gracias">¡Gracias por su compra!</p>
     </div>
 

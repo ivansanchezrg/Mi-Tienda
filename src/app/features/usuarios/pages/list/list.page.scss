@@ -2,6 +2,15 @@
 // EMPLOYEES LIST PAGE
 // ==========================================
 
+ion-toolbar {
+    ion-title {
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        padding-inline-start: 0;
+    }
+}
+
+
 .empty-state {
   display: flex;
   flex-direction: column;

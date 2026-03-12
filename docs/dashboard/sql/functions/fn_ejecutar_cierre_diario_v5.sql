@@ -115,6 +115,10 @@ BEGIN
     RAISE EXCEPTION 'El turno ya está cerrado';
   END IF;
 
+  IF NOT EXISTS (SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND empleado_id = p_empleado_id) THEN
+    RAISE EXCEPTION 'Solo el empleado que abrió el turno puede realizar el cierre';
+  END IF;
+
   IF p_efectivo_fisico < 0 THEN
     RAISE EXCEPTION 'El efectivo físico contado no puede ser negativo';
   END IF;

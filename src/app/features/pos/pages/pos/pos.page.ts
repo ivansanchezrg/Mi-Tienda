@@ -9,7 +9,7 @@ import {
   ActionSheetController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline } from 'ionicons/icons';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
@@ -55,6 +55,8 @@ export class PosPage implements OnInit {
   buscando = false;
 
   clienteSeleccionado: Cliente | null = null;
+  cargandoCliente = false;
+  errorCliente = false;
 
   /** Tipo de comprobante activo — controla desglose fiscal en el footer */
   tipoComprobante: TipoComprobante = TipoComprobante.TICKET;
@@ -77,12 +79,25 @@ export class PosPage implements OnInit {
       cubeOutline, searchOutline, addCircleOutline,
       cardOutline, phonePortraitOutline, handRightOutline,
       receiptOutline, documentTextOutline, documentOutline,
-      personOutline, chevronForwardOutline
+      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline
     });
   }
 
   async ngOnInit() {
-    this.clienteSeleccionado = await this.clientesService.obtenerConsumidorFinal();
+    await this.cargarCliente();
+  }
+
+  async cargarCliente() {
+    this.cargandoCliente = true;
+    this.errorCliente = false;
+    try {
+      this.clienteSeleccionado = await this.clientesService.obtenerConsumidorFinal();
+      if (!this.clienteSeleccionado?.id) this.errorCliente = true;
+    } catch {
+      this.errorCliente = true;
+    } finally {
+      this.cargandoCliente = false;
+    }
   }
 
   // ==========================
@@ -148,6 +163,13 @@ export class PosPage implements OnInit {
   }
 
   async abrirSelectorCliente() {
+    if (this.errorCliente || !this.clienteSeleccionado?.id) {
+      await this.cargarCliente();
+      if (this.errorCliente) {
+        this.ui.showToast('No se pudo cargar el cliente. Verifica tu conexión.', 'danger');
+      }
+      return;
+    }
 
     const modal = await this.modalCtrl.create({
       component: SeleccionarClienteModalComponent,
@@ -301,6 +323,11 @@ export class PosPage implements OnInit {
   async cobrar() {
     if (this.carrito.length === 0) return;
 
+    if (!this.clienteSeleccionado?.id) {
+      this.ui.showToast('Cliente no cargado. Toca el cliente para actualizar.', 'warning');
+      return;
+    }
+
     // Validación FACTURA: requiere cliente con identificación
     if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado?.es_consumidor_final) {
       this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
@@ -398,7 +425,7 @@ export class PosPage implements OnInit {
       ...o,
       active: o.value === TipoComprobante.TICKET
     }));
-    this.clienteSeleccionado = await this.clientesService.obtenerConsumidorFinal();
+    await this.cargarCliente();
   }
 
 }

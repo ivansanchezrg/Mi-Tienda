@@ -1,5 +1,14 @@
 // Siguiendo el patrón de operaciones-caja y DESIGN.md
 
+ion-toolbar {
+    ion-title {
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        padding-inline-start: 0;
+    }
+}
+
+
 // Barra de filtros (mismo estilo que operaciones-caja)
 .filter-bar {
   display: flex;

@@ -12,6 +12,8 @@ import {
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 import { RolUsuario } from '../../../features/auth/models/usuario_actual.model';
+import { TurnosCajaService } from '../../../features/dashboard/services/turnos-caja.service';
+import { UiService } from '@core/services/ui.service';
 
 interface MenuItem {
   title: string;
@@ -36,6 +38,8 @@ interface MenuItem {
 export class SidebarComponent implements OnInit {
   private menuCtrl = inject(MenuController);
   private authService = inject(AuthService);
+  private turnosCajaService = inject(TurnosCajaService);
+  private ui = inject(UiService);
 
   // Iconos
   userIcon = personCircleOutline;
@@ -46,6 +50,7 @@ export class SidebarComponent implements OnInit {
   empleadoNombre = '';
   empleadoEmail = '';
   empleadoRol: RolUsuario = 'EMPLEADO';
+  private empleadoId: number | null = null;
 
   // Todas las rutas del sidebar
   private readonly todosLosItems: MenuItem[] = [
@@ -65,6 +70,7 @@ export class SidebarComponent implements OnInit {
       this.empleadoNombre = usuario.nombre;
       this.empleadoEmail = usuario.usuario;
       this.empleadoRol = usuario.rol;
+      this.empleadoId = usuario.id ?? null;
     }
 
     // Filtrar items: ADMIN ve todo, EMPLEADO solo ve los no-admin
@@ -78,6 +84,13 @@ export class SidebarComponent implements OnInit {
   }
 
   async logout() {
+    const turno = await this.turnosCajaService.obtenerTurnoActivo();
+    if (turno && turno.empleado_id === this.empleadoId) {
+      await this.closeMenu();
+      await this.ui.showError('Tienes un turno activo. Realizá el cierre diario antes de cerrar sesión.');
+      return;
+    }
+
     await this.closeMenu();
     await this.authService.logout();
   }
