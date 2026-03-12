@@ -1,0 +1,122 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-title>Seleccionar cliente</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cerrar()">
+        <ion-icon name="close-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [scrollY]="true">
+  <div class="modal-content">
+
+    <!-- Aviso Factura -->
+    @if (tipoComprobante === TipoComprobante.FACTURA) {
+    <div class="factura-notice">
+      <ion-icon name="information-circle-outline"></ion-icon>
+      <span>La Factura requiere un cliente con RUC o cédula</span>
+    </div>
+    }
+
+    <!-- Consumidor Final -->
+    @if (consumidorFinal) {
+    <p class="section-label">Por defecto</p>
+    <ion-list lines="none" class="client-list">
+      <ion-item button (click)="seleccionar(consumidorFinal)"
+        [class.item-active]="clienteActual?.es_consumidor_final"
+        [disabled]="tipoComprobante === TipoComprobante.FACTURA">
+        <div slot="start" class="client-avatar">
+          <ion-icon name="person-outline"></ion-icon>
+        </div>
+        <ion-label>
+          <h3>Consumidor Final</h3>
+          <p>Sin identificación · Ticket / Nota de Venta</p>
+        </ion-label>
+        @if (clienteActual?.es_consumidor_final) {
+        <ion-icon name="checkmark-outline" slot="end" color="primary"></ion-icon>
+        }
+      </ion-item>
+    </ion-list>
+    }
+
+    <!-- Buscador -->
+    <p class="section-label">Buscar cliente existente</p>
+    <div class="searchbar-wrap">
+      <ion-searchbar [(ngModel)]="textoBusqueda" (ionInput)="buscar($event)"
+        placeholder="Nombre, cédula o RUC..." [animated]="false" mode="ios" [debounce]="350">
+      </ion-searchbar>
+      @if (buscando) {
+      <ion-spinner name="crescent" color="medium" class="search-spinner"></ion-spinner>
+      }
+    </div>
+
+    <!-- Resultados de búsqueda -->
+    @if (clientes.length > 0) {
+    <ion-list lines="none" class="client-list">
+      @for (c of clientes; track c.id) {
+      <ion-item button (click)="seleccionar(c)" [class.item-active]="clienteActual?.id === c.id">
+        <div slot="start" class="client-avatar">
+          <ion-icon name="person-outline"></ion-icon>
+        </div>
+        <ion-label>
+          <h3>{{ c.nombre }}</h3>
+          <p>
+            {{ c.identificacion || 'Sin identificación' }}
+            @if (c.telefono) { · {{ c.telefono }} }
+          </p>
+        </ion-label>
+        @if (clienteActual?.id === c.id) {
+        <ion-icon name="checkmark-outline" slot="end" color="primary"></ion-icon>
+        }
+      </ion-item>
+      }
+    </ion-list>
+    }
+
+    @if (textoBusqueda && !buscando && clientes.length === 0) {
+    <p class="no-results">Sin resultados para "{{ textoBusqueda }}"</p>
+    }
+
+    <!-- Nuevo cliente -->
+    <p class="section-label" style="margin-top: 24px">Nuevo cliente</p>
+    @if (!mostrarFormNuevo) {
+    <button class="add-client-btn" (click)="mostrarFormNuevo = true">
+      <ion-icon name="person-add-outline"></ion-icon>
+      <span>Agregar nuevo cliente</span>
+    </button>
+    } @else {
+    <div class="new-client-form">
+      <div class="form-field">
+        <label class="field-label">Nombre *</label>
+        <input class="field-input" [(ngModel)]="nuevoNombre" placeholder="Nombre completo" type="text" autocomplete="off" />
+      </div>
+      <div class="form-field">
+        <label class="field-label">
+          Cédula / RUC
+          @if (tipoComprobante === TipoComprobante.FACTURA) {
+          <span class="required"> *</span>
+          }
+        </label>
+        <input class="field-input" [(ngModel)]="nuevoIdentificacion" placeholder="0123456789" type="text" autocomplete="off" />
+      </div>
+      <div class="form-field">
+        <label class="field-label">Teléfono</label>
+        <input class="field-input" [(ngModel)]="nuevoTelefono" placeholder="0991234567" type="tel" autocomplete="off" />
+      </div>
+      <div class="form-actions">
+        <button class="btn-cancel" (click)="mostrarFormNuevo = false">Cancelar</button>
+        <button class="btn-save" (click)="guardarNuevo()" [disabled]="guardando">
+          @if (guardando) {
+          <ion-spinner name="crescent" style="width: 18px; height: 18px;"></ion-spinner>
+          } @else {
+          Guardar
+          }
+        </button>
+      </div>
+    </div>
+    }
+
+  </div>
+</ion-content>

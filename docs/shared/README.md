@@ -1,0 +1,177 @@
+# Shared — Componentes y Directivas Reutilizables
+
+Ubicación: `src/app/shared/`
+
+Todo lo que está aquí es **standalone** — se importa directamente en el componente que lo necesite, sin módulos intermedios.
+
+---
+
+## Componentes
+
+### `app-options-menu` — Menú ⋮ (Popover)
+
+**Archivo:** `components/options-menu/`
+
+Botón de tres puntos que despliega un popover con lista de opciones genéricas. Soporta íconos, checkmark de selección activa y colores personalizados.
+
+#### API
+
+| Propiedad | Tipo | Default | Descripción |
+|---|---|---|---|
+| `[options]` | `MenuOption[]` | `[]` | Lista de opciones a mostrar |
+| `[triggerId]` | `string` | `'options-menu-trigger'` | ID único del botón (necesario si hay varios en la misma página) |
+| `[triggerColor]` | `string` | `'medium'` | Color Ionic del botón ⋮ |
+| `(optionSelected)` | `MenuOption` | — | Emite la opción seleccionada |
+
+#### Interfaz `MenuOption`
+
+```typescript
+export interface MenuOption {
+  label: string;      // Texto visible
+  icon: string;       // Nombre de ionicon (ej: 'trash-outline')
+  value: any;         // Valor que se emite al seleccionar
+  active?: boolean;   // Muestra ✓ a la derecha
+  color?: string;     // Color Ionic: 'danger', 'primary', etc.
+}
+```
+
+#### Ejemplo de uso
+
+```typescript
+// 1. Importar en el componente
+import { OptionsMenuComponent, MenuOption } from '@shared/components/options-menu/...';
+
+// 2. Definir opciones
+myOptions: MenuOption[] = [
+  { label: 'Editar',   icon: 'pencil-outline', value: 'edit',   active: false },
+  { label: 'Eliminar', icon: 'trash-outline',  value: 'delete', color: 'danger' },
+];
+
+// 3. Manejar selección
+onMenuOption(opt: MenuOption) {
+  console.log(opt.value); // 'edit' | 'delete'
+}
+```
+
+```html
+<!-- 4. Usar en el template -->
+<app-options-menu
+  triggerId="mi-menu"
+  [options]="myOptions"
+  (optionSelected)="onMenuOption($event)">
+</app-options-menu>
+```
+
+> **Caso real en el POS:** El `tipoComprobante` (Ticket / Nota de Venta / Factura) se selecciona desde este menú en el header de la página POS. Ver `pos.page.ts` → `comprobanteOptions` y `onComprobanteOption()`.
+
+---
+
+### `app-under-construction` — Módulo en construcción
+
+**Archivo:** `components/under-construction/`
+
+Tarjeta visual para páginas que aún no están implementadas. Muestra título, descripción y lista de features próximas.
+
+#### API
+
+| Propiedad | Tipo | Default | Descripción |
+|---|---|---|---|
+| `[title]` | `string` | `'Módulo'` | Nombre del módulo |
+| `[description]` | `string` | `'...'` | Texto descriptivo |
+| `[features]` | `Feature[]` | `[]` | Lista de features próximas |
+
+#### Ejemplo de uso
+
+```typescript
+import { UnderConstructionComponent } from '@shared/components/under-construction/...';
+
+features = [
+  { label: 'Reportes por fecha' },
+  { label: 'Exportar a PDF' },
+];
+```
+
+```html
+<app-under-construction
+  title="Reportes"
+  description="Próximamente podrás ver tus reportes aquí."
+  [features]="features">
+</app-under-construction>
+```
+
+---
+
+### `app-sidebar` — Menú lateral
+
+**Archivo:** `components/sidebar/`
+
+Menú de navegación lateral de la app. Se gestiona automáticamente con `IonMenu`. No recibe `@Input` propios — consume la configuración de rutas interna.
+
+```html
+<!-- Ya incluido en app.component.html, no requiere uso adicional -->
+<app-sidebar></app-sidebar>
+```
+
+---
+
+## Directivas
+
+### `appCurrencyInput` — Formato de moneda automático
+
+**Archivo:** `directives/currency-input.directive.ts`
+
+Formatea un `ion-input` como campo de moneda: al perder el foco muestra `1,250.00`, al ganar el foco limpia el formato para edición.
+
+**Requiere:** `ReactiveFormsModule` y `CurrencyService`.
+
+```html
+<ion-input
+  appCurrencyInput
+  formControlName="precio_venta"
+  inputmode="decimal">
+</ion-input>
+```
+
+> El valor que llega al formulario puede tener comas — usar `currencyService.parse(value)` antes de enviar a la BD.
+
+---
+
+### `appNumbersOnly` — Solo números
+
+**Archivo:** `directives/numbers-only.directive.ts`
+
+Restringe un `ion-input` para aceptar únicamente `0-9`, `.` y `,`. Bloquea letras y símbolos tanto en teclado como en paste.
+
+```html
+<ion-input
+  appNumbersOnly
+  formControlName="stock_actual"
+  inputmode="numeric">
+</ion-input>
+```
+
+> Se combina frecuentemente con `appCurrencyInput` en campos de precio.
+
+---
+
+### `appScrollReset` — Reset de scroll
+
+**Archivo:** `directives/scroll-reset.directive.ts`
+
+Hace scroll al top de un `ion-content` automáticamente cuando el valor vinculado cambia. Útil en wizards o secciones dinámicas dentro de la misma página.
+
+```html
+<!-- Scroll al top cuando cambia pasoActual -->
+<ion-content [appScrollReset]="pasoActual">
+
+<!-- Con duración personalizada (0 = sin animación) -->
+<ion-content [appScrollReset]="seccion" [scrollResetDuration]="0">
+```
+
+---
+
+## Convenciones
+
+- Todos los elementos son **standalone** — importar directamente en el `imports[]` del componente.
+- Los **enums** de dominio específico de un feature van en `features/<feature>/models/` con sufijo `.enum.ts` (ej: `tipo-comprobante.enum.ts`).
+- Los **enums compartidos** entre múltiples features irían en `shared/models/` (aún no hay ninguno).

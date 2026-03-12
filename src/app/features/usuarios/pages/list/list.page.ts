@@ -75,9 +75,7 @@ export class ListPage implements OnInit {
     );
 
     const modal = await this.modalCtrl.create({
-      component: RegistrarUsuarioModalComponent,
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      component: RegistrarUsuarioModalComponent
     });
 
     modal.onDidDismiss().then(({ data, role }) => {
@@ -99,9 +97,7 @@ export class ListPage implements OnInit {
 
     const modal = await this.modalCtrl.create({
       component: EditarUsuarioModalComponent,
-      componentProps: { usuario },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { usuario }
     });
 
     modal.onDidDismiss().then(({ data, role }) => {

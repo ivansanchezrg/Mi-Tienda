@@ -55,3 +55,15 @@ ion-fab {
   margin-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/**
+ * Date Picker Modal (ion-datetime-button en Ventas)
+ * -----------------------------------------------------
+ * Los overlays de Ionic escapan el encapsulamiento del componente,
+ * por eso estos estilos van aquí (global) y no en ventas.page.scss.
+ */
+.date-picker-modal {
+  --height: auto;
+  --border-radius: 16px 16px 0 0;
+  align-items: flex-end;
+}
+

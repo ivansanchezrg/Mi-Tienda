@@ -1,0 +1,334 @@
+// ==========================================
+// Ventas Page
+// ==========================================
+
+:host {
+    --bg-soft: var(--ion-background-color, #f8f9fa);
+}
+
+ion-content {
+    --background: var(--bg-soft);
+}
+
+ion-toolbar {
+    --background: var(--bg-soft);
+    --border-width: 0;
+}
+
+// ─────────────────────────────────────────
+// BARRA DE FECHA
+// ─────────────────────────────────────────
+
+// Barra de filtros — fila única unificada
+.filter-bar {
+    display: flex;
+    align-items: center;
+    padding: 10px var(--spacing-md);
+    border-bottom: 1px solid var(--ion-color-step-100);
+    background: var(--bg-soft);
+
+    .filter-tabs {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        width: 100%;
+
+        .filter-tab {
+            background: transparent;
+            border: none;
+            padding: 6px 9px;
+            font-size: 12px;
+            font-weight: var(--font-weight-medium);
+            color: var(--ion-color-medium);
+            border-radius: var(--radius-xs);
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            white-space: nowrap;
+            font-family: inherit;
+
+            @media (min-width: 380px) {
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+
+            &:hover:not(.active) {
+                background: var(--ion-color-step-150);
+            }
+
+            &.active {
+                background: var(--ion-color-dark);
+                color: var(--ion-color-dark-contrast);
+            }
+
+            // Tab de calendario: ícono + fecha cuando está activo
+            &--fecha {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                margin-left: auto; // se empuja al extremo derecho
+
+                ion-icon {
+                    font-size: 18px;
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────
+// BUSCADOR
+// ─────────────────────────────────────────
+
+.search-bar {
+    padding: 4px var(--spacing-sm) 8px;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--ion-color-step-100);
+
+    ion-searchbar {
+        --background: var(--ion-color-step-100);
+        --border-radius: var(--radius-sm);
+        --box-shadow: none;
+        --placeholder-color: var(--ion-color-medium);
+        --icon-color: var(--ion-color-medium);
+        padding: 0;
+        height: 40px;
+    }
+}
+
+// ─────────────────────────────────────────
+// FOOTER TOTALIZADOR (NUEVO PANTALLA COMPLETA)
+// ─────────────────────────────────────────
+
+ion-footer {
+    background: var(--bg-soft);
+
+    .ventas-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--ion-item-background, #fff);
+        padding: var(--spacing-md) var(--spacing-xl);
+        // Caso 1: botones de navegación Android → safe-area-inset-bottom tiene valor real
+        // Caso 2: gestures (swipe) → safe-area-inset-bottom cubre el indicador de gesto
+        padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+        border-top: 1px solid var(--ion-color-step-100);
+
+        .footer-info {
+            .footer-label {
+                font-size: 14px;
+                font-weight: var(--font-weight-medium);
+                color: var(--ion-color-medium);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+        }
+
+        .footer-amount-box {
+            text-align: right;
+            // Alinea visualmente con los precios de las tarjetas
+            // (offset para compensar el menú de opciones + padding interno de cada card)
+            padding-right: 20px;
+
+            .footer-amount {
+                font-size: 20px;
+                font-weight: var(--font-weight-extrabold);
+                color: var(--ion-text-color);
+                margin: 0;
+                letter-spacing: -0.5px;
+                display: flex;
+                justify-content: flex-end;
+                align-items: baseline;
+                gap: 1px;
+
+                .currency-symbol {
+                    font-size: 15px;
+                    font-weight: var(--font-weight-extrabold);
+                    color: var(--ion-text-color);
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────
+// ESTADOS
+// ─────────────────────────────────────────
+
+.loading-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 40vh;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 55vh;
+    padding: var(--spacing-xl, 24px);
+
+    .empty-icon-wrap {
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        background: rgba(var(--ion-color-primary-rgb), 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--spacing-lg, 20px);
+
+        ion-icon {
+            font-size: 52px;
+            color: var(--ion-color-primary);
+            opacity: 0.5;
+        }
+    }
+
+    h2 {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--ion-color-medium);
+        margin: 0 0 var(--spacing-sm, 8px) 0;
+    }
+
+    p {
+        font-size: 14px;
+        color: var(--ion-color-medium);
+        max-width: 260px;
+        line-height: 1.5;
+        margin: 0;
+    }
+}
+
+// ─────────────────────────────────────────
+// LISTA DE VENTAS
+// ─────────────────────────────────────────
+
+.ventas-list {
+    background: transparent;
+    padding: 0;
+}
+
+.venta-card {
+    --background: var(--ion-item-background);
+    --border-radius: var(--radius-md, 10px);
+    --padding-start: var(--spacing-sm, 8px);
+    --inner-padding-end: var(--spacing-sm, 8px);
+    --padding-top: var(--spacing-sm, 8px);
+    --padding-bottom: var(--spacing-sm, 8px);
+    margin-bottom: var(--spacing-sm, 8px);
+    border-radius: var(--radius-md, 10px);
+    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, .08));
+
+    .comprobante-icon-box {
+        width: 42px;
+        height: 42px;
+        border-radius: var(--radius-sm, 6px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: var(--spacing-md, 16px);
+        flex-shrink: 0;
+
+        ion-icon {
+            font-size: 22px;
+        }
+
+        &[data-tipo="TICKET"] {
+            background: rgba(var(--ion-color-primary-rgb), 0.1);
+
+            ion-icon {
+                color: var(--ion-color-primary);
+            }
+        }
+
+        &[data-tipo="NOTA_VENTA"] {
+            background: rgba(var(--ion-color-secondary-rgb), 0.1);
+
+            ion-icon {
+                color: var(--ion-color-secondary);
+            }
+        }
+
+        &[data-tipo="FACTURA"] {
+            background: rgba(var(--ion-color-tertiary-rgb), 0.1);
+
+            ion-icon {
+                color: var(--ion-color-tertiary);
+            }
+        }
+    }
+
+    .venta-top-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 3px;
+
+        .tipo-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 20px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+        }
+
+        .venta-numero {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--ion-color-medium);
+            letter-spacing: 0.1px;
+        }
+    }
+
+    .venta-cliente {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--ion-text-color);
+        margin: 0 0 4px 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .venta-bottom-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .metodo-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 12px;
+            color: var(--ion-color-medium);
+
+            ion-icon {
+                font-size: 13px;
+            }
+        }
+
+        .venta-hora {
+            font-size: 12px;
+            color: var(--ion-color-medium);
+        }
+    }
+
+    .venta-end {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 2px;
+        flex-shrink: 0;
+
+        .venta-total {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--ion-color-primary);
+            letter-spacing: -0.5px;
+        }
+    }
+}

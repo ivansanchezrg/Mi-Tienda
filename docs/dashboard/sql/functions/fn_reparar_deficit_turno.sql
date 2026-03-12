@@ -26,12 +26,12 @@
 -- Registra el ajuste contable del déficit del turno anterior Y abre el nuevo turno,
 -- todo en una sola transacción atómica.
 -- EGRESO de Tienda con validación de saldo: si Tienda no tiene suficiente, retorna error.
--- INGRESO a VARIOS solo si p_deficit_caja_chica > 0.
+-- INGRESO a VARIOS solo si p_deficit_varios > 0.
 -- ==========================================
 -- Llamada desde: TurnosCajaService.repararDeficit()
 -- Parámetros:
 --   p_empleado_id        — empleado que abre el turno
---   p_deficit_caja_chica — monto pendiente a VARIOS del turno anterior
+--   p_deficit_varios — monto pendiente a VARIOS del turno anterior
 --   p_fondo_faltante     — fondo que faltó para el día
 --   p_cat_egreso_id      — ID de categoría EG-012 (Ajuste Déficit Turno Anterior)
 --   p_cat_ingreso_id     — ID de categoría IN-004 (Reposición Déficit Turno Anterior)
@@ -39,7 +39,7 @@
 
 CREATE OR REPLACE FUNCTION public.reparar_deficit_turno(
   p_empleado_id        INTEGER,
-  p_deficit_caja_chica DECIMAL(12,2),
+  p_deficit_varios DECIMAL(12,2),
   p_fondo_faltante     DECIMAL(12,2),
   p_cat_egreso_id      INTEGER,
   p_cat_ingreso_id     INTEGER
@@ -62,14 +62,14 @@ DECLARE
   v_numero_turno    INTEGER;
   v_turno_id        UUID;
 BEGIN
-  v_total_a_reponer := p_deficit_caja_chica + p_fondo_faltante;
+  v_total_a_reponer := p_deficit_varios + p_fondo_faltante;
 
   -- Validaciones básicas
   IF v_total_a_reponer <= 0 THEN
     RETURN json_build_object('success', false, 'error', 'El monto a reponer debe ser mayor a cero');
   END IF;
 
-  IF p_deficit_caja_chica < 0 OR p_fondo_faltante < 0 THEN
+  IF p_deficit_varios < 0 OR p_fondo_faltante < 0 THEN
     RETURN json_build_object('success', false, 'error', 'Los montos de déficit no pueden ser negativos');
   END IF;
 
@@ -106,7 +106,7 @@ BEGIN
     v_total_a_reponer, v_saldo_tienda, v_saldo_tienda - v_total_a_reponer,
     FORMAT(
       'Ajuste déficit turno anterior — Varios: $%s, Fondo: $%s',
-      TO_CHAR(p_deficit_caja_chica, 'FM999990.00'),
+      TO_CHAR(p_deficit_varios, 'FM999990.00'),
       TO_CHAR(p_fondo_faltante, 'FM999990.00')
     ),
     NULL
@@ -117,7 +117,7 @@ BEGIN
   -- ==========================================
   -- 2. INGRESO a VARIOS (solo si hay déficit de la transferencia diaria)
   -- ==========================================
-  IF p_deficit_caja_chica > 0 THEN
+  IF p_deficit_varios > 0 THEN
     SELECT saldo_actual INTO v_saldo_varios FROM cajas WHERE id = v_varios_id FOR UPDATE;
     IF NOT FOUND THEN
       RETURN json_build_object('success', false, 'error', 'No se encontró la caja Varios');
@@ -128,12 +128,12 @@ BEGIN
       monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
     ) VALUES (
       gen_random_uuid(), v_varios_id, p_empleado_id, 'INGRESO', p_cat_ingreso_id,
-      p_deficit_caja_chica, v_saldo_varios, v_saldo_varios + p_deficit_caja_chica,
+      p_deficit_varios, v_saldo_varios, v_saldo_varios + p_deficit_varios,
       'Reposición déficit turno anterior — pendiente cobrado de Tienda',
       NULL
     ) RETURNING id INTO v_op_ingreso_id;
 
-    UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_caja_chica WHERE id = v_varios_id;
+    UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_varios WHERE id = v_varios_id;
   END IF;
 
   -- ==========================================
@@ -183,8 +183,8 @@ END;
 $$;
 
 -- Permisos
+REVOKE EXECUTE ON FUNCTION public.reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER) FROM anon;
 GRANT EXECUTE ON FUNCTION public.reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER) TO anon;
 
 -- Refrescar caché PostgREST
 NOTIFY pgrst, 'reload schema';

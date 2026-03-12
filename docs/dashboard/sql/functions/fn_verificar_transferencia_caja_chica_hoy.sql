@@ -69,8 +69,8 @@ END;
 $$;
 
 -- Permisos
+REVOKE EXECUTE ON FUNCTION public.verificar_transferencia_caja_chica_hoy(DATE) FROM anon;
 GRANT EXECUTE ON FUNCTION public.verificar_transferencia_caja_chica_hoy(DATE) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.verificar_transferencia_caja_chica_hoy(DATE) TO anon;
 
 -- Refrescar caché PostgREST
 NOTIFY pgrst, 'reload schema';

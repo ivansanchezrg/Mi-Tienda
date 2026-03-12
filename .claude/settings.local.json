@@ -57,7 +57,11 @@
       "Bash(git -C \"/c/Users/ivan/Desktop/Proyectos/mi-tienda\" check-ignore src/environments/environment.ts)",
       "Bash(git -C \"/c/Users/ivan/Desktop/Proyectos/mi-tienda\" log --oneline --all -- src/environments/environment.ts)",
       "Bash(xargs grep -l \"turno\\\\|abrir\\\\|apertura\" -i)",
-      "Bash(npx tsc --noEmit)"
+      "Bash(npx tsc --noEmit)",
+      "Bash(Remove-Item -Recurse -Force \"C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\.angular\\\\cache\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Cache limpiada\")",
+      "Bash(node -e \"const pkg = require\\(''./node_modules/@ionic/angular/package.json''\\); console.log\\(pkg.version\\)\")",
+      "Bash(powershell -Command \"Get-ChildItem -Recurse -Path src -Filter ''*.ts'' | ForEach-Object { \\(Get-Content $_FullName\\) -replace \"\",\\\\s*\\\\r?\\\\n\\\\s*presentationStyle: ''page''\"\", '''' | Set-Content $_FullName -Encoding UTF8 }\")"
     ]
   }
 }

@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
@@ -35,6 +35,7 @@ import { CurrencyInputDirective } from '@shared/directives/currency-input.direct
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { getFechaLocal } from '@core/utils/date.util';
 import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive';
+import { TurnoCajaConEmpleado } from '../../models/turno-caja.model';
 
 @Component({
   selector: 'app-cierre-diario',
@@ -53,7 +54,7 @@ import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive'
     ScrollResetDirective
   ]
 })
-export class CierreDiarioPage implements OnInit, HasPendingChanges {
+export class CierreDiarioPage implements HasPendingChanges {
   private router = inject(Router);
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
@@ -105,7 +106,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
   saldoAnteriorVarios = 0;  // VARIOS antes del cierre
 
   // Turno activo (cargado en init para reutilizar en ejecutarCierre)
-  turnoActivo: any = null;
+  turnoActivo: TurnoCajaConEmpleado | null = null;
 
   // Conciliación real del turno (Paso 2)
   ventasPosEfectivo = 0;   // Ventas POS en efectivo registradas en el sistema
@@ -146,15 +147,12 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
 
   ionViewWillEnter() {
     this.ui.hideTabs();
+    this.resetState();
     this.cargarDatosIniciales();
   }
 
   ionViewWillLeave() {
     this.ui.showTabs();
-  }
-
-  async ngOnInit() {
-    this.resetState();
   }
 
   public resetState() {
@@ -348,11 +346,6 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
     return monto;
   }
 
-  /** @deprecated Usar montoReposicionApertura */
-  get montoDeficitPreview(): number {
-    return this.montoReposicionApertura;
-  }
-
   // ==========================================
   // GETTERS — Paso 2: Saldos finales (antes → después)
   // ==========================================
@@ -449,8 +442,12 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
       const efectivoFisico    = this.efectivoFisico;
       const observaciones     = this.cierreForm.get('observaciones')?.value || null;
 
-      const empleado   = await this.authService.getUsuarioActual();
-      const empleadoId = empleado?.id || 1;
+      const empleado = await this.authService.getUsuarioActual();
+      if (!empleado?.id) {
+        await this.ui.hideLoading();
+        await this.ui.showError('No se pudo identificar al usuario. Cerrá sesión e ingresá de nuevo.');
+        return;
+      }
 
       // Reutilizar el turno cargado en init (evita query extra al confirmar)
       if (!this.turnoActivo?.id) {
@@ -464,7 +461,7 @@ export class CierreDiarioPage implements OnInit, HasPendingChanges {
       const resultado = await this.recargasService.ejecutarCierreDiario({
         turno_id:     this.turnoActivo.id,
         fecha:        fechaLocal,
-        empleado_id:  empleadoId,
+        empleado_id:  empleado.id,
         efectivo_fisico:             efectivoFisico,
         saldo_celular_final:         saldoCelularFinal,
         saldo_bus_final:             saldoBusFinal,

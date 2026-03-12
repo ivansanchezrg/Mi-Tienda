@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
 import { SaldosAnteriores, DatosCierreDiario, ParamsCierreDiario } from '../models/saldos-anteriores.model';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
-import { getFechaLocal } from '@core/utils/date.util';
+import { getFechaLocal, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
 import { AuthService } from '../../auth/services/auth.service';
 import { UsuarioActual } from '../../auth/models/usuario_actual.model';
 
@@ -356,14 +356,14 @@ export class RecargasService {
     try {
       const fechaBusqueda = fecha || getFechaLocal();
       const inicioDia = new Date(`${fechaBusqueda}T00:00:00`).toISOString();
-      const finDia = new Date(`${fechaBusqueda}T23:59:59`).toISOString();
+      const inicioMana = getInicioDiaSiguienteDeISO(fechaBusqueda);
 
       // Buscar el turno más reciente de hoy
       const turnoResponse = await this.supabase.client
         .from('turnos_caja')
         .select('id, hora_fecha_cierre')
         .gte('hora_fecha_apertura', inicioDia)
-        .lte('hora_fecha_apertura', finDia)
+        .lt('hora_fecha_apertura', inicioMana)
         .order('hora_fecha_apertura', { ascending: false })
         .limit(1)
         .maybeSingle();

@@ -3,27 +3,57 @@
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
-    <ion-title>Punto de Venta</ion-title>
+    <ion-title>
+      <div class="title-with-chip">
+        <span>POS</span>
+        <div class="comprobante-chip">
+          <ion-icon [name]="tipoComprobante === TipoComprobante.TICKET ? 'receipt-outline' : 'document-text-outline'">
+          </ion-icon>
+          <span>{{
+            tipoComprobante === TipoComprobante.TICKET ? 'Ticket' :
+            tipoComprobante === TipoComprobante.NOTA_VENTA ? 'Nota de Venta' : 'Factura'
+            }}</span>
+        </div>
+      </div>
+    </ion-title>
     <ion-buttons slot="end">
-      <!-- Botón para escanear con cámara -->
-      <ion-button color="primary" fill="clear" (click)="abrirEscanerCamara()">
-        <ion-icon slot="icon-only" name="barcode-outline"></ion-icon>
-      </ion-button>
+      <!-- Menú ⋮ reutilizable — opciones de comprobante -->
+      <app-options-menu triggerId="pos-options" [options]="comprobanteOptions"
+        (optionSelected)="onComprobanteOption($event)">
+      </app-options-menu>
     </ion-buttons>
   </ion-toolbar>
 
   <ion-toolbar class="search-toolbar">
-    <div style="position: relative;">
+    <div class="searchbar-wrapper">
       <ion-searchbar [(ngModel)]="buscarTexto" (ionInput)="buscarProducto($event)"
-        placeholder="Escanear EAN o buscar por nombre..." animated="true" mode="ios" [debounce]="450">
+        placeholder="Buscar por nombre o EAN..." [animated]="false" mode="ios" [debounce]="450">
       </ion-searchbar>
-      <!-- Spinner de búsqueda -->
+      <!-- Barcode dentro del input, pegado a la derecha -->
+      <button class="barcode-inline-btn" (click)="abrirEscanerCamara()">
+        <ion-icon name="barcode-outline"></ion-icon>
+      </button>
       @if (buscando) {
       <ion-spinner name="crescent" class="search-spinner" color="medium"></ion-spinner>
       }
     </div>
+
+    <!-- Fila cliente — inline, misma línea visual que el desglose IVA -->
+    <div class="cliente-header-row"
+      [class.cliente-header-row--requerido]="tipoComprobante === TipoComprobante.FACTURA && clienteSeleccionado?.es_consumidor_final"
+      (click)="abrirSelectorCliente()">
+      <span class="chr-label">
+        <ion-icon name="person-outline"></ion-icon>
+        Cliente
+      </span>
+      <span class="chr-value">
+        {{ clienteSeleccionado?.nombre || 'Consumidor Final' }}
+        <ion-icon name="chevron-forward-outline"></ion-icon>
+      </span>
+    </div>
   </ion-toolbar>
 </ion-header>
+
 
 <ion-content color="light">
 
@@ -49,10 +79,12 @@
 
     @if (carrito.length === 0) {
     <!-- Estado vacío del carrito -->
-    <div class="empty-state text-center p-xl mt-xl">
-      <ion-icon name="cart-outline" color="medium" style="font-size: 72px;"></ion-icon>
-      <h2 class="text-secondary mt-md">Carrito Vacío</h2>
-      <p class="text-muted">Busca un producto o escanea su código de barras para comenzar.</p>
+    <div class="empty-state">
+      <div class="empty-icon-wrap">
+        <ion-icon name="cart-outline"></ion-icon>
+      </div>
+      <h2>Carrito vacío</h2>
+      <p>Busca un producto o escanea su código de barras para comenzar.</p>
     </div>
     } @else {
     <!-- Lista del Carrito -->
@@ -113,14 +145,40 @@
 <!-- Footer Fijo de Cobro -->
 <ion-footer class="ion-no-border">
   <div class="pos-footer p-md">
-    <div class="totals-row mb-md">
-      <div class="items-count text-muted">
-        {{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}
+
+
+    <!-- Desglose fiscal: solo visible en FACTURA -->
+    @if (mostrarDesglose) {
+    <div class="breakdown mb-xs">
+      @if (baseIva0 > 0) {
+      <div class="breakdown-row">
+        <span class="breakdown-label">Base 0%</span>
+        <span class="breakdown-value">${{ currencyService.format(baseIva0) }}</span>
       </div>
-      <div class="total-label">
-        <span class="text-muted text-sm">Total a pagar</span>
-        <span class="total-amount">${{ currencyService.format(totalPagar) }}</span>
+      }
+      @if (baseIva15 > 0) {
+      <div class="breakdown-row">
+        <span class="breakdown-label">Base 15%</span>
+        <span class="breakdown-value">${{ currencyService.format(baseIva15) }}</span>
       </div>
+      }
+      <div class="breakdown-row">
+        <span class="breakdown-label">IVA 15%</span>
+        <span class="breakdown-value">${{ currencyService.format(ivaValor) }}</span>
+      </div>
+      <div class="breakdown-divider"></div>
+    </div>
+    }
+
+    <!-- Fila total (siempre visible) -->
+    <div class="total-row mb-md">
+      <div class="total-left">
+        <span class="total-label">Total</span>
+        <span class="total-articles">
+          {{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}
+        </span>
+      </div>
+      <span class="total-amount">${{ currencyService.format(totalPagar) }}</span>
     </div>
 
     <ion-button expand="block" shape="round" color="primary" class="btn-charge" (click)="cobrar()"

@@ -4,14 +4,14 @@ import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-  IonIcon, IonButton, ModalController, ToastController,
-  IonRippleEffect, IonSkeletonText
+  IonIcon, IonButton, ModalController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   walletOutline, cashOutline, phonePortraitOutline, busOutline,
   chevronForward, notificationsOutline, cloudOfflineOutline,
-  alertCircleOutline, eyeOutline, eyeOffOutline
+  alertCircleOutline, eyeOutline, eyeOffOutline,
+  arrowUpOutline, arrowDownOutline, listOutline
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
@@ -28,6 +28,7 @@ import { NotificacionesService, Notificacion } from '../../services/notificacion
 import { NotificacionesModalComponent } from '../../components/notificaciones-modal/notificaciones-modal.component';
 import { VerificarFondoModalComponent } from '../../components/verificar-fondo-modal/verificar-fondo-modal.component';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
+import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 
 @Component({
   selector: 'app-home',
@@ -38,7 +39,8 @@ import { OperacionModalComponent, OperacionModalResult } from '../../components/
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-    IonIcon, IonButton, IonRippleEffect, IonSkeletonText
+    IonIcon, IonButton, IonSkeletonText,
+    OptionsMenuComponent
   ]
 })
 export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
@@ -53,7 +55,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private turnosCajaService = inject(TurnosCajaService);
   private notificacionesService = inject(NotificacionesService);
   private modalCtrl = inject(ModalController);
-  private toastCtrl = inject(ToastController);
   private networkService = inject(NetworkService);
   private cdr = inject(ChangeDetectorRef);
   private networkSub?: Subscription;
@@ -113,12 +114,45 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   // Privacidad
   montosOcultos = false;
 
+  // Opciones del menú ⋮ — compartidas por ambas cajas (mismas acciones)
+  readonly cajaPrincipalOptions: MenuOption[] = [
+    { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
+    { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
+    { label: 'Ver Operaciones', icon: 'list-outline', value: 'ver' },
+  ];
+
+  readonly cajaChicaOptions: MenuOption[] = [
+    { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
+    { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
+    { label: 'Ver Operaciones', icon: 'list-outline', value: 'ver' },
+  ];
+
+  readonly variosOptions: MenuOption[] = [
+    { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
+    { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
+    { label: 'Ver Operaciones', icon: 'list-outline', value: 'ver' },
+  ];
+
+  readonly celularOptions: MenuOption[] = [
+    { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
+    { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
+    { label: 'Ver Operaciones', icon: 'list-outline', value: 'ver' },
+  ];
+
+  readonly busOptions: MenuOption[] = [
+    { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
+    { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
+    { label: 'Ver Operaciones', icon: 'list-outline', value: 'ver' },
+  ];
+
+
   constructor() {
     super();
     addIcons({
       walletOutline, cashOutline, phonePortraitOutline, busOutline,
       chevronForward, notificationsOutline, cloudOfflineOutline,
-      alertCircleOutline, eyeOutline, eyeOffOutline
+      alertCircleOutline, eyeOutline, eyeOffOutline,
+      arrowUpOutline, arrowDownOutline, listOutline
     });
   }
 
@@ -158,13 +192,14 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   async cargarDatos() {
     this.cargando = true;
     try {
-      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones] = await Promise.all([
+      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones, empleado] = await Promise.all([
         this.turnosCajaService.obtenerEstadoCaja(),
         this.cajasService.obtenerSaldosCajas(),
         this.cajasService.obtenerFechaUltimoCierre(),
         this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
         this.recargasVirtualesService.getSaldoVirtualActual('BUS'),
-        this.notificacionesService.getNotificaciones()
+        this.notificacionesService.getNotificaciones(),
+        this.authService.getUsuarioActual()
       ]);
 
       this.estadoCaja = { ...estadoCaja };
@@ -188,7 +223,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
         this.fechaUltimoCierre = 'Hoy es tu primer turno';
       }
 
-      const empleado = await this.authService.getUsuarioActual();
       this.nombreUsuario = empleado?.nombre || 'Usuario';
       this.fechaActual = this.formatearFecha(new Date());
 
@@ -213,9 +247,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     return this.totalSaldos;
   }
 
-  async handleRefresh(event: any) {
+  async handleRefresh(event: CustomEvent) {
     await this.cargarDatos();
-    event.target.complete();
+    (event.target as HTMLIonRefresherElement).complete();
   }
 
   toggleMontosOcultos() {
@@ -232,6 +266,15 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     this.router.navigate(['/home/operaciones-caja'], { state: { cajaId: caja.id, cajaNombre: caja.nombre } });
   }
 
+  /** Handler del menú ⋮ en cards de Tienda y Cajón */
+  async onCajaMenuOption(option: MenuOption, tipoCaja: string) {
+    if (option.value === 'ver') {
+      this.onSaldoClick(tipoCaja);
+    } else {
+      await this.onOperacion(option.value, tipoCaja);
+    }
+  }
+
   async onOperacion(tipo: string, tipoCaja?: string) {
     if (tipo === 'gasto') tipo = 'egreso';
     if (tipo !== 'ingreso' && tipo !== 'egreso') {
@@ -246,9 +289,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     const modal = await this.modalCtrl.create({
       component: OperacionModalComponent,
-      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada }
     });
 
     await modal.present();
@@ -302,17 +343,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   async onCerrarCaja() {
-    if (!this.estadoCaja.turnoActivo) return;
-    await this.onCerrarDia();
-  }
-
-  async onCerrarDia() {
     if (this.estadoCaja.estado !== 'TURNO_EN_CURSO') {
-      const toast = await this.toastCtrl.create({
-        message: 'Debes abrir la caja primero antes de hacer el cierre diario',
-        duration: 3000, color: 'warning', position: 'top', icon: 'alert-circle-outline'
-      });
-      await toast.present();
+      await this.ui.showToast('Debés abrir la caja primero antes de hacer el cierre diario', 'warning');
       return;
     }
 
@@ -336,10 +368,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   async abrirNotificaciones() {
     const modal = await this.modalCtrl.create({
       component: NotificacionesModalComponent,
-      cssClass: 'notificaciones-modal',
-      componentProps: { notificaciones: this.notificaciones },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { notificaciones: this.notificaciones }
     });
     await modal.present();
     const { data } = await modal.onWillDismiss();
@@ -357,14 +386,11 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
       const modal = await this.modalCtrl.create({
         component: VerificarFondoModalComponent,
-        cssClass: 'verificar-fondo-modal',
         componentProps: {
           fondoFijo,
-          deficitCajaChica: deficit?.deficitCajaChica ?? 0,
+          deficitVarios: deficit?.deficitVarios ?? 0,
           fondoFaltante: deficit?.fondoFaltante ?? 0
-        },
-        breakpoints: [0, 1],
-        initialBreakpoint: 1
+        }
       });
 
       await modal.present();

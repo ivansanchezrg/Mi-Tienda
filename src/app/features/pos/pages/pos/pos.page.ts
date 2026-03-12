@@ -6,17 +6,22 @@ import {
   IonButtons, IonMenuButton, IonButton, IonIcon,
   IonSearchbar, IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
   IonItemSliding, IonItemOptions, IonItemOption,
-  ActionSheetController
+  ActionSheetController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline } from 'ionicons/icons';
+import { TipoComprobante } from '../../models/tipo-comprobante.enum';
+import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
 import { Producto } from '../../../inventario/models/producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
-import { PosService } from '../../services/pos.service';
+import { PosService, VentaPayload } from '../../services/pos.service';
 import { CartItem } from '../../models/cart-item.model';
 import { TurnosCajaService } from '../../../dashboard/services/turnos-caja.service';
+import { ClientesService } from '../../../clientes/services/clientes.service';
+import { Cliente } from '../../../clientes/models/cliente.model';
+import { SeleccionarClienteModalComponent } from '../../../clientes/components/seleccionar-cliente-modal/seleccionar-cliente-modal.component';
 
 @Component({
   selector: 'app-pos',
@@ -28,7 +33,8 @@ import { TurnosCajaService } from '../../../dashboard/services/turnos-caja.servi
     IonButtons, IonMenuButton, IonButton, IonIcon,
     IonSearchbar, IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
     IonItemSliding, IonItemOptions, IonItemOption,
-    CommonModule, FormsModule
+    CommonModule, FormsModule,
+    OptionsMenuComponent
   ]
 })
 export class PosPage implements OnInit {
@@ -37,11 +43,28 @@ export class PosPage implements OnInit {
   private ui = inject(UiService);
   private posService = inject(PosService);
   private actionSheetCtrl = inject(ActionSheetController);
+  private modalCtrl = inject(ModalController);
+  private clientesService = inject(ClientesService);
+
+  // Exponer enum al template (para el @if de mostrarDesglose)
+  readonly TipoComprobante = TipoComprobante;
 
   carrito: CartItem[] = [];
   buscarTexto = '';
   productosBusqueda: Producto[] = [];
   buscando = false;
+
+  clienteSeleccionado: Cliente | null = null;
+
+  /** Tipo de comprobante activo — controla desglose fiscal en el footer */
+  tipoComprobante: TipoComprobante = TipoComprobante.TICKET;
+
+  /** Opciones del menú ⋮ para el componente reutilizable */
+  comprobanteOptions: MenuOption[] = [
+    { label: 'Ticket', icon: 'receipt-outline', value: TipoComprobante.TICKET, active: true },
+    { label: 'Nota de Venta', icon: 'document-text-outline', value: TipoComprobante.NOTA_VENTA, active: false },
+    { label: 'Factura', icon: 'document-outline', value: TipoComprobante.FACTURA, active: false },
+  ];
 
   // Buffer para pistola lectora física
   private barcodeBuffer = '';
@@ -52,11 +75,14 @@ export class PosPage implements OnInit {
       barcodeOutline, cartOutline, cashOutline,
       addOutline, removeOutline, trashOutline,
       cubeOutline, searchOutline, addCircleOutline,
-      cardOutline, phonePortraitOutline, handRightOutline
+      cardOutline, phonePortraitOutline, handRightOutline,
+      receiptOutline, documentTextOutline, documentOutline,
+      personOutline, chevronForwardOutline
     });
   }
 
-  ngOnInit() {
+  async ngOnInit() {
+    this.clienteSeleccionado = await this.clientesService.obtenerConsumidorFinal();
   }
 
   // ==========================
@@ -67,8 +93,75 @@ export class PosPage implements OnInit {
     return this.carrito.reduce((sum, item) => sum + item.cantidad, 0);
   }
 
+  /**
+   * Total a cobrar = suma de subtotales.
+   * precio_venta YA incluye IVA → precio final al cliente.
+   */
   get totalPagar(): number {
     return this.carrito.reduce((sum, item) => sum + item.subtotal, 0);
+  }
+
+  // ── Getters de desglose fiscal (solo visibles en FACTURA) ────────────────
+
+  /** Base gravada 0% (productos sin IVA) */
+  get baseIva0(): number {
+    return this.carrito
+      .filter(i => !i.tiene_iva)
+      .reduce((sum, i) => sum + i.subtotal, 0);
+  }
+
+  /** Base gravada 15% — precio con IVA ÷ 1.15 */
+  get baseIva15(): number {
+    const conIva = this.carrito
+      .filter(i => i.tiene_iva)
+      .reduce((sum, i) => sum + i.subtotal, 0);
+    return Math.round((conIva / 1.15) * 100) / 100;
+  }
+
+  /** IVA 15% extraído del precio (NO sumado encima) */
+  get ivaValor(): number {
+    return Math.round((this.totalPagar - this.baseIva0 - this.baseIva15) * 100) / 100;
+  }
+
+  /** Subtotal neto = base0 + base15 (sin IVA) */
+  get subtotalNeto(): number {
+    return Math.round((this.baseIva0 + this.baseIva15) * 100) / 100;
+  }
+
+  /** Muestra desglose fiscal solo en FACTURA */
+  get mostrarDesglose(): boolean {
+    return this.tipoComprobante === TipoComprobante.FACTURA;
+  }
+
+  /** Callback del componente options-menu — actualiza el tipo y el checkmark */
+  async onComprobanteOption(option: MenuOption) {
+    this.tipoComprobante = option.value as TipoComprobante;
+    this.comprobanteOptions = this.comprobanteOptions.map(o => ({
+      ...o,
+      active: o.value === option.value
+    }));
+
+    // FACTURA avisa si aún está en Consumidor Final
+    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado?.es_consumidor_final) {
+      this.ui.showToast('Factura requiere un cliente con RUC o cédula', 'warning');
+    }
+  }
+
+  async abrirSelectorCliente() {
+
+    const modal = await this.modalCtrl.create({
+      component: SeleccionarClienteModalComponent,
+      componentProps: {
+        tipoComprobante: this.tipoComprobante,
+        clienteActual: this.clienteSeleccionado
+      }
+    });
+
+    await modal.present();
+    const { data } = await modal.onWillDismiss();
+    if (data?.cliente) {
+      this.clienteSeleccionado = data.cliente;
+    }
   }
 
   agregarAlCarrito(producto: Producto) {
@@ -208,6 +301,12 @@ export class PosPage implements OnInit {
   async cobrar() {
     if (this.carrito.length === 0) return;
 
+    // Validación FACTURA: requiere cliente con identificación
+    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado?.es_consumidor_final) {
+      this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
+      return;
+    }
+
     // ActionSheet de confirmación + selección de método de pago
     const sheet = await this.actionSheetCtrl.create({
       header: `Confirmar cobro de $${this.currencyService.format(this.totalPagar)}`,
@@ -258,8 +357,21 @@ export class PosPage implements OnInit {
         return;
       }
 
-      // 2. Procesar la venta en Supabase (RPC)
-      const response = await this.posService.procesarVenta(this.carrito, this.totalPagar, metodoPago);
+      // 2. Armar el payload con todos los campos fiscales correctos
+      const esFatura = this.tipoComprobante === TipoComprobante.FACTURA;
+      const payload: VentaPayload = {
+        total:             this.totalPagar,
+        subtotal:          esFatura ? this.subtotalNeto : this.totalPagar,
+        metodoPago,
+        tipoComprobante:   this.tipoComprobante,
+        clienteId:         this.clienteSeleccionado?.id,
+        baseIva0:          esFatura ? this.baseIva0  : 0,
+        baseIva15:         esFatura ? this.baseIva15 : 0,
+        ivaValor:          esFatura ? this.ivaValor  : 0,
+      };
+
+      // 3. Procesar la venta en Supabase (RPC)
+      const response = await this.posService.procesarVenta(this.carrito, payload);
 
       // Siempre escondemos el loading al final, ANTES del toast de éxito
       await this.ui.hideLoading();
@@ -276,10 +388,17 @@ export class PosPage implements OnInit {
     }
   }
 
-  limpiarCarrito() {
+  async limpiarCarrito() {
     this.carrito = [];
     this.buscarTexto = '';
     this.productosBusqueda = [];
+    // Resetear cliente y comprobante a sus defaults tras cada venta
+    this.tipoComprobante = TipoComprobante.TICKET;
+    this.comprobanteOptions = this.comprobanteOptions.map(o => ({
+      ...o,
+      active: o.value === TipoComprobante.TICKET
+    }));
+    this.clienteSeleccionado = await this.clientesService.obtenerConsumidorFinal();
   }
 
 }

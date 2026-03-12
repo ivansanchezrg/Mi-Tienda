@@ -1,4 +1,4 @@
-# Abrir Caja — Referencia Técnica (v5.1 — 2026-03-09)
+# Abrir Caja — Referencia Técnica (v5.2 — 2026-03-10)
 
 ## 1. Arquitectura
 
@@ -10,6 +10,8 @@
 | `components/verificar-fondo-modal/verificar-fondo-modal.component.ts` | Modal multi-paso: verifica fondo y repara déficit |
 | `services/turnos-caja.service.ts` | `obtenerFondoFijo()`, `obtenerDeficitTurnoAnterior()`, `abrirTurno()`, `repararDeficit()` |
 | `models/turno-caja.model.ts` | `TurnoCaja`, `TurnoCajaConEmpleado`, `EstadoCaja` |
+| `sql/functions/fn_abrir_turno.sql` | Apertura atómica sin déficit: validación + cálculo número turno + INSERT en una transacción |
+| `sql/functions/fn_reparar_deficit_turno.sql` | Apertura con déficit: EGRESO + INGRESO + INSERT turno en una transacción |
 
 ### Tablas involucradas
 
@@ -44,13 +46,13 @@ onAbrirCaja()
   ├─ Sin déficit  (hayDeficit = false)
   │    └─ Paso 2 directamente: verifica fondo → "Confirmar y Abrir Caja"
   │         → dismiss { confirmado: true }  ← sin turnoId
-  │         → home llama abrirTurno()       ← INSERT en turnos_caja
+  │         → home llama abrirTurno()       ← rpc('abrir_turno') — fn_abrir_turno.sql
   │
   └─ Con déficit  (hayDeficit = true)
        ├─ Paso 1: montos del déficit + instrucciones físicas
        │    → "Ya lo hice — Continuar"  (avanza el paso, sin tocar BD)
        └─ Paso 2: verifica fondo → "Confirmar y Abrir Caja"
-            → llama repararDeficit(deficitCajaChica, fondoFaltante)
+            → llama repararDeficit(deficitVarios, fondoFaltante)
             → dismiss { confirmado: true, turnoId: uuid }  ← el turno ya está abierto
             → home detecta turnoId → NO llama abrirTurno()
         ↓
@@ -89,7 +91,7 @@ Determina si el último turno cerrado tuvo déficit y cuánto debe reponerse al 
 const variosYaCobro = !!(transferenciaEncontrada || ingresoIN004Encontrado);
 
 // Los dos déficits son independientes — puede haber uno, ambos o ninguno
-const deficitCajaChica = variosYaCobro
+const deficitVarios = variosYaCobro
   ? 0
   : varios_transferencia_diaria;
 
@@ -97,13 +99,13 @@ const fondoFaltante = (ultimoTurno.fondo_cubierto === false)
   ? fondo_fijo_diario
   : 0;
 
-if (deficitCajaChica <= 0 && fondoFaltante <= 0) return null;
-return { deficitCajaChica, fondoFaltante };
+if (deficitVarios <= 0 && fondoFaltante <= 0) return null;
+return { deficitVarios, fondoFaltante };
 ```
 
 ### Los 4 escenarios posibles
 
-| VARIOS cobró | `fondo_cubierto` | `deficitCajaChica` | `fondoFaltante` | Acción en modal |
+| VARIOS cobró | `fondo_cubierto` | `deficitVarios` | `fondoFaltante` | Acción en modal |
 | :---: | :---: | :---: | :---: | --- |
 | No | `true` | $20 | $0 | Paso 1 + Paso 2 |
 | No | `false` | $20 | $20 | Paso 1 + Paso 2 |
@@ -118,7 +120,7 @@ Cuando un cierre tuvo déficit en VARIOS, `fn_reparar_deficit_turno` inserta un 
 
 ---
 
-## 5. Reparación de déficit: `repararDeficit(deficitCajaChica, fondoFaltante)`
+## 5. Reparación de déficit: `repararDeficit(deficitVarios, fondoFaltante)`
 
 Llama a `rpc('reparar_deficit_turno', params)`. Todo en una sola transacción atómica — si algo falla, rollback completo (sin operaciones a medias).
 
@@ -129,7 +131,7 @@ Llama a `rpc('reparar_deficit_turno', params)`. Todo en una sola transacción at
 ```typescript
 {
   p_empleado_id:        number,   // empleado que abre
-  p_deficit_caja_chica: number,   // monto a VARIOS (0 si ya cobró)
+  p_deficit_varios: number,        // monto a VARIOS (0 si ya cobró)
   p_fondo_faltante:     number,   // monto del fondo físico faltante (0 si fondo_cubierto = true)
   p_cat_egreso_id:      number,   // ID de categoría EG-012 (Ajuste Déficit Turno Anterior)
   p_cat_ingreso_id:     number    // ID de categoría IN-004 (Reposición Déficit Turno Anterior)
@@ -138,10 +140,10 @@ Llama a `rpc('reparar_deficit_turno', params)`. Todo en una sola transacción at
 
 ### Lo que ejecuta (atómico)
 
-1. **Valida saldo** de CAJA ≥ `deficitCajaChica + fondoFaltante`. Si no alcanza, retorna error con mensaje descriptivo.
+1. **Valida saldo** de CAJA ≥ `deficitVarios + fondoFaltante`. Si no alcanza, retorna error con mensaje descriptivo.
 2. **EGRESO** de CAJA por el total — categoría `EG-012`.
-3. **INGRESO** a VARIOS por `deficitCajaChica` (solo si > 0) — categoría `IN-004`. Este INGRESO es lo que `obtenerDeficitTurnoAnterior()` detecta el día siguiente para no re-detectar el déficit.
-4. **INSERT** en `turnos_caja` — abre el turno nuevo (mismo proceso que `abrirTurno()` pero dentro de la transacción).
+3. **INGRESO** a VARIOS por `deficitVarios` (solo si > 0) — categoría `IN-004`. Este INGRESO es lo que `obtenerDeficitTurnoAnterior()` detecta el día siguiente para no re-detectar el déficit.
+4. **INSERT** en `turnos_caja` — abre el turno nuevo en la misma transacción atómica (igual que `fn_abrir_turno` pero combinado con las operaciones de déficit).
 
 > **Nota:** el déficit de VARIOS y del fondo son costos operacionales del negocio — no se tocan `deudas_empleados`. Las deudas del empleado (faltantes de conteo físico) se saldan manualmente desde la UI.
 
@@ -161,12 +163,18 @@ Si retorna error, el modal muestra el mensaje y el operador debe registrar prime
 
 ## 6. Apertura normal (sin déficit): `abrirTurno()`
 
-1. Valida que no exista turno activo hoy (`hora_fecha_cierre IS NULL`).
-2. Obtiene el empleado actual.
-3. Calcula `numero_turno = COUNT(turnos hoy) + 1`.
-4. `INSERT turnos_caja` con `hora_fecha_apertura = new Date().toISOString()` (UTC correcto para TIMESTAMPTZ).
+> 📄 Código fuente: [`docs/dashboard/sql/functions/fn_abrir_turno.sql`](./sql/functions/fn_abrir_turno.sql)
 
-Retorna `false` si ya hay turno activo o si no se pudo obtener el empleado. `home.page.ts` gestiona ambos casos y reintenta leyendo el turno activo (tolera lock timeouts de Supabase).
+Delega en `rpc('abrir_turno', { p_empleado_id })`. La función SQL ejecuta en una sola transacción atómica:
+
+1. Valida que no exista turno abierto hoy (rango `>= inicio_día AND < inicio_día_siguiente`).
+2. Calcula `numero_turno = COUNT(turnos hoy) + 1`.
+3. `INSERT turnos_caja` con `hora_fecha_apertura = NOW()`.
+4. Retorna `{ success: true, turno_id, numero_turno }` o `{ success: false, error }`.
+
+**Ventaja sobre el enfoque anterior** (3 queries separadas): elimina la race condition TOCTOU — el check y el INSERT ocurren en la misma transacción con lock implícito.
+
+`abrirTurno()` retorna `false` tanto si la función reporta error como si hay fallo de conexión. `home.page.ts` gestiona ambos casos releyendo el turno activo (tolera el caso donde el turno se abrió pero la respuesta se perdió por timeout).
 
 ---
 

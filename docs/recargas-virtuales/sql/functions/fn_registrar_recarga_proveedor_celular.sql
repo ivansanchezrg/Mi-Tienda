@@ -173,7 +173,7 @@ COMMENT ON FUNCTION registrar_recarga_proveedor_celular IS
 'v2.0 - Registra deuda con proveedor CELULAR. Solo crea la deuda (pagado=false).
 Sin transferencia de ganancia: la ganancia queda en CAJA_CELULAR como diferencia entre ventas y pago.';
 
+REVOKE EXECUTE ON FUNCTION registrar_recarga_proveedor_celular(DATE, INTEGER, NUMERIC) FROM anon;
 GRANT EXECUTE ON FUNCTION registrar_recarga_proveedor_celular(DATE, INTEGER, NUMERIC) TO authenticated;
-GRANT EXECUTE ON FUNCTION registrar_recarga_proveedor_celular(DATE, INTEGER, NUMERIC) TO anon;
 
 NOTIFY pgrst, 'reload schema';

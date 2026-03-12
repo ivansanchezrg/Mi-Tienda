@@ -77,8 +77,7 @@ export class InventarioPage implements OnInit {
   async abrirModalCrear() {
     const modal = await this.modalCtrl.create({
       component: ProductoModalComponent,
-      componentProps: { categorias: this.categorias },
-      cssClass: 'modal-fullscreen-mobile'
+      componentProps: { categorias: this.categorias }
     });
 
     await modal.present();
@@ -95,8 +94,7 @@ export class InventarioPage implements OnInit {
       componentProps: {
         producto: producto,
         categorias: this.categorias
-      },
-      cssClass: 'modal-fullscreen-mobile' // Opción en caso de que quieran full screen
+      }
     });
 
     await modal.present();

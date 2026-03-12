@@ -1,4 +1,4 @@
-# Cierre Diario — Referencia Técnica (v5.1 — 2026-03-09)
+# Cierre Diario — Referencia Técnica (v5.2 — 2026-03-10)
 
 ## 1. Arquitectura
 
@@ -138,20 +138,19 @@ Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo en una trans
 1. Valida: turno existe, no tiene `hora_fecha_cierre`, `p_efectivo_fisico >= 0`
 2. Lee `fondo_fijo_diario` y `varios_transferencia_diaria` de `configuraciones`
 3. Obtiene `MAX(hora_fecha_cierre)` de `turnos_caja` → filtra `recargas_virtuales` pendientes desde ese timestamp
-4. Lee saldo actual de `CAJA_CHICA` con `FOR UPDATE` (lock de consistencia)
+4. Lee saldos actuales de `CAJA_CHICA`, `CAJA` y `VARIOS` con `FOR UPDATE` (lock de consistencia en las 3 cajas que cambian por el cierre)
 5. **Detecta si VARIOS ya recibió su transferencia diaria hoy** — busca en `operaciones_cajas` para `p_fecha` cualquiera de:
    - `tipo_operacion = 'TRANSFERENCIA_ENTRANTE'` en VARIOS (cierre normal anterior)
    - `tipo_operacion = 'INGRESO'` + categoría `IN-004` en VARIOS (reparación de déficit al abrir)
 6. Calcula distribución en cascada con prioridad **VARIOS → Fondo → CAJA** (ver §2)
 7. Si diferencia de conteo ≠ 0 → `INSERT` ajuste (`INGRESO` o `EGRESO`) en `CAJA_CHICA` — categorías `IN-005` / `EG-013`
-8. Si `v_transferencia_efectiva > 0` → `INSERT TRANSFERENCIA_ENTRANTE` en VARIOS
-9. Si `v_dinero_a_depositar > 0` → `INSERT INGRESO` en CAJA (depósito)
-10. `INSERT INTO recargas` × 2 (celular y bus, con `venta_dia` calculada)
-11. Si `venta_celular > 0` → `INSERT INGRESO` en `CAJA_CELULAR`
-12. Si `venta_bus > 0` → `INSERT INGRESO` en `CAJA_BUS`
-13. `UPDATE cajas` × 5 — saldo_actual actualizado para las 5 cajas; `CAJA_CHICA → 0`
-14. `UPDATE turnos_caja SET hora_fecha_cierre = NOW(), fondo_cubierto = v_fondo_en_cajon`
-15. Retorna JSON con resultado detallado (ver §3.1)
+8. Si `v_dinero_a_depositar > 0` → `INSERT INGRESO` en CAJA (depósito del cajón)
+9. Si `v_transferencia_efectiva > 0` → `INSERT TRANSFERENCIA_ENTRANTE` en VARIOS
+10. `UPDATE cajas` × 3 — CAJA, VARIOS y CAJA_CHICA → $0 (actualizadas juntas en un bloque)
+11. `INSERT INTO recargas` celular + si `venta_celular > 0` → `INSERT INGRESO` en `CAJA_CELULAR` + `UPDATE CAJA_CELULAR`
+12. `INSERT INTO recargas` bus (con `ON CONFLICT` para mini cierre) + si `venta_bus > 0` → `INSERT INGRESO` en `CAJA_BUS` + `UPDATE CAJA_BUS`
+13. `UPDATE turnos_caja SET hora_fecha_cierre = NOW(), fondo_cubierto = v_fondo_en_cajon`
+14. Retorna JSON con resultado detallado (ver §3.1)
 
 ### 3.1 Retorno del cierre
 
@@ -259,8 +258,8 @@ La función que ejecuta la reparación:
 > 📄 [`docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql) — v1.4
 
 En una transacción atómica:
-1. **EGRESO** de CAJA por `deficitCajaChica + fondoFaltante` — categoría `EG-012`
-2. **INGRESO** a VARIOS por `deficitCajaChica` (si > 0) — categoría `IN-004`
+1. **EGRESO** de CAJA por `deficitVarios + fondoFaltante` — categoría `EG-012`
+2. **INGRESO** a VARIOS por `deficitVarios` (si > 0) — categoría `IN-004`
 3. **INSERT** en `turnos_caja` — abre el nuevo turno
 
 El INGRESO IN-004 es lo que tanto `fn_verificar_transferencia_caja_chica_hoy` como `obtenerDeficitTurnoAnterior()` detectan para no re-detectar el déficit el mismo día.
