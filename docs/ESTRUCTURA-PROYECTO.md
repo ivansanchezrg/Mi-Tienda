@@ -19,8 +19,8 @@ mi-tienda/
 ├── android/                   # Proyecto nativo Android
 ├── docs/                      # Toda la documentación centralizada
 │   ├── schema.sql             # Esquema completo de la base de datos
+│   ├── ARQUITECTURA.md        # Flujo de dinero entre las 5 cajas
 │   ├── ESTRUCTURA-PROYECTO.md
-│   ├── SCHEMA-CHANGELOG.md
 │   ├── CONFIGURACION-INICIAL.md
 │   ├── DESIGN.md
 │   ├── GOOGLE_OAUTH_SETUP.md
@@ -36,15 +36,18 @@ mi-tienda/
 │   │   ├── 8_PROCESO_ABRIR_CAJA.md
 │   │   └── sql/
 │   │       ├── functions/
-│   │       │   ├── fn_ejecutar_cierre_diario.sql
+│   │       │   ├── fn_abrir_turno.sql
+│   │       │   ├── fn_ejecutar_cierre_diario_v5.sql
 │   │       │   ├── fn_registrar_operacion_manual.sql
 │   │       │   ├── fn_reparar_deficit_turno.sql
 │   │       │   ├── fn_crear_transferencia.sql
 │   │       │   └── fn_verificar_transferencia_caja_chica_hoy.sql
+│   │       ├── migrations/
+│   │       │   ├── v5_migracion_cajas.sql
+│   │       │   └── add_indexes_deudas_empleados.sql
 │   │       └── queries/
-│   │           ├── agregar_categorias_deficit.sql
 │   │           └── insertar_datos_reales_recargas.sql
-│   ├── gastos-diarios/
+│   ├── gastos-diarios/        # DEPRECADO en v5
 │   │   └── GASTOS-DIARIOS-README.md
 │   ├── recargas-virtuales/
 │   │   ├── RECARGAS-VIRTUALES-README.md
@@ -52,7 +55,8 @@ mi-tienda/
 │   │       └── functions/
 │   │           ├── fn_registrar_recarga_proveedor_celular.sql
 │   │           ├── fn_registrar_pago_proveedor_celular.sql
-│   │           └── fn_registrar_compra_saldo_bus.sql
+│   │           ├── fn_registrar_compra_saldo_bus.sql
+│   │           └── fn_liquidar_ganancias_bus.sql
 │   ├── pos/
 │   │   └── sql/
 │   │       ├── functions/
@@ -393,5 +397,5 @@ Generado por Capacitor. Contiene el proyecto Android Studio.
 
 **IMPORTANTE:** Este documento debe actualizarse cada vez que se agregue una nueva carpeta o feature importante al proyecto.
 
-*Última actualización: 2026-02-28*
+*Última actualización: 2026-03-10*
 

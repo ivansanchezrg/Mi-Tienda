@@ -71,9 +71,7 @@ export class CategoriasGastosPage implements OnInit {
 
   async abrirModalNueva() {
     const modal = await this.modalCtrl.create({
-      component: CategoriaGastoModalComponent,
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      component: CategoriaGastoModalComponent
     });
     await modal.present();
 
@@ -98,9 +96,7 @@ export class CategoriasGastosPage implements OnInit {
   async onItemClick(categoria: CategoriaGasto) {
     const modal = await this.modalCtrl.create({
       component: CategoriaGastoModalComponent,
-      componentProps: { categoria },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { categoria }
     });
     await modal.present();
 

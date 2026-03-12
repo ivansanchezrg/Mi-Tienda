@@ -29,7 +29,7 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 | Módulo              | Estado           |
 | ------------------- | ---------------- |
 | `auth`              | ✅ Completo                                  |
-| `dashboard`         | ✅ Completo (v5 — 5 cajas, cierre wizard 3p) |
+| `dashboard`         | ✅ Completo (v5 — 5 cajas, cierre wizard 2p) |
 | `recargas-virtuales`| ✅ Completo                                  |
 | `usuarios`          | ✅ Completo                                  |
 | `inventario`        | 🚧 En desarrollo                             |
@@ -49,7 +49,7 @@ src/app/
 │   └── utils/             # date.util.ts
 ├── features/              # Módulos (cada uno tiene pages/, services/, models/, components/)
 ├── shared/
-│   ├── components/        # sidebar, under-construction
+│   ├── components/        # sidebar, under-construction, options-menu
 │   └── directives/        # currency-input, numbers-only, scroll-reset
 └── environments/
     ├── environment.example.ts   # Plantilla (en git)
@@ -100,6 +100,32 @@ constructor() {
 ```
 > **Importante:** antes de borrar un icono de `addIcons()`, buscar su nombre string en los `.html` del componente. Los bindings `[name]="variable"` no aparecen en análisis estático.
 
+### Modales — NUNCA usar sheet modals (`breakpoints`)
+Los sheet modals (`breakpoints + initialBreakpoint`) bloquean el scroll interno en Android: Ionic interpreta el swipe como gesto de cierre hasta llegar al tope. Sin `breakpoints`, el modal es full-height por defecto en Android (md mode) y el scroll funciona nativamente.
+
+> **Nota:** `presentationStyle` no existe en `ModalOptions` de `@ionic/angular` 8.x — no usar.
+
+```typescript
+// ✅ Correcto — full-height por defecto en Android, scroll nativo sin conflicto
+const modal = await this.modalCtrl.create({
+  component: MiModalComponent,
+  componentProps: { dato: valor }
+  // sin breakpoints, sin initialBreakpoint
+});
+await modal.present();
+
+// ❌ Incorrecto — bloquea scroll en Android
+const modal = await this.modalCtrl.create({
+  component: MiModalComponent,
+  breakpoints: [0, 1],
+  initialBreakpoint: 1
+});
+```
+
+- No usar `breakpoints`, `initialBreakpoint` ni `handleBehavior` → todos eliminados del proyecto
+- No usar `cssClass: 'modal-fullscreen-mobile'` → ya no es necesario sin breakpoints
+- El usuario cierra con el botón ✕ del header, no con swipe
+
 ### Loading + Pull-to-Refresh sin doble spinner
 ```typescript
 async handleRefresh(event: CustomEvent) {
@@ -112,6 +138,52 @@ async cargarDatos(silencioso = false) {
   try { /* queries */ } finally { this.loading = false; }
 }
 ```
+
+### Listas paginadas con infinite scroll — `PaginatedListPage<T>`
+
+Clase base abstracta en `src/app/shared/pages/paginated-list.page.ts`.
+**Usar siempre que una página muestre una lista paginada con `ion-infinite-scroll`.**
+
+Qué provee (ya no hay que declararlo en cada página):
+- `items: T[]` — array acumulado de todas las páginas
+- `loading: boolean` — skeleton en primera carga
+- `hasMore: boolean` — controla el infinite scroll
+- `cargar()` — resetea a página 0 y recarga
+- `cargarMas(event)` — handler de `(ionInfinite)`
+- `handleRefresh(event)` — handler de `(ionRefresh)` (sin doble spinner)
+- `ui` — instancia de `UiService` (heredada, no re-inyectar)
+
+Qué implementa cada subclase:
+```typescript
+export class MiListaPage extends PaginatedListPage<MiItem> implements OnInit {
+    private miServicio = inject(MiServicio);
+
+    protected readonly pageSize = 20;           // registros por página
+
+    protected async fetchPage(page: number): Promise<MiItem[]> {
+        return this.miServicio.listar(page, this.pageSize);
+    }
+
+    async ngOnInit() {
+        await this.cargar();
+    }
+}
+```
+
+Template mínimo:
+```html
+@if (loading) { <!-- skeleton --> }
+@else if (items.length === 0) { <!-- empty state --> }
+@else {
+  @for (item of items; track item.id) { <!-- tarjeta --> }
+}
+
+<ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+  <ion-infinite-scroll-content loadingSpinner="crescent"></ion-infinite-scroll-content>
+</ion-infinite-scroll>
+```
+
+Ejemplo real: `VentasPage` (`src/app/features/ventas/pages/main/ventas.page.ts`)
 
 ---
 
@@ -158,7 +230,7 @@ if (result !== null) { /* éxito — result puede ser [] o null */ }
 - Nombre con prefijo `fn_`: `fn_ejecutar_cierre_diario`, `fn_registrar_operacion_manual`
 - Retornan `JSON` con resultado detallado
 - `SECURITY DEFINER` + `SET search_path = public` (obligatorio para evitar caída de permisos)
-- `GRANT EXECUTE ... TO authenticated; GRANT EXECUTE ... TO anon;`
+- `REVOKE EXECUTE ... FROM anon; GRANT EXECUTE ... TO authenticated;` (las funciones financieras nunca se exponen a `anon`)
 - Finalizar con `NOTIFY pgrst, 'reload schema';`
 - Documentar las funciones en `docs/<modulo>/sql/functions/`
 
@@ -171,11 +243,17 @@ if (result !== null) { /* éxito — result puede ser [] o null */ }
 // ❌ Da fecha UTC (puede ser el día anterior en América)
 new Date().toISOString().split('T')[0]
 
-// ✅ Siempre usar esto (en date.util.ts o copiado en el servicio)
-getFechaLocal(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-}
+// ✅ Siempre usar las utilidades de core/utils/date.util.ts:
+getFechaLocal()                        // → '2026-03-10'  (fecha local hoy)
+getInicioDiaSiguienteISO()             // → ISO del inicio del día siguiente (para .lt() en queries)
+getInicioDiaSiguienteDeISO(fechaLocal) // → ISO del día siguiente de una fecha dada
+
+// Rango de fechas — NUNCA T23:59:59 + .lte():
+// ❌ Pierde operaciones en el último segundo del día
+.lte('fecha', `${hoy}T23:59:59`)
+
+// ✅ Exclusivo del día siguiente:
+.lt('fecha', getInicioDiaSiguienteISO())
 ```
 
 ### Imágenes — NUNCA foto a resolución completa
@@ -198,6 +276,34 @@ Los valores como `fondo_fijo_diario`, `varios_transferencia_diaria` viven en la 
 
 ---
 
+## Safe area en Android — patrón obligatorio
+
+Todo elemento que tenga **fondo propio y toque el borde inferior de la pantalla** debe compensar la barra de navegación de Android (botones físicos o gesto swipe).
+
+**Regla**: se aplica a `ion-footer`, FABs, tabs y cualquier panel anclado al fondo.
+
+```scss
+// Si el elemento ya tiene padding-bottom:
+padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+
+// Si no tiene padding propio:
+padding-bottom: env(safe-area-inset-bottom);
+```
+
+`env(safe-area-inset-bottom)` vale `0` en dispositivos sin barra → no rompe el layout.
+
+**Estado actual del proyecto:**
+
+| Elemento | Archivo | Estado |
+| -------- | ------- | ------ |
+| Footer totalizador ventas | `ventas.page.scss` | ✅ |
+| Footer cobro POS | `pos.page.scss` | ✅ |
+| Tab bar principal | `main-layout.page.scss` | ✅ |
+| Sidebar footer | `sidebar.component.scss` | ✅ |
+| FAB global | `global.scss` | ✅ |
+
+---
+
 ## Nombres de cajas (UI vs BD) — 5 cajas en v5
 
 | Código BD      | Nombre en UI | Subtítulo       | Rol                                      |
@@ -209,7 +315,7 @@ Los valores como `fondo_fijo_diario`, `varios_transferencia_diaria` viven en la 
 | `CAJA_BUS`     | Bus          | Saldo digital   | Efectivo recargas bus                    |
 
 > No renombrar los códigos de BD. Solo los labels de UI difieren.
-> **v5 (2026-03-06):** `CAJA_CHICA` es ahora el cajón físico diario. `VARIOS` es el fondo de emergencia (antes era `CAJA_CHICA` en BD). Ver `docs/REFACTOR-V5.md`.
+> **v5 (2026-03-06):** `CAJA_CHICA` es ahora el cajón físico diario. `VARIOS` es el fondo de emergencia (antes era `CAJA_CHICA` en BD).
 
 ---
 
@@ -223,6 +329,7 @@ Los valores como `fondo_fijo_diario`, `varios_transferencia_diaria` viven en la 
 - No crear componentes sin `standalone: true`
 - No formatear moneda manualmente → usar `CurrencyService`
 - No mostrar `console.log` en producción → usar `LoggerService`
+- No dejar footers/paneles inferiores sin `env(safe-area-inset-bottom)` → ver sección "Safe area en Android"
 
 ---
 
@@ -236,4 +343,6 @@ Los valores como `fondo_fijo_diario`, `varios_transferencia_diaria` viven en la 
 | ~~Gastos Diarios~~  | `docs/gastos-diarios/GASTOS-DIARIOS-README.md` (**DEPRECADO en v5**)  |
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
 | Sistema de diseño   | `docs/DESIGN.md`                                           |
+| **Shared**          | **`docs/shared/README.md`**                                |
 | Schema BD           | `docs/schema.sql`                                          |
+| Arquitectura cajas  | `docs/ARQUITECTURA.md`                                     |

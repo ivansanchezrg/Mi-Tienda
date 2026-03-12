@@ -235,27 +235,40 @@ CREATE TABLE IF NOT EXISTS clientes (
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 14. ventas (Cabecera Maestra)
+-- 14. secuencias_comprobantes — Contadores atómicos por tipo de comprobante
+-- Usado por fn_registrar_venta_pos via UPDATE ... RETURNING para evitar race conditions.
+-- Ver: docs/pos/sql/tables/secuencias_comprobantes.sql
+CREATE TABLE IF NOT EXISTS secuencias_comprobantes (
+    tipo_documento VARCHAR(20) PRIMARY KEY,
+    ultimo_valor   INTEGER     NOT NULL DEFAULT 0
+);
+
+INSERT INTO secuencias_comprobantes (tipo_documento, ultimo_valor)
+VALUES ('TICKET', 0), ('NOTA_VENTA', 0), ('FACTURA', 0)
+ON CONFLICT (tipo_documento) DO NOTHING;
+
+-- 15. ventas (Cabecera Maestra)
 CREATE TABLE IF NOT EXISTS ventas (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     turno_id        UUID NOT NULL REFERENCES turnos_caja(id),
     cliente_id      UUID REFERENCES clientes(id),
     empleado_id     INTEGER NOT NULL REFERENCES usuarios(id),
     fecha           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
+
     subtotal        DECIMAL(12,2) NOT NULL,
     descuento       DECIMAL(12,2) DEFAULT 0,
     total           DECIMAL(12,2) NOT NULL,
     metodo_pago     VARCHAR(20) DEFAULT 'EFECTIVO' CHECK (metodo_pago IN ('EFECTIVO', 'DEUNA', 'TRANSFERENCIA', 'FIADO')),
-    
+
     base_iva_0      DECIMAL(12,2) DEFAULT 0,
     base_iva_15     DECIMAL(12,2) DEFAULT 0,
     iva_valor       DECIMAL(12,2) DEFAULT 0,
-    tipo_comprobante tipo_comprobante_enum DEFAULT 'TICKET',
-    secuencial_sri   VARCHAR(17),
-    clave_acceso_sri VARCHAR(49),
-    estado_sri       VARCHAR(20) CHECK (estado_sri IN ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO', 'NO_ENVIADO')) DEFAULT 'NO_ENVIADO',
-    
+    tipo_comprobante    tipo_comprobante_enum DEFAULT 'TICKET',
+    numero_comprobante  INTEGER,                          -- Correlativo interno generado por fn_registrar_venta_pos
+    secuencial_sri      VARCHAR(17),                      -- Reservado fase SRI: '001-001-000000001'
+    clave_acceso_sri    VARCHAR(49),                      -- Reservado fase SRI: clave de acceso 49 dígitos
+    estado_sri          VARCHAR(20) CHECK (estado_sri IN ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO', 'NO_ENVIADO')) DEFAULT 'NO_ENVIADO',
+
     estado          VARCHAR(20) DEFAULT 'COMPLETADA' CHECK (estado IN ('COMPLETADA', 'ANULADA')),
     observaciones   TEXT
 );
@@ -284,30 +297,30 @@ CREATE TABLE IF NOT EXISTS kardex_inventario (
 );
 
 -- ==========================================
--- ÍNDICES
+-- ÍNDICES (todos con IF NOT EXISTS → re-ejecutable sin errores)
 -- ==========================================
-CREATE INDEX idx_recargas_fecha                ON recargas(fecha);
-CREATE INDEX idx_recargas_turno                ON recargas(turno_id);
-CREATE INDEX idx_recargas_tipo_servicio        ON recargas(tipo_servicio_id);
-CREATE INDEX idx_recargas_empleado             ON recargas(empleado_id);
-CREATE UNIQUE INDEX idx_turnos_caja_fecha_turno ON turnos_caja ((CAST(hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS date)), numero_turno);
-CREATE INDEX idx_turnos_caja_empleado          ON turnos_caja(empleado_id);
-CREATE INDEX idx_deudas_empleado               ON deudas_empleados(empleado_id);
-CREATE INDEX idx_deudas_estado                 ON deudas_empleados(estado);
-CREATE INDEX idx_deudas_turno                  ON deudas_empleados(turno_id);
-CREATE INDEX idx_operaciones_cajas_fecha       ON operaciones_cajas(fecha);
-CREATE INDEX idx_operaciones_cajas_caja        ON operaciones_cajas(caja_id);
-CREATE INDEX idx_operaciones_cajas_empleado    ON operaciones_cajas(empleado_id);
-CREATE INDEX idx_operaciones_cajas_categoria   ON operaciones_cajas(categoria_id);
-CREATE INDEX idx_recargas_virtuales_fecha      ON recargas_virtuales(fecha);
-CREATE INDEX idx_recargas_virtuales_servicio   ON recargas_virtuales(tipo_servicio_id);
-CREATE INDEX idx_recargas_virtuales_pagado     ON recargas_virtuales(pagado);
-CREATE INDEX idx_productos_codigo_barras       ON productos(codigo_barras);
-CREATE INDEX idx_ventas_fecha                  ON ventas(fecha);
-CREATE INDEX idx_ventas_turno_id               ON ventas(turno_id);
-CREATE INDEX idx_ventas_cliente_id             ON ventas(cliente_id);
-CREATE INDEX idx_ventas_detalles_venta_id      ON ventas_detalles(venta_id);
-CREATE INDEX idx_kardex_inventario_producto_id ON kardex_inventario(producto_id);
+CREATE INDEX IF NOT EXISTS idx_recargas_fecha                ON recargas(fecha);
+CREATE INDEX IF NOT EXISTS idx_recargas_turno                ON recargas(turno_id);
+CREATE INDEX IF NOT EXISTS idx_recargas_tipo_servicio        ON recargas(tipo_servicio_id);
+CREATE INDEX IF NOT EXISTS idx_recargas_empleado             ON recargas(empleado_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_turnos_caja_fecha_turno ON turnos_caja ((CAST(hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS date)), numero_turno);
+CREATE INDEX IF NOT EXISTS idx_turnos_caja_empleado          ON turnos_caja(empleado_id);
+CREATE INDEX IF NOT EXISTS idx_deudas_empleado               ON deudas_empleados(empleado_id);  -- listado/suma por empleado
+CREATE INDEX IF NOT EXISTS idx_deudas_estado                 ON deudas_empleados(estado);       -- filtro PENDIENTE / SALDADA
+CREATE INDEX IF NOT EXISTS idx_deudas_turno                  ON deudas_empleados(turno_id);     -- lookup por turno
+CREATE INDEX IF NOT EXISTS idx_operaciones_cajas_fecha       ON operaciones_cajas(fecha);
+CREATE INDEX IF NOT EXISTS idx_operaciones_cajas_caja        ON operaciones_cajas(caja_id);
+CREATE INDEX IF NOT EXISTS idx_operaciones_cajas_empleado    ON operaciones_cajas(empleado_id);
+CREATE INDEX IF NOT EXISTS idx_operaciones_cajas_categoria   ON operaciones_cajas(categoria_id);
+CREATE INDEX IF NOT EXISTS idx_recargas_virtuales_fecha      ON recargas_virtuales(fecha);
+CREATE INDEX IF NOT EXISTS idx_recargas_virtuales_servicio   ON recargas_virtuales(tipo_servicio_id);
+CREATE INDEX IF NOT EXISTS idx_recargas_virtuales_pagado     ON recargas_virtuales(pagado);
+CREATE INDEX IF NOT EXISTS idx_productos_codigo_barras       ON productos(codigo_barras);
+CREATE INDEX IF NOT EXISTS idx_ventas_fecha                  ON ventas(fecha);
+CREATE INDEX IF NOT EXISTS idx_ventas_turno_id               ON ventas(turno_id);
+CREATE INDEX IF NOT EXISTS idx_ventas_cliente_id             ON ventas(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_ventas_detalles_venta_id      ON ventas_detalles(venta_id);
+CREATE INDEX IF NOT EXISTS idx_kardex_inventario_producto_id ON kardex_inventario(producto_id);
 
 -- ==========================================
 -- TRIGGERS — AUTO-GENERACIÓN DE CÓDIGOS Y POS
@@ -502,7 +515,7 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, descripcion, precio_
 -- ==========================================
 -- RESUMEN (v5.0)
 -- ==========================================
--- ✅ 16 Tablas | 2 Enums | 17 Índices
+-- ✅ 16 Tablas | 2 Enums | 22 Índices
 -- ✅ 2 Tipos de servicio (BUS, CELULAR)
 -- ✅ 4 Tipos de referencia (eliminado caja_fisica_diaria)
 -- ✅ 18 Categorías de operaciones (13 egresos + 5 ingresos)
@@ -515,13 +528,20 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, descripcion, precio_
 -- ❌ Tablas eliminadas en v5: caja_fisica_diaria, gastos_diarios, categorias_gastos
 --
 -- ⚠️  FUNCIONES POSTGRESQL (archivos separados, ejecutar después del schema):
---   • fn_ejecutar_cierre_diario v5.0      → docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
---   • fn_reparar_deficit_turno v1.2       → docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql
---   • fn_verificar_transferencia_caja_chica_hoy v1.2 → docs/dashboard/sql/functions/
---   • fn_registrar_operacion_manual       → docs/dashboard/sql/functions/
---   • fn_registrar_compra_saldo_bus       → docs/recargas-virtuales/sql/functions/
---   • fn_registrar_recarga_proveedor_*    → docs/recargas-virtuales/sql/functions/
---   • fn_registrar_pago_proveedor_celular → docs/recargas-virtuales/sql/functions/
+--   Dashboard:
+--   • abrir_turno                              → docs/dashboard/sql/functions/fn_abrir_turno.sql
+--   • ejecutar_cierre_diario v5               → docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
+--   • reparar_deficit_turno                   → docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql
+--   • verificar_transferencia_caja_chica_hoy  → docs/dashboard/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql
+--   • registrar_operacion_manual              → docs/dashboard/sql/functions/fn_registrar_operacion_manual.sql
+--   • crear_transferencia                     → docs/dashboard/sql/functions/fn_crear_transferencia.sql
+--   Recargas Virtuales:
+--   • registrar_recarga_proveedor_celular     → docs/recargas-virtuales/sql/functions/
+--   • registrar_pago_proveedor_celular        → docs/recargas-virtuales/sql/functions/
+--   • registrar_compra_saldo_bus              → docs/recargas-virtuales/sql/functions/
+--   • liquidar_ganancias_bus                  → docs/recargas-virtuales/sql/functions/
+--   POS:
+--   • registrar_venta_pos                     → docs/pos/sql/functions/fn_registrar_venta_pos.sql
 --
 -- ⚠️  MIGRACIÓN desde v4.9: ejecutar v5_migracion_cajas.sql (NO este schema completo)
 --   → docs/dashboard/sql/migrations/v5_migracion_cajas.sql

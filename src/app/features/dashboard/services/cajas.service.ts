@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
-import { getFechaLocal } from '@core/utils/date.util';
+import { getFechaLocal, getInicioDiaSiguienteISO } from '@core/utils/date.util';
 
 /**
  * Interfaz para la tabla cajas
@@ -189,16 +189,15 @@ export class CajasService {
    * @returns true si está abierta (hay turno sin cierre hoy), false si no hay turno activo
    */
   async verificarEstadoCaja(): Promise<boolean> {
-    const fechaHoy = getFechaLocal();
-    const inicioDia = new Date(`${fechaHoy}T00:00:00`).toISOString();
-    const finDia = new Date(`${fechaHoy}T23:59:59`).toISOString();
+    const inicioDia = new Date(`${getFechaLocal()}T00:00:00`).toISOString();
+    const inicioMana = getInicioDiaSiguienteISO();
 
     const turno = await this.supabase.call<{ id: string }>(
       this.supabase.client
         .from('turnos_caja')
         .select('id')
         .gte('hora_fecha_apertura', inicioDia)
-        .lte('hora_fecha_apertura', finDia)
+        .lt('hora_fecha_apertura', inicioMana)
         .is('hora_fecha_cierre', null)
         .maybeSingle()
     );

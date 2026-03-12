@@ -97,8 +97,8 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) FROM anon;
 GRANT EXECUTE ON FUNCTION crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) TO anon;
 
 NOTIFY pgrst, 'reload schema';
 

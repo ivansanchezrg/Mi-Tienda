@@ -1,0 +1,20 @@
+// Botón trigger ⋮ — sin padding lateral para pegarse al borde
+ion-button {
+    --padding-start: 0px;
+    --padding-end: 0px;
+}
+
+.options-list {
+    min-width: 180px;
+
+    ion-item {
+        --padding-start: 14px;
+        --inner-padding-end: 14px;
+        font-size: 15px;
+
+        ion-icon[slot='start'] {
+            font-size: 18px;
+            margin-inline-end: 10px;
+        }
+    }
+}

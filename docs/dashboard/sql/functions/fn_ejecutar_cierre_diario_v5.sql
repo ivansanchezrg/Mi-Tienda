@@ -562,15 +562,14 @@ $function$;
 -- PERMISOS
 -- ==========================================
 
+REVOKE EXECUTE ON FUNCTION public.ejecutar_cierre_diario(
+  UUID, DATE, INTEGER, DECIMAL, DECIMAL, DECIMAL,
+  DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
+) FROM anon;
 GRANT EXECUTE ON FUNCTION public.ejecutar_cierre_diario(
   UUID, DATE, INTEGER, DECIMAL, DECIMAL, DECIMAL,
   DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
 ) TO authenticated;
-
-GRANT EXECUTE ON FUNCTION public.ejecutar_cierre_diario(
-  UUID, DATE, INTEGER, DECIMAL, DECIMAL, DECIMAL,
-  DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
-) TO anon;
 
 -- Refrescar caché de PostgREST
 NOTIFY pgrst, 'reload schema';

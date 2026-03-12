@@ -291,7 +291,7 @@ v3.1 - Fix timestamp: clock_timestamp() garantiza created_at > snapshot del mini
 v3.0 - Mini cierre integrado: con p_saldo_virtual_maquina y ventas > 0 crea snapshot
 en recargas (ON CONFLICT acumula) + INGRESO por ventas + EGRESO por compra. CAJA_BUS nunca negativa.';
 
+REVOKE EXECUTE ON FUNCTION public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) FROM anon;
 GRANT EXECUTE ON FUNCTION public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) TO anon;
 
 NOTIFY pgrst, 'reload schema';

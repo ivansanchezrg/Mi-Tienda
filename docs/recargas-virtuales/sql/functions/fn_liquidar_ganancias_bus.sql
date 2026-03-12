@@ -129,7 +129,7 @@ transfiere de CAJA_BUS a CAJA_CHICA y marca las filas como pagado=true. Operaci√
 si la transferencia falla (saldo insuficiente) toda la operaci√≥n se revierte.
 monto_a_pagar = monto completo de cada compra; la ganancia = ese total * porcentaje_comision.';
 
+REVOKE EXECUTE ON FUNCTION public.liquidar_ganancias_bus(TEXT, INTEGER) FROM anon;
 GRANT EXECUTE ON FUNCTION public.liquidar_ganancias_bus(TEXT, INTEGER) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.liquidar_ganancias_bus(TEXT, INTEGER) TO anon;
 
 NOTIFY pgrst, 'reload schema';

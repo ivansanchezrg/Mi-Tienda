@@ -1,20 +1,181 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
     <ion-title>Ventas</ion-title>
   </ion-toolbar>
+
+  <!-- Barra de filtros unificada — una sola fila de tabs -->
+  <div class="filter-bar">
+    <div class="filter-tabs">
+      @for (f of ['hoy', 'semana', 'mes', 'todo']; track f) {
+      <button class="filter-tab" [class.active]="filtroActivo === f" (click)="onFiltroClick(f)">
+        {{ f === 'todo' ? 'Todo' : (f | titlecase) }}
+      </button>
+      }
+      <!-- Tab calendario — trigger del date picker, se agranda cuando está activo -->
+      <button class="filter-tab filter-tab--fecha" id="open-date-picker"
+              [class.active]="filtroActivo === 'custom'">
+        <ion-icon name="calendar-outline"></ion-icon>
+        @if (filtroActivo === 'custom') {
+        <span>{{ fechaLabel }}</span>
+        }
+      </button>
+    </div>
+  </div>
+
+  <!-- Buscador por cliente (nombre o cédula) -->
+  <div class="search-bar">
+    <ion-searchbar
+      [value]="busqueda"
+      placeholder="Nombre, cédula o nro. comprobante"
+      inputmode="search"
+      [debounce]="0"
+      (ionInput)="onBusquedaChange($event)"
+      (ionClear)="onBusquedaChange($event)">
+    </ion-searchbar>
+  </div>
 </ion-header>
 
 <ion-content>
-  <app-under-construction
-    title="Ventas"
-    icon="cart-outline"
-    description="Aquí podrás gestionar todas las ventas."
-    [features]="[
-      { label: 'Registrar ventas' },
-      { label: 'Historial de transacciones' }
-    ]">
-  </app-under-construction>
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent"
+      refreshingText="Cargando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+
+
+  <!-- Skeleton Loading (Patrón DESIGN.md) -->
+  @if (loading) {
+  <div class="p-sm">
+    <ion-list class="ventas-list" lines="none">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+      <ion-item class="venta-card" detail="false">
+
+        <!-- Ícono comprobante Skeleton -->
+        <div slot="start" class="comprobante-icon-box" style="background: var(--ion-color-step-100);">
+          <ion-skeleton-text animated style="width: 22px; height: 22px; border-radius: 4px;"></ion-skeleton-text>
+        </div>
+
+        <!-- Info central Skeleton -->
+        <ion-label>
+          <div class="venta-top-row">
+            <ion-skeleton-text animated style="width: 60px; height: 16px; border-radius: 10px;"></ion-skeleton-text>
+          </div>
+          <div style="margin: 6px 0;">
+            <ion-skeleton-text animated style="width: 70%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+          </div>
+          <div class="venta-bottom-row" style="margin-top: 6px;">
+            <ion-skeleton-text animated style="width: 80px; height: 12px; border-radius: 4px;"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 110px; height: 12px; border-radius: 4px;"></ion-skeleton-text>
+          </div>
+        </ion-label>
+
+        <!-- Total + menú Skeleton -->
+        <div slot="end" class="venta-end">
+          <ion-skeleton-text animated style="width: 50px; height: 18px; border-radius: 4px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 24px; height: 24px; border-radius: 50%;"></ion-skeleton-text>
+        </div>
+
+      </ion-item>
+      }
+    </ion-list>
+  </div>
+  }
+
+  <!-- Lista vacía -->
+  @else if (ventas.length === 0) {
+  <div class="empty-state">
+    <div class="empty-icon-wrap">
+      <ion-icon name="cart-outline"></ion-icon>
+    </div>
+    <h2>Sin ventas</h2>
+    <p>No hay ventas registradas para este periodo.</p>
+  </div>
+  }
+
+  <!-- Lista de ventas -->
+  @else {
+  <div class="p-sm">
+    <ion-list class="ventas-list" lines="none">
+      @for (venta of ventas; track venta.id) {
+      <ion-item class="venta-card" detail="false">
+
+        <!-- Ícono comprobante -->
+        <div slot="start" class="comprobante-icon-box" [attr.data-tipo]="venta.tipo_comprobante">
+          <ion-icon [name]="iconComprobante(venta.tipo_comprobante)"></ion-icon>
+        </div>
+
+        <!-- Info central -->
+        <ion-label>
+          <div class="venta-top-row">
+            <ion-badge [color]="colorComprobante(venta.tipo_comprobante)" class="tipo-badge">
+              {{ labelComprobante(venta.tipo_comprobante) }}
+            </ion-badge>
+            @if (venta.numero_comprobante) {
+            <span class="venta-numero">#{{ venta.numero_comprobante }}</span>
+            }
+          </div>
+          <p class="venta-cliente">
+            {{ venta.cliente_nombre || 'Consumidor Final' }}
+          </p>
+          <div class="venta-bottom-row">
+            <span class="metodo-tag">
+              <ion-icon [name]="iconMetodoPago(venta.metodo_pago)"></ion-icon>
+              {{ labelMetodoPago(venta.metodo_pago) }}
+            </span>
+            <span class="venta-hora">{{ formatFecha(venta.fecha) }} · {{ formatHora(venta.fecha) }}</span>
+          </div>
+        </ion-label>
+
+        <!-- Total + menú de opciones -->
+        <div slot="end" class="venta-end">
+          <span class="venta-total">${{ currencyService.format(venta.total) }}</span>
+          <div (click)="$event.stopPropagation()">
+            <app-options-menu
+              [triggerId]="'menu-venta-' + venta.id"
+              [options]="ventaMenuOpciones"
+              (optionSelected)="onVentaMenuOption($event, venta)">
+            </app-options-menu>
+          </div>
+        </div>
+
+      </ion-item>
+      }
+    </ion-list>
+  </div>
+  }
+
+  <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent"></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
 </ion-content>
+
+<!-- Footer totalizador pegado al fondo (solo si hay datos) -->
+@if (!loading && ventas.length > 0) {
+<ion-footer class="ion-no-border">
+  <div class="ventas-footer">
+    <div class="footer-info">
+      <span class="footer-label">{{ cantidadVentas }} {{ cantidadVentas === 1 ? 'venta' : 'ventas' }}</span>
+    </div>
+    <div class="footer-amount-box">
+      <h3 class="footer-amount">
+        <span class="currency-symbol">$</span>{{ currencyService.format(totalDia) }}
+      </h3>
+    </div>
+  </div>
+</ion-footer>
+}
+
+<!-- Picker de fecha — conectado a ion-datetime-button via id="fecha-ventas" -->
+<ion-modal [keepContentsMounted]="true" trigger="open-date-picker" cssClass="date-picker-modal">
+  <ng-template>
+    <ion-datetime id="fecha-ventas" presentation="date" [value]="fechaFiltro" [max]="hoy" locale="es-EC"
+      (ionChange)="onDateChange($event)" size="cover">
+    </ion-datetime>
+  </ng-template>
+</ion-modal>

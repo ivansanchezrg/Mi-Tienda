@@ -373,9 +373,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
           tipo: tipo,
           cajas: cajas,
           cajaIdPreseleccionada: this.cajaId
-        },
-        breakpoints: [0, 1],
-        initialBreakpoint: 1
+        }
       });
 
       await modal.present();

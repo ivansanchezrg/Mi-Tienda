@@ -102,8 +102,7 @@ export class ProductoModalComponent implements OnInit {
             componentProps: {
                 productoId: this.producto.id,
                 productoNombre: this.producto.nombre
-            },
-            cssClass: 'modal-fullscreen-mobile'
+            }
         });
         await modal.present();
     }

@@ -229,7 +229,7 @@ y transfiere la ganancia acumulada (de recargas_virtuales.ganancia) a CAJA_CHICA
 Ganancia NO hardcodeada: se lee de cada deuda seleccionada.
 Las operaciones TRANSFERENCIA_SALIENTE/ENTRANTE no usan categoria_id (NULL).';
 
+REVOKE EXECUTE ON FUNCTION registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) FROM anon;
 GRANT EXECUTE ON FUNCTION registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) TO anon;
 
 NOTIFY pgrst, 'reload schema';

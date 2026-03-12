@@ -64,13 +64,13 @@ import { UiService } from '@core/services/ui.service';
             </div>
 
             <div class="deficit-resumen">
-              @if (deficitCajaChica > 0) {
+              @if (deficitVarios > 0) {
                 <div class="deficit-item">
                   <div class="deficit-item-left">
                     <ion-icon name="wallet-outline" color="warning"></ion-icon>
                     <span>Varios pendiente</span>
                   </div>
-                  <span class="deficit-monto warning">\${{ deficitCajaChica | number:'1.2-2' }}</span>
+                  <span class="deficit-monto warning">\${{ deficitVarios | number:'1.2-2' }}</span>
                 </div>
               }
               @if (fondoFaltante > 0) {
@@ -98,15 +98,15 @@ import { UiService } from '@core/services/ui.service';
                   <div class="paso-numero">1</div>
                   <p>Toma <strong>\${{ totalAReponer | number:'1.2-2' }}</strong> de la funda <strong>TIENDA</strong></p>
                 </div>
-                @if (deficitCajaChica > 0) {
+                @if (deficitVarios > 0) {
                   <div class="instruccion-paso">
                     <div class="paso-numero">2</div>
-                    <p>Pon <strong>\${{ deficitCajaChica | number:'1.2-2' }}</strong> en la funda <strong>VARIOS</strong></p>
+                    <p>Pon <strong>\${{ deficitVarios | number:'1.2-2' }}</strong> en la funda <strong>VARIOS</strong></p>
                   </div>
                 }
                 @if (fondoFaltante > 0) {
                   <div class="instruccion-paso">
-                    <div class="paso-numero">{{ deficitCajaChica > 0 ? 3 : 2 }}</div>
+                    <div class="paso-numero">{{ deficitVarios > 0 ? 3 : 2 }}</div>
                     <p>Pon <strong>\${{ fondoFaltante | number:'1.2-2' }}</strong> en el <strong>cajón</strong> (fondo del día)</p>
                   </div>
                 }
@@ -149,7 +149,7 @@ import { UiService } from '@core/services/ui.service';
                   <strong>Listo — acciones físicas completadas</strong>
                   <span>
                     Al confirmar se registrará: EGRESO Tienda −\${{ totalAReponer | number:'1.2-2' }}
-                    @if (deficitCajaChica > 0) { · INGRESO Varios +\${{ deficitCajaChica | number:'1.2-2' }} }
+                    @if (deficitVarios > 0) { · INGRESO Varios +\${{ deficitVarios | number:'1.2-2' }} }
                   </span>
                   @if (fondoFaltante > 0) {
                     <span class="paso1-fondo-aviso">
@@ -467,7 +467,7 @@ export class VerificarFondoModalComponent {
 
   // Props recibidas
   fondoFijo        = 40.00;
-  deficitCajaChica = 0;
+  deficitVarios = 0;
   fondoFaltante    = 0;
 
   // Estado interno
@@ -483,11 +483,11 @@ export class VerificarFondoModalComponent {
   }
 
   get hayDeficit(): boolean {
-    return this.deficitCajaChica > 0 || this.fondoFaltante > 0;
+    return this.deficitVarios > 0 || this.fondoFaltante > 0;
   }
 
   get totalAReponer(): number {
-    return this.deficitCajaChica + this.fondoFaltante;
+    return this.deficitVarios + this.fondoFaltante;
   }
 
   /** Step 1: solo avanza — sin tocar la BD */
@@ -510,7 +510,7 @@ export class VerificarFondoModalComponent {
     await this.ui.showLoading('Abriendo caja...');
 
     const result = await this.turnosCajaService.repararDeficit(
-      this.deficitCajaChica,
+      this.deficitVarios,
       this.fondoFaltante
     );
 

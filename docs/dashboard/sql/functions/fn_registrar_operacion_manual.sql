@@ -103,8 +103,8 @@ END;
 $$;
 
 -- Permisos
+REVOKE EXECUTE ON FUNCTION public.registrar_operacion_manual(INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT) FROM anon;
 GRANT EXECUTE ON FUNCTION public.registrar_operacion_manual(INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.registrar_operacion_manual(INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT) TO anon;
 
 -- Refrescar caché PostgREST
 NOTIFY pgrst, 'reload schema';

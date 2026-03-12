@@ -3,7 +3,7 @@ import { SupabaseService } from '@core/services/supabase.service';
 import { UiService } from '@core/services/ui.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
-import { getFechaLocal } from '@core/utils/date.util';
+import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
 
 @Injectable({
   providedIn: 'root'
@@ -29,9 +29,7 @@ export class TurnosCajaService {
    * Obtiene el turno activo (abierto) de hoy, si existe
    */
   async obtenerTurnoActivo(): Promise<TurnoCajaConEmpleado | null> {
-    const fechaHoy = getFechaLocal();
-    const inicioDia = new Date(`${fechaHoy}T00:00:00`).toISOString();
-    const finDia = new Date(`${fechaHoy}T23:59:59`).toISOString();
+    const inicioDia = new Date(`${getFechaLocal()}T00:00:00`).toISOString();
 
     const turno = await this.supabase.call<TurnoCajaConEmpleado>(
       this.supabase.client
@@ -46,62 +44,30 @@ export class TurnosCajaService {
   }
 
   /**
-   * Abre un nuevo turno de caja.
-   * Valida que no haya un turno abierto antes de crear uno nuevo.
+   * Abre un nuevo turno de caja mediante la función SQL atómica `abrir_turno`.
+   *
+   * Una sola transacción reemplaza las 3 queries separadas del enfoque anterior
+   * (check open → count → insert), eliminando la race condition TOCTOU.
+   *
+   * Retorna false tanto si ya hay turno abierto como si hay error de conexión —
+   * home.page.ts maneja el error verificando si el turno existe tras el fallo.
    */
   async abrirTurno(): Promise<boolean> {
-    const fechaHoy = getFechaLocal();
-    const inicioDia = new Date(`${fechaHoy}T00:00:00`).toISOString();
-    const finDia = new Date(`${fechaHoy}T23:59:59`).toISOString();
-
-    // Validar: no debe haber turno abierto
-    const { data: turnoAbierto } = await this.supabase.client
-      .from('turnos_caja')
-      .select('id')
-      .gte('hora_fecha_apertura', inicioDia)
-      .lte('hora_fecha_apertura', finDia)
-      .is('hora_fecha_cierre', null)
-      .maybeSingle();
-
-    if (turnoAbierto) {
-      return false; // Ya hay turno abierto
-    }
-
-    // Obtener empleado actual
     const empleado = await this.authService.getUsuarioActual();
-    if (!empleado) {
-      return false;
-    }
+    if (!empleado) return false;
 
-    // Calcular número de turno (siguiente al último del día)
-    const { count } = await this.supabase.client
-      .from('turnos_caja')
-      .select('id', { count: 'exact', head: true })
-      .gte('hora_fecha_apertura', inicioDia)
-      .lte('hora_fecha_apertura', finDia);
-
-    const numeroTurno = (count ?? 0) + 1;
-
-    // Insertar turno (.select().single() necesario: INSERT sin select devuelve data:null
-    // aunque sea exitoso, lo que supabase.call() interpreta incorrectamente como error)
     const response = await this.supabase.call(
-      this.supabase.client
-        .from('turnos_caja')
-        .insert({
-          numero_turno: numeroTurno,
-          empleado_id: empleado.id,
-          hora_fecha_apertura: new Date().toISOString() // TIMESTAMPTZ: UTC correcto
-        })
-        .select()
-        .single(),
+      this.supabase.client.rpc('abrir_turno', {
+        p_empleado_id: empleado.id
+      }),
       undefined,
       { showLoading: true }
     );
 
-    if (response === null) {
-      // El error ya lo maneja supabase.call con ui.showError
-      return false;
-    }
+    if (response === null) return false;
+
+    const data = response as any;
+    if (!data?.success) return false; // home.page.ts verifica si el turno ya existía
 
     await this.ui.showSuccess('Caja abierta');
     return true;
@@ -116,7 +82,7 @@ export class TurnosCajaService {
    *
    * Retorna null si no hay cierre previo o si el último cierre fue normal (sin déficit).
    */
-  async obtenerDeficitTurnoAnterior(): Promise<{ deficitCajaChica: number; fondoFaltante: number } | null> {
+  async obtenerDeficitTurnoAnterior(): Promise<{ deficitVarios: number; fondoFaltante: number } | null> {
     // 1. Obtener el último turno cerrado con su estado de fondo
     const { data: ultimoTurno, error: turnoError } = await this.supabase.client
       .from('turnos_caja')
@@ -143,10 +109,8 @@ export class TurnosCajaService {
 
     if (!variosRes.data) return null;
 
-    const inicioDia = `${fechaLocalCierre}T00:00:00`;
-    const finDia    = `${fechaLocalCierre}T23:59:59`;
-    const inicioUtc = new Date(inicioDia).toISOString();
-    const finUtc    = new Date(finDia).toISOString();
+    const inicioUtc = new Date(`${fechaLocalCierre}T00:00:00`).toISOString();
+    const finUtc    = getInicioDiaSiguienteDeISO(fechaLocalCierre);
 
     // Busca cualquier operación que marque el pago a VARIOS ese día:
     //   TRANSFERENCIA_ENTRANTE → cierre normal
@@ -175,12 +139,12 @@ export class TurnosCajaService {
     ]);
 
     // 4. Calcular montos independientemente para los dos déficits posibles:
-    //    - deficitCajaChica: 0 si VARIOS ya cobró (transferencia o INGRESO IN-004), monto config si no
+    //    - deficitVarios: 0 si VARIOS ya cobró (transferencia o INGRESO IN-004), monto config si no
     //    - fondoFaltante:    0 si fondo_cubierto = TRUE, monto config si FALSE
     //    Ambos son independientes: puede haber solo uno, ambos, o ninguno.
     const variosYaCobro = !!(transferenciaRes.data || ingresoDeficitRes.data);
 
-    const deficitCajaChica = variosYaCobro
+    const deficitVarios = variosYaCobro
       ? 0
       : (configRes.data?.varios_transferencia_diaria ?? 0);
 
@@ -189,9 +153,9 @@ export class TurnosCajaService {
       : 0;
 
     // Solo hay déficit si al menos uno de los dos montos es positivo
-    if (deficitCajaChica <= 0 && fondoFaltante <= 0) return null;
+    if (deficitVarios <= 0 && fondoFaltante <= 0) return null;
 
-    return { deficitCajaChica, fondoFaltante };
+    return { deficitVarios, fondoFaltante };
   }
 
   /**
@@ -201,7 +165,7 @@ export class TurnosCajaService {
    *
    * Retorna { ok: true } si todo OK, o { ok: false, errorMsg } con el mensaje del RPC.
    */
-  async repararDeficit(deficitCajaChica: number, fondoFaltante: number): Promise<{ ok: boolean; turnoId?: string; errorMsg?: string }> {
+  async repararDeficit(deficitVarios: number, fondoFaltante: number): Promise<{ ok: boolean; turnoId?: string; errorMsg?: string }> {
     const empleado = await this.authService.getUsuarioActual();
     if (!empleado) return { ok: false, errorMsg: 'No se pudo obtener el empleado actual' };
 
@@ -224,7 +188,7 @@ export class TurnosCajaService {
     const response = await this.supabase.call(
       this.supabase.client.rpc('reparar_deficit_turno', {
         p_empleado_id: empleado.id,
-        p_deficit_caja_chica: deficitCajaChica,
+        p_deficit_varios: deficitVarios,
         p_fondo_faltante: fondoFaltante,
         p_cat_egreso_id: catEgreso.id,
         p_cat_ingreso_id: catIngreso.id
@@ -303,9 +267,8 @@ export class TurnosCajaService {
    * Obtiene el estado completo de la caja para mostrar en el banner
    */
   async obtenerEstadoCaja(): Promise<EstadoCaja> {
-    const fechaHoy = getFechaLocal();
-    const inicioDia = new Date(`${fechaHoy}T00:00:00`).toISOString();
-    const finDia = new Date(`${fechaHoy}T23:59:59`).toISOString();
+    const inicioDia = new Date(`${getFechaLocal()}T00:00:00`).toISOString();
+    const inicioMana = getInicioDiaSiguienteISO();
 
     const turnoActivo = await this.supabase.call<TurnoCajaConEmpleado>(
       this.supabase.client
@@ -322,7 +285,7 @@ export class TurnosCajaService {
       .from('turnos_caja')
       .select('id', { count: 'exact', head: true })
       .gte('hora_fecha_apertura', inicioDia)
-      .lte('hora_fecha_apertura', finDia);
+      .lt('hora_fecha_apertura', inicioMana);
 
     const turnosHoy = count ?? 0;
 

@@ -98,9 +98,7 @@ export class CategoriasOperacionesPage implements OnInit {
   async abrirModalNueva() {
     const modal = await this.modalCtrl.create({
       component: CategoriaOperacionModalComponent,
-      componentProps: { tipoInicial: this.segmentoActual },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { tipoInicial: this.segmentoActual }
     });
     await modal.present();
 
@@ -125,9 +123,7 @@ export class CategoriasOperacionesPage implements OnInit {
   private async abrirModalEditar(categoria: CategoriaOperacion) {
     const modal = await this.modalCtrl.create({
       component: CategoriaOperacionModalComponent,
-      componentProps: { categoria },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { categoria }
     });
     await modal.present();
 

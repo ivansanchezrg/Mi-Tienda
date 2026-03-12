@@ -55,9 +55,7 @@ export class MainLayoutPage {
     this.fabAbierto = false;
 
     const modal = await this.modalCtrl.create({
-      component: CuadreCajaPage,
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      component: CuadreCajaPage
     });
     await modal.present();
   }

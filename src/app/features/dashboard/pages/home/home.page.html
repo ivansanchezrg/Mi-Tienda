@@ -58,8 +58,7 @@
   </div>
 
   <div class="modern-list">
-    <div class="flat-item ion-activatable" (click)="onSaldoClick('caja')">
-      <ion-ripple-effect></ion-ripple-effect>
+    <div class="flat-item">
       <div class="icon-wrapper primary">
         <ion-icon name="cash-outline"></ion-icon>
       </div>
@@ -74,12 +73,13 @@
         } @else {
         <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCaja | number:'1.2-2')) }}</span>
         }
-        <ion-icon name="chevron-forward"></ion-icon>
+        <app-options-menu triggerId="menu-caja" [options]="cajaPrincipalOptions"
+          (optionSelected)="onCajaMenuOption($event, 'caja')">
+        </app-options-menu>
       </div>
     </div>
 
-    <div class="flat-item ion-activatable" (click)="onSaldoClick('cajaChica')">
-      <ion-ripple-effect></ion-ripple-effect>
+    <div class="flat-item">
       <div class="icon-wrapper tertiary">
         <ion-icon name="cash-outline"></ion-icon>
       </div>
@@ -94,12 +94,13 @@
         } @else {
         <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCajaChica | number:'1.2-2')) }}</span>
         }
-        <ion-icon name="chevron-forward"></ion-icon>
+        <app-options-menu triggerId="menu-caja-chica" [options]="cajaChicaOptions"
+          (optionSelected)="onCajaMenuOption($event, 'cajaChica')">
+        </app-options-menu>
       </div>
     </div>
 
-    <div class="flat-item ion-activatable" (click)="onSaldoClick('varios')">
-      <ion-ripple-effect></ion-ripple-effect>
+    <div class="flat-item">
       <div class="icon-wrapper tertiary">
         <ion-icon name="wallet-outline"></ion-icon>
       </div>
@@ -114,12 +115,13 @@
         } @else {
         <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoVarios | number:'1.2-2')) }}</span>
         }
-        <ion-icon name="chevron-forward"></ion-icon>
+        <app-options-menu triggerId="menu-varios" [options]="variosOptions"
+          (optionSelected)="onCajaMenuOption($event, 'varios')">
+        </app-options-menu>
       </div>
     </div>
 
-    <div class="flat-item ion-activatable" (click)="onSaldoClick('celular')">
-      <ion-ripple-effect></ion-ripple-effect>
+    <div class="flat-item">
       <div class="icon-wrapper secondary">
         <ion-icon name="phone-portrait-outline"></ion-icon>
       </div>
@@ -138,12 +140,13 @@
             number:'1.2-2')) }}</span>
         </div>
         }
-        <ion-icon name="chevron-forward"></ion-icon>
+        <app-options-menu triggerId="menu-celular" [options]="celularOptions"
+          (optionSelected)="onCajaMenuOption($event, 'celular')">
+        </app-options-menu>
       </div>
     </div>
 
-    <div class="flat-item ion-activatable" (click)="onSaldoClick('bus')">
-      <ion-ripple-effect></ion-ripple-effect>
+    <div class="flat-item">
       <div class="icon-wrapper warning">
         <ion-icon name="bus-outline"></ion-icon>
       </div>
@@ -162,7 +165,9 @@
             }}</span>
         </div>
         }
-        <ion-icon name="chevron-forward"></ion-icon>
+        <app-options-menu triggerId="menu-bus" [options]="busOptions"
+          (optionSelected)="onCajaMenuOption($event, 'bus')">
+        </app-options-menu>
       </div>
     </div>
   </div>

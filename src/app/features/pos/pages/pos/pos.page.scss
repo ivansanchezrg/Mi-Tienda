@@ -20,6 +20,30 @@ ion-toolbar {
     ion-title {
         font-weight: var(--font-weight-bold);
         letter-spacing: -0.5px;
+
+        .title-with-chip {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+
+            .comprobante-chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 3px 8px;
+                border-radius: var(--radius-pill);
+                background: var(--ion-color-step-100);
+                border: 1px solid var(--ion-color-step-150);
+                font-size: 10px;
+                font-weight: var(--font-weight-semibold);
+                color: var(--ion-color-medium);
+                letter-spacing: 0;
+
+                ion-icon {
+                    font-size: 11px;
+                }
+            }
+        }
     }
 }
 
@@ -30,21 +54,97 @@ ion-toolbar {
 .search-toolbar {
     --background: var(--bg-soft);
     --border-width: 0;
-    padding-bottom: var(--spacing-sm);
+    padding-bottom: 0;
+    border-bottom: 2px solid var(--ion-color-step-150);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+
+    // Contenedor relativo para posicionar el barcode adentro
+    .searchbar-wrapper {
+        position: relative;
+        padding: 0 var(--spacing-md);
+    }
 
     ion-searchbar {
-        padding: 0 var(--spacing-md);
         --box-shadow: none;
         --border-radius: var(--radius-pill);
         --background: var(--ion-item-background);
+        --padding-end: 44px; // espacio para el botón de barcode
+        padding: 0;
         margin: 0;
+        height: 44px;
+    }
+
+    // Barcode pegado al borde derecho DENTRO del input
+    .barcode-inline-btn {
+        position: absolute;
+        right: calc(var(--spacing-md) + 4px);
+        top: 50%;
+        transform: translateY(-50%);
+        background: transparent;
+        border: none;
+        color: var(--ion-color-medium);
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        z-index: 10;
+        transition: color var(--transition-fast);
+
+        ion-icon {
+            font-size: 20px;
+        }
+
+        &:active {
+            color: var(--ion-color-primary);
+        }
     }
 
     .search-spinner {
         position: absolute;
-        right: var(--spacing-xl);
+        right: calc(var(--spacing-md) + 44px);
         top: 50%;
         transform: translateY(-50%);
+    }
+
+    // ── Fila cliente inline — mismo estilo que desglose IVA ──
+    .cliente-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 7px var(--spacing-md) 10px;
+        cursor: pointer;
+        transition: opacity var(--transition-fast);
+
+        &:active { opacity: 0.55; }
+
+        .chr-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+            color: var(--ion-color-medium);
+            ion-icon { font-size: 14px; }
+        }
+
+        .chr-value {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 13px;
+            font-weight: var(--font-weight-semibold);
+            color: var(--ion-text-color);
+            ion-icon {
+                font-size: 14px;
+                color: var(--ion-color-medium);
+            }
+        }
+
+        &.cliente-header-row--requerido {
+            .chr-label, .chr-value, ion-icon { color: var(--ion-color-warning-shade); }
+        }
     }
 }
 
@@ -95,8 +195,44 @@ ion-toolbar {
 // ─────────────────────────────────────────
 
 .empty-state {
-    ion-icon {
-        opacity: var(--opacity-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 55vh;
+    padding: var(--spacing-xl);
+
+    .empty-icon-wrap {
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        background: rgba(var(--ion-color-primary-rgb), 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--spacing-lg);
+
+        ion-icon {
+            font-size: 52px;
+            color: var(--ion-color-primary);
+            opacity: 0.5;
+        }
+    }
+
+    h2 {
+        font-size: 20px;
+        font-weight: var(--font-weight-bold);
+        color: var(--ion-color-medium);
+        margin: 0 0 var(--spacing-sm) 0;
+    }
+
+    p {
+        font-size: 14px;
+        color: var(--ion-color-medium);
+        max-width: 260px;
+        line-height: 1.5;
+        margin: 0;
     }
 }
 
@@ -269,43 +405,110 @@ ion-toolbar {
 
 .pos-footer {
     background: var(--bg-soft);
-    border-top: 1px solid var(--ion-color-step-100);
-    box-shadow: var(--shadow-level-2);
+    border-top: 2px solid var(--ion-color-step-150);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+    // Safe area: sobreescribe el padding-bottom de .p-md sumando el área reservada de Android
+    padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
 
-    .totals-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
+    // ── Chip de tipo de comprobante ──
+    .comprobante-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: var(--radius-pill);
+        background: var(--ion-color-step-100);
+        border: 1px solid var(--ion-color-step-150);
+        font-size: 11px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--ion-color-medium);
 
-        .total-label {
+        ion-icon {
+            font-size: 13px;
+        }
+    }
+
+    .breakdown {
+        margin-bottom: var(--spacing-md);
+
+        // Fila genérica: label izq · valor der
+        .breakdown-row {
             display: flex;
-            flex-direction: column;
-            gap: 2px;
-            align-items: flex-end;
-            /* Alinea los textos hacia la derecha */
+            justify-content: space-between;
+            align-items: center;
+            padding: 3px 0;
 
-            .total-amount {
-                font-size: 26px;
-                font-weight: var(--font-weight-extrabold);
-                color: var(--ion-color-primary);
-                letter-spacing: -1px;
-                line-height: 1;
+            .breakdown-label {
+                font-size: 13px;
+                color: var(--ion-color-medium);
+            }
+
+            .breakdown-value {
+                font-size: 13px;
+                color: var(--ion-color-medium);
+                font-variant-numeric: tabular-nums;
+            }
+
+            // Fila de descuento: verde
+            &.discount {
+
+                .breakdown-label,
+                .breakdown-value {
+                    color: var(--ion-color-success);
+                }
             }
         }
 
-        .items-count {
-            font-size: 13px;
-            text-align: left;
-            /* Alineado a la izquierda */
+        // Línea divisora antes del total
+        .breakdown-divider {
+            height: 1px;
+            background: var(--ion-color-step-150);
+            margin: var(--spacing-xs) 0;
         }
     }
+
+    // Fila de TOTAL — fuera del .breakdown, siempre visible
+    .total-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        .total-left {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+
+            .total-label {
+                font-size: 15px;
+                font-weight: var(--font-weight-bold);
+                color: var(--ion-text-color);
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+
+            .total-articles {
+                font-size: 11px;
+                color: var(--ion-color-medium);
+                opacity: 0.75;
+            }
+        }
+
+        .total-amount {
+            font-size: 30px;
+            font-weight: var(--font-weight-extrabold);
+            color: var(--ion-color-primary);
+            letter-spacing: -1.5px;
+            line-height: 1;
+        }
+    }
+
 
     .btn-charge {
         --border-radius: var(--radius-md);
         font-weight: var(--font-weight-bold);
         font-size: 17px;
         margin: 0;
-        height: 54px; // Área táctil grande y cómoda
+        height: 54px;
         letter-spacing: 0.3px;
     }
 }
