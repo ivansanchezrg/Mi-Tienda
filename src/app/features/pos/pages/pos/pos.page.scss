@@ -401,6 +401,33 @@ ion-toolbar {
 }
 
 // ─────────────────────────────────────────
+// BOTÓN ESCÁNER ESQUINA
+// ─────────────────────────────────────────
+
+.scanner-corner-btn {
+    position: sticky;
+    bottom: var(--spacing-md);
+    float: right;
+    margin-right: var(--spacing-md);
+    background: var(--ion-item-background);
+    border: 1px solid var(--ion-color-step-150);
+    border-radius: var(--radius-md);
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ion-color-medium);
+    box-shadow: var(--shadow-level-1);
+    z-index: 100;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+
+    ion-icon { font-size: 20px; }
+    &:active { color: var(--ion-color-primary); }
+}
+
+// ─────────────────────────────────────────
 // FOOTER DE COBRO
 // ─────────────────────────────────────────
 

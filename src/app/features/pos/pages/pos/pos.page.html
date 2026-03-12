@@ -29,10 +29,6 @@
       <ion-searchbar [(ngModel)]="buscarTexto" (ionInput)="buscarProducto($event)"
         placeholder="Buscar por nombre o EAN..." [animated]="false" mode="ios" [debounce]="450">
       </ion-searchbar>
-      <!-- Barcode dentro del input, pegado a la derecha -->
-      <button class="barcode-inline-btn" (click)="abrirEscanerCamara()">
-        <ion-icon name="barcode-outline"></ion-icon>
-      </button>
       @if (buscando) {
       <ion-spinner name="crescent" class="search-spinner" color="medium"></ion-spinner>
       }
@@ -149,6 +145,10 @@
 
   </div>
 
+  <!-- Botón escáner — esquina inferior derecha del content -->
+  <button class="scanner-corner-btn" (click)="abrirEscanerCamara()">
+    <ion-icon name="barcode-outline"></ion-icon>
+  </button>
 
 </ion-content>
 
