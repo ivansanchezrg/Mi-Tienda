@@ -45,6 +45,7 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 src/app/
 ├── core/
 │   ├── services/          # Servicios globales (ver abajo)
+│   ├── constants/         # app.constants.ts — constantes globales (DEFAULT_PAGE_SIZE, etc.)
 │   ├── guards/            # auth, public, role, pending-changes
 │   └── utils/             # date.util.ts
 ├── features/              # Módulos (cada uno tiene pages/, services/, models/, components/)

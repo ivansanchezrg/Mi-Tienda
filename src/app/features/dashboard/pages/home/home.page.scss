@@ -19,6 +19,7 @@ ion-toolbar {
   ion-title {
     font-weight: 700;
     letter-spacing: -0.5px;
+    padding-inline-start: 0;
   }
 }
 
@@ -200,6 +201,14 @@ ion-toolbar {
       }
     }
 
+    .flat-item-body {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      cursor: pointer;
+      min-width: 0;
+    }
+
     .content {
       flex: 1;
 
@@ -285,6 +294,16 @@ ion-toolbar {
 
     &.danger {
       --color: var(--ion-color-danger);
+    }
+  }
+
+  // Turno abierto por otro empleado — solo informativo, sin acción
+  &.ajeno {
+    background: rgba(var(--ion-color-warning-rgb), 0.08);
+    border-color: rgba(var(--ion-color-warning-rgb), 0.25);
+
+    h3 {
+      color: var(--ion-color-warning-shade);
     }
   }
 }

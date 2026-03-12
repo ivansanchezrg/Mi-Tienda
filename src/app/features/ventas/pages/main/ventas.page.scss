@@ -13,6 +13,12 @@ ion-content {
 ion-toolbar {
     --background: var(--bg-soft);
     --border-width: 0;
+
+    ion-title {
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        padding-inline-start: 0;
+    }
 }
 
 // ─────────────────────────────────────────
@@ -80,7 +86,7 @@ ion-toolbar {
 // ─────────────────────────────────────────
 
 .search-bar {
-    padding: 4px var(--spacing-sm) 8px;
+    padding: 8px 8px;
     background: var(--bg-soft);
     border-bottom: 1px solid var(--ion-color-step-100);
 
@@ -292,6 +298,12 @@ ion-footer {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+
+        .venta-cedula {
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--ion-color-medium);
+        }
     }
 
     .venta-bottom-row {

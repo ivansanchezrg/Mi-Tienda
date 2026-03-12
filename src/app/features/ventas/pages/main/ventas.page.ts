@@ -72,8 +72,7 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
 
     /** Opciones del menú contextual de cada tarjeta */
     readonly ventaMenuOpciones: MenuOption[] = [
-        { label: 'Ver comprobante', icon: 'receipt-outline', value: 'detalle', color: 'primary' },
-        { label: 'Anular venta',    icon: 'ban-outline',     value: 'anular',  color: 'medium'  },
+        { label: 'Anular venta', icon: 'ban-outline', value: 'anular', color: 'danger' },
     ];
 
     get fechaLabel(): string {
@@ -102,7 +101,7 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
 
     async ngOnInit() {
         this.searchSub = this.search$
-            .pipe(debounceTime(300), distinctUntilChanged())
+            .pipe(debounceTime(500), distinctUntilChanged())
             .subscribe(() => this.cargar());
 
         await this.cargar();
@@ -169,10 +168,8 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
         await modal.present();
     }
 
-    async onVentaMenuOption(opcion: MenuOption, venta: Venta) {
-        if (opcion.value === 'detalle') {
-            await this.abrirDetalle(venta);
-        } else if (opcion.value === 'anular') {
+    async onVentaMenuOption(opcion: MenuOption, _venta: Venta) {
+        if (opcion.value === 'anular') {
             await this.ui.showToast('Funcionalidad disponible próximamente', 'warning');
         }
     }

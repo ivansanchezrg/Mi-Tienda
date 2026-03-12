@@ -29,7 +29,7 @@
   <div class="search-bar">
     <ion-searchbar
       [value]="busqueda"
-      placeholder="Nombre, cédula o nro. comprobante"
+      placeholder="Juan, 0912..., ticket 3, factura 10"
       inputmode="search"
       [debounce]="0"
       (ionInput)="onBusquedaChange($event)"
@@ -102,7 +102,7 @@
   <div class="p-sm">
     <ion-list class="ventas-list" lines="none">
       @for (venta of ventas; track venta.id) {
-      <ion-item class="venta-card" detail="false">
+      <ion-item class="venta-card" detail="false" button (click)="abrirDetalle(venta)">
 
         <!-- Ícono comprobante -->
         <div slot="start" class="comprobante-icon-box" [attr.data-tipo]="venta.tipo_comprobante">
@@ -121,6 +121,9 @@
           </div>
           <p class="venta-cliente">
             {{ venta.cliente_nombre || 'Consumidor Final' }}
+            @if (venta.cliente_identificacion) {
+            <span class="venta-cedula">· {{ venta.cliente_identificacion }}</span>
+            }
           </p>
           <div class="venta-bottom-row">
             <span class="metodo-tag">

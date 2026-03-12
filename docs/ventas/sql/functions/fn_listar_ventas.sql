@@ -59,6 +59,7 @@ DECLARE
     v_inicio        TIMESTAMPTZ;
     v_fin           TIMESTAMPTZ;
     v_term          TEXT;
+    v_term_regex    TEXT;
 BEGIN
     -- ── Fecha actual en Ecuador ─────────────────────────────────────────────
     v_fecha_local := (NOW() AT TIME ZONE 'America/Guayaquil')::DATE;
@@ -89,8 +90,9 @@ BEGIN
         v_fin    := ((p_filtro::DATE + 1)::TIMESTAMP   AT TIME ZONE 'America/Guayaquil');
     END IF;
 
-    -- ── Término de búsqueda: trim + minúsculas ──────────────────────────────
-    v_term := NULLIF(TRIM(p_busqueda), '');
+    -- ── Término de búsqueda: trim + versión escapada para regex ────────────
+    v_term       := NULLIF(TRIM(p_busqueda), '');
+    v_term_regex := regexp_replace(v_term, '([.+*?^${}()|[\]\\])', '\\\1', 'g');
 
     -- ── Query principal ─────────────────────────────────────────────────────
     RETURN QUERY
@@ -123,9 +125,11 @@ BEGIN
       AND (
           v_term IS NULL
           OR v.numero_comprobante::TEXT ILIKE '%' || v_term || '%'
-          -- "factura 10", "nota venta 5", "ticket 3" (guión bajo → espacio para que coincida)
+          -- "factura 10", "nota venta 5", "ticket 3"
+          -- Usa regex con límites de palabra (\m inicio, \M fin) para evitar que
+          -- "ticket 1" coincida con "ticket 10" o "ticket 11"
           OR (REPLACE(v.tipo_comprobante::TEXT, '_', ' ') || ' ' || COALESCE(v.numero_comprobante::TEXT, ''))
-                 ILIKE '%' || v_term || '%'
+                 ~* ('\m' || v_term_regex || '\M')
           OR c.nombre         ILIKE '%' || v_term || '%'
           OR c.identificacion ILIKE '%' || v_term || '%'
       )

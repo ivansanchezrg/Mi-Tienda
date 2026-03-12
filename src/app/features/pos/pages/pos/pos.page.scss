@@ -20,6 +20,7 @@ ion-toolbar {
     ion-title {
         font-weight: var(--font-weight-bold);
         letter-spacing: -0.5px;
+        padding-inline-start: 0;
 
         .title-with-chip {
             display: flex;

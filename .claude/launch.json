@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Mi Tienda Dev",
+      "runtimeExecutable": "/c/Program Files/nodejs/npm",
+      "runtimeArgs": ["run", "start", "--", "--port", "4200"],
+      "port": 4200
+    }
+  ]
+}

@@ -11,7 +11,7 @@ import {
   walletOutline, cashOutline, phonePortraitOutline, busOutline,
   chevronForward, notificationsOutline, cloudOfflineOutline,
   alertCircleOutline, eyeOutline, eyeOffOutline,
-  arrowUpOutline, arrowDownOutline, listOutline
+  arrowUpOutline, arrowDownOutline
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
@@ -72,6 +72,12 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     return this.estadoCaja.estado === 'TURNO_EN_CURSO';
   }
 
+  /** true si el turno activo fue abierto por el usuario actual */
+  get esMiTurno(): boolean {
+    if (!this.cajaAbierta) return false;
+    return this.estadoCaja.turnoActivo?.empleado_id === this.empleadoActualId;
+  }
+
   // Estado de carga local (para Skeletons UI)
   cargando = true;
 
@@ -102,6 +108,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   // Usuario
   nombreUsuario = '';
+  empleadoActualId: number | null = null;
 
   // Fechas
   fechaUltimoCierre = '';
@@ -115,34 +122,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   montosOcultos = false;
 
   // Opciones del menú ⋮ — compartidas por ambas cajas (mismas acciones)
-  readonly cajaPrincipalOptions: MenuOption[] = [
+  readonly cajaOptions: MenuOption[] = [
     { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
     { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
-    { label: 'Ver Operaciones', icon: 'list-outline', value: 'ver' },
-  ];
-
-  readonly cajaChicaOptions: MenuOption[] = [
-    { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
-    { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
-    { label: 'Ver Operaciones', icon: 'list-outline', value: 'ver' },
-  ];
-
-  readonly variosOptions: MenuOption[] = [
-    { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
-    { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
-    { label: 'Ver Operaciones', icon: 'list-outline', value: 'ver' },
-  ];
-
-  readonly celularOptions: MenuOption[] = [
-    { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
-    { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
-    { label: 'Ver Operaciones', icon: 'list-outline', value: 'ver' },
-  ];
-
-  readonly busOptions: MenuOption[] = [
-    { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
-    { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
-    { label: 'Ver Operaciones', icon: 'list-outline', value: 'ver' },
   ];
 
 
@@ -152,7 +134,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       walletOutline, cashOutline, phonePortraitOutline, busOutline,
       chevronForward, notificationsOutline, cloudOfflineOutline,
       alertCircleOutline, eyeOutline, eyeOffOutline,
-      arrowUpOutline, arrowDownOutline, listOutline
+      arrowUpOutline, arrowDownOutline
     });
   }
 
@@ -224,6 +206,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       }
 
       this.nombreUsuario = empleado?.nombre || 'Usuario';
+      this.empleadoActualId = empleado?.id ?? null;
       this.fechaActual = this.formatearFecha(new Date());
 
       this.notificaciones = notificaciones;
@@ -305,6 +288,12 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   async onAbrirCaja() {
+    if (this.estadoCaja.estado === 'TURNO_EN_CURSO') {
+      const nombre = this.estadoCaja.empleadoNombre || 'otro empleado';
+      await this.ui.showError(`Ya hay un turno abierto por ${nombre}. Solo ese empleado puede cerrarlo.`);
+      return;
+    }
+
     const resultado = await this.mostrarModalVerificacionFondo();
     if (!resultado) return;
 
@@ -327,15 +316,24 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       await this.cargarDatos();
       this.cdr.detectChanges();
     } else {
-      // abrirTurno() devuelve false tanto si ya hay turno abierto (RPC abrió pero Supabase
-      // JS falló al devolver la respuesta) como si hubo un error real. Verificar cuál es:
+      // abrirTurno() devuelve false: puede ser turno ya abierto (datos desactualizados)
+      // o error real. Verificar cuál es para dar el mensaje correcto.
       const turnoActivo = await this.turnosCajaService.obtenerTurnoActivo();
       if (turnoActivo) {
-        // El turno ya estaba abierto (caso de lock timeout de Supabase) — solo recargar
-        await this.ui.showSuccess('Caja abierta');
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await this.cargarDatos();
-        this.cdr.detectChanges();
+        if (turnoActivo.empleado_id === this.empleadoActualId) {
+          // Lock timeout de Supabase — el turno del usuario actual ya existe
+          await this.ui.showSuccess('Caja abierta');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          await this.cargarDatos();
+          this.cdr.detectChanges();
+        } else {
+          // Datos desactualizados — hay un turno de otro empleado abierto
+          const nombre = turnoActivo.empleado?.nombre || 'otro empleado';
+          await this.ui.showError(`Ya hay un turno abierto por ${nombre}. Solo ese empleado puede cerrarlo.`);
+          await new Promise(resolve => setTimeout(resolve, 300));
+          await this.cargarDatos();
+          this.cdr.detectChanges();
+        }
       } else {
         await this.ui.showError('No se pudo abrir el turno. Verificá tu conexión e intentá de nuevo.');
       }
@@ -344,7 +342,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   async onCerrarCaja() {
     if (this.estadoCaja.estado !== 'TURNO_EN_CURSO') {
-      await this.ui.showToast('Debés abrir la caja primero antes de hacer el cierre diario', 'warning');
+      await this.ui.showToast('No hay un turno activo en este momento.', 'warning');
       return;
     }
 
@@ -359,6 +357,13 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     if (existeCierre === true) {
       await this.ui.showToast('El turno ya tiene un cierre registrado', 'warning');
+      return;
+    }
+
+    const turnoEmpleadoId = this.estadoCaja.turnoActivo?.empleado_id;
+    if (turnoEmpleadoId && this.empleadoActualId && turnoEmpleadoId !== this.empleadoActualId) {
+      const nombre = this.estadoCaja.empleadoNombre || 'el empleado que abrió el turno';
+      await this.ui.showError(`Solo ${nombre} puede realizar el cierre de este turno.`);
       return;
     }
 

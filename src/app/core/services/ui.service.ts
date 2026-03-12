@@ -134,7 +134,7 @@ export class UiService {
       color,
       position: 'top',
       ...(icon && { icon }),
-      ...(color === 'danger' && { buttons: [{ text: 'OK', role: 'cancel' }] })
+      buttons: [{ text: 'OK', role: 'cancel' }]
     });
     await toast.present();
   }
@@ -146,7 +146,8 @@ export class UiService {
       duration: 5000,
       color: 'success',
       position: 'top',
-      icon: checkmarkCircleOutline
+      icon: checkmarkCircleOutline,
+      buttons: [{ text: 'OK', role: 'cancel' }]
     });
     await toast.present();
   }
