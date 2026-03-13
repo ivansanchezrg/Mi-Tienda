@@ -67,3 +67,38 @@ ion-fab {
   align-items: flex-end;
 }
 
+
+// ─────────────────────────────────────────
+// ESCÁNER DE CÁMARA — fondo transparente
+// ─────────────────────────────────────────
+// Cuando el escáner nativo está activo, el WebView debe ser transparente
+// para que la cámara de MLKit sea visible debajo.
+body.scanner-active {
+  visibility: hidden;
+  --background: transparent;
+  --ion-background-color: transparent;
+
+  ion-app,
+  ion-content,
+  ion-router-outlet {
+    --background: transparent !important;
+    background: transparent !important;
+  }
+}
+
+// Los overlays del escáner deben seguir visibles aunque el body esté oculto
+body.scanner-active .scanner-split,
+body.scanner-active .scanner-overlay {
+  visibility: visible;
+}
+
+// Ocultar el tab bar durante el escaneo (permanece en el DOM, solo invisible)
+body.scanner-active ion-tab-bar {
+  visibility: hidden;
+}
+
+// Dentro de un ion-modal, solo el overlay del escáner debe ser visible (no el formulario de fondo)
+body.scanner-active ion-modal .scanner-overlay,
+body.scanner-active ion-modal .scanner-overlay * {
+  visibility: visible;
+}

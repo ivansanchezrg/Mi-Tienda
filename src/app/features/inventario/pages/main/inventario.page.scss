@@ -186,3 +186,65 @@ ion-toolbar {
         opacity: 1;
     }
 }
+
+// ── Overlay escáner (fullscreen) ──
+.scanner-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    visibility: visible;
+
+    .scanner-frame {
+        width: 260px;
+        height: 160px;
+        border: 2px solid white;
+        border-radius: var(--radius-lg);
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+        overflow: hidden;
+        position: relative;
+    }
+
+    .scan-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--ion-color-success);
+        box-shadow: 0 0 8px var(--ion-color-success);
+        animation: scanMove 2s ease-in-out infinite;
+    }
+
+    .scanner-hint {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 14px;
+        margin-top: var(--spacing-lg);
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+    }
+
+    .scanner-close-btn {
+        pointer-events: all;
+        position: absolute;
+        top: calc(var(--spacing-xl) + env(safe-area-inset-top));
+        right: var(--spacing-md);
+        background: rgba(0, 0, 0, 0.5);
+        border: none;
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        ion-icon { font-size: 24px; }
+    }
+}
+
+@keyframes scanMove {
+    0%   { top: 10%; }
+    50%  { top: 90%; }
+    100% { top: 10%; }
+}

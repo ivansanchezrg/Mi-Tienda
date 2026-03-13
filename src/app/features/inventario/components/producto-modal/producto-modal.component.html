@@ -24,6 +24,9 @@
                         <ion-input formControlName="codigo_barras" label="EAN / Código de Barras"
                             labelPlacement="floating" type="text"
                             placeholder="Escanea o digita el código..."></ion-input>
+                        <ion-button fill="clear" slot="end" (click)="escanearCodigo()" class="scan-btn">
+                            <ion-icon slot="icon-only" name="scan-outline" color="primary"></ion-icon>
+                        </ion-button>
                     </ion-item>
                 </div>
 
@@ -133,4 +136,18 @@
             </ion-button>
         </div>
     </form>
+
+    @if (escaneando) {
+    <div class="scanner-overlay">
+        <div class="scanner-frame">
+            <div class="scan-line"></div>
+        </div>
+
+        <p class="scanner-hint">Apunta al código de barras</p>
+
+        <button class="scanner-close-btn" (click)="cerrarEscaner()">
+            <ion-icon name="close-outline"></ion-icon>
+        </button>
+    </div>
+    }
 </ion-content>

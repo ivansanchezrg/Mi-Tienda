@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, HostListener, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -6,10 +6,11 @@ import {
   IonButtons, IonMenuButton, IonButton, IonIcon,
   IonSearchbar, IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
   IonItemSliding, IonItemOptions, IonItemOption,
-  ActionSheetController, ModalController
+  ActionSheetController, ModalController, ViewDidLeave, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline } from 'ionicons/icons';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline } from 'ionicons/icons';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
@@ -37,7 +38,7 @@ import { SeleccionarClienteModalComponent } from '../../../clientes/components/s
     OptionsMenuComponent
   ]
 })
-export class PosPage implements OnInit {
+export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private inventarioService = inject(InventarioService);
   public currencyService = inject(CurrencyService);
   private ui = inject(UiService);
@@ -45,6 +46,7 @@ export class PosPage implements OnInit {
   private actionSheetCtrl = inject(ActionSheetController);
   private modalCtrl = inject(ModalController);
   private clientesService = inject(ClientesService);
+  private ngZone = inject(NgZone);
 
   // Exponer enum al template (para el @if de mostrarDesglose)
   readonly TipoComprobante = TipoComprobante;
@@ -53,6 +55,8 @@ export class PosPage implements OnInit {
   buscarTexto = '';
   productosBusqueda: Producto[] = [];
   buscando = false;
+  escaneando = false;
+  ultimoItemAgregadoId = '';
 
   clienteSeleccionado: Cliente | null = null;
   cargandoCliente = false;
@@ -72,6 +76,17 @@ export class PosPage implements OnInit {
   private barcodeBuffer = '';
   private barcodeTimeout: any;
 
+  // Anti-duplicados para escáner de cámara
+  private ultimoCodigoEscaneado = '';
+  private ultimoTiempoEscaneado = 0;
+  private procesandoEscaneo = false;
+
+  // AudioContext reutilizable para beep
+  private audioCtx: AudioContext | null = null;
+
+  // Control de página activa (Ionic cachea páginas)
+  private paginaActiva = true;
+
   constructor() {
     addIcons({
       barcodeOutline, cartOutline, cashOutline,
@@ -79,7 +94,7 @@ export class PosPage implements OnInit {
       cubeOutline, searchOutline, addCircleOutline,
       cardOutline, phonePortraitOutline, handRightOutline,
       receiptOutline, documentTextOutline, documentOutline,
-      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline
+      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline
     });
   }
 
@@ -191,6 +206,7 @@ export class PosPage implements OnInit {
     if (existe) {
       if (existe.cantidad < producto.stock_actual) {
         this.incrementar(existe);
+        this.feedbackEscaneo(existe.id);
       } else {
         this.ui.showToast('Stock insuficiente', 'warning');
       }
@@ -201,10 +217,42 @@ export class PosPage implements OnInit {
           cantidad: 1,
           subtotal: producto.precio_venta
         });
+        this.feedbackEscaneo(producto.id);
       } else {
         this.ui.showToast('Producto sin stock', 'danger');
       }
     }
+  }
+
+  /** Vibración + beep + highlight verde al agregar producto (feedback para escáner) */
+  private feedbackEscaneo(productoId: string) {
+    if (this.escaneando) {
+      navigator.vibrate?.(40);
+      this.playBeep();
+      this.ultimoItemAgregadoId = productoId;
+      setTimeout(() => this.ultimoItemAgregadoId = '', 400);
+    }
+  }
+
+  /** Genera un beep corto con Web Audio API (reutiliza un solo AudioContext) */
+  private playBeep() {
+    try {
+      if (!this.audioCtx || this.audioCtx.state === 'closed') {
+        this.audioCtx = new AudioContext();
+      }
+      const oscillator = this.audioCtx.createOscillator();
+      const gain = this.audioCtx.createGain();
+
+      oscillator.type = 'square';
+      oscillator.frequency.value = 1000;
+      gain.gain.value = 1.0;
+
+      oscillator.connect(gain);
+      gain.connect(this.audioCtx.destination);
+
+      oscillator.start();
+      oscillator.stop(this.audioCtx.currentTime + 0.12);
+    } catch { /* silencioso si falla */ }
   }
 
   incrementar(item: CartItem) {
@@ -279,6 +327,9 @@ export class PosPage implements OnInit {
   // ==========================
   @HostListener('document:keypress', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent) {
+    // Ignorar si la página no está activa (Ionic cachea páginas)
+    if (!this.paginaActiva) return;
+
     // Si el usuario ya está enfocado en un input (ej. el searchbar), ignoramos
     // para no duplicar el evento.
     const target = event.target as HTMLElement;
@@ -315,7 +366,47 @@ export class PosPage implements OnInit {
   }
 
   async abrirEscanerCamara() {
-    this.ui.showToast('El escáner por cámara requiere un plugin especial. Usa scanner físico.', 'warning');
+    const { camera } = await BarcodeScanner.requestPermissions();
+    if (camera !== 'granted') {
+      this.ui.showToast('Permiso de cámara denegado', 'warning');
+      return;
+    }
+
+    this.escaneando = true;
+    document.body.classList.add('scanner-active');
+
+    try {
+      await BarcodeScanner.addListener('barcodesScanned', (event) => {
+        const codigo = event.barcodes[0]?.rawValue;
+        if (!codigo || this.procesandoEscaneo) return;
+
+        // Anti-duplicados: ignora el mismo código dentro de 1.5 s
+        const ahora = Date.now();
+        if (codigo === this.ultimoCodigoEscaneado && ahora - this.ultimoTiempoEscaneado < 1500) return;
+
+        this.procesandoEscaneo = true;
+        this.ultimoCodigoEscaneado = codigo;
+        this.ultimoTiempoEscaneado = ahora;
+
+        this.ngZone.run(async () => {
+          try {
+            await this.procesarCodigoRapido(codigo);
+          } finally {
+            this.procesandoEscaneo = false;
+          }
+        });
+      });
+      await BarcodeScanner.startScan();
+    } catch {
+      await this.cerrarEscaner();
+    }
+  }
+
+  async cerrarEscaner() {
+    await BarcodeScanner.removeAllListeners();
+    await BarcodeScanner.stopScan();
+    document.body.classList.remove('scanner-active');
+    this.escaneando = false;
   }
 
   private turnosService = inject(TurnosCajaService);
@@ -426,6 +517,28 @@ export class PosPage implements OnInit {
       active: o.value === TipoComprobante.TICKET
     }));
     await this.cargarCliente();
+  }
+
+  // ==========================
+  // LIFECYCLE — limpieza de recursos
+  // ==========================
+
+  ionViewDidLeave() {
+    // Ionic cachea páginas: desactivar pistola lectora y cerrar escáner al salir
+    this.paginaActiva = false;
+    if (this.escaneando) this.cerrarEscaner();
+    clearTimeout(this.barcodeTimeout);
+  }
+
+  ionViewWillEnter() {
+    this.paginaActiva = true;
+  }
+
+  ngOnDestroy() {
+    // Limpieza total al destruir el componente
+    if (this.escaneando) this.cerrarEscaner();
+    clearTimeout(this.barcodeTimeout);
+    this.audioCtx?.close().catch(() => {});
   }
 
 }
