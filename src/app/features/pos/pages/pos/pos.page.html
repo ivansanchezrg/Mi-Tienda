@@ -1,4 +1,4 @@
-<ion-header class="ion-no-border">
+<ion-header class="ion-no-border" [class.ion-hide]="escaneando">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
@@ -59,6 +59,53 @@
 </ion-header>
 
 
+<!-- ═══════════════════════════════════════ -->
+<!-- MODO ESCÁNER: carrito arriba + cámara abajo -->
+<!-- ═══════════════════════════════════════ -->
+@if (escaneando) {
+<div class="scanner-split">
+  <!-- Panel superior: zona de cámara (transparente, ve la cámara MLKit) -->
+  <div class="scanner-camera-zone">
+    <button class="scanner-close-btn" (click)="cerrarEscaner()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+    <div class="scanner-frame">
+      <div class="scan-line"></div>
+    </div>
+    <p class="scanner-hint">Apunta al código de barras</p>
+  </div>
+
+  <!-- Panel inferior: mini carrito en vivo -->
+  <div class="scanner-cart-panel">
+    <div class="scanner-cart-header">
+      <div class="scanner-cart-info">
+        <span class="scanner-cart-title">Carrito</span>
+        <span class="scanner-cart-count">{{ totalArticulos }} {{ totalArticulos === 1 ? 'art.' : 'arts.' }}
+          · ${{ currencyService.format(totalPagar) }}</span>
+      </div>
+    </div>
+
+    @if (carrito.length > 0) {
+    <div class="scanner-cart-items">
+      @for (item of carrito; track item.id) {
+      <div class="scanner-cart-item" [class.just-added]="item.id === ultimoItemAgregadoId">
+        <span class="sci-name">{{ item.nombre }}</span>
+        <span class="sci-qty">x{{ item.cantidad }}</span>
+        <span class="sci-total">${{ currencyService.format(item.subtotal) }}</span>
+      </div>
+      }
+    </div>
+    } @else {
+    <p class="scanner-cart-empty">Escanea un producto para comenzar</p>
+    }
+  </div>
+</div>
+}
+
+<!-- ═══════════════════════════════════════ -->
+<!-- MODO NORMAL: POS completo -->
+<!-- ═══════════════════════════════════════ -->
+@if (!escaneando) {
 <ion-content color="light">
 
   <!-- LISTA FLOTANTE DE SUGERENCIAS (fuera del header, dentro del content) -->
@@ -197,3 +244,4 @@
 
   </div>
 </ion-footer>
+}

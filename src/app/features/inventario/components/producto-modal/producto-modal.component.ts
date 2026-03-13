@@ -1,9 +1,10 @@
-import { Component, Input, OnInit, inject } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy, inject, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { IonicModule, ModalController } from '@ionic/angular';
 import { addIcons } from 'ionicons';
-import { closeOutline, barcodeOutline, saveOutline, documentTextOutline } from 'ionicons/icons';
+import { closeOutline, barcodeOutline, saveOutline, documentTextOutline, scanOutline } from 'ionicons/icons';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
 import { Producto } from '../../models/producto.model';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
@@ -14,6 +15,7 @@ import { KardexModalComponent } from '../kardex-modal/kardex-modal.component';
 import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only.directive';
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
 import { CurrencyService } from '../../../../core/services/currency.service';
+import { UiService } from '../../../../core/services/ui.service';
 
 @Component({
     selector: 'app-producto-modal',
@@ -22,20 +24,26 @@ import { CurrencyService } from '../../../../core/services/currency.service';
     standalone: true,
     imports: [IonicModule, CommonModule, ReactiveFormsModule, NumbersOnlyDirective, CurrencyInputDirective]
 })
-export class ProductoModalComponent implements OnInit {
+export class ProductoModalComponent implements OnInit, OnDestroy {
     @Input() producto?: Producto;
     @Input() categorias: CategoriaProducto[] = [];
+    @Input() codigoBarrasInicial?: string;
 
     private modalCtrl = inject(ModalController);
     private fb = inject(FormBuilder);
     private inventarioService = inject(InventarioService);
     private currencyService = inject(CurrencyService);
+    private ui = inject(UiService);
+    private ngZone = inject(NgZone);
 
     productoForm!: FormGroup;
+    escaneando = false;
     modo: 'CREAR' | 'EDITAR' = 'CREAR';
 
+    private audioCtx: AudioContext | null = null;
+
     constructor() {
-        addIcons({ closeOutline, barcodeOutline, saveOutline, documentTextOutline });
+        addIcons({ closeOutline, barcodeOutline, saveOutline, documentTextOutline, scanOutline });
     }
 
     ngOnInit() {
@@ -45,7 +53,7 @@ export class ProductoModalComponent implements OnInit {
 
     private initForm() {
         this.productoForm = this.fb.group({
-            codigo_barras: [this.producto?.codigo_barras || ''],
+            codigo_barras: [this.codigoBarrasInicial || this.producto?.codigo_barras || ''],
             nombre: [this.producto?.nombre || '', [Validators.required, Validators.minLength(3)]],
             categoria_id: [this.producto?.categoria_id || null],
             precio_costo: [this.producto?.precio_costo || '', [Validators.required]],
@@ -107,9 +115,68 @@ export class ProductoModalComponent implements OnInit {
         await modal.present();
     }
 
+    async escanearCodigo() {
+        const { camera } = await BarcodeScanner.requestPermissions();
+        if (camera !== 'granted') {
+            this.ui.showToast('Permiso de cámara denegado', 'warning');
+            return;
+        }
+
+        this.escaneando = true;
+        document.body.classList.add('scanner-active');
+
+        try {
+            await BarcodeScanner.addListener('barcodesScanned', (event) => {
+                this.ngZone.run(async () => {
+                    const codigo = event.barcodes[0]?.rawValue;
+                    if (!codigo) return;
+                    // Feedback: vibración + beep
+                    navigator.vibrate?.(40);
+                    this.playBeep();
+                    // Captura automática: carga al input y cierra
+                    this.productoForm.patchValue({ codigo_barras: codigo });
+                    this.ui.showToast(`Código capturado: ${codigo}`, 'success');
+                    await this.cerrarEscaner();
+                });
+            });
+            await BarcodeScanner.startScan();
+        } catch {
+            await this.cerrarEscaner();
+        }
+    }
+
+    async cerrarEscaner() {
+        await BarcodeScanner.removeAllListeners();
+        await BarcodeScanner.stopScan();
+        document.body.classList.remove('scanner-active');
+        this.escaneando = false;
+    }
+
     esCampoInvalido(campo: string): boolean {
         const control = this.productoForm.get(campo);
         return !!(control && control.invalid && (control.dirty || control.touched));
+    }
+
+    private playBeep() {
+        try {
+            if (!this.audioCtx || this.audioCtx.state === 'closed') {
+                this.audioCtx = new AudioContext();
+            }
+            const oscillator = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            oscillator.type = 'square';
+            oscillator.frequency.value = 1000;
+            gain.gain.value = 1.0;
+            oscillator.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(this.audioCtx.currentTime + 0.12);
+        } catch { /* silencioso si falla */ }
+    }
+
+    ngOnDestroy() {
+        if (this.escaneando) this.cerrarEscaner();
+        this.audioCtx?.close().catch(() => {});
     }
 }
 
