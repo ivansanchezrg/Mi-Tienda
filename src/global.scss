@@ -87,14 +87,23 @@ body.scanner-active {
 }
 
 // Los overlays del escáner deben seguir visibles aunque el body esté oculto
-body.scanner-active .scanner-split,
+body.scanner-active .scanner-stack,
 body.scanner-active .scanner-overlay {
   visibility: visible;
 }
 
-// Ocultar el tab bar durante el escaneo (permanece en el DOM, solo invisible)
+// Ocultar el tab bar durante el escaneo y colapsar su altura para que el scanner ocupe toda la pantalla
 body.scanner-active ion-tab-bar {
   visibility: hidden;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+// Toasts visibles durante el escaneo (el body está hidden pero los toasts deben verse)
+body.scanner-active ion-toast {
+  visibility: visible;
 }
 
 // Dentro de un ion-modal, solo el overlay del escáner debe ser visible (no el formulario de fondo)

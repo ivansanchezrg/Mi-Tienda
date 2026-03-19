@@ -4,7 +4,7 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { IonicModule, ModalController } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import { closeOutline, barcodeOutline, saveOutline, documentTextOutline, scanOutline } from 'ionicons/icons';
-import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 
 import { Producto } from '../../models/producto.model';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
@@ -139,7 +139,13 @@ export class ProductoModalComponent implements OnInit, OnDestroy {
                     await this.cerrarEscaner();
                 });
             });
-            await BarcodeScanner.startScan();
+            await BarcodeScanner.startScan({
+                formats: [
+                    BarcodeFormat.Ean13, BarcodeFormat.Ean8,
+                    BarcodeFormat.Code128, BarcodeFormat.UpcA,
+                    BarcodeFormat.UpcE, BarcodeFormat.Code39,
+                ]
+            });
         } catch {
             await this.cerrarEscaner();
         }
