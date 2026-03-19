@@ -60,43 +60,37 @@
 
 
 <!-- ═══════════════════════════════════════ -->
-<!-- MODO ESCÁNER: carrito arriba + cámara abajo -->
+<!-- MODO ESCÁNER: fullscreen cámara + badge info + finalizar -->
 <!-- ═══════════════════════════════════════ -->
 @if (escaneando) {
-<div class="scanner-split">
-  <!-- Panel superior: zona de cámara (transparente, ve la cámara MLKit) -->
-  <div class="scanner-camera-zone">
-    <button class="scanner-close-btn" (click)="cerrarEscaner()">
-      <ion-icon name="close-outline"></ion-icon>
-    </button>
+<div class="scanner-stack">
+  <div class="scanner-camera-layer">
     <div class="scanner-frame">
       <div class="scan-line"></div>
     </div>
     <p class="scanner-hint">Apunta al código de barras</p>
-  </div>
 
-  <!-- Panel inferior: mini carrito en vivo -->
-  <div class="scanner-cart-panel">
-    <div class="scanner-cart-header">
-      <div class="scanner-cart-info">
-        <span class="scanner-cart-title">Carrito</span>
-        <span class="scanner-cart-count">{{ totalArticulos }} {{ totalArticulos === 1 ? 'art.' : 'arts.' }}
-          · ${{ currencyService.format(totalPagar) }}</span>
+    <!-- Preview efímero del último producto escaneado -->
+    @if (scanPreview) {
+    <div class="scanner-preview">
+      <div class="sp-left">
+        <span class="sp-name">{{ scanPreview.nombre }}</span>
+        <span class="sp-unit">${{ currencyService.format(scanPreview.precioUnitario) }} c/u</span>
+      </div>
+      <div class="sp-right">
+        <span class="sp-total">${{ currencyService.format(scanPreview.subtotal) }}</span>
+        <span class="sp-qty">x{{ scanPreview.cantidad }}</span>
       </div>
     </div>
+    }
 
+    <!-- Badge-botón: muestra resumen, tap para cerrar escáner -->
     @if (carrito.length > 0) {
-    <div class="scanner-cart-items">
-      @for (item of carrito; track item.id) {
-      <div class="scanner-cart-item" [class.just-added]="item.id === ultimoItemAgregadoId">
-        <span class="sci-name">{{ item.nombre }}</span>
-        <span class="sci-qty">x{{ item.cantidad }}</span>
-        <span class="sci-total">${{ currencyService.format(item.subtotal) }}</span>
-      </div>
-      }
-    </div>
-    } @else {
-    <p class="scanner-cart-empty">Escanea un producto para comenzar</p>
+    <button class="scanner-cart-badge" (click)="cerrarEscaner()">
+      <ion-icon name="cart-outline"></ion-icon>
+      <span>{{ totalArticulos }} · ${{ currencyService.format(totalPagar) }}</span>
+      <ion-icon name="chevron-forward-outline" class="badge-arrow"></ion-icon>
+    </button>
     }
   </div>
 </div>

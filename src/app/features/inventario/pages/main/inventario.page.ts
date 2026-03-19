@@ -12,7 +12,7 @@ import {
   scanOutline,
   closeOutline
 } from 'ionicons/icons';
-import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { InventarioService } from '../../services/inventario.service';
 import { Producto } from '../../models/producto.model';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
@@ -146,7 +146,13 @@ export class InventarioPage implements OnInit, OnDestroy {
           this.abrirModalCrear(codigo);
         });
       });
-      await BarcodeScanner.startScan();
+      await BarcodeScanner.startScan({
+        formats: [
+          BarcodeFormat.Ean13, BarcodeFormat.Ean8,
+          BarcodeFormat.Code128, BarcodeFormat.UpcA,
+          BarcodeFormat.UpcE, BarcodeFormat.Code39,
+        ]
+      });
     } catch {
       await this.cerrarEscaner();
     }

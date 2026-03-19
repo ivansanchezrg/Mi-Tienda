@@ -10,7 +10,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline } from 'ionicons/icons';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
@@ -57,6 +57,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   buscando = false;
   escaneando = false;
   ultimoItemAgregadoId = '';
+  scanPreview: { nombre: string; cantidad: number; subtotal: number; precioUnitario: number } | null = null;
+  private scanPreviewTimeout: any;
 
   clienteSeleccionado: Cliente | null = null;
   cargandoCliente = false;
@@ -94,7 +96,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       cubeOutline, searchOutline, addCircleOutline,
       cardOutline, phonePortraitOutline, handRightOutline,
       receiptOutline, documentTextOutline, documentOutline,
-      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline
+      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline
     });
   }
 
@@ -224,13 +226,19 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  /** Vibración + beep + highlight verde al agregar producto (feedback para escáner) */
+  /** Vibración + beep + preview efímero al agregar producto (feedback para escáner) */
   private feedbackEscaneo(productoId: string) {
     if (this.escaneando) {
       navigator.vibrate?.(40);
       this.playBeep();
-      this.ultimoItemAgregadoId = productoId;
-      setTimeout(() => this.ultimoItemAgregadoId = '', 400);
+
+      // Mostrar preview del producto escaneado (2.5s)
+      const item = this.carrito.find(i => i.id === productoId);
+      if (item) {
+        clearTimeout(this.scanPreviewTimeout);
+        this.scanPreview = { nombre: item.nombre, cantidad: item.cantidad, subtotal: item.subtotal, precioUnitario: item.precio_venta };
+        this.scanPreviewTimeout = setTimeout(() => this.scanPreview = null, 2500);
+      }
     }
   }
 
@@ -407,6 +415,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     await BarcodeScanner.stopScan();
     document.body.classList.remove('scanner-active');
     this.escaneando = false;
+    this.scanPreview = null;
+    clearTimeout(this.scanPreviewTimeout);
   }
 
   private turnosService = inject(TurnosCajaService);
