@@ -8,7 +8,7 @@
       <ion-button (click)="escanearYCrear()" color="primary" fill="clear">
         <ion-icon slot="icon-only" name="scan-outline"></ion-icon>
       </ion-button>
-      <ion-button (click)="abrirModalCrear()" color="primary" fill="clear">
+      <ion-button (click)="irACrear()" color="primary" fill="clear">
         <ion-icon slot="start" name="add-outline"></ion-icon>
         Nuevo
       </ion-button>
@@ -16,33 +16,30 @@
   </ion-toolbar>
 
   <ion-toolbar>
-    <ion-searchbar [(ngModel)]="buscarTexto" (ionInput)="aplicarFiltro()" placeholder="Buscar por nombre o EAN..."
-      animated="true" mode="ios" [debounce]="500"></ion-searchbar>
+    <ion-searchbar [(ngModel)]="buscarTexto" (ionInput)="aplicarFiltro()" (ionClear)="limpiarBusqueda()"
+      placeholder="Buscar por nombre o EAN..." animated="true" mode="ios" [debounce]="0"></ion-searchbar>
   </ion-toolbar>
 
   <ion-toolbar class="categories-toolbar">
-    <div class="filter-tabs scrollable-tabs">
-      <div class="filter-tab" [class.active]="!categoriaSeleccionada"
-        (click)="categoriaSeleccionada = undefined; aplicarFiltro()">
-        Todos
-      </div>
-      @for (cat of categorias; track cat.id) {
-      <div class="filter-tab" [class.active]="categoriaSeleccionada === cat.id"
-        (click)="categoriaSeleccionada = cat.id; aplicarFiltro()">
-        {{ cat.nombre }}
-      </div>
-      }
+    <div class="filter-row">
+      <button class="filter-selector" (click)="abrirSelectorCategoria()">
+        <span class="filter-selector-label">{{ filtroLabel }}</span>
+        <ion-icon name="chevron-down-outline" class="filter-selector-arrow"></ion-icon>
+      </button>
+      <button class="filter-btn options-btn" (click)="abrirOpcionesCategorias()" title="Opciones de categorías">
+        <ion-icon name="ellipsis-vertical-outline"></ion-icon>
+      </button>
     </div>
   </ion-toolbar>
 </ion-header>
 
-<ion-content color="light">
-  <ion-refresher slot="fixed" (ionRefresh)="cargarDatos($event)">
+<ion-content #content color="light" [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
   <div class="p-md">
-    @if (cargando) {
+    @if (loading) {
     <div class="products-grid">
       @for (i of [1,2,3,4,5,6]; track i) {
       <ion-card class="product-card skeleton-card flat-item">
@@ -60,29 +57,35 @@
       }
     </div>
     } @else {
-    @if (productos.length === 0) {
+    @if (items.length === 0) {
     <div class="empty-state text-center p-xl mt-xl">
       <ion-icon name="cube-outline" color="medium" style="font-size: 64px;"></ion-icon>
-      <h2 class="text-secondary mt-md">No hay productos</h2>
-      <p class="text-muted">Añade tu primer producto al inventario usando el botón superior.</p>
+      <h2 class="text-secondary mt-md">{{ mostrarDesactivados ? 'No hay productos desactivados' : 'No hay productos' }}</h2>
+      <p class="text-muted">{{ mostrarDesactivados ? 'Todos los productos están activos.' : 'Añade tu primer producto al inventario usando el botón superior.' }}</p>
     </div>
     } @else {
     <div class="products-grid">
-      @for (prod of productos; track prod.id) {
-      <ion-card class="product-card flat-item" (click)="abrirModalEditar(prod)">
+      @for (prod of items; track prod.id) {
+      <ion-card class="product-card flat-item" [class.desactivado]="mostrarDesactivados"
+        (click)="mostrarDesactivados ? reactivarProducto(prod) : irAEditar(prod)">
 
         <div class="product-image-container">
           @if (prod.imagen_url) {
           <img [src]="prod.imagen_url" [alt]="prod.nombre" class="real-image" />
           } @else {
           <div class="placeholder-image">
-            <ion-icon name="barcode-outline"></ion-icon>
+            <ion-icon name="image-outline"></ion-icon>
           </div>
           }
 
-          @if (prod.stock_actual <= prod.stock_minimo) { <div class="stock-badge danger shadow-1">
+          @if (prod.stock_actual === 0) {
+          <div class="stock-badge danger shadow-1">
             <ion-icon name="alert-circle-outline"></ion-icon>
-            {{ prod.stock_actual }} left
+            Agotado
+          </div>
+          } @else if (prod.stock_actual <= prod.stock_minimo) { <div class="stock-badge warning shadow-1">
+            <ion-icon name="alert-circle-outline"></ion-icon>
+            Bajo: {{ prod.stock_actual }}
         </div>
         } @else {
         <div class="stock-badge success shadow-1">
@@ -112,6 +115,19 @@
   }
   }
   </div>
+
+  <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent"
+      [loadingText]="loadingMoreText"></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
+  @if (showScrollTop) {
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+    <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+      <ion-icon name="arrow-up-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+  }
 </ion-content>
 
 @if (escaneando) {

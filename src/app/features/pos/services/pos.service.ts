@@ -12,6 +12,7 @@ export interface VentaPayload {
     baseIva0: number;
     baseIva15: number;
     ivaValor: number;
+    idempotencyKey: string;  // UUID generado antes del RPC — protección contra duplicados
 }
 
 @Injectable({
@@ -63,7 +64,8 @@ export class PosService {
                 p_base_iva_15:       payload.baseIva15,
                 p_iva_valor:         payload.ivaValor,
                 p_metodo_pago:       payload.metodoPago,
-                p_items:             items
+                p_items:             items,
+                p_idempotency_key:   payload.idempotencyKey
             })
             // showLoading no va aquí — pos.page.ts ya bloquea la pantalla proactivamente
         );
@@ -77,5 +79,17 @@ export class PosService {
             ventaId:           resultado.venta_id,
             numeroComprobante: resultado.numero_comprobante,
         };
+    }
+
+    /**
+     * Verifica si una venta con la idempotency_key dada ya existe en BD.
+     * Usado para recuperar ventas pendientes tras crash/cierre de app.
+     */
+    async verificarVentaPorIdempotencyKey(key: string) {
+        return this.supabase.client
+            .from('ventas')
+            .select('id')
+            .eq('idempotency_key', key)
+            .maybeSingle();
     }
 }

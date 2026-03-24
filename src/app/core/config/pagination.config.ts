@@ -7,5 +7,17 @@ export const PAGINATION_CONFIG = {
    */
   operacionesCaja: {
     pageSize: 20
+  },
+  /**
+   * Catálogo de productos (inventario)
+   */
+  inventario: {
+    pageSize: 25
+  },
+  /**
+   * Historial de ventas
+   */
+  ventas: {
+    pageSize: 25
   }
 } as const;

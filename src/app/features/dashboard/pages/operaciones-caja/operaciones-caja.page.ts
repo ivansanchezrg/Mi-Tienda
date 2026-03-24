@@ -1,12 +1,12 @@
 import { Component, inject, OnInit, OnDestroy, ViewChild } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonContent, IonIcon, IonCard, IonChip,
   IonInfiniteScroll, IonInfiniteScrollContent,
   IonRefresher, IonRefresherContent,
-  ModalController, ActionSheetController, IonSkeletonText
+  ModalController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -23,6 +23,7 @@ import { NetworkService } from '@core/services/network.service';
 import { CajasService } from '../../services/cajas.service';
 import { StorageService } from '@core/services/storage.service';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
+import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 
 interface OperacionAgrupada {
   fecha: string;
@@ -52,8 +53,8 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   private ui = inject(UiService);
   private modalCtrl = inject(ModalController);
   private storageService = inject(StorageService);
-  private actionSheetCtrl = inject(ActionSheetController);
   private networkService = inject(NetworkService);
+  private route = inject(ActivatedRoute);
   private networkSub?: Subscription;
 
   @ViewChild(IonInfiniteScroll) infiniteScroll!: IonInfiniteScroll;
@@ -91,14 +92,13 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       documentAttachOutline, closeOutline, ellipsisVertical, close
     });
 
-    const navigation = this.router.getCurrentNavigation();
-    if (navigation?.extras?.state) {
-      this.cajaId = navigation.extras.state['cajaId'];
-      this.cajaNombre = navigation.extras.state['cajaNombre'];
-    }
   }
 
   ngOnInit() {
+    const params = this.route.snapshot.queryParams;
+    this.cajaId = Number(params['cajaId']) || 0;
+    this.cajaNombre = params['cajaNombre'] || '';
+
     if (!this.cajaId) {
       this.router.navigate(['/home']);
       return;
@@ -330,36 +330,27 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       return;
     }
 
-    const actionSheet = await this.actionSheetCtrl.create({
-      header: this.cajaNombre,
-      cssClass: 'caja-action-sheet',
-      buttons: [
-        {
-          text: 'Ingreso',
-          icon: 'arrow-down-outline',
-          cssClass: 'action-sheet-success',
-          handler: () => {
-            this.abrirModalOperacion('INGRESO');
-          }
-        },
-        {
-          text: 'Egreso',
-          icon: 'arrow-up-outline',
-          cssClass: 'action-sheet-danger',
-          handler: () => {
-            this.abrirModalOperacion('EGRESO');
-          }
-        },
-        {
-          text: 'Cancelar',
-          icon: 'close',
-          role: 'cancel',
-          cssClass: 'action-sheet-cancel'
-        }
+    const groups: ModalOptionGroup[] = [{
+      options: [
+        { label: 'Ingreso', icon: 'arrow-down-outline', value: 'INGRESO' },
+        { label: 'Egreso', icon: 'arrow-up-outline', value: 'EGRESO', color: 'danger' },
       ]
+    }];
+
+    const modal = await this.modalCtrl.create({
+      component: OptionsModalComponent,
+      componentProps: { title: this.cajaNombre, groups },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
-    await actionSheet.present();
+    await modal.present();
+    const { data } = await modal.onDidDismiss();
+
+    if (data === 'INGRESO' || data === 'EGRESO') {
+      this.abrirModalOperacion(data);
+    }
   }
 
   async abrirModalOperacion(tipo: 'INGRESO' | 'EGRESO') {

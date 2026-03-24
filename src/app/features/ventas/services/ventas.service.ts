@@ -1,9 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { Venta, VentaDetalle, VentasResumen } from '../models/venta.model';
-import { DEFAULT_PAGE_SIZE } from '../../../core/constants/app.constants';
-
-export const VENTAS_PAGE_SIZE = DEFAULT_PAGE_SIZE;
+import { PAGINATION_CONFIG } from '../../../core/config/pagination.config';
 
 @Injectable({
     providedIn: 'root'
@@ -29,7 +27,7 @@ export class VentasService {
                 p_filtro:    filtro,
                 p_busqueda:  busqueda ?? null,
                 p_page:      page,
-                p_page_size: VENTAS_PAGE_SIZE,
+                p_page_size: PAGINATION_CONFIG.ventas.pageSize,
             })
         ) ?? [];
         return raw.map(v => this.mapVenta(v));

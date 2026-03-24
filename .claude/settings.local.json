@@ -62,7 +62,15 @@
       "Bash(Write-Host \"Cache limpiada\")",
       "Bash(node -e \"const pkg = require\\(''./node_modules/@ionic/angular/package.json''\\); console.log\\(pkg.version\\)\")",
       "Bash(powershell -Command \"Get-ChildItem -Recurse -Path src -Filter ''*.ts'' | ForEach-Object { \\(Get-Content $_FullName\\) -replace \"\",\\\\s*\\\\r?\\\\n\\\\s*presentationStyle: ''page''\"\", '''' | Set-Content $_FullName -Encoding UTF8 }\")",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features -name *cliente* -type f)",
+      "Bash(npx tsc:*)",
+      "Bash(for f:*)",
+      "Bash(do test:*)",
+      "Bash(echo \"OK: $f\")",
+      "Bash(echo \"MISSING: $f\")",
+      "Bash(done)",
+      "Bash(npx ng:*)"
     ]
   }
 }

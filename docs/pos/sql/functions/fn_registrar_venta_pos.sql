@@ -1,23 +1,30 @@
 -- ==========================================
--- DROP — solo si la firma cambia: descomentar y ejecutar UNA VEZ antes del CREATE
+-- DROP — la firma cambia (nuevo parámetro p_idempotency_key):
+-- ejecutar UNA VEZ antes del CREATE
 -- ==========================================
--- DROP FUNCTION IF EXISTS public.registrar_venta_pos(
---   UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB
--- );
+DROP FUNCTION IF EXISTS public.registrar_venta_pos(
+  UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB
+);
 
 -- ==========================================
--- FUNCIÓN: registrar_venta_pos (v1.3)
+-- FUNCIÓN: registrar_venta_pos (v1.4)
 -- ==========================================
 -- Procesa una venta del POS en una transacción atómica.
 -- Si CUALQUIER paso falla, PostgreSQL hace rollback automático completo.
 --
+-- v1.4 — Idempotencia: acepta p_idempotency_key UUID.
+--   Si la clave ya existe en ventas, retorna la venta existente
+--   en lugar de crear un duplicado (protege contra reintentos por
+--   red inestable o doble-tap).
+--
 -- Flujo interno:
---   1. Obtiene el siguiente numero_comprobante de secuencias_comprobantes
+--   1. Si p_idempotency_key ya existe → retorna venta existente (sin efectos secundarios)
+--   2. Obtiene el siguiente numero_comprobante de secuencias_comprobantes
 --      usando UPDATE ... RETURNING (atómico, sin race conditions)
---   2. Inserta encabezado en `ventas` con todos los campos fiscales + numero_comprobante
---   3. Inserta ítems en `ventas_detalles`
---   4. El Trigger `trg_descontar_stock_venta` descuenta el stock automáticamente
---   5. El Trigger `trg_actualizar_caja_por_venta` sube el saldo de CAJA_CHICA si es EFECTIVO
+--   3. Inserta encabezado en `ventas` con todos los campos fiscales + numero_comprobante
+--   4. Inserta ítems en `ventas_detalles`
+--   5. El Trigger `trg_descontar_stock_venta` descuenta el stock automáticamente
+--   6. El Trigger `trg_actualizar_caja_por_venta` sube el saldo de CAJA_CHICA si es EFECTIVO
 --
 -- Prerequisito: ejecutar primero secuencias_comprobantes.sql
 --
@@ -34,6 +41,7 @@
 --   p_iva_valor         — Valor del IVA 15% extraído (solo FACTURA, sino 0)
 --   p_metodo_pago       — 'EFECTIVO' | 'DEUNA' | 'TRANSFERENCIA' | 'FIADO'
 --   p_items             — JSONB array: [{producto_id, cantidad, precio_unitario, subtotal}]
+--   p_idempotency_key   — UUID generado por el cliente antes del RPC (protección contra duplicados)
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION public.registrar_venta_pos(
@@ -47,7 +55,8 @@ CREATE OR REPLACE FUNCTION public.registrar_venta_pos(
   p_base_iva_15      DECIMAL(12,2)    DEFAULT 0,
   p_iva_valor        DECIMAL(12,2)    DEFAULT 0,
   p_metodo_pago      TEXT             DEFAULT 'EFECTIVO',
-  p_items            JSONB            DEFAULT '[]'
+  p_items            JSONB            DEFAULT '[]',
+  p_idempotency_key  UUID             DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -58,7 +67,27 @@ DECLARE
   v_venta_id           UUID;
   v_item               JSONB;
   v_numero_comprobante INTEGER;
+  v_existing_id        UUID;
+  v_existing_numero    INTEGER;
 BEGIN
+
+  -- 0. Idempotencia: si la clave ya existe, retornar la venta previa sin tocar nada.
+  --    Esto protege contra reintentos cuando la red falla después de que la BD ya procesó.
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT id, numero_comprobante
+    INTO   v_existing_id, v_existing_numero
+    FROM   ventas
+    WHERE  idempotency_key = p_idempotency_key;
+
+    IF v_existing_id IS NOT NULL THEN
+      RETURN json_build_object(
+        'success',            true,
+        'venta_id',           v_existing_id,
+        'numero_comprobante', v_existing_numero,
+        'duplicado',          true
+      );
+    END IF;
+  END IF;
 
   -- 1. Obtener el siguiente número de comprobante de forma atómica.
   --    UPDATE ... RETURNING bloquea solo la fila del tipo correspondiente
@@ -74,34 +103,52 @@ BEGIN
   END IF;
 
   -- 2. Insertar la Venta maestra con todos los campos fiscales + numero_comprobante
-  INSERT INTO ventas (
-    turno_id,
-    cliente_id,
-    empleado_id,
-    tipo_comprobante,
-    numero_comprobante,
-    subtotal,
-    total,
-    base_iva_0,
-    base_iva_15,
-    iva_valor,
-    metodo_pago,
-    estado
-  ) VALUES (
-    p_turno_id,
-    p_cliente_id,
-    p_empleado_id,
-    p_tipo_comprobante::tipo_comprobante_enum,
-    v_numero_comprobante,
-    p_subtotal,
-    p_total,
-    p_base_iva_0,
-    p_base_iva_15,
-    p_iva_valor,
-    p_metodo_pago,
-    'COMPLETADA'
-  )
-  RETURNING id INTO v_venta_id;
+  BEGIN
+    INSERT INTO ventas (
+      turno_id,
+      cliente_id,
+      empleado_id,
+      tipo_comprobante,
+      numero_comprobante,
+      subtotal,
+      total,
+      base_iva_0,
+      base_iva_15,
+      iva_valor,
+      metodo_pago,
+      estado,
+      idempotency_key
+    ) VALUES (
+      p_turno_id,
+      p_cliente_id,
+      p_empleado_id,
+      p_tipo_comprobante::tipo_comprobante_enum,
+      v_numero_comprobante,
+      p_subtotal,
+      p_total,
+      p_base_iva_0,
+      p_base_iva_15,
+      p_iva_valor,
+      p_metodo_pago,
+      'COMPLETADA',
+      p_idempotency_key
+    )
+    RETURNING id INTO v_venta_id;
+  EXCEPTION WHEN unique_violation THEN
+    -- Race condition: otro request con la misma idempotency_key ganó entre el SELECT y el INSERT.
+    -- Retornar la venta que ya se insertó.
+    SELECT id, numero_comprobante
+    INTO   v_existing_id, v_existing_numero
+    FROM   ventas
+    WHERE  idempotency_key = p_idempotency_key;
+
+    RETURN json_build_object(
+      'success',            true,
+      'venta_id',           v_existing_id,
+      'numero_comprobante', v_existing_numero,
+      'duplicado',          true
+    );
+  END;
 
   -- 3. Insertar los detalles (líneas de ítems)
   --    El trigger trg_descontar_stock_venta se ejecuta automáticamente
@@ -135,15 +182,16 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
--- Permisos
-REVOKE EXECUTE ON FUNCTION public.registrar_venta_pos(UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.registrar_venta_pos(UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB) TO authenticated;
+-- Permisos (firma cambió — incluye p_idempotency_key)
+REVOKE EXECUTE ON FUNCTION public.registrar_venta_pos(UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.registrar_venta_pos(UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID) TO authenticated;
 
 -- Refrescar caché PostgREST
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.registrar_venta_pos IS
-  'v1.3 — Agrega numero_comprobante secuencial por tipo vía secuencias_comprobantes (UPDATE...RETURNING). '
+  'v1.4 — Idempotencia: acepta p_idempotency_key UUID para evitar ventas duplicadas por reintento. '
+  'SELECT previo + EXCEPTION WHEN unique_violation como doble barrera contra race conditions. '
   'Registra venta completa del POS en transacción atómica. '
   'Triggers automáticos: descuento de stock (kardex) y actualización de CAJA_CHICA. '
   'Campos SRI (secuencial_sri, clave_acceso_sri, estado_sri) dormidos para fase futura.';

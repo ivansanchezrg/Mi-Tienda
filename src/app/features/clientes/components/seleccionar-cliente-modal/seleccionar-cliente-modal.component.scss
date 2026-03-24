@@ -208,6 +208,72 @@ ion-content {
     }
 }
 
+// ── Input cédula con ícono de estado ───────────
+.cedula-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .field-input {
+        padding-right: 38px; // espacio para el ícono
+    }
+
+    .cedula-spinner,
+    .cedula-icon {
+        position: absolute;
+        right: 10px;
+        font-size: 20px;
+        pointer-events: none;
+    }
+
+    .cedula-spinner {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+.field-error {
+    font-size: 12px;
+    color: var(--ion-color-danger);
+    margin: 0;
+}
+
+// ── Card cliente duplicado ──────────────────────
+.duplicate-card {
+    background: rgba(var(--ion-color-warning-rgb), 0.08);
+    border: 1px solid var(--ion-color-warning);
+    border-radius: 10px;
+    padding: 10px 12px;
+
+    .duplicate-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ion-color-warning-shade);
+        margin: 0 0 8px 0;
+    }
+
+    .duplicate-item {
+        --background: transparent;
+        --padding-start: 0;
+        --inner-padding-end: 0;
+        --padding-top: 4px;
+        --padding-bottom: 4px;
+        --min-height: 48px;
+        border-radius: 8px;
+
+        h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--ion-text-color);
+        }
+
+        p {
+            font-size: 12px;
+            color: var(--ion-color-medium);
+        }
+    }
+}
+
 .form-actions {
     display: flex;
     gap: 10px;

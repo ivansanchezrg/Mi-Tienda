@@ -466,7 +466,7 @@ export class VerificarFondoModalComponent {
   private ui                = inject(UiService);
 
   // Props recibidas
-  fondoFijo        = 40.00;
+  fondoFijo        = 0; // se recibe via componentProps desde home.page
   deficitVarios = 0;
   fondoFaltante    = 0;
 
@@ -499,13 +499,18 @@ export class VerificarFondoModalComponent {
     this.modalCtrl.dismiss(null, 'cancel');
   }
 
+  abriendo = false;
+
   /** Step 2: registra déficit (si aplica) y abre caja — todo en un solo clic */
   async abrirCaja(): Promise<void> {
+    if (this.abriendo) return;
+
     if (!this.hayDeficit) {
       this.modalCtrl.dismiss({ confirmado: true }, 'confirm');
       return;
     }
 
+    this.abriendo = true;
     this.errorMsg = '';
     await this.ui.showLoading('Abriendo caja...');
 
@@ -517,6 +522,7 @@ export class VerificarFondoModalComponent {
     await this.ui.hideLoading();
 
     if (!result.ok) {
+      this.abriendo = false;
       this.errorMsg = result.errorMsg || 'Error al registrar. Verifica tu conexión e intenta de nuevo.';
       return;
     }

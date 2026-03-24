@@ -201,8 +201,7 @@ CREATE TABLE IF NOT EXISTS recargas_virtuales (
 -- 11. categorias_productos
 CREATE TABLE IF NOT EXISTS categorias_productos (
     id          SERIAL PRIMARY KEY,
-    nombre      VARCHAR(100) NOT NULL,
-    descripcion TEXT,
+    nombre      VARCHAR(100) NOT NULL UNIQUE,
     activo      BOOLEAN DEFAULT TRUE,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -213,7 +212,6 @@ CREATE TABLE IF NOT EXISTS productos (
     categoria_id    INTEGER REFERENCES categorias_productos(id),
     codigo_barras   VARCHAR(50) UNIQUE,
     nombre          VARCHAR(150) NOT NULL,
-    descripcion     TEXT,
     precio_costo    DECIMAL(12,2) NOT NULL DEFAULT 0,
     precio_venta    DECIMAL(12,2) NOT NULL,
     stock_actual    DECIMAL(12,2) DEFAULT 0,
@@ -270,7 +268,8 @@ CREATE TABLE IF NOT EXISTS ventas (
     estado_sri          VARCHAR(20) CHECK (estado_sri IN ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO', 'NO_ENVIADO')) DEFAULT 'NO_ENVIADO',
 
     estado          VARCHAR(20) DEFAULT 'COMPLETADA' CHECK (estado IN ('COMPLETADA', 'ANULADA')),
-    observaciones   TEXT
+    observaciones   TEXT,
+    idempotency_key UUID UNIQUE                              -- Evita ventas duplicadas por reintento (POS)
 );
 
 -- 15. ventas_detalles (El Recibo Físico)
@@ -369,6 +368,10 @@ CREATE TRIGGER trg_set_codigo_categoria_operacion
 
 -- ── TRIGGERS POS E INVENTARIO ──
 
+-- 0. Código de barras interno EAN-13 (prefijo 20) para productos sin código
+--    Fuente: docs/inventario/sql/functions/fn_generar_codigo_interno.sql
+--    Trigger: trg_generar_codigo_interno → BEFORE INSERT ON productos
+
 -- A. Descontar Stock y grabar Kardex al vender
 CREATE OR REPLACE FUNCTION fn_actualizar_stock_venta()
 RETURNS TRIGGER AS $$
@@ -462,13 +465,15 @@ INSERT INTO clientes (identificacion, nombre, es_consumidor_final)
 VALUES ('9999999999999', 'CONSUMIDOR FINAL', TRUE);
 
 -- Categorías de Productos Iniciales (Semilla)
-INSERT INTO categorias_productos (nombre, descripcion) VALUES
-('Bebidas',         'Gaseosas, jugos, aguas, cervezas, etc.'),
-('Snacks',          'Papas procesadas, nachos, doritos, galletas, etc.'),
-('Abarrotes',       'Arroz, azúcar, fideos, aceites, enlatados, etc.'),
-('Lácteos',         'Leche, yogur, quesos, mantequilla, etc.'),
-('Limpieza',        'Cloro, desinfectante, jabones de lavar, etc.'),
-('Aseo Personal',   'Shampoo, jabón de baño, papel higiénico, pasta dental, etc.');
+INSERT INTO categorias_productos (nombre) VALUES
+('Bebidas'),
+('Snacks'),
+('Abarrotes'),
+('Lácteos'),
+('Limpieza'),
+('Aseo Personal'),
+('Panadería')
+ON CONFLICT (nombre) DO NOTHING;
 
 -- codigo se omite: el trigger fn_set_codigo_categoria_operacion() lo genera automáticamente
 -- EGRESO → EG-001, EG-002... / INGRESO → IN-001, IN-002...
@@ -507,10 +512,10 @@ INSERT INTO usuarios (nombre, usuario, rol) VALUES
 
 -- Insertar 3 productos de prueba (Asumiendo IDs 1 a 6 que se generan secuencialmente arriba)
 -- 1 = Bebidas, 2 = Snacks, 4 = Lácteos
-INSERT INTO productos (categoria_id, codigo_barras, nombre, descripcion, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva) VALUES
-(1, '786123456001', 'Coca-Cola 1L', 'Bebida azucarada', 0.80, 1.25, 24, 5, TRUE),
-(2, '786123456002', 'Ruffles Natural 50g', 'Papas fritas', 0.35, 0.50, 50, 10, TRUE),
-(4, '786123456003', 'Yogur Toni Fresa 200ml', 'Yogur bebible', 0.40, 0.60, 15, 5, FALSE);
+INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva) VALUES
+(1, '786123456001', 'Coca-Cola 1L', 0.80, 1.25, 24, 5, TRUE),
+(2, '786123456002', 'Ruffles Natural 50g', 0.35, 0.50, 50, 10, TRUE),
+(4, '786123456003', 'Yogur Toni Fresa 200ml', 0.40, 0.60, 15, 5, FALSE);
 
 -- ==========================================
 -- RESUMEN (v5.0)

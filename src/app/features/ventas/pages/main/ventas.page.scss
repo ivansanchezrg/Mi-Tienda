@@ -344,3 +344,8 @@ ion-footer {
         }
     }
 }
+
+// ── FAB scroll-to-top ──
+.scroll-top-fab {
+    margin-bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom));
+}

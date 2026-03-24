@@ -2,7 +2,7 @@
 
 Aplicación móvil híbrida para gestión de tienda minorista. Desarrollada con **Ionic Angular** y **Supabase** como backend, empaquetada como APK Android con Capacitor.
 
-Incluye gestión de caja (sistema de 4 cajas), ventas, recargas virtuales (celular/bus), inventario, gastos operativos con comprobantes fotográficos y control de usuarios.
+Incluye gestión de caja (sistema de 5 cajas), ventas POS, recargas virtuales (celular/bus), inventario y control de usuarios.
 
 ---
 
@@ -37,13 +37,12 @@ Incluye gestión de caja (sistema de 4 cajas), ventas, recargas virtuales (celul
 | Módulo             | Estado           | Descripción                                                              |
 | ------------------ | ---------------- | ------------------------------------------------------------------------ |
 | Auth               | ✅ Completo       | Autenticación con Google OAuth via Supabase + Deep Links                 |
-| Dashboard          | ✅ Completo       | Home, apertura/cierre de caja, cuadre y operaciones (sistema de 4 cajas) |
+| Dashboard          | ✅ Completo       | Home, apertura/cierre de caja, cuadre y operaciones (sistema de 5 cajas) |
 | Recargas Virtuales | ✅ Completo       | Gestión de saldo CELULAR/BUS, deudas, liquidaciones y comisiones         |
-| Gastos Diarios     | ✅ Completo       | Registro de gastos operativos con FAB y comprobantes fotográficos        |
-| Inventario         | 🚧 En desarrollo | Control de stock de productos                                            |
-| POS                | 🚧 En desarrollo | Punto de venta para registro de ventas                                   |
-| Reportes           | 🚧 En desarrollo | Reportes e historial de movimientos                                      |
 | Usuarios           | ✅ Completo       | Gestión de usuarios y permisos                                           |
+| Inventario         | 🚧 En desarrollo | Control de stock de productos                                            |
+| POS                | 🚧 En desarrollo | Punto de venta con escáner de código de barras y cobro                   |
+| Reportes           | 🚧 En desarrollo | Reportes e historial de movimientos                                      |
 
 ---
 
@@ -162,8 +161,10 @@ npx cap run android    # Instala el APK en el dispositivo conectado
 | ------------------ | ------------------------------------------------------------------------------------ |
 | Auth               | [AUTH-README.md](docs/auth/AUTH-README.md)                                           |
 | Dashboard          | [DASHBOARD-README.md](docs/dashboard/DASHBOARD-README.md)                            |
-| Gastos Diarios     | [GASTOS-DIARIOS-README.md](docs/gastos-diarios/GASTOS-DIARIOS-README.md)             |
 | Recargas Virtuales | [RECARGAS-VIRTUALES-README.md](docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md) |
+| POS                | [POS-README.md](docs/pos/POS-README.md)                                             |
+| Shared             | [README.md](docs/shared/README.md)                                                  |
+| Arquitectura cajas | [ARQUITECTURA.md](docs/ARQUITECTURA.md)                                             |
 
 ---
 
@@ -177,11 +178,13 @@ mi-tienda/
 │   │   ├── features/           # Módulos de la aplicación
 │   │   │   ├── auth/
 │   │   │   ├── dashboard/
-│   │   │   ├── gastos-diarios/
 │   │   │   ├── recargas-virtuales/
 │   │   │   ├── inventario/
 │   │   │   ├── pos/
-│   │   │   └── ...
+│   │   │   ├── ventas/
+│   │   │   ├── clientes/
+│   │   │   ├── usuarios/
+│   │   │   └── reportes/
 │   │   └── shared/             # Componentes y directivas reutilizables
 │   └── environments/
 │       ├── environment.example.ts   # Plantilla de credenciales (incluida en git)

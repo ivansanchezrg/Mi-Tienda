@@ -9,12 +9,14 @@ import {
 import { addIcons } from 'ionicons';
 import {
     closeOutline, personOutline, addOutline, checkmarkOutline,
-    informationCircleOutline, personAddOutline
+    informationCircleOutline, personAddOutline, alertCircleOutline,
+    checkmarkCircleOutline
 } from 'ionicons/icons';
 import { ClientesService } from '../../services/clientes.service';
 import { Cliente } from '../../models/cliente.model';
 import { TipoComprobante } from '../../../pos/models/tipo-comprobante.enum';
 import { UiService } from '../../../../core/services/ui.service';
+import { validarCedulaEcuatoriana } from '../../../../core/utils/cedula.util';
 
 @Component({
     selector: 'app-seleccionar-cliente-modal',
@@ -42,15 +44,23 @@ export class SeleccionarClienteModalComponent implements OnInit {
     buscando = false;
     textoBusqueda = '';
 
-    // Formulario nuevo cliente
+    // Formulario nuevo cliente — flujo: cédula primero
     mostrarFormNuevo = false;
-    nuevoNombre = '';
     nuevoIdentificacion = '';
+    cedulaEstado: 'idle' | 'valida' | 'invalida' | 'buscando' = 'idle';
+    clienteDuplicado: Cliente | null = null;  // cliente existente con esa cédula
+    mostrarCamposExtras = false;              // se habilita tras verificar cédula
+    nuevoNombre = '';
     nuevoTelefono = '';
+    nuevoEmail = '';
     guardando = false;
 
     constructor() {
-        addIcons({ closeOutline, personOutline, addOutline, checkmarkOutline, informationCircleOutline, personAddOutline });
+        addIcons({
+            closeOutline, personOutline, addOutline, checkmarkOutline,
+            informationCircleOutline, personAddOutline, alertCircleOutline,
+            checkmarkCircleOutline
+        });
     }
 
     async ngOnInit() {
@@ -82,13 +92,63 @@ export class SeleccionarClienteModalComponent implements OnInit {
         this.modalCtrl.dismiss({ cliente });
     }
 
+    // ── Nuevo cliente — flujo cédula primero ──────────────────────────────
+
+    abrirFormNuevo() {
+        this.mostrarFormNuevo = true;
+        this.resetFormNuevo();
+    }
+
+    cerrarFormNuevo() {
+        this.mostrarFormNuevo = false;
+        this.resetFormNuevo();
+    }
+
+    private resetFormNuevo() {
+        this.nuevoIdentificacion = '';
+        this.cedulaEstado = 'idle';
+        this.clienteDuplicado = null;
+        this.mostrarCamposExtras = false;
+        this.nuevoNombre = '';
+        this.nuevoTelefono = '';
+        this.nuevoEmail = '';
+    }
+
+    async onIdentificacionInput() {
+        const cedula = this.nuevoIdentificacion.trim();
+
+        // Reset al cambiar
+        this.clienteDuplicado = null;
+        this.mostrarCamposExtras = false;
+        this.cedulaEstado = 'idle';
+
+        if (cedula.length < 10) return;
+
+        // Validar algorítmicamente
+        if (!validarCedulaEcuatoriana(cedula)) {
+            this.cedulaEstado = 'invalida';
+            return;
+        }
+
+        // Cédula válida — buscar duplicado en BD
+        this.cedulaEstado = 'buscando';
+        try {
+            const existente = await this.clientesService.buscarPorIdentificacion(cedula);
+            if (existente) {
+                this.clienteDuplicado = existente;
+                this.cedulaEstado = 'valida';
+            } else {
+                this.cedulaEstado = 'valida';
+                this.mostrarCamposExtras = true;
+            }
+        } catch {
+            this.cedulaEstado = 'invalida';
+        }
+    }
+
     async guardarNuevo() {
         if (!this.nuevoNombre.trim()) {
             this.ui.showToast('El nombre es obligatorio', 'warning');
-            return;
-        }
-        if (this.tipoComprobante === TipoComprobante.FACTURA && !this.nuevoIdentificacion.trim()) {
-            this.ui.showToast('La Factura requiere RUC o cédula', 'warning');
             return;
         }
 
@@ -98,6 +158,7 @@ export class SeleccionarClienteModalComponent implements OnInit {
                 nombre: this.nuevoNombre.trim().toUpperCase(),
                 identificacion: this.nuevoIdentificacion.trim() || undefined,
                 telefono: this.nuevoTelefono.trim() || undefined,
+                email: this.nuevoEmail.trim() || undefined,
             });
             if (cliente) {
                 this.modalCtrl.dismiss({ cliente });
