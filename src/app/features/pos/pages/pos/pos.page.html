@@ -26,12 +26,28 @@
 
   <ion-toolbar class="search-toolbar">
     <div class="searchbar-wrapper">
-      <ion-searchbar [(ngModel)]="buscarTexto" (ionInput)="buscarProducto($event)"
-        placeholder="Buscar por nombre o EAN..." [animated]="false" mode="ios" [debounce]="450">
-      </ion-searchbar>
-      @if (buscando) {
-      <ion-spinner name="crescent" class="search-spinner" color="medium"></ion-spinner>
-      }
+      <div class="search-box">
+        <button class="search-mode-btn" (click)="toggleModoBusqueda()" type="button">
+          <ion-icon [name]="modoBusqueda === 'codigo' ? 'barcode-outline' : 'search-outline'"
+            color="primary"></ion-icon>
+        </button>
+        <input class="search-input"
+          [(ngModel)]="buscarTexto"
+          [placeholder]="modoBusqueda === 'codigo' ? 'Buscar por código...' : 'Buscar por nombre...'"
+          [inputMode]="modoBusqueda === 'codigo' ? 'numeric' : 'text'"
+          (input)="onSearchInput($event)"
+          (keyup)="onSearchKeyup($event)"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false" />
+        @if (buscando) {
+          <ion-spinner name="crescent" class="search-spinner" color="medium"></ion-spinner>
+        } @else if (buscarTexto) {
+          <button class="search-clear-btn" (click)="limpiarBusqueda()" type="button">
+            <ion-icon name="close-outline" color="medium"></ion-icon>
+          </button>
+        }
+      </div>
     </div>
 
     <!-- Fila cliente — inline, misma línea visual que el desglose IVA -->
@@ -84,14 +100,17 @@
     </div>
     }
 
-    <!-- Badge-botón: muestra resumen, tap para cerrar escáner -->
-    @if (carrito.length > 0) {
+    <!-- Badge-botón: tap para cerrar escáner -->
     <button class="scanner-cart-badge" (click)="cerrarEscaner()">
-      <ion-icon name="cart-outline"></ion-icon>
-      <span>{{ totalArticulos }} · ${{ currencyService.format(totalPagar) }}</span>
-      <ion-icon name="chevron-forward-outline" class="badge-arrow"></ion-icon>
+      @if (carrito.length > 0) {
+        <ion-icon name="cart-outline"></ion-icon>
+        <span>{{ totalArticulos }} · ${{ currencyService.format(totalPagar) }}</span>
+        <ion-icon name="chevron-forward-outline" class="badge-arrow"></ion-icon>
+      } @else {
+        <ion-icon name="close-outline"></ion-icon>
+        <span>Cerrar escáner</span>
+      }
     </button>
-    }
   </div>
 </div>
 }
@@ -102,18 +121,17 @@
 @if (!escaneando) {
 <ion-content color="light">
 
-  <!-- LISTA FLOTANTE DE SUGERENCIAS (fuera del header, dentro del content) -->
-  @if (productosBusqueda.length > 0) {
-  <div class="search-results-wrapper p-xs">
-    <ion-list class="search-results-list" lines="full">
+  <!-- SUGERENCIAS: slot="fixed" → fijo debajo del input, no scrollea con el carrito -->
+  @if (buscarTexto && productosBusqueda.length > 0) {
+  <div class="search-results-wrapper" slot="fixed">
+    <ion-list class="search-results-list" lines="none">
       @for (prod of productosBusqueda; track prod.id) {
-      <ion-item button (click)="seleccionarProductoBusqueda(prod)">
-        <ion-icon name="cube-outline" slot="start" color="primary"></ion-icon>
+      <ion-item button (click)="seleccionarProductoBusqueda(prod)" class="suggestion-item">
         <ion-label>
           <h2>{{ prod.nombre }}</h2>
-          <p>Stock: {{ prod.stock_actual }} · ${{ currencyService.format(prod.precio_venta) }}</p>
+          <p>Stock: {{ prod.stock_actual }}</p>
         </ion-label>
-        <ion-icon name="add-circle-outline" slot="end" color="primary"></ion-icon>
+        <span slot="end" class="suggestion-price">${{ currencyService.format(prod.precio_venta) }}</span>
       </ion-item>
       }
     </ion-list>
@@ -125,23 +143,24 @@
     @if (carrito.length === 0) {
     <!-- Estado vacío del carrito -->
     <div class="empty-state">
-      <div class="empty-icon-wrap">
-        <ion-icon name="cart-outline"></ion-icon>
-      </div>
-      <h2>Carrito vacío</h2>
-      <p>Busca un producto o escanea su código de barras para comenzar.</p>
+      <ion-icon name="cart-outline" class="empty-icon"></ion-icon>
+      <p>Busca un producto o escanea su código para comenzar</p>
     </div>
     } @else {
     <!-- Lista del Carrito -->
     <ion-list class="cart-list" lines="none">
       @for (item of carrito; track item.id) {
-      <ion-item-sliding class="cart-sliding">
+      <ion-item-sliding class="cart-sliding" [class.cart-item-enter]="lastAddedId === item.id">
 
         <ion-item class="cart-item" lines="none">
 
-          <!-- Ícono decorativo -->
-          <div slot="start" class="item-icon-box">
-            <ion-icon name="cube-outline"></ion-icon>
+          <!-- Imagen producto -->
+          <div slot="start" class="item-thumb">
+            @if (item.imagen_url) {
+              <img [src]="storageService.getPublicUrl(item.imagen_url, 'productos')" [alt]="item.nombre" />
+            } @else {
+              <ion-icon name="image-outline"></ion-icon>
+            }
           </div>
 
           <!-- Nombre y precio unitario -->
@@ -163,7 +182,7 @@
               <button class="stepper-btn" (click)="decrementar(item)" [disabled]="item.cantidad <= 1">
                 <ion-icon name="remove-outline"></ion-icon>
               </button>
-              <span class="stepper-val">{{ item.cantidad }}</span>
+              <span class="stepper-val" (click)="editarCantidad(item)">{{ item.cantidad }}</span>
               <button class="stepper-btn" (click)="incrementar(item)">
                 <ion-icon name="add-outline"></ion-icon>
               </button>
@@ -187,55 +206,57 @@
   </div>
 
   <!-- Botón escáner — esquina inferior derecha del content -->
-  <button class="scanner-corner-btn" (click)="abrirEscanerCamara()">
+  <button class="scanner-corner-btn" [class.scanner-corner-btn--no-footer]="carrito.length === 0" (click)="abrirEscanerCamara()">
     <ion-icon name="barcode-outline"></ion-icon>
   </button>
 
 </ion-content>
 
-<!-- Footer Fijo de Cobro -->
-<ion-footer class="ion-no-border">
-  <div class="pos-footer p-md">
-    <!-- Desglose fiscal: solo visible en FACTURA -->
-    @if (mostrarDesglose) {
-    <div class="breakdown mb-xs">
-      @if (baseIva0 > 0) {
-      <div class="breakdown-row">
-        <span class="breakdown-label">Base 0%</span>
-        <span class="breakdown-value">${{ currencyService.format(baseIva0) }}</span>
+  <!-- Footer Fijo de Cobro — solo visible con items en el carrito -->
+  @if (carrito.length > 0) {
+  <ion-footer class="ion-no-border">
+    <div class="pos-footer p-md">
+      <!-- Desglose fiscal: solo visible en FACTURA -->
+      @if (mostrarDesglose) {
+      <div class="breakdown mb-xs">
+        @if (baseIva0 > 0) {
+        <div class="breakdown-row">
+          <span class="breakdown-label">Base 0%</span>
+          <span class="breakdown-value">${{ currencyService.format(baseIva0) }}</span>
+        </div>
+        }
+        @if (baseIva15 > 0) {
+        <div class="breakdown-row">
+          <span class="breakdown-label">Base 15%</span>
+          <span class="breakdown-value">${{ currencyService.format(baseIva15) }}</span>
+        </div>
+        }
+        <div class="breakdown-row">
+          <span class="breakdown-label">IVA 15%</span>
+          <span class="breakdown-value">${{ currencyService.format(ivaValor) }}</span>
+        </div>
+        <div class="breakdown-divider"></div>
       </div>
       }
-      @if (baseIva15 > 0) {
-      <div class="breakdown-row">
-        <span class="breakdown-label">Base 15%</span>
-        <span class="breakdown-value">${{ currencyService.format(baseIva15) }}</span>
+
+      <!-- Fila total (siempre visible) -->
+      <div class="total-row ">
+        <div class="total-left">
+          <span class="total-label">Total</span>
+          <span class="total-articles">
+            {{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}
+          </span>
+        </div>
+        <span class="total-amount">${{ currencyService.format(totalPagar) }}</span>
       </div>
-      }
-      <div class="breakdown-row">
-        <span class="breakdown-label">IVA 15%</span>
-        <span class="breakdown-value">${{ currencyService.format(ivaValor) }}</span>
-      </div>
-      <div class="breakdown-divider"></div>
+
+      <ion-button expand="block" shape="round" color="primary" class="btn-charge" (click)="cobrar()"
+        [disabled]="carrito.length === 0">
+        <ion-icon name="cash-outline" slot="start"></ion-icon>
+        Cobrar
+      </ion-button>
+
     </div>
-    }
-
-    <!-- Fila total (siempre visible) -->
-    <div class="total-row ">
-      <div class="total-left">
-        <span class="total-label">Total</span>
-        <span class="total-articles">
-          {{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}
-        </span>
-      </div>
-      <span class="total-amount">${{ currencyService.format(totalPagar) }}</span>
-    </div>
-
-    <ion-button expand="block" shape="round" color="primary" class="btn-charge" (click)="cobrar()"
-      [disabled]="carrito.length === 0">
-      <ion-icon name="cash-outline" slot="start"></ion-icon>
-      Cobrar · ${{ currencyService.format(totalPagar) }}
-    </ion-button>
-
-  </div>
-</ion-footer>
+  </ion-footer>
+  }
 }

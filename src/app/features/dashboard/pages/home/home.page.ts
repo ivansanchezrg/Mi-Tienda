@@ -58,6 +58,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private networkService = inject(NetworkService);
   private cdr = inject(ChangeDetectorRef);
   private networkSub?: Subscription;
+  private queryParamsSub?: Subscription;
 
   // Estado del turno de caja
   estadoCaja: EstadoCaja = {
@@ -143,7 +144,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       this.isOnline = isOnline;
     });
 
-    this.route.queryParams.subscribe(async params => {
+    this.queryParamsSub = this.route.queryParams.subscribe(async params => {
       const action = params['action'];
       if (action) {
         await this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
@@ -156,6 +157,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.networkSub?.unsubscribe();
+    this.queryParamsSub?.unsubscribe();
   }
 
   private async manejarAccion(action: string) {
@@ -246,7 +248,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   onSaldoClick(tipo: string) {
     const caja = this.cajas.find(c => c.codigo === this.TIPO_CODIGO[tipo]);
     if (!caja) return;
-    this.router.navigate(['/home/operaciones-caja'], { state: { cajaId: caja.id, cajaNombre: caja.nombre } });
+    this.router.navigate(['/home/operaciones-caja'], { queryParams: { cajaId: caja.id, cajaNombre: caja.nombre } });
   }
 
   /** Handler del menú ⋮ en cards de Tienda y Cajón */

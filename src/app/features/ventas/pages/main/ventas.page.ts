@@ -10,6 +10,7 @@ import {
     IonDatetime, IonModal, IonSearchbar,
     IonSkeletonText, IonFooter,
     IonInfiniteScroll, IonInfiniteScrollContent,
+    IonFab, IonFabButton,
     ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -19,7 +20,8 @@ import {
     phonePortraitOutline, handRightOutline,
     cartOutline, chevronDownCircleOutline, banOutline
 } from 'ionicons/icons';
-import { VentasService, VENTAS_PAGE_SIZE } from '../../services/ventas.service';
+import { VentasService } from '../../services/ventas.service';
+import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { Venta } from '../../models/venta.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { getFechaLocal, formatFechaEC, formatHoraEC } from '../../../../core/utils/date.util';
@@ -41,6 +43,7 @@ import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page'
         IonDatetime, IonModal, IonSearchbar,
         IonSkeletonText, IonFooter,
         IonInfiniteScroll, IonInfiniteScrollContent,
+        IonFab, IonFabButton,
         OptionsMenuComponent
     ]
 })
@@ -54,7 +57,8 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
     /** Alias para el template — apunta a this.items de la base */
     get ventas(): Venta[] { return this.items; }
 
-    protected readonly pageSize = VENTAS_PAGE_SIZE;
+    protected readonly pageSize = PAGINATION_CONFIG.ventas.pageSize;
+    readonly loadingMoreText = 'Cargando más ventas...';
 
     /** Filtro de periodo rápido: hoy, semana, mes, todo, custom */
     filtroActivo = 'hoy';

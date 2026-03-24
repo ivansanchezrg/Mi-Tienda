@@ -1,30 +1,37 @@
-import { inject } from '@angular/core';
+import { Directive, ElementRef, inject, ViewChild } from '@angular/core';
+import { addIcons } from 'ionicons';
+import { arrowUpOutline } from 'ionicons/icons';
 import { UiService } from '../../core/services/ui.service';
 
 /**
- * Clase base para páginas con listado paginado + infinite scroll.
+ * Clase base para páginas con listado paginado + infinite scroll + scroll-to-top.
  *
  * Uso:
  *   1. Extender esta clase en la página.
  *   2. Implementar `pageSize` y `fetchPage(page)`.
- *   3. En el template, usar `items` (o un getter alias) + los métodos heredados.
+ *   3. En el template, usar `items` + los métodos heredados.
  *   4. Llamar `this.cargar()` para cargar/recargar desde página 0.
+ *   5. Agregar en el HTML: `<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">`
+ *   6. Agregar antes de cerrar ion-content el bloque del FAB scroll-to-top (ver abajo).
  *
- * La subclase NO necesita declarar: loading, hasMore, cargarMas, handleRefresh.
- *
- * Ejemplo:
- * ```typescript
- * export class MiListaPage extends PaginatedListPage<MiItem> {
- *     protected readonly pageSize = 20;
- *     get items_alias() { return this.items; }   // opcional: alias para el template
- *
- *     protected async fetchPage(page: number): Promise<MiItem[]> {
- *         return this.miServicio.listar(page, this.pageSize);
- *     }
+ * Template del FAB (copiar antes de </ion-content>):
+ * ```html
+ * @if (showScrollTop) {
+ * <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+ *   <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+ *     <ion-icon name="arrow-up-outline"></ion-icon>
+ *   </ion-fab-button>
+ * </ion-fab>
  * }
  * ```
+ *
+ * La subclase NO necesita declarar: loading, hasMore, cargarMas, handleRefresh,
+ * showScrollTop, onContentScroll, scrollToTop.
  */
+@Directive()
 export abstract class PaginatedListPage<T> {
+
+    @ViewChild('content', { read: ElementRef }) private contentRef!: ElementRef;
 
     protected ui = inject(UiService);
 
@@ -37,10 +44,20 @@ export abstract class PaginatedListPage<T> {
     /** Controla si el infinite scroll sigue activo */
     hasMore = false;
 
+    /** Muestra el FAB de scroll-to-top cuando el usuario baja lo suficiente */
+    showScrollTop = false;
+
     private _page = 0;
 
     /** Registros por página — debe definirlo cada subclase */
     protected abstract readonly pageSize: number;
+
+    /** Texto del spinner de infinite scroll — debe definirlo cada subclase */
+    abstract readonly loadingMoreText: string;
+
+    constructor() {
+        addIcons({ arrowUpOutline });
+    }
 
     /**
      * Obtiene una página de datos desde el origen.
@@ -84,5 +101,17 @@ export abstract class PaginatedListPage<T> {
     async handleRefresh(event: CustomEvent): Promise<void> {
         await this.cargar(true);
         (event.target as HTMLIonRefresherElement).complete();
+    }
+
+    // ── Scroll-to-top ──────────────────────────────────────────────────
+
+    /** Handler de (ionScroll): muestra/oculta el FAB según posición */
+    onContentScroll(event: CustomEvent): void {
+        this.showScrollTop = event.detail.scrollTop > 600;
+    }
+
+    /** Sube al inicio con animación */
+    scrollToTop(): void {
+        this.contentRef?.nativeElement?.scrollToTop?.(400);
     }
 }

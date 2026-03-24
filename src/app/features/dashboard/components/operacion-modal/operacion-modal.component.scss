@@ -1,57 +1,87 @@
-// Estilo inspirado en operaciones-caja page
+// Forzar alineación izquierda del ion-title
+ion-title {
+  text-align: left;
+  padding-inline-start: var(--spacing-md);
+}
 
-// Balance Card - Colores dinámicos según tipo de operación
-.balance-card {
-  padding: var(--spacing-xl);
-  margin-bottom: var(--spacing-lg);
+// Toolbar coloreado según tipo de operación
+ion-toolbar.toolbar-ingreso {
+  --background: rgba(var(--ion-color-success-rgb), 0.06);
+  --border-color: rgba(var(--ion-color-success-rgb), 0.15);
+}
 
-  // Verde para ingresos
-  &.ingreso {
-    background: rgba(var(--ion-color-success-rgb), 0.06);
-    border-bottom: 1px solid rgba(var(--ion-color-success-rgb), 0.12);
+ion-toolbar.toolbar-egreso {
+  --background: rgba(var(--ion-color-danger-rgb), 0.06);
+  --border-color: rgba(var(--ion-color-danger-rgb), 0.15);
+}
 
-    .balance-amount {
-      color: var(--ion-color-success);
-    }
+// Título del toolbar con icono de tipo
+.toolbar-title {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--spacing-sm);
+
+  .toolbar-tipo-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+
+    &.ingreso { color: var(--ion-color-success); }
+    &.egreso  { color: var(--ion-color-danger); }
   }
 
-  // Rojo para egresos
-  &.egreso {
-    background: rgba(var(--ion-color-danger-rgb), 0.06);
-    border-bottom: 1px solid rgba(var(--ion-color-danger-rgb), 0.12);
-
-    .balance-amount {
-      color: var(--ion-color-danger);
-    }
-  }
-
-  .caja-name {
-    text-align: center;
-    font-size: 15px;
+  .toolbar-title-main {
+    font-size: 16px;
     font-weight: var(--font-weight-semibold);
     color: var(--ion-text-color);
-    margin-bottom: var(--spacing-md);
-  }
-
-  .balance-main {
-    text-align: center;
-
-    .balance-amount {
-      display: block;
-      font-size: 32px;
-      font-weight: var(--font-weight-extrabold);
-      letter-spacing: -0.5px;
-      margin-bottom: var(--spacing-xs);
-    }
-
-    .balance-label {
-      display: block;
-      font-size: 13px;
-      font-weight: var(--font-weight-medium);
-      color: var(--ion-color-medium);
-    }
   }
 }
+
+// Contexto bancario — caja y saldo
+.context-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xl) var(--spacing-lg);
+  border-bottom: 1px solid var(--ion-color-step-100);
+  gap: var(--spacing-xs);
+
+  &.ingreso {
+    background: rgba(var(--ion-color-success-rgb), 0.06);
+    .context-saldo-value { color: var(--ion-color-success); }
+  }
+
+  &.egreso {
+    background: rgba(var(--ion-color-danger-rgb), 0.06);
+    .context-saldo-value { color: var(--ion-color-danger); }
+  }
+
+  .context-caja-name {
+    margin: 0;
+    font-size: 13px;
+    font-weight: var(--font-weight-medium);
+    color: var(--ion-color-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .context-saldo-value {
+    margin: 0;
+    font-size: 36px;
+    font-weight: var(--font-weight-extrabold);
+    letter-spacing: -1px;
+    line-height: 1.1;
+  }
+
+  .context-saldo-label {
+    margin: 0;
+    font-size: 12px;
+    color: var(--ion-color-medium);
+    font-weight: var(--font-weight-regular);
+  }
+}
+
 
 // Form Content - Igual que gasto-modal
 .form-content {
@@ -94,27 +124,43 @@
     border-radius: var(--radius-xs);
   }
 
-  // Select nativo
-  select {
+  .filter-selector {
     width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     padding: var(--spacing-md);
     font-size: 15px;
     border: 1px solid var(--ion-color-step-150);
     border-radius: var(--radius-sm);
     background: var(--ion-item-background);
-    color: var(--ion-text-color);
-    outline: none;
     cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right var(--spacing-md) center;
-    padding-right: calc(var(--spacing-md) + 20px);
-    transition: all var(--transition-fast);
+    transition: border-color var(--transition-fast);
+    text-align: left;
 
-    &:focus {
+    &:active {
       border-color: var(--ion-color-primary);
-      box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.1);
+    }
+
+    .filter-selector-label {
+      font-size: 15px;
+      color: var(--ion-text-color);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      &.filter-selector-label--placeholder {
+        color: var(--ion-color-medium);
+      }
+    }
+
+    .filter-selector-arrow {
+      font-size: 16px;
+      color: var(--ion-color-step-500);
+      flex-shrink: 0;
+      margin-left: var(--spacing-sm);
     }
   }
 
@@ -219,7 +265,7 @@
   }
 }
 
-// Botón de subir foto - Igual que gasto-modal
+// Botón de subir foto
 .upload-btn {
   width: 100%;
   padding: var(--spacing-lg);
@@ -243,6 +289,24 @@
     font-size: 13px;
     color: var(--ion-color-medium);
     font-weight: var(--font-weight-medium);
+  }
+
+  // Variante: requerido para egresos
+  &.upload-btn--required {
+    border-color: rgba(var(--ion-color-danger-rgb), 0.4);
+    background: rgba(var(--ion-color-danger-rgb), 0.03);
+
+    ion-icon {
+      color: var(--ion-color-danger);
+      opacity: 0.7;
+    }
+  }
+
+  .upload-required-hint {
+    font-size: 11px;
+    color: var(--ion-color-danger);
+    font-weight: var(--font-weight-medium);
+    opacity: 0.8;
   }
 
   &:active {
@@ -292,6 +356,11 @@
   }
 }
 
+// Submit wrapper con safe-area para Android
+.submit-wrapper {
+  padding-bottom: calc(var(--spacing-xs) + env(safe-area-inset-bottom));
+}
+
 // Submit Button
 .submit-btn {
   width: 100%;
@@ -302,6 +371,14 @@
   font-weight: var(--font-weight-bold);
   cursor: pointer;
   transition: all var(--transition-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+
+  ion-icon {
+    font-size: 20px;
+  }
 
   &.ingreso {
     background: var(--ion-color-success);

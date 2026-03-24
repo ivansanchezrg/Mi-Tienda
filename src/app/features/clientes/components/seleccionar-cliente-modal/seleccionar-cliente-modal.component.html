@@ -41,6 +41,26 @@
     </ion-list>
     }
 
+    <!-- Cliente actual (si no es consumidor final) -->
+    @if (clienteActual && !clienteActual.es_consumidor_final) {
+    <p class="section-label">Cliente actual</p>
+    <ion-list lines="none" class="client-list">
+      <ion-item button (click)="seleccionar(clienteActual)" class="item-active">
+        <div slot="start" class="client-avatar">
+          <ion-icon name="person-outline"></ion-icon>
+        </div>
+        <ion-label>
+          <h3>{{ clienteActual.nombre }}</h3>
+          <p>
+            {{ clienteActual.identificacion || 'Sin identificación' }}
+            @if (clienteActual.telefono) { · {{ clienteActual.telefono }} }
+          </p>
+        </ion-label>
+        <ion-icon name="checkmark-outline" slot="end" color="primary"></ion-icon>
+      </ion-item>
+    </ion-list>
+    }
+
     <!-- Buscador -->
     <p class="section-label">Buscar cliente existente</p>
     <div class="searchbar-wrap">
@@ -82,31 +102,78 @@
     <!-- Nuevo cliente -->
     <p class="section-label" style="margin-top: 24px">Nuevo cliente</p>
     @if (!mostrarFormNuevo) {
-    <button class="add-client-btn" (click)="mostrarFormNuevo = true">
+    <button class="add-client-btn" (click)="abrirFormNuevo()">
       <ion-icon name="person-add-outline"></ion-icon>
       <span>Agregar nuevo cliente</span>
     </button>
     } @else {
     <div class="new-client-form">
+
+      <!-- PASO 1: Cédula -->
+      <div class="form-field">
+        <label class="field-label">
+          Cédula
+          @if (tipoComprobante === TipoComprobante.FACTURA) {
+          <span class="required"> *</span>
+          }
+        </label>
+        <div class="cedula-input-wrap">
+          <input class="field-input"
+            [(ngModel)]="nuevoIdentificacion"
+            (ngModelChange)="onIdentificacionInput()"
+            placeholder="0123456789"
+            type="text"
+            inputmode="numeric"
+            maxlength="10"
+            autocomplete="off" />
+          @if (cedulaEstado === 'buscando') {
+          <ion-spinner name="crescent" class="cedula-spinner"></ion-spinner>
+          } @else if (cedulaEstado === 'valida') {
+          <ion-icon name="checkmark-circle-outline" color="success" class="cedula-icon"></ion-icon>
+          } @else if (cedulaEstado === 'invalida') {
+          <ion-icon name="alert-circle-outline" color="danger" class="cedula-icon"></ion-icon>
+          }
+        </div>
+        @if (cedulaEstado === 'invalida') {
+        <p class="field-error">Cédula ecuatoriana inválida</p>
+        }
+      </div>
+
+      <!-- Cliente duplicado encontrado -->
+      @if (clienteDuplicado) {
+      <div class="duplicate-card">
+        <p class="duplicate-label">Ya existe un cliente con esta cédula:</p>
+        <ion-item button (click)="seleccionar(clienteDuplicado)" lines="none" class="duplicate-item">
+          <div slot="start" class="client-avatar">
+            <ion-icon name="person-outline"></ion-icon>
+          </div>
+          <ion-label>
+            <h3>{{ clienteDuplicado.nombre }}</h3>
+            <p>{{ clienteDuplicado.identificacion }}
+              @if (clienteDuplicado.telefono) { · {{ clienteDuplicado.telefono }} }
+            </p>
+          </ion-label>
+          <ion-icon name="checkmark-outline" slot="end" color="primary"></ion-icon>
+        </ion-item>
+      </div>
+      }
+
+      <!-- PASO 2: Resto de campos (solo tras cédula válida y sin duplicado) -->
+      @if (mostrarCamposExtras) {
       <div class="form-field">
         <label class="field-label">Nombre *</label>
         <input class="field-input" [(ngModel)]="nuevoNombre" placeholder="Nombre completo" type="text" autocomplete="off" />
       </div>
       <div class="form-field">
-        <label class="field-label">
-          Cédula / RUC
-          @if (tipoComprobante === TipoComprobante.FACTURA) {
-          <span class="required"> *</span>
-          }
-        </label>
-        <input class="field-input" [(ngModel)]="nuevoIdentificacion" placeholder="0123456789" type="text" autocomplete="off" />
-      </div>
-      <div class="form-field">
         <label class="field-label">Teléfono</label>
         <input class="field-input" [(ngModel)]="nuevoTelefono" placeholder="0991234567" type="tel" autocomplete="off" />
       </div>
+      <div class="form-field">
+        <label class="field-label">Email</label>
+        <input class="field-input" [(ngModel)]="nuevoEmail" placeholder="correo@ejemplo.com" type="email" autocomplete="off" />
+      </div>
       <div class="form-actions">
-        <button class="btn-cancel" (click)="mostrarFormNuevo = false">Cancelar</button>
+        <button class="btn-cancel" (click)="cerrarFormNuevo()">Cancelar</button>
         <button class="btn-save" (click)="guardarNuevo()" [disabled]="guardando">
           @if (guardando) {
           <ion-spinner name="crescent" style="width: 18px; height: 18px;"></ion-spinner>
@@ -115,6 +182,14 @@
           }
         </button>
       </div>
+      }
+
+      @if (!mostrarCamposExtras && !clienteDuplicado) {
+      <div class="form-actions">
+        <button class="btn-cancel" (click)="cerrarFormNuevo()">Cancelar</button>
+      </div>
+      }
+
     </div>
     }
 

@@ -1,0 +1,125 @@
+:host {
+    display: block;
+}
+
+.modal-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--ion-color-step-300);
+    margin: var(--spacing-sm) auto var(--spacing-md);
+}
+
+.modal-header {
+    padding: 0 var(--spacing-lg) var(--spacing-md);
+}
+
+.modal-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ion-text-color);
+}
+
+.modal-subtitle {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--ion-color-step-500);
+}
+
+.modal-body {
+    padding: 0 var(--spacing-sm) var(--spacing-lg);
+    padding-bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
+}
+
+.group-title {
+    padding: var(--spacing-md) var(--spacing-sm) var(--spacing-xs);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ion-color-step-400);
+}
+
+.options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.option-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    width: 100%;
+    padding: var(--spacing-md) var(--spacing-sm);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: background var(--transition-fast);
+    text-align: left;
+
+    &:active {
+        background: var(--ion-color-step-100);
+    }
+
+    &.destructive .option-label {
+        color: var(--ion-color-danger);
+    }
+
+    &.selected {
+        background: rgba(var(--ion-color-primary-rgb), 0.06);
+
+        .option-label {
+            color: var(--ion-color-primary);
+            font-weight: 600;
+        }
+    }
+}
+
+.option-check {
+    font-size: 20px;
+    color: var(--ion-color-primary);
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.option-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    color: var(--ion-color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    ion-icon {
+        font-size: 20px;
+    }
+
+    &.danger {
+        background: rgba(var(--ion-color-danger-rgb), 0.1);
+        color: var(--ion-color-danger);
+    }
+}
+
+.option-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.option-label {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ion-text-color);
+}
+
+.option-subtitle {
+    font-size: 12px;
+    color: var(--ion-color-step-500);
+    margin-top: 2px;
+}

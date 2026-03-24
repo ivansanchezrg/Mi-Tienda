@@ -1,28 +1,31 @@
-import { Component, OnInit, OnDestroy, inject, HostListener, NgZone } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, HostListener, NgZone, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   IonContent, IonHeader, IonTitle, IonToolbar,
   IonButtons, IonMenuButton, IonButton, IonIcon,
-  IonSearchbar, IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
+  IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
   IonItemSliding, IonItemOptions, IonItemOption,
-  ActionSheetController, ModalController, ViewDidLeave, ViewWillEnter
+  AlertController, ModalController, ViewDidLeave, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline } from 'ionicons/icons';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
+import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
 import { Producto } from '../../../inventario/models/producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { PosService, VentaPayload } from '../../services/pos.service';
 import { CartItem } from '../../models/cart-item.model';
-import { TurnosCajaService } from '../../../dashboard/services/turnos-caja.service';
 import { ClientesService } from '../../../clientes/services/clientes.service';
 import { Cliente } from '../../../clientes/models/cliente.model';
 import { SeleccionarClienteModalComponent } from '../../../clientes/components/seleccionar-cliente-modal/seleccionar-cliente-modal.component';
+import { NetworkService } from '../../../../core/services/network.service';
+import { LoggerService } from '../../../../core/services/logger.service';
+import { StorageService } from '../../../../core/services/storage.service';
 
 @Component({
   selector: 'app-pos',
@@ -32,33 +35,40 @@ import { SeleccionarClienteModalComponent } from '../../../clientes/components/s
   imports: [
     IonContent, IonHeader, IonTitle, IonToolbar,
     IonButtons, IonMenuButton, IonButton, IonIcon,
-    IonSearchbar, IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
+    IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
     IonItemSliding, IonItemOptions, IonItemOption,
     CommonModule, FormsModule,
     OptionsMenuComponent
   ]
 })
 export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
+  @ViewChild(IonContent) content!: IonContent;
+
   private inventarioService = inject(InventarioService);
   public currencyService = inject(CurrencyService);
   private ui = inject(UiService);
   private posService = inject(PosService);
-  private actionSheetCtrl = inject(ActionSheetController);
+  private alertCtrl = inject(AlertController);
   private modalCtrl = inject(ModalController);
   private clientesService = inject(ClientesService);
   private ngZone = inject(NgZone);
+  private network = inject(NetworkService);
+  private logger = inject(LoggerService);
+  public storageService = inject(StorageService);
 
   // Exponer enum al template (para el @if de mostrarDesglose)
   readonly TipoComprobante = TipoComprobante;
 
+  lastAddedId: string | null = null;
   carrito: CartItem[] = [];
   buscarTexto = '';
   productosBusqueda: Producto[] = [];
   buscando = false;
+  modoBusqueda: 'codigo' | 'nombre' = 'codigo';
   escaneando = false;
-  ultimoItemAgregadoId = '';
+  cobroEnProceso = false;
   scanPreview: { nombre: string; cantidad: number; subtotal: number; precioUnitario: number } | null = null;
-  private scanPreviewTimeout: any;
+  private scanPreviewTimeout: ReturnType<typeof setTimeout> | undefined;
 
   clienteSeleccionado: Cliente | null = null;
   cargandoCliente = false;
@@ -76,7 +86,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   // Buffer para pistola lectora física
   private barcodeBuffer = '';
-  private barcodeTimeout: any;
+  private barcodeTimeout: ReturnType<typeof setTimeout> | undefined;
 
   // Anti-duplicados para escáner de cámara
   private ultimoCodigoEscaneado = '';
@@ -96,7 +106,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       cubeOutline, searchOutline, addCircleOutline,
       cardOutline, phonePortraitOutline, handRightOutline,
       receiptOutline, documentTextOutline, documentOutline,
-      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline
+      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline
     });
   }
 
@@ -197,7 +207,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     });
 
     await modal.present();
-    const { data } = await modal.onWillDismiss();
+    const { data } = await modal.onDidDismiss();
     if (data?.cliente) {
       this.clienteSeleccionado = data.cliente;
     }
@@ -209,6 +219,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       if (existe.cantidad < producto.stock_actual) {
         this.incrementar(existe);
         this.feedbackEscaneo(existe.id);
+        this.scrollToBottom();
       } else {
         this.ui.showToast('Stock insuficiente', 'warning');
       }
@@ -219,11 +230,62 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
           cantidad: 1,
           subtotal: producto.precio_venta
         });
+        this.lastAddedId = producto.id;
+        setTimeout(() => { this.lastAddedId = null; }, 600);
         this.feedbackEscaneo(producto.id);
+        this.scrollToBottom();
       } else {
         this.ui.showToast('Producto sin stock', 'danger');
       }
     }
+  }
+
+  private scrollToBottom() {
+    setTimeout(async () => {
+      const content = this.content;
+      if (!content) return;
+      const scroll = await content.getScrollElement();
+      content.scrollToPoint(0, scroll.scrollHeight, 300);
+    }, 100);
+  }
+
+  /** Agrega N unidades de un producto al carrito (para patrón cantidad*codigo) */
+  agregarAlCarritoConCantidad(producto: Producto, cantidad: number) {
+    const disponible = producto.stock_actual;
+    if (disponible <= 0) {
+      this.ui.showToast('Producto sin stock', 'danger');
+      return;
+    }
+
+    const existe = this.carrito.find(item => item.id === producto.id);
+    const yaEnCarrito = existe ? existe.cantidad : 0;
+    const maximo = disponible - yaEnCarrito;
+    const cantidadReal = Math.min(cantidad, maximo);
+
+    if (cantidadReal <= 0) {
+      this.ui.showToast('Stock insuficiente', 'warning');
+      return;
+    }
+
+    if (existe) {
+      existe.cantidad += cantidadReal;
+      existe.subtotal = existe.cantidad * existe.precio_venta;
+    } else {
+      this.carrito.push({
+        ...producto,
+        cantidad: cantidadReal,
+        subtotal: cantidadReal * producto.precio_venta
+      });
+      this.lastAddedId = producto.id;
+      setTimeout(() => { this.lastAddedId = null; }, 600);
+    }
+
+    if (cantidadReal < cantidad) {
+      this.ui.showToast(`Solo se agregaron ${cantidadReal} (stock máximo)`, 'warning');
+    }
+
+    this.feedbackEscaneo(producto.id);
+    this.scrollToBottom();
   }
 
   /** Vibración + beep + preview efímero al agregar producto (feedback para escáner) */
@@ -281,6 +343,46 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
+  async editarCantidad(item: CartItem) {
+    const precio = this.currencyService.format(item.precio_venta);
+    const alert = await this.alertCtrl.create({
+      header: item.nombre,
+      message: `$${precio} c/u · Stock: ${item.stock_actual}`,
+      inputs: [
+        {
+          name: 'cantidad',
+          type: 'number',
+          value: item.cantidad.toString(),
+          min: 1,
+          max: item.stock_actual,
+          attributes: { inputmode: 'numeric' },
+          placeholder: 'Cantidad'
+        }
+      ],
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Confirmar',
+          handler: (data) => {
+            const nueva = parseInt(data.cantidad, 10);
+            if (!nueva || nueva < 1) {
+              this.ui.showToast('Cantidad inválida', 'warning');
+              return false;
+            }
+            if (nueva > item.stock_actual) {
+              this.ui.showToast(`Stock máximo: ${item.stock_actual}`, 'warning');
+              return false;
+            }
+            item.cantidad = nueva;
+            item.subtotal = nueva * item.precio_venta;
+            return true;
+          }
+        }
+      ]
+    });
+    await alert.present();
+  }
+
   eliminar(item: CartItem) {
     this.carrito = this.carrito.filter(i => i.id !== item.id);
   }
@@ -289,34 +391,93 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   // BÚSQUEDA Y ESCÁNER (MANUAL)
   // ==========================
 
-  async buscarProducto(event: any) {
-    const texto = event.detail.value?.trim();
-    if (!texto) {
-      this.productosBusqueda = [];
+  toggleModoBusqueda() {
+    this.modoBusqueda = this.modoBusqueda === 'codigo' ? 'nombre' : 'codigo';
+    this.buscarTexto = '';
+    this.productosBusqueda = [];
+  }
+
+  limpiarBusqueda() {
+    this.buscarTexto = '';
+    this.productosBusqueda = [];
+  }
+
+  // Dispatcher: según el modo activo llama a la lógica correspondiente
+  private searchDebounce: ReturnType<typeof setTimeout> | undefined;
+  onSearchInput(event: Event) {
+    const texto = (event.target as HTMLInputElement).value?.trim();
+
+    if (this.modoBusqueda === 'nombre') {
+      if (!texto) { this.productosBusqueda = []; return; }
+      clearTimeout(this.searchDebounce);
+      this.searchDebounce = setTimeout(() => this.buscarPorNombre(texto), 450);
+    } else {
+      clearTimeout(this.searchDebounce);
+      if (!texto) return;
+      const esBulk = /^(\d+)\.(.+)$/.test(texto);
+      // Bulk (ej: 10.2): dispara con cualquier longitud de código
+      // Código solo: espera ≥8 chars para no disparar con dígitos sueltos
+      if (!esBulk && texto.length < 8) return;
+      this.searchDebounce = setTimeout(() => this.buscarPorCodigo(texto), 300);
+    }
+  }
+
+  // Enter en modo código también dispara (pistola lectora envía Enter al final)
+  onSearchKeyup(event: KeyboardEvent) {
+    if (this.modoBusqueda !== 'codigo') return;
+    if (event.key === 'Enter') {
+      clearTimeout(this.searchDebounce);
+      const texto = this.buscarTexto?.trim();
+      if (texto) this.buscarPorCodigo(texto);
+    }
+  }
+
+  private async buscarPorNombre(texto: string) {
+    if (!this.network.isConnected()) {
+      this.ui.showToast('Sin conexión a internet', 'danger');
       return;
     }
 
     this.buscando = true;
     try {
-      // 1. Intentar por código exacto (EAN)
-      const productoCodigo = await this.inventarioService.obtenerProductoPorCodigo(texto);
-      if (productoCodigo) {
-        this.agregarAlCarrito(productoCodigo);
-        this.buscarTexto = '';
-        this.productosBusqueda = [];
+      this.productosBusqueda = await this.inventarioService.obtenerProductos(texto);
+    } finally {
+      this.buscando = false;
+    }
+  }
+
+  private async buscarPorCodigo(texto: string) {
+    if (!this.network.isConnected()) {
+      this.ui.showToast('Sin conexión a internet', 'danger');
+      return;
+    }
+
+    this.buscando = true;
+    try {
+      // Patrón cantidad.codigo (ej: 20.7891234 = 20 unidades del código "7891234")
+      const matchRapido = texto.match(/^(\d+)\.(.+)$/);
+      if (matchRapido) {
+        const cantidad = parseInt(matchRapido[1], 10);
+        const codigo = matchRapido[2].trim();
+        if (cantidad > 0 && codigo) {
+          const producto = await this.inventarioService.obtenerProductoPorCodigo(codigo);
+          if (producto) {
+            this.agregarAlCarritoConCantidad(producto, cantidad);
+            this.buscarTexto = '';
+          } else {
+            this.ui.showToast(`Código "${codigo}" no encontrado`, 'warning');
+          }
+        }
         return;
       }
 
-      // 2. Buscar por aproximación de nombre
-      const productos = await this.inventarioService.obtenerProductos(texto);
-      if (productos.length === 1) {
-        this.agregarAlCarrito(productos[0]);
+      // Código exacto — se agrega directo sin confirmación
+      const producto = await this.inventarioService.obtenerProductoPorCodigo(texto);
+      if (producto) {
+        this.agregarAlCarrito(producto);
         this.buscarTexto = '';
-        this.productosBusqueda = [];
-      } else if (productos.length > 1) {
-        this.productosBusqueda = productos;
       } else {
-        this.productosBusqueda = [];
+        this.ui.showToast(`Código "${texto}" no encontrado`, 'warning');
       }
     } finally {
       this.buscando = false;
@@ -365,11 +526,20 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   async procesarCodigoRapido(codigo: string) {
-    const producto = await this.inventarioService.obtenerProductoPorCodigo(codigo);
-    if (producto) {
-      this.agregarAlCarrito(producto);
-    } else {
-      this.ui.showToast(`EAN ${codigo} no encontrado en catálogo`, 'warning');
+    if (!this.network.isConnected()) {
+      this.ui.showToast('Sin conexión a internet', 'danger');
+      return;
+    }
+
+    try {
+      const producto = await this.inventarioService.obtenerProductoPorCodigo(codigo);
+      if (producto) {
+        this.agregarAlCarrito(producto);
+      } else {
+        this.ui.showToast(`EAN ${codigo} no encontrado en catálogo`, 'warning');
+      }
+    } catch {
+      this.ui.showToast('Error de conexión. Verifica tu internet.', 'danger');
     }
   }
 
@@ -419,10 +589,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     clearTimeout(this.scanPreviewTimeout);
   }
 
-  private turnosService = inject(TurnosCajaService);
-
   async cobrar() {
-    if (this.carrito.length === 0) return;
+    if (this.carrito.length === 0 || this.cobroEnProceso) return;
 
     if (!this.clienteSeleccionado?.id) {
       this.ui.showToast('Cliente no cargado. Toca el cliente para actualizar.', 'warning');
@@ -435,84 +603,82 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
-    // ActionSheet de confirmación + selección de método de pago
-    const sheet = await this.actionSheetCtrl.create({
-      header: `Confirmar cobro de $${this.currencyService.format(this.totalPagar)}`,
-      subHeader: `${this.totalArticulos} ${this.totalArticulos === 1 ? 'artículo' : 'artículos'}`,
-      buttons: [
-        {
-          text: 'Efectivo',
-          icon: 'cash-outline',
-          handler: () => this.ejecutarCobro('EFECTIVO')
-        },
-        {
-          text: 'Tarjeta / DeUna',
-          icon: 'card-outline',
-          handler: () => this.ejecutarCobro('DEUNA')
-        },
-        {
-          text: 'Transferencia',
-          icon: 'phone-portrait-outline',
-          handler: () => this.ejecutarCobro('TRANSFERENCIA')
-        },
-        {
-          text: 'Fiado',
-          icon: 'hand-right-outline',
-          role: 'destructive',
-          handler: () => this.ejecutarCobro('FIADO')
-        },
-        {
-          text: 'Cancelar',
-          role: 'cancel'
-        }
+    // OptionsModalComponent — reemplaza ActionSheetController (no funciona en Android primera carga)
+    const groups: ModalOptionGroup[] = [{
+      options: [
+        { label: 'Efectivo', icon: 'cash-outline', value: 'EFECTIVO' },
+        { label: 'Tarjeta / DeUna', icon: 'card-outline', value: 'DEUNA' },
+        { label: 'Transferencia', icon: 'phone-portrait-outline', value: 'TRANSFERENCIA' },
+        { label: 'Fiado', icon: 'hand-right-outline', value: 'FIADO', color: 'danger' },
       ]
+    }];
+
+    const modal = await this.modalCtrl.create({
+      component: OptionsModalComponent,
+      componentProps: {
+        title: `Cobrar $${this.currencyService.format(this.totalPagar)}`,
+        subtitle: `${this.totalArticulos} ${this.totalArticulos === 1 ? 'artículo' : 'artículos'}`,
+        groups
+      },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
-    await sheet.present();
+    await modal.present();
+    const { data } = await modal.onDidDismiss();
+
+    if (data) {
+      this.ejecutarCobro(data);
+    }
   }
 
+  private static readonly IDEMPOTENCY_STORAGE_KEY = 'pos_pending_idempotency_key';
+
   private async ejecutarCobro(metodoPago: string) {
-    // 🔥 Bloqueamos la pantalla INMEDIATAMENTE al elegir el método de pago 
-    // para prevenir doble-clicks.
+    if (this.cobroEnProceso) return;
+    this.cobroEnProceso = true;
     await this.ui.showLoading();
 
     try {
-      // 1. Validación proactiva de Turno Activo ANTES de enviar la venta
-      const turno = await this.turnosService.obtenerTurnoActivo();
-      if (!turno) {
-        await this.ui.hideLoading(); // Cerrar antes de mostrar toast
-        this.ui.showToast('No hay un turno de caja abierto. Abre la caja antes de cobrar.', 'warning');
-        return;
-      }
+      // 1. Generar idempotency key y persistir ANTES del RPC
+      const idempotencyKey = crypto.randomUUID();
+      localStorage.setItem(PosPage.IDEMPOTENCY_STORAGE_KEY, idempotencyKey);
 
       // 2. Armar el payload con todos los campos fiscales correctos
-      const esFatura = this.tipoComprobante === TipoComprobante.FACTURA;
+      const esFactura = this.tipoComprobante === TipoComprobante.FACTURA;
       const payload: VentaPayload = {
         total:             this.totalPagar,
-        subtotal:          esFatura ? this.subtotalNeto : this.totalPagar,
+        subtotal:          esFactura ? this.subtotalNeto : this.totalPagar,
         metodoPago,
         tipoComprobante:   this.tipoComprobante,
         clienteId:         this.clienteSeleccionado?.id,
-        baseIva0:          esFatura ? this.baseIva0  : 0,
-        baseIva15:         esFatura ? this.baseIva15 : 0,
-        ivaValor:          esFatura ? this.ivaValor  : 0,
+        baseIva0:          esFactura ? this.baseIva0  : 0,
+        baseIva15:         esFactura ? this.baseIva15 : 0,
+        ivaValor:          esFactura ? this.ivaValor  : 0,
+        idempotencyKey,
       };
 
-      // 3. Procesar la venta en Supabase (RPC)
+      // 3. Procesar la venta en Supabase (RPC) — turno se valida dentro del servicio
       const response = await this.posService.procesarVenta(this.carrito, payload);
 
-      // Siempre escondemos el loading al final, ANTES del toast de éxito
       await this.ui.hideLoading();
 
       if (response.success) {
-        this.ui.showToast('Venta registrada ✨', 'success');
+        // Limpiar idempotency key — venta confirmada
+        localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
+        this.ui.showToast(`Venta #${response.numeroComprobante} registrada`, 'success');
         this.limpiarCarrito();
+      } else {
+        this.ui.showToast('No se pudo registrar la venta. Intenta de nuevo.', 'danger');
       }
-    } catch (error: any) {
-      // SupabaseService ya intercepta errores de base de datos y muestra su propio Error/Toast rojo.
-      // Aquí solo imprimimos el error de código TypeScript a nivel local si algo explota.
-      await this.ui.hideLoading(); // Cerrar localmente por si acaso
-      console.error('Error no esperado en el proceso de cobro (local):', error);
+    } catch (error) {
+      await this.ui.hideLoading();
+      const mensaje = error instanceof Error ? error.message : 'Error inesperado al procesar la venta';
+      this.ui.showToast(mensaje, 'danger');
+      this.logger.error('PosPage', 'Error en proceso de cobro', error);
+    } finally {
+      this.cobroEnProceso = false;
     }
   }
 
@@ -534,20 +700,50 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   // ==========================
 
   ionViewDidLeave() {
-    // Ionic cachea páginas: desactivar pistola lectora y cerrar escáner al salir
     this.paginaActiva = false;
     if (this.escaneando) this.cerrarEscaner();
     clearTimeout(this.barcodeTimeout);
+    clearTimeout(this.searchDebounce);
   }
 
-  ionViewWillEnter() {
+  async ionViewWillEnter() {
     this.paginaActiva = true;
+    this.productosBusqueda = [];
+    this.buscarTexto = '';
+    await this.recuperarVentaPendiente();
+  }
+
+  /**
+   * Si la app se cerró o la página se fue durante un cobro,
+   * verifica si quedó una idempotency_key sin limpiar.
+   * Si la venta ya se registró en BD → limpia carrito + key.
+   * Si no existe → limpia solo la key (el usuario reintentará).
+   */
+  private async recuperarVentaPendiente() {
+    const pendingKey = localStorage.getItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
+    if (!pendingKey) return;
+
+    try {
+      const { data } = await this.posService.verificarVentaPorIdempotencyKey(pendingKey);
+      if (data) {
+        // La venta SÍ se registró — limpiar todo
+        localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
+        this.ui.showToast('Venta pendiente confirmada exitosamente', 'success');
+        this.limpiarCarrito();
+      } else {
+        // La venta NO se registró — limpiar key para que pueda reintentar con nueva key
+        localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
+      }
+    } catch {
+      // Sin conexión — no hacer nada, se reintentará en el próximo enter
+    }
   }
 
   ngOnDestroy() {
-    // Limpieza total al destruir el componente
     if (this.escaneando) this.cerrarEscaner();
     clearTimeout(this.barcodeTimeout);
+    clearTimeout(this.searchDebounce);
+    clearTimeout(this.scanPreviewTimeout);
     this.audioCtx?.close().catch(() => {});
   }
 

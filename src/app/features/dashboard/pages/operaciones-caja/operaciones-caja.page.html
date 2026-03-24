@@ -1,4 +1,4 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-button (click)="volver()">
@@ -6,11 +6,14 @@
       </ion-button>
     </ion-buttons>
     <ion-title>{{ cajaNombre }}</ion-title>
-    @if (showHeaderBalance) {
     <ion-buttons slot="end">
-      <span class="header-balance">${{ cajaSaldo | number:'1.2-2' }}</span>
+      @if (showHeaderBalance) {
+        <span class="header-balance">${{ cajaSaldo | number:'1.2-2' }}</span>
+      }
+      <ion-button (click)="mostrarMenuOperaciones($event)">
+        <ion-icon slot="icon-only" name="ellipsis-vertical"></ion-icon>
+      </ion-button>
     </ion-buttons>
-    }
   </ion-toolbar>
 </ion-header>
 
@@ -27,9 +30,6 @@
           <span class="balance-label">Saldo disponible</span>
           <span class="balance-amount">${{ cajaSaldo | number:'1.2-2' }}</span>
         </div>
-        <button class="menu-button" (click)="mostrarMenuOperaciones($event)">
-          <ion-icon name="ellipsis-vertical"></ion-icon>
-        </button>
       </div>
     </div>
     <div class="balance-summary">
@@ -180,14 +180,8 @@
 
       <div class="op-details">
         <div class="op-title-row">
-          <span class="op-title">{{ getOperacionLabel(op.tipo_operacion) }}</span>
+          <span class="op-title">{{ op.categoria?.nombre || getOperacionLabel(op.tipo_operacion) }}</span>
         </div>
-
-        @if (op.categoria) {
-        <ion-chip class="category-chip" [attr.data-type]="op.categoria.tipo">
-          <span class="category-name">{{ op.categoria.nombre }}</span>
-        </ion-chip>
-        }
 
         @if (op.descripcion) {
         <p class="op-desc">{{ op.descripcion }}</p>
@@ -198,10 +192,6 @@
           @if (op.empleado) {
           <span class="dot">·</span>
           <span class="op-user">{{ op.empleado.nombre }}</span>
-          }
-          @if (op.saldo_actual !== null) {
-          <span class="dot">·</span>
-          <span class="op-saldo">Saldo: ${{ op.saldo_actual | number:'1.2-2' }}</span>
           }
         </div>
       </div>

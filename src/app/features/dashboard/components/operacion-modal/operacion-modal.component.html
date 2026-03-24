@@ -1,6 +1,15 @@
-<ion-header>
-  <ion-toolbar>
-    <ion-title>{{ titulo }}</ion-title>
+<ion-header class="ion-no-border">
+  <ion-toolbar [class.toolbar-ingreso]="esIngreso" [class.toolbar-egreso]="!esIngreso">
+    <ion-title>
+      <div class="toolbar-title">
+        @if (esIngreso) {
+          <ion-icon name="arrow-down-outline" class="toolbar-tipo-icon ingreso"></ion-icon>
+        } @else {
+          <ion-icon name="arrow-up-outline" class="toolbar-tipo-icon egreso"></ion-icon>
+        }
+        <span class="toolbar-title-main">{{ titulo }}</span>
+      </div>
+    </ion-title>
     <ion-buttons slot="end">
       <ion-button (click)="cancelar()">
         <ion-icon slot="icon-only" name="close-outline"></ion-icon>
@@ -12,13 +21,11 @@
 <ion-content>
   <form [formGroup]="form">
 
-    <!-- Balance Card - Estilo operaciones-caja -->
-    <div class="balance-card" [class.ingreso]="esIngreso" [class.egreso]="!esIngreso">
-      <div class="caja-name">{{ nombreCajaSeleccionada }}</div>
-      <div class="balance-main">
-        <span class="balance-amount">${{ saldoCajaSeleccionada | number:'1.2-2' }}</span>
-        <span class="balance-label">Saldo disponible</span>
-      </div>
+    <!-- Contexto: caja y saldo -->
+    <div class="context-bar" [class.ingreso]="esIngreso" [class.egreso]="!esIngreso">
+      <p class="context-caja-name">{{ nombreCajaSeleccionada }}</p>
+      <p class="context-saldo-value">${{ saldoCajaSeleccionada | number:'1.2-2' }}</p>
+      <p class="context-saldo-label">Saldo disponible</p>
     </div>
 
     <!-- Form Content -->
@@ -37,12 +44,13 @@
             <span>Cargando categorías...</span>
           </div>
         } @else {
-          <select formControlName="categoriaId" autofocus>
-            <option [value]="null" disabled>Seleccionar categoría</option>
-            @for (categoria of categorias; track categoria.id) {
-              <option [value]="categoria.id">{{ categoria.nombre }}</option>
-            }
-          </select>
+          <button type="button" class="filter-selector" (click)="abrirSelectorCategoria()">
+            <span class="filter-selector-label"
+              [class.filter-selector-label--placeholder]="!form.get('categoriaId')?.value">
+              {{ categoriaLabel }}
+            </span>
+            <ion-icon name="chevron-down-outline" class="filter-selector-arrow"></ion-icon>
+          </button>
         }
       </div>
 
@@ -96,9 +104,14 @@
         </label>
 
         @if (!fotoComprobante) {
-          <button type="button" class="upload-btn" (click)="seleccionarFoto()">
+          <button type="button" class="upload-btn"
+            [class.upload-btn--required]="!esIngreso"
+            (click)="seleccionarFoto()">
             <ion-icon name="camera-outline"></ion-icon>
             <span>Tomar foto o seleccionar de galería</span>
+            @if (!esIngreso) {
+              <span class="upload-required-hint">Requerido para egresos</span>
+            }
           </button>
         } @else {
           <div class="photo-preview">
@@ -111,15 +124,18 @@
       </div>
 
       <!-- Botón -->
-      <button
-        type="button"
-        class="submit-btn"
-        [class.ingreso]="esIngreso"
-        [class.egreso]="!esIngreso"
-        [disabled]="form.invalid || montoExcedeSaldo || (!esIngreso && !fotoComprobante)"
-        (click)="confirmar()">
-        {{ esIngreso ? 'Confirmar Ingreso' : 'Confirmar Egreso' }}
-      </button>
+      <div class="submit-wrapper">
+        <button
+          type="button"
+          class="submit-btn"
+          [class.ingreso]="esIngreso"
+          [class.egreso]="!esIngreso"
+          [disabled]="form.invalid || montoExcedeSaldo || (!esIngreso && !fotoComprobante)"
+          (click)="confirmar()">
+          <ion-icon [name]="esIngreso ? 'arrow-down-outline' : 'arrow-up-outline'"></ion-icon>
+          {{ esIngreso ? 'Confirmar Ingreso' : 'Confirmar Egreso' }}
+        </button>
+      </div>
     </div>
 
   </form>

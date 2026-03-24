@@ -26,7 +26,17 @@ export class ClientesService {
         )) ?? [];
     }
 
-    async crearCliente(data: { nombre: string; identificacion?: string; telefono?: string }): Promise<Cliente | null> {
+    async buscarPorIdentificacion(identificacion: string): Promise<Cliente | null> {
+        return this.supabase.call<Cliente>(
+            this.supabase.client.from('clientes')
+                .select('*')
+                .eq('identificacion', identificacion)
+                .eq('es_consumidor_final', false)
+                .maybeSingle()
+        );
+    }
+
+    async crearCliente(data: { nombre: string; identificacion?: string; telefono?: string; email?: string }): Promise<Cliente | null> {
         return this.supabase.call<Cliente>(
             this.supabase.client.from('clientes')
                 .insert(data)

@@ -20,40 +20,80 @@ ion-toolbar {
     }
 }
 
+ion-searchbar {
+    text-align: left;
+    --icon-padding: 8px;
+}
+
 .categories-toolbar {
     --background: var(--bg-soft);
     padding-bottom: var(--spacing-sm);
 }
 
-.scrollable-tabs {
+.filter-row {
     display: flex;
-    overflow-x: auto;
-    padding: var(--spacing-xs) var(--spacing-md) var(--spacing-sm);
-    gap: var(--spacing-md);
-
-    // Hide scrollbar
-    &::-webkit-scrollbar {
-        display: none;
-    }
-
-    scrollbar-width: none;
+    align-items: center;
+    padding: 0 var(--spacing-md) var(--spacing-xs);
+    gap: var(--spacing-sm);
 }
 
-.filter-tab {
-    padding: var(--spacing-sm) var(--spacing-lg);
-    border-radius: var(--radius-pill);
-    background: var(--ion-color-step-100);
-    color: var(--ion-color-step-600);
-    font-weight: var(--font-weight-medium);
-    white-space: nowrap;
-    transition: all var(--transition-fast);
+.filter-selector {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 40px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--ion-color-step-200);
+    background: var(--ion-item-background);
     cursor: pointer;
+    transition: border-color var(--transition-fast);
 
-    &.active {
-        background: var(--ion-color-primary);
-        color: var(--ion-color-primary-contrast);
-        box-shadow: var(--shadow-level-1);
-        transform: scale(1.02);
+    &:active {
+        border-color: var(--ion-color-primary);
+    }
+
+    .filter-selector-label {
+        font-size: 14px;
+        font-weight: var(--font-weight-medium);
+        color: var(--ion-text-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .filter-selector-arrow {
+        font-size: 14px;
+        color: var(--ion-color-step-500);
+        flex-shrink: 0;
+        margin-left: var(--spacing-sm);
+    }
+}
+
+.filter-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 40px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--ion-color-step-200);
+    background: var(--ion-item-background);
+    color: var(--ion-color-step-600);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+
+    ion-icon {
+        font-size: 20px;
+    }
+
+    &.options-btn {
+        border: none;
+        background: transparent;
+        color: var(--ion-color-step-500);
     }
 }
 
@@ -66,7 +106,7 @@ ion-toolbar {
 .product-card {
     margin: 0; // El grid gap se encarga del espaciado exterior
     box-shadow: var(--shadow-level-1);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     background: var(--ion-item-background);
     transition: transform var(--transition-fast);
     cursor: pointer;
@@ -87,12 +127,11 @@ ion-toolbar {
 
 .product-image-container {
     height: 120px;
-    background: var(--ion-color-step-50);
+    background: var(--ion-color-step-100);
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-bottom: 1px solid var(--ion-color-step-100);
 
     .placeholder-image {
         ion-icon {
@@ -125,9 +164,14 @@ ion-toolbar {
             animation: pulse 2s infinite;
         }
 
+        &.warning {
+            background: var(--ion-color-warning);
+            color: var(--ion-color-warning-contrast);
+        }
+
         &.success {
-            background: rgba(var(--ion-color-success-rgb), 0.15);
-            color: var(--ion-color-success);
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
         }
     }
 }
@@ -184,6 +228,25 @@ ion-toolbar {
 
     100% {
         opacity: 1;
+    }
+}
+
+// ── Producto desactivado ──
+.product-card.desactivado {
+    opacity: 0.55;
+
+    .product-image-container::after {
+        content: 'INACTIVO';
+        position: absolute;
+        bottom: var(--spacing-sm);
+        left: var(--spacing-sm);
+        padding: 2px 8px;
+        border-radius: var(--radius-pill);
+        background: var(--ion-color-medium);
+        color: white;
+        font-size: 10px;
+        font-weight: var(--font-weight-bold);
+        letter-spacing: 0.5px;
     }
 }
 
@@ -247,4 +310,9 @@ ion-toolbar {
     0%   { top: 10%; }
     50%  { top: 90%; }
     100% { top: 10%; }
+}
+
+// ── FAB scroll-to-top ──
+.scroll-top-fab {
+    margin-bottom: env(safe-area-inset-bottom);
 }

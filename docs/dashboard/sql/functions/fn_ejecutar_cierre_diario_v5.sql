@@ -375,7 +375,7 @@ BEGIN
       v_dinero_a_depositar,
       v_saldo_caja,
       v_saldo_caja + v_dinero_a_depositar,
-      'Depósito del cajón — turno ' || p_fecha,
+      'Cierre de caja — turno ' || p_fecha,
       v_tipo_ref_turnos_id,
       p_turno_id
     );

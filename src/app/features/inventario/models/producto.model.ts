@@ -5,7 +5,6 @@ export interface Producto {
     categoria_id?: number;
     codigo_barras?: string;
     nombre: string;
-    descripcion?: string;
     precio_costo: number;
     precio_venta: number;
     stock_actual: number;

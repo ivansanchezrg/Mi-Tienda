@@ -59,55 +59,78 @@ ion-toolbar {
     border-bottom: 2px solid var(--ion-color-step-150);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 
-    // Contenedor relativo para posicionar el barcode adentro
     .searchbar-wrapper {
-        position: relative;
-        padding: 0 var(--spacing-md);
+        padding: 0 var(--spacing-sm);
     }
 
-    ion-searchbar {
-        --box-shadow: none;
-        --border-radius: var(--radius-pill);
-        --background: var(--ion-item-background);
-        --padding-end: 44px; // espacio para el botón de barcode
-        padding: 0;
-        margin: 0;
-        height: 44px;
-    }
-
-    // Barcode pegado al borde derecho DENTRO del input
-    .barcode-inline-btn {
-        position: absolute;
-        right: calc(var(--spacing-md) + 4px);
-        top: 50%;
-        transform: translateY(-50%);
-        background: transparent;
-        border: none;
-        color: var(--ion-color-medium);
-        width: 36px;
-        height: 36px;
+    .search-box {
         display: flex;
         align-items: center;
-        justify-content: center;
-        border-radius: var(--radius-sm);
-        cursor: pointer;
-        z-index: 10;
-        transition: color var(--transition-fast);
+        background: var(--ion-item-background);
+        border-radius: 12px;
+        height: 46px;
+        gap: 0;
 
-        ion-icon {
-            font-size: 20px;
+        .search-mode-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            flex-shrink: 0;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            border-radius: 12px 0 0 12px;
+
+            ion-icon {
+                font-size: 20px;
+            }
+
+            &:active {
+                background: rgba(var(--ion-color-primary-rgb), 0.08);
+            }
         }
 
-        &:active {
-            color: var(--ion-color-primary);
-        }
-    }
+        .search-input {
+            flex: 1;
+            height: 100%;
+            border: none;
+            background: transparent;
+            font-size: 15px;
+            color: var(--ion-text-color);
+            outline: none;
+            padding: 0 4px;
 
-    .search-spinner {
-        position: absolute;
-        right: calc(var(--spacing-md) + 44px);
-        top: 50%;
-        transform: translateY(-50%);
+            &::placeholder {
+                color: var(--ion-color-medium);
+            }
+        }
+
+        .search-spinner {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            margin-right: 8px;
+            pointer-events: none;
+        }
+
+        .search-clear-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            flex-shrink: 0;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            margin-right: 4px;
+
+            ion-icon {
+                font-size: 18px;
+            }
+        }
     }
 
     // ── Fila cliente inline — mismo estilo que desglose IVA ──
@@ -115,11 +138,13 @@ ion-toolbar {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 7px var(--spacing-md) 10px;
+        padding: 15px var(--spacing-md) 10px;
         cursor: pointer;
         transition: opacity var(--transition-fast);
 
-        &:active { opacity: 0.55; }
+        &:active {
+            opacity: 0.55;
+        }
 
         .chr-label {
             display: flex;
@@ -127,7 +152,10 @@ ion-toolbar {
             gap: 5px;
             font-size: 13px;
             color: var(--ion-color-medium);
-            ion-icon { font-size: 14px; }
+
+            ion-icon {
+                font-size: 14px;
+            }
         }
 
         .chr-value {
@@ -137,6 +165,7 @@ ion-toolbar {
             font-size: 13px;
             font-weight: var(--font-weight-semibold);
             color: var(--ion-text-color);
+
             ion-icon {
                 font-size: 14px;
                 color: var(--ion-color-medium);
@@ -144,7 +173,12 @@ ion-toolbar {
         }
 
         &.cliente-header-row--requerido {
-            .chr-label, .chr-value, ion-icon { color: var(--ion-color-warning-shade); }
+
+            .chr-label,
+            .chr-value,
+            ion-icon {
+                color: var(--ion-color-warning-shade);
+            }
         }
     }
 }
@@ -154,39 +188,52 @@ ion-toolbar {
 // ─────────────────────────────────────────
 
 .search-results-wrapper {
-    position: relative;
-    z-index: 200;
+    width: 100%;
+    padding: var(--spacing-xs) var(--spacing-md);
+    z-index: 9000;
 
     .search-results-list {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        max-height: 280px;
+        max-height: 260px;
         overflow-y: auto;
         background: var(--ion-item-background);
-        box-shadow: var(--shadow-level-3);
-        border-radius: var(--radius-lg);
-        margin: 0 var(--spacing-xs);
+        border: 1px solid var(--ion-color-step-150);
+        border-radius: var(--radius-md);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 
-        ion-item {
+        .suggestion-item {
             --padding-start: var(--spacing-md);
-            transition: background var(--transition-fast);
+            --inner-padding-end: var(--spacing-md);
+            --min-height: 48px;
+            --border-color: var(--ion-color-step-100);
+            border-bottom: 1px solid var(--ion-color-step-100);
+
+            &:last-child {
+                border-bottom: none;
+            }
 
             h2 {
                 font-weight: var(--font-weight-semibold);
-                font-size: 15px;
-                margin-bottom: 2px;
+                font-size: 14px;
+                margin: 0 0 1px 0;
+                color: var(--ion-text-color);
             }
 
             p {
-                font-size: 13px;
+                font-size: 12px;
                 color: var(--ion-color-medium);
+                margin: 0;
             }
 
             &:active {
-                --background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
+                --background: rgba(var(--ion-color-primary-rgb), 0.06);
             }
+        }
+
+        .suggestion-price {
+            font-size: 14px;
+            font-weight: var(--font-weight-bold);
+            color: var(--ion-color-primary);
+            white-space: nowrap;
         }
     }
 }
@@ -201,38 +248,21 @@ ion-toolbar {
     align-items: center;
     justify-content: center;
     text-align: center;
-    min-height: 55vh;
+    min-height: 40vh;
     padding: var(--spacing-xl);
+    gap: var(--spacing-md);
 
-    .empty-icon-wrap {
-        width: 96px;
-        height: 96px;
-        border-radius: 50%;
-        background: rgba(var(--ion-color-primary-rgb), 0.08);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: var(--spacing-lg);
-
-        ion-icon {
-            font-size: 52px;
-            color: var(--ion-color-primary);
-            opacity: 0.5;
-        }
-    }
-
-    h2 {
-        font-size: 20px;
-        font-weight: var(--font-weight-bold);
+    .empty-icon {
+        font-size: 56px;
         color: var(--ion-color-medium);
-        margin: 0 0 var(--spacing-sm) 0;
+        opacity: 0.25;
     }
 
     p {
         font-size: 14px;
         color: var(--ion-color-medium);
-        max-width: 260px;
-        line-height: 1.5;
+        max-width: 240px;
+        line-height: 1.4;
         margin: 0;
     }
 }
@@ -244,6 +274,8 @@ ion-toolbar {
 .cart-list {
     background: transparent;
     padding: 0;
+    // Espacio extra al final para que el último item no quede tapado por el footer en Android
+    padding-bottom: 16px;
 }
 
 .cart-sliding {
@@ -253,16 +285,31 @@ ion-toolbar {
     overflow: hidden;
     box-shadow: var(--shadow-level-1);
 
-    ion-item-options {
-        border-bottom-right-radius: var(--radius-md);
-        border-top-right-radius: var(--radius-md);
+    &.cart-item-enter {
+        animation: cartItemEnter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+}
 
-        .delete-option {
-            background: var(--ion-color-danger);
-            color: var(--ion-color-danger-contrast);
-            --padding-start: var(--spacing-xl);
-            --padding-end: var(--spacing-xl);
-        }
+@keyframes cartItemEnter {
+    from {
+        opacity: 0;
+        transform: scale(0.5);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.cart-sliding ion-item-options {
+    border-bottom-right-radius: var(--radius-md);
+    border-top-right-radius: var(--radius-md);
+
+    .delete-option {
+        background: var(--ion-color-danger);
+        color: var(--ion-color-danger-contrast);
+        --padding-start: var(--spacing-xl);
+        --padding-end: var(--spacing-xl);
     }
 }
 
@@ -274,21 +321,29 @@ ion-toolbar {
     --padding-top: var(--spacing-sm);
     --padding-bottom: var(--spacing-sm);
 
-    // Ícono decorativo del producto
-    .item-icon-box {
+    // Thumbnail del producto
+    .item-thumb {
         width: 44px;
         height: 44px;
         border-radius: var(--radius-sm);
-        background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
+        background: var(--ion-color-step-50);
         display: flex;
         align-items: center;
         justify-content: center;
         margin-right: var(--spacing-md);
         flex-shrink: 0;
+        overflow: hidden;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
 
         ion-icon {
-            font-size: 22px;
-            color: var(--ion-color-primary);
+            font-size: 20px;
+            color: var(--ion-color-medium);
+            opacity: 0.5;
         }
     }
 
@@ -394,6 +449,10 @@ ion-toolbar {
                 font-weight: var(--font-weight-bold);
                 font-size: 15px;
                 color: var(--ion-text-color);
+                cursor: pointer;
+                background: rgba(var(--ion-color-primary-rgb), 0.08);
+                border-radius: var(--radius-sm);
+                padding: 2px 8px;
             }
         }
     }
@@ -448,8 +507,15 @@ ion-toolbar {
     }
 
     @keyframes scanMove {
-        0%, 100% { top: 10%; }
-        50% { top: 90%; }
+
+        0%,
+        100% {
+            top: 10%;
+        }
+
+        50% {
+            top: 90%;
+        }
     }
 
     .scanner-hint {
@@ -465,7 +531,7 @@ ion-toolbar {
         bottom: calc(65px + env(safe-area-inset-bottom));
         left: 50%;
         transform: translateX(-50%);
-        width: 80%;
+        width: 70%;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -473,7 +539,7 @@ ion-toolbar {
         border-radius: var(--radius-md);
         padding: 12px var(--spacing-md);
         backdrop-filter: blur(6px);
-        animation: previewIn 0.2s ease-out;
+        animation: previewIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 
         .sp-left {
             display: flex;
@@ -521,8 +587,15 @@ ion-toolbar {
     }
 
     @keyframes previewIn {
-        from { opacity: 0; transform: translateX(-50%) scale(0.9); }
-        to   { opacity: 1; transform: translateX(-50%) scale(1); }
+        from {
+            opacity: 0;
+            transform: translateX(-50%) scale(0.5);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateX(-50%) scale(1);
+        }
     }
 
     // Badge-botón — tap para cerrar escáner e ir al POS
@@ -585,8 +658,18 @@ ion-toolbar {
     cursor: pointer;
     transition: color var(--transition-fast);
 
-    ion-icon { font-size: 20px; }
-    &:active { color: var(--ion-color-primary); }
+    ion-icon {
+        font-size: 20px;
+    }
+
+    &:active {
+        color: var(--ion-color-primary);
+    }
+
+    // Sin footer → se baja justo encima del tab bar
+    &.scanner-corner-btn--no-footer {
+        bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+    }
 }
 
 // ─────────────────────────────────────────
@@ -702,3 +785,4 @@ ion-toolbar {
         letter-spacing: 0.3px;
     }
 }
+

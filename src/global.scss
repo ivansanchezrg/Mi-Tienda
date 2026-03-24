@@ -111,3 +111,12 @@ body.scanner-active ion-modal .scanner-overlay,
 body.scanner-active ion-modal .scanner-overlay * {
   visibility: visible;
 }
+
+// ── Modal de opciones (menú contextual tipo bottom sheet) ──
+// Usa breakpoints porque NO tiene scroll interno (lista corta de acciones).
+// El conflicto swipe/scroll de CLAUDE.md solo aplica a modales con contenido scrolleable.
+ion-modal.options-modal {
+  --height: auto;
+  --border-radius: var(--radius-xl, 16px) var(--radius-xl, 16px) 0 0;
+  --box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+}

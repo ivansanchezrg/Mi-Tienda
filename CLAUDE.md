@@ -32,7 +32,7 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 | `dashboard`         | ✅ Completo (v5 — 5 cajas, cierre wizard 2p) |
 | `recargas-virtuales`| ✅ Completo                                  |
 | `usuarios`          | ✅ Completo                                  |
-| `inventario`        | 🚧 En desarrollo                             |
+| `inventario`        | ✅ Completo                                  |
 | `pos`               | 🚧 En desarrollo                             |
 | `reportes`          | 🚧 En desarrollo                             |
 | ~~`gastos-diarios`~~| ❌ Eliminado en v5 (2026-03-06) — los gastos van como EGRESO en `operacion-modal` |
@@ -45,12 +45,12 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 src/app/
 ├── core/
 │   ├── services/          # Servicios globales (ver abajo)
-│   ├── constants/         # app.constants.ts — constantes globales (DEFAULT_PAGE_SIZE, etc.)
+│   ├── config/            # pagination.config.ts — PAGINATION_CONFIG (pageSize por módulo)
 │   ├── guards/            # auth, public, role, pending-changes
 │   └── utils/             # date.util.ts
 ├── features/              # Módulos (cada uno tiene pages/, services/, models/, components/)
 ├── shared/
-│   ├── components/        # sidebar, under-construction, options-menu
+│   ├── components/        # sidebar, under-construction, options-menu, options-modal
 │   └── directives/        # currency-input, numbers-only, scroll-reset
 └── environments/
     ├── environment.example.ts   # Plantilla (en git)
@@ -93,12 +93,39 @@ private fb = inject(FormBuilder);
 
 ### Registrar iconos en constructor
 ```typescript
+import { IonIcon } from '@ionic/angular/standalone';
 import { closeOutline, addOutline } from 'ionicons/icons';
 
-constructor() {
-  addIcons({ closeOutline, addOutline });
+@Component({
+  standalone: true,
+  imports: [IonIcon, ...] // IonIcon DEBE estar en imports
+})
+export class MiComponent {
+  constructor() {
+    addIcons({ closeOutline, addOutline }); // registrar en constructor
+  }
 }
 ```
+
+**Reglas críticas para iconos en Android (tree-shaking):**
+
+1. **`IonIcon` debe estar en `imports[]` del componente** — incluyendo modales. La web "perdona" si está en otro componente padre; Android no.
+
+2. **Nunca usar binding dinámico con ternario** — Android elimina los iconos que no puede detectar en compile-time:
+```html
+<!-- ❌ Android no puede detectar qué iconos se usan → los elimina -->
+<ion-icon [name]="esIngreso ? 'arrow-down-outline' : 'arrow-up-outline'"></ion-icon>
+
+<!-- ✅ Nombres estáticos en cada rama — Angular los detecta en compile-time -->
+@if (esIngreso) {
+  <ion-icon name="arrow-down-outline"></ion-icon>
+} @else {
+  <ion-icon name="arrow-up-outline"></ion-icon>
+}
+```
+
+3. **Ser explícito con el sufijo** (`-outline`, `-sharp`) — en Android Ionic usa modo `md` y busca el SVG exacto registrado. Si registraste `closeOutline`, usar siempre `name="close-outline"`, nunca `name="close"`.
+
 > **Importante:** antes de borrar un icono de `addIcons()`, buscar su nombre string en los `.html` del componente. Los bindings `[name]="variable"` no aparecen en análisis estático.
 
 ### Modales — NUNCA usar sheet modals (`breakpoints`)
@@ -123,9 +150,104 @@ const modal = await this.modalCtrl.create({
 });
 ```
 
-- No usar `breakpoints`, `initialBreakpoint` ni `handleBehavior` → todos eliminados del proyecto
+- No usar `breakpoints`, `initialBreakpoint` ni `handleBehavior` en modales con scroll interno → bloquea scroll en Android.
+  - **Excepción:** Modales sin scroll interno (listas cortas de acciones) SÍ pueden usar `breakpoints: [0, 1]` + `initialBreakpoint: 1` + `--height: auto` para bottom sheet nativo con swipe-to-dismiss. Ejemplo: `OptionsModalComponent`.
 - No usar `cssClass: 'modal-fullscreen-mobile'` → ya no es necesario sin breakpoints
-- El usuario cierra con el botón ✕ del header, no con swipe
+- El usuario cierra con el botón ✕ del header (modales fullscreen) o swipe down (bottom sheets)
+- **NUNCA usar `ion-select`, `ActionSheetController` ni `PopoverController`** → bug de Ionic 8 + Capacitor en Android con standalone components: estos overlay controllers no se inicializan hasta que otra página los cargue primero. Afecta **tanto modales como pages** en primera carga.
+  - **Selects y Action Sheets**: usar `OptionsModalComponent` (`shared/components/options-modal/`). Se abre como bottom sheet con swipe-to-dismiss.
+  - **Confirmaciones simples**: usar `AlertController`.
+  - **Overlays que SÍ funcionan**: `AlertController`, `ModalController`, `LoadingController`, `ToastController`.
+
+### `OptionsModalComponent` — componente estándar para selects y action sheets
+
+Ubicación: `shared/components/options-modal/`. Reemplaza `<select>` nativo, `ion-select`, `ActionSheetController` y `PopoverController`.
+
+Soporta **dos modos** según los `@Input()` que reciba:
+
+**Modo acción** (action sheet) — opciones con iconos, sin selección previa:
+```typescript
+// Ejemplo: selección de método de pago en POS
+const groups: ModalOptionGroup[] = [{
+  options: [
+    { label: 'Efectivo', icon: 'cash-outline', value: 'EFECTIVO' },
+    { label: 'Transferencia', icon: 'phone-portrait-outline', value: 'TRANSFERENCIA' },
+    { label: 'Fiado', icon: 'hand-right-outline', value: 'FIADO', color: 'danger' },
+  ]
+}];
+
+const modal = await this.modalCtrl.create({
+  component: OptionsModalComponent,
+  componentProps: { title: 'Método de pago', groups },
+  cssClass: 'options-modal',
+  breakpoints: [0, 1],
+  initialBreakpoint: 1
+});
+await modal.present();
+const { data } = await modal.onDidDismiss();
+if (data) { /* data = 'EFECTIVO' | 'TRANSFERENCIA' | etc. */ }
+```
+
+**Modo selección** (select) — sin iconos, con checkmark en la opción activa:
+```typescript
+// Ejemplo: filtro de categoría en inventario
+const groups: ModalOptionGroup[] = [
+  { options: [{ label: 'Todas', value: 'todas' }] },
+  { title: 'Categorías', options: categorias.map(c => ({ label: c.nombre, value: `cat-${c.id}` })) }
+];
+
+const modal = await this.modalCtrl.create({
+  component: OptionsModalComponent,
+  componentProps: { title: 'Filtrar', groups, selectedValue: this.filtroActual },
+  cssClass: 'options-modal',
+  breakpoints: [0, 1],
+  initialBreakpoint: 1
+});
+await modal.present();
+const { data } = await modal.onDidDismiss();
+if (data) { this.onFiltroChange(data); }
+```
+
+**Patrón del botón que abre el modal** (reemplaza `<select>`):
+```html
+<button class="filter-selector" (click)="abrirSelector()">
+  <span class="filter-selector-label">{{ labelActual }}</span>
+  <ion-icon name="chevron-down-outline" class="filter-selector-arrow"></ion-icon>
+</button>
+```
+
+**API del componente:**
+
+| `@Input()`      | Tipo               | Descripción |
+| --------------- | ------------------ | ----------- |
+| `title`         | `string`           | Título del modal |
+| `subtitle`      | `string?`          | Subtítulo opcional |
+| `groups`        | `ModalOptionGroup[]` | Grupos de opciones |
+| `selectedValue` | `string?`          | Valor seleccionado actual (activa modo selección con checkmark) |
+
+| `ModalOption`   | Campo     | Obligatorio | Descripción |
+| --------------- | --------- | ----------- | ----------- |
+|                 | `label`   | ✅ | Texto de la opción |
+|                 | `value`   | ✅ | Valor retornado al seleccionar |
+|                 | `icon`    | ❌ | Icono a la izquierda (modo acción) |
+|                 | `subtitle`| ❌ | Texto secundario debajo del label |
+|                 | `color`   | ❌ | `'danger'` para opciones destructivas |
+
+```typescript
+// ❌ Incorrecto — no funciona en Android primera carga
+const actionSheet = await this.actionSheetCtrl.create({ ... });
+<ion-select formControlName="campo">...</ion-select>
+
+// ✅ Correcto — OptionsModalComponent funciona siempre
+const modal = await this.modalCtrl.create({
+  component: OptionsModalComponent,
+  componentProps: { title, groups, selectedValue },
+  cssClass: 'options-modal',
+  breakpoints: [0, 1], initialBreakpoint: 1
+});
+```
+
+> **Excepción**: `<select>` nativo de HTML sigue siendo válido **dentro de formularios** (`FormGroup`) donde se necesita binding directo con `formControlName` y no justifica abrir un modal (ej: campo de categoría en formulario de producto). En estos casos usar `<select>` con estilos custom.
 
 ### Loading + Pull-to-Refresh sin doble spinner
 ```typescript
@@ -149,17 +271,25 @@ Qué provee (ya no hay que declararlo en cada página):
 - `items: T[]` — array acumulado de todas las páginas
 - `loading: boolean` — skeleton en primera carga
 - `hasMore: boolean` — controla el infinite scroll
+- `showScrollTop: boolean` — muestra FAB "subir al inicio" al hacer scroll >600px
 - `cargar()` — resetea a página 0 y recarga
 - `cargarMas(event)` — handler de `(ionInfinite)`
 - `handleRefresh(event)` — handler de `(ionRefresh)` (sin doble spinner)
+- `onContentScroll(event)` — handler de `(ionScroll)` para scroll-to-top
+- `scrollToTop()` — sube al inicio con animación
+- `loadingMoreText` — texto contextual del spinner de infinite scroll (abstracto, cada subclase lo define)
 - `ui` — instancia de `UiService` (heredada, no re-inyectar)
+- `content` — `@ViewChild` del `<ion-content #content>` (heredado, no re-declarar)
+
+Page sizes centralizados en `PAGINATION_CONFIG` (`src/app/core/config/pagination.config.ts`).
 
 Qué implementa cada subclase:
 ```typescript
 export class MiListaPage extends PaginatedListPage<MiItem> implements OnInit {
     private miServicio = inject(MiServicio);
 
-    protected readonly pageSize = 20;           // registros por página
+    protected readonly pageSize = PAGINATION_CONFIG.miModulo.pageSize;
+    readonly loadingMoreText = 'Cargando más items...';  // contextual a la sección
 
     protected async fetchPage(page: number): Promise<MiItem[]> {
         return this.miServicio.listar(page, this.pageSize);
@@ -173,18 +303,36 @@ export class MiListaPage extends PaginatedListPage<MiItem> implements OnInit {
 
 Template mínimo:
 ```html
-@if (loading) { <!-- skeleton --> }
-@else if (items.length === 0) { <!-- empty state --> }
-@else {
-  @for (item of items; track item.id) { <!-- tarjeta --> }
-}
+<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
 
-<ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
-  <ion-infinite-scroll-content loadingSpinner="crescent"></ion-infinite-scroll-content>
-</ion-infinite-scroll>
+  @if (loading) { <!-- skeleton --> }
+  @else if (items.length === 0) { <!-- empty state --> }
+  @else {
+    @for (item of items; track item.id) { <!-- tarjeta --> }
+  }
+
+  <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent" [loadingText]="loadingMoreText"></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
+  @if (showScrollTop) {
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+    <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+      <ion-icon name="arrow-up-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+  }
+</ion-content>
 ```
 
-Ejemplo real: `VentasPage` (`src/app/features/ventas/pages/main/ventas.page.ts`)
+Estilo SCSS (en cada página, ajustar margin según si hay footer):
+```scss
+.scroll-top-fab {
+    margin-bottom: env(safe-area-inset-bottom);
+}
+```
+
+Ejemplo real: `VentasPage`, `InventarioPage`
 
 ---
 
@@ -331,6 +479,7 @@ padding-bottom: env(safe-area-inset-bottom);
 - No formatear moneda manualmente → usar `CurrencyService`
 - No mostrar `console.log` en producción → usar `LoggerService`
 - No dejar footers/paneles inferiores sin `env(safe-area-inset-bottom)` → ver sección "Safe area en Android"
+- No usar `ActionSheetController`, `PopoverController` ni `ion-select` → usar `OptionsModalComponent` (modo acción o modo selección). `<select>` nativo solo dentro de formularios con `formControlName`
 
 ---
 
@@ -341,6 +490,8 @@ padding-bottom: env(safe-area-inset-bottom);
 | Dashboard           | `docs/dashboard/DASHBOARD-README.md`                       |
 | Auth                | `docs/auth/AUTH-README.md`                                 |
 | Recargas Virtuales  | `docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md`     |
+| Inventario          | `docs/inventario/INVENTARIO-README.md`                     |
+| POS                 | `docs/pos/POS-README.md`                                   |
 | ~~Gastos Diarios~~  | `docs/gastos-diarios/GASTOS-DIARIOS-README.md` (**DEPRECADO en v5**)  |
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
 | Sistema de diseño   | `docs/DESIGN.md`                                           |

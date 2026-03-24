@@ -266,6 +266,7 @@ ion-toolbar {
 // Action Footer Card
 .action-footer-card {
   margin: 20px;
+  margin-bottom: calc(20px + env(safe-area-inset-bottom));
   padding: 20px;
   border-radius: var(--radius-lg);
   display: flex;

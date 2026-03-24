@@ -1,0 +1,159 @@
+<ion-header class="ion-no-border">
+    <ion-toolbar>
+        <ion-buttons slot="start">
+            <ion-button (click)="volver()">
+                <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+            </ion-button>
+        </ion-buttons>
+        <ion-title>
+            <div class="kardex-title">
+                Kárdex de Inventario
+                <span class="product-name text-muted">{{ productoNombre }}</span>
+            </div>
+        </ion-title>
+    </ion-toolbar>
+</ion-header>
+
+<ion-content color="light">
+    <div class="p-md">
+
+        <!-- Stock actual + botón ajustar -->
+        <div class="stock-header mb-md">
+            <div class="stock-info">
+                <span class="stock-label">Stock actual</span>
+                <span class="stock-value">{{ stockActual }}</span>
+            </div>
+            <ion-button [fill]="mostrarFormAjuste ? 'solid' : 'outline'" size="small"
+                [color]="mostrarFormAjuste ? 'medium' : 'primary'" (click)="toggleFormAjuste()">
+                <ion-icon slot="start" [name]="mostrarFormAjuste ? 'close-outline' : 'add-outline'"></ion-icon>
+                {{ mostrarFormAjuste ? 'Cancelar' : 'Ajustar' }}
+            </ion-button>
+        </div>
+
+        <!-- Formulario de ajuste (expandible) -->
+        @if (mostrarFormAjuste) {
+        <ion-card class="ajuste-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-md">
+                <h4 class="ajuste-title m-0 mb-md">Ajuste de Stock</h4>
+
+                <!-- Tipo de ajuste -->
+                <div class="tipo-selector mb-md">
+                    <button class="tipo-btn" [class.active]="tipoAjuste === 'COMPRA'"
+                        [class.ingreso]="tipoAjuste === 'COMPRA'" (click)="seleccionarTipo('COMPRA')">
+                        <ion-icon name="trending-up-outline"></ion-icon>
+                        Compra
+                    </button>
+                    <button class="tipo-btn" [class.active]="tipoAjuste === 'AJUSTE_POSITIVO'"
+                        [class.ingreso]="tipoAjuste === 'AJUSTE_POSITIVO'"
+                        (click)="seleccionarTipo('AJUSTE_POSITIVO')">
+                        <ion-icon name="add-outline"></ion-icon>
+                        Ajuste +
+                    </button>
+                    <button class="tipo-btn" [class.active]="tipoAjuste === 'AJUSTE_NEGATIVO'"
+                        [class.egreso]="tipoAjuste === 'AJUSTE_NEGATIVO'"
+                        (click)="seleccionarTipo('AJUSTE_NEGATIVO')">
+                        <ion-icon name="remove-outline"></ion-icon>
+                        Ajuste -
+                    </button>
+                </div>
+
+                <!-- Cantidad -->
+                <div class="mb-md">
+                    <ion-item class="custom-input flat-item" lines="none">
+                        <ion-input [(ngModel)]="cantidad" label="Cantidad *" labelPlacement="floating"
+                            type="number" inputmode="numeric" [min]="1"
+                            placeholder="Ej. 10"></ion-input>
+                    </ion-item>
+                </div>
+
+                <!-- Observaciones -->
+                <div class="mb-md">
+                    <ion-item class="custom-input flat-item" lines="none">
+                        <ion-textarea [(ngModel)]="observaciones" label="Observaciones *" labelPlacement="floating"
+                            [rows]="2" placeholder="Ej. Llegó pedido proveedor, Producto dañado..."></ion-textarea>
+                    </ion-item>
+                </div>
+
+                <!-- Preview resultado -->
+                @if (cantidad && cantidad > 0) {
+                <div class="preview-resultado mb-md">
+                    <span>{{ stockActual }}</span>
+                    <span class="operador">{{ esIngreso ? '+' : '-' }}</span>
+                    <span>{{ cantidad }}</span>
+                    <span class="operador">=</span>
+                    <span class="resultado" [class.text-success]="esIngreso" [class.text-warning]="!esIngreso">
+                        {{ esIngreso ? stockActual + cantidad : stockActual - cantidad }}
+                    </span>
+                </div>
+                }
+
+                <ion-button expand="block" [color]="esIngreso ? 'success' : 'danger'"
+                    [disabled]="guardandoAjuste || !cantidad || cantidad <= 0 || !observaciones.trim()"
+                    (click)="confirmarAjuste()" class="rounded-sm">
+                    @if (guardandoAjuste) {
+                    <ion-spinner name="crescent" slot="start"></ion-spinner>
+                    Procesando...
+                    } @else {
+                    <ion-icon slot="start" name="checkmark-outline"></ion-icon>
+                    Confirmar {{ esIngreso ? 'Ingreso' : 'Egreso' }}
+                    }
+                </ion-button>
+            </ion-card-content>
+        </ion-card>
+        }
+
+        <!-- Historial -->
+        @if (cargando) {
+        <div class="p-xl text-center">
+            <ion-spinner name="crescent"></ion-spinner>
+            <p class="mt-md text-muted">Cargando auditoría de inventario...</p>
+        </div>
+        } @else if (kardex.length === 0) {
+        <div class="empty-state text-center p-xl mt-xl">
+            <ion-icon name="document-text-outline" color="medium" style="font-size: 64px;"></ion-icon>
+            <h2 class="text-secondary mt-md">Sin Movimientos</h2>
+            <p class="text-muted">Este producto no registra actividad en su Kárdex todavía.</p>
+        </div>
+        } @else {
+        <div class="timeline p-sm">
+            @for (mov of kardex; track mov.id) {
+            <ion-card class="timeline-item shadow-1 m-0 mb-md">
+                <div class="timeline-icon" [ngClass]="getColorMovimiento(mov.tipo_movimiento)">
+                    <ion-icon [name]="getIconoMovimiento(mov.tipo_movimiento)"></ion-icon>
+                </div>
+
+                <ion-card-content class="p-md">
+                    <div class="timeline-header">
+                        <h4 class="m-0 text-bold">{{ getLabelMovimiento(mov.tipo_movimiento) }}</h4>
+                        <span class="text-xs text-muted">
+                            <ion-icon name="time-outline" class="align-middle"></ion-icon>
+                            {{ formatDate(mov.fecha) }}
+                        </span>
+                    </div>
+
+                    <div class="timeline-body mt-sm">
+                        <div class="stock-change text-lg text-bold"
+                            [ngClass]="'text-' + getColorMovimiento(mov.tipo_movimiento)">
+                            {{ (mov.tipo_movimiento === 'VENTA' || mov.tipo_movimiento === 'AJUSTE_NEGATIVO') ? '-' :
+                            '+' }}{{ mov.cantidad }}
+                        </div>
+
+                        <div class="stock-details text-sm">
+                            <span class="text-muted">Anterior: </span>{{ mov.stock_anterior }}
+                            <ion-icon name="arrow-forward-outline" class="mx-xs"></ion-icon>
+                            <span class="text-bold">Quedan: {{ mov.stock_nuevo }}</span>
+                        </div>
+                    </div>
+
+                    @if (mov.observaciones) {
+                    <div class="timeline-footer mt-xs text-xs text-medium">
+                        "{{ mov.observaciones }}"
+                    </div>
+                    }
+                </ion-card-content>
+            </ion-card>
+            }
+        </div>
+        }
+    </div>
+</ion-content>
