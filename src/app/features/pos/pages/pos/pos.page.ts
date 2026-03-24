@@ -15,7 +15,7 @@ import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
-import { Producto } from '../../../inventario/models/producto.model';
+import { Producto, ProductoPOS } from '../../../inventario/models/producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { PosService, VentaPayload } from '../../services/pos.service';
@@ -62,9 +62,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   lastAddedId: string | null = null;
   carrito: CartItem[] = [];
   buscarTexto = '';
-  productosBusqueda: Producto[] = [];
+  productosBusqueda: ProductoPOS[] = [];
   buscando = false;
   modoBusqueda: 'codigo' | 'nombre' = 'codigo';
+  private searchVersion = 0;
   escaneando = false;
   cobroEnProceso = false;
   scanPreview: { nombre: string; cantidad: number; subtotal: number; precioUnitario: number } | null = null;
@@ -213,7 +214,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  agregarAlCarrito(producto: Producto) {
+  agregarAlCarrito(producto: ProductoPOS) {
     const existe = this.carrito.find(item => item.id === producto.id);
     if (existe) {
       if (existe.cantidad < producto.stock_actual) {
@@ -250,7 +251,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   /** Agrega N unidades de un producto al carrito (para patrón cantidad*codigo) */
-  agregarAlCarritoConCantidad(producto: Producto, cantidad: number) {
+  agregarAlCarritoConCantidad(producto: ProductoPOS, cantidad: number) {
     const disponible = producto.stock_actual;
     if (disponible <= 0) {
       this.ui.showToast('Producto sin stock', 'danger');
@@ -408,9 +409,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const texto = (event.target as HTMLInputElement).value?.trim();
 
     if (this.modoBusqueda === 'nombre') {
-      if (!texto) { this.productosBusqueda = []; return; }
+      if (!texto || texto.length < 2) { this.productosBusqueda = []; return; }
       clearTimeout(this.searchDebounce);
-      this.searchDebounce = setTimeout(() => this.buscarPorNombre(texto), 450);
+      this.searchDebounce = setTimeout(() => this.buscarPorNombre(texto), 600);
     } else {
       clearTimeout(this.searchDebounce);
       if (!texto) return;
@@ -438,11 +439,15 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
+    const version = ++this.searchVersion;
     this.buscando = true;
     try {
-      this.productosBusqueda = await this.inventarioService.obtenerProductos(texto);
+      const resultados = await this.inventarioService.buscarProductosPOS(texto);
+      // Descartar si llegó una búsqueda más reciente mientras esperábamos
+      if (version !== this.searchVersion) return;
+      this.productosBusqueda = resultados;
     } finally {
-      this.buscando = false;
+      if (version === this.searchVersion) this.buscando = false;
     }
   }
 
@@ -485,7 +490,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   // Clic en la lista de sugerencias (Resultados de Búsqueda)
-  seleccionarProductoBusqueda(producto: Producto) {
+  seleccionarProductoBusqueda(producto: ProductoPOS) {
     this.agregarAlCarrito(producto);
     this.buscarTexto = '';
     this.productosBusqueda = [];

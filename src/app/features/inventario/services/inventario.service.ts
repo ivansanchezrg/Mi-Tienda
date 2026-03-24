@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SupabaseService } from '../../../core/services/supabase.service';
-import { Producto } from '../models/producto.model';
+import { Producto, ProductoPOS } from '../models/producto.model';
 import { CategoriaProducto } from '../models/categoria-producto.model';
 import { KardexInventario } from '../models/kardex.model';
 
@@ -44,6 +44,20 @@ export class InventarioService {
 
         const { data } = await query;
         return data || [];
+    }
+
+    /**
+     * Búsqueda liviana para POS — solo campos necesarios, limit 10, sin join.
+     */
+    async buscarProductosPOS(texto: string): Promise<ProductoPOS[]> {
+        const { data } = await this.supabase.client
+            .from('productos')
+            .select('id, nombre, codigo_barras, precio_venta, stock_actual, imagen_url, tiene_iva')
+            .eq('activo', true)
+            .or(`nombre.ilike.%${texto}%,codigo_barras.ilike.%${texto}%`)
+            .order('nombre')
+            .limit(10);
+        return (data || []) as ProductoPOS[];
     }
 
     async obtenerProductoPorCodigo(codigoBarras: string): Promise<Producto | null> {

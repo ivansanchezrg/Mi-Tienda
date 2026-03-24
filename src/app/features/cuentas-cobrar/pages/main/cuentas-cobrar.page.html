@@ -1,0 +1,135 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Cuentas por Cobrar</ion-title>
+  </ion-toolbar>
+
+  <!-- Buscador por nombre o telefono -->
+  <div class="search-bar">
+    <ion-searchbar
+      [value]="busqueda"
+      placeholder="Buscar por nombre o telefono..."
+      inputmode="search"
+      [debounce]="0"
+      (ionInput)="onBusquedaChange($event)"
+      (ionClear)="onBusquedaChange($event)">
+    </ion-searchbar>
+  </div>
+</ion-header>
+
+<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent"
+      refreshingText="Cargando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Skeleton Loading -->
+  @if (loading) {
+  <div class="p-sm">
+    <ion-list class="cuentas-list" lines="none">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+      <ion-item class="cuenta-card" detail="false">
+        <div slot="start" class="avatar-placeholder">
+          <ion-skeleton-text animated style="width: 44px; height: 44px; border-radius: 50%;"></ion-skeleton-text>
+        </div>
+        <ion-label>
+          <ion-skeleton-text animated style="width: 60%; height: 16px; border-radius: 4px;"></ion-skeleton-text>
+          <div style="margin-top: 6px;">
+            <ion-skeleton-text animated style="width: 40%; height: 13px; border-radius: 4px;"></ion-skeleton-text>
+          </div>
+          <div style="margin-top: 6px;">
+            <ion-skeleton-text animated style="width: 50%; height: 12px; border-radius: 4px;"></ion-skeleton-text>
+          </div>
+        </ion-label>
+        <div slot="end">
+          <ion-skeleton-text animated style="width: 60px; height: 20px; border-radius: 4px;"></ion-skeleton-text>
+        </div>
+      </ion-item>
+      }
+    </ion-list>
+  </div>
+  }
+
+  <!-- Lista vacia -->
+  @else if (cuentas.length === 0) {
+  <div class="empty-state">
+    <div class="empty-icon-wrap">
+      <ion-icon name="hand-right-outline"></ion-icon>
+    </div>
+    <h2>Sin deudas pendientes</h2>
+    <p>No hay clientes con ventas fiadas por cobrar.</p>
+  </div>
+  }
+
+  <!-- Lista de clientes con deuda -->
+  @else {
+  <div class="p-sm">
+    <ion-list class="cuentas-list" lines="none">
+      @for (cuenta of cuentas; track cuenta.cliente_id) {
+      <ion-item class="cuenta-card" detail="false" button (click)="abrirDetalle(cuenta)">
+
+        <!-- Avatar con iniciales -->
+        <div slot="start" class="cliente-avatar">
+          <span class="avatar-text">{{ iniciales(cuenta.cliente_nombre) }}</span>
+        </div>
+
+        <!-- Info del cliente -->
+        <ion-label>
+          <h3 class="cliente-nombre">{{ cuenta.cliente_nombre }}</h3>
+          @if (cuenta.cliente_telefono) {
+          <p class="cliente-telefono">
+            <ion-icon name="call-outline"></ion-icon>
+            {{ cuenta.cliente_telefono }}
+          </p>
+          }
+          <p class="cuenta-meta">
+            {{ cuenta.cantidad_ventas }} {{ cuenta.cantidad_ventas === 1 ? 'venta' : 'ventas' }}
+            · Ultima: {{ formatFecha(cuenta.ultima_venta_fecha) }}
+          </p>
+        </ion-label>
+
+        <!-- Monto adeudado + flecha -->
+        <div slot="end" class="cuenta-end">
+          <span class="cuenta-total">${{ currencyService.format(cuenta.total_deuda) }}</span>
+          <ion-icon name="chevron-forward-outline" class="chevron-icon"></ion-icon>
+        </div>
+
+      </ion-item>
+      }
+    </ion-list>
+  </div>
+  }
+
+  <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent" [loadingText]="loadingMoreText"></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
+  @if (showScrollTop) {
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+    <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+      <ion-icon name="arrow-up-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+  }
+</ion-content>
+
+<!-- Footer totalizador -->
+@if (!loading && cuentas.length > 0) {
+<ion-footer class="ion-no-border">
+  <div class="cuentas-footer">
+    <div class="footer-info">
+      <span class="footer-label">{{ totalClientes }} {{ totalClientes === 1 ? 'cliente' : 'clientes' }}</span>
+    </div>
+    <div class="footer-amount-box">
+      <span class="footer-deuda-label">Total adeudado</span>
+      <h3 class="footer-amount">
+        <span class="currency-symbol">$</span>{{ currencyService.format(totalDeuda) }}
+      </h3>
+    </div>
+  </div>
+</ion-footer>
+}

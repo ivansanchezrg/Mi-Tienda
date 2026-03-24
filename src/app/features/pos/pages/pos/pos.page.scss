@@ -642,33 +642,34 @@ ion-toolbar {
 
 .scanner-corner-btn {
     position: fixed;
-    bottom: calc(110px + var(--spacing-md) + env(safe-area-inset-bottom));
-    right: var(--spacing-md);
+    // Dentro de tabs: tab bar ya maneja safe-area, no sumar env()
+    bottom: calc(110px + var(--spacing-xs));
+    right: var(--spacing-sm);
     background: var(--ion-item-background);
     border: 1px solid var(--ion-color-step-150);
-    border-radius: var(--radius-md);
-    width: 40px;
-    height: 40px;
+    border-radius: var(--radius-lg);
+    width: 45px;
+    height: 45px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--ion-color-medium);
-    box-shadow: var(--shadow-level-1);
+    box-shadow: var(--shadow-level-2);
     z-index: 100;
     cursor: pointer;
     transition: color var(--transition-fast);
 
     ion-icon {
-        font-size: 20px;
+        font-size: 23px;
     }
 
     &:active {
         color: var(--ion-color-primary);
     }
 
-    // Sin footer → se baja justo encima del tab bar
+    // Sin footer → justo encima del tab bar
     &.scanner-corner-btn--no-footer {
-        bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+        bottom: var(--spacing-md);
     }
 }
 
@@ -680,8 +681,8 @@ ion-toolbar {
     background: var(--bg-soft);
     border-top: 2px solid var(--ion-color-step-150);
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
-    // Safe area: sobreescribe el padding-bottom de .p-md sumando el área reservada de Android
-    padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+    // Dentro de tabs: ion-tab-bar ya maneja safe-area-inset-bottom
+    padding-bottom: var(--spacing-md);
 
     // ── Chip de tipo de comprobante ──
     .comprobante-chip {

@@ -19,5 +19,11 @@ export const PAGINATION_CONFIG = {
    */
   ventas: {
     pageSize: 25
+  },
+  /**
+   * Cuentas por cobrar (fiados)
+   */
+  cuentasCobrar: {
+    pageSize: 20
   }
 } as const;

@@ -3,7 +3,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCard, IonChip,
+  IonContent, IonIcon, IonCard,
   IonInfiniteScroll, IonInfiniteScrollContent,
   IonRefresher, IonRefresherContent,
   ModalController, IonSkeletonText
@@ -41,7 +41,7 @@ interface OperacionAgrupada {
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonCard, IonChip,
+    IonContent, IonIcon, IonCard,
     IonInfiniteScroll, IonInfiniteScrollContent, IonSkeletonText,
     IonRefresher, IonRefresherContent
   ]

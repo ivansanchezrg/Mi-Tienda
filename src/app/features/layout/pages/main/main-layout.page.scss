@@ -13,11 +13,30 @@ ion-tab-bar {
   box-shadow: var(--shadow-level-1);
   height: calc(68px + env(safe-area-inset-bottom) / 2);
   padding-bottom: calc(env(safe-area-inset-bottom) / 2);
-
 }
 
 ion-tab-button {
   --padding-bottom: calc(env(safe-area-inset-bottom) / 2);
+  --ripple-color: transparent;
+  --color-selected: var(--ion-color-primary);
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%) scaleX(0);
+    width: 40px;
+    height: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--ion-color-primary);
+    transition: transform var(--transition-normal) ease;
+  }
+
+  &.tab-selected::before {
+    transform: translateX(-50%) scaleX(1);
+  }
 }
 
 

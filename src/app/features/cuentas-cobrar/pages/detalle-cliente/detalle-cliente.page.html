@@ -1,0 +1,158 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/cuentas-cobrar" text=""></ion-back-button>
+    </ion-buttons>
+    <ion-title>Detalle de cuenta</ion-title>
+    <ion-buttons slot="end">
+      @if (!loading && ventasFiadas.length > 0) {
+      <ion-button (click)="compartirDeuda()">
+        <ion-icon slot="icon-only" name="share-outline"></ion-icon>
+      </ion-button>
+      }
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent"
+      refreshingText="Cargando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Skeleton -->
+  @if (loading) {
+  <div class="cliente-header-card">
+    <ion-skeleton-text animated style="width: 64px; height: 64px; border-radius: 50%;"></ion-skeleton-text>
+    <ion-skeleton-text animated style="width: 50%; height: 20px; border-radius: 4px; margin-top: 12px;"></ion-skeleton-text>
+    <ion-skeleton-text animated style="width: 30%; height: 14px; border-radius: 4px; margin-top: 8px;"></ion-skeleton-text>
+  </div>
+  <div class="p-sm">
+    @for (i of [1, 2, 3]; track i) {
+    <div class="venta-card skeleton-card">
+      <ion-skeleton-text animated style="width: 70%; height: 16px; border-radius: 4px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width: 50%; height: 14px; border-radius: 4px; margin-top: 8px;"></ion-skeleton-text>
+    </div>
+    }
+  </div>
+  }
+
+  @else {
+  <!-- Cabecera del cliente -->
+  <div class="cliente-header-card">
+    <div class="cliente-avatar-lg">
+      <ion-icon name="person-outline"></ion-icon>
+    </div>
+    <h2 class="cliente-nombre">{{ cliente?.nombre }}</h2>
+    @if (cliente?.identificacion) {
+    <p class="cliente-info">{{ cliente?.identificacion }}</p>
+    }
+    @if (cliente?.telefono) {
+    <p class="cliente-info">
+      <ion-icon name="call-outline"></ion-icon>
+      {{ cliente?.telefono }}
+    </p>
+    }
+
+    <div class="deuda-resumen">
+      <div class="deuda-item">
+        <span class="deuda-label">Total fiado</span>
+        <span class="deuda-valor">${{ currencyService.format(totalDeuda + totalPagado) }}</span>
+      </div>
+      <div class="deuda-divider"></div>
+      <div class="deuda-item">
+        <span class="deuda-label">Pagado</span>
+        <span class="deuda-valor deuda-pagado">${{ currencyService.format(totalPagado) }}</span>
+      </div>
+      <div class="deuda-divider"></div>
+      <div class="deuda-item">
+        <span class="deuda-label">Pendiente</span>
+        <span class="deuda-valor deuda-pendiente">${{ currencyService.format(totalDeuda) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- WhatsApp -->
+  @if (cliente?.telefono) {
+  <div class="acciones-rapidas">
+    <button class="btn-whatsapp" (click)="enviarWhatsApp()">
+      <ion-icon name="logo-whatsapp"></ion-icon>
+      Enviar recordatorio
+    </button>
+  </div>
+  }
+
+  <!-- Sin ventas -->
+  @if (ventasFiadas.length === 0) {
+  <div class="empty-state-inline">
+    <ion-icon name="checkmark-circle-outline"></ion-icon>
+    <p>Este cliente no tiene deudas pendientes</p>
+  </div>
+  }
+
+  <!-- Lista de ventas fiadas -->
+  @else {
+  <div class="section-title">Ventas pendientes</div>
+
+  <div class="p-sm">
+    @for (venta of ventasFiadas; track venta.id) {
+    <div class="venta-card">
+
+      <!-- Header: tipo + número + ojo -->
+      <div class="venta-header">
+        <div class="venta-tipo">
+          <ion-icon [name]="iconComprobante(venta.tipo_comprobante)"></ion-icon>
+          <span class="venta-tipo-label">{{ labelComprobante(venta.tipo_comprobante) }}</span>
+          @if (venta.numero_comprobante) {
+          <span class="venta-numero">#{{ venta.numero_comprobante }}</span>
+          }
+        </div>
+        <button class="btn-detalle" (click)="verDetalleVenta(venta.id, $event)">
+          <ion-icon name="eye-outline"></ion-icon>
+        </button>
+      </div>
+
+      <p class="venta-fecha-line">{{ formatFecha(venta.fecha) }} · {{ formatHora(venta.fecha) }}</p>
+
+      <div class="venta-montos">
+        <div class="monto-row">
+          <span class="monto-label">Total venta</span>
+          <span class="monto-valor">${{ currencyService.format(venta.total) }}</span>
+        </div>
+        @if (venta.monto_pagado > 0) {
+        <div class="monto-row">
+          <span class="monto-label">Abonado</span>
+          <span class="monto-valor monto-pagado">-${{ currencyService.format(venta.monto_pagado) }}</span>
+        </div>
+        }
+        <div class="monto-row monto-row--total">
+          <span class="monto-label">Pendiente</span>
+          <span class="monto-valor monto-pendiente">${{ currencyService.format(venta.saldo_pendiente) }}</span>
+        </div>
+      </div>
+
+    </div>
+    }
+  </div>
+  }
+  }
+
+</ion-content>
+
+<!-- Footer: botón Abonar siempre visible cuando hay deuda -->
+@if (!loading && ventasFiadas.length > 0) {
+<ion-footer class="ion-no-border">
+  <div class="cobrar-footer">
+    <div class="cobrar-info">
+      <span class="cobrar-count">{{ ventasFiadas.length }} {{ ventasFiadas.length === 1 ? 'venta' : 'ventas' }} pendientes</span>
+      <span class="cobrar-total">${{ currencyService.format(totalDeuda) }}</span>
+    </div>
+    <button class="btn-cobrar-footer" (click)="abonar()">
+      <ion-icon name="cash-outline"></ion-icon>
+      Cobrar
+    </button>
+  </div>
+</ion-footer>
+}
