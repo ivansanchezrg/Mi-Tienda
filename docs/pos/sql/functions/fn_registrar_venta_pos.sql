@@ -117,6 +117,7 @@ BEGIN
       iva_valor,
       metodo_pago,
       estado,
+      estado_pago,
       idempotency_key
     ) VALUES (
       p_turno_id,
@@ -131,6 +132,7 @@ BEGIN
       p_iva_valor,
       p_metodo_pago,
       'COMPLETADA',
+      CASE WHEN p_metodo_pago = 'FIADO' THEN 'PENDIENTE' ELSE 'NO_APLICA' END,
       p_idempotency_key
     )
     RETURNING id INTO v_venta_id;

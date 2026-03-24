@@ -42,6 +42,10 @@ export const LAYOUT_ROUTES: Routes = [
         loadChildren: () => import('../pos/pos.routes').then(m => m.POS_ROUTES)
       },
       {
+        path: 'cuentas-cobrar',
+        loadChildren: () => import('../cuentas-cobrar/cuentas-cobrar.routes').then(m => m.CUENTAS_COBRAR_ROUTES)
+      },
+      {
         path: '',
         redirectTo: 'home',
         pathMatch: 'full'

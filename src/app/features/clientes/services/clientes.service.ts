@@ -36,6 +36,15 @@ export class ClientesService {
         );
     }
 
+    async obtenerClientePorId(id: string): Promise<Cliente | null> {
+        return this.supabase.call<Cliente>(
+            this.supabase.client.from('clientes')
+                .select('*')
+                .eq('id', id)
+                .single()
+        );
+    }
+
     async crearCliente(data: { nombre: string; identificacion?: string; telefono?: string; email?: string }): Promise<Cliente | null> {
         return this.supabase.call<Cliente>(
             this.supabase.client.from('clientes')

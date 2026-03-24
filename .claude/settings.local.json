@@ -70,7 +70,12 @@
       "Bash(echo \"OK: $f\")",
       "Bash(echo \"MISSING: $f\")",
       "Bash(done)",
-      "Bash(npx ng:*)"
+      "Bash(npx ng:*)",
+      "Bash(mkdir -p \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/cuentas-cobrar/models\")",
+      "Bash(mkdir -p \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/cuentas-cobrar/services\")",
+      "Bash(mkdir -p \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/cuentas-cobrar/pages/main\")",
+      "Bash(mkdir -p \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/cuentas-cobrar/pages/detalle-cliente\")",
+      "Bash(mkdir -p \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/cuentas-cobrar/components/pago-fiado-modal\")"
     ]
   }
 }

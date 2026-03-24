@@ -441,6 +441,19 @@ padding-bottom: env(safe-area-inset-bottom);
 
 `env(safe-area-inset-bottom)` vale `0` en dispositivos sin barra → no rompe el layout.
 
+**Excepción — páginas dentro de tabs:** `ion-tab-bar` ya compensa el safe area internamente. Los footers de páginas que viven dentro de tabs **NO deben sumar** `env(safe-area-inset-bottom)` — se duplica el espacio. Solo usar `padding-bottom` normal. Los elementos `position: fixed` (overlays, scanners) sí lo necesitan porque están fuera del flujo del tab bar.
+
+```scss
+// ❌ Footer dentro de tabs — duplica safe area
+padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+
+// ✅ Footer dentro de tabs — tab bar ya lo maneja
+padding-bottom: var(--spacing-md);
+
+// ✅ Elemento position: fixed (overlay/scanner) — sí necesita safe area
+bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
+```
+
 **Estado actual del proyecto:**
 
 | Elemento | Archivo | Estado |

@@ -1,0 +1,329 @@
+// ==========================================
+// Detalle Cliente — Cuentas por Cobrar
+// ==========================================
+
+:host {
+    --bg-soft: var(--ion-background-color, #f8f9fa);
+}
+
+ion-content {
+    --background: var(--bg-soft);
+}
+
+ion-toolbar {
+    --background: var(--bg-soft);
+    --border-width: 0;
+
+    ion-title {
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        padding-inline-start: 0;
+    }
+}
+
+// ─────────────────────────────────────────
+// CABECERA DEL CLIENTE
+// ─────────────────────────────────────────
+
+.cliente-header-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    background: var(--ion-item-background, #fff);
+    margin: var(--spacing-sm);
+    border-radius: var(--radius-md, 10px);
+    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, .08));
+
+    .cliente-avatar-lg {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: rgba(var(--ion-color-primary-rgb), 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--spacing-sm);
+
+        ion-icon {
+            font-size: 32px;
+            color: var(--ion-color-primary);
+        }
+    }
+
+    .cliente-nombre {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--ion-text-color);
+        margin: 0 0 4px 0;
+        text-align: center;
+    }
+
+    .cliente-info {
+        font-size: 14px;
+        color: var(--ion-color-medium);
+        margin: 0 0 2px 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+
+        ion-icon { font-size: 14px; }
+    }
+}
+
+// ─────────────────────────────────────────
+// RESUMEN DE DEUDA
+// ─────────────────────────────────────────
+
+.deuda-resumen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+    width: 100%;
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--ion-color-step-100);
+
+    .deuda-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 1;
+
+        .deuda-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--ion-color-medium);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .deuda-valor {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--ion-text-color);
+        }
+
+        .deuda-pagado  { color: var(--ion-color-success); }
+        .deuda-pendiente { color: var(--ion-color-danger); }
+    }
+
+    .deuda-divider {
+        width: 1px;
+        height: 36px;
+        background: var(--ion-color-step-150);
+    }
+}
+
+// ─────────────────────────────────────────
+// ACCIONES RAPIDAS
+// ─────────────────────────────────────────
+
+.acciones-rapidas {
+    padding: var(--spacing-sm) var(--spacing-sm) 0;
+
+    .btn-whatsapp {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        padding: 12px;
+        background: #25D366;
+        color: #fff;
+        border: none;
+        border-radius: var(--radius-md, 10px);
+        font-size: 15px;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        transition: opacity var(--transition-normal);
+
+        &:active { opacity: 0.8; }
+        ion-icon { font-size: 20px; }
+    }
+}
+
+// ─────────────────────────────────────────
+// TÍTULO DE SECCIÓN
+// ─────────────────────────────────────────
+
+.section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ion-color-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: var(--spacing-md) var(--spacing-md) var(--spacing-xs);
+}
+
+// ─────────────────────────────────────────
+// TARJETA DE VENTA FIADA
+// ─────────────────────────────────────────
+
+.venta-card {
+    background: var(--ion-item-background, #fff);
+    border-radius: var(--radius-md, 10px);
+    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, .08));
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-sm, 8px);
+
+    &.skeleton-card { padding: var(--spacing-lg); }
+
+    .venta-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+
+        .venta-tipo {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+
+            ion-icon {
+                font-size: 15px;
+                color: var(--ion-color-medium);
+            }
+
+            .venta-tipo-label {
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--ion-text-color);
+            }
+
+            .venta-numero {
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--ion-color-primary);
+            }
+        }
+
+        .btn-detalle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--ion-color-medium);
+            transition: background 0.15s ease;
+
+            &:active { background: var(--ion-color-step-100); }
+            ion-icon { font-size: 20px; }
+        }
+    }
+
+    .venta-fecha-line {
+        font-size: 12px;
+        color: var(--ion-color-medium);
+        margin: 0 0 var(--spacing-sm);
+    }
+
+    .venta-montos {
+        .monto-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+
+            .monto-label {
+                font-size: 13px;
+                color: var(--ion-color-medium);
+            }
+
+            .monto-valor {
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--ion-text-color);
+            }
+
+            .monto-pagado  { color: var(--ion-color-success); }
+            .monto-pendiente { color: var(--ion-color-danger); font-weight: 700; }
+
+            &--total {
+                border-top: 1px solid var(--ion-color-step-100);
+                padding-top: 8px;
+                margin-top: 4px;
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────
+// ESTADO VACÍO
+// ─────────────────────────────────────────
+
+.empty-state-inline {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--spacing-xl);
+    color: var(--ion-color-medium);
+
+    ion-icon {
+        font-size: 48px;
+        color: var(--ion-color-success);
+        opacity: 0.5;
+        margin-bottom: var(--spacing-sm);
+    }
+
+    p { font-size: 14px; text-align: center; }
+}
+
+// ─────────────────────────────────────────
+// FOOTER — BOTÓN ABONAR
+// ─────────────────────────────────────────
+
+.cobrar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+    background: var(--ion-item-background, #fff);
+    border-top: 1px solid var(--ion-color-step-100);
+
+    .cobrar-info {
+        display: flex;
+        flex-direction: column;
+
+        .cobrar-count {
+            font-size: 12px;
+            color: var(--ion-color-medium);
+            font-weight: 500;
+        }
+
+        .cobrar-total {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--ion-text-color);
+            letter-spacing: -0.5px;
+        }
+    }
+
+    .btn-cobrar-footer {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 12px 28px;
+        background: var(--ion-color-primary);
+        color: var(--ion-color-primary-contrast);
+        border: none;
+        border-radius: var(--radius-md, 10px);
+        font-size: 16px;
+        font-weight: 700;
+        font-family: inherit;
+        cursor: pointer;
+        transition: opacity var(--transition-normal);
+
+        &:active { opacity: 0.8; }
+        ion-icon { font-size: 20px; }
+    }
+}

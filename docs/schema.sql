@@ -268,6 +268,8 @@ CREATE TABLE IF NOT EXISTS ventas (
     estado_sri          VARCHAR(20) CHECK (estado_sri IN ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO', 'NO_ENVIADO')) DEFAULT 'NO_ENVIADO',
 
     estado          VARCHAR(20) DEFAULT 'COMPLETADA' CHECK (estado IN ('COMPLETADA', 'ANULADA')),
+    estado_pago     VARCHAR(20) DEFAULT 'NO_APLICA'
+                        CHECK (estado_pago IN ('NO_APLICA', 'PENDIENTE', 'PAGADO_PARCIAL', 'PAGADO')),
     observaciones   TEXT,
     idempotency_key UUID UNIQUE                              -- Evita ventas duplicadas por reintento (POS)
 );
@@ -295,6 +297,19 @@ CREATE TABLE IF NOT EXISTS kardex_inventario (
     observaciones   TEXT
 );
 
+-- 17. cuentas_cobrar — Registro de pagos contra ventas fiadas
+CREATE TABLE IF NOT EXISTS cuentas_cobrar (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    venta_id        UUID NOT NULL REFERENCES ventas(id),
+    empleado_id     INTEGER NOT NULL REFERENCES usuarios(id),
+    monto           DECIMAL(12,2) NOT NULL CHECK (monto > 0),
+    metodo_pago     VARCHAR(20) NOT NULL DEFAULT 'EFECTIVO'
+                        CHECK (metodo_pago IN ('EFECTIVO', 'DEUNA', 'TRANSFERENCIA')),
+    fecha           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    observaciones   TEXT,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ==========================================
 -- ÍNDICES (todos con IF NOT EXISTS → re-ejecutable sin errores)
 -- ==========================================
@@ -320,6 +335,10 @@ CREATE INDEX IF NOT EXISTS idx_ventas_turno_id               ON ventas(turno_id)
 CREATE INDEX IF NOT EXISTS idx_ventas_cliente_id             ON ventas(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_ventas_detalles_venta_id      ON ventas_detalles(venta_id);
 CREATE INDEX IF NOT EXISTS idx_kardex_inventario_producto_id ON kardex_inventario(producto_id);
+CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_venta          ON cuentas_cobrar(venta_id);
+CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_fecha          ON cuentas_cobrar(fecha);
+CREATE INDEX IF NOT EXISTS idx_ventas_estado_pago            ON ventas(estado_pago);
+CREATE INDEX IF NOT EXISTS idx_ventas_metodo_pago            ON ventas(metodo_pago);
 
 -- ==========================================
 -- TRIGGERS — AUTO-GENERACIÓN DE CÓDIGOS Y POS
@@ -520,7 +539,7 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 -- ==========================================
 -- RESUMEN (v5.0)
 -- ==========================================
--- ✅ 16 Tablas | 2 Enums | 22 Índices
+-- ✅ 17 Tablas | 2 Enums | 26 Índices
 -- ✅ 2 Tipos de servicio (BUS, CELULAR)
 -- ✅ 4 Tipos de referencia (eliminado caja_fisica_diaria)
 -- ✅ 18 Categorías de operaciones (13 egresos + 5 ingresos)
@@ -547,6 +566,10 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 --   • liquidar_ganancias_bus                  → docs/recargas-virtuales/sql/functions/
 --   POS:
 --   • registrar_venta_pos                     → docs/pos/sql/functions/fn_registrar_venta_pos.sql
+--   Cuentas por Cobrar:
+--   • registrar_pago_fiado                     → docs/cuentas-cobrar/sql/functions/fn_registrar_pago_fiado.sql
+--   • listar_cuentas_cobrar                    → docs/cuentas-cobrar/sql/functions/fn_listar_cuentas_cobrar.sql
+--   • resumir_cuentas_cobrar                   → docs/cuentas-cobrar/sql/functions/fn_resumir_cuentas_cobrar.sql
 --
 -- ⚠️  MIGRACIÓN desde v4.9: ejecutar v5_migracion_cajas.sql (NO este schema completo)
 --   → docs/dashboard/sql/migrations/v5_migracion_cajas.sql
