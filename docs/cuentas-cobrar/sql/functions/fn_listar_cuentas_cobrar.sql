@@ -3,7 +3,7 @@
 -- ==========================================
 -- Lista clientes con ventas fiadas pendientes (total o parcialmente).
 -- Agrupa por cliente, suma la deuda total y ordena por mayor deuda primero.
--- Soporta búsqueda por nombre / identificación / teléfono del cliente.
+-- Soporta búsqueda por nombre / identificación del cliente.
 -- Paginada: p_page 0-indexed, p_page_size filas por página.
 --
 -- Retorna: SETOF JSON con campos de CuentaCliente
@@ -52,7 +52,6 @@ AS $$
             OR p_busqueda = ''
             OR c.nombre         ILIKE '%' || p_busqueda || '%'
             OR c.identificacion ILIKE '%' || p_busqueda || '%'
-            OR c.telefono       ILIKE '%' || p_busqueda || '%'
         )
     GROUP BY c.id, c.nombre, c.identificacion, c.telefono
     HAVING SUM(v.total - COALESCE(pagos.total_pagado, 0)) > 0

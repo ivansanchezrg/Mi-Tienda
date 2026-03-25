@@ -55,7 +55,6 @@ AS $$
                 OR p_busqueda = ''
                 OR c.nombre         ILIKE '%' || p_busqueda || '%'
                 OR c.identificacion ILIKE '%' || p_busqueda || '%'
-                OR c.telefono       ILIKE '%' || p_busqueda || '%'
             )
         GROUP BY c.id
         HAVING SUM(v.total - COALESCE(pagos.total_pagado, 0)) > 0

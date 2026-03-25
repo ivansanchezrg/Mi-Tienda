@@ -23,6 +23,19 @@ export interface VentaFiada {
     monto_pagado: number;
     saldo_pendiente: number;
     empleado_nombre: string | null;
+    /** Campos IVA — relevantes solo para FACTURA */
+    base_iva_0: number;
+    base_iva_15: number;
+    iva_valor: number;
+}
+
+/** Ítem de una venta fiada (producto + cantidad + precio) */
+export interface VentaFiadaItem {
+    id: string;
+    producto_nombre: string;
+    cantidad: number;
+    precio_unitario: number;
+    subtotal: number;
 }
 
 /** Pago registrado contra una venta fiada */

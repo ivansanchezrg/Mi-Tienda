@@ -4,6 +4,7 @@ import { PAGINATION_CONFIG } from '../../../core/config/pagination.config';
 import {
     CuentaCliente,
     VentaFiada,
+    VentaFiadaItem,
     PagoFiado,
     CuentasCobrarResumen
 } from '../models/cuenta-cobrar.model';
@@ -48,18 +49,19 @@ export class CuentasCobrarService {
 
     /** Ventas fiadas pendientes (total o parcialmente) de un cliente */
     async obtenerVentasFiadas(clienteId: string): Promise<VentaFiada[]> {
-        const data = await this.supabase.call<any[]>(
-            this.supabase.client
-                .from('ventas')
-                .select('id, numero_comprobante, tipo_comprobante, fecha, total, empleado:empleado_id(nombre), cuentas_cobrar(monto)')
-                .eq('cliente_id', clienteId)
-                .eq('metodo_pago', 'FIADO')
-                .eq('estado', 'COMPLETADA')
-                .in('estado_pago', ['PENDIENTE', 'PAGADO_PARCIAL'])
-                .order('fecha', { ascending: true })
-        ) ?? [];
+        const query = this.supabase.client
+            .from('ventas')
+            .select('id, numero_comprobante, tipo_comprobante, fecha, total, base_iva_0, base_iva_15, iva_valor, empleado:empleado_id(nombre), cuentas_cobrar(monto)')
+            .eq('cliente_id', clienteId)
+            .eq('metodo_pago', 'FIADO')
+            .eq('estado', 'COMPLETADA')
+            .in('estado_pago', ['PENDIENTE', 'PAGADO_PARCIAL'])
+            .order('fecha', { ascending: true });
 
-        return data.map(v => {
+        const { data, error } = await query;
+        if (error) return [];
+
+        return (data ?? []).map((v: any) => {
             const montoPagado = (v.cuentas_cobrar as { monto: number }[] ?? [])
                 .reduce((sum, p) => sum + p.monto, 0);
             return {
@@ -71,8 +73,29 @@ export class CuentasCobrarService {
                 monto_pagado: montoPagado,
                 saldo_pendiente: v.total - montoPagado,
                 empleado_nombre: v.empleado?.nombre ?? null,
+                base_iva_0: v.base_iva_0 ?? 0,
+                base_iva_15: v.base_iva_15 ?? 0,
+                iva_valor: v.iva_valor ?? 0,
             };
         });
+    }
+
+    /** Ítems (productos) de una venta fiada — para el estado de cuenta compartible */
+    async obtenerItemsVenta(ventaId: string): Promise<VentaFiadaItem[]> {
+        const data = await this.supabase.call<any[]>(
+            this.supabase.client
+                .from('ventas_detalles')
+                .select('id, cantidad, precio_unitario, subtotal, producto:producto_id(nombre)')
+                .eq('venta_id', ventaId)
+        ) ?? [];
+
+        return data.map(d => ({
+            id: d.id,
+            producto_nombre: d.producto?.nombre ?? 'Producto',
+            cantidad: d.cantidad,
+            precio_unitario: d.precio_unitario,
+            subtotal: d.subtotal,
+        }));
     }
 
     /** Historial de pagos de una venta fiada específica */

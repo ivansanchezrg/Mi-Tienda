@@ -21,6 +21,7 @@ import { RecargasService } from '../../services/recargas.service';
 import { CajasService, Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
+import { ConfigService } from '@core/services/config.service';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { EstadoCaja } from '../../models/turno-caja.model';
@@ -56,7 +57,10 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private notificacionesService = inject(NotificacionesService);
   private modalCtrl = inject(ModalController);
   private networkService = inject(NetworkService);
+  private configService  = inject(ConfigService);
   private cdr = inject(ChangeDetectorRef);
+
+  nombreNegocio = 'Mi Tienda';
   private networkSub?: Subscription;
   private queryParamsSub?: Subscription;
 
@@ -140,6 +144,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
+    this.configService.getNombreNegocio().then(n => this.nombreNegocio = n);
+
     this.networkSub = this.networkService.getNetworkStatus().subscribe(isOnline => {
       this.isOnline = isOnline;
     });

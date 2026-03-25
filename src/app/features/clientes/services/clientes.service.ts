@@ -41,7 +41,7 @@ export class ClientesService {
             this.supabase.client.from('clientes')
                 .select('*')
                 .eq('id', id)
-                .single()
+                .maybeSingle()
         );
     }
 

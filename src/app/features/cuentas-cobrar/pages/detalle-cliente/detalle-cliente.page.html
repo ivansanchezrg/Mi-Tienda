@@ -6,55 +6,41 @@
     <ion-title>Detalle de cuenta</ion-title>
     <ion-buttons slot="end">
       @if (!loading && ventasFiadas.length > 0) {
-      <ion-button (click)="compartirDeuda()">
+      <ion-button (click)="compartirDeuda()" [disabled]="compartiendo">
         <ion-icon slot="icon-only" name="share-outline"></ion-icon>
       </ion-button>
       }
     </ion-buttons>
   </ion-toolbar>
-</ion-header>
 
-<ion-content>
-
-  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
-    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent"
-      refreshingText="Cargando...">
-    </ion-refresher-content>
-  </ion-refresher>
-
-  <!-- Skeleton -->
+  <!-- Cabecera del cliente — fija, no scrollea -->
   @if (loading) {
   <div class="cliente-header-card">
     <ion-skeleton-text animated style="width: 64px; height: 64px; border-radius: 50%;"></ion-skeleton-text>
     <ion-skeleton-text animated style="width: 50%; height: 20px; border-radius: 4px; margin-top: 12px;"></ion-skeleton-text>
     <ion-skeleton-text animated style="width: 30%; height: 14px; border-radius: 4px; margin-top: 8px;"></ion-skeleton-text>
   </div>
-  <div class="p-sm">
-    @for (i of [1, 2, 3]; track i) {
-    <div class="venta-card skeleton-card">
-      <ion-skeleton-text animated style="width: 70%; height: 16px; border-radius: 4px;"></ion-skeleton-text>
-      <ion-skeleton-text animated style="width: 50%; height: 14px; border-radius: 4px; margin-top: 8px;"></ion-skeleton-text>
-    </div>
-    }
-  </div>
-  }
-
-  @else {
-  <!-- Cabecera del cliente -->
+  } @else if (cliente) {
   <div class="cliente-header-card">
-    <div class="cliente-avatar-lg">
-      <ion-icon name="person-outline"></ion-icon>
+    <div class="cliente-header-row">
+      <div class="cliente-avatar-sm">
+        <ion-icon name="person-outline"></ion-icon>
+      </div>
+      <div class="cliente-header-info">
+        <h2 class="cliente-nombre">{{ cliente.nombre }}</h2>
+        <div class="cliente-meta">
+          @if (cliente.identificacion) {
+          <span class="cliente-info">{{ cliente.identificacion }}</span>
+          }
+          @if (cliente.telefono) {
+          <span class="cliente-info">
+            <ion-icon name="call-outline"></ion-icon>
+            {{ cliente.telefono }}
+          </span>
+          }
+        </div>
+      </div>
     </div>
-    <h2 class="cliente-nombre">{{ cliente?.nombre }}</h2>
-    @if (cliente?.identificacion) {
-    <p class="cliente-info">{{ cliente?.identificacion }}</p>
-    }
-    @if (cliente?.telefono) {
-    <p class="cliente-info">
-      <ion-icon name="call-outline"></ion-icon>
-      {{ cliente?.telefono }}
-    </p>
-    }
 
     <div class="deuda-resumen">
       <div class="deuda-item">
@@ -73,17 +59,23 @@
       </div>
     </div>
   </div>
-
-  <!-- WhatsApp -->
-  @if (cliente?.telefono) {
-  <div class="acciones-rapidas">
-    <button class="btn-whatsapp" (click)="enviarWhatsApp()">
-      <ion-icon name="logo-whatsapp"></ion-icon>
-      Enviar recordatorio
-    </button>
-  </div>
   }
 
+  <!-- Título sección — fijo -->
+  @if (!loading && ventasFiadas.length > 0) {
+  <div class="section-title">Cuentas por cobrar</div>
+  }
+</ion-header>
+
+<ion-content>
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent"
+      refreshingText="Cargando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  @if (!loading) {
   <!-- Sin ventas -->
   @if (ventasFiadas.length === 0) {
   <div class="empty-state-inline">
@@ -94,8 +86,6 @@
 
   <!-- Lista de ventas fiadas -->
   @else {
-  <div class="section-title">Ventas pendientes</div>
-
   <div class="p-sm">
     @for (venta of ventasFiadas; track venta.id) {
     <div class="venta-card">

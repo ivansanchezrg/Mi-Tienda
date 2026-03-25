@@ -124,6 +124,7 @@ export class CuentasCobrarPage extends PaginatedListPage<CuentaCliente> implemen
 
     /** Iniciales del nombre para el avatar */
     iniciales(nombre: string): string {
+        if (!nombre?.trim()) return '?';
         return nombre
             .split(' ')
             .slice(0, 2)

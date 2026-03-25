@@ -12,6 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ==========================================
 -- LIMPIEZA (orden: más dependiente → menos)
 -- ==========================================
+DROP TABLE IF EXISTS cuentas_cobrar CASCADE;
 DROP TABLE IF EXISTS ventas_detalles CASCADE;
 DROP TABLE IF EXISTS kardex_inventario CASCADE;
 DROP TABLE IF EXISTS ventas CASCADE;
@@ -78,10 +79,11 @@ CREATE TABLE IF NOT EXISTS cajas (
 -- 3. configuraciones — Parámetros globales del negocio (1 sola fila)
 CREATE TABLE IF NOT EXISTS configuraciones (
     id                              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    fondo_fijo_diario               DECIMAL(12,2) DEFAULT 20.00,  -- Efectivo que queda en caja para mañana
-    varios_transferencia_diaria DECIMAL(12,2),                -- Monto transferido a Caja Chica en cada cierre
-    bus_alerta_saldo_bajo           DECIMAL(12,2) DEFAULT 75.00,  -- Alerta cuando saldo virtual BUS <= este valor
-    bus_dias_antes_facturacion      INTEGER,                      -- Anticipación para recordar facturación mensual BUS
+    nombre_negocio                  VARCHAR(150) DEFAULT 'Mi Tienda',             -- Nombre del negocio (aparece en comprobantes)
+    fondo_fijo_diario               DECIMAL(12,2) DEFAULT 20.00,                  -- Efectivo que queda en caja para mañana
+    varios_transferencia_diaria     DECIMAL(12,2),                                -- Monto transferido a Caja Chica en cada cierre
+    bus_alerta_saldo_bajo           DECIMAL(12,2) DEFAULT 75.00,                  -- Alerta cuando saldo virtual BUS <= este valor
+    bus_dias_antes_facturacion      INTEGER,                                       -- Anticipación para recordar facturación mensual BUS
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -519,8 +521,8 @@ INSERT INTO categorias_operaciones (tipo, nombre, descripcion, seleccionable) VA
 ('INGRESO', 'Reposición Déficit Turno Anterior','Ingreso a Varios por reposición del déficit pendiente del turno anterior',          FALSE),
 ('INGRESO', 'Ajuste Diferencia Conteo',         'Ajuste al cierre cuando el conteo físico supera al saldo digital del cajón',       FALSE);
 
-INSERT INTO configuraciones (fondo_fijo_diario, varios_transferencia_diaria, bus_alerta_saldo_bajo, bus_dias_antes_facturacion) VALUES
-(20.00, 20.00, 75.00, 3);
+INSERT INTO configuraciones (nombre_negocio, fondo_fijo_diario, varios_transferencia_diaria, bus_alerta_saldo_bajo, bus_dias_antes_facturacion) VALUES
+('Panaderia Don Viche', 20.00, 20.00, 75.00, 3);
 
 INSERT INTO usuarios (nombre, usuario, rol) VALUES
 ('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN');
@@ -574,3 +576,6 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 -- ⚠️  MIGRACIÓN desde v4.9: ejecutar v5_migracion_cajas.sql (NO este schema completo)
 --   → docs/dashboard/sql/migrations/v5_migracion_cajas.sql
 -- ==========================================
+
+-- Refresca el schema cache de PostgREST para que reconozca los cambios DDL
+NOTIFY pgrst, 'reload schema';

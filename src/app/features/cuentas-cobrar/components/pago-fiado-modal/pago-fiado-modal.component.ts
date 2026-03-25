@@ -50,10 +50,11 @@ export class PagoFiadoModalComponent implements OnInit {
     @Input() clienteNombre = '';
 
     form!: FormGroup;
-    metodoPagoLabel = 'Efectivo';
-    metodoPagoSeleccionado = 'EFECTIVO';
+    metodoPagoLabel = 'Seleccionar método de pago';
+    metodoPagoSeleccionado = '';
     guardando = false;
     progreso = 0;
+    itemsAProcesar = 0;
 
     /** false = cobro total (default), true = abono parcial con input editable */
     modoAbono = false;
@@ -78,20 +79,29 @@ export class PagoFiadoModalComponent implements OnInit {
         });
     }
 
+    get saldoRestante(): number {
+        return parseFloat(Math.max(0, this.totalDeuda - this.montoACobrar).toFixed(2));
+    }
+
     get mostrarDistribucion(): boolean {
-        return this.modoAbono && this.ventas.length > 1 && this.montoACobrar > 0;
+        return this.modoAbono && this.ventas.length >= 1 && this.montoACobrar > 0;
     }
 
     get botonTexto(): string {
         if (this.guardando) return 'Registrando...';
         if (!this.modoAbono) return `Cobrar $${this.currencyService.format(this.totalDeuda)}`;
         const monto = this.montoACobrar;
-        if (monto <= 0) return 'Ingresar monto';
+        if (monto <= 0) return `Abonar $0.00`;
         if (monto >= this.totalDeuda) return `Cobrar todo $${this.currencyService.format(this.totalDeuda)}`;
         return `Abonar $${this.currencyService.format(monto)}`;
     }
 
+    get permiteAbonoParcial(): boolean {
+        return this.totalDeuda >= 25;
+    }
+
     get formValido(): boolean {
+        if (!this.metodoPagoSeleccionado) return false;
         if (!this.modoAbono) return true;
         return this.form?.valid ?? false;
     }
@@ -120,10 +130,9 @@ export class PagoFiadoModalComponent implements OnInit {
         this.modoAbono = true;
     }
 
-    /** Vuelve a cobro total */
+    /** Rellena el monto con el total pendiente */
     volverCobroTotal() {
-        this.modoAbono = false;
-        this.form.patchValue({ monto: null });
+        this.form.patchValue({ monto: this.totalDeuda });
     }
 
     async seleccionarMetodoPago() {
@@ -160,6 +169,7 @@ export class PagoFiadoModalComponent implements OnInit {
 
         // En cobro total, el monto es totalDeuda → distribución cubre todo
         const items = this.distribucion.filter(d => d.pago > 0);
+        this.itemsAProcesar = items.length;
 
         try {
             for (const item of items) {
@@ -177,7 +187,18 @@ export class PagoFiadoModalComponent implements OnInit {
                     ? 'Abono registrado correctamente'
                     : `${items.length} abonos registrados correctamente`;
             this.ui.showToast(txt, 'success');
-            this.modalCtrl.dismiss({ pagado: true });
+            this.modalCtrl.dismiss({
+                pagado: true,
+                montoTotal: this.montoACobrar,
+                saldoRestante: this.saldoRestante,
+                itemsComprobante: items.map(i => ({
+                    tipoComprobante: i.venta.tipo_comprobante,
+                    numeroComprobante: i.venta.numero_comprobante,
+                    pago: i.pago,
+                    completa: i.completa,
+                    saldoVenta: parseFloat(Math.max(0, i.venta.saldo_pendiente - i.pago).toFixed(2))
+                }))
+            });
 
         } catch {
             this.ui.showToast('Error al registrar el pago', 'danger');
