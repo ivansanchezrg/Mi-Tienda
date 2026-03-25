@@ -634,6 +634,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const { data } = await modal.onDidDismiss();
 
     if (data) {
+      // Validación FIADO: requiere cliente real (no Consumidor Final)
+      if (data === 'FIADO' && this.clienteSeleccionado?.es_consumidor_final) {
+        this.ui.showToast('Para venta fiada debes seleccionar un cliente', 'warning');
+        this.abrirSelectorCliente();
+        return;
+      }
       this.ejecutarCobro(data);
     }
   }

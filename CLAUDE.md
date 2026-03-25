@@ -34,6 +34,7 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 | `usuarios`          | ✅ Completo                                  |
 | `inventario`        | ✅ Completo                                  |
 | `pos`               | 🚧 En desarrollo                             |
+| `cuentas-cobrar`    | ✅ Completo                                  |
 | `reportes`          | 🚧 En desarrollo                             |
 | ~~`gastos-diarios`~~| ❌ Eliminado en v5 (2026-03-06) — los gastos van como EGRESO en `operacion-modal` |
 
@@ -505,6 +506,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Recargas Virtuales  | `docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md`     |
 | Inventario          | `docs/inventario/INVENTARIO-README.md`                     |
 | POS                 | `docs/pos/POS-README.md`                                   |
+| Cuentas por Cobrar  | `docs/cuentas-cobrar/CUENTAS-COBRAR-README.md`             |
 | ~~Gastos Diarios~~  | `docs/gastos-diarios/GASTOS-DIARIOS-README.md` (**DEPRECADO en v5**)  |
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
 | Sistema de diseño   | `docs/DESIGN.md`                                           |

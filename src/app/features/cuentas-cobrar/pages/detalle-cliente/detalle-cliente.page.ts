@@ -13,12 +13,12 @@ import { addIcons } from 'ionicons';
 import {
     handRightOutline, cashOutline, receiptOutline,
     documentTextOutline, documentOutline,
-    logoWhatsapp, shareOutline, chevronDownCircleOutline,
+    shareOutline, chevronDownCircleOutline,
     callOutline, personOutline, checkmarkCircleOutline,
-    eyeOutline
+    eyeOutline, closeOutline
 } from 'ionicons/icons';
 import { CuentasCobrarService } from '../../services/cuentas-cobrar.service';
-import { VentaFiada } from '../../models/cuenta-cobrar.model';
+import { VentaFiada, VentaFiadaItem } from '../../models/cuenta-cobrar.model';
 import { ClientesService } from '../../../clientes/services/clientes.service';
 import { Cliente } from '../../../clientes/models/cliente.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -26,6 +26,8 @@ import { UiService } from '../../../../core/services/ui.service';
 import { formatFechaEC, formatHoraEC } from '../../../../core/utils/date.util';
 import { PagoFiadoModalComponent } from '../../components/pago-fiado-modal/pago-fiado-modal.component';
 import { VentaDetalleModalComponent } from '../../../ventas/components/venta-detalle-modal/venta-detalle-modal.component';
+import { ShareEstadoCuentaService, ComprobantePagoItem } from '../../services/share-estado-cuenta.service';
+import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 
 @Component({
     selector: 'app-detalle-cliente-cuenta',
@@ -48,10 +50,13 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
     public currencyService = inject(CurrencyService);
     private ui = inject(UiService);
     private modalCtrl = inject(ModalController);
+    private shareService = inject(ShareEstadoCuentaService);
 
     cliente: Cliente | null = null;
     ventasFiadas: VentaFiada[] = [];
+    itemsPorVenta = new Map<string, VentaFiadaItem[]>();
     loading = true;
+    compartiendo = false;
 
     private clienteId = '';
 
@@ -67,9 +72,9 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
         addIcons({
             handRightOutline, cashOutline, receiptOutline,
             documentTextOutline, documentOutline,
-            logoWhatsapp, shareOutline, chevronDownCircleOutline,
+            shareOutline, chevronDownCircleOutline,
             callOutline, personOutline, checkmarkCircleOutline,
-            eyeOutline
+            eyeOutline, closeOutline
         });
     }
 
@@ -94,8 +99,20 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
                 this.clientesService.obtenerClientePorId(this.clienteId),
                 this.cuentasService.obtenerVentasFiadas(this.clienteId),
             ]);
+            if (!cliente) {
+                this.ui.showToast('Cliente no encontrado', 'danger');
+                return;
+            }
             this.cliente = cliente;
             this.ventasFiadas = ventas;
+
+            // Cargar items de cada venta en paralelo — fallo parcial no rompe la página
+            const itemsResultados = await Promise.all(
+                ventas.map(v => this.cuentasService.obtenerItemsVenta(v.id).catch(() => []))
+            );
+            this.itemsPorVenta = new Map(
+                ventas.map((v, i) => [v.id, itemsResultados[i]])
+            );
         } catch {
             this.ui.showToast('Error al cargar datos del cliente', 'danger');
         } finally {
@@ -116,7 +133,7 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
         const modal = await this.modalCtrl.create({
             component: PagoFiadoModalComponent,
             componentProps: {
-                ventas: this.ventasFiadas,       // ya ordenadas de más antiguo a más nuevo
+                ventas: this.ventasFiadas,
                 clienteNombre: this.cliente?.nombre ?? ''
             }
         });
@@ -125,6 +142,69 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
         const { data } = await modal.onDidDismiss();
         if (data?.pagado) {
             await this.cargarDatos(true);
+            await this.ofrecerCompartirComprobante(
+                data.itemsComprobante,
+                data.montoTotal,
+                data.saldoRestante
+            );
+        }
+    }
+
+    private async ofrecerCompartirComprobante(
+        items: ComprobantePagoItem[],
+        montoTotal: number,
+        saldoRestante: number
+    ) {
+        const groups: ModalOptionGroup[] = [{
+            options: [
+                { label: 'Compartir comprobante', icon: 'share-outline', value: 'compartir' },
+                { label: 'Omitir', icon: 'close-outline', value: 'omitir' },
+            ]
+        }];
+
+        const modal = await this.modalCtrl.create({
+            component: OptionsModalComponent,
+            componentProps: {
+                title: 'Pago registrado',
+                subtitle: `$${this.currencyService.format(montoTotal)} cobrados`,
+                groups
+            },
+            cssClass: 'options-modal',
+            breakpoints: [0, 1],
+            initialBreakpoint: 1
+        });
+
+        await modal.present();
+        const { data } = await modal.onDidDismiss();
+
+        if (data === 'compartir') {
+            await this.compartirComprobante(items, montoTotal, saldoRestante);
+        }
+    }
+
+    private async compartirComprobante(
+        items: ComprobantePagoItem[],
+        montoTotal: number,
+        saldoRestante: number
+    ) {
+        if (!this.cliente) return;
+        this.compartiendo = true;
+        await this.ui.showLoading('Generando comprobante...');
+        try {
+            await this.shareService.compartirComprobantePago(
+                this.cliente, items, montoTotal, saldoRestante, this.ventasFiadas
+            );
+        } catch (err: any) {
+            const msg = err?.message ?? '';
+            if (msg === 'CLIPBOARD_FALLBACK') {
+                this.ui.showToast('Imagen copiada al portapapeles', 'success');
+                return;
+            }
+            if (msg.toLowerCase().includes('cancel') || msg.toLowerCase().includes('dismiss') || msg.toLowerCase().includes('abort')) return;
+            this.ui.showToast('No se pudo generar el comprobante', 'danger');
+        } finally {
+            await this.ui.hideLoading();
+            this.compartiendo = false;
         }
     }
 
@@ -139,41 +219,30 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
 
     async compartirDeuda() {
         if (!this.cliente || this.ventasFiadas.length === 0) return;
-
-        const lineas = this.ventasFiadas.map(v => {
-            const num = v.numero_comprobante ? `#${v.numero_comprobante}` : '';
-            return `- ${this.formatFecha(v.fecha)} ${num}: $${this.currencyService.format(v.total)} (pendiente: $${this.currencyService.format(v.saldo_pendiente)})`;
-        });
-
-        const texto = [
-            `*Detalle de cuenta - ${this.cliente.nombre}*`,
-            '',
-            ...lineas,
-            '',
-            `*Total pendiente: $${this.currencyService.format(this.totalDeuda)}*`,
-        ].join('\n');
-
-        if (navigator.share) {
-            try { await navigator.share({ title: 'Cuenta por cobrar', text: texto }); }
-            catch { /* usuario canceló */ }
-        } else if (this.cliente.telefono) {
-            this.enviarWhatsApp(texto);
-        } else {
-            await navigator.clipboard.writeText(texto);
-            this.ui.showToast('Copiado al portapapeles', 'success');
+        this.compartiendo = true;
+        await this.ui.showLoading('Generando estado de cuenta...');
+        try {
+            await this.shareService.compartirEstadoCuenta(
+                this.cliente,
+                this.ventasFiadas,
+                this.itemsPorVenta
+            );
+        } catch (err: any) {
+            const msg = err?.message ?? '';
+            // Fallback clipboard: no es error, es alternativa
+            if (msg === 'CLIPBOARD_FALLBACK') {
+                this.ui.showToast('Imagen copiada al portapapeles', 'success');
+                return;
+            }
+            // Share cancelado por el usuario — no es un error
+            if (msg.toLowerCase().includes('cancel') || msg.toLowerCase().includes('dismiss') || msg.toLowerCase().includes('abort')) return;
+            this.ui.showToast('No se pudo generar el estado de cuenta', 'danger');
+        } finally {
+            await this.ui.hideLoading();
+            this.compartiendo = false;
         }
     }
 
-    enviarWhatsApp(texto?: string) {
-        if (!this.cliente?.telefono) {
-            this.ui.showToast('El cliente no tiene teléfono registrado', 'warning');
-            return;
-        }
-        const mensaje = texto ?? `Hola ${this.cliente.nombre}, tu saldo pendiente es de $${this.currencyService.format(this.totalDeuda)}`;
-        const telefono = this.cliente.telefono.replace(/\D/g, '');
-        const url = `https://wa.me/593${telefono.startsWith('0') ? telefono.slice(1) : telefono}?text=${encodeURIComponent(mensaje)}`;
-        window.open(url, '_blank');
-    }
 
     // ── Helpers template ──
 

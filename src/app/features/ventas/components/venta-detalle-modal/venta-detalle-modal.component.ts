@@ -13,6 +13,7 @@ import {
 import { VentasService } from '../../services/ventas.service';
 import { Venta } from '../../models/venta.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
+import { ConfigService } from '../../../../core/services/config.service';
 import { formatFechaHoraEC, formatHoraEC } from '../../../../core/utils/date.util';
 
 @Component({
@@ -30,10 +31,12 @@ export class VentaDetalleModalComponent implements OnInit {
 
     private ventasService = inject(VentasService);
     public currencyService = inject(CurrencyService);
+    private configService  = inject(ConfigService);
     private modalCtrl = inject(ModalController);
 
     venta: Venta | null = null;
     loading = true;
+    nombreNegocio = 'Mi Tienda';
 
     constructor() {
         addIcons({
@@ -44,7 +47,10 @@ export class VentaDetalleModalComponent implements OnInit {
     }
 
     async ngOnInit() {
-        this.venta = await this.ventasService.obtenerVentaDetalle(this.ventaId);
+        [this.venta, this.nombreNegocio] = await Promise.all([
+            this.ventasService.obtenerVentaDetalle(this.ventaId),
+            this.configService.getNombreNegocio(),
+        ]);
         this.loading = false;
     }
 

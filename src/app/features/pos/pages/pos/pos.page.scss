@@ -248,20 +248,29 @@ ion-toolbar {
     align-items: center;
     justify-content: center;
     text-align: center;
-    min-height: 40vh;
+    min-height: 60vh;
     padding: var(--spacing-xl);
-    gap: var(--spacing-md);
+    gap: var(--spacing-xs);
 
     .empty-icon {
-        font-size: 56px;
-        color: var(--ion-color-medium);
-        opacity: 0.25;
+        font-size: 64px;
+        color: var(--ion-color-primary);
+        opacity: 0.18;
+        margin-bottom: var(--spacing-sm);
     }
 
-    p {
-        font-size: 14px;
+    .empty-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--ion-text-color);
+        opacity: 0.4;
+        margin: 0;
+    }
+
+    .empty-hint {
+        font-size: 13px;
         color: var(--ion-color-medium);
-        max-width: 240px;
+        max-width: 220px;
         line-height: 1.4;
         margin: 0;
     }

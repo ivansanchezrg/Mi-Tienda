@@ -282,6 +282,31 @@ ion-content {
         &.completa .preview-monto {
             color: var(--ion-color-success);
         }
+
+        &.sin-cambios {
+            opacity: 0.4;
+        }
+    }
+
+    .preview-resumen {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: var(--spacing-sm);
+        padding-top: var(--spacing-sm);
+        border-top: 1px dashed var(--ion-color-step-200);
+
+        span {
+            font-size: 12px;
+            color: var(--ion-color-medium);
+            font-weight: 500;
+        }
+
+        .resumen-valor {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--ion-color-danger);
+        }
     }
 }
 

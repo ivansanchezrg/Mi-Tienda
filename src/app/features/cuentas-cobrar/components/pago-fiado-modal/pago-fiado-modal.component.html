@@ -10,6 +10,7 @@
 </ion-header>
 
 <ion-content class="ion-padding">
+<form [formGroup]="form">
 
   <!-- ═══ MODO COBRO TOTAL (default) ═══ -->
   @if (!modoAbono) {
@@ -22,10 +23,12 @@
     <p class="cobro-total-desc">
       {{ ventas.length }} {{ ventas.length === 1 ? 'venta pendiente' : 'ventas pendientes' }}
     </p>
+    @if (permiteAbonoParcial) {
     <button type="button" class="btn-abono-link" (click)="activarAbono()">
       <ion-icon name="create-outline"></ion-icon>
       Hacer abono parcial
     </button>
+    }
   </div>
   }
 
@@ -39,72 +42,65 @@
       <span class="saldo-valor">${{ currencyService.format(totalDeuda) }}</span>
     </div>
   </div>
-  <form [formGroup]="form">
 
-    <!-- Campo monto editable -->
-    <div class="campo-monto">
-      <div class="campo-monto-header">
-        <label class="campo-label">Monto a abonar</label>
-        <button type="button" class="btn-volver-total" (click)="volverCobroTotal()">
-          Cobrar todo
-        </button>
-      </div>
-      <div class="monto-input-wrap">
-        <span class="monto-prefix">$</span>
-        <input type="text" formControlName="monto" inputmode="decimal"
-               appCurrencyInput placeholder="0.00" class="monto-input">
-      </div>
-      @if (form.get('monto')?.hasError('max') && form.get('monto')?.touched) {
-      <p class="campo-error">El monto no puede superar ${{ currencyService.format(totalDeuda) }}</p>
-      }
+  <!-- Campo monto editable -->
+  <div class="campo-monto">
+    <div class="campo-monto-header">
+      <label class="campo-label">Monto a abonar</label>
+      <button type="button" class="btn-volver-total" (click)="volverCobroTotal()">
+        Cobrar todo
+      </button>
     </div>
+    <div class="monto-input-wrap">
+      <span class="monto-prefix">$</span>
+      <input type="text" formControlName="monto" inputmode="decimal"
+             appCurrencyInput placeholder="0.00" class="monto-input">
+    </div>
+    @if (form.get('monto')?.hasError('max') && form.get('monto')?.touched) {
+    <p class="campo-error">El monto no puede superar ${{ currencyService.format(totalDeuda) }}</p>
+    }
+  </div>
 
-    <!-- Preview distribución FIFO — solo en abono con >1 venta -->
-    @if (mostrarDistribucion) {
-    <div class="preview-card">
-      <p class="preview-titulo">Distribución automática</p>
-      @for (item of distribucion; track item.venta.id) {
-      @if (item.pago > 0) {
-      <div class="preview-fila" [class.completa]="item.completa">
-        <div class="preview-icon">
-          @if (item.completa) {
-          <ion-icon name="checkmark-circle-outline"></ion-icon>
+  <!-- Preview distribución FIFO -->
+  @if (mostrarDistribucion) {
+  <div class="preview-card">
+    <p class="preview-titulo">Distribución automática</p>
+    @for (item of distribucion; track item.venta.id) {
+    <div class="preview-fila" [class.completa]="item.completa" [class.sin-cambios]="item.pago === 0">
+      <div class="preview-icon">
+        @if (item.completa) {
+        <ion-icon name="checkmark-circle-outline"></ion-icon>
+        } @else {
+        <ion-icon name="ellipse-outline"></ion-icon>
+        }
+      </div>
+      <div class="preview-info">
+        <span class="preview-desc">
+          {{ labelComprobante(item.venta.tipo_comprobante) }}
+          @if (item.venta.numero_comprobante) { #{{ item.venta.numero_comprobante }} }
+        </span>
+        <span class="preview-detalle">
+          @if (item.completa) { Saldado }
+          @else if (item.pago > 0) {
+            Queda <strong>${{ currencyService.format(item.venta.saldo_pendiente - item.pago) }} pendiente</strong>
           } @else {
-          <ion-icon name="ellipse-outline"></ion-icon>
+            Sin cambios
           }
-        </div>
-        <div class="preview-info">
-          <span class="preview-desc">
-            {{ labelComprobante(item.venta.tipo_comprobante) }}
-            @if (item.venta.numero_comprobante) { #{{ item.venta.numero_comprobante }} }
-          </span>
-          <span class="preview-detalle">
-            @if (item.completa) { Saldado }
-            @else {
-            ${{ currencyService.format(item.venta.saldo_pendiente) }}
-            &minus;
-            ${{ currencyService.format(item.pago) }}
-            = <strong>${{ currencyService.format(item.venta.saldo_pendiente - item.pago) }} pendiente</strong>
-            }
-          </span>
-        </div>
-        <span class="preview-monto">
-          ${{ currencyService.format(item.pago) }}
         </span>
       </div>
-      }
-      }
+      <span class="preview-monto">
+        ${{ currencyService.format(item.pago > 0 ? item.pago : item.venta.saldo_pendiente) }}
+      </span>
     </div>
     }
-
-    <!-- Observaciones -->
-    <div class="campo-grupo">
-      <label class="campo-label">Observaciones <span class="campo-opcional">(opcional)</span></label>
-      <textarea formControlName="observaciones" rows="2" class="campo-textarea"
-        placeholder="Ej: Abono en efectivo..."></textarea>
+    @if (saldoRestante > 0) {
+    <div class="preview-resumen">
+      <span>Saldo restante tras este abono</span>
+      <span class="resumen-valor">${{ currencyService.format(saldoRestante) }}</span>
     </div>
-
-  </form>
+    }
+  </div>
+  }
   }
 
   <!-- Selector método de pago (siempre visible) -->
@@ -116,23 +112,20 @@
     </button>
   </div>
 
-  <!-- Observaciones en modo cobro total -->
-  @if (!modoAbono) {
+  <!-- Observaciones (siempre visible, un solo campo) -->
   <div class="campo-grupo">
-    <form [formGroup]="form">
-      <label class="campo-label">Observaciones <span class="campo-opcional">(opcional)</span></label>
-      <textarea formControlName="observaciones" rows="2" class="campo-textarea"
-        placeholder="Ej: Pago completo en efectivo..."></textarea>
-    </form>
+    <label class="campo-label">Observaciones <span class="campo-opcional">(opcional)</span></label>
+    <textarea formControlName="observaciones" rows="2" class="campo-textarea"
+      placeholder="Ej: Pago en efectivo..."></textarea>
   </div>
-  }
 
+</form>
 </ion-content>
 
 <ion-footer class="ion-no-border">
   <div class="modal-footer">
     @if (guardando) {
-    <p class="progreso-text">Procesando {{ progreso }} de {{ distribucion.length }}...</p>
+    <p class="progreso-text">Procesando {{ progreso }} de {{ itemsAProcesar }}...</p>
     }
     <button class="btn-confirmar" [disabled]="!formValido || guardando" (click)="guardar()">
       <ion-icon name="checkmark-outline"></ion-icon>

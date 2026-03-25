@@ -10,7 +10,7 @@
   <div class="search-bar">
     <ion-searchbar
       [value]="busqueda"
-      placeholder="Buscar por nombre o telefono..."
+      placeholder="Buscar por nombre o cédula..."
       inputmode="search"
       [debounce]="0"
       (ionInput)="onBusquedaChange($event)"
@@ -57,11 +57,9 @@
   <!-- Lista vacia -->
   @else if (cuentas.length === 0) {
   <div class="empty-state">
-    <div class="empty-icon-wrap">
-      <ion-icon name="hand-right-outline"></ion-icon>
-    </div>
-    <h2>Sin deudas pendientes</h2>
-    <p>No hay clientes con ventas fiadas por cobrar.</p>
+    <ion-icon name="hand-right-outline" class="empty-icon"></ion-icon>
+    <p class="empty-title">Sin deudas pendientes</p>
+    <p class="empty-hint">No hay clientes con ventas fiadas por cobrar</p>
   </div>
   }
 

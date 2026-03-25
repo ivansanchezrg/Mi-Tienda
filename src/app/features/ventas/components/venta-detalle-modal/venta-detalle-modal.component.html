@@ -18,7 +18,7 @@
 
     <!-- ══ CABECERA ══════════════════════════════════ -->
     <div class="cabecera">
-      <div class="negocio-nombre">MI TIENDA</div>
+      <div class="negocio-nombre">{{ nombreNegocio }}</div>
       <div class="tipo-comprobante-label">
         {{ labelComprobante(venta.tipo_comprobante) }}
         @if (venta.numero_comprobante) {<span class="comprobante-numero"> #{{ venta.numero_comprobante }}</span>}
@@ -129,6 +129,7 @@
       }
 
       <p class="gracias">¡Gracias por su compra!</p>
+      <p class="nota-fiscal">Este documento no es un comprobante fiscal</p>
     </div>
 
   </div>
