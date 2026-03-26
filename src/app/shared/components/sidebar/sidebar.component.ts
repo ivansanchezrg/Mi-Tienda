@@ -8,7 +8,7 @@ import {
 import { MenuController } from '@ionic/angular/standalone';
 import {
   peopleOutline, settingsOutline, logOutOutline, personCircleOutline,
-  listOutline, swapHorizontalOutline, homeOutline, cubeOutline, receiptOutline, handRightOutline
+  listOutline, swapHorizontalOutline, homeOutline, cubeOutline, handRightOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 import { RolUsuario } from '../../../features/auth/models/usuario_actual.model';
@@ -55,7 +55,6 @@ export class SidebarComponent implements OnInit {
   // Todas las rutas del sidebar
   private readonly todosLosItems: MenuItem[] = [
     { title: 'Inicio', url: '/home', icon: homeOutline, exact: true },
-    { title: 'Ventas', url: '/ventas', icon: receiptOutline },
     { title: 'Cuentas por Cobrar', url: '/cuentas-cobrar', icon: handRightOutline },
     { title: 'Recargas', url: '/historial-recargas', icon: listOutline },
     { title: 'Saldo Virtual', url: '/home/recargas-virtuales', icon: swapHorizontalOutline },

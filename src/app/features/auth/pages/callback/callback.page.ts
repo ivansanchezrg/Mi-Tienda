@@ -43,12 +43,14 @@ export class CallbackPage implements OnInit, OnDestroy {
     const url = this.supabaseSvc.pendingDeepLinkUrl;
 
     if (!url) {
+      this.logger.warn('CallbackPage', 'Android callback sin pendingDeepLinkUrl');
       this.goToLogin();
       return;
     }
 
     const hashIndex = url.indexOf('#');
     if (hashIndex === -1) {
+      this.logger.warn('CallbackPage', 'Android callback sin hash en URL');
       this.goToLogin();
       return;
     }
@@ -62,6 +64,7 @@ export class CallbackPage implements OnInit, OnDestroy {
     this.supabaseSvc.pendingDeepLinkUrl = null;
 
     if (!accessToken || !refreshToken) {
+      this.logger.warn('CallbackPage', 'Android callback sin tokens en hash');
       this.goToLogin();
       return;
     }
@@ -77,6 +80,7 @@ export class CallbackPage implements OnInit, OnDestroy {
       return;
     }
 
+    this.logger.info('CallbackPage', 'Sesión Android establecida correctamente');
     await this.validateAndRedirect();
   }
 
@@ -84,12 +88,15 @@ export class CallbackPage implements OnInit, OnDestroy {
     const { data } = await this.supabaseSvc.client.auth.getSession();
 
     if (data.session) {
+      this.logger.info('CallbackPage', 'Sesión web encontrada directamente');
       await this.validateAndRedirect();
       return;
     }
 
+    this.logger.info('CallbackPage', 'Esperando evento SIGNED_IN via onAuthStateChange');
     const { data: listener } = this.supabaseSvc.client.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
+        this.logger.info('CallbackPage', 'Evento SIGNED_IN recibido');
         this.authSubscription?.unsubscribe();
         await this.validateAndRedirect();
       }

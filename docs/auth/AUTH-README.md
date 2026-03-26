@@ -131,70 +131,119 @@ export class MiPage {
 - 🔋 **Ahorra batería** - Menos operaciones de red
 - 🎯 **Automático** - Se guarda al login, se limpia al logout
 
-### 7. Manejo de JWT Expirado
+### 7. Gestión de JWT y Refresh de Sesión
 
-**Archivos:** `core/services/supabase.service.ts`, `core/services/ui.service.ts`
+**Archivos:** `core/services/supabase.service.ts`, `core/services/ui.service.ts`, `app.component.ts`
 
-#### Configuración de Expiración
+#### Cómo funciona el SDK de Supabase JS v2 (internals)
 
-Por defecto, Supabase configura:
-- **Access Token (JWT)**: 1 hora (3600 segundos)
-- **Refresh Token**: 30 días
+El SDK de Supabase maneja tokens así:
 
-Supabase intenta renovar el JWT automáticamente, pero el refresh puede fallar si la app está cerrada/inactiva, hay problemas de red, o el refresh token expiró.
+| Token | TTL por defecto | Configurable en |
+|---|---|---|
+| Access Token (JWT) | 1 hora (3600s) | Supabase Dashboard → Auth → JWT Expiry |
+| Refresh Token | 30 días | Supabase Dashboard → Auth → Refresh Token Rotation |
 
-#### Detección y Manejo Automático
+**Flujo interno del SDK:**
+1. Al autenticarse, el SDK recibe `access_token` + `refresh_token` y los guarda en `localStorage`
+2. Inicia un **timer interno** que renueva el access token ~30s antes de que expire
+3. Cuando renueva, emite el evento `TOKEN_REFRESHED` via `onAuthStateChange`
+4. Si el refresh token también expiró o fue revocado, emite `SIGNED_OUT`
 
-Cuando una petición de Supabase falla por JWT expirado, `SupabaseService.call()` lo detecta y ejecuta el siguiente flujo:
-
-1. **Detecta el error** → Busca "JWT" + ("expired" o "invalid") en el mensaje
-2. **Formatea el mensaje** → `UiService.formatErrorMessage()` convierte el error técnico a: **"Sesión expirada. Inicia sesión nuevamente."**
-3. **Muestra toast** con el mensaje amigable (3 segundos, color danger)
-4. **Cierra loading** para liberar la UI
-5. **Espera 1.5 segundos** para que el usuario vea el mensaje
-6. **Limpia la sesión**:
-   - Ejecuta `auth.signOut()` en Supabase (ignora errores si no hay red)
-   - Limpia localStorage (`sb-{projectRef}-auth-token`)
-7. **Redirige al login** con `replaceUrl: true` (no permite volver atrás con el botón Atrás)
-
-#### Código Relevante
+**Opciones de configuración que usamos:**
 
 ```typescript
-// supabase.service.ts - método call()
-if (this.isJWTExpiredError(msg)) {
-  await this.ui.showError(msg);
-  await this.ui.hideLoading();
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  await this.handleExpiredSession();
-  return null;
-}
+createClient(url, key, {
+  auth: {
+    autoRefreshToken: true,    // Renueva JWT automáticamente (default: true)
+    persistSession: true,      // Guarda tokens en localStorage (default: true)
+    detectSessionInUrl: false   // No parsear tokens de la URL (lo hacemos manual en callback)
+  }
+});
+```
 
-private isJWTExpiredError(message: string): boolean {
-  const lower = message.toLowerCase();
-  return lower.includes('jwt') && (lower.includes('expired') || lower.includes('invalid'));
-}
+#### Problema en Capacitor/Android
 
-private async handleExpiredSession() {
+Cuando la app va a background (el usuario cambia a otra app, apaga pantalla, etc.), el WebView se suspende y **el timer de auto-refresh se detiene**. Si el usuario vuelve después de >1h, el access token ya expiró pero el SDK no lo sabe hasta que se ejecuta una query.
+
+**Solución implementada — 3 capas de protección:**
+
+##### Capa 1: Refresh proactivo al volver del background
+
+`app.component.ts` escucha el evento `appStateChange` de Capacitor. Cuando la app vuelve a primer plano (`isActive: true`), llama a `SupabaseService.refreshSessionOnResume()` que fuerza un `client.auth.refreshSession()`. Esto renueva el access token antes de que cualquier query lo use.
+
+```
+app.component.ts → appStateChange → isActive → supabase.refreshSessionOnResume()
+```
+
+##### Capa 2: Listener global de `onAuthStateChange`
+
+`SupabaseService` registra un listener global en el constructor que escucha:
+- **`TOKEN_REFRESHED`** → log informativo (no requiere acción)
+- **`SIGNED_OUT`** → limpia sesión local y redirige al login (con protección anti-loop para no redirigir si ya estamos en `/auth/*`)
+
+Este listener cubre el caso donde el refresh token expiró (>30 días sin abrir la app) — el SDK emite `SIGNED_OUT` automáticamente al intentar renovar.
+
+##### Capa 3: Detección en `call()`
+
+Si por alguna razón las capas 1 y 2 no detectaron el problema, `SupabaseService.call()` detecta errores con "JWT" + "expired"/"invalid" en el mensaje y ejecuta `handleExpiredSession()`.
+
+```
+Query falla → catch → isJwtError() → handleExpiredSession()
+```
+
+#### `handleExpiredSession()` — Punto centralizado de limpieza
+
+Tanto `AuthService.forceLogout()`, `AuthService.executeLogout()`, el listener de `SIGNED_OUT`, y la detección en `call()` convergen en este único método:
+
+```typescript
+async handleExpiredSession(): Promise<void> {
+  // 1. Guard anti-múltiples redirects
+  if (this.redirectingToLogin) return;
+  this.redirectingToLogin = true;
+
+  // 2. signOut en Supabase (ignora errores si no hay red)
   this.client.auth.signOut().catch(() => {});
+
+  // 3. Limpiar localStorage (tokens) y Preferences (usuario cacheado)
   localStorage.removeItem(this.STORAGE_KEY);
+  await Preferences.remove({ key: 'usuario_actual' });
+
+  // 4. Redirigir al login (replaceUrl evita botón Atrás)
   await this.router.navigate(['/auth/login'], { replaceUrl: true });
+  this.redirectingToLogin = false;
 }
 ```
 
-```typescript
-// ui.service.ts - método formatErrorMessage()
-if (lower.includes('jwt') && (lower.includes('expired') || lower.includes('invalid'))) {
-  return 'Sesión expirada. Inicia sesión nuevamente.';
-}
+#### Comportamiento del usuario
+
+| Escenario | Qué pasa | El usuario ve |
+|---|---|---|
+| App en background <1h | Access token aún válido | Nada, todo funciona normal |
+| App en background >1h, <30 días | `refreshSessionOnResume()` renueva el token | Nada, transparente |
+| App cerrada >30 días | Refresh token expiró → SDK emite `SIGNED_OUT` | Toast "Sesión expirada" + redirect a login |
+| Query falla con JWT expired | `call()` detecta y limpia | Toast "Sesión expirada" + redirect a login |
+| Sin internet + sesión local | `authGuard` permite acceso offline | Toast "Sin conexión a internet" |
+| Sin internet + sin sesión | `authGuard` redirige | Pantalla de login |
+
+#### Diagrama de flujo
+
 ```
-
-#### Comportamiento del Usuario
-
-Cuando expira el JWT:
-- ✅ Ve un toast rojo: "Sesión expirada. Inicia sesión nuevamente."
-- ✅ Es redirigido automáticamente al login después de 1.5 segundos
-- ✅ Debe autenticarse nuevamente con Google OAuth
-- ✅ No puede usar el botón "Atrás" para volver a la sesión expirada
+App vuelve del background
+  │
+  ├─ appStateChange(isActive: true)
+  │    └─ refreshSessionOnResume()
+  │         ├─ OK → token renovado, queries funcionan
+  │         └─ Error → SDK emite SIGNED_OUT
+  │                     └─ Listener → handleExpiredSession() → login
+  │
+  ├─ Primera query después de resume
+  │    ├─ OK → flujo normal
+  │    └─ JWT expired → call() → handleExpiredSession() → login
+  │
+  └─ Logout manual del usuario
+       └─ AuthService.logout() → handleExpiredSession() → login
+```
 
 ### 8. Guards (protección de rutas)
 
@@ -272,12 +321,12 @@ Protege rutas que requieren un rol específico. Lee el rol desde `getUsuarioActu
 
 | Archivo | Qué tiene |
 |---|---|
-| `core/services/supabase.service.ts` | `signInWithGoogle()`, `pendingDeepLinkUrl`, detección/manejo JWT expirado |
+| `core/services/supabase.service.ts` | `signInWithGoogle()`, `pendingDeepLinkUrl`, listener global de auth, `handleExpiredSession()`, `refreshSessionOnResume()`, detección JWT en `call()` |
 | `core/services/ui.service.ts` | `formatErrorMessage()` (convierte errores técnicos a mensajes amigables) |
-| `core/guards/auth.guard.ts` | Guard para rutas privadas (autenticación) |
+| `core/guards/auth.guard.ts` | Guard para rutas privadas (autenticación + offline fallback) |
 | `core/guards/public.guard.ts` | Guard para rutas públicas (evita login si ya hay sesión) |
 | `core/guards/role.guard.ts` | Guard para rutas por rol (`roleGuard(['ADMIN'])`) |
-| `app.component.ts` | `setupDeepLinkListener()` + `Browser.close()` para Android |
+| `app.component.ts` | `setupDeepLinkListener()` (deep links Android) + `setupResumeListener()` (refresh on resume) |
 | `app.routes.ts` | `authGuard` aplicado a layout |
 | `features/auth/models/usuario_actual.model.ts` | `UsuarioActual`, `RolUsuario` |
 | `features/auth/pages/login/login.page.ts` | UI de login + botón Google |

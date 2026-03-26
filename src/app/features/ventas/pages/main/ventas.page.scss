@@ -10,16 +10,25 @@ ion-content {
     --background: var(--bg-soft);
 }
 
-ion-toolbar {
-    --background: var(--bg-soft);
-    --border-width: 0;
+// ─────────────────────────────────────────
+// FILTROS FIJOS (slot="fixed" dentro de ion-content)
+// ─────────────────────────────────────────
 
-    ion-title {
-        font-weight: 700;
-        letter-spacing: -0.5px;
-        padding-inline-start: 0;
-    }
+.filtros-fijos {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: var(--bg-soft);
 }
+
+// Reserva el espacio que ocupan los filtros fijos
+// filter-bar ~42px + estado-bar ~38px + search-bar ~56px
+.filtros-spacer {
+    height: 136px;
+}
+
 
 // ─────────────────────────────────────────
 // BARRA DE FECHA
@@ -91,6 +100,7 @@ ion-toolbar {
     border-bottom: 1px solid var(--ion-color-step-100);
     display: flex;
     align-items: center;
+    gap: var(--spacing-sm);
 }
 
 .estado-pill {
@@ -139,60 +149,6 @@ ion-toolbar {
     }
 }
 
-// ─────────────────────────────────────────
-// FOOTER TOTALIZADOR (NUEVO PANTALLA COMPLETA)
-// ─────────────────────────────────────────
-
-ion-footer {
-    background: var(--bg-soft);
-
-    .ventas-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: var(--ion-item-background, #fff);
-        padding: var(--spacing-md) var(--spacing-xl);
-        // Caso 1: botones de navegación Android → safe-area-inset-bottom tiene valor real
-        // Caso 2: gestures (swipe) → safe-area-inset-bottom cubre el indicador de gesto
-        padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
-        border-top: 1px solid var(--ion-color-step-100);
-
-        .footer-info {
-            .footer-label {
-                font-size: 14px;
-                font-weight: var(--font-weight-medium);
-                color: var(--ion-color-medium);
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-        }
-
-        .footer-amount-box {
-            text-align: right;
-            // Alinea visualmente con los precios de las tarjetas
-            // (offset para compensar el menú de opciones + padding interno de cada card)
-            padding-right: 20px;
-
-            .footer-amount {
-                font-size: 20px;
-                font-weight: var(--font-weight-extrabold);
-                color: var(--ion-text-color);
-                margin: 0;
-                letter-spacing: -0.5px;
-                display: flex;
-                justify-content: flex-end;
-                align-items: baseline;
-                gap: 1px;
-
-                .currency-symbol {
-                    font-size: 15px;
-                    font-weight: var(--font-weight-extrabold);
-                    color: var(--ion-text-color);
-                }
-            }
-        }
-    }
-}
 
 // ─────────────────────────────────────────
 // ESTADOS
@@ -394,6 +350,7 @@ ion-footer {
 }
 
 // ── FAB scroll-to-top ──
+// Dentro de tabs: no sumar safe-area (tab bar lo maneja)
 .scroll-top-fab {
-    margin-bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom));
+    margin-bottom: var(--spacing-xl);
 }

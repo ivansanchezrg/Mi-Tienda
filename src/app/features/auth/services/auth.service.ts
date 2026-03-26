@@ -1,9 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { Router } from '@angular/router';
 import { AlertController } from '@ionic/angular/standalone';
 import { Preferences } from '@capacitor/preferences';
 import { SupabaseService } from '@core/services/supabase.service';
 import { UiService } from '@core/services/ui.service';
+import { LoggerService } from '@core/services/logger.service';
 import { environment } from '../../../../environments/environment';
 import { UsuarioActual } from '../models/usuario_actual.model';
 
@@ -11,10 +11,10 @@ import { UsuarioActual } from '../models/usuario_actual.model';
   providedIn: 'root'
 })
 export class AuthService {
-  private router = inject(Router);
   private supabase = inject(SupabaseService);
   private ui = inject(UiService);
   private alertCtrl = inject(AlertController);
+  private logger = inject(LoggerService);
 
   // Key de storage de Supabase: sb-{projectRef}-auth-token
   private readonly STORAGE_KEY: string;
@@ -62,6 +62,7 @@ export class AuthService {
   async validarUsuario(): Promise<boolean> {
     const user = await this.getUser();
     if (!user?.email) {
+      this.logger.warn('AuthService', 'validarUsuario: no hay usuario o email en sesión');
       await this.forceLogout();
       return false;
     }
@@ -73,18 +74,20 @@ export class AuthService {
       .single();
 
     if (error || !data) {
+      this.logger.warn('AuthService', `validarUsuario: usuario ${user.email} no encontrado en BD`);
       await this.ui.showError('No tienes acceso. Contacta al administrador.');
       await this.forceLogout();
       return false;
     }
 
     if (!data.activo) {
+      this.logger.warn('AuthService', `validarUsuario: usuario ${user.email} desactivado`);
       await this.ui.showError('Tu cuenta está desactivada. Contacta al administrador.');
       await this.forceLogout();
       return false;
     }
 
-    // Guardar usuario en Preferences para acceso rápido sin consultar BD
+    this.logger.info('AuthService', `Usuario validado: ${data.nombre} (${data.rol})`);
     await this.saveUsuarioActual(data);
 
     return true;
@@ -92,10 +95,7 @@ export class AuthService {
 
   /** Cierra sesión sin mostrar loading (uso interno) */
   private async forceLogout() {
-    await this.supabase.client.auth.signOut();
-    localStorage.removeItem(this.STORAGE_KEY);
-    await this.clearUsuarioActual();
-    this.router.navigate(['/auth/login'], { replaceUrl: true });
+    await this.supabase.handleExpiredSession();
   }
 
   /** Muestra confirmación y cierra sesión si el usuario acepta */
@@ -119,18 +119,10 @@ export class AuthService {
 
   /** Ejecuta el cierre de sesión */
   private async executeLogout() {
+    this.logger.info('AuthService', 'Logout manual confirmado por el usuario');
     await this.ui.showLoading();
-
-    // signOut puede fallar sin internet, pero igual limpia la sesión local
-    await this.supabase.client.auth.signOut();
-
-    // Forzar limpieza de sesión local por si signOut falla sin internet
-    localStorage.removeItem(this.STORAGE_KEY);
-    await this.clearUsuarioActual();
-
+    await this.supabase.handleExpiredSession();
     await this.ui.hideLoading();
-
-    this.router.navigate(['/auth/login'], { replaceUrl: true });
   }
 
   // ==========================================
@@ -163,11 +155,4 @@ export class AuthService {
     });
   }
 
-  /**
-   * Limpia los datos del usuario de Preferences.
-   * Se llama automáticamente al cerrar sesión.
-   */
-  private async clearUsuarioActual(): Promise<void> {
-    await Preferences.remove({ key: this.USUARIO_KEY });
-  }
 }

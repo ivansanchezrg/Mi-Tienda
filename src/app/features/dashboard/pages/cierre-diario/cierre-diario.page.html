@@ -1,4 +1,4 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-button (click)="volver()">
@@ -109,38 +109,38 @@
       <!-- Skeleton loading -->
       <ion-list class="input-list skeleton-form">
         <ion-item class="input-item">
-          <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular" style="opacity: 0.5;"></ion-icon>
+          <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular skeleton-icon"></ion-icon>
           <ion-label position="stacked">
-            <ion-skeleton-text animated style="width: 50%; height: 18px; border-radius: 4px;"></ion-skeleton-text>
-            <ion-skeleton-text animated style="width: 40%; height: 14px; margin-top: 6px; border-radius: 4px;"></ion-skeleton-text>
+            <ion-skeleton-text animated class="skeleton-title"></ion-skeleton-text>
+            <ion-skeleton-text animated class="skeleton-subtitle"></ion-skeleton-text>
           </ion-label>
-          <div class="input-wrapper" style="border-bottom-color: transparent;">
-            <ion-skeleton-text animated style="width: 100%; height: 40px; margin-top: 12px; border-radius: 8px;"></ion-skeleton-text>
+          <div class="input-wrapper skeleton-wrapper">
+            <ion-skeleton-text animated class="skeleton-input"></ion-skeleton-text>
           </div>
         </ion-item>
         <ion-item class="input-item">
-          <ion-icon slot="start" name="bus-outline" class="item-icon bus" style="opacity: 0.5;"></ion-icon>
+          <ion-icon slot="start" name="bus-outline" class="item-icon bus skeleton-icon"></ion-icon>
           <ion-label position="stacked">
-            <ion-skeleton-text animated style="width: 40%; height: 18px; border-radius: 4px;"></ion-skeleton-text>
-            <ion-skeleton-text animated style="width: 35%; height: 14px; margin-top: 6px; border-radius: 4px;"></ion-skeleton-text>
+            <ion-skeleton-text animated class="skeleton-title skeleton-title--narrow"></ion-skeleton-text>
+            <ion-skeleton-text animated class="skeleton-subtitle skeleton-subtitle--narrow"></ion-skeleton-text>
           </ion-label>
-          <div class="input-wrapper" style="border-bottom-color: transparent;">
-            <ion-skeleton-text animated style="width: 100%; height: 40px; margin-top: 12px; border-radius: 8px;"></ion-skeleton-text>
+          <div class="input-wrapper skeleton-wrapper">
+            <ion-skeleton-text animated class="skeleton-input"></ion-skeleton-text>
           </div>
         </ion-item>
         <ion-item class="input-item">
-          <ion-icon slot="start" name="cash-outline" class="item-icon efectivo" style="opacity: 0.5;"></ion-icon>
+          <ion-icon slot="start" name="cash-outline" class="item-icon efectivo skeleton-icon"></ion-icon>
           <ion-label position="stacked">
-            <ion-skeleton-text animated style="width: 55%; height: 18px; border-radius: 4px;"></ion-skeleton-text>
-            <ion-skeleton-text animated style="width: 45%; height: 14px; margin-top: 6px; border-radius: 4px;"></ion-skeleton-text>
+            <ion-skeleton-text animated class="skeleton-title skeleton-title--wide"></ion-skeleton-text>
+            <ion-skeleton-text animated class="skeleton-subtitle skeleton-subtitle--wide"></ion-skeleton-text>
           </ion-label>
-          <div class="input-wrapper" style="border-bottom-color: transparent;">
-            <ion-skeleton-text animated style="width: 100%; height: 40px; margin-top: 12px; border-radius: 8px;"></ion-skeleton-text>
+          <div class="input-wrapper skeleton-wrapper">
+            <ion-skeleton-text animated class="skeleton-input"></ion-skeleton-text>
           </div>
         </ion-item>
       </ion-list>
       <div class="paso-actions">
-        <ion-skeleton-text animated style="width: 100%; height: 48px; border-radius: 8px;"></ion-skeleton-text>
+        <ion-skeleton-text animated class="skeleton-button"></ion-skeleton-text>
       </div>
       }
     </div>
@@ -156,17 +156,15 @@
         <p>Revisá la distribución y confirmá el cierre del turno</p>
       </div>
 
-      <!-- Cajón del Turno: Conciliación + Distribución -->
+      <!-- Card 1: Conciliación del Cajón -->
       <ion-card class="resumen-card">
         <ion-card-header>
           <ion-card-title>
             <ion-icon name="receipt-outline"></ion-icon>
-            Cajón del Turno
+            Conciliación del Cajón
           </ion-card-title>
         </ion-card-header>
         <ion-card-content>
-
-          <!-- Sección 1: Conciliación -->
           <div class="desglose-efectivo">
             <div class="desglose-item">
               <span class="desglose-label">+ Ventas POS en efectivo</span>
@@ -216,12 +214,25 @@
             </div>
             }
           </div>
+        </ion-card-content>
+      </ion-card>
 
-          <!-- Separador -->
-          <div class="seccion-titulo"><strong>Distribución</strong></div>
-
-          <!-- Sección 2: Distribución -->
+      <!-- Card 2: Distribución del Efectivo -->
+      <ion-card class="resumen-card">
+        <ion-card-header>
+          <ion-card-title>
+            <ion-icon name="arrow-forward-outline"></ion-icon>
+            Distribución del Efectivo
+          </ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
           <div class="desglose-efectivo">
+
+            <!-- Punto de partida: lo que el usuario tiene en la mano -->
+            <div class="desglose-item">
+              <span class="desglose-label">Efectivo contado</span>
+              <span class="desglose-valor">{{ efectivoFisico | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            </div>
 
             <!-- Fondo fijo -->
             <div class="desglose-item">
@@ -237,11 +248,11 @@
             </div>
 
             <!-- VARIOS -->
-            <div class="desglose-item" [class.resultado]="transferenciaCajaChicaYaHecha">
+            <div class="desglose-item">
               <span class="desglose-label">
                 − Varios
                 @if (transferenciaCajaChicaYaHecha) {
-                <span class="ya-hecha-badge">✅ ya recibió hoy</span>
+                <span class="ya-hecha-badge">ya recibió hoy</span>
                 } @else if (hayDeficitPreview) {
                 <span class="deficit-badge">déficit</span>
                 }
@@ -257,26 +268,26 @@
             <div class="desglose-item resultado">
               <span class="desglose-label">
                 <ion-icon name="arrow-forward-outline" class="desglose-icon"></ion-icon>
-                Para Tienda
+                Depositar en Tienda
               </span>
               <span class="desglose-valor destacado">{{ depositoPreviewCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
 
           </div>
 
-          <!-- Alerta déficit (dentro de la card, al pie de la distribución) -->
+          <!-- Alerta déficit -->
           @if (hayDeficitPreview) {
-          <div class="alerta-simple warning" style="margin-top: 12px; margin-bottom: 0;">
+          <div class="alerta-simple warning alerta-deficit">
             <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
             <div>
               @if (hayDeficitFondo) {
-              <p><strong>⚠️ Depositá todo el efectivo a Tienda — el cajón quedará sin fondo</strong></p>
+              <p><strong>Depositá todo el efectivo a Tienda — el cajón quedará sin fondo</strong></p>
               <p>En la próxima apertura reponer
                 <strong>{{ montoReposicionApertura | currency:'USD':'symbol-narrow':'1.2-2' }}</strong>
                 desde Tienda (fondo + Varios).
               </p>
               } @else {
-              <p><strong>⚠️ Efectivo insuficiente para Varios</strong></p>
+              <p><strong>Efectivo insuficiente para Varios</strong></p>
               <p>En la próxima apertura reponer
                 <strong>{{ montoReposicionApertura | currency:'USD':'symbol-narrow':'1.2-2' }}</strong>
                 desde Tienda a Varios.
@@ -307,7 +318,7 @@
           </div>
 
           @if (tieneDepositoAnticipadoBus) {
-          <div class="alerta-simple info" style="margin: 8px 0;">
+          <div class="alerta-simple info alerta-inline">
             <ion-icon name="information-circle-outline" color="primary"></ion-icon>
             <div>
               <p><strong>Bus: Depósito anticipado</strong></p>

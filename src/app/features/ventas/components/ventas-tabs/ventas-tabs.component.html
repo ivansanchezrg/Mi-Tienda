@@ -1,0 +1,10 @@
+<div class="ventas-tabs">
+  <button class="ventas-tab" [class.active]="activeTab === 'lista'" (click)="navigateTo('lista')">
+    <ion-icon name="list-outline"></ion-icon>
+    <span>Lista</span>
+  </button>
+  <button class="ventas-tab" [class.active]="activeTab === 'resumen'" (click)="navigateTo('resumen')">
+    <ion-icon name="bar-chart-outline"></ion-icon>
+    <span>Resumen</span>
+  </button>
+</div>

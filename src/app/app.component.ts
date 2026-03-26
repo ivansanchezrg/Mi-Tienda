@@ -20,24 +20,38 @@ export class AppComponent {
 
   constructor() {
     this.setupDeepLinkListener();
+    this.setupResumeListener();
   }
 
-  setupDeepLinkListener() {
+  private setupDeepLinkListener() {
     if (!Capacitor.isNativePlatform()) return;
 
     App.addListener('appUrlOpen', async (event: URLOpenListenerEvent) => {
-      // 1. Cerrar la pestaña del navegador que abrimos con Browser.open()
       await Browser.close();
-
-      // 2. Guardamos la URL completa (trae el access_token en el hash)
       this.supabase.pendingDeepLinkUrl = event.url;
 
-      // 3. Navegamos a la página de Callback para procesar el token
       this.zone.run(() => {
         if (event.url.includes('auth/callback')) {
-            this.router.navigateByUrl('/auth/callback');
+          this.router.navigateByUrl('/auth/callback');
         }
       });
+    });
+  }
+
+  /**
+   * Al volver del background, fuerza un refresh de la sesión.
+   * El timer de auto-refresh del SDK de Supabase se detiene cuando la app
+   * está suspendida. Si pasaron >1h en background, el access token expiró
+   * y la primera query fallaría con "JWT expired". Este listener renueva
+   * el token proactivamente al volver.
+   */
+  private setupResumeListener() {
+    App.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
+        this.zone.run(() => {
+          this.supabase.refreshSessionOnResume();
+        });
+      }
     });
   }
 }

@@ -35,7 +35,7 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 | `inventario`        | ✅ Completo                                  |
 | `pos`               | 🚧 En desarrollo                             |
 | `cuentas-cobrar`    | ✅ Completo                                  |
-| `reportes`          | 🚧 En desarrollo                             |
+| ~~`reportes`~~      | ❌ Eliminado (2026-03-26) — el resumen diario se integró como panel colapsable en `ventas` |
 | ~~`gastos-diarios`~~| ❌ Eliminado en v5 (2026-03-06) — los gastos van como EGRESO en `operacion-modal` |
 
 ---
@@ -65,7 +65,7 @@ src/app/
 
 | Servicio                  | Uso                                                         |
 | ------------------------- | ----------------------------------------------------------- |
-| `SupabaseService`         | Todas las queries y auth. Usar siempre `.call()` o `.rpc()` |
+| `SupabaseService`         | Todas las queries y auth. Usar siempre `.call()` o `.rpc()`. Tiene listener global de auth (TOKEN_REFRESHED, SIGNED_OUT), detección de JWT expirado en `call()`, refresh proactivo al volver del background (`refreshSessionOnResume()`), y `handleExpiredSession()` como punto centralizado de limpieza de sesión |
 | `UiService`               | Loading, toasts, alertas, confirmaciones, `hideTabs()`/`showTabs()` para ocultar tabs en páginas de detalle |
 | `ConfigService`           | Lee tabla `configuraciones` (nombre_negocio, fondo_fijo, etc.) con cache en memoria. Métodos: `get()`, `getNombreNegocio()`, `invalidar()` |
 | `CurrencyService`         | Formateo de moneda: `format(value)` y `parse(value)`. No formatear manualmente |
