@@ -97,7 +97,7 @@ features/
 ├── ventas/                    # Historial de ventas
 ├── inventario/                # Productos, kardex, categorías
 ├── cuentas-cobrar/            # Cuentas por cobrar (fiados)
-├── clientes/                  # Servicio y modelos de clientes (sin páginas propias)
+├── clientes/                  # Gestión de clientes (listado, creación, edición, selección)
 ├── recargas-virtuales/        # Saldo celular/bus, liquidaciones
 ├── historial-recargas/        # Historial de recargas (página standalone)
 ├── usuarios/                  # CRUD de empleados (solo ADMIN)
@@ -170,8 +170,10 @@ ventas/
 ├── models/
 │   └── venta.model.ts
 ├── pages/
-│   └── main/                        # Historial de ventas (paginado)
+│   ├── listado/                     # Lista paginada con filtros
+│   └── resumen/                     # Resumen diario (KPIs, métodos, comprobantes)
 ├── components/
+│   ├── ventas-tabs/                 # Tabs internas (Lista / Resumen)
 │   └── venta-detalle-modal/         # Modal detalle/ticket de venta
 └── services/
     └── ventas.service.ts
@@ -209,15 +211,19 @@ cuentas-cobrar/
     └── share-estado-cuenta.service.ts  # Generar/compartir comprobantes
 ```
 
-#### clientes/ (feature auxiliar — sin páginas propias)
+#### clientes/
 ```
 clientes/
+├── clientes.routes.ts                  # Ruta: '' → listado
 ├── models/
 │   └── cliente.model.ts
+├── pages/
+│   └── listado/                        # Lista paginada con búsqueda
 ├── components/
-│   └── seleccionar-cliente-modal/   # Modal selector de cliente (usado por POS)
+│   ├── seleccionar-cliente-modal/      # Modal selector/creación (usado por POS y listado)
+│   └── editar-cliente-modal/           # Modal edición de cliente
 └── services/
-    └── clientes.service.ts
+    └── clientes.service.ts             # CRUD completo + listado paginado
 ```
 
 #### recargas-virtuales/

@@ -113,27 +113,6 @@ ion-content {
     margin: 0 0 var(--spacing-md);
 }
 
-// ── Barra compuesta ───────────────────────────────────────────────────────────
-
-.bar-compuesta {
-    display: flex;
-    height: 8px;
-    border-radius: var(--radius-full);
-    overflow: hidden;
-    margin-bottom: var(--spacing-lg);
-    gap: 2px;
-
-    .bar-segmento {
-        min-width: 4px;
-        border-radius: var(--radius-full);
-    }
-
-    .bar-efectivo      { background: var(--ion-color-success); }
-    .bar-deuna         { background: var(--ion-color-tertiary); }
-    .bar-transferencia { background: var(--ion-color-primary); }
-    .bar-fiado         { background: var(--ion-color-warning); }
-}
-
 // ── Métodos de pago ───────────────────────────────────────────────────────────
 
 .metodo-row {
@@ -351,7 +330,6 @@ ion-content {
 .sk-stat-num    { width: 50px;  height: 20px; border-radius: var(--radius-xs); }
 .sk-stat-label  { width: 40px;  height: 12px; border-radius: var(--radius-xs); }
 .sk-section-title { width: 120px; height: 12px; border-radius: var(--radius-xs); margin-bottom: var(--spacing-md); }
-.sk-bar         { width: 100%; height: 8px;  border-radius: var(--radius-full); margin-bottom: var(--spacing-lg); }
 .sk-metodo-icon { width: 36px;  height: 36px; border-radius: var(--radius-sm); flex-shrink: 0; }
 .sk-metodo-label { width: 90px; height: 14px; border-radius: var(--radius-xs); }
 .sk-metodo-sub  { width: 140px; height: 12px; border-radius: var(--radius-xs); }

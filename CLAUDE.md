@@ -35,6 +35,7 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 | `inventario`        | ✅ Completo                                  |
 | `pos`               | 🚧 En desarrollo                             |
 | `cuentas-cobrar`    | ✅ Completo                                  |
+| `clientes`          | ✅ Completo                                  |
 | ~~`reportes`~~      | ❌ Eliminado (2026-03-26) — el resumen diario se integró como panel colapsable en `ventas` |
 | ~~`gastos-diarios`~~| ❌ Eliminado en v5 (2026-03-06) — los gastos van como EGRESO en `operacion-modal` |
 
@@ -335,7 +336,38 @@ Estilo SCSS (en cada página, ajustar margin según si hay footer):
 }
 ```
 
-Ejemplo real: `VentasPage`, `InventarioPage`
+Ejemplo real: `VentasListadoPage`, `InventarioPage`
+
+### Tabs internas en un módulo — patrón obligatorio
+
+Cuando un módulo necesita tabs internas (ej: Ventas tiene Lista y Resumen):
+
+1. **Componente de tabs** en `components/` (NO en `pages/`). Detecta la ruta activa con `NavigationEnd`, no con `@Input()`.
+2. **Cada página incluye su propio `ion-header`** con el componente de tabs — NO usar layout wrapper con `router-outlet` hijo (causa conflictos con `ion-content` en Ionic).
+3. **Rutas planas** en el routes file, sin children wrapper.
+4. **Carpetas de pages** nombradas por función: `pages/listado/`, `pages/resumen/`, etc.
+
+```typescript
+// ventas.routes.ts — rutas planas, sin layout wrapper
+export const VENTAS_ROUTES: Routes = [
+  { path: '', loadComponent: () => import('./pages/listado/ventas-listado.page').then(m => m.VentasListadoPage) },
+  { path: 'resumen', loadComponent: () => import('./pages/resumen/ventas-resumen.page').then(m => m.VentasResumenPage) }
+];
+```
+
+```typescript
+// ventas-tabs.component.ts — detecta ruta activa automáticamente
+private router = inject(Router);
+activeTab: 'lista' | 'resumen' = 'lista';
+constructor() {
+    this.syncTab(this.router.url);
+    this.router.events
+        .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
+        .subscribe(e => this.syncTab(e.urlAfterRedirects));
+}
+```
+
+Ejemplo real: módulo `ventas` (`VentasTabsComponent` + `VentasListadoPage` + `VentasResumenPage`)
 
 ---
 
@@ -574,6 +606,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | POS                 | `docs/pos/POS-README.md`                                   |
 | Ventas              | `docs/ventas/VENTAS-README.md`                             |
 | Cuentas por Cobrar  | `docs/cuentas-cobrar/CUENTAS-COBRAR-README.md`             |
+| Clientes            | `docs/clientes/CLIENTES-README.md`                         |
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
 | Sistema de diseño   | `docs/DESIGN.md`                                           |
 | Shared              | `docs/shared/README.md`                                    |

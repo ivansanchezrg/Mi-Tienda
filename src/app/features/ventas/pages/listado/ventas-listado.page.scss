@@ -11,22 +11,11 @@ ion-content {
 }
 
 // ─────────────────────────────────────────
-// FILTROS FIJOS (slot="fixed" dentro de ion-content)
+// FILTROS EN HEADER (Ionic calcula offset automáticamente)
 // ─────────────────────────────────────────
 
-.filtros-fijos {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 10;
+.filtros-header {
     background: var(--bg-soft);
-}
-
-// Reserva el espacio que ocupan los filtros fijos
-// filter-bar ~42px + estado-bar ~38px + search-bar ~56px
-.filtros-spacer {
-    height: 136px;
 }
 
 
@@ -126,6 +115,38 @@ ion-content {
         background: rgba(var(--ion-color-danger-rgb), 0.1);
         border-color: var(--ion-color-danger);
         color: var(--ion-color-danger);
+    }
+}
+
+.busqueda-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.08);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ion-color-primary);
+    cursor: pointer;
+    font-family: inherit;
+    max-width: 160px;
+
+    ion-icon {
+        font-size: 13px;
+        flex-shrink: 0;
+    }
+
+    &-text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &-x {
+        font-size: 14px;
+        opacity: 0.7;
     }
 }
 

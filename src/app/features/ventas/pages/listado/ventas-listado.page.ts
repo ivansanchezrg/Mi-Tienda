@@ -3,6 +3,7 @@ import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import {
+    IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
     IonContent, IonIcon,
     IonRefresher, IonRefresherContent,
     IonBadge, IonList, IonItem, IonLabel,
@@ -18,7 +19,7 @@ import {
     documentOutline, cashOutline, cardOutline,
     phonePortraitOutline, handRightOutline,
     cartOutline, chevronDownCircleOutline, banOutline,
-    arrowUpOutline, closeOutline
+    arrowUpOutline, closeOutline, searchOutline
 } from 'ionicons/icons';
 import { VentasService } from '../../services/ventas.service';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
@@ -28,14 +29,16 @@ import { getFechaLocal, formatFechaEC, formatHoraEC } from '../../../../core/uti
 import { VentaDetalleModalComponent } from '../../components/venta-detalle-modal/venta-detalle-modal.component';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
+import { VentasTabsComponent } from '../../components/ventas-tabs/ventas-tabs.component';
 
 @Component({
-    selector: 'app-ventas',
-    templateUrl: './ventas.page.html',
-    styleUrls: ['./ventas.page.scss'],
+    selector: 'app-ventas-listado',
+    templateUrl: './ventas-listado.page.html',
+    styleUrls: ['./ventas-listado.page.scss'],
     standalone: true,
     imports: [
         CommonModule,
+        IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
         IonContent, IonIcon,
         IonRefresher, IonRefresherContent,
         IonBadge, IonList, IonItem, IonLabel,
@@ -43,10 +46,11 @@ import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page'
         IonSkeletonText,
         IonInfiniteScroll, IonInfiniteScrollContent,
         IonFab, IonFabButton,
+        VentasTabsComponent,
         OptionsMenuComponent
     ]
 })
-export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDestroy {
+export class VentasListadoPage extends PaginatedListPage<Venta> implements OnInit, OnDestroy {
 
     private ventasService = inject(VentasService);
     public currencyService = inject(CurrencyService);
@@ -88,7 +92,7 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
             documentOutline, cashOutline, cardOutline,
             phonePortraitOutline, handRightOutline,
             cartOutline, chevronDownCircleOutline, banOutline,
-            arrowUpOutline, closeOutline
+            arrowUpOutline, closeOutline, searchOutline
         });
     }
 
@@ -116,6 +120,11 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
     onBusquedaChange(event: CustomEvent) {
         this.busqueda = (event.detail?.value ?? '').trim();
         this.search$.next(this.busqueda);
+    }
+
+    limpiarBusqueda() {
+        this.busqueda = '';
+        this.cargar();
     }
 
     onFiltroClick(filtro: string) {

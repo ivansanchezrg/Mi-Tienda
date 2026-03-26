@@ -1,7 +1,14 @@
-<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Ventas</ion-title>
+  </ion-toolbar>
+  <app-ventas-tabs></app-ventas-tabs>
 
-  <!-- Filtros fijos en la parte superior -->
-  <div slot="fixed" class="filtros-fijos">
+  <!-- Filtros integrados en el header — Ionic calcula el offset automáticamente -->
+  <div class="filtros-header">
 
     <!-- Barra de filtros -->
     <div class="filter-bar">
@@ -21,7 +28,7 @@
       </div>
     </div>
 
-    <!-- Toggle anuladas -->
+    <!-- Toggle anuladas + chip búsqueda -->
     <div class="estado-bar">
       <button class="estado-pill" [class.active]="filtroEstado === 'ANULADA'" (click)="toggleFiltroAnuladas()">
         @if (filtroEstado === 'ANULADA') {
@@ -31,6 +38,13 @@
         }
         Ver anuladas
       </button>
+      @if (busqueda) {
+      <button class="busqueda-chip" (click)="limpiarBusqueda()">
+        <ion-icon name="search-outline"></ion-icon>
+        <span class="busqueda-chip-text">{{ busqueda }}</span>
+        <ion-icon name="close-outline" class="busqueda-chip-x"></ion-icon>
+      </button>
+      }
     </div>
 
     <!-- Buscador -->
@@ -46,15 +60,15 @@
     </div>
 
   </div>
+</ion-header>
+
+<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
 
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent"
       refreshingText="Cargando...">
     </ion-refresher-content>
   </ion-refresher>
-
-  <!-- Espacio reservado para los filtros fijos -->
-  <div class="filtros-spacer"></div>
 
   <!-- Skeleton Loading -->
   @if (loading) {
@@ -173,6 +187,7 @@
   }
 
 </ion-content>
+
 
 <ion-modal [keepContentsMounted]="true" trigger="open-date-picker" cssClass="date-picker-modal">
   <ng-template>

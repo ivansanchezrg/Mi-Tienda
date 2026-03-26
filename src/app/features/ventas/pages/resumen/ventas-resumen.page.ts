@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
+    IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
     IonContent, IonRefresher, IonRefresherContent,
     IonSkeletonText, IonIcon
 } from '@ionic/angular/standalone';
@@ -17,6 +18,7 @@ import { ReporteVentasDia } from '../../models/venta.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { getFechaLocal } from '../../../../core/utils/date.util';
+import { VentasTabsComponent } from '../../components/ventas-tabs/ventas-tabs.component';
 
 @Component({
     selector: 'app-ventas-resumen',
@@ -25,8 +27,10 @@ import { getFechaLocal } from '../../../../core/utils/date.util';
     standalone: true,
     imports: [
         CommonModule,
+        IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
         IonContent, IonRefresher, IonRefresherContent,
-        IonSkeletonText, IonIcon
+        IonSkeletonText, IonIcon,
+        VentasTabsComponent
     ]
 })
 export class VentasResumenPage implements OnInit {
