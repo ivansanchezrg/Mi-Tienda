@@ -1,0 +1,158 @@
+<ion-content>
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent"
+      refreshingText="Actualizando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  <div class="resumen-container">
+
+    <!-- Fecha del día -->
+    <p class="resumen-fecha">{{ fechaLabel }}</p>
+
+    <!-- ══ SKELETON ══ -->
+    @if (loading) {
+    <div class="card hero-card">
+      <ion-skeleton-text animated class="sk-label"></ion-skeleton-text>
+      <ion-skeleton-text animated class="sk-monto"></ion-skeleton-text>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <ion-skeleton-text animated class="sk-stat-num"></ion-skeleton-text>
+          <ion-skeleton-text animated class="sk-stat-label"></ion-skeleton-text>
+        </div>
+        <div class="hero-divider"></div>
+        <div class="hero-stat">
+          <ion-skeleton-text animated class="sk-stat-num"></ion-skeleton-text>
+          <ion-skeleton-text animated class="sk-stat-label"></ion-skeleton-text>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <ion-skeleton-text animated class="sk-section-title"></ion-skeleton-text>
+      <ion-skeleton-text animated class="sk-bar"></ion-skeleton-text>
+      @for (i of [1,2,3]; track i) {
+      <div class="sk-metodo-row">
+        <ion-skeleton-text animated class="sk-metodo-icon"></ion-skeleton-text>
+        <div style="flex:1; display:flex; flex-direction:column; gap:4px;">
+          <ion-skeleton-text animated class="sk-metodo-label"></ion-skeleton-text>
+          <ion-skeleton-text animated class="sk-metodo-sub"></ion-skeleton-text>
+        </div>
+        <ion-skeleton-text animated class="sk-metodo-monto"></ion-skeleton-text>
+      </div>
+      }
+    </div>
+    }
+
+    <!-- ══ SIN VENTAS ══ -->
+    @else if (!reporte || (reporte.total_ventas === 0 && reporte.total_anuladas === 0)) {
+    <div class="empty-state">
+      <div class="empty-icon-wrap">
+        <ion-icon name="storefront-outline"></ion-icon>
+      </div>
+      <h2>Sin ventas hoy</h2>
+      <p>Las ventas del día aparecerán aquí en cuanto se registre la primera.</p>
+    </div>
+    }
+
+    <!-- ══ DATOS ══ -->
+    @else {
+
+    <!-- Hero: total del día -->
+    <div class="card hero-card">
+      <span class="hero-label">Total del día</span>
+      <div class="hero-monto">
+        <span class="hero-currency">$</span>{{ currencyService.format(reporte.total_monto) }}
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="hero-stat-num">{{ reporte.total_ventas }}</span>
+          <span class="hero-stat-label">{{ reporte.total_ventas === 1 ? 'venta' : 'ventas' }}</span>
+        </div>
+        <div class="hero-divider"></div>
+        <div class="hero-stat">
+          <span class="hero-stat-num">${{ currencyService.format(ticketPromedio) }}</span>
+          <span class="hero-stat-label">promedio</span>
+        </div>
+        @if (reporte.total_anuladas > 0) {
+        <div class="hero-divider"></div>
+        <div class="hero-stat">
+          <span class="hero-stat-num danger">{{ reporte.total_anuladas }}</span>
+          <span class="hero-stat-label">anulada{{ reporte.total_anuladas > 1 ? 's' : '' }}</span>
+        </div>
+        }
+      </div>
+    </div>
+
+    <!-- Métodos de pago -->
+    @if (reporte.por_metodo_pago.length > 0) {
+    <div class="card">
+      <h3 class="section-title">Métodos de pago</h3>
+
+      <div class="bar-compuesta">
+        @for (item of reporte.por_metodo_pago; track item.metodo) {
+          <div class="bar-segmento" [class]="'bar-' + item.metodo.toLowerCase()" [style.flex]="item.monto"></div>
+        }
+      </div>
+
+      @for (item of reporte.por_metodo_pago; track item.metodo) {
+      <div class="metodo-row">
+        <div class="metodo-icon" [class]="'metodo-' + item.metodo.toLowerCase()">
+          @if (item.metodo === 'EFECTIVO') { <ion-icon name="cash-outline"></ion-icon> }
+          @else if (item.metodo === 'DEUNA') { <ion-icon name="card-outline"></ion-icon> }
+          @else if (item.metodo === 'TRANSFERENCIA') { <ion-icon name="phone-portrait-outline"></ion-icon> }
+          @else { <ion-icon name="hand-right-outline"></ion-icon> }
+        </div>
+        <div class="metodo-content">
+          <div class="metodo-header">
+            <span class="metodo-label">{{ labelMetodoPago(item.metodo) }}</span>
+            <span class="metodo-monto">${{ currencyService.format(item.monto) }}</span>
+          </div>
+          <div class="metodo-sub">
+            <span class="metodo-qty">{{ item.cantidad }} {{ item.cantidad === 1 ? 'venta' : 'ventas' }}</span>
+            <span class="metodo-pct">{{ getPorcentaje(item.monto) }}%</span>
+          </div>
+        </div>
+      </div>
+      }
+    </div>
+    }
+
+    <!-- Comprobantes -->
+    @if (reporte.por_tipo_comprobante.length > 0) {
+    <div class="card">
+      <h3 class="section-title">Comprobantes</h3>
+      @for (item of reporte.por_tipo_comprobante; track item.tipo) {
+      <div class="comprobante-row">
+        <div class="comprobante-icon">
+          @if (item.tipo === 'FACTURA') { <ion-icon name="document-outline"></ion-icon> }
+          @else if (item.tipo === 'NOTA_VENTA') { <ion-icon name="document-text-outline"></ion-icon> }
+          @else { <ion-icon name="receipt-outline"></ion-icon> }
+        </div>
+        <span class="comprobante-label">{{ labelComprobante(item.tipo) }}</span>
+        <span class="comprobante-badge">{{ item.cantidad }}</span>
+        <span class="comprobante-monto">${{ currencyService.format(item.monto) }}</span>
+      </div>
+      }
+    </div>
+    }
+
+    <!-- Deuda pendiente global -->
+    @if (deuda && deuda.total_deuda > 0) {
+    <div class="deuda-card">
+      <div class="deuda-icon">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+      </div>
+      <div class="deuda-content">
+        <span class="deuda-label">Deuda pendiente</span>
+        <span class="deuda-sub">{{ deuda.total_clientes }} {{ deuda.total_clientes === 1 ? 'cliente' : 'clientes' }} con saldo</span>
+      </div>
+      <span class="deuda-monto">${{ currencyService.format(deuda.total_deuda) }}</span>
+    </div>
+    }
+
+    }
+
+  </div>
+
+</ion-content>

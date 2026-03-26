@@ -1,0 +1,44 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-title>Notificaciones</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cerrar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (notificaciones.length > 0) {
+    <div class="notif-list">
+      @for (notif of notificaciones; track notif.tipo) {
+        <button class="notif-item" (click)="navegar(notif)">
+          <div class="notif-icon" [ngClass]="getIconClass(notif.tipo)">
+            @if (notif.tipo === 'DEUDA_CELULAR') {
+              <ion-icon name="phone-portrait-outline"></ion-icon>
+            } @else if (notif.tipo === 'SALDO_BAJO_BUS') {
+              <ion-icon name="bus-outline"></ion-icon>
+            } @else {
+              <ion-icon name="calendar-outline"></ion-icon>
+            }
+          </div>
+          <div class="notif-content">
+            <span class="notif-titulo">{{ notif.titulo }}</span>
+            <span class="notif-descripcion">{{ notif.descripcion }}</span>
+            @if (notif.subtitulo) {
+              <span class="notif-subtitulo">{{ notif.subtitulo }} → ir a Recargas Virtuales</span>
+            }
+          </div>
+          <ion-icon name="chevron-forward-outline" class="notif-arrow"></ion-icon>
+        </button>
+      }
+    </div>
+  } @else {
+    <div class="empty-state">
+      <ion-icon name="notifications-off-outline" class="empty-icon"></ion-icon>
+      <h3 class="empty-titulo">No hay notificaciones</h3>
+      <p class="empty-descripcion">Todas las notificaciones están al día</p>
+    </div>
+  }
+</ion-content>

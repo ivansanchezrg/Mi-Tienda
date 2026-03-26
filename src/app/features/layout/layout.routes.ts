@@ -29,10 +29,6 @@ export const LAYOUT_ROUTES: Routes = [
         loadChildren: () => import('../historial-recargas/historial-recargas.routes').then(m => m.HISTORIAL_RECARGAS_ROUTES)
       },
       {
-        path: 'reportes',
-        loadChildren: () => import('../reportes/reportes.routes').then(m => m.REPORTES_ROUTES)
-      },
-      {
         path: 'configuracion',
         canActivate: [roleGuard(['ADMIN'])],
         loadChildren: () => import('../configuracion/configuracion.routes').then(m => m.CONFIGURACION_ROUTES)

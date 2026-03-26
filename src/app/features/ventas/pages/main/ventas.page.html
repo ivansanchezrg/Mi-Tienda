@@ -1,52 +1,51 @@
-<ion-header class="ion-no-border">
-  <ion-toolbar>
-    <ion-buttons slot="start">
-      <ion-menu-button></ion-menu-button>
-    </ion-buttons>
-    <ion-title>Ventas</ion-title>
-  </ion-toolbar>
+<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
 
-  <!-- Barra de filtros unificada — una sola fila de tabs -->
-  <div class="filter-bar">
-    <div class="filter-tabs">
-      @for (f of ['hoy', 'semana', 'mes', 'todo']; track f) {
-      <button class="filter-tab" [class.active]="filtroActivo === f" (click)="onFiltroClick(f)">
-        {{ f === 'todo' ? 'Todo' : (f | titlecase) }}
-      </button>
-      }
-      <!-- Tab calendario — trigger del date picker, se agranda cuando está activo -->
-      <button class="filter-tab filter-tab--fecha" id="open-date-picker"
-              [class.active]="filtroActivo === 'custom'">
-        <ion-icon name="calendar-outline"></ion-icon>
-        @if (filtroActivo === 'custom') {
-        <span>{{ fechaLabel }}</span>
+  <!-- Filtros fijos en la parte superior -->
+  <div slot="fixed" class="filtros-fijos">
+
+    <!-- Barra de filtros -->
+    <div class="filter-bar">
+      <div class="filter-tabs">
+        @for (f of ['hoy', 'semana', 'mes', 'todo']; track f) {
+        <button class="filter-tab" [class.active]="filtroActivo === f" (click)="onFiltroClick(f)">
+          {{ f === 'todo' ? 'Todo' : (f | titlecase) }}
+        </button>
         }
+        <button class="filter-tab filter-tab--fecha" id="open-date-picker"
+                [class.active]="filtroActivo === 'custom'">
+          <ion-icon name="calendar-outline"></ion-icon>
+          @if (filtroActivo === 'custom') {
+          <span>{{ fechaLabel }}</span>
+          }
+        </button>
+      </div>
+    </div>
+
+    <!-- Toggle anuladas -->
+    <div class="estado-bar">
+      <button class="estado-pill" [class.active]="filtroEstado === 'ANULADA'" (click)="toggleFiltroAnuladas()">
+        @if (filtroEstado === 'ANULADA') {
+          <ion-icon name="close-outline"></ion-icon>
+        } @else {
+          <ion-icon name="ban-outline"></ion-icon>
+        }
+        Ver anuladas
       </button>
     </div>
-  </div>
 
-  <!-- Toggle anuladas — pill discreto debajo de los filtros de período -->
-  <div class="estado-bar">
-    <button class="estado-pill" [class.active]="filtroEstado === 'ANULADA'" (click)="toggleFiltroAnuladas()">
-      <ion-icon name="ban-outline"></ion-icon>
-      Ver anuladas
-    </button>
-  </div>
+    <!-- Buscador -->
+    <div class="search-bar">
+      <ion-searchbar
+        [value]="busqueda"
+        placeholder="Juan, 0912..., ticket 3, factura 10"
+        inputmode="search"
+        [debounce]="0"
+        (ionInput)="onBusquedaChange($event)"
+        (ionClear)="onBusquedaChange($event)">
+      </ion-searchbar>
+    </div>
 
-  <!-- Buscador por cliente (nombre o cédula) -->
-  <div class="search-bar">
-    <ion-searchbar
-      [value]="busqueda"
-      placeholder="Juan, 0912..., ticket 3, factura 10"
-      inputmode="search"
-      [debounce]="0"
-      (ionInput)="onBusquedaChange($event)"
-      (ionClear)="onBusquedaChange($event)">
-    </ion-searchbar>
   </div>
-</ion-header>
-
-<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
 
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent"
@@ -54,21 +53,18 @@
     </ion-refresher-content>
   </ion-refresher>
 
+  <!-- Espacio reservado para los filtros fijos -->
+  <div class="filtros-spacer"></div>
 
-
-  <!-- Skeleton Loading (Patrón DESIGN.md) -->
+  <!-- Skeleton Loading -->
   @if (loading) {
   <div class="p-sm">
     <ion-list class="ventas-list" lines="none">
       @for (i of [1, 2, 3, 4, 5]; track i) {
       <ion-item class="venta-card" detail="false">
-
-        <!-- Ícono comprobante Skeleton -->
         <div slot="start" class="comprobante-icon-box" style="background: var(--ion-color-step-100);">
           <ion-skeleton-text animated style="width: 22px; height: 22px; border-radius: 4px;"></ion-skeleton-text>
         </div>
-
-        <!-- Info central Skeleton -->
         <ion-label>
           <div class="venta-top-row">
             <ion-skeleton-text animated style="width: 60px; height: 16px; border-radius: 10px;"></ion-skeleton-text>
@@ -81,13 +77,10 @@
             <ion-skeleton-text animated style="width: 110px; height: 12px; border-radius: 4px;"></ion-skeleton-text>
           </div>
         </ion-label>
-
-        <!-- Total + menú Skeleton -->
         <div slot="end" class="venta-end">
           <ion-skeleton-text animated style="width: 50px; height: 18px; border-radius: 4px;"></ion-skeleton-text>
           <ion-skeleton-text animated style="width: 24px; height: 24px; border-radius: 50%;"></ion-skeleton-text>
         </div>
-
       </ion-item>
       }
     </ion-list>
@@ -120,13 +113,9 @@
     <ion-list class="ventas-list" lines="none">
       @for (venta of ventas; track venta.id) {
       <ion-item class="venta-card" [class.venta-anulada]="venta.estado === 'ANULADA'" detail="false" button (click)="abrirDetalle(venta)">
-
-        <!-- Ícono comprobante -->
         <div slot="start" class="comprobante-icon-box" [attr.data-tipo]="venta.tipo_comprobante">
           <ion-icon [name]="iconComprobante(venta.tipo_comprobante)"></ion-icon>
         </div>
-
-        <!-- Info central -->
         <ion-label>
           <div class="venta-top-row">
             <ion-badge [color]="colorComprobante(venta.tipo_comprobante)" class="tipo-badge">
@@ -153,8 +142,6 @@
             <span class="venta-hora">{{ formatFecha(venta.fecha) }} · {{ formatHora(venta.fecha) }}</span>
           </div>
         </ion-label>
-
-        <!-- Total + menú de opciones -->
         <div slot="end" class="venta-end">
           <span class="venta-total">${{ currencyService.format(venta.total) }}</span>
           @if (venta.estado !== 'ANULADA') {
@@ -167,7 +154,6 @@
           </div>
           }
         </div>
-
       </ion-item>
       }
     </ion-list>
@@ -185,25 +171,9 @@
     </ion-fab-button>
   </ion-fab>
   }
+
 </ion-content>
 
-<!-- Footer totalizador pegado al fondo (solo si hay datos) -->
-@if (!loading && ventas.length > 0) {
-<ion-footer class="ion-no-border">
-  <div class="ventas-footer">
-    <div class="footer-info">
-      <span class="footer-label">{{ cantidadVentas }} {{ cantidadVentas === 1 ? 'venta' : 'ventas' }}</span>
-    </div>
-    <div class="footer-amount-box">
-      <h3 class="footer-amount">
-        <span class="currency-symbol">$</span>{{ currencyService.format(totalDia) }}
-      </h3>
-    </div>
-  </div>
-</ion-footer>
-}
-
-<!-- Picker de fecha — conectado a ion-datetime-button via id="fecha-ventas" -->
 <ion-modal [keepContentsMounted]="true" trigger="open-date-picker" cssClass="date-picker-modal">
   <ng-template>
     <ion-datetime id="fecha-ventas" presentation="date" [value]="fechaFiltro" [max]="hoy" locale="es-EC"

@@ -1,0 +1,128 @@
+ion-header {
+  &::after { display: none; }
+}
+
+ion-toolbar {
+  --border-width: 0;
+}
+
+ion-content {
+  --background: var(--ion-background-color);
+}
+
+// ── Lista de notificaciones ──────────────────────────────────────────────────
+
+.notif-list {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+}
+
+.notif-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: none;
+  background: var(--ion-item-background);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-level-1);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+
+  &:active {
+    background: var(--ion-color-step-100);
+  }
+}
+
+.notif-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  ion-icon { font-size: 20px; }
+
+  &.celular {
+    background: rgba(var(--ion-color-primary-rgb), 0.10);
+    color: var(--ion-color-primary);
+  }
+
+  &.bus {
+    background: rgba(var(--ion-color-warning-rgb), 0.10);
+    color: var(--ion-color-warning);
+  }
+
+  &.facturacion {
+    background: rgba(var(--ion-color-danger-rgb), 0.10);
+    color: var(--ion-color-danger);
+  }
+}
+
+.notif-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.notif-titulo {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-text-color);
+}
+
+.notif-descripcion {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+}
+
+.notif-subtitulo {
+  font-size: 12px;
+  color: var(--ion-color-step-400);
+  margin-top: 2px;
+}
+
+.notif-arrow {
+  font-size: 18px;
+  color: var(--ion-color-step-300);
+  flex-shrink: 0;
+}
+
+// ── Empty state ──────────────────────────────────────────────────────────────
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-4xl) var(--spacing-lg);
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 56px;
+  color: var(--ion-color-step-300);
+  margin-bottom: var(--spacing-lg);
+}
+
+.empty-titulo {
+  font-size: 17px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ion-text-color);
+  margin: 0 0 var(--spacing-xs);
+}
+
+.empty-descripcion {
+  font-size: 14px;
+  color: var(--ion-color-medium);
+  margin: 0;
+}

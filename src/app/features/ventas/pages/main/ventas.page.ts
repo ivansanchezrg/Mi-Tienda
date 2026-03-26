@@ -3,12 +3,11 @@ import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import {
-    IonContent, IonHeader, IonTitle, IonToolbar,
-    IonButtons, IonMenuButton, IonIcon,
+    IonContent, IonIcon,
     IonRefresher, IonRefresherContent,
     IonBadge, IonList, IonItem, IonLabel,
     IonDatetime, IonModal, IonSearchbar,
-    IonSkeletonText, IonFooter,
+    IonSkeletonText,
     IonInfiniteScroll, IonInfiniteScrollContent,
     IonFab, IonFabButton,
     ModalController, AlertController
@@ -18,7 +17,8 @@ import {
     calendarOutline, receiptOutline, documentTextOutline,
     documentOutline, cashOutline, cardOutline,
     phonePortraitOutline, handRightOutline,
-    cartOutline, chevronDownCircleOutline, banOutline
+    cartOutline, chevronDownCircleOutline, banOutline,
+    arrowUpOutline, closeOutline
 } from 'ionicons/icons';
 import { VentasService } from '../../services/ventas.service';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
@@ -36,12 +36,11 @@ import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page'
     standalone: true,
     imports: [
         CommonModule,
-        IonContent, IonHeader, IonTitle, IonToolbar,
-        IonButtons, IonMenuButton, IonIcon,
+        IonContent, IonIcon,
         IonRefresher, IonRefresherContent,
         IonBadge, IonList, IonItem, IonLabel,
         IonDatetime, IonModal, IonSearchbar,
-        IonSkeletonText, IonFooter,
+        IonSkeletonText,
         IonInfiniteScroll, IonInfiniteScrollContent,
         IonFab, IonFabButton,
         OptionsMenuComponent
@@ -53,40 +52,21 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
     public currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
     private alertCtrl = inject(AlertController);
-    // ui heredado de PaginatedListPage
 
-    /** Alias para el template — apunta a this.items de la base */
     get ventas(): Venta[] { return this.items; }
 
     protected readonly pageSize = PAGINATION_CONFIG.ventas.pageSize;
     readonly loadingMoreText = 'Cargando más ventas...';
 
-    /** Filtro de periodo rápido: hoy, semana, mes, todo, custom */
     filtroActivo = 'hoy';
-
-    /** Fecha elegida si filtroActivo === 'custom' */
     fechaFiltro: string = getFechaLocal();
-
-    /** Máximo seleccionable en el picker — getter para que siempre refleje la fecha actual */
     get hoy(): string { return getFechaLocal(); }
 
-    /** Texto de búsqueda actual */
     busqueda = '';
     private search$ = new Subject<string>();
     private searchSub!: Subscription;
 
-    /** Opciones del menú contextual — solo ventas completadas pueden anularse */
-    getVentaMenuOpciones(venta: Venta): MenuOption[] {
-        if (venta.estado === 'ANULADA') return [];
-        return [
-            { label: 'Anular venta', icon: 'ban-outline', value: 'anular', color: 'danger' },
-        ];
-    }
-
-    /** Flag anti double-submit para anulación */
     anulando = false;
-
-    /** Toggle de estado: null = solo completadas (default), 'ANULADA' = solo anuladas */
     filtroEstado: string | null = null;
 
     get fechaLabel(): string {
@@ -96,12 +76,10 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
         });
     }
 
-    /** Totales reales desde BD (todos los registros del filtro, no solo la página cargada) */
-    totalReal = 0;
-    cantidadReal = 0;
-
-    get totalDia(): number { return this.totalReal; }
-    get cantidadVentas(): number { return this.cantidadReal; }
+    getVentaMenuOpciones(venta: Venta): MenuOption[] {
+        if (venta.estado === 'ANULADA') return [];
+        return [{ label: 'Anular venta', icon: 'ban-outline', value: 'anular', color: 'danger' }];
+    }
 
     constructor() {
         super();
@@ -109,7 +87,8 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
             calendarOutline, receiptOutline, documentTextOutline,
             documentOutline, cashOutline, cardOutline,
             phonePortraitOutline, handRightOutline,
-            cartOutline, chevronDownCircleOutline, banOutline
+            cartOutline, chevronDownCircleOutline, banOutline,
+            arrowUpOutline, closeOutline
         });
     }
 
@@ -117,7 +96,6 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
         this.searchSub = this.search$
             .pipe(debounceTime(500), distinctUntilChanged())
             .subscribe(() => this.cargar());
-
         await this.cargar();
     }
 
@@ -125,38 +103,15 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
         this.searchSub?.unsubscribe();
     }
 
-    ionViewWillEnter() {
-        this.ui.hideTabs();
-    }
-
-    ionViewWillLeave() {
-        this.ui.showTabs();
-    }
-
-    // ── fetchPage + cargar: implementación requerida por PaginatedListPage ──
-
     protected async fetchPage(page: number): Promise<Venta[]> {
         const filtro = this.filtroActivo === 'custom' ? this.fechaFiltro : this.filtroActivo;
         return this.ventasService.obtenerVentas(filtro, page, this.busqueda || undefined, this.filtroEstado || undefined);
-    }
-
-    /** Override: carga lista + totales reales en paralelo */
-    protected override async cargar(silencioso = false): Promise<void> {
-        const filtro = this.filtroActivo === 'custom' ? this.fechaFiltro : this.filtroActivo;
-        const [, resumen] = await Promise.all([
-            super.cargar(silencioso),
-            this.ventasService.resumirVentas(filtro, this.busqueda || undefined, this.filtroEstado || undefined),
-        ]);
-        this.totalReal     = resumen.total_monto;
-        this.cantidadReal  = Number(resumen.total_registros);
     }
 
     toggleFiltroAnuladas() {
         this.filtroEstado = this.filtroEstado === 'ANULADA' ? null : 'ANULADA';
         this.cargar();
     }
-
-    // ── Eventos de filtros ────────────────────────────────────────────────
 
     onBusquedaChange(event: CustomEvent) {
         this.busqueda = (event.detail?.value ?? '').trim();
@@ -177,8 +132,6 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
         }
     }
 
-    // ── Acciones de tarjeta ───────────────────────────────────────────────
-
     async abrirDetalle(venta: Venta) {
         const modal = await this.modalCtrl.create({
             component: VentaDetalleModalComponent,
@@ -188,9 +141,7 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
     }
 
     async onVentaMenuOption(opcion: MenuOption, venta: Venta) {
-        if (opcion.value === 'anular') {
-            await this.confirmarAnulacion(venta);
-        }
+        if (opcion.value === 'anular') await this.confirmarAnulacion(venta);
     }
 
     private async confirmarAnulacion(venta: Venta) {
@@ -199,11 +150,7 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
         const alert = await this.alertCtrl.create({
             header: `¿Anular venta #${venta.numero_comprobante}?`,
             message: 'Se revertirá el stock y el saldo de caja. Esta acción no se puede deshacer.',
-            inputs: [{
-                name: 'motivo',
-                type: 'textarea',
-                placeholder: 'Motivo de anulación (obligatorio)'
-            }],
+            inputs: [{ name: 'motivo', type: 'textarea', placeholder: 'Motivo de anulación (obligatorio)' }],
             buttons: [
                 { text: 'Cancelar', role: 'cancel' },
                 {
@@ -227,15 +174,11 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
         this.anulando = true;
         try {
             const resultado = await this.ventasService.anularVenta(venta.id, data.values.motivo.trim());
-            if (resultado) {
-                await this.cargar();
-            }
+            if (resultado) await this.cargar();
         } finally {
             this.anulando = false;
         }
     }
-
-    // ── Helpers template ──────────────────────────────────────────────────
 
     iconComprobante(tipo: string): string {
         if (tipo === 'FACTURA') return 'document-outline';
@@ -269,11 +212,6 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
         return 'Efectivo';
     }
 
-    formatHora(isoString: string): string {
-        return formatHoraEC(isoString);
-    }
-
-    formatFecha(isoString: string): string {
-        return formatFechaEC(isoString);
-    }
+    formatHora(isoString: string): string { return formatHoraEC(isoString); }
+    formatFecha(isoString: string): string { return formatFechaEC(isoString); }
 }

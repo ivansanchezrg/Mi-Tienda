@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { AuthService } from '../../auth/services/auth.service';
-import { Venta, VentaDetalle, VentasResumen } from '../models/venta.model';
+import { Venta, VentaDetalle, VentasResumen, ReporteVentasDia } from '../models/venta.model';
 import { PAGINATION_CONFIG } from '../../../core/config/pagination.config';
 
 @Injectable({
@@ -51,6 +51,30 @@ export class VentasService {
         return raw[0] ?? { total_registros: 0, total_monto: 0 };
     }
 
+
+    // ──────────────────────────────────────────────
+    // REPORTE RESUMEN DIARIO
+    // ──────────────────────────────────────────────
+
+    /**
+     * Obtiene el resumen agregado de ventas de un día específico.
+     * Delega toda la lógica de fechas (Ecuador) y agrupación a reporte_ventas_dia.
+     */
+    async obtenerReporteDia(fecha: string): Promise<ReporteVentasDia> {
+        const resultado = await this.supabase.call<ReporteVentasDia>(
+            this.supabase.client.rpc('reporte_ventas_dia', { p_fecha: fecha })
+        );
+
+        return resultado ?? {
+            fecha,
+            total_ventas: 0,
+            total_monto: 0,
+            total_anuladas: 0,
+            monto_anulado: 0,
+            por_metodo_pago: [],
+            por_tipo_comprobante: []
+        };
+    }
 
     // ──────────────────────────────────────────────
     // DETALLE (con ítems + nombre de producto)
