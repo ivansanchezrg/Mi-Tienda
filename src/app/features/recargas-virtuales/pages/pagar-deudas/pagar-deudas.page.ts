@@ -11,6 +11,7 @@ import {
   closeCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { LoggerService } from '@core/services/logger.service';
 import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
 
@@ -30,7 +31,9 @@ export class PagarDeudasPage implements OnInit {
   private ui = inject(UiService);
   private service = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
+  private logger = inject(LoggerService);
 
+  procesando = false;
   pasoActual = 1;
   loading = true;
 
@@ -71,7 +74,7 @@ export class PagarDeudasPage implements OnInit {
       this.deudasPendientes = deudas;
       this.saldoDisponible = saldo;
     } catch (error) {
-      console.error('Error al cargar deudas:', error);
+      this.logger.error('PagarDeudasPage', 'Error al cargar deudas', error);
       await this.ui.showError('Error al cargar las deudas');
     } finally {
       this.loading = false;
@@ -131,22 +134,28 @@ export class PagarDeudasPage implements OnInit {
       await this.ui.showError('Saldo insuficiente en CAJA CELULAR');
       return;
     }
+    if (this.procesando) return;
+    this.procesando = true;
 
-    const empleado = await this.authService.getUsuarioActual();
-    if (!empleado) {
-      await this.ui.showError('No se pudo obtener el empleado');
-      return;
+    try {
+      const empleado = await this.authService.getUsuarioActual();
+      if (!empleado) {
+        await this.ui.showError('No se pudo obtener el empleado');
+        return;
+      }
+
+      const resultado = await this.service.registrarPagoProveedorCelular({
+        empleado_id: empleado.id,
+        deuda_ids: Array.from(this.deudasSeleccionadas)
+      });
+
+      if (!resultado) return;
+
+      await this.ui.showSuccess(`Pago registrado: $${this.totalSeleccionado.toFixed(2)}`);
+      this.router.navigate(['/home/recargas-virtuales'], { queryParams: { refresh: true } });
+    } finally {
+      this.procesando = false;
     }
-
-    const resultado = await this.service.registrarPagoProveedorCelular({
-      empleado_id: empleado.id,
-      deuda_ids: Array.from(this.deudasSeleccionadas)
-    });
-
-    if (!resultado) return;
-
-    await this.ui.showSuccess(`Pago registrado: $${this.totalSeleccionado.toFixed(2)}`);
-    this.router.navigate(['/home/recargas-virtuales'], { queryParams: { refresh: true } });
   }
 
   formatearFecha(fecha: string): string {

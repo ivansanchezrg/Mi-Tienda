@@ -1,4 +1,4 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-title>{{ tituloModal }}</ion-title>
     <ion-buttons slot="end">
@@ -12,7 +12,11 @@
 <ion-content>
   @if (loading) {
     <div class="loading-state">
-      <ion-icon [name]="iconoServicio"></ion-icon>
+      @if (tipo === 'CELULAR') {
+        <ion-icon name="phone-portrait-outline"></ion-icon>
+      } @else {
+        <ion-icon name="bus-outline"></ion-icon>
+      }
       <p>Cargando historial...</p>
     </div>
   } @else {
@@ -22,12 +26,19 @@
         <ion-card class="historial-card">
           @for (r of historial; track r.id; let last = $last) {
             <div class="historial-row">
-              <!-- Icono según estado -->
+
+              <!-- Icono según estado — nombres estáticos para Android -->
               <div class="historial-icon"
                 [class.pagado]="r.pagado"
                 [class.pendiente]="!r.pagado && tipo === 'CELULAR'"
                 [class.bus]="!r.pagado && tipo === 'BUS'">
-                <ion-icon [name]="r.pagado ? 'checkmark-circle-outline' : (tipo === 'CELULAR' ? 'alert-circle-outline' : 'bus-outline')"></ion-icon>
+                @if (r.pagado) {
+                  <ion-icon name="checkmark-circle-outline"></ion-icon>
+                } @else if (tipo === 'CELULAR') {
+                  <ion-icon name="alert-circle-outline"></ion-icon>
+                } @else {
+                  <ion-icon name="bus-outline"></ion-icon>
+                }
               </div>
 
               <!-- Detalles -->
@@ -58,13 +69,18 @@
                   {{ r.pagado ? 'Liquidado' : 'Sin liquidar' }}
                 </div>
               }
+
             </div>
             @if (!last) { <div class="divider"></div> }
           }
         </ion-card>
       } @else {
         <div class="empty-state">
-          <ion-icon [name]="iconoServicio"></ion-icon>
+          @if (tipo === 'CELULAR') {
+            <ion-icon name="phone-portrait-outline"></ion-icon>
+          } @else {
+            <ion-icon name="bus-outline"></ion-icon>
+          }
           <p>Sin movimientos registrados</p>
         </div>
       }

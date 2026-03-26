@@ -25,6 +25,14 @@
     </div>
   </div>
 
+  <!-- Toggle anuladas — pill discreto debajo de los filtros de período -->
+  <div class="estado-bar">
+    <button class="estado-pill" [class.active]="filtroEstado === 'ANULADA'" (click)="toggleFiltroAnuladas()">
+      <ion-icon name="ban-outline"></ion-icon>
+      Ver anuladas
+    </button>
+  </div>
+
   <!-- Buscador por cliente (nombre o cédula) -->
   <div class="search-bar">
     <ion-searchbar
@@ -90,10 +98,19 @@
   @else if (ventas.length === 0) {
   <div class="empty-state">
     <div class="empty-icon-wrap">
+      @if (filtroEstado === 'ANULADA') {
+      <ion-icon name="ban-outline"></ion-icon>
+      } @else {
       <ion-icon name="cart-outline"></ion-icon>
+      }
     </div>
+    @if (filtroEstado === 'ANULADA') {
+    <h2>Sin anulaciones</h2>
+    <p>No hay ventas anuladas en este período.</p>
+    } @else {
     <h2>Sin ventas</h2>
     <p>No hay ventas registradas para este periodo.</p>
+    }
   </div>
   }
 
@@ -102,7 +119,7 @@
   <div class="p-sm">
     <ion-list class="ventas-list" lines="none">
       @for (venta of ventas; track venta.id) {
-      <ion-item class="venta-card" detail="false" button (click)="abrirDetalle(venta)">
+      <ion-item class="venta-card" [class.venta-anulada]="venta.estado === 'ANULADA'" detail="false" button (click)="abrirDetalle(venta)">
 
         <!-- Ícono comprobante -->
         <div slot="start" class="comprobante-icon-box" [attr.data-tipo]="venta.tipo_comprobante">
@@ -117,6 +134,9 @@
             </ion-badge>
             @if (venta.numero_comprobante) {
             <span class="venta-numero">#{{ venta.numero_comprobante }}</span>
+            }
+            @if (venta.estado === 'ANULADA') {
+            <ion-badge color="danger" class="tipo-badge">Anulada</ion-badge>
             }
           </div>
           <p class="venta-cliente">
@@ -137,13 +157,15 @@
         <!-- Total + menú de opciones -->
         <div slot="end" class="venta-end">
           <span class="venta-total">${{ currencyService.format(venta.total) }}</span>
+          @if (venta.estado !== 'ANULADA') {
           <div (click)="$event.stopPropagation()">
             <app-options-menu
               [triggerId]="'menu-venta-' + venta.id"
-              [options]="ventaMenuOpciones"
+              [options]="getVentaMenuOpciones(venta)"
               (optionSelected)="onVentaMenuOption($event, venta)">
             </app-options-menu>
           </div>
+          }
         </div>
 
       </ion-item>

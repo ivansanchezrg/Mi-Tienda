@@ -2,9 +2,12 @@ import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
-  IonSpinner, IonSkeletonText
+  IonSpinner, IonSkeletonText, IonIcon
 } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { storefrontOutline, walletOutline, busOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { ConfigService } from '@core/services/config.service';
 import { ConfiguracionService } from '../../services/configuracion.service';
 
 @Component({
@@ -15,12 +18,17 @@ import { ConfiguracionService } from '../../services/configuracion.service';
   imports: [
     ReactiveFormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
-    IonSpinner, IonSkeletonText
+    IonSpinner, IonSkeletonText, IonIcon
   ]
 })
 export class ParametrosPage implements OnInit {
+  constructor() {
+    addIcons({ storefrontOutline, walletOutline, busOutline });
+  }
+
   private fb = inject(FormBuilder);
   private configuracionService = inject(ConfiguracionService);
+  private configService = inject(ConfigService);
   private ui = inject(UiService);
 
   form!: FormGroup;
@@ -31,6 +39,7 @@ export class ParametrosPage implements OnInit {
 
   ngOnInit() {
     this.form = this.fb.group({
+      nombre_negocio: ['', [Validators.required, Validators.maxLength(100)]],
       fondo_fijo_diario: [null, [Validators.required, Validators.min(0)]],
       varios_transferencia_diaria: [null, [Validators.required, Validators.min(0)]],
       bus_alerta_saldo_bajo: [null, [Validators.required, Validators.min(0)]],
@@ -55,6 +64,7 @@ export class ParametrosPage implements OnInit {
       if (config) {
         this.configuracionId = config.id;
         this.form.patchValue({
+          nombre_negocio: config.nombre_negocio,
           fondo_fijo_diario: config.fondo_fijo_diario,
           varios_transferencia_diaria: config.varios_transferencia_diaria,
           bus_alerta_saldo_bajo: config.bus_alerta_saldo_bajo,
@@ -77,6 +87,7 @@ export class ParametrosPage implements OnInit {
     this.guardando = true;
     try {
       const updated = await this.configuracionService.update(this.configuracionId, {
+        nombre_negocio: (this.form.value.nombre_negocio ?? '').trim(),
         fondo_fijo_diario: Number(this.form.value.fondo_fijo_diario),
         varios_transferencia_diaria: Number(this.form.value.varios_transferencia_diaria),
         bus_alerta_saldo_bajo: Number(this.form.value.bus_alerta_saldo_bajo),
@@ -84,6 +95,7 @@ export class ParametrosPage implements OnInit {
       });
 
       if (updated) {
+        this.configService.invalidar();
         await this.ui.showSuccess('Parámetros guardados');
       }
     } catch {

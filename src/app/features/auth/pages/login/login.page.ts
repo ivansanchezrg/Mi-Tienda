@@ -26,21 +26,28 @@ export class LoginPage {
   private supabaseSvc = inject(SupabaseService);
   private ui = inject(UiService);
 
+  iniciando = false;
+
   constructor() {
     addIcons({ storefront, logoGoogle });
   }
 
   async loginWithGoogle() {
+    if (this.iniciando) return;
+
     const status = await Network.getStatus();
     if (!status.connected) {
       this.ui.showToast('Sin conexión a internet', 'warning');
       return;
     }
 
+    this.iniciando = true;
     try {
       await this.supabaseSvc.signInWithGoogle();
     } catch (error: any) {
       this.ui.showError(error.message || 'Error al iniciar sesión');
+    } finally {
+      this.iniciando = false;
     }
   }
 }

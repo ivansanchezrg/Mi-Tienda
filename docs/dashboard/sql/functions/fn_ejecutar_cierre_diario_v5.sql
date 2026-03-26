@@ -360,6 +360,9 @@ BEGIN
 
   -- ==========================================
   -- 10. OPERACIÓN EN CAJA (bóveda) — depósito del cajón físico
+  -- NOTA: tipo_operacion = 'CIERRE' (no 'INGRESO') porque es un
+  --       movimiento contable interno del cierre de turno, no un
+  --       ingreso real de dinero nuevo al negocio.
   -- ==========================================
 
   IF v_dinero_a_depositar > 0 THEN
@@ -371,7 +374,7 @@ BEGIN
       gen_random_uuid(),
       v_caja_id,
       p_empleado_id,
-      'INGRESO',
+      'CIERRE',
       v_dinero_a_depositar,
       v_saldo_caja,
       v_saldo_caja + v_dinero_a_depositar,

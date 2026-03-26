@@ -46,6 +46,8 @@ export class RegistrarRecargaModalComponent implements OnInit {
   montoVirtual: number | null = null;
   comisionPct: number = 5;
 
+  guardando = false;
+
   // BUS
   saldoCajaBus: number = 0;
   saldoVirtualSistemaBus: number = 0; // último cierre + recargas post-cierre
@@ -171,6 +173,8 @@ export class RegistrarRecargaModalComponent implements OnInit {
       await this.ui.showError('Ingresá el monto');
       return;
     }
+    if (this.guardando) return;
+    this.guardando = true;
 
     try {
       const empleado = await this.authService.getUsuarioActual();
@@ -221,6 +225,8 @@ export class RegistrarRecargaModalComponent implements OnInit {
       }
     } catch (error: any) {
       await this.ui.showError(error?.message || 'Error inesperado');
+    } finally {
+      this.guardando = false;
     }
   }
 }

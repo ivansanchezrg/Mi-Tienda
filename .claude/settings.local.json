@@ -1,5 +1,4 @@
 {
-  "disableAllHooks": true,
   "permissions": {
     "allow": [
       "Bash(npx eslint:*)",
@@ -76,7 +75,25 @@
       "Bash(mkdir -p \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/cuentas-cobrar/services\")",
       "Bash(mkdir -p \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/cuentas-cobrar/pages/main\")",
       "Bash(mkdir -p \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/cuentas-cobrar/pages/detalle-cliente\")",
-      "Bash(mkdir -p \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/cuentas-cobrar/components/pago-fiado-modal\")"
+      "Bash(mkdir -p \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/cuentas-cobrar/components/pago-fiado-modal\")",
+      "Bash(ls -la /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs/*/sql/functions/)",
+      "Bash(find c:UsersivanDesktopProyectosmi-tiendadocs -type f -name *.md)",
+      "Bash(for feature:*)",
+      "Bash(do echo:*)",
+      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs -name *pos* -o -name *POS*)",
+      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs -type f -name *.md)",
+      "Bash(xargs grep:*)",
+      "Bash(/tmp/functions_list.txt:*)",
+      "Read(//tmp/**)",
+      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs -type f -name *.sql)",
+      "Bash(grep -h \"CREATE OR REPLACE FUNCTION\" /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs/recargas-virtuales/sql/functions/*.sql)",
+      "Bash(grep -h \"CREATE OR REPLACE FUNCTION\" /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs/dashboard/sql/functions/*.sql)",
+      "Bash(find c:UsersivanDesktopProyectosmi-tiendasrcappfeaturesreportes -type f \\\\\\(-name *.ts -o -name *.html -o -name *.scss \\\\\\))",
+      "Bash(find c:UsersivanDesktopProyectosmi-tiendasrcappfeaturesventas -type f \\\\\\(-name *.ts -o -name *.html \\\\\\))",
+      "Bash(find c:UsersivanDesktopProyectosmi-tiendadocs -type f -name *.sql)",
+      "Bash(grep \"^CREATE OR REPLACE FUNCTION\" /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs/inventario/sql/functions/*.sql)",
+      "Bash(grep \"^CREATE OR REPLACE FUNCTION\" /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs/ventas/sql/functions/*.sql)"
     ]
-  }
+  },
+  "disableAllHooks": true
 }

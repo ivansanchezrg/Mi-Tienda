@@ -8,7 +8,7 @@
     </div>
 
     <div class="actions-section">
-      <ion-button (click)="loginWithGoogle()" expand="block" fill="clear" class="google-btn">
+      <ion-button (click)="loginWithGoogle()" expand="block" fill="clear" class="google-btn" [disabled]="iniciando">
         <ion-icon slot="start" name="logo-google"></ion-icon>
         Continuar con Google
       </ion-button>

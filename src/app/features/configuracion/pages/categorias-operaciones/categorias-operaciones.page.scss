@@ -1,11 +1,11 @@
 ion-content {
-  --background: var(--ion-color-light);
+  --background: var(--ion-background-color);
 }
 
 // ── Segment moderno (pill flotante) ───────────────────────────────────────────
 // Fuera del ion-content → estático al hacer scroll
 .segment-wrapper {
-  background: var(--ion-color-light);
+  background: var(--ion-background-color);
   padding: var(--spacing-md) var(--spacing-md) var(--spacing-sm);
 
   ion-segment {

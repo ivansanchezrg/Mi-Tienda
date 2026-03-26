@@ -16,10 +16,11 @@
         @for (opt of group.options; track opt.value) {
         <button class="option-item"
             [class.destructive]="opt.color === 'danger'"
+            [class.positive]="opt.color === 'success'"
             [class.selected]="selectedValue === opt.value"
             (click)="seleccionar(opt)">
             @if (opt.icon) {
-            <div class="option-icon" [class.danger]="opt.color === 'danger'">
+            <div class="option-icon" [class.danger]="opt.color === 'danger'" [class.success]="opt.color === 'success'">
                 <ion-icon [name]="opt.icon"></ion-icon>
             </div>
             }

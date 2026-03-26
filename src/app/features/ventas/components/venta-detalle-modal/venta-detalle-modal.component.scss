@@ -293,6 +293,88 @@ ion-content {
 // ─────────────────────────────────────────
 // PIE DEL COMPROBANTE
 // ─────────────────────────────────────────
+// BANNER ANULADA
+// ─────────────────────────────────────────
+
+.banner-anulada {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(var(--ion-color-danger-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.3);
+    border-radius: var(--radius-sm, 6px);
+    padding: 12px 14px;
+    margin: 0 16px 0 16px;
+
+    ion-icon {
+        font-size: 22px;
+        color: var(--ion-color-danger);
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
+    .banner-anulada-texto {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .banner-anulada-titulo {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--ion-color-danger);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .banner-anulada-motivo {
+        font-size: 13px;
+        color: var(--ion-color-danger);
+        opacity: 0.85;
+        line-height: 1.4;
+    }
+}
+
+// ─────────────────────────────────────────
+// TOTAL ANULADO
+// ─────────────────────────────────────────
+
+.total-anulado {
+    .total-val--grande {
+        text-decoration: line-through;
+        color: var(--ion-color-danger) !important;
+        opacity: 0.7;
+    }
+}
+
+// ─────────────────────────────────────────
+// ESTADO DE CUENTA FIADO
+// ─────────────────────────────────────────
+
+.fiado-abonado-val {
+    color: var(--ion-color-success);
+    font-weight: 600;
+}
+
+.fiado-pendiente {
+    .total-label {
+        font-weight: 600;
+        color: var(--ion-color-warning-shade);
+    }
+}
+
+.fiado-pendiente-val {
+    color: var(--ion-color-warning-shade);
+    font-weight: 700;
+}
+
+.fiado-saldado-val {
+    color: var(--ion-color-success);
+    font-weight: 700;
+}
+
+
+// ─────────────────────────────────────────
 
 .pie {
     text-align: center;
@@ -324,6 +406,11 @@ ion-content {
     .gracias {
         font-size: 13px;
         color: var(--ion-color-medium);
+
+        &.anulada-pie {
+            color: var(--ion-color-danger);
+            font-weight: 600;
+        }
         margin: 12px 0 0 0;
         font-style: italic;
     }

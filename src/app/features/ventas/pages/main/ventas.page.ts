@@ -11,7 +11,7 @@ import {
     IonSkeletonText, IonFooter,
     IonInfiniteScroll, IonInfiniteScrollContent,
     IonFab, IonFabButton,
-    ModalController
+    ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -52,6 +52,7 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
     private ventasService = inject(VentasService);
     public currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
+    private alertCtrl = inject(AlertController);
     // ui heredado de PaginatedListPage
 
     /** Alias para el template — apunta a this.items de la base */
@@ -74,10 +75,19 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
     private search$ = new Subject<string>();
     private searchSub!: Subscription;
 
-    /** Opciones del menú contextual de cada tarjeta */
-    readonly ventaMenuOpciones: MenuOption[] = [
-        { label: 'Anular venta', icon: 'ban-outline', value: 'anular', color: 'danger' },
-    ];
+    /** Opciones del menú contextual — solo ventas completadas pueden anularse */
+    getVentaMenuOpciones(venta: Venta): MenuOption[] {
+        if (venta.estado === 'ANULADA') return [];
+        return [
+            { label: 'Anular venta', icon: 'ban-outline', value: 'anular', color: 'danger' },
+        ];
+    }
+
+    /** Flag anti double-submit para anulación */
+    anulando = false;
+
+    /** Toggle de estado: null = solo completadas (default), 'ANULADA' = solo anuladas */
+    filtroEstado: string | null = null;
 
     get fechaLabel(): string {
         const [y, m, d] = this.fechaFiltro.split('-').map(Number);
@@ -127,7 +137,7 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
 
     protected async fetchPage(page: number): Promise<Venta[]> {
         const filtro = this.filtroActivo === 'custom' ? this.fechaFiltro : this.filtroActivo;
-        return this.ventasService.obtenerVentas(filtro, page, this.busqueda || undefined);
+        return this.ventasService.obtenerVentas(filtro, page, this.busqueda || undefined, this.filtroEstado || undefined);
     }
 
     /** Override: carga lista + totales reales en paralelo */
@@ -135,10 +145,15 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
         const filtro = this.filtroActivo === 'custom' ? this.fechaFiltro : this.filtroActivo;
         const [, resumen] = await Promise.all([
             super.cargar(silencioso),
-            this.ventasService.resumirVentas(filtro, this.busqueda || undefined),
+            this.ventasService.resumirVentas(filtro, this.busqueda || undefined, this.filtroEstado || undefined),
         ]);
         this.totalReal     = resumen.total_monto;
         this.cantidadReal  = Number(resumen.total_registros);
+    }
+
+    toggleFiltroAnuladas() {
+        this.filtroEstado = this.filtroEstado === 'ANULADA' ? null : 'ANULADA';
+        this.cargar();
     }
 
     // ── Eventos de filtros ────────────────────────────────────────────────
@@ -172,9 +187,51 @@ export class VentasPage extends PaginatedListPage<Venta> implements OnInit, OnDe
         await modal.present();
     }
 
-    async onVentaMenuOption(opcion: MenuOption, _venta: Venta) {
+    async onVentaMenuOption(opcion: MenuOption, venta: Venta) {
         if (opcion.value === 'anular') {
-            await this.ui.showToast('Funcionalidad disponible próximamente', 'warning');
+            await this.confirmarAnulacion(venta);
+        }
+    }
+
+    private async confirmarAnulacion(venta: Venta) {
+        if (this.anulando) return;
+
+        const alert = await this.alertCtrl.create({
+            header: `¿Anular venta #${venta.numero_comprobante}?`,
+            message: 'Se revertirá el stock y el saldo de caja. Esta acción no se puede deshacer.',
+            inputs: [{
+                name: 'motivo',
+                type: 'textarea',
+                placeholder: 'Motivo de anulación (obligatorio)'
+            }],
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                {
+                    text: 'Anular',
+                    cssClass: 'alert-button-danger',
+                    handler: (data) => {
+                        if (!data.motivo?.trim()) {
+                            this.ui.showToast('Debes ingresar un motivo', 'warning');
+                            return false;
+                        }
+                        return true;
+                    }
+                }
+            ]
+        });
+        await alert.present();
+
+        const { data, role } = await alert.onDidDismiss();
+        if (role === 'cancel' || !data?.values?.motivo?.trim()) return;
+
+        this.anulando = true;
+        try {
+            const resultado = await this.ventasService.anularVenta(venta.id, data.values.motivo.trim());
+            if (resultado) {
+                await this.cargar();
+            }
+        } finally {
+            this.anulando = false;
         }
     }
 

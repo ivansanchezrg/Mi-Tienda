@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonContent, IonSpinner } from '@ionic/angular/standalone';
 import { SupabaseService } from 'src/app/core/services/supabase.service';
+import { LoggerService } from 'src/app/core/services/logger.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { Capacitor } from '@capacitor/core';
 
@@ -22,6 +23,7 @@ export class CallbackPage implements OnInit, OnDestroy {
   private supabaseSvc = inject(SupabaseService);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private logger = inject(LoggerService);
 
   private authSubscription: { unsubscribe: () => void } | null = null;
 
@@ -70,7 +72,7 @@ export class CallbackPage implements OnInit, OnDestroy {
     });
 
     if (error) {
-      console.error('Error setting session', error);
+      this.logger.error('CallbackPage', 'Error setting session', error);
       this.goToLogin();
       return;
     }

@@ -1,4 +1,4 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-title>{{ tituloModal }}</ion-title>
     <ion-buttons slot="end">
@@ -14,7 +14,13 @@
 
     <!-- Hint -->
     <div class="hint-card">
-      <ion-icon [name]="iconoServicio"></ion-icon>
+      <div class="hint-icon" [class.bus]="tipo === 'BUS'">
+        @if (tipo === 'CELULAR') {
+          <ion-icon name="phone-portrait-outline"></ion-icon>
+        } @else {
+          <ion-icon name="bus-outline"></ion-icon>
+        }
+      </div>
       <p>
         @if (tipo === 'CELULAR') {
           Registrá cuando el proveedor agregó saldo virtual a tu cuenta
@@ -86,7 +92,7 @@
       </button>
       <button
         class="primary-btn"
-        [disabled]="!montoVirtual || montoVirtual <= 0 || saldoBusInsuficiente"
+        [disabled]="!montoVirtual || montoVirtual <= 0 || saldoBusInsuficiente || guardando"
         (click)="confirmar()">
         <ion-icon name="add-circle-outline"></ion-icon>
         @if (tipo === 'CELULAR') {

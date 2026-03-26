@@ -13,6 +13,7 @@ import {
 import { KardexInventario } from '../../models/kardex.model';
 import { InventarioService } from '../../services/inventario.service';
 import { UiService } from '../../../../core/services/ui.service';
+import { LoggerService } from '../../../../core/services/logger.service';
 
 type TipoAjuste = 'COMPRA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
 
@@ -28,6 +29,7 @@ export class KardexPage implements OnInit {
     private route = inject(ActivatedRoute);
     private inventarioService = inject(InventarioService);
     private ui = inject(UiService);
+    private logger = inject(LoggerService);
 
     productoId!: string;
     productoNombre = 'Producto';
@@ -63,7 +65,7 @@ export class KardexPage implements OnInit {
         try {
             this.kardex = await this.inventarioService.obtenerKardexProducto(this.productoId);
         } catch (e) {
-            console.error('Error cargando kardex', e);
+            this.logger.error('KardexPage', 'Error cargando kardex', e);
         } finally {
             this.cargando = false;
         }
@@ -109,7 +111,7 @@ export class KardexPage implements OnInit {
             this.resetForm();
             await this.cargarKardex();
         } catch (error) {
-            console.error('Error ajustando stock', error);
+            this.logger.error('KardexPage', 'Error ajustando stock', error);
         } finally {
             this.guardandoAjuste = false;
         }

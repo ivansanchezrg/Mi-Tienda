@@ -48,11 +48,12 @@ src/app/
 │   ├── services/          # Servicios globales (ver abajo)
 │   ├── config/            # pagination.config.ts — PAGINATION_CONFIG (pageSize por módulo)
 │   ├── guards/            # auth, public, role, pending-changes
-│   └── utils/             # date.util.ts
+│   └── utils/             # date.util.ts, cedula.util.ts
 ├── features/              # Módulos (cada uno tiene pages/, services/, models/, components/)
 ├── shared/
 │   ├── components/        # sidebar, under-construction, options-menu, options-modal
-│   └── directives/        # currency-input, numbers-only, scroll-reset
+│   ├── directives/        # currency-input, numbers-only, scroll-reset
+│   └── pages/             # paginated-list.page.ts (clase base listas paginadas)
 └── environments/
     ├── environment.example.ts   # Plantilla (en git)
     └── environment.ts           # Credenciales reales (en .gitignore)
@@ -65,13 +66,14 @@ src/app/
 | Servicio                  | Uso                                                         |
 | ------------------------- | ----------------------------------------------------------- |
 | `SupabaseService`         | Todas las queries y auth. Usar siempre `.call()` o `.rpc()` |
-| `UiService`               | Loading, toasts, alertas, confirmaciones                    |
-| `CurrencyService`         | Formateo de moneda (no formatear manualmente)               |
-| `StorageService`          | Capacitor Preferences (datos locales persistentes)          |
-| `GananciasService`        | Lógica de comisiones recargas virtuales                     |
+| `UiService`               | Loading, toasts, alertas, confirmaciones, `hideTabs()`/`showTabs()` para ocultar tabs en páginas de detalle |
+| `ConfigService`           | Lee tabla `configuraciones` (nombre_negocio, fondo_fijo, etc.) con cache en memoria. Métodos: `get()`, `getNombreNegocio()`, `invalidar()` |
+| `CurrencyService`         | Formateo de moneda: `format(value)` y `parse(value)`. No formatear manualmente |
+| `StorageService`          | Sube imágenes a Supabase Storage con compresión automática. `uploadImage(dataUrl, bucket, subfolder)` |
+| `GananciasService`        | Lógica de comisiones recargas virtuales (liquidación BUS mensual) |
 | `RecargasVirtualesService`| Operaciones de saldo celular/bus                            |
-| `LoggerService`           | Logs estructurados (no usar console.log directo)            |
-| `NetworkService`          | Estado de conectividad                                      |
+| `LoggerService`           | Logs estructurados a filesystem con rotación (no usar console.log directo) |
+| `NetworkService`          | Estado de conectividad: `isOnline$: BehaviorSubject<boolean>` |
 
 ---
 
@@ -375,6 +377,57 @@ if (result !== null) { /* éxito — result puede ser [] o null */ }
 
 ---
 
+## Eficiencia de API — evitar abuso de requests
+
+### Búsquedas: debounce + distinctUntilChanged
+Toda búsqueda que dispare queries debe usar `debounceTime(500)` + `distinctUntilChanged()` para no bombardear Supabase:
+```typescript
+private search$ = new Subject<string>();
+private searchSub!: Subscription;
+
+ngOnInit() {
+    this.searchSub = this.search$
+        .pipe(debounceTime(500), distinctUntilChanged())
+        .subscribe(() => this.cargar());
+}
+
+ngOnDestroy() { this.searchSub?.unsubscribe(); }
+```
+
+### Queries independientes: siempre en paralelo
+```typescript
+// ✅ Paralelo — 1 round-trip
+const [ventas, resumen] = await Promise.all([
+    this.servicio.listar(page),
+    this.servicio.obtenerResumen(),
+]);
+
+// ❌ Secuencial — 2 round-trips innecesarios
+const ventas = await this.servicio.listar(page);
+const resumen = await this.servicio.obtenerResumen();
+```
+
+### Botones de acción: deshabilitar durante operación
+Evita double-submit y requests duplicados:
+```typescript
+guardando = false;
+
+async guardar() {
+    if (this.guardando) return;
+    this.guardando = true;
+    try { /* ... */ } finally { this.guardando = false; }
+}
+```
+```html
+<button [disabled]="guardando" (click)="guardar()">Guardar</button>
+```
+
+### Datos que no cambian frecuentemente: cache en servicio
+`ConfigService` ya implementa este patrón (cache en memoria, `invalidar()` manual).
+Usar el mismo patrón si se necesita cache para otros datos de baja frecuencia de cambio.
+
+---
+
 ## Funciones PostgreSQL — convenciones
 
 - Nombre con prefijo `fn_`: `fn_ejecutar_cierre_diario`, `fn_registrar_operacion_manual`
@@ -383,6 +436,16 @@ if (result !== null) { /* éxito — result puede ser [] o null */ }
 - `REVOKE EXECUTE ... FROM anon; GRANT EXECUTE ... TO authenticated;` (las funciones financieras nunca se exponen a `anon`)
 - Finalizar con `NOTIFY pgrst, 'reload schema';`
 - Documentar las funciones en `docs/<modulo>/sql/functions/`
+- Templates completos y criterios de decisión en `docs/ESTRUCTURA-PROYECTO.md`
+
+### Cuándo usar cada enfoque
+
+| Caso | Usar | Por qué |
+|------|------|---------|
+| CRUD de 1 tabla (con JOINs simples) | **Query directa** `supabase.client.from()` | No justifica una función SQL |
+| Operación que toca 2+ tablas | **Función RPC** `supabase.rpc()` | Atomicidad transaccional |
+| Query compleja (GROUP BY, agregaciones, paginación) | **Función RPC** que retorna `TABLE` | Imposible con el query builder |
+| Efecto automático al insertar/modificar fila | **Trigger** | No depende del frontend |
 
 ---
 
@@ -494,6 +557,9 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 - No mostrar `console.log` en producción → usar `LoggerService`
 - No dejar footers/paneles inferiores sin `env(safe-area-inset-bottom)` → ver sección "Safe area en Android"
 - No usar `ActionSheetController`, `PopoverController` ni `ion-select` → usar `OptionsModalComponent` (modo acción o modo selección). `<select>` nativo solo dentro de formularios con `formControlName`
+- No dejar botones de acción habilitados durante operaciones async → usar flag `guardando`/`procesando` + `[disabled]`
+- No crear subscriptions (`.subscribe()`) sin cleanup en `ngOnDestroy()` → evitar memory leaks
+- No usar `console.error()` en servicios → usar `LoggerService.error()` para que quede en los logs del dispositivo
 
 ---
 
@@ -506,10 +572,11 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Recargas Virtuales  | `docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md`     |
 | Inventario          | `docs/inventario/INVENTARIO-README.md`                     |
 | POS                 | `docs/pos/POS-README.md`                                   |
+| Ventas              | `docs/ventas/VENTAS-README.md`                             |
 | Cuentas por Cobrar  | `docs/cuentas-cobrar/CUENTAS-COBRAR-README.md`             |
-| ~~Gastos Diarios~~  | `docs/gastos-diarios/GASTOS-DIARIOS-README.md` (**DEPRECADO en v5**)  |
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
 | Sistema de diseño   | `docs/DESIGN.md`                                           |
-| **Shared**          | **`docs/shared/README.md`**                                |
+| Shared              | `docs/shared/README.md`                                    |
+| Estructura/Patrones | `docs/ESTRUCTURA-PROYECTO.md`                              |
 | Schema BD           | `docs/schema.sql`                                          |
 | Arquitectura cajas  | `docs/ARQUITECTURA.md`                                     |

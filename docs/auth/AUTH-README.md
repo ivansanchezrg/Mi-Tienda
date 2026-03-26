@@ -290,7 +290,7 @@ Protege rutas que requieren un rol específico. Lee el rol desde `getUsuarioActu
 
 ## Configuración externa
 
-La configuración de Google Cloud Console y Supabase Dashboard está documentada en [GOOGLE_OAUTH_SETUP.md](../../../../../../../doc/GOOGLE_OAUTH_SETUP.md).
+La configuración de Google Cloud Console y Supabase Dashboard está documentada en [GOOGLE_OAUTH_SETUP.md](../GOOGLE_OAUTH_SETUP.md).
 
 ### Android - Deep Link (AndroidManifest.xml)
 

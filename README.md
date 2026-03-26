@@ -40,9 +40,11 @@ Incluye gestión de caja (sistema de 5 cajas), ventas POS, recargas virtuales (c
 | Dashboard          | ✅ Completo       | Home, apertura/cierre de caja, cuadre y operaciones (sistema de 5 cajas) |
 | Recargas Virtuales | ✅ Completo       | Gestión de saldo CELULAR/BUS, deudas, liquidaciones y comisiones         |
 | Usuarios           | ✅ Completo       | Gestión de usuarios y permisos                                           |
-| Inventario         | 🚧 En desarrollo | Control de stock de productos                                            |
-| POS                | 🚧 En desarrollo | Punto de venta con escáner de código de barras y cobro                   |
-| Reportes           | 🚧 En desarrollo | Reportes e historial de movimientos                                      |
+| Inventario         | ✅ Completo       | Control de stock, kardex y categorías de productos                       |
+| POS                | ✅ Funcional      | Punto de venta con escáner de código de barras, cobro y anulación        |
+| Ventas             | ✅ Completo       | Historial paginado, filtros, detalle modal, anulación, estado cuenta FIADO |
+| Cuentas por Cobrar | ✅ Completo       | Ventas fiadas, abonos, estado de cuenta y comprobantes compartibles      |
+| Reportes           | ✅ Reporte diario | Resumen de ventas del día con desglose por método de pago y comprobante  |
 
 ---
 
@@ -162,7 +164,10 @@ npx cap run android    # Instala el APK en el dispositivo conectado
 | Auth               | [AUTH-README.md](docs/auth/AUTH-README.md)                                           |
 | Dashboard          | [DASHBOARD-README.md](docs/dashboard/DASHBOARD-README.md)                            |
 | Recargas Virtuales | [RECARGAS-VIRTUALES-README.md](docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md) |
+| Inventario         | [INVENTARIO-README.md](docs/inventario/INVENTARIO-README.md)                         |
 | POS                | [POS-README.md](docs/pos/POS-README.md)                                             |
+| Ventas             | [VENTAS-README.md](docs/ventas/VENTAS-README.md)                                    |
+| Cuentas por Cobrar | [CUENTAS-COBRAR-README.md](docs/cuentas-cobrar/CUENTAS-COBRAR-README.md)            |
 | Shared             | [README.md](docs/shared/README.md)                                                  |
 | Arquitectura cajas | [ARQUITECTURA.md](docs/ARQUITECTURA.md)                                             |
 
@@ -182,8 +187,10 @@ mi-tienda/
 │   │   │   ├── inventario/
 │   │   │   ├── pos/
 │   │   │   ├── ventas/
+│   │   │   ├── cuentas-cobrar/
 │   │   │   ├── clientes/
 │   │   │   ├── usuarios/
+│   │   │   ├── configuracion/
 │   │   │   └── reportes/
 │   │   └── shared/             # Componentes y directivas reutilizables
 │   └── environments/

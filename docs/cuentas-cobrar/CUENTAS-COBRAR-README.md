@@ -77,7 +77,7 @@ Se calcula en TypeScript al mapear la respuesta de `obtenerVentasFiadas()`, no e
 
 **Acciones:**
 - **Cobrar** → abre `PagoFiadoModalComponent` con todas las ventas
-- **Ver detalle** → abre `VentaDetalleModalComponent` (del módulo ventas)
+- **Ver detalle** → abre `VentaDetalleModalComponent` (del módulo ventas). Muestra banner ANULADA si corresponde, y desglose Abonado/Pendiente/"Deuda cancelada" cuando hay pagos registrados
 - **Compartir** → genera imagen vía `ShareEstadoCuentaService`
 
 ---
