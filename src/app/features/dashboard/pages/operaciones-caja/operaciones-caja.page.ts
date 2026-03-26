@@ -172,9 +172,9 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     this.totalEgresos = 0;
 
     for (const op of this.operaciones) {
-      if (this.esIngreso(op.tipo_operacion)) {
+      if (this.esIngresoReal(op.tipo_operacion)) {
         this.totalIngresos += op.monto;
-      } else if (this.esEgreso(op.tipo_operacion)) {
+      } else if (this.esEgresoReal(op.tipo_operacion)) {
         this.totalEgresos += op.monto;
       }
     }
@@ -200,9 +200,9 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       const grupo = grupos.get(fechaKey)!;
       grupo.operaciones.push(op);
 
-      if (this.esIngreso(op.tipo_operacion)) {
+      if (this.esIngresoReal(op.tipo_operacion)) {
         grupo.totalIngresos += op.monto;
-      } else if (this.esEgreso(op.tipo_operacion)) {
+      } else if (this.esEgresoReal(op.tipo_operacion)) {
         grupo.totalEgresos += op.monto;
       }
     }
@@ -210,12 +210,24 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     this.operacionesAgrupadas = Array.from(grupos.values());
   }
 
+  // Visual: flecha + signo en la lista de operaciones
   esIngreso(tipo: string): boolean {
-    return ['INGRESO', 'TRANSFERENCIA_ENTRANTE', 'APERTURA'].includes(tipo);
+    return ['INGRESO', 'TRANSFERENCIA_ENTRANTE', 'CIERRE'].includes(tipo);
   }
 
   esEgreso(tipo: string): boolean {
-    return ['EGRESO', 'TRANSFERENCIA_SALIENTE', 'CIERRE'].includes(tipo);
+    return ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(tipo);
+  }
+
+  // Resumen del período: incluye todo lo que sumó/restó al saldo de la caja.
+  // CIERRE cuenta como ingreso porque es dinero que entró a la caja.
+  // APERTURA y AJUSTE son neutros (no suman a ingresos ni egresos).
+  private esIngresoReal(tipo: string): boolean {
+    return ['INGRESO', 'TRANSFERENCIA_ENTRANTE', 'CIERRE'].includes(tipo);
+  }
+
+  private esEgresoReal(tipo: string): boolean {
+    return ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(tipo);
   }
 
   async cambiarFiltro(event: any) {
@@ -262,7 +274,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       'TRANSFERENCIA_ENTRANTE': 'success',
       'TRANSFERENCIA_SALIENTE': 'danger',
       'APERTURA': 'primary',
-      'CIERRE': 'medium',
+      'CIERRE': 'success',
       'AJUSTE': 'warning'
     };
     return colors[tipo] || 'medium';
@@ -275,7 +287,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       'TRANSFERENCIA_ENTRANTE': 'Transferencia recibida',
       'TRANSFERENCIA_SALIENTE': 'Transferencia enviada',
       'APERTURA': 'Apertura',
-      'CIERRE': 'Cierre',
+      'CIERRE': 'Cierre de turno',
       'AJUSTE': 'Ajuste'
     };
     return labels[tipo] || tipo;
@@ -332,7 +344,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
 
     const groups: ModalOptionGroup[] = [{
       options: [
-        { label: 'Ingreso', icon: 'arrow-down-outline', value: 'INGRESO' },
+        { label: 'Ingreso', icon: 'arrow-down-outline', value: 'INGRESO', color: 'success' },
         { label: 'Egreso', icon: 'arrow-up-outline', value: 'EGRESO', color: 'danger' },
       ]
     }];

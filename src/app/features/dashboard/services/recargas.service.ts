@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
+import { LoggerService } from '@core/services/logger.service';
 import { SaldosAnteriores, DatosCierreDiario, ParamsCierreDiario } from '../models/saldos-anteriores.model';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 import { getFechaLocal, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
@@ -68,6 +69,7 @@ export interface RecargaHistorial {
 })
 export class RecargasService {
   private supabase = inject(SupabaseService);
+  private logger = inject(LoggerService);
   private recargasVirtualesService = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
 
@@ -369,7 +371,7 @@ export class RecargasService {
         .maybeSingle();
 
       if (turnoResponse.error) {
-        console.error('[existeCierreDiario] Error al buscar turno:', turnoResponse.error.message);
+        this.logger.error('RecargasService', 'Error al buscar turno (existeCierreDiario)', turnoResponse.error);
         return null;
       }
 
@@ -379,7 +381,7 @@ export class RecargasService {
       // Turno con hora_fecha_cierre → ya fue cerrado
       return turnoResponse.data.hora_fecha_cierre !== null;
     } catch (error: any) {
-      console.error('[existeCierreDiario] Excepción inesperada:', error?.message ?? error);
+      this.logger.error('RecargasService', 'Excepción inesperada (existeCierreDiario)', error);
       return null;
     }
   }
@@ -510,7 +512,7 @@ export class RecargasService {
       .order('created_at', { ascending: false });
 
     if (response.error) {
-      console.error('Error al obtener historial:', response.error);
+      this.logger.error('RecargasService', 'Error al obtener historial', response.error);
       throw response.error;
     }
 

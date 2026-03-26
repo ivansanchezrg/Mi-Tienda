@@ -128,8 +128,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   // Opciones del menú ⋮ — compartidas por ambas cajas (mismas acciones)
   readonly cajaOptions: MenuOption[] = [
-    { label: 'Registrar Ingreso', icon: 'arrow-up-outline', value: 'ingreso' },
-    { label: 'Registrar Egreso', icon: 'arrow-down-outline', value: 'egreso' },
+    { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'ingreso', color: 'success' },
+    { label: 'Registrar Egreso', icon: 'arrow-up-outline', value: 'egreso', color: 'danger' },
   ];
 
 

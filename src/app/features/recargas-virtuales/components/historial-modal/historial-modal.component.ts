@@ -65,10 +65,6 @@ export class HistorialModalComponent implements OnInit {
     return `Historial ${this.tipo === 'CELULAR' ? 'Celular' : 'Bus'}`;
   }
 
-  get iconoServicio(): string {
-    return this.tipo === 'CELULAR' ? 'phone-portrait-outline' : 'bus-outline';
-  }
-
   formatearFecha(fecha: string): string {
     const d = new Date(fecha + 'T00:00:00');
     return d.toLocaleDateString('es-ES', {

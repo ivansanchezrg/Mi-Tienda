@@ -1,26 +1,26 @@
 -- ==========================================
 -- DROP — descomentar SOLO si cambia la firma (parámetros o tipo de retorno)
 -- ==========================================
--- DROP FUNCTION IF EXISTS public.fn_resumir_ventas(TEXT, TEXT);
+-- v1.0 → v1.1: nueva firma — agregar p_estado
+DROP FUNCTION IF EXISTS public.fn_resumir_ventas(TEXT, TEXT);
 
 -- ==========================================
--- FUNCIÓN: fn_resumir_ventas (v1.0)
+-- FUNCIÓN: fn_resumir_ventas (v1.1)
 -- ==========================================
 -- Devuelve el total de registros y el monto acumulado de ventas
--- para un filtro de período + búsqueda, SIN paginación.
---
--- Se llama en paralelo con fn_listar_ventas para mostrar totales
--- reales en el footer (independiente de cuántas páginas se hayan cargado).
+-- para un filtro de período + búsqueda + estado, SIN paginación.
 --
 -- Llamada desde: VentasService.resumirVentas()
 -- Parámetros:
 --   p_filtro    — 'hoy' | 'semana' | 'mes' | 'todo' | 'YYYY-MM-DD'
 --   p_busqueda  — término libre (nombre, cédula o nro. comprobante). NULL = sin filtro
+--   p_estado    — 'COMPLETADA' | 'ANULADA' | NULL (NULL = solo COMPLETADA)
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION public.fn_resumir_ventas(
     p_filtro    TEXT    DEFAULT 'hoy',
-    p_busqueda  TEXT    DEFAULT NULL
+    p_busqueda  TEXT    DEFAULT NULL,
+    p_estado    TEXT    DEFAULT NULL
 )
 RETURNS TABLE (
     total_registros BIGINT,
@@ -75,7 +75,7 @@ BEGIN
         COALESCE(SUM(v.total), 0) AS total_monto
     FROM ventas v
     LEFT JOIN clientes c ON v.cliente_id = c.id
-    WHERE v.estado = 'COMPLETADA'
+    WHERE v.estado = COALESCE(p_estado, 'COMPLETADA')
       AND (v_inicio IS NULL OR v.fecha >= v_inicio)
       AND (v_fin    IS NULL OR v.fecha <  v_fin)
       AND (
@@ -92,7 +92,7 @@ $$;
 -- ==========================================
 -- PERMISOS
 -- ==========================================
-REVOKE EXECUTE ON FUNCTION public.fn_resumir_ventas(TEXT, TEXT) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.fn_resumir_ventas(TEXT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_resumir_ventas(TEXT, TEXT, TEXT) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_resumir_ventas(TEXT, TEXT, TEXT) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

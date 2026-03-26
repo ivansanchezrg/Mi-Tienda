@@ -54,9 +54,8 @@ const data = await this.supabase.call<Employee>(
 loading = true;
 async cargarDatos() {
   this.loading = true;
-  this.gastos = await this.supabase.call<GastoDiario[]>(
-     this.supabase.client.from('gastos_diarios').select('*'),
-     { showLoading: false }
+  this.productos = await this.supabase.call<Producto[]>(
+     this.supabase.client.from('productos').select('*')
   ) ?? [];
   this.loading = false;
 }

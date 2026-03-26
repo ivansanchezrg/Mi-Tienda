@@ -8,7 +8,8 @@ import { addIcons } from 'ionicons';
 import {
     closeOutline, receiptOutline, documentTextOutline, documentOutline,
     cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
-    personOutline, calendarOutline, printOutline, alertCircleOutline
+    personOutline, calendarOutline, printOutline, alertCircleOutline,
+    banOutline
 } from 'ionicons/icons';
 import { VentasService } from '../../services/ventas.service';
 import { Venta } from '../../models/venta.model';
@@ -42,7 +43,8 @@ export class VentaDetalleModalComponent implements OnInit {
         addIcons({
             closeOutline, receiptOutline, documentTextOutline, documentOutline,
             cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
-            personOutline, calendarOutline, printOutline, alertCircleOutline
+            personOutline, calendarOutline, printOutline, alertCircleOutline,
+            banOutline
         });
     }
 
@@ -60,8 +62,35 @@ export class VentaDetalleModalComponent implements OnInit {
 
     // ── helpers template ──────────────────────────
 
+    get esAnulada(): boolean {
+        return this.venta?.estado === 'ANULADA';
+    }
+
+    /** Extrae el motivo del campo observaciones: "ANULADA: motivo aquí" → "motivo aquí" */
+    get motivoAnulacion(): string | null {
+        if (!this.esAnulada || !this.venta?.observaciones) return null;
+        const match = this.venta.observaciones.match(/ANULADA:\s*(.+)/);
+        return match ? match[1].trim() : null;
+    }
+
     get esFactura(): boolean {
         return this.venta?.tipo_comprobante === 'FACTURA';
+    }
+
+    get esFiado(): boolean {
+        return this.venta?.metodo_pago === 'FIADO';
+    }
+
+    get totalAbonado(): number {
+        return this.venta?.total_abonado ?? 0;
+    }
+
+    get totalPendiente(): number {
+        return (this.venta?.total ?? 0) - this.totalAbonado;
+    }
+
+    get estadoPago(): string {
+        return this.venta?.estado_pago ?? 'NO_APLICA';
     }
 
     get tieneClienteReal(): boolean {

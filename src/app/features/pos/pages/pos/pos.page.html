@@ -252,7 +252,7 @@
       </div>
 
       <ion-button expand="block" shape="round" color="primary" class="btn-charge" (click)="cobrar()"
-        [disabled]="carrito.length === 0">
+        [disabled]="carrito.length === 0 || cobroEnProceso">
         <ion-icon name="cash-outline" slot="start"></ion-icon>
         Cobrar
       </ion-button>

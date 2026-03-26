@@ -82,6 +82,44 @@ ion-toolbar {
 }
 
 // ─────────────────────────────────────────
+// TOGGLE ESTADO (anuladas)
+// ─────────────────────────────────────────
+
+.estado-bar {
+    padding: 6px var(--spacing-md) 4px;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--ion-color-step-100);
+    display: flex;
+    align-items: center;
+}
+
+.estado-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--ion-color-step-200);
+    background: transparent;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ion-color-medium);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all var(--transition-normal);
+
+    ion-icon {
+        font-size: 14px;
+    }
+
+    &.active {
+        background: rgba(var(--ion-color-danger-rgb), 0.1);
+        border-color: var(--ion-color-danger);
+        color: var(--ion-color-danger);
+    }
+}
+
+// ─────────────────────────────────────────
 // BUSCADOR
 // ─────────────────────────────────────────
 
@@ -342,6 +380,16 @@ ion-footer {
             color: var(--ion-color-primary);
             letter-spacing: -0.5px;
         }
+    }
+}
+
+// ── Venta anulada ──
+.venta-anulada {
+    opacity: 0.55;
+
+    .venta-total {
+        text-decoration: line-through;
+        color: var(--ion-color-medium) !important;
     }
 }
 

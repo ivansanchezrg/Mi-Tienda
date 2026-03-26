@@ -1,21 +1,13 @@
 -- ==========================================
 -- DROP — descomentar SOLO si cambia la firma (parámetros o tipo de retorno)
 -- ==========================================
--- DROP FUNCTION IF EXISTS public.fn_listar_ventas(TEXT, TEXT, INT, INT);
+-- v1.1 → v1.2: nueva firma — agregar p_estado
+DROP FUNCTION IF EXISTS public.fn_listar_ventas(TEXT, TEXT, INT, INT);
 
 -- ==========================================
--- FUNCIÓN: fn_listar_ventas (v1.0)
+-- FUNCIÓN: fn_listar_ventas (v1.2)
 -- ==========================================
--- Lista paginada de ventas con soporte de filtro por período y búsqueda libre.
--- Reemplaza la query dinámica con !inner/LEFT JOIN condicional de VentasService.obtenerVentas()
--- que no podía combinar búsqueda por numero_comprobante (tabla padre) con búsqueda
--- por nombre/cédula del cliente (tabla hija) en un solo OR.
---
--- Ventajas sobre el enfoque TypeScript anterior:
---   - OR real entre columnas de tablas distintas (ventas + clientes)
---   - LEFT JOIN fijo: siempre incluye ventas de Consumidor Final (cliente_id = NULL)
---   - Fechas calculadas en zona horaria Ecuador (America/Guayaquil), no en el dispositivo
---   - Paginación OFFSET/LIMIT dentro de la misma llamada
+-- Lista paginada de ventas con soporte de filtro por período, búsqueda libre y estado.
 --
 -- Llamada desde: VentasService.obtenerVentas()
 -- Parámetros:
@@ -23,13 +15,15 @@
 --   p_busqueda   — término libre (nombre, cédula o nro. comprobante). NULL = sin filtro
 --   p_page       — página 0-based
 --   p_page_size  — registros por página (default 10)
+--   p_estado     — 'COMPLETADA' | 'ANULADA' | NULL (NULL = solo COMPLETADA, default operativo)
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION public.fn_listar_ventas(
     p_filtro    TEXT    DEFAULT 'hoy',
     p_busqueda  TEXT    DEFAULT NULL,
     p_page      INT     DEFAULT 0,
-    p_page_size INT     DEFAULT 10
+    p_page_size INT     DEFAULT 10,
+    p_estado    TEXT    DEFAULT NULL
 )
 RETURNS TABLE (
     id                    UUID,
@@ -117,7 +111,7 @@ BEGIN
     FROM ventas v
     LEFT JOIN clientes  c ON v.cliente_id  = c.id
     LEFT JOIN usuarios  e ON v.empleado_id = e.id
-    WHERE v.estado = 'COMPLETADA'
+    WHERE v.estado = COALESCE(p_estado, 'COMPLETADA')
       -- Filtro de fecha
       AND (v_inicio IS NULL OR v.fecha >= v_inicio)
       AND (v_fin    IS NULL OR v.fecha <  v_fin)
@@ -142,7 +136,7 @@ $$;
 -- ==========================================
 -- PERMISOS
 -- ==========================================
-REVOKE EXECUTE ON FUNCTION public.fn_listar_ventas(TEXT, TEXT, INT, INT) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.fn_listar_ventas(TEXT, TEXT, INT, INT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

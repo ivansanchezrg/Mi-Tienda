@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from './supabase.service';
 import { UiService } from './ui.service';
+import { LoggerService } from './logger.service';
 
 @Injectable({
   providedIn: 'root'
@@ -8,6 +9,7 @@ import { UiService } from './ui.service';
 export class StorageService {
   private supabase = inject(SupabaseService);
   private ui = inject(UiService);
+  private logger = inject(LoggerService);
 
   /**
    * Sube una imagen a Supabase Storage.
@@ -40,7 +42,7 @@ export class StorageService {
         });
 
       if (error) {
-        console.error('Error al subir imagen:', error);
+        this.logger.error('StorageService', 'Error al subir imagen', error);
         this.handleStorageError(error);
         return null;
       }
@@ -48,7 +50,7 @@ export class StorageService {
       // 5. Retornar el path del archivo
       return data.path;
     } catch (error) {
-      console.error('Error en uploadImage:', error);
+      this.logger.error('StorageService', 'Error en uploadImage', error);
       this.handleStorageError(error);
       return null;
     }
@@ -68,13 +70,13 @@ export class StorageService {
         .createSignedUrl(path, expiresIn);
 
       if (error) {
-        console.error('Error al crear URL firmada:', error);
+        this.logger.error('StorageService', 'Error al crear URL firmada', error);
         return null;
       }
 
       return data.signedUrl;
     } catch (error) {
-      console.error('Error en getSignedUrl:', error);
+      this.logger.error('StorageService', 'Error en getSignedUrl', error);
       return null;
     }
   }
@@ -93,7 +95,7 @@ export class StorageService {
 
       return data.publicUrl;
     } catch (error) {
-      console.error('Error al obtener URL pública:', error);
+      this.logger.error('StorageService', 'Error al obtener URL pública', error);
       return null;
     }
   }
@@ -110,13 +112,13 @@ export class StorageService {
         .remove([path]);
 
       if (error) {
-        console.error('Error al eliminar archivo:', error);
+        this.logger.error('StorageService', 'Error al eliminar archivo', error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Error en deleteFile:', error);
+      this.logger.error('StorageService', 'Error en deleteFile', error);
       return false;
     }
   }

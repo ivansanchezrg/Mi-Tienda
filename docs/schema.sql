@@ -1,6 +1,6 @@
 -- ==========================================
--- SCHEMA - MI TIENDA v5.2
--- Sistema de Gestión de Cajas y Recargas
+-- SCHEMA - MI TIENDA v5.3
+-- Sistema de Gestión de Cajas, Ventas POS y Recargas
 -- ==========================================
 -- ⚠️  Ejecutar UNA SOLA VEZ. Incluye DROP de tablas → borra todos los datos.
 -- ⚠️  Para actualizar funciones PostgreSQL usar archivos en docs/*/sql/functions/
@@ -572,6 +572,19 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 --   • registrar_pago_fiado                     → docs/cuentas-cobrar/sql/functions/fn_registrar_pago_fiado.sql
 --   • listar_cuentas_cobrar                    → docs/cuentas-cobrar/sql/functions/fn_listar_cuentas_cobrar.sql
 --   • resumir_cuentas_cobrar                   → docs/cuentas-cobrar/sql/functions/fn_resumir_cuentas_cobrar.sql
+--   Inventario:
+--   • fn_ajustar_stock_inventario              → docs/inventario/sql/functions/fn_ajustar_stock_inventario.sql
+--   • fn_generar_codigo_interno                → docs/inventario/sql/functions/fn_generar_codigo_interno.sql
+--   Ventas (historial):
+--   • fn_listar_ventas                         → docs/ventas/sql/functions/fn_listar_ventas.sql
+--   • fn_resumir_ventas                        → docs/ventas/sql/functions/fn_resumir_ventas.sql
+--   POS — Anulación:
+--   • anular_venta                             → docs/pos/sql/functions/fn_anular_venta.sql
+--   Reportes:
+--   • reporte_ventas_dia                       → docs/reportes/sql/functions/fn_reporte_ventas_dia.sql
+--
+-- ✅ 18 Tablas | 24 Funciones SQL
+-- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 2 inventario + 2 ventas + 1 reportes + 4 triggers/helpers)
 --
 -- ⚠️  MIGRACIÓN desde v4.9: ejecutar v5_migracion_cajas.sql (NO este schema completo)
 --   → docs/dashboard/sql/migrations/v5_migracion_cajas.sql

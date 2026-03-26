@@ -8,13 +8,125 @@
 </ion-header>
 
 <ion-content>
-  <app-under-construction
-    title="Reportes"
-    icon="bar-chart-outline"
-    description="Aquí podrás visualizar reportes y estadísticas."
-    [features]="[
-      { label: 'Reportes de ventas' },
-      { label: 'Estadísticas generales' }
-    ]">
-  </app-under-construction>
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-outline" refreshingSpinner="crescent"
+      refreshingText="Cargando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  <div class="reporte-container">
+
+    <!-- Selector de fecha -->
+    <button class="date-selector" id="open-reporte-date">
+      <ion-icon name="calendar-outline"></ion-icon>
+      <span>{{ fechaLabel }}</span>
+      <ion-icon name="chevron-down-outline" class="date-arrow"></ion-icon>
+    </button>
+
+    <!-- Skeleton loading -->
+    @if (loading) {
+    <div class="resumen-card">
+      <ion-skeleton-text animated style="width: 40%; height: 16px; border-radius: 4px;"></ion-skeleton-text>
+      <div style="display: flex; justify-content: space-between; margin-top: 16px;">
+        <ion-skeleton-text animated style="width: 80px; height: 32px; border-radius: 6px;"></ion-skeleton-text>
+        <ion-skeleton-text animated style="width: 120px; height: 32px; border-radius: 6px;"></ion-skeleton-text>
+      </div>
+    </div>
+    <div class="seccion">
+      <ion-skeleton-text animated style="width: 50%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+      @for (i of [1, 2, 3]; track i) {
+      <div class="desglose-row" style="margin-top: 12px;">
+        <ion-skeleton-text animated style="width: 30%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+        <ion-skeleton-text animated style="width: 60px; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+      </div>
+      }
+    </div>
+    }
+
+    <!-- Reporte cargado -->
+    @else if (reporte) {
+
+      <!-- Sin ventas -->
+      @if (reporte.total_ventas === 0 && reporte.total_anuladas === 0) {
+      <div class="empty-state">
+        <div class="empty-icon-wrap">
+          <ion-icon name="storefront-outline"></ion-icon>
+        </div>
+        <h2>Sin ventas</h2>
+        <p>No se registraron ventas este día.</p>
+      </div>
+      }
+
+      @else {
+
+      <!-- Tarjeta resumen principal -->
+      <div class="resumen-card">
+        <span class="resumen-label">Ventas del día</span>
+        <div class="resumen-row">
+          <div class="resumen-cantidad">
+            <span class="resumen-numero">{{ reporte.total_ventas }}</span>
+            <span class="resumen-texto">{{ reporte.total_ventas === 1 ? 'venta' : 'ventas' }}</span>
+          </div>
+          <div class="resumen-monto">
+            <span class="currency-symbol">$</span>{{ currencyService.format(reporte.total_monto) }}
+          </div>
+        </div>
+        @if (reporte.total_anuladas > 0) {
+        <div class="resumen-anuladas">
+          <ion-icon name="ban-outline"></ion-icon>
+          {{ reporte.total_anuladas }} anulada{{ reporte.total_anuladas > 1 ? 's' : '' }}
+          <span class="anulada-monto">-${{ currencyService.format(reporte.monto_anulado) }}</span>
+        </div>
+        }
+      </div>
+
+      <!-- Desglose por método de pago -->
+      @if (reporte.por_metodo_pago.length > 0) {
+      <div class="seccion">
+        <h3 class="seccion-titulo">Por método de pago</h3>
+        @for (item of reporte.por_metodo_pago; track item.metodo) {
+        <div class="desglose-row">
+          <div class="desglose-info">
+            <ion-icon [name]="iconMetodoPago(item.metodo)"></ion-icon>
+            <span class="desglose-label">{{ labelMetodoPago(item.metodo) }}</span>
+            <ion-badge color="medium" class="desglose-badge">{{ item.cantidad }}</ion-badge>
+          </div>
+          <span class="desglose-monto">${{ currencyService.format(item.monto) }}</span>
+        </div>
+        }
+      </div>
+      }
+
+      <!-- Desglose por tipo de comprobante -->
+      @if (reporte.por_tipo_comprobante.length > 0) {
+      <div class="seccion">
+        <h3 class="seccion-titulo">Por comprobante</h3>
+        @for (item of reporte.por_tipo_comprobante; track item.tipo) {
+        <div class="desglose-row">
+          <div class="desglose-info">
+            <ion-icon [name]="iconComprobante(item.tipo)"></ion-icon>
+            <span class="desglose-label">{{ labelComprobante(item.tipo) }}</span>
+            <ion-badge color="medium" class="desglose-badge">{{ item.cantidad }}</ion-badge>
+          </div>
+          <span class="desglose-monto">${{ currencyService.format(item.monto) }}</span>
+        </div>
+        }
+      </div>
+      }
+
+      }
+    }
+
+  </div>
+
 </ion-content>
+
+<!-- Picker de fecha -->
+<ion-modal [keepContentsMounted]="true" trigger="open-reporte-date" cssClass="date-picker-modal">
+  <ng-template>
+    <ion-datetime presentation="date" [value]="fecha" [max]="hoy" locale="es-EC"
+      (ionChange)="onDateChange($event)" size="cover">
+    </ion-datetime>
+  </ng-template>
+</ion-modal>

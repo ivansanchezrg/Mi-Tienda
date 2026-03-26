@@ -16,6 +16,7 @@ import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
+import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { ModalController } from '@ionic/angular';
@@ -39,6 +40,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private storageService = inject(StorageService);
     private alertCtrl = inject(AlertController);
     private modalCtrl = inject(ModalController);
+    private logger = inject(LoggerService);
 
     productoForm!: FormGroup;
     escaneando = false;
@@ -235,7 +237,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             // El servicio emite el evento → la lista se actualiza reactivamente
             this.navCtrl.back();
         } catch (error) {
-            console.error('Error guardando producto', error);
+            this.logger.error('ProductoFormPage', 'Error guardando producto', error);
         } finally {
             this.guardando = false;
         }

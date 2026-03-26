@@ -31,6 +31,7 @@ export class PagarDeudasModalComponent implements OnInit {
   private authService = inject(AuthService);
 
   loading = true;
+  procesando = false;
   deudasPendientes: RecargaVirtual[] = [];
   deudasSeleccionadas = new Set<string>();
   saldoDisponible = 0;
@@ -110,23 +111,28 @@ export class PagarDeudasModalComponent implements OnInit {
   }
 
   async confirmarPago() {
-    if (!this.puedeConfirmar) return;
+    if (!this.puedeConfirmar || this.procesando) return;
+    this.procesando = true;
 
-    const empleado = await this.authService.getUsuarioActual();
-    if (!empleado) {
-      await this.ui.showError('No se pudo obtener el empleado');
-      return;
+    try {
+      const empleado = await this.authService.getUsuarioActual();
+      if (!empleado) {
+        await this.ui.showError('No se pudo obtener el empleado');
+        return;
+      }
+
+      const resultado = await this.service.registrarPagoProveedorCelular({
+        empleado_id: empleado.id,
+        deuda_ids: Array.from(this.deudasSeleccionadas)
+      });
+
+      if (!resultado) return;
+
+      await this.ui.showSuccess(resultado.message ?? `Pago registrado: $${this.totalSeleccionado.toFixed(2)}`);
+      this.modalCtrl.dismiss({ success: true });
+    } finally {
+      this.procesando = false;
     }
-
-    const resultado = await this.service.registrarPagoProveedorCelular({
-      empleado_id: empleado.id,
-      deuda_ids: Array.from(this.deudasSeleccionadas)
-    });
-
-    if (!resultado) return;
-
-    await this.ui.showSuccess(resultado.message ?? `Pago registrado: $${this.totalSeleccionado.toFixed(2)}`);
-    this.modalCtrl.dismiss({ success: true });
   }
 
   formatearFecha(fecha: string): string {

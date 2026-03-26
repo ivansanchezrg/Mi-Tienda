@@ -2,7 +2,13 @@ import { Component, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule, ModalController } from '@ionic/angular';
 import { addIcons } from 'ionicons';
-import { checkmarkOutline } from 'ionicons/icons';
+import {
+    checkmarkOutline, arrowDownOutline, arrowUpOutline,
+    cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
+    cameraOutline, imagesOutline, addCircleOutline, createOutline,
+    trashOutline, banOutline, receiptOutline, documentTextOutline,
+    documentOutline, shareOutline, closeOutline
+} from 'ionicons/icons';
 
 export interface ModalOption {
     label: string;
@@ -26,7 +32,13 @@ export interface ModalOptionGroup {
 })
 export class OptionsModalComponent {
     constructor() {
-        addIcons({ checkmarkOutline });
+        addIcons({
+            checkmarkOutline, arrowDownOutline, arrowUpOutline,
+            cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
+            cameraOutline, imagesOutline, addCircleOutline, createOutline,
+            trashOutline, banOutline, receiptOutline, documentTextOutline,
+            documentOutline, shareOutline, closeOutline
+        });
     }
 
     @Input() title = 'Opciones';

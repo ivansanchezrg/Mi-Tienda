@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from 'src/environments/environment';
 import { UiService } from './ui.service';
+import { LoggerService } from './logger.service';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 
@@ -9,6 +10,7 @@ import { Browser } from '@capacitor/browser';
 @Injectable({ providedIn: 'root' })
 export class SupabaseService {
   private ui = inject(UiService);
+  private logger = inject(LoggerService);
 
   public client: SupabaseClient = createClient(environment.supabaseUrl, environment.supabaseKey);
 
@@ -79,7 +81,7 @@ export class SupabaseService {
 
     } catch (error: any) {
       // 5. Manejo Centralizado de Errores
-      console.error('Supabase Error:', error);
+      this.logger.error('SupabaseService', 'Query error', error);
 
       // Extraemos el mensaje legible del error de Supabase
       const msg = error.message || error.error_description || 'Ocurrió un error inesperado';

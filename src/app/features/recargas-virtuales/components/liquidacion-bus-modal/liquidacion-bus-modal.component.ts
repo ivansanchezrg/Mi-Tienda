@@ -44,6 +44,8 @@ export class LiquidacionBusModalComponent {
   private recargasService = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
 
+  procesando = false;
+
   /** Monto acreditado por el proveedor como saldo virtual BUS */
   montoAcreditado: number | null = null;
 
@@ -63,10 +65,8 @@ export class LiquidacionBusModalComponent {
   }
 
   async confirmar() {
-    if (!this.puedeConfirmar || !this.montoAcreditado) {
-      await this.ui.showError('Ingresá el monto acreditado por el proveedor');
-      return;
-    }
+    if (!this.puedeConfirmar || !this.montoAcreditado || this.procesando) return;
+    this.procesando = true;
 
     await this.ui.showLoading('Registrando liquidación...');
 
@@ -104,6 +104,8 @@ export class LiquidacionBusModalComponent {
     } catch (error: any) {
       await this.ui.hideLoading();
       await this.ui.showError(error?.message || 'Error al registrar la liquidación');
+    } finally {
+      this.procesando = false;
     }
   }
 }
