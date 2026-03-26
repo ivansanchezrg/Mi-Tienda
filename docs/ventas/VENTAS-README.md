@@ -2,7 +2,7 @@
 
 Módulo para consultar el historial de ventas registradas desde el POS.
 Permite filtrar por período, buscar por cliente/comprobante, ver el detalle completo
-de cada venta y anularla si es necesario.
+de cada venta, anularla si es necesario, y consultar un resumen diario.
 
 ---
 
@@ -10,15 +10,41 @@ de cada venta y anularla si es necesario.
 
 ```
 src/app/features/ventas/
+├── ventas.routes.ts                        # Rutas: '' → listado, 'resumen' → resumen
 ├── models/
-│   └── venta.model.ts                    # Interfaces + tipos
+│   └── venta.model.ts                      # Interfaces + tipos
 ├── services/
-│   └── ventas.service.ts                 # Queries, detalle, anulación
+│   └── ventas.service.ts                   # Queries, detalle, anulación, reporte
 ├── components/
-│   └── venta-detalle-modal/              # Modal de detalle reutilizable
+│   ├── ventas-tabs/                        # Tabs internas (Lista / Resumen)
+│   └── venta-detalle-modal/                # Modal de detalle reutilizable
 └── pages/
-    └── main/                             # Lista paginada con filtros
+    ├── listado/                            # Lista paginada con filtros
+    │   ├── ventas-listado.page.ts
+    │   ├── ventas-listado.page.html
+    │   └── ventas-listado.page.scss
+    └── resumen/                            # Resumen diario (KPIs, métodos, comprobantes)
+        ├── ventas-resumen.page.ts
+        ├── ventas-resumen.page.html
+        └── ventas-resumen.page.scss
 ```
+
+### Patrón de tabs internas
+
+El módulo usa **tabs internas** (`VentasTabsComponent`) para navegar entre Listado y Resumen.
+Cada página incluye su propio `ion-header` con el componente de tabs — Ionic no soporta
+un layout wrapper con `router-outlet` hijo sin conflictos de `ion-content`.
+
+```
+VentasTabsComponent detecta la ruta activa automáticamente (NavigationEnd).
+Tab "Lista"   → router.navigate(['/ventas'])
+Tab "Resumen" → router.navigate(['/ventas/resumen'])
+```
+
+**Este patrón debe seguirse en cualquier módulo que necesite tabs internas:**
+1. Crear un componente de tabs en `components/` (no en `pages/`)
+2. Cada página incluye `ion-header` + el componente de tabs
+3. Las rutas son planas en el routes file (no usar layout wrapper con children)
 
 ---
 
@@ -32,7 +58,8 @@ src/app/features/ventas/
 | `EstadoPagoType` | `'NO_APLICA' \| 'PENDIENTE' \| 'PAGADO_PARCIAL' \| 'PAGADO'` |
 | `Venta` | Venta completa con JOINs opcionales (detalle modal) |
 | `VentaDetalle` | Ítem de producto: cantidad, precio_unitario, subtotal |
-| `VentasResumen` | Footer totalizador: total_registros + total_monto |
+| `VentasResumen` | Totalizador: total_registros + total_monto |
+| `ReporteVentasDia` | Resumen agregado del día: totales, métodos, comprobantes |
 
 ---
 
@@ -42,6 +69,7 @@ src/app/features/ventas/
 |--------|--------|-------------|
 | `obtenerVentas(filtro, page, busqueda?, estado?)` | RPC `fn_listar_ventas` | Lista paginada. `estado` = `'COMPLETADA'` (default) o `'ANULADA'` |
 | `resumirVentas(filtro, busqueda?, estado?)` | RPC `fn_resumir_ventas` | Total registros + monto para el filtro activo |
+| `obtenerReporteDia(fecha)` | RPC `reporte_ventas_dia` | Resumen agregado: totales, por método, por comprobante |
 | `obtenerVentaDetalle(ventaId)` | Query directa `ventas` | Venta completa: ítems, cliente, empleado, pagos FIADO |
 | `anularVenta(ventaId, motivo)` | RPC `anular_venta` | Anula atómicamente: revierte stock, caja y cuentas_cobrar |
 
@@ -55,13 +83,12 @@ Aplana los JOINs anidados de Supabase:
 
 ---
 
-## Página principal (`pages/main/`)
+## Página listado (`pages/listado/`)
 
-- Extiende `PaginatedListPage<Venta>`
-- Filtros de período: Hoy / Semana / Mes / Todo (tabs)
-- Búsqueda con debounce 500ms
-- **Filtro de estado** (pill toggle): muestra COMPLETADAS (default) o ANULADAS
-- Resumen paralelo con `Promise.all([fetchPage, resumirVentas])`
+- Clase: `VentasListadoPage` — extiende `PaginatedListPage<Venta>`
+- Filtros de período en el header: Hoy / Semana / Mes / Todo + calendario custom
+- Búsqueda con debounce 500ms + chip indicador de búsqueda activa
+- **Filtro de estado** (pill toggle): COMPLETADAS (default) o ANULADAS
 - Menú por venta: solo aparece si `estado !== 'ANULADA'`
 - **Anulación**: `AlertController` con textarea para motivo obligatorio
 
@@ -74,9 +101,24 @@ Aplana los JOINs anidados de Supabase:
 
 ---
 
+## Página resumen (`pages/resumen/`)
+
+- Clase: `VentasResumenPage`
+- Carga reporte del día + deuda pendiente en paralelo (`Promise.all`)
+- Pull-to-refresh sin doble spinner
+
+### Secciones
+
+1. **Hero card** — Total del día + stats (ventas, promedio, anuladas)
+2. **Métodos de pago** — Listado con iconos coloreados, cantidad, monto y porcentaje
+3. **Comprobantes** — Desglose por tipo (Ticket, Nota Venta, Factura)
+4. **Deuda pendiente** — Card de alerta con total clientes y monto (desde cuentas_cobrar)
+
+---
+
 ## Modal de detalle (`venta-detalle-modal/`)
 
-Componente reutilizable — se usa desde `VentasPage` y `DetalleClientePage` (cuentas-cobrar).
+Componente reutilizable — se usa desde `VentasListadoPage` y `DetalleClientePage` (cuentas-cobrar).
 
 ### Secciones del comprobante
 
@@ -121,6 +163,11 @@ Ubicación: `docs/ventas/sql/functions/`
 
 - Mismos filtros que la lista
 - Retorna: `total_registros` + `total_monto` (1 fila siempre)
+
+### `reporte_ventas_dia(p_fecha)`
+
+- Resumen agregado de un día: totales, desglose por método y tipo comprobante
+- Retorna JSON con `total_ventas`, `total_monto`, `total_anuladas`, `monto_anulado`, `por_metodo_pago[]`, `por_tipo_comprobante[]`
 
 ---
 

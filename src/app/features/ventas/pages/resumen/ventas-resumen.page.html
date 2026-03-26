@@ -1,3 +1,13 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Ventas</ion-title>
+  </ion-toolbar>
+  <app-ventas-tabs></app-ventas-tabs>
+</ion-header>
+
 <ion-content>
 
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
@@ -30,7 +40,6 @@
     </div>
     <div class="card">
       <ion-skeleton-text animated class="sk-section-title"></ion-skeleton-text>
-      <ion-skeleton-text animated class="sk-bar"></ion-skeleton-text>
       @for (i of [1,2,3]; track i) {
       <div class="sk-metodo-row">
         <ion-skeleton-text animated class="sk-metodo-icon"></ion-skeleton-text>
@@ -88,12 +97,6 @@
     @if (reporte.por_metodo_pago.length > 0) {
     <div class="card">
       <h3 class="section-title">Métodos de pago</h3>
-
-      <div class="bar-compuesta">
-        @for (item of reporte.por_metodo_pago; track item.metodo) {
-          <div class="bar-segmento" [class]="'bar-' + item.metodo.toLowerCase()" [style.flex]="item.monto"></div>
-        }
-      </div>
 
       @for (item of reporte.por_metodo_pago; track item.metodo) {
       <div class="metodo-row">

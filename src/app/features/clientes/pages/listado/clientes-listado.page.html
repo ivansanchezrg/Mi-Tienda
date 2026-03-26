@@ -1,0 +1,98 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Clientes</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="abrirNuevoCliente()" color="primary" fill="clear">
+        <ion-icon slot="start" name="person-add-outline"></ion-icon>
+        Nuevo
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+
+  <ion-toolbar>
+    <ion-searchbar [value]="busqueda" (ionInput)="onBusquedaChange($event)"
+      placeholder="Buscar por nombre, cédula o teléfono..." [animated]="false" mode="ios" [debounce]="0">
+    </ion-searchbar>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content #content color="light" [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="list-container">
+    @if (loading) {
+    <ion-list lines="none" class="client-list">
+      @for (i of [1,2,3,4,5,6,7,8]; track i) {
+      <ion-item class="client-item">
+        <div slot="start" class="client-avatar">
+          <ion-skeleton-text animated style="width: 100%; height: 100%; border-radius: 50%;"></ion-skeleton-text>
+        </div>
+        <ion-label>
+          <ion-skeleton-text animated style="width: 60%; height: 16px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 40%; height: 13px; margin-top: 4px;"></ion-skeleton-text>
+        </ion-label>
+      </ion-item>
+      }
+    </ion-list>
+    } @else if (clientes.length === 0) {
+    <div class="empty-state">
+      <ion-icon name="person-outline" color="medium"></ion-icon>
+      @if (busqueda) {
+      <h2>Sin resultados</h2>
+      <p>No se encontraron clientes para "{{ busqueda }}"</p>
+      } @else {
+      <h2>No hay clientes</h2>
+      <p>Agrega clientes desde el botón "Nuevo" o desde el POS al registrar una venta.</p>
+      }
+    </div>
+    } @else {
+    <ion-list lines="none" class="client-list">
+      @for (cliente of clientes; track cliente.id) {
+      <ion-item button class="client-item" (click)="editarCliente(cliente)">
+        <div slot="start" class="client-avatar">
+          <ion-icon name="person-outline"></ion-icon>
+        </div>
+        <ion-label>
+          <h3>{{ cliente.nombre }}</h3>
+          <p class="client-meta">
+            @if (cliente.identificacion) {
+            <span class="meta-item">
+              <ion-icon name="card-outline"></ion-icon>
+              {{ cliente.identificacion }}
+            </span>
+            }
+            @if (cliente.telefono) {
+            <span class="meta-item">
+              <ion-icon name="call-outline"></ion-icon>
+              {{ cliente.telefono }}
+            </span>
+            }
+          </p>
+          @if (!cliente.identificacion && !cliente.telefono) {
+          <p class="no-info">Sin datos adicionales</p>
+          }
+        </ion-label>
+        <ion-icon name="create-outline" slot="end" color="medium" class="edit-icon"></ion-icon>
+      </ion-item>
+      }
+    </ion-list>
+    }
+  </div>
+
+  <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent" [loadingText]="loadingMoreText"></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
+  @if (showScrollTop) {
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+    <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+      <ion-icon name="arrow-up-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+  }
+</ion-content>

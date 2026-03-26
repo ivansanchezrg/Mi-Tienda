@@ -25,5 +25,11 @@ export const PAGINATION_CONFIG = {
    */
   cuentasCobrar: {
     pageSize: 20
+  },
+  /**
+   * Clientes
+   */
+  clientes: {
+    pageSize: 25
   }
 } as const;

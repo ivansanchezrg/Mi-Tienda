@@ -42,9 +42,9 @@ Incluye gestión de caja (sistema de 5 cajas), ventas POS, recargas virtuales (c
 | Usuarios           | ✅ Completo       | Gestión de usuarios y permisos                                           |
 | Inventario         | ✅ Completo       | Control de stock, kardex y categorías de productos                       |
 | POS                | ✅ Funcional      | Punto de venta con escáner de código de barras, cobro y anulación        |
-| Ventas             | ✅ Completo       | Historial paginado, filtros, detalle modal, anulación, estado cuenta FIADO |
+| Ventas             | ✅ Completo       | Listado paginado con filtros + resumen diario (tabs internas), detalle modal, anulación, estado cuenta FIADO |
 | Cuentas por Cobrar | ✅ Completo       | Ventas fiadas, abonos, estado de cuenta y comprobantes compartibles      |
-| Reportes           | ✅ Reporte diario | Resumen de ventas del día con desglose por método de pago y comprobante  |
+| Clientes           | ✅ Completo       | Listado paginado, búsqueda, creación con deduplicación por cédula, edición |
 
 ---
 
@@ -168,6 +168,7 @@ npx cap run android    # Instala el APK en el dispositivo conectado
 | POS                | [POS-README.md](docs/pos/POS-README.md)                                             |
 | Ventas             | [VENTAS-README.md](docs/ventas/VENTAS-README.md)                                    |
 | Cuentas por Cobrar | [CUENTAS-COBRAR-README.md](docs/cuentas-cobrar/CUENTAS-COBRAR-README.md)            |
+| Clientes           | [CLIENTES-README.md](docs/clientes/CLIENTES-README.md)                              |
 | Shared             | [README.md](docs/shared/README.md)                                                  |
 | Arquitectura cajas | [ARQUITECTURA.md](docs/ARQUITECTURA.md)                                             |
 
@@ -190,8 +191,7 @@ mi-tienda/
 │   │   │   ├── cuentas-cobrar/
 │   │   │   ├── clientes/
 │   │   │   ├── usuarios/
-│   │   │   ├── configuracion/
-│   │   │   └── reportes/
+│   │   │   └── configuracion/
 │   │   └── shared/             # Componentes y directivas reutilizables
 │   └── environments/
 │       ├── environment.example.ts   # Plantilla de credenciales (incluida en git)

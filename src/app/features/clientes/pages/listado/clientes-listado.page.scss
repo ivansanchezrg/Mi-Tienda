@@ -1,0 +1,107 @@
+.list-container {
+    padding: var(--spacing-md) var(--spacing-lg);
+}
+
+// ── Lista de clientes ──────────────────────────
+.client-list {
+    background: transparent;
+    padding: 0;
+}
+
+.client-item {
+    --background: var(--ion-item-background);
+    --padding-start: 12px;
+    --inner-padding-end: 12px;
+    --padding-top: 10px;
+    --padding-bottom: 10px;
+    --min-height: 64px;
+    border-radius: 12px;
+    margin-bottom: var(--spacing-sm);
+    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0,0,0,.08));
+
+    h3 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0 0 2px 0;
+        color: var(--ion-text-color);
+    }
+
+    .client-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 0;
+    }
+
+    .meta-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--ion-color-medium);
+
+        ion-icon {
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+    }
+
+    .no-info {
+        font-size: 12px;
+        color: var(--ion-color-medium);
+        margin: 0;
+        font-style: italic;
+    }
+
+    .edit-icon {
+        font-size: 18px;
+        opacity: 0.5;
+    }
+}
+
+// ── Avatar ──────────────────────────────────────
+.client-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-right: 10px;
+
+    ion-icon {
+        font-size: 20px;
+        color: var(--ion-color-primary);
+    }
+}
+
+// ── Empty state ─────────────────────────────────
+.empty-state {
+    text-align: center;
+    padding: var(--spacing-3xl) var(--spacing-xl);
+
+    ion-icon {
+        font-size: 64px;
+    }
+
+    h2 {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--ion-color-medium);
+        margin: var(--spacing-md) 0 var(--spacing-sm);
+    }
+
+    p {
+        font-size: 14px;
+        color: var(--ion-color-medium);
+        margin: 0;
+        line-height: 1.5;
+    }
+}
+
+// ── Scroll to top FAB ───────────────────────────
+.scroll-top-fab {
+    margin-bottom: env(safe-area-inset-bottom);
+}

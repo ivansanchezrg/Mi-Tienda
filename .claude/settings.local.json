@@ -93,7 +93,8 @@
       "Bash(find c:UsersivanDesktopProyectosmi-tiendadocs -type f -name *.sql)",
       "Bash(grep \"^CREATE OR REPLACE FUNCTION\" /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs/inventario/sql/functions/*.sql)",
       "Bash(grep \"^CREATE OR REPLACE FUNCTION\" /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs/ventas/sql/functions/*.sql)",
-      "Bash(grep -r \"persistSession\\\\|autoRefreshToken\\\\|storage:\" /c/Users/ivan/Desktop/Proyectos/mi-tienda/src --include=*.ts --include=*.js)"
+      "Bash(grep -r \"persistSession\\\\|autoRefreshToken\\\\|storage:\" /c/Users/ivan/Desktop/Proyectos/mi-tienda/src --include=*.ts --include=*.js)",
+      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs -name *reporte*ventas* -o -name *resumen*diario*)"
     ]
   },
   "disableAllHooks": true
