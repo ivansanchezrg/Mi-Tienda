@@ -6,7 +6,7 @@ import {
     IonButtons, IonBackButton, IonIcon,
     IonButton, IonFooter,
     IonSkeletonText, IonRefresher, IonRefresherContent,
-    ModalController,
+    ModalController, AlertController,
     ViewWillEnter, ViewWillLeave
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -26,8 +26,11 @@ import { UiService } from '../../../../core/services/ui.service';
 import { formatFechaEC, formatHoraEC } from '../../../../core/utils/date.util';
 import { PagoFiadoModalComponent } from '../../components/pago-fiado-modal/pago-fiado-modal.component';
 import { VentaDetalleModalComponent } from '../../../ventas/components/venta-detalle-modal/venta-detalle-modal.component';
+import { Capacitor } from '@capacitor/core';
+import { ConfigService } from '../../../../core/services/config.service';
 import { ShareEstadoCuentaService, ComprobantePagoItem } from '../../services/share-estado-cuenta.service';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 @Component({
     selector: 'app-detalle-cliente-cuenta',
@@ -40,6 +43,7 @@ import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/comp
         IonButtons, IonBackButton, IonIcon,
         IonButton, IonFooter,
         IonSkeletonText, IonRefresher, IonRefresherContent,
+        EmptyStateComponent
     ]
 })
 export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave {
@@ -51,6 +55,8 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
     private ui = inject(UiService);
     private modalCtrl = inject(ModalController);
     private shareService = inject(ShareEstadoCuentaService);
+    private alertCtrl = inject(AlertController);
+    private config = inject(ConfigService);
 
     cliente: Cliente | null = null;
     ventasFiadas: VentaFiada[] = [];
@@ -188,6 +194,13 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
         saldoRestante: number
     ) {
         if (!this.cliente) return;
+
+        // Web: enviar comprobante por WhatsApp (solo texto)
+        if (!Capacitor.isNativePlatform()) {
+            await this.compartirComprobanteWeb(items, montoTotal, saldoRestante);
+            return;
+        }
+
         this.compartiendo = true;
         await this.ui.showLoading('Generando comprobante...');
         try {
@@ -208,6 +221,36 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
         }
     }
 
+    private async compartirComprobanteWeb(
+        items: ComprobantePagoItem[],
+        montoTotal: number,
+        saldoRestante: number
+    ) {
+        if (!this.cliente) return;
+
+        if (!this.cliente.telefono) {
+            this.ui.showToast('El cliente no tiene teléfono registrado', 'warning');
+            return;
+        }
+
+        const alert = await this.alertCtrl.create({
+            header: 'Enviar por WhatsApp',
+            message: 'Se enviará un resumen en texto. Para compartir el comprobante con imagen, usa la app en el celular.',
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                { text: 'Enviar resumen', role: 'confirm' }
+            ]
+        });
+        await alert.present();
+        const { role } = await alert.onDidDismiss();
+        if (role !== 'confirm') return;
+
+        const nombreNegocio = await this.config.getNombreNegocio();
+        this.shareService.enviarComprobanteWhatsApp(
+            this.cliente, items, montoTotal, saldoRestante, this.ventasFiadas, nombreNegocio
+        );
+    }
+
     async verDetalleVenta(ventaId: string, event: Event) {
         event.stopPropagation();
         const modal = await this.modalCtrl.create({
@@ -219,6 +262,13 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
 
     async compartirDeuda() {
         if (!this.cliente || this.ventasFiadas.length === 0) return;
+
+        // Web: enviar resumen por WhatsApp (solo texto)
+        if (!Capacitor.isNativePlatform()) {
+            await this.compartirDeudaWeb();
+            return;
+        }
+
         this.compartiendo = true;
         await this.ui.showLoading('Generando estado de cuenta...');
         try {
@@ -229,18 +279,40 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
             );
         } catch (err: any) {
             const msg = err?.message ?? '';
-            // Fallback clipboard: no es error, es alternativa
             if (msg === 'CLIPBOARD_FALLBACK') {
                 this.ui.showToast('Imagen copiada al portapapeles', 'success');
                 return;
             }
-            // Share cancelado por el usuario — no es un error
             if (msg.toLowerCase().includes('cancel') || msg.toLowerCase().includes('dismiss') || msg.toLowerCase().includes('abort')) return;
             this.ui.showToast('No se pudo generar el estado de cuenta', 'danger');
         } finally {
             await this.ui.hideLoading();
             this.compartiendo = false;
         }
+    }
+
+    private async compartirDeudaWeb() {
+        if (!this.cliente) return;
+
+        if (!this.cliente.telefono) {
+            this.ui.showToast('El cliente no tiene teléfono registrado', 'warning');
+            return;
+        }
+
+        const alert = await this.alertCtrl.create({
+            header: 'Enviar por WhatsApp',
+            message: 'Se enviará un resumen en texto. Para compartir el comprobante con imagen, usa la app en el celular.',
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                { text: 'Enviar resumen', role: 'confirm' }
+            ]
+        });
+        await alert.present();
+        const { role } = await alert.onDidDismiss();
+        if (role !== 'confirm') return;
+
+        const nombreNegocio = await this.config.getNombreNegocio();
+        this.shareService.enviarResumenWhatsApp(this.cliente, this.ventasFiadas, nombreNegocio);
     }
 
 

@@ -58,11 +58,11 @@
     </div>
     } @else {
     @if (items.length === 0) {
-    <div class="empty-state text-center p-xl mt-xl">
-      <ion-icon name="cube-outline" color="medium" style="font-size: 64px;"></ion-icon>
-      <h2 class="text-secondary mt-md">{{ mostrarDesactivados ? 'No hay productos desactivados' : 'No hay productos' }}</h2>
-      <p class="text-muted">{{ mostrarDesactivados ? 'Todos los productos están activos.' : 'Añade tu primer producto al inventario usando el botón superior.' }}</p>
-    </div>
+    <app-empty-state
+      icon="cube-outline"
+      [title]="mostrarDesactivados ? 'No hay productos desactivados' : 'No hay productos'"
+      [hint]="mostrarDesactivados ? 'Todos los productos están activos.' : 'Añade tu primer producto usando el botón +'">
+    </app-empty-state>
     } @else {
     <div class="products-grid">
       @for (prod of items; track prod.id) {

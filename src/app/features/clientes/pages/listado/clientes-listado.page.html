@@ -40,16 +40,19 @@
       }
     </ion-list>
     } @else if (clientes.length === 0) {
-    <div class="empty-state">
-      <ion-icon name="person-outline" color="medium"></ion-icon>
       @if (busqueda) {
-      <h2>Sin resultados</h2>
-      <p>No se encontraron clientes para "{{ busqueda }}"</p>
+      <app-empty-state
+        icon="person-outline"
+        title="Sin resultados"
+        [hint]="'No se encontraron clientes para &quot;' + busqueda + '&quot;'">
+      </app-empty-state>
       } @else {
-      <h2>No hay clientes</h2>
-      <p>Agrega clientes desde el botón "Nuevo" o desde el POS al registrar una venta.</p>
+      <app-empty-state
+        icon="person-outline"
+        title="No hay clientes"
+        hint="Agrega clientes desde el botón &quot;Nuevo&quot; o desde el POS al registrar una venta.">
+      </app-empty-state>
       }
-    </div>
     } @else {
     <ion-list lines="none" class="client-list">
       @for (cliente of clientes; track cliente.id) {

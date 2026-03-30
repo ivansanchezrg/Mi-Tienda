@@ -25,6 +25,7 @@ import { StorageService } from '@core/services/storage.service';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
 import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 import { AuthService } from '../../../auth/services/auth.service';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 interface OperacionAgrupada {
   fecha: string;
@@ -44,7 +45,8 @@ interface OperacionAgrupada {
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonContent, IonIcon, IonCard,
     IonInfiniteScroll, IonInfiniteScrollContent, IonSkeletonText,
-    IonRefresher, IonRefresherContent
+    IonRefresher, IonRefresherContent,
+    EmptyStateComponent
   ]
 })
 export class OperacionesCajaPage implements OnInit, OnDestroy {

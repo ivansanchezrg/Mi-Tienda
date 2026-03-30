@@ -1,6 +1,7 @@
-import { Component, OnInit, OnDestroy, inject, HostListener, NgZone, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, HostListener, NgZone, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import {
   IonContent, IonHeader, IonTitle, IonToolbar,
   IonButtons, IonMenuButton, IonButton, IonIcon,
@@ -11,9 +12,10 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline, ellipsisHorizontalOutline } from 'ionicons/icons';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
 import { Producto, ProductoPOS } from '../../../inventario/models/producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -42,11 +44,12 @@ import { Configuracion } from '../../../configuracion/models/configuracion.model
     IonItemSliding, IonItemOptions, IonItemOption,
     IonRefresher, IonRefresherContent,
     CommonModule, FormsModule,
-    OptionsMenuComponent
+    OptionsMenuComponent, EmptyStateComponent
   ]
 })
 export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   @ViewChild(IonContent) content!: IonContent;
+  @ViewChild('searchInput') searchInputRef!: ElementRef<HTMLInputElement>;
 
   private inventarioService = inject(InventarioService);
   public currencyService = inject(CurrencyService);
@@ -60,6 +63,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private logger = inject(LoggerService);
   public storageService = inject(StorageService);
   private configService = inject(ConfigService);
+  private router = inject(Router);
 
   // Exponer enum al template (para el @if de mostrarDesglose)
   readonly TipoComprobante = TipoComprobante;
@@ -115,7 +119,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       cubeOutline, searchOutline, addCircleOutline,
       cardOutline, phonePortraitOutline, handRightOutline,
       receiptOutline, documentTextOutline, documentOutline,
-      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline
+      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline, ellipsisHorizontalOutline
     });
   }
 
@@ -463,6 +467,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.modoBusqueda = this.modoBusqueda === 'codigo' ? 'nombre' : 'codigo';
     this.buscarTexto = '';
     this.productosBusqueda = [];
+    // Foco después del cambio para que Android abra el teclado correcto
+    setTimeout(() => this.searchInputRef?.nativeElement?.focus(), 50);
   }
 
   limpiarBusqueda() {
@@ -661,11 +667,52 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     clearTimeout(this.scanPreviewTimeout);
   }
 
+  async cobrarEfectivo() {
+    if (this.carrito.length === 0 || this.cobroEnProceso) return;
+
+    if (!this.clienteSeleccionado?.id) {
+      this.ui.showToast('Cliente no cargado. Toca el cliente para actualizar.', 'warning');
+      return;
+    }
+
+    const turnoActivo = await this.posService.hayTurnoActivo();
+    if (!turnoActivo) {
+      await this.mostrarAlertSinTurno();
+      return;
+    }
+
+    const modal = await this.modalCtrl.create({
+      component: CobrarModalComponent,
+      componentProps: {
+        total: this.totalPagar,
+        subtotal: this.subtotalBruto,
+        descuento: this.descuentoAplicado,
+        descuentoPct: this.descuentoPct,
+        totalArticulos: this.totalArticulos,
+        esConsumidorFinal: !!this.clienteSeleccionado?.es_consumidor_final,
+        iniciarEnEfectivo: true
+      },
+      backdropDismiss: false
+    });
+
+    await modal.present();
+    const { data } = await modal.onDidDismiss();
+    if (!data) return;
+    if (data.confirmado) this.ejecutarCobro(data.metodoPago);
+  }
+
   async cobrar() {
     if (this.carrito.length === 0 || this.cobroEnProceso) return;
 
     if (!this.clienteSeleccionado?.id) {
       this.ui.showToast('Cliente no cargado. Toca el cliente para actualizar.', 'warning');
+      return;
+    }
+
+    // Verificar turno activo antes de abrir el modal de cobro
+    const turnoActivo = await this.posService.hayTurnoActivo();
+    if (!turnoActivo) {
+      await this.mostrarAlertSinTurno();
       return;
     }
 
@@ -703,6 +750,21 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (data.confirmado) {
       this.ejecutarCobro(data.metodoPago);
     }
+  }
+
+  private async mostrarAlertSinTurno() {
+    const alert = await this.alertCtrl.create({
+      header: 'Caja Chica cerrada',
+      message: 'Debes abrir la Caja Chica antes de registrar ventas.',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Ir a Inicio',
+          handler: () => this.router.navigate(['/home'])
+        }
+      ]
+    });
+    await alert.present();
   }
 
   private static readonly IDEMPOTENCY_STORAGE_KEY = 'pos_pending_idempotency_key';
@@ -753,9 +815,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       }
     } catch (error) {
       await this.ui.hideLoading();
-      const mensaje = error instanceof Error ? error.message : 'Error inesperado al procesar la venta';
-      this.ui.showToast(mensaje, 'danger');
-      this.logger.error('PosPage', 'Error en proceso de cobro', error);
+      if (error instanceof Error && error.message === 'SIN_TURNO') {
+        await this.mostrarAlertSinTurno();
+      } else {
+        const mensaje = error instanceof Error ? error.message : 'Error inesperado al procesar la venta';
+        this.ui.showToast(mensaje, 'danger');
+        this.logger.error('PosPage', 'Error en proceso de cobro', error);
+      }
     } finally {
       this.cobroEnProceso = false;
     }

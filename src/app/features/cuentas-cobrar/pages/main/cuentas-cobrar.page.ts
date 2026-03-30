@@ -25,6 +25,7 @@ import { CurrencyService } from '../../../../core/services/currency.service';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { formatFechaEC } from '../../../../core/utils/date.util';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 @Component({
     selector: 'app-cuentas-cobrar',
@@ -39,7 +40,8 @@ import { formatFechaEC } from '../../../../core/utils/date.util';
         IonList, IonItem, IonLabel, IonSearchbar,
         IonSkeletonText, IonFooter,
         IonInfiniteScroll, IonInfiniteScrollContent,
-        IonFab, IonFabButton
+        IonFab, IonFabButton,
+        EmptyStateComponent
     ]
 })
 export class CuentasCobrarPage extends PaginatedListPage<CuentaCliente> implements OnInit, OnDestroy, ViewWillEnter, ViewWillLeave {

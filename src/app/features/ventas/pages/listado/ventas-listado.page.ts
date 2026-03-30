@@ -36,6 +36,7 @@ import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { VentasTabsComponent } from '../../components/ventas-tabs/ventas-tabs.component';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 @Component({
     selector: 'app-ventas-listado',
@@ -53,7 +54,8 @@ import { VentasTabsComponent } from '../../components/ventas-tabs/ventas-tabs.co
         IonInfiniteScroll, IonInfiniteScrollContent,
         IonFab, IonFabButton,
         VentasTabsComponent,
-        OptionsMenuComponent
+        OptionsMenuComponent,
+        EmptyStateComponent
     ]
 })
 export class VentasListadoPage extends PaginatedListPage<Venta> implements OnInit, OnDestroy {

@@ -38,11 +38,16 @@ export class PosService {
      *   3. Trigger `trg_descontar_stock_venta` → descuenta stock + graba kardex
      *   4. Trigger `trg_actualizar_caja_por_venta` → sube saldo CAJA_CHICA si es EFECTIVO (v5)
      */
+    async hayTurnoActivo(): Promise<boolean> {
+        const turno = await this.turnosService.obtenerTurnoActivo();
+        return !!turno;
+    }
+
     async procesarVenta(carrito: CartItem[], payload: VentaPayload) {
         // 1. Obtener el turno activo (requerido por la BD)
         const turno = await this.turnosService.obtenerTurnoActivo();
         if (!turno) {
-            throw new Error('No hay un turno de caja abierto. Abre la caja antes de cobrar.');
+            throw new Error('SIN_TURNO');
         }
 
         // 2. Preparar los ítems del carrito para el JSONB del RPC

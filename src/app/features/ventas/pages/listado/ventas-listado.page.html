@@ -114,22 +114,19 @@
 
   <!-- Lista vacía -->
   @else if (ventas.length === 0) {
-  <div class="empty-state">
-    <div class="empty-icon-wrap">
-      @if (filtroEstado === 'ANULADA') {
-      <ion-icon name="ban-outline"></ion-icon>
-      } @else {
-      <ion-icon name="cart-outline"></ion-icon>
-      }
-    </div>
     @if (filtroEstado === 'ANULADA') {
-    <h2>Sin anulaciones</h2>
-    <p>No hay ventas anuladas en este período.</p>
+    <app-empty-state
+      icon="ban-outline"
+      title="Sin anulaciones"
+      hint="No hay ventas anuladas en este período.">
+    </app-empty-state>
     } @else {
-    <h2>Sin ventas</h2>
-    <p>No hay ventas registradas para este periodo.</p>
+    <app-empty-state
+      icon="cart-outline"
+      title="Sin ventas"
+      hint="No hay ventas registradas para este periodo.">
+    </app-empty-state>
     }
-  </div>
   }
 
   <!-- Lista de ventas -->

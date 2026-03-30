@@ -23,81 +23,77 @@ export class ShareEstadoCuentaService {
     private currency = inject(CurrencyService);
     private config   = inject(ConfigService);
 
+    // Lazy-cached: se resuelve una sola vez en la primera llamada
+    private h2cFn: any = null;
+
+    private async getHtml2Canvas(): Promise<any> {
+        if (!this.h2cFn) {
+            this.h2cFn = (await import('html2canvas-pro')).default;
+        }
+        return this.h2cFn;
+    }
+
+    /**
+     * Captura un wrapper HTML como imagen, la guarda en cache y retorna el URI.
+     * Centralizado para evitar duplicar la lógica de render + write + share.
+     */
+    private async capturarYCompartir(wrapper: HTMLElement, titulo: string): Promise<void> {
+        const html2canvas = await this.getHtml2Canvas();
+
+        // Un frame para que el spinner se muestre antes del render bloqueante
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+        const canvas = await html2canvas(wrapper, {
+            scale: 1.5,
+            backgroundColor: '#ffffff',
+            logging: false,
+        });
+
+        const base64 = canvas.toDataURL('image/png').split(',')[1];
+
+        await Filesystem.writeFile({
+            path: TEMP_FILE,
+            data: base64,
+            directory: Directory.Cache,
+        });
+
+        const { uri } = await Filesystem.getUri({
+            path: TEMP_FILE,
+            directory: Directory.Cache,
+        });
+
+        await Share.share({
+            title: titulo,
+            files: [uri],
+            dialogTitle: titulo,
+        });
+    }
+
     /**
      * Genera la imagen del estado de cuenta y abre el menú de compartir nativo.
-     * Retorna false si el share no está disponible en el dispositivo.
      */
     async compartirEstadoCuenta(
         cliente: Cliente,
         ventas: VentaFiada[],
         itemsPorVenta: Map<string, VentaFiadaItem[]>
     ): Promise<void> {
-        // Importación dinámica para no aumentar el bundle inicial
-        const html2canvas = (await import('html2canvas')).default;
-
-        // 1. Crear div oculto fuera del viewport
         const nombreNegocio = await this.config.getNombreNegocio();
+
         const wrapper = document.createElement('div');
         wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;z-index:-1;';
         wrapper.innerHTML = this.buildTicketHtml(cliente, ventas, itemsPorVenta, nombreNegocio);
         document.body.appendChild(wrapper);
 
         try {
-            // Dar un frame al browser para que pinte/anime el loading spinner
-            // antes de que html2canvas bloquee el hilo principal
-            await new Promise(r => setTimeout(r, 100));
-
-            // 2. Capturar como imagen (scale:2 para nitidez en pantallas HDPI)
-            const canvas = await html2canvas(wrapper, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                logging: false,
-            });
-
-            // 3. Obtener base64
-            const base64 = canvas.toDataURL('image/png').split(',')[1];
-
-            // 4. Guardar en cache del dispositivo
-            await Filesystem.writeFile({
-                path: TEMP_FILE,
-                data: base64,
-                directory: Directory.Cache,
-            });
-
-            const { uri } = await Filesystem.getUri({
-                path: TEMP_FILE,
-                directory: Directory.Cache,
-            });
-
-            // 5. Intentar Share nativo, fallback a clipboard
-            const canShare = await Share.canShare();
-            if (canShare.value) {
-                await Share.share({
-                    title: `Estado de cuenta — ${cliente.nombre}`,
-                    files: [uri],
-                    dialogTitle: 'Compartir estado de cuenta',
-                });
-            } else {
-                // Fallback: copiar imagen como blob al clipboard (browser)
-                const dataUrl = canvas.toDataURL('image/png');
-                const blob = await (await fetch(dataUrl)).blob();
-                await navigator.clipboard.write([
-                    new ClipboardItem({ 'image/png': blob })
-                ]);
-                throw new Error('CLIPBOARD_FALLBACK');
-            }
-
+            await this.capturarYCompartir(wrapper, `Estado de cuenta — ${cliente.nombre}`);
         } finally {
-            // Limpiar div del DOM siempre
             document.body.removeChild(wrapper);
-            // Limpiar archivo temporal (best-effort)
             Filesystem.deleteFile({ path: TEMP_FILE, directory: Directory.Cache }).catch(() => {});
         }
     }
 
     // ──────────────────────────────────────────────
-    // HTML del ticket — CSS inline (obligatorio para html2canvas)
+    // HTML del ticket — CSS inline (obligatorio para html2canvas-pro)
     // Diseño inspirado en VentaDetalleModal (tabla con grid)
     // ──────────────────────────────────────────────
 
@@ -114,66 +110,36 @@ export class ShareEstadoCuentaService {
         const multipleVentas = ventas.length > 1;
 
         return `
-        <div style="
-            width: 380px;
-            background: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            font-size: 13px;
-            color: #1a1a1a;
-            padding: 28px 24px;
-            box-sizing: border-box;
-        ">
-            <!-- HEADER -->
-            <div style="text-align:center; padding-bottom:18px;">
-                <div style="font-size:20px; font-weight:800; letter-spacing:-0.5px; color:#1a1a1a;">${this.esc(nombreNegocio)}</div>
-                <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; color:#888; margin-top:4px;">Estado de cuenta</div>
+        <div style="width:380px;background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1a1a1a;padding:28px 24px;">
+            <div style="text-align:center;padding-bottom:18px;">
+                <div style="font-size:20px;font-weight:800;color:#1a1a1a;">${this.esc(nombreNegocio)}</div>
+                <div style="font-size:12px;font-weight:600;color:#888;margin-top:4px;">ESTADO DE CUENTA</div>
             </div>
-
-            <!-- DIVISOR -->
-            <div style="border-top:1.5px dashed #ddd; margin-bottom:16px;"></div>
-
-            <!-- DATOS CLIENTE -->
-            <div style="margin-bottom:16px;">
-                <div style="display:flex; justify-content:space-between; align-items:baseline; padding:3px 0; gap:12px;">
-                    <span style="font-size:13px; color:#888;">Nombre</span>
-                    <span style="font-size:13px; font-weight:600; color:#1a1a1a; text-align:right;">${this.esc(cliente.nombre)}</span>
-                </div>
+            <hr style="border:none;border-top:1.5px dashed #ddd;margin:0 0 16px;">
+            <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+                <tr>
+                    <td style="font-size:13px;color:#888;padding:3px 0;">Nombre</td>
+                    <td style="font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;padding:3px 0;">${this.esc(cliente.nombre)}</td>
+                </tr>
                 ${cliente.identificacion ? `
-                <div style="display:flex; justify-content:space-between; align-items:baseline; padding:3px 0; gap:12px;">
-                    <span style="font-size:13px; color:#888;">Cédula/RUC</span>
-                    <span style="font-size:13px; font-weight:600; color:#1a1a1a;">${this.esc(cliente.identificacion)}</span>
-                </div>` : ''}
-            </div>
-
-            <!-- DIVISOR -->
-            <div style="border-top:1.5px dashed #ddd; margin-bottom:16px;"></div>
-
-            <!-- VENTAS -->
+                <tr>
+                    <td style="font-size:13px;color:#888;padding:3px 0;">Cédula/RUC</td>
+                    <td style="font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;padding:3px 0;">${this.esc(cliente.identificacion)}</td>
+                </tr>` : ''}
+            </table>
+            <hr style="border:none;border-top:1.5px dashed #ddd;margin:0 0 16px;">
             ${ventasHtml}
-
             ${multipleVentas ? `
-            <!-- TOTAL GENERAL — solo si hay >1 venta -->
-            <div style="
-                border-top: 2px solid #1a1a1a;
-                margin-top: 4px;
-                padding-top: 12px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            ">
-                <span style="font-size:16px; font-weight:800; text-transform:uppercase; color:#1a1a1a;">TOTAL PENDIENTE</span>
-                <span style="font-size:20px; font-weight:800; color:#c0392b; letter-spacing:-1px;">$${this.currency.format(totalPendiente)}</span>
-            </div>` : ''}
-
-            <!-- FOOTER -->
-            <div style="
-                margin-top: 20px;
-                padding-top: 14px;
-                border-top: 1.5px dashed #ddd;
-                text-align: center;
-            ">
-                <div style="font-size:11px; color:#aaa;">Generado: ${fechaGen}</div>
-                <div style="font-size:11px; color:#aaa; margin-top:3px;">Este documento no es un comprobante fiscal</div>
+            <table style="width:100%;border-collapse:collapse;border-top:2px solid #1a1a1a;margin-top:4px;padding-top:12px;">
+                <tr>
+                    <td style="font-size:16px;font-weight:800;color:#1a1a1a;padding-top:12px;">TOTAL PENDIENTE</td>
+                    <td style="font-size:20px;font-weight:800;color:#c0392b;text-align:right;padding-top:12px;">$${this.currency.format(totalPendiente)}</td>
+                </tr>
+            </table>` : ''}
+            <hr style="border:none;border-top:1.5px dashed #ddd;margin:20px 0 0;">
+            <div style="text-align:center;padding-top:14px;">
+                <div style="font-size:11px;color:#aaa;">Generado: ${fechaGen}</div>
+                <div style="font-size:11px;color:#aaa;margin-top:3px;">Este documento no es un comprobante fiscal</div>
             </div>
         </div>`;
     }
@@ -184,93 +150,55 @@ export class ShareEstadoCuentaService {
         const numero = venta.numero_comprobante ? ` #${venta.numero_comprobante}` : '';
         const fecha = formatFechaEC(venta.fecha);
 
-        // Tabla de items con grid 4 columnas igual al modal de detalle de venta
         const itemsHtml = items.length > 0 ? `
-            <!-- Header tabla -->
-            <div style="display:grid; grid-template-columns:1fr 42px 62px 66px; gap:4px; padding-bottom:6px; border-bottom:1px solid #eee; margin-bottom:4px;">
-                <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:#888;">Descripción</span>
-                <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:#888; text-align:right;">Cant.</span>
-                <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:#888; text-align:right;">P.Unit.</span>
-                <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:#888; text-align:right;">Subtotal</span>
-            </div>
-            ${items.map(item => `
-            <div style="display:grid; grid-template-columns:1fr 42px 62px 66px; gap:4px; padding:4px 0; align-items:start;">
-                <span style="font-size:13px; font-weight:500; color:#1a1a1a; line-height:1.3;">${this.esc(item.producto_nombre)}</span>
-                <span style="font-size:13px; color:#1a1a1a; text-align:right;">${item.cantidad}</span>
-                <span style="font-size:12px; color:#888; text-align:right;">$${this.currency.format(item.precio_unitario)}</span>
-                <span style="font-size:13px; font-weight:600; color:#1a1a1a; text-align:right;">$${this.currency.format(item.subtotal)}</span>
-            </div>`).join('')}`
-            : '<div style="color:#999; font-size:12px; padding:4px 0;">Sin detalle disponible</div>';
+            <table style="width:100%;border-collapse:collapse;margin-bottom:4px;">
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="font-size:11px;font-weight:700;color:#888;padding-bottom:6px;">Descripción</td>
+                    <td style="font-size:11px;font-weight:700;color:#888;text-align:right;padding-bottom:6px;width:42px;">Cant.</td>
+                    <td style="font-size:11px;font-weight:700;color:#888;text-align:right;padding-bottom:6px;width:62px;">P.Unit.</td>
+                    <td style="font-size:11px;font-weight:700;color:#888;text-align:right;padding-bottom:6px;width:66px;">Subtotal</td>
+                </tr>
+                ${items.map(item => `
+                <tr>
+                    <td style="font-size:13px;font-weight:500;color:#1a1a1a;padding:4px 0;">${this.esc(item.producto_nombre)}</td>
+                    <td style="font-size:13px;color:#1a1a1a;text-align:right;padding:4px 0;">${item.cantidad}</td>
+                    <td style="font-size:12px;color:#888;text-align:right;padding:4px 0;">$${this.currency.format(item.precio_unitario)}</td>
+                    <td style="font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;padding:4px 0;">$${this.currency.format(item.subtotal)}</td>
+                </tr>`).join('')}
+            </table>`
+            : '<div style="color:#999;font-size:12px;padding:4px 0;">Sin detalle disponible</div>';
 
         const esFactura = venta.tipo_comprobante === 'FACTURA';
 
-        const ivaRows = esFactura ? [
-            venta.base_iva_0 > 0 ? `<div style="display:flex; justify-content:space-between; padding:2px 0;">
-                    <span style="font-size:12px; color:#888;">Base 0%</span>
-                    <span style="font-size:12px; font-weight:600; color:#1a1a1a;">$${this.currency.format(venta.base_iva_0)}</span>
-                </div>` : '',
-            venta.base_iva_15 > 0 ? `<div style="display:flex; justify-content:space-between; padding:2px 0;">
-                    <span style="font-size:12px; color:#888;">Base 15%</span>
-                    <span style="font-size:12px; font-weight:600; color:#1a1a1a;">$${this.currency.format(venta.base_iva_15)}</span>
-                </div>` : '',
-            venta.iva_valor > 0 ? `<div style="display:flex; justify-content:space-between; padding:2px 0;">
-                    <span style="font-size:12px; color:#888;">IVA 15%</span>
-                    <span style="font-size:12px; font-weight:600; color:#1a1a1a;">$${this.currency.format(venta.iva_valor)}</span>
-                </div>` : '',
-        ].filter(Boolean) : [];
-
-        const ivaHtml = ivaRows.length > 0 ? `
-            <div style="padding:4px 0 2px;">
-                ${ivaRows.join('')}
-            </div>
-            <div style="border-top:1.5px solid #ccc; margin:6px 0;"></div>` : '';
-
-        const abonado = venta.monto_pagado > 0 ? `
-            <div style="display:flex; justify-content:space-between; padding:3px 0;">
-                <span style="font-size:13px; color:#27ae60;">Abonado</span>
-                <span style="font-size:13px; font-weight:600; color:#27ae60;">-$${this.currency.format(venta.monto_pagado)}</span>
-            </div>` : '';
+        const ivaHtml = esFactura && (venta.base_iva_0 > 0 || venta.base_iva_15 > 0 || venta.iva_valor > 0) ? `
+            <table style="width:100%;border-collapse:collapse;padding:4px 0 2px;">
+                ${venta.base_iva_0 > 0 ? `<tr><td style="font-size:12px;color:#888;padding:2px 0;">Base 0%</td><td style="font-size:12px;font-weight:600;color:#1a1a1a;text-align:right;">$${this.currency.format(venta.base_iva_0)}</td></tr>` : ''}
+                ${venta.base_iva_15 > 0 ? `<tr><td style="font-size:12px;color:#888;padding:2px 0;">Base 15%</td><td style="font-size:12px;font-weight:600;color:#1a1a1a;text-align:right;">$${this.currency.format(venta.base_iva_15)}</td></tr>` : ''}
+                ${venta.iva_valor > 0 ? `<tr><td style="font-size:12px;color:#888;padding:2px 0;">IVA 15%</td><td style="font-size:12px;font-weight:600;color:#1a1a1a;text-align:right;">$${this.currency.format(venta.iva_valor)}</td></tr>` : ''}
+            </table>
+            <hr style="border:none;border-top:1.5px solid #ccc;margin:6px 0;">` : '';
 
         return `
         <div style="margin-bottom:20px;">
-            <!-- Encabezado venta -->
-            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
-                <span style="font-size:14px; font-weight:700; color:#1a1a1a;">${label}${numero}</span>
-                <span style="font-size:12px; color:#888;">${fecha}</span>
-            </div>
-
-            <!-- Items tabla -->
+            <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+                <tr>
+                    <td style="font-size:14px;font-weight:700;color:#1a1a1a;">${label}${numero}</td>
+                    <td style="font-size:12px;color:#888;text-align:right;">${fecha}</td>
+                </tr>
+            </table>
             ${itemsHtml}
-
-            <!-- Divisor fino -->
-            <div style="border-top:1.5px solid #ccc; margin:10px 0;"></div>
-
-            <!-- Desglose IVA (solo factura) -->
+            <hr style="border:none;border-top:1.5px solid #ccc;margin:10px 0;">
             ${ivaHtml}
-
-            <!-- Totales -->
-            <div>
+            <table style="width:100%;border-collapse:collapse;">
                 ${venta.descuento > 0 ? `
-                <div style="display:flex; justify-content:space-between; padding:3px 0;">
-                    <span style="font-size:13px; color:#888;">Subtotal</span>
-                    <span style="font-size:13px; font-weight:600; color:#1a1a1a;">$${this.currency.format(venta.subtotal)}</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:3px 0;">
-                    <span style="font-size:13px; color:#27ae60;">Descuento (${venta.descuento_pct}%)</span>
-                    <span style="font-size:13px; font-weight:600; color:#27ae60;">-$${this.currency.format(venta.descuento)}</span>
-                </div>` : ''}
-                <div style="display:flex; justify-content:space-between; padding:3px 0;">
-                    <span style="font-size:13px; color:#888;">Total venta</span>
-                    <span style="font-size:13px; font-weight:600; color:#1a1a1a;">$${this.currency.format(venta.total)}</span>
-                </div>
-                ${abonado}
-                <div style="display:flex; justify-content:space-between; padding:6px 0 0;">
-                    <span style="font-size:15px; font-weight:800; color:#1a1a1a;">Pendiente</span>
-                    <span style="font-size:17px; font-weight:800; color:#c0392b; letter-spacing:-0.5px;">$${this.currency.format(venta.saldo_pendiente)}</span>
-                </div>
-            </div>
+                <tr><td style="font-size:13px;color:#888;padding:3px 0;">Subtotal</td><td style="font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;padding:3px 0;">$${this.currency.format(venta.subtotal)}</td></tr>
+                <tr><td style="font-size:13px;color:#27ae60;padding:3px 0;">Descuento (${venta.descuento_pct}%)</td><td style="font-size:13px;font-weight:600;color:#27ae60;text-align:right;padding:3px 0;">-$${this.currency.format(venta.descuento)}</td></tr>` : ''}
+                <tr><td style="font-size:13px;color:#888;padding:3px 0;">Total venta</td><td style="font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;padding:3px 0;">$${this.currency.format(venta.total)}</td></tr>
+                ${venta.monto_pagado > 0 ? `<tr><td style="font-size:13px;color:#27ae60;padding:3px 0;">Abonado</td><td style="font-size:13px;font-weight:600;color:#27ae60;text-align:right;padding:3px 0;">-$${this.currency.format(venta.monto_pagado)}</td></tr>` : ''}
+                <tr><td style="font-size:15px;font-weight:800;color:#1a1a1a;padding:6px 0 0;">Pendiente</td><td style="font-size:17px;font-weight:800;color:#c0392b;text-align:right;padding:6px 0 0;">$${this.currency.format(venta.saldo_pendiente)}</td></tr>
+            </table>
         </div>
-        <div style="border-top:1.5px dashed #ddd; margin-bottom:18px;"></div>`;
+        <hr style="border:none;border-top:1.5px dashed #ddd;margin-bottom:18px;">`;
     }
 
     // ──────────────────────────────────────────────
@@ -284,7 +212,6 @@ export class ShareEstadoCuentaService {
         saldoRestante: number,
         ventasPendientes: VentaFiada[]
     ): Promise<void> {
-        const html2canvas = (await import('html2canvas')).default;
         const nombreNegocio = await this.config.getNombreNegocio();
 
         const wrapper = document.createElement('div');
@@ -293,43 +220,7 @@ export class ShareEstadoCuentaService {
         document.body.appendChild(wrapper);
 
         try {
-            await new Promise(r => setTimeout(r, 100));
-
-            const canvas = await html2canvas(wrapper, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                logging: false,
-            });
-
-            const base64 = canvas.toDataURL('image/png').split(',')[1];
-
-            await Filesystem.writeFile({
-                path: TEMP_FILE,
-                data: base64,
-                directory: Directory.Cache,
-            });
-
-            const { uri } = await Filesystem.getUri({
-                path: TEMP_FILE,
-                directory: Directory.Cache,
-            });
-
-            const canShare = await Share.canShare();
-            if (canShare.value) {
-                await Share.share({
-                    title: `Comprobante de pago — ${cliente.nombre}`,
-                    files: [uri],
-                    dialogTitle: 'Compartir comprobante de pago',
-                });
-            } else {
-                const dataUrl = canvas.toDataURL('image/png');
-                const blob = await (await fetch(dataUrl)).blob();
-                await navigator.clipboard.write([
-                    new ClipboardItem({ 'image/png': blob })
-                ]);
-                throw new Error('CLIPBOARD_FALLBACK');
-            }
+            await this.capturarYCompartir(wrapper, `Comprobante de pago — ${cliente.nombre}`);
         } finally {
             document.body.removeChild(wrapper);
             Filesystem.deleteFile({ path: TEMP_FILE, directory: Directory.Cache }).catch(() => {});
@@ -356,98 +247,213 @@ export class ShareEstadoCuentaService {
             const label = labelTipo(item.tipoComprobante);
             const numero = item.numeroComprobante ? ` #${item.numeroComprobante}` : '';
             const badge = item.completa
-                ? `<span style="font-size:11px;font-weight:700;color:#27ae60;background:#eafaf1;padding:2px 8px;border-radius:10px;white-space:nowrap;">SALDADO</span>`
-                : `<span style="font-size:11px;font-weight:700;color:#e67e22;background:#fef5ec;padding:2px 8px;border-radius:10px;white-space:nowrap;">ABONO PARCIAL</span>`;
+                ? `<span style="font-size:11px;font-weight:700;color:#27ae60;padding:2px 6px;border:1px solid #27ae60;">SALDADO</span>`
+                : `<span style="font-size:11px;font-weight:700;color:#e67e22;padding:2px 6px;border:1px solid #e67e22;">ABONO PARCIAL</span>`;
             const quedaHtml = !item.completa
                 ? `<div style="font-size:12px;color:#888;margin-top:3px;">Queda: <strong style="color:#c0392b;">$${this.currency.format(item.saldoVenta)}</strong></div>`
                 : '';
             return `
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f0f0f0;">
-                <div style="flex:1;padding-right:12px;">
-                    <div style="font-size:13px;font-weight:700;color:#1a1a1a;">${label}${numero}</div>
-                    ${quedaHtml}
-                </div>
-                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
-                    ${badge}
-                    <span style="font-size:14px;font-weight:800;color:#1a1a1a;">$${this.currency.format(item.pago)}</span>
-                </div>
-            </div>`;
+            <table style="width:100%;border-collapse:collapse;border-bottom:1px solid #f0f0f0;">
+                <tr>
+                    <td style="font-size:13px;font-weight:700;color:#1a1a1a;padding:8px 8px 8px 0;">
+                        ${label}${numero}
+                        ${quedaHtml}
+                    </td>
+                    <td style="text-align:right;padding:8px 0;vertical-align:top;">
+                        ${badge}<br>
+                        <span style="font-size:14px;font-weight:800;color:#1a1a1a;">$${this.currency.format(item.pago)}</span>
+                    </td>
+                </tr>
+            </table>`;
         }).join('');
 
-        // ── Sección: lo que sigue pendiente ──
         const pendientesHtml = ventasPendientes.length > 0 ? `
-            <div style="border-top:1.5px dashed #ddd;margin:16px 0 12px;"></div>
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#888;margin-bottom:6px;">Pendiente por cobrar</div>
-            ${ventasPendientes.map(v => {
-                const label = labelTipo(v.tipo_comprobante);
-                const numero = v.numero_comprobante ? ` #${v.numero_comprobante}` : '';
-                return `
-                <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid #f0f0f0;">
-                    <span style="font-size:13px;font-weight:600;color:#1a1a1a;">${label}${numero}</span>
-                    <span style="font-size:14px;font-weight:800;color:#c0392b;">$${this.currency.format(v.saldo_pendiente)}</span>
-                </div>`;
-            }).join('')}
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 0;">
-                <span style="font-size:15px;font-weight:800;text-transform:uppercase;color:#1a1a1a;">Total pendiente</span>
-                <span style="font-size:18px;font-weight:800;color:#c0392b;letter-spacing:-0.5px;">$${this.currency.format(saldoRestante)}</span>
-            </div>` : `
-            <div style="border-top:1.5px dashed #ddd;margin:16px 0 0;"></div>
-            <div style="text-align:center;padding:12px 0 0;">
-                <span style="font-size:13px;font-weight:700;color:#27ae60;">Deuda saldada completamente</span>
-            </div>`;
+            <hr style="border:none;border-top:1.5px dashed #ddd;margin:16px 0 12px;">
+            <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:6px;">PENDIENTE POR COBRAR</div>
+            <table style="width:100%;border-collapse:collapse;">
+                ${ventasPendientes.map(v => {
+                    const label = labelTipo(v.tipo_comprobante);
+                    const numero = v.numero_comprobante ? ` #${v.numero_comprobante}` : '';
+                    return `<tr style="border-bottom:1px solid #f0f0f0;">
+                        <td style="font-size:13px;font-weight:600;color:#1a1a1a;padding:6px 0;">${label}${numero}</td>
+                        <td style="font-size:14px;font-weight:800;color:#c0392b;text-align:right;padding:6px 0;">$${this.currency.format(v.saldo_pendiente)}</td>
+                    </tr>`;
+                }).join('')}
+                <tr>
+                    <td style="font-size:15px;font-weight:800;color:#1a1a1a;padding-top:10px;">Total pendiente</td>
+                    <td style="font-size:18px;font-weight:800;color:#c0392b;text-align:right;padding-top:10px;">$${this.currency.format(saldoRestante)}</td>
+                </tr>
+            </table>` : `
+            <hr style="border:none;border-top:1.5px dashed #ddd;margin:16px 0 0;">
+            <div style="text-align:center;padding-top:12px;font-size:13px;font-weight:700;color:#27ae60;">Deuda saldada completamente</div>`;
 
         return `
-        <div style="
-            width: 380px;
-            background: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            font-size: 13px;
-            color: #1a1a1a;
-            padding: 28px 24px;
-            box-sizing: border-box;
-        ">
-            <!-- HEADER -->
+        <div style="width:380px;background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1a1a1a;padding:28px 24px;">
             <div style="text-align:center;padding-bottom:18px;">
-                <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px;color:#1a1a1a;">${this.esc(nombreNegocio)}</div>
-                <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:4px;">Comprobante de pago</div>
+                <div style="font-size:20px;font-weight:800;color:#1a1a1a;">${this.esc(nombreNegocio)}</div>
+                <div style="font-size:12px;font-weight:600;color:#888;margin-top:4px;">COMPROBANTE DE PAGO</div>
             </div>
-
-            <div style="border-top:1.5px dashed #ddd;margin-bottom:14px;"></div>
-
-            <!-- DATOS CLIENTE -->
-            <div style="margin-bottom:14px;">
-                <div style="display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;">
-                    <span style="color:#888;font-size:13px;">Nombre</span>
-                    <span style="font-size:13px;font-weight:600;">${this.esc(cliente.nombre)}</span>
-                </div>
+            <hr style="border:none;border-top:1.5px dashed #ddd;margin-bottom:14px;">
+            <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
+                <tr>
+                    <td style="color:#888;font-size:13px;padding:3px 0;">Nombre</td>
+                    <td style="font-size:13px;font-weight:600;text-align:right;padding:3px 0;">${this.esc(cliente.nombre)}</td>
+                </tr>
                 ${cliente.identificacion ? `
-                <div style="display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;">
-                    <span style="color:#888;font-size:13px;">Cédula/RUC</span>
-                    <span style="font-size:13px;font-weight:600;">${this.esc(cliente.identificacion)}</span>
-                </div>` : ''}
+                <tr>
+                    <td style="color:#888;font-size:13px;padding:3px 0;">Cédula/RUC</td>
+                    <td style="font-size:13px;font-weight:600;text-align:right;padding:3px 0;">${this.esc(cliente.identificacion)}</td>
+                </tr>` : ''}
+            </table>
+            <hr style="border:none;border-top:1.5px dashed #ddd;margin-bottom:14px;">
+            <div style="text-align:center;padding:14px;background:#eafaf1;margin-bottom:16px;">
+                <div style="font-size:11px;font-weight:700;color:#27ae60;margin-bottom:6px;">MONTO COBRADO</div>
+                <div style="font-size:34px;font-weight:800;color:#1a1a1a;">$${this.currency.format(montoTotal)}</div>
             </div>
-
-            <div style="border-top:1.5px dashed #ddd;margin-bottom:14px;"></div>
-
-            <!-- MONTO COBRADO -->
-            <div style="text-align:center;padding:14px;background:#eafaf1;border-radius:10px;margin-bottom:16px;">
-                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#27ae60;margin-bottom:6px;">Monto cobrado</div>
-                <div style="font-size:34px;font-weight:800;color:#1a1a1a;letter-spacing:-1px;">$${this.currency.format(montoTotal)}</div>
-            </div>
-
-            <!-- DETALLE DEL PAGO -->
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#888;margin-bottom:6px;">Detalle del pago</div>
+            <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:6px;">DETALLE DEL PAGO</div>
             ${pagadosHtml}
-
-            <!-- PENDIENTE POR COBRAR -->
             ${pendientesHtml}
-
-            <!-- FOOTER -->
-            <div style="margin-top:20px;padding-top:14px;border-top:1.5px dashed #ddd;text-align:center;">
+            <hr style="border:none;border-top:1.5px dashed #ddd;margin-top:20px;">
+            <div style="text-align:center;padding-top:14px;">
                 <div style="font-size:11px;color:#aaa;">Generado: ${fecha} ${hora}</div>
                 <div style="font-size:11px;color:#aaa;margin-top:3px;">Este documento no es un comprobante fiscal</div>
             </div>
         </div>`;
+    }
+
+    // ──────────────────────────────────────────────
+    // WHATSAPP WEB — resumen en texto plano
+    // ──────────────────────────────────────────────
+
+    /**
+     * Genera un resumen en texto plano y abre WhatsApp con el número del cliente.
+     * Usado como fallback en web donde Share nativo no está disponible.
+     */
+    enviarResumenWhatsApp(
+        cliente: Cliente,
+        ventas: VentaFiada[],
+        nombreNegocio: string
+    ): void {
+        const totalPendiente = ventas.reduce((s, v) => s + v.saldo_pendiente, 0);
+        const labelTipo = (tipo: string) =>
+            tipo === 'FACTURA' ? 'Factura' : tipo === 'NOTA_VENTA' ? 'Nota de Venta' : 'Ticket';
+
+        // Emojis via Unicode escape — evita problemas de encoding del archivo
+        const E = {
+            doc: '\uD83D\uDCC4',     // 📄
+            person: '\uD83D\uDC64',  // 👤
+            diamond: '\uD83D\uDD39', // 🔹
+            red: '\uD83D\uDD34',     // 🔴
+            check: '\u2705',         // ✅
+            party: '\uD83C\uDF89',   // 🎉
+        };
+
+        const lineas: string[] = [];
+        lineas.push(`${E.doc} *ESTADO DE CUENTA*`);
+        lineas.push(`${nombreNegocio}`);
+        lineas.push(``);
+        lineas.push(`${E.person} *${cliente.nombre}*`);
+        lineas.push(`------------------------`);
+
+        for (const v of ventas) {
+            const label = labelTipo(v.tipo_comprobante);
+            const numero = v.numero_comprobante ? ` #${v.numero_comprobante}` : '';
+            const fecha = formatFechaEC(v.fecha);
+            lineas.push(``);
+            lineas.push(`${E.diamond} *${label}${numero}*`);
+            lineas.push(`   Fecha: ${fecha}`);
+            lineas.push(`   Total: $${this.currency.format(v.total)}`);
+            if (v.monto_pagado > 0) {
+                lineas.push(`   ${E.check} Abonado: $${this.currency.format(v.monto_pagado)}`);
+            }
+            lineas.push(`   ${E.red} *Pendiente: $${this.currency.format(v.saldo_pendiente)}*`);
+        }
+
+        if (ventas.length > 1) {
+            lineas.push(``);
+            lineas.push(`------------------------`);
+            lineas.push(`${E.red} *TOTAL PENDIENTE: $${this.currency.format(totalPendiente)}*`);
+        }
+
+        lineas.push(``);
+        lineas.push(`_Resumen informativo. Para comprobante con imagen usa la app._`);
+
+        let telefono = (cliente.telefono ?? '').replace(/\D/g, '');
+        if (telefono.startsWith('0')) telefono = '593' + telefono.slice(1);
+        const url = `https://api.whatsapp.com/send?phone=${telefono}&text=${encodeURIComponent(lineas.join('\n'))}`;
+        window.open(url, '_blank');
+    }
+
+    enviarComprobanteWhatsApp(
+        cliente: Cliente,
+        items: ComprobantePagoItem[],
+        montoTotal: number,
+        saldoRestante: number,
+        ventasPendientes: VentaFiada[],
+        nombreNegocio: string
+    ): void {
+        const labelTipo = (tipo: string) =>
+            tipo === 'FACTURA' ? 'Factura' : tipo === 'NOTA_VENTA' ? 'Nota de Venta' : 'Ticket';
+
+        const E = {
+            check: '\u2705',         // ✅
+            person: '\uD83D\uDC64',  // 👤
+            money: '\uD83D\uDCB0',   // 💰
+            doc: '\uD83D\uDCC4',     // 📄
+            diamond: '\uD83D\uDD39', // 🔹
+            small: '\uD83D\uDD38',   // 🔸
+            pin: '\uD83D\uDCCC',     // 📌
+            red: '\uD83D\uDD34',     // 🔴
+            hourglass: '\u231B',     // ⌛
+            party: '\uD83C\uDF89',   // 🎉
+        };
+
+        const lineas: string[] = [];
+        lineas.push(`${E.check} *COMPROBANTE DE PAGO*`);
+        lineas.push(`${nombreNegocio}`);
+        lineas.push(``);
+        lineas.push(`${E.person} *${cliente.nombre}*`);
+        lineas.push(`------------------------`);
+        lineas.push(``);
+        lineas.push(`${E.money} *Monto: $${this.currency.format(montoTotal)}*`);
+        lineas.push(``);
+
+        lineas.push(`${E.doc} *Detalle:*`);
+        for (const item of items) {
+            const label = labelTipo(item.tipoComprobante);
+            const numero = item.numeroComprobante ? ` #${item.numeroComprobante}` : '';
+            const estado = item.completa ? `${E.check} Saldado` : `${E.hourglass} Abono`;
+            lineas.push(`${E.diamond} ${label}${numero}`);
+            lineas.push(`   Pago: *$${this.currency.format(item.pago)}*`);
+            lineas.push(`   ${estado}`);
+            if (!item.completa) {
+                lineas.push(`   Pendiente: *$${this.currency.format(item.saldoVenta)}*`);
+            }
+            lineas.push(``);
+        }
+
+        if (ventasPendientes.length > 0) {
+            lineas.push(`------------------------`);
+            lineas.push(`${E.pin} *Pendientes:*`);
+            for (const v of ventasPendientes) {
+                const label = labelTipo(v.tipo_comprobante);
+                const numero = v.numero_comprobante ? ` #${v.numero_comprobante}` : '';
+                lineas.push(`${E.small} ${label}${numero}: *$${this.currency.format(v.saldo_pendiente)}*`);
+            }
+            lineas.push(``);
+            lineas.push(`${E.red} *TOTAL: $${this.currency.format(saldoRestante)}*`);
+        } else {
+            lineas.push(``);
+            lineas.push(`${E.party} *Todo pagado*`);
+        }
+
+        lineas.push(``);
+        lineas.push(`_Resumen informativo_`);
+
+        let telefono = (cliente.telefono ?? '').replace(/\D/g, '');
+        if (telefono.startsWith('0')) telefono = '593' + telefono.slice(1);
+        const url = `https://api.whatsapp.com/send?phone=${telefono}&text=${encodeURIComponent(lineas.join('\n'))}`;
+        window.open(url, '_blank');
     }
 
     /** Escapa caracteres HTML para evitar XSS en el ticket */

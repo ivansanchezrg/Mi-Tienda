@@ -12,6 +12,7 @@ import {
 import { ModalController } from '@ionic/angular/standalone';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 type TipoServicio = 'CELULAR' | 'BUS';
 
@@ -23,7 +24,8 @@ type TipoServicio = 'CELULAR' | 'BUS';
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonCard
+    IonContent, IonIcon, IonCard,
+    EmptyStateComponent
   ]
 })
 export class HistorialModalComponent implements OnInit {

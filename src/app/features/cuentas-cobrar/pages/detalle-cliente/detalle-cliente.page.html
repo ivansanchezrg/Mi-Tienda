@@ -78,10 +78,11 @@
   @if (!loading) {
   <!-- Sin ventas -->
   @if (ventasFiadas.length === 0) {
-  <div class="empty-state-inline">
-    <ion-icon name="checkmark-circle-outline"></ion-icon>
-    <p>Este cliente no tiene deudas pendientes</p>
-  </div>
+  <app-empty-state
+    icon="checkmark-circle-outline"
+    hint="Este cliente no tiene deudas pendientes"
+    style="min-height: auto">
+  </app-empty-state>
   }
 
   <!-- Lista de ventas fiadas -->

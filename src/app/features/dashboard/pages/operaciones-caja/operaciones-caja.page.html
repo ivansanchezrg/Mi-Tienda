@@ -87,10 +87,11 @@
 
   <!-- Empty -->
   @if (!loading && operaciones.length === 0) {
-  <div class="empty-state">
-    <ion-icon name="document-text-outline"></ion-icon>
-    <p>No hay movimientos en este período</p>
-  </div>
+  <app-empty-state
+    icon="document-text-outline"
+    title="Sin movimientos"
+    hint="No hay movimientos en este período">
+  </app-empty-state>
   }
 
   <!-- Lista agrupada -->

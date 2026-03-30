@@ -39,7 +39,7 @@
     "@capacitor/status-bar": "^8.0.0",
     "@ionic/angular": "^8.0.0",
     "@supabase/supabase-js": "^2.93.2",
-    "html2canvas": "^1.4.1",
+    "html2canvas-pro": "^2.0.2",
     "ionicons": "^7.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",

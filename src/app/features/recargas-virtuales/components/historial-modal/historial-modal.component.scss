@@ -135,25 +135,3 @@ ion-content {
   background: var(--ion-color-step-100);
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 280px;
-  gap: 12px;
-
-  ion-icon {
-    font-size: 52px;
-    color: var(--ion-color-medium);
-    opacity: 0.35;
-  }
-
-  p {
-    font-size: 14px;
-    color: var(--ion-color-medium);
-    margin: 0;
-  }
-}

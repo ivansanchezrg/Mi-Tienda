@@ -48,9 +48,10 @@
     </div>
 
     } @else if (categoriasFiltradas.length === 0) {
-    <div class="empty-state">
-      <p>No hay categorías de tipo {{ segmentoActual }}</p>
-    </div>
+    <app-empty-state
+      icon="receipt-outline"
+      [hint]="'No hay categorías de tipo ' + segmentoActual">
+    </app-empty-state>
 
     } @else {
     @for (cat of categoriasFiltradas; track cat.id) {

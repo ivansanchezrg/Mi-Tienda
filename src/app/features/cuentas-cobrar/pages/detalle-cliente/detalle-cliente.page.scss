@@ -250,27 +250,6 @@ ion-toolbar {
 }
 
 // ─────────────────────────────────────────
-// ESTADO VACÍO
-// ─────────────────────────────────────────
-
-.empty-state-inline {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: var(--spacing-xl);
-    color: var(--ion-color-medium);
-
-    ion-icon {
-        font-size: 48px;
-        color: var(--ion-color-success);
-        opacity: 0.5;
-        margin-bottom: var(--spacing-sm);
-    }
-
-    p { font-size: 14px; text-align: center; }
-}
-
-// ─────────────────────────────────────────
 // FOOTER — BOTÓN ABONAR
 // ─────────────────────────────────────────
 

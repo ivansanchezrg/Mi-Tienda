@@ -2,6 +2,7 @@ import { Component, inject, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AlertController, IonicModule, ModalController, NavController } from '@ionic/angular';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Subscription } from 'rxjs';
 import { addIcons } from 'ionicons';
 import {
@@ -34,7 +35,7 @@ import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/comp
   templateUrl: './inventario.page.html',
   styleUrls: ['./inventario.page.scss'],
   standalone: true,
-  imports: [IonicModule, CommonModule, FormsModule]
+  imports: [IonicModule, CommonModule, FormsModule, EmptyStateComponent]
 })
 export class InventarioPage extends PaginatedListPage<Producto> implements OnInit, OnDestroy {
   private inventarioService = inject(InventarioService);

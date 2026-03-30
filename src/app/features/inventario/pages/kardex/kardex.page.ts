@@ -14,6 +14,7 @@ import { KardexInventario } from '../../models/kardex.model';
 import { InventarioService } from '../../services/inventario.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { LoggerService } from '../../../../core/services/logger.service';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 type TipoAjuste = 'COMPRA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
 
@@ -22,7 +23,7 @@ type TipoAjuste = 'COMPRA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
     templateUrl: './kardex.page.html',
     styleUrls: ['./kardex.page.scss'],
     standalone: true,
-    imports: [IonicModule, CommonModule, FormsModule]
+    imports: [IonicModule, CommonModule, FormsModule, EmptyStateComponent]
 })
 export class KardexPage implements OnInit {
     private navCtrl = inject(NavController);

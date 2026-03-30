@@ -26,6 +26,7 @@ import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { VentasTabsComponent } from '../../components/ventas-tabs/ventas-tabs.component';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 @Component({
     selector: 'app-ventas-resumen',
@@ -37,7 +38,8 @@ import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/comp
         IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
         IonContent, IonRefresher, IonRefresherContent,
         IonSkeletonText, IonIcon,
-        VentasTabsComponent
+        VentasTabsComponent,
+        EmptyStateComponent
     ]
 })
 export class VentasResumenPage implements OnInit {

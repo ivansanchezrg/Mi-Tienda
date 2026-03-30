@@ -75,14 +75,17 @@
           }
         </ion-card>
       } @else {
-        <div class="empty-state">
-          @if (tipo === 'CELULAR') {
-            <ion-icon name="phone-portrait-outline"></ion-icon>
-          } @else {
-            <ion-icon name="bus-outline"></ion-icon>
-          }
-          <p>Sin movimientos registrados</p>
-        </div>
+        @if (tipo === 'CELULAR') {
+        <app-empty-state
+          icon="phone-portrait-outline"
+          hint="Sin movimientos registrados">
+        </app-empty-state>
+        } @else {
+        <app-empty-state
+          icon="bus-outline"
+          hint="Sin movimientos registrados">
+        </app-empty-state>
+        }
       }
 
     </div>
