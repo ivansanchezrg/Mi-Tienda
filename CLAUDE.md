@@ -53,7 +53,7 @@ src/app/
 │   └── utils/             # date.util.ts, cedula.util.ts
 ├── features/              # Módulos (cada uno tiene pages/, services/, models/, components/)
 ├── shared/
-│   ├── components/        # sidebar, under-construction, options-menu, options-modal
+│   ├── components/        # sidebar, under-construction, options-menu, options-modal, empty-state
 │   ├── directives/        # currency-input, numbers-only, scroll-reset
 │   └── pages/             # paginated-list.page.ts (clase base listas paginadas)
 └── environments/
@@ -253,6 +253,28 @@ const modal = await this.modalCtrl.create({
 ```
 
 > **Excepción**: `<select>` nativo de HTML sigue siendo válido **dentro de formularios** (`FormGroup`) donde se necesita binding directo con `formControlName` y no justifica abrir un modal (ej: campo de categoría en formulario de producto). En estos casos usar `<select>` con estilos custom.
+
+### `EmptyStateComponent` — estado vacío de listas
+
+Ubicación: `shared/components/empty-state/`. Usar siempre que una lista no tenga ítems que mostrar.
+
+```html
+<app-empty-state
+  icon="cart-outline"
+  title="Sin ventas"
+  hint="Las ventas del día aparecerán aquí.">
+</app-empty-state>
+```
+
+| `@Input()`  | Tipo     | Descripción |
+| ----------- | -------- | ----------- |
+| `icon`      | `string` | Nombre del icono Ionicons (requerido) |
+| `title`     | `string?` | Título principal (opcional) |
+| `hint`      | `string?` | Texto descriptivo secundario (opcional) |
+
+- Estilos encapsulados en el componente — **no agregar `.empty-state` en el SCSS de la página**
+- Para estados vacíos dentro de modales o contenedores pequeños: `style="min-height: auto"` inline
+- Los iconos usados frecuentemente ya están registrados en el componente. Si necesitas uno nuevo, agrégalo en `empty-state.component.ts`
 
 ### Loading + Pull-to-Refresh sin doble spinner
 ```typescript
@@ -611,7 +633,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Clientes            | `docs/clientes/CLIENTES-README.md`                         |
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
 | Sistema de diseño   | `docs/DESIGN.md`                                           |
-| Shared              | `docs/shared/README.md`                                    |
+| Shared              | `docs/shared/SHARED-README.md`                             |
 | Estructura/Patrones | `docs/ESTRUCTURA-PROYECTO.md`                              |
 | Schema BD           | `docs/schema.sql`                                          |
 | Configuracion       | `docs/configuracion/CONFIGURACION-README.md`               |

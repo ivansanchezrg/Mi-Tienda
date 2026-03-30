@@ -56,11 +56,11 @@
 
   <!-- Lista vacia -->
   @else if (cuentas.length === 0) {
-  <div class="empty-state">
-    <ion-icon name="hand-right-outline" class="empty-icon"></ion-icon>
-    <p class="empty-title">Sin deudas pendientes</p>
-    <p class="empty-hint">No hay clientes con ventas fiadas por cobrar</p>
-  </div>
+  <app-empty-state
+    icon="hand-right-outline"
+    title="Sin deudas pendientes"
+    hint="No hay clientes con ventas fiadas por cobrar">
+  </app-empty-state>
   }
 
   <!-- Lista de clientes con deuda -->

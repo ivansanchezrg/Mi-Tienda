@@ -66,6 +66,45 @@ onMenuOption(opt: MenuOption) {
 
 ---
 
+### `app-empty-state` — Estado vacío de listas
+
+**Archivo:** `components/empty-state/`
+
+Placeholder estándar para cuando una lista no tiene ítems. Centraliza el diseño (ícono + título + hint) en un solo lugar.
+
+#### API
+
+| Propiedad | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `[icon]` | `string` | ✅ | Nombre del icono Ionicons |
+| `[title]` | `string` | — | Título principal |
+| `[hint]` | `string` | — | Texto descriptivo secundario |
+
+#### Ejemplo de uso
+
+```html
+<app-empty-state
+  icon="cart-outline"
+  title="Sin ventas"
+  hint="Las ventas del día aparecerán aquí.">
+</app-empty-state>
+
+<!-- Con valores dinámicos -->
+<app-empty-state
+  icon="person-outline"
+  [title]="busqueda ? 'Sin resultados' : 'No hay clientes'"
+  [hint]="busqueda ? 'Intenta con otro término.' : 'Agrega el primero con el botón +'">
+</app-empty-state>
+
+<!-- Dentro de modal o contenedor pequeño -->
+<app-empty-state icon="document-text-outline" hint="Sin movimientos" style="min-height: auto">
+</app-empty-state>
+```
+
+> **Regla:** No agregar `.empty-state` en el SCSS de la página — los estilos están encapsulados en el componente.
+
+---
+
 ### `app-under-construction` — Módulo en construcción
 
 **Archivo:** `components/under-construction/`

@@ -23,6 +23,7 @@ import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { Cliente } from '../../models/cliente.model';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { EditarClienteModalComponent } from '../../components/editar-cliente-modal/editar-cliente-modal.component';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 @Component({
     selector: 'app-clientes-listado',
@@ -37,7 +38,8 @@ import { EditarClienteModalComponent } from '../../components/editar-cliente-mod
         IonList, IonItem, IonLabel,
         IonSearchbar, IonSkeletonText,
         IonInfiniteScroll, IonInfiniteScrollContent,
-        IonFab, IonFabButton, IonButton
+        IonFab, IonFabButton, IonButton,
+        EmptyStateComponent
     ]
 })
 export class ClientesListadoPage extends PaginatedListPage<Cliente> implements OnInit, OnDestroy {

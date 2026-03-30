@@ -19,11 +19,6 @@
       <div class="metodos-section">
         <span class="metodos-label">Método de pago</span>
 
-        <button class="metodo-btn" (click)="seleccionarMetodo('EFECTIVO')">
-          <ion-icon name="cash-outline"></ion-icon>
-          <span>Efectivo</span>
-        </button>
-
         <button class="metodo-btn" (click)="seleccionarMetodo('DEUNA')">
           <ion-icon name="card-outline"></ion-icon>
           <span>Tarjeta / DeUna</span>
@@ -94,10 +89,12 @@
       }
 
       <div class="acciones">
-        <ion-button expand="block" fill="outline" color="medium" (click)="volverAMetodos()">
-          <ion-icon name="arrow-back-outline" slot="start"></ion-icon>
-          Atrás
-        </ion-button>
+        @if (!iniciarEnEfectivo) {
+          <ion-button expand="block" fill="outline" color="medium" (click)="volverAMetodos()">
+            <ion-icon name="arrow-back-outline" slot="start"></ion-icon>
+            Atrás
+          </ion-button>
+        }
         <ion-button expand="block" color="primary" [disabled]="!montoValido" (click)="confirmarEfectivo()">
           <ion-icon name="checkmark-outline" slot="start"></ion-icon>
           Cobrar

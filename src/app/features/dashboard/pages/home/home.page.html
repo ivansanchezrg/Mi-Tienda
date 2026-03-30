@@ -26,17 +26,16 @@
   </ion-refresher>
 
   <div class="status-container">
-    <div class="flat-chip" [ngClass]="estadoCaja.estado">
+    <button class="flat-chip" [ngClass]="estadoCaja.estado" (click)="onChipTurnoClick()">
       <div class="dot"></div>
       <span class="label">
         {{ estadoCaja.estado === 'TURNO_EN_CURSO' ? 'Caja Abierta' : 'Caja Cerrada' }}
       </span>
       @if (estadoCaja.estado === 'TURNO_EN_CURSO') {
-      <span class="time">
-        • {{ estadoCaja.horaApertura }}
-      </span>
+        <span class="time">• {{ estadoCaja.horaApertura }}</span>
       }
-    </div>
+      <ion-icon name="chevron-forward" class="chip-chevron"></ion-icon>
+    </button>
   </div>
 
   <div class="hero-section">
@@ -54,7 +53,6 @@
 
   <div class="section-title">
     <h2>Cuentas</h2>
-    <span class="section-subtitle">Último cierre: {{ fechaUltimoCierre }}</span>
   </div>
 
   <div class="modern-list">
@@ -88,7 +86,7 @@
         </div>
         <div class="content">
           <span class="title">{{ cajaNombreFor('CAJA_CHICA') }}</span>
-          <span class="subtitle">Cajón diario</span>
+          <span class="subtitle">Cierre: {{ fechaUltimoCierre }}</span>
         </div>
       </div>
       <div class="amount-group">
@@ -188,45 +186,4 @@
     </div>
   </div>
 
-  <div class="action-footer-card" [ngClass]="estadoCaja.estado" [class.ajeno]="cajaAbierta && !esMiTurno">
-
-    @if (esMiTurno) {
-    <!-- Mi turno: puedo cerrarlo -->
-    <div class="info">
-      <h3>Turno Activo</h3>
-      <p>Caja Chica abierta · Ventas POS habilitadas</p>
-    </div>
-    <ion-button fill="clear" class="btn-action danger" (click)="onCerrarCaja()">
-      Cerrar Turno
-    </ion-button>
-
-    } @else if (cajaAbierta) {
-    <!-- Turno de otro empleado: solo informativo -->
-    <div class="info">
-      <h3>Turno en Progreso</h3>
-      <p>Caja Chica abierta por {{ estadoCaja.empleadoNombre }}</p>
-    </div>
-
-    } @else if (estadoCaja.estado === 'CERRADA') {
-    <!-- Ya hubo turno hoy pero está cerrado -->
-    <div class="info">
-      <h3>Turno Cerrado</h3>
-      <p>Caja Chica cerrada · Ventas POS deshabilitadas</p>
-    </div>
-    <ion-button fill="solid" color="dark" class="btn-action" (click)="onAbrirCaja()">
-      Abrir Caja Chica
-    </ion-button>
-
-    } @else {
-    <!-- Sin turno hoy -->
-    <div class="info">
-      <h3>Sin Turno Hoy</h3>
-      <p>Abre Caja Chica para habilitar ventas POS</p>
-    </div>
-    <ion-button fill="solid" color="dark" class="btn-action" (click)="onAbrirCaja()">
-      Abrir Caja Chica
-    </ion-button>
-    }
-
-  </div>
 </ion-content>

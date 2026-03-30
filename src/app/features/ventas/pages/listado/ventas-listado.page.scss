@@ -227,48 +227,6 @@ ion-content {
     min-height: 40vh;
 }
 
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    min-height: 55vh;
-    padding: var(--spacing-xl, 24px);
-
-    .empty-icon-wrap {
-        width: 96px;
-        height: 96px;
-        border-radius: 50%;
-        background: rgba(var(--ion-color-primary-rgb), 0.08);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: var(--spacing-lg, 20px);
-
-        ion-icon {
-            font-size: 52px;
-            color: var(--ion-color-primary);
-            opacity: 0.5;
-        }
-    }
-
-    h2 {
-        font-size: 20px;
-        font-weight: 700;
-        color: var(--ion-color-medium);
-        margin: 0 0 var(--spacing-sm, 8px) 0;
-    }
-
-    p {
-        font-size: 14px;
-        color: var(--ion-color-medium);
-        max-width: 260px;
-        line-height: 1.5;
-        margin: 0;
-    }
-}
-
 // ─────────────────────────────────────────
 // LISTA DE VENTAS
 // ─────────────────────────────────────────

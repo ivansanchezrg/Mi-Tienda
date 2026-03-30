@@ -169,7 +169,7 @@ npx cap run android    # Instala el APK en el dispositivo conectado
 | Ventas             | [VENTAS-README.md](docs/ventas/VENTAS-README.md)                                    |
 | Cuentas por Cobrar | [CUENTAS-COBRAR-README.md](docs/cuentas-cobrar/CUENTAS-COBRAR-README.md)            |
 | Clientes           | [CLIENTES-README.md](docs/clientes/CLIENTES-README.md)                              |
-| Shared             | [README.md](docs/shared/README.md)                                                  |
+| Shared             | [SHARED-README.md](docs/shared/SHARED-README.md)                                    |
 | Arquitectura cajas | [ARQUITECTURA.md](docs/ARQUITECTURA.md)                                             |
 
 ---

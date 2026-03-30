@@ -30,6 +30,7 @@ export class CobrarModalComponent {
     @Input() descuentoPct = 0;
     @Input() totalArticulos!: number;
     @Input() esConsumidorFinal = false;
+    @Input() iniciarEnEfectivo = false;
 
     public currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
@@ -37,6 +38,13 @@ export class CobrarModalComponent {
     paso: Paso = 'metodo';
     metodoSeleccionado: MetodoPago | null = null;
     montoRecibido: string = '';
+
+    ngOnInit() {
+        if (this.iniciarEnEfectivo) {
+            this.metodoSeleccionado = 'EFECTIVO';
+            this.paso = 'monto';
+        }
+    }
 
     constructor() {
         addIcons({

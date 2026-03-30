@@ -10,6 +10,7 @@ import {
 import { addIcons } from 'ionicons';
 import { addOutline, personOutline } from 'ionicons/icons';
 import { UsuarioService } from '../../services/usuario.service';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Usuario } from '../../models/usuario.model';
 import { UiService } from '@core/services/ui.service';
 
@@ -23,7 +24,8 @@ import { UiService } from '@core/services/ui.service';
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton, IonIcon, IonSkeletonText,
     IonFab, IonFabButton,
-    IonRefresher, IonRefresherContent
+    IonRefresher, IonRefresherContent,
+    EmptyStateComponent
   ]
 })
 export class ListPage implements OnInit {

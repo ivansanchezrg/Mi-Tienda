@@ -107,11 +107,11 @@
             <p class="mt-md text-muted">Cargando auditoría de inventario...</p>
         </div>
         } @else if (kardex.length === 0) {
-        <div class="empty-state text-center p-xl mt-xl">
-            <ion-icon name="document-text-outline" color="medium" style="font-size: 64px;"></ion-icon>
-            <h2 class="text-secondary mt-md">Sin Movimientos</h2>
-            <p class="text-muted">Este producto no registra actividad en su Kárdex todavía.</p>
-        </div>
+        <app-empty-state
+            icon="document-text-outline"
+            title="Sin Movimientos"
+            hint="Este producto no registra actividad en su Kárdex todavía.">
+        </app-empty-state>
         } @else {
         <div class="timeline p-sm">
             @for (mov of kardex; track mov.id) {

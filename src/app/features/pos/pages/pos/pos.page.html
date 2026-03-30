@@ -37,7 +37,7 @@
           <ion-icon [name]="modoBusqueda === 'codigo' ? 'barcode-outline' : 'search-outline'"
             color="primary"></ion-icon>
         </button>
-        <input class="search-input"
+        <input class="search-input" #searchInput
           [(ngModel)]="buscarTexto"
           [placeholder]="modoBusqueda === 'codigo' ? 'Buscar por código...' : 'Buscar por nombre...'"
           [inputMode]="modoBusqueda === 'codigo' ? 'numeric' : 'text'"
@@ -56,24 +56,27 @@
       </div>
     </div>
 
-    <!-- Fila cliente — inline, misma línea visual que el desglose IVA -->
+    <!-- Fila cliente — solo el botón > abre el modal -->
     <div class="cliente-header-row"
-      [class.cliente-header-row--requerido]="tipoComprobante === TipoComprobante.FACTURA && clienteSeleccionado?.es_consumidor_final"
-      (click)="abrirSelectorCliente()">
+      [class.cliente-header-row--requerido]="tipoComprobante === TipoComprobante.FACTURA && clienteSeleccionado?.es_consumidor_final">
       <span class="chr-label">
         <ion-icon name="person-outline"></ion-icon>
         Cliente
       </span>
-      <span class="chr-value" [class.chr-value--error]="errorCliente">
+      <span class="chr-value">
         @if (cargandoCliente) {
           <ion-spinner name="crescent" style="width:14px;height:14px;"></ion-spinner>
         } @else if (errorCliente) {
-          <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
-          <span>Error — toca para reintentar</span>
-          <ion-icon name="refresh-outline" color="danger"></ion-icon>
+          <button class="chr-action-btn" (click)="abrirSelectorCliente()">
+            <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+            <span>Error — reintentar</span>
+            <ion-icon name="refresh-outline" color="danger"></ion-icon>
+          </button>
         } @else {
-          {{ clienteSeleccionado?.nombre || 'Consumidor Final' }}
-          <ion-icon name="chevron-forward-outline"></ion-icon>
+          <span class="chr-nombre">{{ clienteSeleccionado?.nombre || 'Consumidor Final' }}</span>
+          <button class="chr-action-btn" (click)="abrirSelectorCliente()">
+            <ion-icon name="chevron-forward-outline"></ion-icon>
+          </button>
         }
       </span>
     </div>
@@ -153,11 +156,11 @@
 
     @if (carrito.length === 0) {
     <!-- Estado vacío del carrito -->
-    <div class="empty-state">
-      <ion-icon name="cart-outline" class="empty-icon"></ion-icon>
-      <p class="empty-title">Sin productos</p>
-      <p class="empty-hint">Escanea un código o busca por nombre para agregar productos</p>
-    </div>
+    <app-empty-state
+      icon="cart-outline"
+      title="Sin productos"
+      hint="Escanea un código o busca por nombre para agregar productos">
+    </app-empty-state>
     } @else {
     <!-- Lista del Carrito -->
     <ion-list class="cart-list" lines="none">
@@ -219,8 +222,8 @@
 
   </div>
 
-  <!-- Botón escáner — esquina inferior derecha del content -->
-  <button class="scanner-corner-btn" [class.scanner-corner-btn--no-footer]="carrito.length === 0" (click)="abrirEscanerCamara()">
+  <!-- Botón escáner — esquina inferior derecha, anclado sobre el footer -->
+  <button class="scanner-corner-btn" slot="fixed" (click)="abrirEscanerCamara()">
     <ion-icon name="barcode-outline"></ion-icon>
   </button>
 
@@ -291,11 +294,17 @@
         <span class="total-amount">${{ currencyService.format(totalPagar) }}</span>
       </div>
 
-      <ion-button expand="block" shape="round" color="primary" class="btn-charge" (click)="cobrar()"
-        [disabled]="carrito.length === 0 || cobroEnProceso">
-        <ion-icon name="cash-outline" slot="start"></ion-icon>
-        Cobrar
-      </ion-button>
+      <div class="btn-charge-row">
+        <ion-button expand="block" color="primary" class="btn-charge-main" (click)="cobrarEfectivo()"
+          [disabled]="carrito.length === 0 || cobroEnProceso">
+          <ion-icon name="cash-outline" slot="start"></ion-icon>
+          Cobrar en Efectivo
+        </ion-button>
+        <ion-button color="primary" fill="outline" class="btn-charge-other" (click)="cobrar()"
+          [disabled]="carrito.length === 0 || cobroEnProceso">
+          <ion-icon name="ellipsis-horizontal-outline" slot="icon-only"></ion-icon>
+        </ion-button>
+      </div>
 
     </div>
   </ion-footer>

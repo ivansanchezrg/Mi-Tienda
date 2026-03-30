@@ -151,18 +151,12 @@ ion-toolbar {
         }
     }
 
-    // ── Fila cliente inline — mismo estilo que desglose IVA ──
+    // ── Fila cliente inline — solo el botón > es tappable ──
     .cliente-header-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 15px var(--spacing-md) 10px;
-        cursor: pointer;
-        transition: opacity var(--transition-fast);
-
-        &:active {
-            opacity: 0.55;
-        }
 
         .chr-label {
             display: flex;
@@ -171,9 +165,7 @@ ion-toolbar {
             font-size: 13px;
             color: var(--ion-color-medium);
 
-            ion-icon {
-                font-size: 14px;
-            }
+            ion-icon { font-size: 14px; }
         }
 
         .chr-value {
@@ -183,15 +175,37 @@ ion-toolbar {
             font-size: 13px;
             font-weight: var(--font-weight-semibold);
             color: var(--ion-text-color);
+        }
+
+        .chr-nombre {
+            max-width: 160px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chr-action-btn {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            background: var(--ion-color-step-100);
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+            color: var(--ion-color-medium);
+            border-radius: var(--radius-pill);
 
             ion-icon {
-                font-size: 14px;
-                color: var(--ion-color-medium);
+                font-size: 16px;
+                color: var(--ion-color-primary);
+            }
+
+            &:active {
+                opacity: 0.6;
             }
         }
 
         &.cliente-header-row--requerido {
-
             .chr-label,
             .chr-value,
             ion-icon {
@@ -256,43 +270,6 @@ ion-toolbar {
     }
 }
 
-// ─────────────────────────────────────────
-// ESTADO VACÍO
-// ─────────────────────────────────────────
-
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    min-height: 60vh;
-    padding: var(--spacing-xl);
-    gap: var(--spacing-xs);
-
-    .empty-icon {
-        font-size: 64px;
-        color: var(--ion-color-primary);
-        opacity: 0.18;
-        margin-bottom: var(--spacing-sm);
-    }
-
-    .empty-title {
-        font-size: 17px;
-        font-weight: 700;
-        color: var(--ion-text-color);
-        opacity: 0.4;
-        margin: 0;
-    }
-
-    .empty-hint {
-        font-size: 13px;
-        color: var(--ion-color-medium);
-        max-width: 220px;
-        line-height: 1.4;
-        margin: 0;
-    }
-}
 
 // ─────────────────────────────────────────
 // LISTA DE CARRITO
@@ -668,9 +645,9 @@ ion-toolbar {
 // ─────────────────────────────────────────
 
 .scanner-corner-btn {
-    position: fixed;
-    // Dentro de tabs: tab bar ya maneja safe-area, no sumar env()
-    bottom: calc(110px + var(--spacing-xs));
+    // slot="fixed" — Ionic calcula el bottom automáticamente sobre footer + tab bar
+    position: absolute;
+    bottom: var(--spacing-md);
     right: var(--spacing-sm);
     background: var(--ion-item-background);
     border: 1px solid var(--ion-color-step-150);
@@ -693,11 +670,6 @@ ion-toolbar {
     &:active {
         color: var(--ion-color-primary);
     }
-
-    // Sin footer → justo encima del tab bar
-    &.scanner-corner-btn--no-footer {
-        bottom: var(--spacing-md);
-    }
 }
 
 // ─────────────────────────────────────────
@@ -710,24 +682,6 @@ ion-toolbar {
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
     // Dentro de tabs: ion-tab-bar ya maneja safe-area-inset-bottom
     padding-bottom: var(--spacing-md);
-
-    // ── Chip de tipo de comprobante ──
-    .comprobante-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        padding: 4px 10px;
-        border-radius: var(--radius-pill);
-        background: var(--ion-color-step-100);
-        border: 1px solid var(--ion-color-step-150);
-        font-size: 11px;
-        font-weight: var(--font-weight-semibold);
-        color: var(--ion-color-medium);
-
-        ion-icon {
-            font-size: 13px;
-        }
-    }
 
     .breakdown {
         margin-bottom: var(--spacing-md);
@@ -829,13 +783,32 @@ ion-toolbar {
     }
 
 
-    .btn-charge {
+    .btn-charge-row {
+        display: flex;
+        gap: var(--spacing-xs);
+        margin-top: var(--spacing-sm);
+    }
+
+    .btn-charge-main {
         --border-radius: var(--radius-md);
         font-weight: var(--font-weight-bold);
-        font-size: 17px;
-        margin: 0;
+        font-size: 16px;
         height: 54px;
+        flex: 1;
+        margin: 0;
         letter-spacing: 0.3px;
+    }
+
+    .btn-charge-other {
+        --border-radius: var(--radius-md);
+        height: 54px;
+        width: 54px;
+        margin: 0;
+        flex-shrink: 0;
+
+        ion-icon {
+            font-size: 20px;
+        }
     }
 }
 

@@ -11,7 +11,8 @@ import {
   walletOutline, cashOutline, phonePortraitOutline, busOutline,
   chevronForward, notificationsOutline, cloudOfflineOutline,
   alertCircleOutline, eyeOutline, eyeOffOutline,
-  arrowUpOutline, arrowDownOutline
+  arrowUpOutline, arrowDownOutline,
+  lockClosedOutline, lockOpenOutline
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
@@ -30,6 +31,7 @@ import { NotificacionesModalComponent } from '../../components/notificaciones-mo
 import { VerificarFondoModalComponent } from '../../components/verificar-fondo-modal/verificar-fondo-modal.component';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
+import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 
 @Component({
   selector: 'app-home',
@@ -140,7 +142,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       walletOutline, cashOutline, phonePortraitOutline, busOutline,
       chevronForward, notificationsOutline, cloudOfflineOutline,
       alertCircleOutline, eyeOutline, eyeOffOutline,
-      arrowUpOutline, arrowDownOutline
+      arrowUpOutline, arrowDownOutline,
+      lockClosedOutline, lockOpenOutline
     });
   }
 
@@ -306,6 +309,72 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       data.cajaId, tipo, data.categoriaId, data.monto, data.descripcion, data.fotoComprobante
     );
     if (success) await this.cargarDatos();
+  }
+
+  async onChipTurnoClick() {
+    if (this.esMiTurno) {
+      // Mi turno — mostrar info + opción de cerrar
+      const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
+      const groups: ModalOptionGroup[] = [{
+        options: [
+          { label: 'Cerrar Turno', icon: 'lock-closed-outline', value: 'cerrar', color: 'danger' }
+        ]
+      }];
+      const modal = await this.modalCtrl.create({
+        component: OptionsModalComponent,
+        componentProps: {
+          title: 'Turno Activo',
+          subtitle: `${cajaNombre} abierto · Ventas POS habilitadas · Desde ${this.estadoCaja.horaApertura}`,
+          groups
+        },
+        cssClass: 'options-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1
+      });
+      await modal.present();
+      const { data } = await modal.onDidDismiss();
+      if (data === 'cerrar') await this.onCerrarCaja();
+
+    } else if (this.cajaAbierta) {
+      // Turno ajeno — solo informativo, sin opciones
+      const nombre = this.estadoCaja.empleadoNombre || 'otro empleado';
+      const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
+      const modal = await this.modalCtrl.create({
+        component: OptionsModalComponent,
+        componentProps: {
+          title: 'Turno en Progreso',
+          subtitle: `${cajaNombre} abierto por ${nombre} · Solo ese empleado puede registrar movimientos`,
+          groups: []
+        },
+        cssClass: 'options-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1
+      });
+      await modal.present();
+
+    } else {
+      // Sin turno — mostrar info + opción de abrir
+      const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
+      const groups: ModalOptionGroup[] = [{
+        options: [
+          { label: 'Abrir Turno', icon: 'lock-open-outline', value: 'abrir' }
+        ]
+      }];
+      const modal = await this.modalCtrl.create({
+        component: OptionsModalComponent,
+        componentProps: {
+          title: 'Caja Cerrada',
+          subtitle: `${cajaNombre} sin turno activo · Ventas POS deshabilitadas`,
+          groups
+        },
+        cssClass: 'options-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1
+      });
+      await modal.present();
+      const { data } = await modal.onDidDismiss();
+      if (data === 'abrir') await this.onAbrirCaja();
+    }
   }
 
   async onAbrirCaja() {

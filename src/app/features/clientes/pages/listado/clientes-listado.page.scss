@@ -77,30 +77,6 @@
     }
 }
 
-// ── Empty state ─────────────────────────────────
-.empty-state {
-    text-align: center;
-    padding: var(--spacing-3xl) var(--spacing-xl);
-
-    ion-icon {
-        font-size: 64px;
-    }
-
-    h2 {
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--ion-color-medium);
-        margin: var(--spacing-md) 0 var(--spacing-sm);
-    }
-
-    p {
-        font-size: 14px;
-        color: var(--ion-color-medium);
-        margin: 0;
-        line-height: 1.5;
-    }
-}
-
 // ── Scroll to top FAB ───────────────────────────
 .scroll-top-fab {
     margin-bottom: env(safe-area-inset-bottom);
