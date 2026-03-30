@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
 import { UiService } from '@core/services/ui.service';
+import { ConfigService } from '@core/services/config.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
 import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
@@ -12,17 +13,14 @@ export class TurnosCajaService {
   private supabase = inject(SupabaseService);
   private authService = inject(AuthService);
   private ui = inject(UiService);
+  private configService = inject(ConfigService);
 
   /**
-   * Obtiene el fondo fijo diario desde configuraciones
+   * Obtiene el fondo fijo diario desde configuraciones (usa caché)
    */
   async obtenerFondoFijo(): Promise<number> {
-    const config = await this.supabase.client
-      .from('configuraciones')
-      .select('fondo_fijo_diario')
-      .single();
-
-    return config.data?.fondo_fijo_diario ?? 40.00;
+    const config = await this.configService.get();
+    return config.caja_fondo_fijo_diario;
   }
 
   /**
@@ -57,7 +55,7 @@ export class TurnosCajaService {
     if (!empleado) return false;
 
     const response = await this.supabase.call(
-      this.supabase.client.rpc('abrir_turno', {
+      this.supabase.client.rpc('fn_abrir_turno', {
         p_empleado_id: empleado.id
       }),
       undefined,
@@ -102,9 +100,9 @@ export class TurnosCajaService {
     const fechaLocalCierre = `${anio}-${mes}-${dia}`;
 
     // 3. Verificar si VARIOS recibió su transferencia ese día en paralelo con config
-    const [variosRes, configRes] = await Promise.all([
+    const [variosRes, config] = await Promise.all([
       this.supabase.client.from('cajas').select('id').eq('codigo', 'VARIOS').single(),
-      this.supabase.client.from('configuraciones').select('fondo_fijo_diario, varios_transferencia_diaria').single()
+      this.configService.get()
     ]);
 
     if (!variosRes.data) return null;
@@ -146,10 +144,10 @@ export class TurnosCajaService {
 
     const deficitVarios = variosYaCobro
       ? 0
-      : (configRes.data?.varios_transferencia_diaria ?? 0);
+      : config.caja_varios_transferencia_dia;
 
     const fondoFaltante = ultimoTurno.fondo_cubierto === false
-      ? (configRes.data?.fondo_fijo_diario ?? 0)
+      ? config.caja_fondo_fijo_diario
       : 0;
 
     // Solo hay déficit si al menos uno de los dos montos es positivo
@@ -186,7 +184,7 @@ export class TurnosCajaService {
     }
 
     const response = await this.supabase.call(
-      this.supabase.client.rpc('reparar_deficit_turno', {
+      this.supabase.client.rpc('fn_reparar_deficit_turno', {
         p_empleado_id: empleado.id,
         p_deficit_varios: deficitVarios,
         p_fondo_faltante: fondoFaltante,
@@ -261,6 +259,28 @@ export class TurnosCajaService {
       .reduce((sum: number, o: any) => sum + (o.monto ?? 0), 0);
 
     return { ventasPosEfectivo, egresos };
+  }
+
+  /**
+   * Obtiene los turnos de una fecha específica (para selector en ventas).
+   * Incluye nombre del empleado. Ordenados por numero_turno ASC.
+   * @param fecha 'YYYY-MM-DD' — si no se pasa, usa la fecha de hoy
+   */
+  async obtenerTurnosDeFecha(fecha?: string): Promise<TurnoCajaConEmpleado[]> {
+    const fechaLocal = fecha ?? getFechaLocal();
+    const inicioDia = new Date(`${fechaLocal}T00:00:00`).toISOString();
+    const finDia = getInicioDiaSiguienteDeISO(fechaLocal);
+
+    const turnos = await this.supabase.call<TurnoCajaConEmpleado[]>(
+      this.supabase.client
+        .from('turnos_caja')
+        .select('*, empleado:usuarios(id, nombre)')
+        .gte('hora_fecha_apertura', inicioDia)
+        .lt('hora_fecha_apertura', finDia)
+        .order('numero_turno', { ascending: true })
+    );
+
+    return turnos ?? [];
   }
 
   /**

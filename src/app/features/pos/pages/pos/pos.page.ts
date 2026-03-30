@@ -6,14 +6,14 @@ import {
   IonButtons, IonMenuButton, IonButton, IonIcon,
   IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
   IonItemSliding, IonItemOptions, IonItemOption,
+  IonRefresher, IonRefresherContent,
   AlertController, ModalController, ViewDidLeave, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline } from 'ionicons/icons';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
-import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
 import { Producto, ProductoPOS } from '../../../inventario/models/producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -23,9 +23,12 @@ import { CartItem } from '../../models/cart-item.model';
 import { ClientesService } from '../../../clientes/services/clientes.service';
 import { Cliente } from '../../../clientes/models/cliente.model';
 import { SeleccionarClienteModalComponent } from '../../../clientes/components/seleccionar-cliente-modal/seleccionar-cliente-modal.component';
+import { CobrarModalComponent } from '../../components/cobrar-modal/cobrar-modal.component';
 import { NetworkService } from '../../../../core/services/network.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
+import { ConfigService } from '../../../../core/services/config.service';
+import { Configuracion } from '../../../configuracion/models/configuracion.model';
 
 @Component({
   selector: 'app-pos',
@@ -37,6 +40,7 @@ import { StorageService } from '../../../../core/services/storage.service';
     IonButtons, IonMenuButton, IonButton, IonIcon,
     IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
     IonItemSliding, IonItemOptions, IonItemOption,
+    IonRefresher, IonRefresherContent,
     CommonModule, FormsModule,
     OptionsMenuComponent
   ]
@@ -55,6 +59,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private network = inject(NetworkService);
   private logger = inject(LoggerService);
   public storageService = inject(StorageService);
+  private configService = inject(ConfigService);
 
   // Exponer enum al template (para el @if de mostrarDesglose)
   readonly TipoComprobante = TipoComprobante;
@@ -97,6 +102,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   // AudioContext reutilizable para beep
   private audioCtx: AudioContext | null = null;
 
+  // Configuración de descuentos (cargada una vez al init)
+  private appConfig: Configuracion | null = null;
+
   // Control de página activa (Ionic cachea páginas)
   private paginaActiva = true;
 
@@ -107,12 +115,19 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       cubeOutline, searchOutline, addCircleOutline,
       cardOutline, phonePortraitOutline, handRightOutline,
       receiptOutline, documentTextOutline, documentOutline,
-      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline
+      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline
     });
   }
 
   async ngOnInit() {
-    await this.cargarCliente();
+    await Promise.all([
+      this.cargarCliente(),
+      this.cargarConfig()
+    ]);
+  }
+
+  private async cargarConfig() {
+    this.appConfig = await this.configService.get();
   }
 
   async cargarCliente() {
@@ -136,29 +151,81 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     return this.carrito.reduce((sum, item) => sum + item.cantidad, 0);
   }
 
-  /**
-   * Total a cobrar = suma de subtotales.
-   * precio_venta YA incluye IVA → precio final al cliente.
-   */
-  get totalPagar(): number {
+  /** Subtotal bruto = suma de subtotales del carrito (sin descuento). */
+  get subtotalBruto(): number {
     return this.carrito.reduce((sum, item) => sum + item.subtotal, 0);
   }
 
-  // ── Getters de desglose fiscal (solo visibles en FACTURA) ────────────────
-
-  /** Base gravada 0% (productos sin IVA) */
-  get baseIva0(): number {
-    return this.carrito
-      .filter(i => !i.tiene_iva)
-      .reduce((sum, i) => sum + i.subtotal, 0);
+  /**
+   * Descuento automático: se aplica si está habilitado en config
+   * y el subtotal bruto supera el umbral mínimo.
+   */
+  get descuentoAplicado(): number {
+    if (!this.appConfig?.pos_descuentos_habilitados) return 0;
+    if (this.subtotalBruto < this.appConfig.pos_umbral_monto_descuento) return 0;
+    const descuento = this.subtotalBruto * (this.appConfig.pos_descuento_maximo_pct / 100);
+    return Math.round(descuento * 100) / 100;
   }
 
-  /** Base gravada 15% — precio con IVA ÷ 1.15 */
+  /** Porcentaje de descuento configurado (para mostrar en el template). */
+  get descuentoPct(): number {
+    return this.appConfig?.pos_descuento_maximo_pct ?? 0;
+  }
+
+  /** Descuentos habilitados en config — controla chip en header */
+  get descuentoActivo(): boolean {
+    return !!this.appConfig?.pos_descuentos_habilitados;
+  }
+
+  /** Monto que falta para alcanzar el umbral de descuento (0 si ya lo superó o no aplica) */
+  get faltaParaDescuento(): number {
+    if (!this.descuentoActivo) return 0;
+    const umbral = this.appConfig!.pos_umbral_monto_descuento;
+    const falta = umbral - this.subtotalBruto;
+    return falta > 0 ? Math.round(falta * 100) / 100 : 0;
+  }
+
+  /** Mostrar upselling: carrito con items, cerca del umbral (falta ≤30%) pero sin alcanzarlo */
+  get mostrarUpselling(): boolean {
+    if (!this.descuentoActivo || this.carrito.length === 0) return false;
+    const umbral = this.appConfig!.pos_umbral_monto_descuento;
+    const falta = this.faltaParaDescuento;
+    return falta > 0 && falta <= umbral * 0.3;
+  }
+
+  /**
+   * Total a cobrar = subtotal bruto - descuento.
+   * precio_venta YA incluye IVA → precio final al cliente.
+   */
+  get totalPagar(): number {
+    return Math.round((this.subtotalBruto - this.descuentoAplicado) * 100) / 100;
+  }
+
+  // ── Getters de desglose fiscal (solo visibles en FACTURA) ────────────────
+  // El descuento se distribuye proporcionalmente entre base0 y base15.
+
+  /** Montos brutos por grupo IVA (antes de descuento) — uso interno */
+  private get _brutoIva0(): number {
+    return this.carrito.filter(i => !i.tiene_iva).reduce((sum, i) => sum + i.subtotal, 0);
+  }
+  private get _brutoConIva(): number {
+    return this.carrito.filter(i => i.tiene_iva).reduce((sum, i) => sum + i.subtotal, 0);
+  }
+
+  /** Factor de descuento: proporción que queda tras aplicar descuento */
+  private get _factorDescuento(): number {
+    return this.subtotalBruto > 0 ? this.totalPagar / this.subtotalBruto : 1;
+  }
+
+  /** Base gravada 0% (productos sin IVA, con descuento proporcional) */
+  get baseIva0(): number {
+    return Math.round(this._brutoIva0 * this._factorDescuento * 100) / 100;
+  }
+
+  /** Base gravada 15% — (precio con IVA × factor descuento) ÷ 1.15 */
   get baseIva15(): number {
-    const conIva = this.carrito
-      .filter(i => i.tiene_iva)
-      .reduce((sum, i) => sum + i.subtotal, 0);
-    return Math.round((conIva / 1.15) * 100) / 100;
+    const conIvaDescontado = this._brutoConIva * this._factorDescuento;
+    return Math.round((conIvaDescontado / 1.15) * 100) / 100;
   }
 
   /** IVA 15% extraído del precio (NO sumado encima) */
@@ -608,39 +675,33 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
-    // OptionsModalComponent — reemplaza ActionSheetController (no funciona en Android primera carga)
-    const groups: ModalOptionGroup[] = [{
-      options: [
-        { label: 'Efectivo', icon: 'cash-outline', value: 'EFECTIVO' },
-        { label: 'Tarjeta / DeUna', icon: 'card-outline', value: 'DEUNA' },
-        { label: 'Transferencia', icon: 'phone-portrait-outline', value: 'TRANSFERENCIA' },
-        { label: 'Fiado', icon: 'hand-right-outline', value: 'FIADO', color: 'danger' },
-      ]
-    }];
-
     const modal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
+      component: CobrarModalComponent,
       componentProps: {
-        title: `Cobrar $${this.currencyService.format(this.totalPagar)}`,
-        subtitle: `${this.totalArticulos} ${this.totalArticulos === 1 ? 'artículo' : 'artículos'}`,
-        groups
+        total: this.totalPagar,
+        subtotal: this.subtotalBruto,
+        descuento: this.descuentoAplicado,
+        descuentoPct: this.descuentoPct,
+        totalArticulos: this.totalArticulos,
+        esConsumidorFinal: !!this.clienteSeleccionado?.es_consumidor_final
       },
-      cssClass: 'options-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      backdropDismiss: false
     });
 
     await modal.present();
     const { data } = await modal.onDidDismiss();
 
-    if (data) {
-      // Validación FIADO: requiere cliente real (no Consumidor Final)
-      if (data === 'FIADO' && this.clienteSeleccionado?.es_consumidor_final) {
-        this.ui.showToast('Para venta fiada debes seleccionar un cliente', 'warning');
-        this.abrirSelectorCliente();
-        return;
-      }
-      this.ejecutarCobro(data);
+    if (!data) return;
+
+    // FIADO con consumidor final → abrir selector de cliente
+    if (data.necesitaCliente) {
+      this.ui.showToast('Para venta fiada debes seleccionar un cliente', 'warning');
+      this.abrirSelectorCliente();
+      return;
+    }
+
+    if (data.confirmado) {
+      this.ejecutarCobro(data.metodoPago);
     }
   }
 
@@ -657,10 +718,17 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       localStorage.setItem(PosPage.IDEMPOTENCY_STORAGE_KEY, idempotencyKey);
 
       // 2. Armar el payload con todos los campos fiscales correctos
+      //    FIADO no lleva descuento — son beneficios mutuamente excluyentes
+      const esFiado = metodoPago === 'FIADO';
+      const descuento = esFiado ? 0 : this.descuentoAplicado;
+      const descuentoPct = esFiado ? 0 : this.descuentoPct;
+      const totalFinal = esFiado ? this.subtotalBruto : this.totalPagar;
       const esFactura = this.tipoComprobante === TipoComprobante.FACTURA;
       const payload: VentaPayload = {
-        total:             this.totalPagar,
-        subtotal:          esFactura ? this.subtotalNeto : this.totalPagar,
+        total:             totalFinal,
+        subtotal:          esFactura ? this.subtotalNeto : this.subtotalBruto,
+        descuento,
+        descuentoPct,
         metodoPago,
         tipoComprobante:   this.tipoComprobante,
         clienteId:         this.clienteSeleccionado?.id,
@@ -721,7 +789,22 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.paginaActiva = true;
     this.productosBusqueda = [];
     this.buscarTexto = '';
-    await this.recuperarVentaPendiente();
+    await Promise.all([
+      this.recuperarVentaPendiente(),
+      this.refrescarConfig(),
+    ]);
+  }
+
+  /** Refresca config silenciosamente al volver al POS (ej: admin cambió descuentos) */
+  private async refrescarConfig() {
+    this.configService.invalidar();
+    this.appConfig = await this.configService.get();
+  }
+
+  /** Pull-to-refresh: recarga config sin perder el carrito */
+  async handleRefresh(event: CustomEvent) {
+    await this.refrescarConfig();
+    (event.target as HTMLIonRefresherElement).complete();
   }
 
   /**

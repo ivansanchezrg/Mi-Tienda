@@ -5,7 +5,7 @@ import {
   IonSpinner, IonSkeletonText, IonIcon
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { storefrontOutline, walletOutline, busOutline } from 'ionicons/icons';
+import { storefrontOutline, walletOutline, busOutline, cartOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
 import { ConfiguracionService } from '../../services/configuracion.service';
@@ -23,7 +23,7 @@ import { ConfiguracionService } from '../../services/configuracion.service';
 })
 export class ParametrosPage implements OnInit {
   constructor() {
-    addIcons({ storefrontOutline, walletOutline, busOutline });
+    addIcons({ storefrontOutline, walletOutline, busOutline, cartOutline });
   }
 
   private fb = inject(FormBuilder);
@@ -35,15 +35,16 @@ export class ParametrosPage implements OnInit {
   cargando = true;
   guardando = false;
 
-  private configuracionId = '';
-
   ngOnInit() {
     this.form = this.fb.group({
-      nombre_negocio: ['', [Validators.required, Validators.maxLength(100)]],
-      fondo_fijo_diario: [null, [Validators.required, Validators.min(0)]],
-      varios_transferencia_diaria: [null, [Validators.required, Validators.min(0)]],
+      negocio_nombre: ['', [Validators.required, Validators.maxLength(100)]],
+      caja_fondo_fijo_diario: [null, [Validators.required, Validators.min(0)]],
+      caja_varios_transferencia_dia: [null, [Validators.required, Validators.min(0)]],
       bus_alerta_saldo_bajo: [null, [Validators.required, Validators.min(0)]],
-      bus_dias_antes_facturacion: [null, [Validators.required, Validators.min(1)]]
+      bus_dias_antes_facturacion: [null, [Validators.required, Validators.min(1)]],
+      pos_descuentos_habilitados: [false],
+      pos_descuento_maximo_pct: [null, [Validators.required, Validators.min(0), Validators.max(100)]],
+      pos_umbral_monto_descuento: [null, [Validators.required, Validators.min(0)]]
     });
 
     this.cargarConfiguracion();
@@ -62,13 +63,15 @@ export class ParametrosPage implements OnInit {
     try {
       const config = await this.configuracionService.get();
       if (config) {
-        this.configuracionId = config.id;
         this.form.patchValue({
-          nombre_negocio: config.nombre_negocio,
-          fondo_fijo_diario: config.fondo_fijo_diario,
-          varios_transferencia_diaria: config.varios_transferencia_diaria,
+          negocio_nombre: config.negocio_nombre,
+          caja_fondo_fijo_diario: config.caja_fondo_fijo_diario,
+          caja_varios_transferencia_dia: config.caja_varios_transferencia_dia,
           bus_alerta_saldo_bajo: config.bus_alerta_saldo_bajo,
-          bus_dias_antes_facturacion: config.bus_dias_antes_facturacion
+          bus_dias_antes_facturacion: config.bus_dias_antes_facturacion,
+          pos_descuentos_habilitados: config.pos_descuentos_habilitados,
+          pos_descuento_maximo_pct: config.pos_descuento_maximo_pct,
+          pos_umbral_monto_descuento: config.pos_umbral_monto_descuento
         });
       }
     } catch {
@@ -86,18 +89,18 @@ export class ParametrosPage implements OnInit {
 
     this.guardando = true;
     try {
-      const updated = await this.configuracionService.update(this.configuracionId, {
-        nombre_negocio: (this.form.value.nombre_negocio ?? '').trim(),
-        fondo_fijo_diario: Number(this.form.value.fondo_fijo_diario),
-        varios_transferencia_diaria: Number(this.form.value.varios_transferencia_diaria),
+      const ok = await this.configuracionService.update({
+        negocio_nombre: (this.form.value.negocio_nombre ?? '').trim(),
+        caja_fondo_fijo_diario: Number(this.form.value.caja_fondo_fijo_diario),
+        caja_varios_transferencia_dia: Number(this.form.value.caja_varios_transferencia_dia),
         bus_alerta_saldo_bajo: Number(this.form.value.bus_alerta_saldo_bajo),
-        bus_dias_antes_facturacion: Number(this.form.value.bus_dias_antes_facturacion)
+        bus_dias_antes_facturacion: Number(this.form.value.bus_dias_antes_facturacion),
+        pos_descuentos_habilitados: !!this.form.value.pos_descuentos_habilitados,
+        pos_descuento_maximo_pct: Number(this.form.value.pos_descuento_maximo_pct),
+        pos_umbral_monto_descuento: Number(this.form.value.pos_umbral_monto_descuento)
       });
 
-      if (updated) {
-        this.configService.invalidar();
-        await this.ui.showSuccess('Parámetros guardados');
-      }
+      if (ok) this.configService.invalidar();
     } catch {
       await this.ui.showError('Error al guardar los parámetros');
     } finally {

@@ -9,6 +9,47 @@ ion-content {
     gap: var(--spacing-md);
 }
 
+// ── Selector de turno ────────────────────────────────────────────────────────
+
+.turno-bar {
+    margin-top: calc(-1 * var(--spacing-sm));
+}
+
+.turno-selector {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 6px 12px;
+    background: rgba(var(--ion-color-primary-rgb), 0.08);
+    border: 1.5px solid rgba(var(--ion-color-primary-rgb), 0.2);
+    border-radius: var(--radius-sm, 8px);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ion-color-primary);
+    cursor: pointer;
+    font-family: inherit;
+
+    ion-icon:first-child {
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+
+    span {
+        flex: 1;
+        text-align: left;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .turno-arrow {
+        font-size: 14px;
+        flex-shrink: 0;
+        opacity: 0.6;
+    }
+}
+
 // ── Fecha ─────────────────────────────────────────────────────────────────────
 
 .resumen-fecha {
@@ -19,6 +60,35 @@ ion-content {
     letter-spacing: 0.3px;
     margin: var(--spacing-xs) 0 0;
     padding-left: 2px;
+}
+
+// ── Filtros de período ────────────────────────────────────────────────────────
+
+.filter-bar {
+    display: flex;
+    gap: var(--spacing-xs);
+    background: var(--ion-item-background);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-xs);
+    box-shadow: var(--shadow-level-1);
+}
+
+.filter-tab {
+    flex: 1;
+    padding: var(--spacing-sm) var(--spacing-xs);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ion-color-medium);
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+
+    &.active {
+        background: var(--ion-color-primary);
+        color: white;
+    }
 }
 
 // ── Card base ─────────────────────────────────────────────────────────────────
@@ -70,7 +140,7 @@ ion-content {
     gap: var(--spacing-xl);
     margin-top: var(--spacing-lg);
     padding-top: var(--spacing-lg);
-    border-top: 1px solid var(--ion-color-step-100);
+    border-top: 1px solid var(--ion-color-step-150);
     width: 100%;
     justify-content: center;
 }
@@ -99,7 +169,7 @@ ion-content {
 .hero-divider {
     width: 1px;
     height: 32px;
-    background: var(--ion-color-step-150);
+    background: var(--ion-color-step-200);
 }
 
 // ── Section title ─────────────────────────────────────────────────────────────
@@ -122,7 +192,7 @@ ion-content {
     padding: var(--spacing-sm) 0;
 
     &:not(:last-child) {
-        border-bottom: 1px solid var(--ion-color-step-100);
+        border-bottom: 1px solid var(--ion-color-step-200);
     }
 }
 
@@ -193,7 +263,7 @@ ion-content {
     padding: var(--spacing-sm) 0;
 
     &:not(:last-child) {
-        border-bottom: 1px solid var(--ion-color-step-100);
+        border-bottom: 1px solid var(--ion-color-step-200);
     }
 }
 
@@ -217,8 +287,8 @@ ion-content {
 .comprobante-badge {
     font-size: 11px;
     font-weight: var(--font-weight-bold);
-    color: var(--ion-color-medium);
-    background: var(--ion-color-step-100);
+    color: var(--ion-color-step-600);
+    background: var(--ion-color-step-150);
     border-radius: var(--radius-full);
     padding: 2px 8px;
 }
@@ -227,6 +297,126 @@ ion-content {
     font-size: 14px;
     font-weight: var(--font-weight-bold);
     color: var(--ion-text-color);
+}
+
+// ── Top productos ─────────────────────────────────────────────────────────────
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+
+    ion-icon { font-size: 13px; }
+}
+
+.producto-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) 0;
+
+    &:not(:last-child) {
+        border-bottom: 1px solid var(--ion-color-step-200);
+    }
+}
+
+.producto-rank {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--ion-color-step-150);
+    color: var(--ion-color-step-600);
+    font-size: 11px;
+    font-weight: var(--font-weight-bold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.producto-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.producto-nombre {
+    font-size: 14px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.producto-sub {
+    font-size: 12px;
+    color: var(--ion-color-step-400);
+}
+
+.producto-monto {
+    font-size: 14px;
+    font-weight: var(--font-weight-bold);
+    color: var(--ion-text-color);
+    flex-shrink: 0;
+}
+
+// ── Ganancia bruta ────────────────────────────────────────────────────────────
+
+.ganancia-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.ganancia-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    &.destacado {
+        margin-top: var(--spacing-xs);
+    }
+}
+
+.ganancia-label {
+    font-size: 13px;
+    color: var(--ion-color-step-400);
+    font-weight: var(--font-weight-medium);
+}
+
+.ganancia-valor {
+    font-size: 15px;
+    font-weight: var(--font-weight-bold);
+
+    &.ingreso { color: var(--ion-text-color); }
+    &.costo   { color: var(--ion-color-medium); }
+    &.ganancia {
+        font-size: 18px;
+        color: var(--ion-color-success);
+    }
+}
+
+.ganancia-divider {
+    height: 1px;
+    background: var(--ion-color-step-200);
+    margin: var(--spacing-xs) 0;
+}
+
+.ganancia-margen {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.margen-badge {
+    font-size: 11px;
+    font-weight: var(--font-weight-bold);
+    color: var(--ion-color-success);
+    background: rgba(var(--ion-color-success-rgb), 0.10);
+    border-radius: var(--radius-pill);
+    padding: 3px 10px;
 }
 
 // ── Deuda pendiente ───────────────────────────────────────────────────────────
@@ -342,6 +532,6 @@ ion-content {
     padding: var(--spacing-sm) 0;
 
     &:not(:last-child) {
-        border-bottom: 1px solid var(--ion-color-step-100);
+        border-bottom: 1px solid var(--ion-color-step-200);
     }
 }

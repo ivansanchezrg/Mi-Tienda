@@ -44,6 +44,24 @@ ion-toolbar {
                     font-size: 11px;
                 }
             }
+
+            .descuento-chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 3px;
+                padding: 3px 8px;
+                border-radius: var(--radius-pill);
+                background: rgba(var(--ion-color-success-rgb), 0.12);
+                border: 1px solid rgba(var(--ion-color-success-rgb), 0.25);
+                font-size: 10px;
+                font-weight: 700;
+                color: var(--ion-color-success);
+                letter-spacing: 0;
+
+                ion-icon {
+                    font-size: 10px;
+                }
+            }
         }
     }
 }
@@ -747,6 +765,31 @@ ion-toolbar {
             height: 1px;
             background: var(--ion-color-step-150);
             margin: var(--spacing-xs) 0;
+        }
+    }
+
+    // Upselling — falta poco para el descuento
+    .upselling-hint {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px 12px;
+        margin-bottom: var(--spacing-xs);
+        background: rgba(var(--ion-color-success-rgb), 0.08);
+        border: 1px dashed rgba(var(--ion-color-success-rgb), 0.3);
+        border-radius: var(--radius-sm, 8px);
+
+        ion-icon {
+            font-size: 14px;
+            color: var(--ion-color-success);
+            flex-shrink: 0;
+        }
+
+        span {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--ion-color-success-shade);
         }
     }
 

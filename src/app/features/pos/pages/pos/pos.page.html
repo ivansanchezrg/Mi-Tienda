@@ -14,6 +14,12 @@
             tipoComprobante === TipoComprobante.NOTA_VENTA ? 'Nota de Venta' : 'Factura'
             }}</span>
         </div>
+        @if (descuentoActivo) {
+        <div class="descuento-chip">
+          <ion-icon name="pricetag-outline"></ion-icon>
+          <span>-{{ descuentoPct }}%</span>
+        </div>
+        }
       </div>
     </ion-title>
     <ion-buttons slot="end">
@@ -121,6 +127,11 @@
 @if (!escaneando) {
 <ion-content color="light">
 
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent">
+    </ion-refresher-content>
+  </ion-refresher>
+
   <!-- SUGERENCIAS: slot="fixed" → fijo debajo del input, no scrollea con el carrito -->
   @if (buscarTexto && productosBusqueda.length > 0) {
   <div class="search-results-wrapper" slot="fixed">
@@ -169,9 +180,11 @@
             <p class="product-name">{{ item.nombre }}</p>
             <div class="price-row">
               <span class="unit-price">${{ currencyService.format(item.precio_venta) }} c/u</span>
-              @if (item.stock_actual <= item.cantidad) { <ion-badge color="warning" class="stock-badge">
-                ¡Último!</ion-badge>
-                }
+              @if (item.stock_actual <= item.cantidad) {
+                <ion-badge color="danger" class="stock-badge">¡Último!</ion-badge>
+              } @else if ((item.stock_actual - item.cantidad) <= item.stock_minimo) {
+                <ion-badge color="warning" class="stock-badge">Quedan {{ item.stock_actual - item.cantidad }}</ion-badge>
+              }
             </div>
           </div>
 
@@ -232,16 +245,43 @@
           <span class="breakdown-value">${{ currencyService.format(baseIva15) }}</span>
         </div>
         }
+        @if (ivaValor > 0) {
         <div class="breakdown-row">
           <span class="breakdown-label">IVA 15%</span>
           <span class="breakdown-value">${{ currencyService.format(ivaValor) }}</span>
+        </div>
+        }
+        <div class="breakdown-divider"></div>
+      </div>
+      }
+
+      <!-- Descuento automático (solo visible cuando aplica) -->
+      @if (descuentoAplicado > 0) {
+      <div class="breakdown mb-xs">
+        @if (!mostrarDesglose) {
+        <div class="breakdown-row">
+          <span class="breakdown-label">Subtotal</span>
+          <span class="breakdown-value">${{ currencyService.format(subtotalBruto) }}</span>
+        </div>
+        }
+        <div class="breakdown-row discount">
+          <span class="breakdown-label">Descuento ({{ descuentoPct }}%)</span>
+          <span class="breakdown-value">-${{ currencyService.format(descuentoAplicado) }}</span>
         </div>
         <div class="breakdown-divider"></div>
       </div>
       }
 
+      <!-- Upselling: falta poco para el descuento -->
+      @if (mostrarUpselling) {
+      <div class="upselling-hint">
+        <ion-icon name="pricetag-outline"></ion-icon>
+        <span>${{ currencyService.format(faltaParaDescuento) }} más para -{{ descuentoPct }}%</span>
+      </div>
+      }
+
       <!-- Fila total (siempre visible) -->
-      <div class="total-row ">
+      <div class="total-row">
         <div class="total-left">
           <span class="total-label">Total</span>
           <span class="total-articles">

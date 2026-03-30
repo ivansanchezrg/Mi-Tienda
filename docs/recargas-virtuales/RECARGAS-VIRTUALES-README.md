@@ -282,7 +282,7 @@ Al liquidar (LiquidacionBusModalComponent):
 
 ### FACTURACION_BUS_PROXIMA — fin de mes
 
-Recordatorio preventivo que aparece los últimos N días del mes actual si ya hay ganancias acumuladas. `N` viene de `configuraciones.bus_dias_antes_facturacion`. Solo aparece si no hay `FACTURACION_BUS_PENDIENTE` activa (para no duplicar).
+Recordatorio preventivo que aparece los últimos N días del mes actual si ya hay ganancias acumuladas. `N` viene de la clave `bus_dias_antes_facturacion` en `configuraciones`. Solo aparece si no hay `FACTURACION_BUS_PENDIENTE` activa (para no duplicar).
 
 ```
 Si no hay FACTURACION_BUS_PENDIENTE y diasHastaFinMes <= bus_dias_antes_facturacion:
@@ -290,9 +290,9 @@ Si no hay FACTURACION_BUS_PENDIENTE y diasHastaFinMes <= bus_dias_antes_facturac
        → muestra: "Quedan N días — Ganancias acumuladas: $X"
 ```
 
-### Columnas de `configuraciones` relacionadas
+### Claves de `configuraciones` relacionadas
 
-| Columna | Notificación |
+| Clave | Notificación |
 |---|---|
 | `bus_alerta_saldo_bajo` | `SALDO_BAJO_BUS` — alerta cuando saldo virtual BUS <= este valor |
 | `bus_dias_antes_facturacion` | `FACTURACION_BUS_PROXIMA` — días de anticipación al fin de mes |

@@ -1,5 +1,5 @@
 -- ==========================================
--- FUNCIÓN: liquidar_ganancias_bus
+-- FUNCIÓN: fn_liquidar_ganancias_bus
 -- VERSIÓN: 1.0
 -- FECHA: 2026-03-03
 -- ==========================================
@@ -18,7 +18,7 @@
 --   p_empleado_id  INTEGER  Empleado que ejecuta la liquidación
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.liquidar_ganancias_bus(
+CREATE OR REPLACE FUNCTION public.fn_liquidar_ganancias_bus(
   p_mes         TEXT,
   p_empleado_id INTEGER
 )
@@ -78,7 +78,7 @@ BEGIN
   -- TRANSFERENCIA CAJA_BUS → CAJA_CHICA
   -- ==========================================
 
-  SELECT public.crear_transferencia(
+  SELECT public.fn_crear_transferencia(
     'CAJA_BUS',
     'CAJA_CHICA',
     v_total_ganancia,
@@ -123,13 +123,13 @@ EXCEPTION
 END;
 $$;
 
-COMMENT ON FUNCTION public.liquidar_ganancias_bus IS
+COMMENT ON FUNCTION public.fn_liquidar_ganancias_bus IS
 'v1.0 - Liquida ganancias BUS de un mes: calcula ROUND(SUM(monto_a_pagar) * comision%, 2) WHERE pagado=false,
 transfiere de CAJA_BUS a CAJA_CHICA y marca las filas como pagado=true. Operación atómica:
 si la transferencia falla (saldo insuficiente) toda la operación se revierte.
 monto_a_pagar = monto completo de cada compra; la ganancia = ese total * porcentaje_comision.';
 
-REVOKE EXECUTE ON FUNCTION public.liquidar_ganancias_bus(TEXT, INTEGER) FROM anon;
-GRANT EXECUTE ON FUNCTION public.liquidar_ganancias_bus(TEXT, INTEGER) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_liquidar_ganancias_bus(TEXT, INTEGER) FROM anon;
+GRANT EXECUTE ON FUNCTION public.fn_liquidar_ganancias_bus(TEXT, INTEGER) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

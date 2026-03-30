@@ -25,7 +25,7 @@ import { ConfigService } from '@core/services/config.service';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { EstadoCaja } from '../../models/turno-caja.model';
-import { NotificacionesService, Notificacion } from '../../services/notificaciones.service';
+import { NotificacionesService, Notificacion } from '@core/services/notificaciones.service';
 import { NotificacionesModalComponent } from '../../components/notificaciones-modal/notificaciones-modal.component';
 import { VerificarFondoModalComponent } from '../../components/verificar-fondo-modal/verificar-fondo-modal.component';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
@@ -114,6 +114,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   // Usuario
   nombreUsuario = '';
   empleadoActualId: number | null = null;
+  esAdmin = false;
 
   // Fechas
   fechaUltimoCierre = '';
@@ -126,7 +127,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   // Privacidad
   montosOcultos = false;
 
-  // Opciones del menú ⋮ — compartidas por ambas cajas (mismas acciones)
+  // Opciones del menú ⋮ — compartidas por todas las cajas
   readonly cajaOptions: MenuOption[] = [
     { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'ingreso', color: 'success' },
     { label: 'Registrar Egreso', icon: 'arrow-up-outline', value: 'egreso', color: 'danger' },
@@ -215,6 +216,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
       this.nombreUsuario = empleado?.nombre || 'Usuario';
       this.empleadoActualId = empleado?.id ?? null;
+      this.esAdmin = empleado?.rol === 'ADMIN';
       this.fechaActual = this.formatearFecha(new Date());
 
       this.notificaciones = notificaciones;
@@ -254,7 +256,18 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   onSaldoClick(tipo: string) {
     const caja = this.cajas.find(c => c.codigo === this.TIPO_CODIGO[tipo]);
     if (!caja) return;
-    this.router.navigate(['/home/operaciones-caja'], { queryParams: { cajaId: caja.id, cajaNombre: caja.nombre } });
+    const esCajaChica = this.TIPO_CODIGO[tipo] === 'CAJA_CHICA';
+    const turnoAjeno = esCajaChica && this.cajaAbierta && !this.esMiTurno;
+    const esMiTurnoCajaChica = esCajaChica && this.esMiTurno;
+    this.router.navigate(['/home/operaciones-caja'], {
+      queryParams: {
+        cajaId: caja.id,
+        cajaNombre: caja.nombre,
+        cajaCodigo: caja.codigo,
+        ...(turnoAjeno ? { turnoAjeno: true } : {}),
+        ...(esMiTurnoCajaChica ? { esMiTurno: true } : {})
+      }
+    });
   }
 
   /** Handler del menú ⋮ en cards de Tienda y Cajón */
@@ -391,6 +404,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   async mostrarModalVerificacionFondo(): Promise<{ turnoId: string | null } | null> {
     try {
       await this.ui.showLoading('Verificando...');
+      this.configService.invalidar(); // Fuerza lectura fresca de BD (fondo puede haber cambiado)
       const [fondoFijo, deficit] = await Promise.all([
         this.turnosCajaService.obtenerFondoFijo(),
         this.turnosCajaService.obtenerDeficitTurnoAnterior()

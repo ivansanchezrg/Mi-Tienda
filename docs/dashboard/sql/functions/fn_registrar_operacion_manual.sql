@@ -1,17 +1,19 @@
 -- ==========================================
 -- DROP — descomentar SOLO si cambia la firma (parámetros o tipo de retorno)
 -- ==========================================
--- DROP FUNCTION IF EXISTS public.registrar_operacion_manual(
+-- DROP FUNCTION IF EXISTS public.fn_registrar_operacion_manual(
 --   INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT
 -- );
 
 -- ==========================================
--- FUNCIÓN: registrar_operacion_manual (v2.1)
+-- FUNCIÓN: fn_registrar_operacion_manual (v2.2)
 -- ==========================================
 -- Registra un INGRESO o EGRESO manual en una caja con bloqueo de concurrencia.
 -- Recibe p_tipo_operacion como TEXT (no ENUM) para compatibilidad con PostgREST.
 -- Castea internamente TEXT → tipo_operacion_caja_enum.
 -- Valida saldo suficiente en EGRESO (saldo_nuevo >= 0).
+-- Para CAJA_CHICA: valida que p_empleado_id tenga turno activo hoy
+--   (hora_fecha_cierre IS NULL). Solo el empleado que abrió el turno puede operar.
 -- ==========================================
 -- Llamada desde: OperacionesCajaService.registrarOperacion()
 -- Parámetros:
@@ -27,7 +29,7 @@
 --       usar reparar_deficit_turno que omite la validación de saldo mínimo.
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.registrar_operacion_manual(
+CREATE OR REPLACE FUNCTION public.fn_registrar_operacion_manual(
   p_caja_id         INTEGER,
   p_empleado_id     INTEGER,
   p_tipo_operacion  TEXT,            -- TEXT (no ENUM) para compatibilidad con PostgREST
@@ -46,6 +48,7 @@ DECLARE
   v_saldo_nuevo    DECIMAL(12,2);
   v_operacion_id   UUID;
   v_tipo           tipo_operacion_caja_enum;
+  v_caja_codigo    TEXT;
 BEGIN
   -- 0. Cast TEXT → ENUM con validación
   BEGIN
@@ -53,6 +56,21 @@ BEGIN
   EXCEPTION WHEN invalid_text_representation THEN
     RAISE EXCEPTION 'Tipo de operación no válido: %. Use INGRESO o EGRESO', p_tipo_operacion;
   END;
+
+  -- 0.5. Para CAJA_CHICA: validar que el empleado tenga turno activo hoy
+  SELECT codigo INTO v_caja_codigo FROM cajas WHERE id = p_caja_id;
+
+  IF v_caja_codigo = 'CAJA_CHICA' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM turnos_caja
+      WHERE empleado_id      = p_empleado_id
+        AND hora_fecha_cierre IS NULL
+        AND hora_fecha_apertura >= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Guayaquil')::date
+        AND hora_fecha_apertura <  (CURRENT_TIMESTAMP AT TIME ZONE 'America/Guayaquil')::date + INTERVAL '1 day'
+    ) THEN
+      RAISE EXCEPTION 'Solo el empleado con turno activo puede operar sobre Caja Chica';
+    END IF;
+  END IF;
 
   -- 1. Obtener saldo actual de la caja (con lock para evitar race conditions)
   SELECT saldo_actual INTO v_saldo_anterior
@@ -103,14 +121,15 @@ END;
 $$;
 
 -- Permisos
-REVOKE EXECUTE ON FUNCTION public.registrar_operacion_manual(INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT) FROM anon;
-GRANT EXECUTE ON FUNCTION public.registrar_operacion_manual(INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_registrar_operacion_manual(INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT) FROM anon;
+GRANT EXECUTE ON FUNCTION public.fn_registrar_operacion_manual(INTEGER, INTEGER, TEXT, INTEGER, DECIMAL, TEXT, TEXT) TO authenticated;
 
 -- Refrescar caché PostgREST
 NOTIFY pgrst, 'reload schema';
 
-COMMENT ON FUNCTION public.registrar_operacion_manual IS
-  'Registra un INGRESO o EGRESO manual en una caja. '
+COMMENT ON FUNCTION public.fn_registrar_operacion_manual IS
+  'v2.2 - Registra un INGRESO o EGRESO manual en una caja. '
   'Bloqueo FOR UPDATE evita race conditions. '
   'Valida saldo suficiente en EGRESO. '
+  'Para CAJA_CHICA: solo el empleado con turno activo hoy puede operar. '
   'Para EGRESO con saldo = 0 (déficit), usar reparar_deficit_turno.';

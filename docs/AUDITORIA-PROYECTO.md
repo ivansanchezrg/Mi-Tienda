@@ -1,7 +1,7 @@
 # Auditoría Completa del Proyecto — Mi Tienda
 
 Fecha: 2026-03-25
-Última actualización: 2026-03-25 (sesión 2)
+Última actualización: 2026-03-28 (sesión 7)
 
 Auditoría de estado actual del proyecto: qué está completo, qué falta, qué corregir.
 
@@ -17,10 +17,10 @@ Auditoría de estado actual del proyecto: qué está completo, qué falta, qué 
 | `usuarios` | ✅ Completo | CRUD con roles ADMIN/EMPLEADO |
 | `inventario` | ✅ Completo | Productos, categorías, kardex, código barras |
 | `cuentas-cobrar` | ✅ Completo | Pagos fiados, estado de cuenta, compartir WhatsApp |
-| `clientes` | ✅ Completo | CRUD, cédula ecuatoriana, consumidor final |
+| `clientes` | ✅ Completo | Listado paginado, creación con deduplicación cédula, edición, modal selección (POS) |
 | `ventas` | ✅ Completo | Historial paginado, filtros fecha, detalle modal, **anulación**, filtro ANULADAS, estado cuenta FIADO |
-| `pos` | ✅ Funcional | Core completo + anulación. Features opcionales pendientes |
-| `reportes` | ✅ Reporte ventas del día | Resumen diario con desglose por método de pago y comprobante |
+| `pos` | ✅ Completo | Core + anulación + cobrar modal + badges stock + descuentos automáticos + idempotencia |
+| ~~`reportes`~~ | ❌ Eliminado (2026-03-26) | Resumen diario integrado en ventas como tab interna |
 | `configuracion` | ✅ Completo | Parámetros + categorías operaciones |
 
 ---
@@ -46,44 +46,35 @@ Auditoría de estado actual del proyecto: qué está completo, qué falta, qué 
 | Validación stock | ✅ | Verifica al agregar al carrito |
 | Verificación offline | ✅ | NetworkService antes de cada query |
 | Cleanup de recursos | ✅ | ionViewDidLeave + ngOnDestroy |
-| **Anulación de venta** | ✅ | RPC `anular_venta` → revierte stock + caja + cuentas_cobrar. Alert con motivo obligatorio. Badge ANULADA en historial. Bloqueada si FIADO ya tiene abonos |
+| **Anulación de venta** | ✅ | RPC `fn_anular_venta` → revierte stock + caja + cuentas_cobrar. Alert con motivo obligatorio. Badge ANULADA en historial. Bloqueada si FIADO ya tiene abonos |
+| **Cobrar modal unificado** | ✅ | `CobrarModalComponent` reemplaza OptionsModal + VueltoModal. Paso 1: método de pago. Paso 2 (solo EFECTIVO): monto recibido + vuelto en tiempo real + chip método |
+| **Badge stock bajo en carrito** | ✅ | Warning `"Quedan X"` si `stock_actual - cantidad <= stock_minimo`; Danger `"¡Último!"` si `stock_actual <= cantidad`. `ProductoPOS` incluye `stock_minimo` |
 
 ### NO implementado en POS
 
 | Feature | Prioridad | Descripción |
 |---------|-----------|-------------|
-| **Cálculo de vuelto** | 🟡 Media | No hay input de "monto recibido" ni cálculo de cambio. El usuario calcula mentalmente |
-| **Descuentos** | 🟡 Media | No hay descuento por porcentaje ni por monto fijo. Precio fijo del inventario |
+| **Descuentos automáticos** | ✅ Implementado | Descuento % si subtotal >= umbral. Config desde Parámetros. FIADO excluido. Chip header + upselling + pull-to-refresh. `ventas.descuento` + `descuento_pct` |
 | **Impresión de recibo** | 🟢 Baja | No hay integración con impresora térmica. Solo toast con número de comprobante |
 | **Multi-pago (splits)** | 🟢 Baja | Solo 1 método de pago por venta. No soporta mitad efectivo + mitad transferencia |
 | **Devoluciones parciales** | 🟢 Baja | No hay flujo de devolución de productos individuales |
 
 ---
 
-## 3. Reportes — Análisis
+## 3. Reportes / Resúmenes — Análisis
 
-### Estado actual: ✅ Reporte ventas del día implementado
+### Estado actual: resumen integrado en ventas (tab interna)
 
-| Reporte | Estado | Fuente de datos |
-|---------|--------|-----------------|
-| **Ventas del día** | ✅ Implementado | `reporte_ventas_dia` — totales + desglose método pago + comprobante + anuladas |
-| **Resumen por turno** | 🔴 Pendiente | `turnos_caja` + `operaciones_cajas` + `ventas` |
-| **Productos más vendidos** | 🟡 Pendiente | Nueva función: GROUP BY producto, SUM cantidad |
-| **Ganancias del período** | 🟡 Pendiente | `ventas` (precio_venta - precio_costo) por rango de fecha |
-| **Movimientos de caja** | 🟡 Pendiente | `operaciones_cajas` por fecha/caja |
-| **Stock bajo** | 🟢 Pendiente | `productos WHERE stock_actual <= stock_minimo` (query directa) |
-| **Deudas pendientes** | 🟢 Ya existe | En módulo cuentas-cobrar |
+El módulo `reportes` fue eliminado (2026-03-26). El resumen diario se integró como tab "Resumen" dentro del módulo ventas (`VentasResumenPage`).
 
-### Archivos del reporte ventas del día
-
-| Archivo | Tipo |
-|---------|------|
-| `docs/reportes/sql/functions/fn_reporte_ventas_dia.sql` | Función SQL |
-| `src/app/features/reportes/models/reporte.model.ts` | Modelo TypeScript |
-| `src/app/features/reportes/services/reportes.service.ts` | Servicio Angular |
-| `src/app/features/reportes/pages/main/reportes.page.ts` | Página |
-| `src/app/features/reportes/pages/main/reportes.page.html` | Template |
-| `src/app/features/reportes/pages/main/reportes.page.scss` | Estilos |
+| Reporte | Estado | Ubicación |
+|---------|--------|-----------|
+| **Ventas por período** | ✅ Implementado | `ventas/pages/resumen/` — RPC `fn_reporte_ventas_periodo` (Hoy/Semana/Mes/Todo) |
+| **Deudas pendientes** | ✅ Ya existe | Módulo `cuentas-cobrar` |
+| **Productos más vendidos** | ✅ Implementado | `ventas/pages/resumen/` — sección "Más vendidos" con top productos |
+| **Resumen por turno** | 🟡 Pendiente | Dashboard — al cerrar caja |
+| **Ganancias del período** | ✅ Implementado | Ventas resumen — `fn_reporte_ventas_periodo` v1.1 (costo, ganancia bruta, margen %) |
+| **Stock bajo alertas** | ✅ Implementado | `NotificacionesService` + modal expandible en dashboard |
 
 ---
 
@@ -133,7 +124,7 @@ Auditoría de estado actual del proyecto: qué está completo, qué falta, qué 
 - `fn_liquidar_ganancias_bus.sql` ✅
 
 **POS (2):**
-- `fn_registrar_venta_pos.sql` ✅ (v1.4 con idempotencia)
+- `fn_registrar_venta_pos.sql` ✅ (v1.6 con idempotencia + descuento + descuento_pct)
 - `fn_anular_venta.sql` ✅ (v1.1 — revierte stock, caja, cuentas_cobrar; bloquea si FIADO tiene abonos)
 
 **Cuentas por Cobrar (3):**
@@ -146,11 +137,12 @@ Auditoría de estado actual del proyecto: qué está completo, qué falta, qué 
 - `fn_generar_codigo_interno.sql` ✅
 
 **Ventas (2):**
-- `fn_listar_ventas.sql` ✅ (v1.2 — parámetro `p_estado` para filtrar COMPLETADA/ANULADA)
-- `fn_resumir_ventas.sql` ✅ (v1.1 — parámetro `p_estado`)
+- `fn_listar_ventas.sql` ✅ (v1.4 — todos los roles ven todas las ventas, filtro turno solo ADMIN)
+- `fn_resumir_ventas.sql` ✅ (v1.3 — todos los roles ven todas las ventas, filtro turno solo ADMIN)
 
-**Reportes (1):**
-- `fn_reporte_ventas_dia.sql` ✅ (v1.0)
+**Reportes (2):**
+- ~~`fn_reporte_ventas_dia.sql`~~ → reemplazada por `fn_reporte_ventas_periodo.sql`
+- `fn_reporte_ventas_periodo.sql` ✅ (v1.3 — todos los roles ven todas las ventas, filtro turno solo ADMIN)
 
 ### Estado del schema.sql: ✅ Actualizado
 
@@ -162,33 +154,40 @@ Auditoría de estado actual del proyecto: qué está completo, qué falta, qué 
 
 ## 5. Resumen de lo que falta para "sistema completo"
 
-### ✅ Completado (esta sesión 2026-03-25)
+### ✅ Completado (sesión 2026-03-25)
 
 | # | Qué | Módulo | Estado |
 |---|-----|--------|--------|
-| 1 | **Anulación de venta** | POS/Ventas | ✅ `anular_venta` RPC + UI con motivo + badge ANULADA |
-| 2 | **Reporte ventas del día** | Reportes | ✅ `reporte_ventas_dia` RPC + página con desglose |
+| 1 | **Anulación de venta** | POS/Ventas | ✅ `fn_anular_venta` RPC + UI con motivo + badge ANULADA |
+| 2 | **Reporte ventas del día** | Reportes → Ventas | ✅ `fn_reporte_ventas_dia` RPC + página resumen (tab interna) |
 | 3 | **Schema.sql actualizado** | Schema | ✅ v5.3, RESUMEN completo con 24 funciones |
+
+### ✅ Completado (sesión 2026-03-26)
+
+| # | Qué | Módulo | Estado |
+|---|-----|--------|--------|
+| 4 | **Refactor ventas** | Ventas | ✅ Tabs internas (Lista + Resumen), rename a `VentasListadoPage`, eliminó módulo reportes |
+| 5 | **Feature clientes** | Clientes | ✅ Listado paginado, modal crear (cédula primero + deduplicación), modal editar, ruta `/clientes`, sidebar |
+| 6 | **Cálculo de vuelto** | POS | ✅ Solo EFECTIVO: alert monto recibido → validación ≥ total → vuelto grande antes de confirmar |
 
 ### 🟡 Prioridad Media (mejora la experiencia del operador)
 
 | # | Qué | Módulo | Esfuerzo |
 |---|-----|--------|----------|
-| 4 | **Cálculo de vuelto** | POS | Bajo — input monto recibido + cálculo simple |
-| 5 | **Descuentos en POS** | POS | Medio — UI + campo descuento en ventas (ya existe en BD) |
-| 6 | **Productos más vendidos** | Reportes | Bajo — nueva función SQL + página |
-| 7 | **Ganancias del período** | Reportes | Medio — función SQL con costo vs venta |
-| 8 | **Resumen por turno** | Reportes | Medio — función SQL + página |
+| ~~7~~ | ~~**Descuentos en POS**~~ | ~~POS~~ | ✅ Completado (sesión 2026-03-27) — descuento automático configurable |
+| 8 | ~~**Productos más vendidos**~~ | ~~Ventas (resumen)~~ | ✅ Completado (sesión 2026-03-27) |
+| ~~9~~ | ~~**Ganancias del período**~~ | ~~Ventas (resumen)~~ | ✅ Completado (sesión 2026-03-27) |
+| ~~10~~ | ~~**Filtro por turno en ventas**~~ | ~~Ventas~~ | ✅ Completado (sesión 2026-03-27) — selector de turno en listado + resumen |
 
 ### 🟢 Prioridad Baja (nice-to-have)
 
 | # | Qué | Módulo | Esfuerzo |
 |---|-----|--------|----------|
-| 9 | Impresión de recibo | POS | Alto — plugin Capacitor + template recibo |
-| 10 | Multi-pago (splits) | POS | Alto — reestructuración de ventas |
-| 11 | Devoluciones parciales | POS | Alto — nuevo flujo completo |
-| 12 | Stock bajo alertas | Inventario | Bajo — query simple + badge/notificación |
-| 13 | Unificar prefijo `fn_` en SQL | Schema | Bajo — renombrar funciones (requiere migrar BD) |
+| 11 | Impresión de recibo | POS | Alto — plugin Capacitor + template recibo |
+| 12 | Multi-pago (splits) | POS | Alto — reestructuración de ventas |
+| 13 | Devoluciones parciales | POS | Alto — nuevo flujo completo |
+| ~~14~~ | ~~Stock bajo alertas~~ | ~~Inventario~~ | ✅ Completado (sesión 2026-03-27) |
+| 15 | Unificar prefijo `fn_` en SQL | Schema | Bajo — renombrar funciones (requiere migrar BD) |
 
 ---
 
@@ -221,26 +220,94 @@ Implementaciones nuevas (2026-03-25):
 
 | Implementación | Estado | Archivos |
 |----------------|--------|----------|
-| Anulación de venta (SQL + servicio + UI) | ✅ | `fn_anular_venta.sql` v1.1, `ventas.service.ts`, `ventas.page.ts/html/scss` |
-| Filtro de ventas ANULADAS (pill toggle) | ✅ | `ventas.page.ts/html/scss` |
+| Anulación de venta (SQL + servicio + UI) | ✅ | `fn_anular_venta.sql` v1.1, `ventas.service.ts`, `ventas-listado.page.ts/html/scss` |
+| Filtro de ventas ANULADAS (pill toggle) | ✅ | `ventas-listado.page.ts/html/scss` |
 | Banner ANULADA + total tachado en modal detalle | ✅ | `venta-detalle-modal.component.ts/html/scss` |
 | Estado de cuenta FIADO en modal detalle | ✅ | `venta-detalle-modal.component.ts/html/scss` — muestra Abonado/Pendiente/Deuda cancelada |
-| Reporte ventas del día (SQL + servicio + modelo + página) | ✅ | `fn_reporte_ventas_dia.sql`, `reportes.service.ts`, `reporte.model.ts`, `reportes.page.ts/html/scss` |
+| Reporte ventas del día (SQL + servicio + página) | ✅ | `fn_reporte_ventas_dia.sql`, `ventas.service.ts`, `ventas-resumen.page.ts/html/scss` |
 | fn_listar_ventas v1.2 (parámetro p_estado) | ✅ | `fn_listar_ventas.sql` |
 | fn_resumir_ventas v1.1 (parámetro p_estado) | ✅ | `fn_resumir_ventas.sql` |
 | Schema.sql v5.3 (RESUMEN + versión) | ✅ | `schema.sql` |
+
+Implementaciones nuevas (2026-03-27):
+
+| Implementación | Estado | Archivos |
+|----------------|--------|----------|
+| `CobrarModalComponent` — flujo unificado cobro POS | ✅ | `cobrar-modal.component.ts/html/scss`, `pos.page.ts` |
+| `NotificacionesService` movido a `core/services/` | ✅ | `core/services/notificaciones.service.ts`, imports actualizados |
+| Notificaciones stock bajo (`STOCK_BAJO`) | ✅ | `notificaciones.service.ts`, `inventario.service.ts` (`obtenerProductosStockBajo`), `notificaciones-modal.component.ts/html/scss` |
+| Modal notificaciones expandible (1 producto → directo, 2+ → acordeón) | ✅ | `notificaciones-modal.component.ts/html` |
+| Badge stock bajo en carrito POS | ✅ | `pos.page.html`, `producto.model.ts` (Pick incluye `stock_minimo`), `inventario.service.ts` (SELECT ampliado) |
+| Mejoras UI Kárdex (inputs nativos, timeline, spacing) | ✅ | `kardex.page.html`, `kardex.page.scss` |
+| Docs actualizados | ✅ | `POS-README.md`, `DASHBOARD-README.md`, `AUDITORIA-PROYECTO.md` |
+
+Implementaciones nuevas (2026-03-27 sesión 5):
+
+| Implementación | Estado | Archivos |
+|----------------|--------|----------|
+| `fn_reporte_ventas_periodo` v1.1 — agrega `costo_total`, `ganancia_bruta`, `margen_pct` | ✅ | `fn_reporte_ventas_periodo.sql`, `venta.model.ts`, `ventas.service.ts` |
+| Sección "Ganancia bruta" en resumen ventas | ✅ | `ventas-resumen.page.html/scss` |
+| `fn_reporte_ventas_periodo` v1.0 — reemplaza `fn_reporte_ventas_dia`, agrega top_productos y rango de fechas | ✅ | `fn_reporte_ventas_periodo.sql`, `ventas.service.ts` (`obtenerReportePeriodo`), `ventas-resumen.page.ts/html/scss` |
+| Filtro de período en resumen ventas (Hoy/Semana/Mes/Todo) | ✅ | `ventas-resumen.page.ts/html/scss` |
+| Sección "Más vendidos" en resumen ventas | ✅ | `ventas-resumen.page.html/scss` |
+| Dark mode resumen ventas — divisores y badges con `step-150`→`step-200` | ✅ | `ventas-resumen.page.scss` |
+| `step-200` agregado al sistema de diseño (light: `#cccccc` / dark: `#333333`) | ✅ | `variables.scss` |
+| Tabs ventas dark mode — borde `step-200`, texto inactivo `step-600` | ✅ | `ventas-tabs.component.scss` |
+| Seed de prueba ventas (15 ventas en 4 períodos) | ✅ | `docs/ventas/sql/seeds/seed_ventas_prueba.sql` |
+| VENTAS-README.md actualizado | ✅ | `docs/ventas/VENTAS-README.md` |
+
+Implementaciones nuevas (2026-03-28 sesión 7):
+
+| Implementación | Estado | Archivos |
+|----------------|--------|----------|
+| Control de acceso por rol en ventas — EMPLEADO ve todas las ventas (puede atender reclamos), filtro de turno visible solo para ADMIN | ✅ | `fn_listar_ventas.sql` v1.4, `fn_resumir_ventas.sql` v1.3, `fn_reporte_ventas_periodo.sql` v1.3, `ventas-listado.page.ts`, `ventas-resumen.page.ts` |
+| Restricción anulación por rol — EMPLEADO solo puede anular sus propias ventas, ADMIN puede anular cualquiera | ✅ | `ventas-listado.page.ts` (`getVentaMenuOpciones`) |
+| VENTAS-README.md actualizado con tabla de control de acceso por rol | ✅ | `docs/ventas/VENTAS-README.md` |
+
+Implementaciones nuevas (2026-03-27 sesión 6):
+
+| Implementación | Estado | Archivos |
+|----------------|--------|----------|
+| Refactor tabla `configuraciones` a clave/valor con prefijos por módulo | ✅ | `schema.sql`, `configuracion.model.ts`, `config.service.ts`, `configuracion.service.ts`, `parametros.page.ts/html`, `turnos-caja.service.ts`, `recargas.service.ts` |
+| Descuentos automáticos POS completo | ✅ | `pos.page.ts/html/scss`, `pos.service.ts`, `cobrar-modal.component.ts/html/scss`, `venta.model.ts`, `ventas.service.ts`, `fn_registrar_venta_pos.sql` v1.6 |
+| Fix IVA con descuento: distribución proporcional entre base 0% y base 15% | ✅ | `pos.page.ts` — getters `baseIva0`, `baseIva15` usan `_factorDescuento` |
+| Ocultar filas fiscales en $0 (Base 0%, Base 15%, IVA 15%) | ✅ | `pos.page.html`, `venta-detalle-modal.component.html`, `share-estado-cuenta.service.ts` |
+| Descuento visible en detalle de venta + cuentas-cobrar | ✅ | `venta-detalle-modal.component.html/scss`, `detalle-cliente.page.html/scss`, `share-estado-cuenta.service.ts` |
+| Columna `descuento_pct SMALLINT` en tabla `ventas` | ✅ | `schema.sql`, `venta.model.ts`, `ventas.service.ts`, `fn_registrar_venta_pos.sql` v1.6 |
+| FIADO + descuento mutuamente excluyentes | ✅ | `pos.page.ts` (`ejecutarCobro`), `cobrar-modal.component.ts/html/scss` (paso `confirmar-fiado`) |
+| Pull-to-refresh en POS (recarga config sin perder carrito) | ✅ | `pos.page.ts/html` — `ion-refresher` + `refrescarConfig()` |
+| Indicadores visuales descuento: chip header `-X%` + upselling footer | ✅ | `pos.page.html/scss` |
+| Sección POS en Parámetros del Negocio (toggle + % + umbral) | ✅ | `parametros.page.ts/html/scss` — toggle switch CSS puro (OFF gris / ON verde) |
+| Filtro por turno en ventas (listado + resumen) | ✅ | `fn_listar_ventas.sql` v1.3, `fn_resumir_ventas.sql` v1.2, `fn_reporte_ventas_periodo.sql` v1.2, `ventas.service.ts`, `turnos-caja.service.ts`, `ventas-listado.page.ts/html/scss`, `ventas-resumen.page.ts/html/scss` |
+| Docs actualizados | ✅ | `POS-README.md`, `VENTAS-README.md`, `CUENTAS-COBRAR-README.md`, `AUDITORIA-PROYECTO.md`, `CLAUDE.md`, `CONFIGURACION-README.md` |
+
+Implementaciones nuevas (2026-03-26):
+
+| Implementación | Estado | Archivos |
+|----------------|--------|----------|
+| Refactor ventas: tabs internas (Lista + Resumen) | ✅ | `ventas-tabs.component`, `ventas-listado.page`, `ventas-resumen.page`, `ventas.routes.ts` |
+| Eliminación módulo reportes (integrado en ventas) | ✅ | Resumen diario ahora es tab interna en ventas |
+| Feature clientes completa | ✅ | `clientes.routes.ts`, `clientes-listado.page`, `editar-cliente-modal`, `ClientesService` ampliado |
+| Modal crear/editar cliente dual | ✅ | `editar-cliente-modal` soporta modo creación (cédula primero) y edición |
+| Cálculo de vuelto en POS | ✅ | `pos.page.ts` — solo EFECTIVO: alert monto recibido → vuelto |
+| Ruta + sidebar clientes | ✅ | `layout.routes.ts`, `sidebar.component.ts` |
 
 ---
 
 ## 8. Estado del sistema
 
-El sistema está **listo para uso en producción** con los módulos core completos:
+El sistema está **listo para uso en producción** con todos los módulos core completos:
 
-1. ✅ Módulos core — todos funcionan
-2. ✅ **Anulación de venta** — errores en ventas se pueden corregir (bloqueada si FIADO tiene abonos)
-3. ✅ **Historial ventas ANULADAS** — filtro pill toggle, badge rojo, total tachado
-4. ✅ **Modal detalle completo** — banner anulada + estado de cuenta FIADO (abonado/pendiente/cancelado)
-5. ✅ **Reporte ventas del día** — el dueño puede ver el resumen diario
-6. ✅ **Schema.sql actualizado** — refleja la realidad del proyecto (v5.3)
+1. ✅ **10 módulos completos** — auth, dashboard, recargas-virtuales, usuarios, inventario, pos, cuentas-cobrar, ventas, clientes, configuracion
+2. ✅ **POS completo** — carrito, escáner, cobro unificado, badges stock bajo, anulación, idempotencia, descuentos automáticos (FIADO excluido), pull-to-refresh config
+3. ✅ **Notificaciones completas** — deuda celular, saldo bus, facturación bus, stock bajo (expandible con navegación a kardex)
+4. ✅ **Gestión de clientes** — listado, creación con deduplicación cédula, edición
+5. ✅ **Ventas con tabs internas** — listado paginado + resumen por período (Hoy/Semana/Mes/Todo) + top productos
+6. ✅ **Schema.sql actualizado** — v5.3, 18 tablas, 24 funciones
 
-Todo lo demás (vuelto, descuentos, más reportes, impresión) es mejora incremental para versiones futuras.
+### Lo que falta (mejoras incrementales)
+
+| Prioridad | Pendientes |
+|-----------|-----------|
+| ~~🟡 Media~~ | ~~Resumen por turno~~ → ✅ Filtro por turno en ventas |
+| 🟢 Baja | Impresión recibo, multi-pago, devoluciones parciales |

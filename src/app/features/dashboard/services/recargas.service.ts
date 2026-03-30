@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
 import { LoggerService } from '@core/services/logger.service';
+import { ConfigService } from '@core/services/config.service';
 import { SaldosAnteriores, DatosCierreDiario, ParamsCierreDiario } from '../models/saldos-anteriores.model';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 import { getFechaLocal, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
@@ -21,13 +22,6 @@ interface CajaQuery {
   saldo_actual: number;
 }
 
-/**
- * Tipo de retorno de la query de configuraciones
- */
-interface ConfiguracionQuery {
-  fondo_fijo_diario: number;
-  varios_transferencia_diaria: number;
-}
 
 /**
  * Tipo de retorno para IDs de tipos de servicio
@@ -70,6 +64,7 @@ export interface RecargaHistorial {
 export class RecargasService {
   private supabase = inject(SupabaseService);
   private logger = inject(LoggerService);
+  private configService = inject(ConfigService);
   private recargasVirtualesService = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
 
@@ -188,7 +183,7 @@ export class RecargasService {
    */
   async getDatosCierreDiario(): Promise<DatosCierreDiario> {
     // Queries en paralelo para mejor performance
-    const [saldosVirtuales, cajaChica, cajaCelular, cajaBus, config, agregadoHoy] = await Promise.all([
+    const [saldosVirtuales, cajaChica, cajaCelular, cajaBus, appConfig, agregadoHoy] = await Promise.all([
       // 1. Saldos virtuales anteriores (último saldo_virtual_actual de tabla recargas)
       this.getSaldosAnteriores(),
 
@@ -224,13 +219,7 @@ export class RecargasService {
       ),
 
       // 5. Configuración (fondo_fijo + transferencia_diaria para el preview del Paso 3)
-      this.supabase.call<ConfiguracionQuery>(
-        this.supabase.client
-          .from('configuraciones')
-          .select('fondo_fijo_diario, varios_transferencia_diaria')
-          .limit(1)
-          .single()
-      ),
+      this.configService.get(),
 
       // 6. Agregado pendiente de recargas virtuales
       this.getAgregadoVirtualHoy()
@@ -241,8 +230,8 @@ export class RecargasService {
       saldoCajaChicaDigital: cajaChica?.saldo_actual ?? 0,
       saldoCajaCelular: cajaCelular?.saldo_actual ?? 0,
       saldoCajaBus: cajaBus?.saldo_actual ?? 0,
-      fondoFijo: config?.fondo_fijo_diario ?? 40,
-      transferenciaDiariaVarios: config?.varios_transferencia_diaria ?? 20,
+      fondoFijo: appConfig.caja_fondo_fijo_diario,
+      transferenciaDiariaVarios: appConfig.caja_varios_transferencia_dia,
       agregadoCelularHoy: agregadoHoy.celular,
       agregadoBusHoy: agregadoHoy.bus
     };
@@ -452,7 +441,7 @@ export class RecargasService {
   async verificarTransferenciaYaHecha(): Promise<boolean> {
     const fechaHoy = getFechaLocal();
     const { data, error } = await this.supabase.client
-      .rpc('verificar_transferencia_caja_chica_hoy', { p_fecha: fechaHoy });
+      .rpc('fn_verificar_transferencia_caja_chica_hoy', { p_fecha: fechaHoy });
     if (error || data === null) return false;
     return data as boolean;
   }
@@ -470,7 +459,7 @@ export class RecargasService {
    */
   async ejecutarCierreDiario(params: ParamsCierreDiario): Promise<any> {
     const resultado = await this.supabase.call(
-      this.supabase.client.rpc('ejecutar_cierre_diario', {
+      this.supabase.client.rpc('fn_ejecutar_cierre_diario', {
         p_turno_id: params.turno_id,
         p_fecha: params.fecha,
         p_empleado_id: params.empleado_id,

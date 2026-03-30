@@ -163,7 +163,7 @@ export class OperacionesCajaService {
       await this.ui.showLoading(`Registrando ${tipo.toLowerCase()}...`);
 
       // 4. Llamar a la función PostgreSQL que maneja todo
-      const { data, error } = await this.supabase.client.rpc('registrar_operacion_manual', {
+      const { data, error } = await this.supabase.client.rpc('fn_registrar_operacion_manual', {
         p_caja_id: cajaId,
         p_empleado_id: empleado.id,
         p_tipo_operacion: tipo,

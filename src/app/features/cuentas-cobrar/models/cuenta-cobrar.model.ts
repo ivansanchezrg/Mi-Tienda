@@ -19,6 +19,9 @@ export interface VentaFiada {
     numero_comprobante: number | null;
     tipo_comprobante: string;
     fecha: string;
+    subtotal: number;
+    descuento: number;
+    descuento_pct: number;
     total: number;
     monto_pagado: number;
     saldo_pendiente: number;

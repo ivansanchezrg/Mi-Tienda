@@ -30,7 +30,7 @@ src/app/features/cuentas-cobrar/
 | Interface | Uso |
 |-----------|-----|
 | `CuentaCliente` | Fila en lista principal: nombre, teléfono, total deuda, cantidad ventas |
-| `VentaFiada` | Venta fiada con saldo pendiente, campos IVA (para facturas) |
+| `VentaFiada` | Venta fiada con saldo pendiente, campos IVA (para facturas), `subtotal`, `descuento`, `descuento_pct` |
 | `VentaFiadaItem` | Ítem de producto: nombre, cantidad, precio unitario, subtotal |
 | `PagoFiado` | Registro de pago contra una venta |
 | `CuentasCobrarResumen` | Footer totalizador: total clientes + total deuda |
@@ -162,12 +162,13 @@ y muestra toast "Imagen copiada al portapapeles".
 - Ancho fijo: 380px
 - Font: `-apple-system, Roboto, sans-serif`
 - Secciones:
-  1. Header: `nombre_negocio` (leído de `ConfigService`) + "Estado de cuenta"
+  1. Header: `negocio_nombre` (leído de `ConfigService`) + "Estado de cuenta"
   2. Datos cliente: nombre + cédula/RUC
   3. Por cada venta:
      - Tipo + número + fecha
      - Tabla grid 4 columnas: Descripción | Cant. | P.Unit. | Subtotal
-     - Desglose IVA (solo facturas): Base 0%, Base 15%, IVA 15%
+     - Descuento (solo si `descuento > 0`): subtotal + `Descuento (X%)` en verde
+     - Desglose IVA (solo facturas, filas con valor $0 se ocultan): Base 0%, Base 15%, IVA 15%
      - Total venta + Abonado (si aplica) + Pendiente (rojo)
   4. Total pendiente general (solo si >1 venta)
   5. Footer: fecha generación + disclaimer fiscal

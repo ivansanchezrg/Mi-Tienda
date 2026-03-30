@@ -113,11 +113,22 @@
           <span class="total-val">${{ currencyService.format(venta.base_iva_15) }}</span>
         </div>
         }
+        @if (venta.iva_valor > 0) {
         <div class="total-row">
           <span class="total-label">IVA 15%</span>
           <span class="total-val">${{ currencyService.format(venta.iva_valor) }}</span>
         </div>
+        }
         <div class="divider-thin"></div>
+      }
+
+      <!-- Descuento (si aplica) -->
+      @if (venta.descuento > 0) {
+      <div class="total-row total-row--descuento">
+        <span class="total-label">Descuento ({{ venta.descuento_pct }}%)</span>
+        <span class="total-val">-${{ currencyService.format(venta.descuento) }}</span>
+      </div>
+      <div class="divider-thin"></div>
       }
 
       <!-- Total final -->

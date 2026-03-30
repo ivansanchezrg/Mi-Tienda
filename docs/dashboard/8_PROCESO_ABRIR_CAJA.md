@@ -19,12 +19,12 @@
 | --- | --- |
 | `turnos_caja` | 1 registro por apertura. `hora_fecha_cierre IS NULL` = turno activo. `fondo_cubierto` indica si el fondo físico estuvo completo al cierre anterior. |
 | `operaciones_cajas` | `repararDeficit()` inserta el EGRESO de CAJA y el INGRESO a VARIOS cuando hay déficit. |
-| `configuraciones` | `fondo_fijo_diario` y `varios_transferencia_diaria`. Fuente de verdad. |
+| `configuraciones` | `caja_fondo_fijo_diario` y `caja_varios_transferencia_dia` (clave/valor). Fuente de verdad. |
 
 > **Principio clave:** En el caso normal, abrir caja **no afecta saldos** — solo crea el registro en `turnos_caja`. Cuando hay déficit, `fn_reparar_deficit_turno` mueve saldos (EGRESO de CAJA + INGRESO a VARIOS) **y** abre el turno en la misma transacción atómica.
 
 > ⚠️ **Primer uso del sistema (solo una vez):** El fondo físico no se autoconstituye. Antes de abrir caja por primera vez:
-> 1. Tomar físicamente `fondo_fijo_diario` (ej. $20) de la funda **Tienda**.
+> 1. Tomar físicamente `caja_fondo_fijo_diario` (ej. $20) de la funda **Tienda**.
 > 2. Ponerlo en el cajón físico.
 > 3. Registrar un **EGRESO manual en Tienda** por ese monto (para que el saldo digital refleje los $20 que salieron).
 > 4. **No registrar INGRESO en Cajón** — rompería la fórmula del cierre (`efectivo_esperado = saldo_digital + fondo_fijo`).
@@ -43,7 +43,7 @@ onAbrirCaja()
   │         → return (no navega, no abre modal)
   │
   └─ mostrarModalVerificacionFondo()
-       ├─ obtenerFondoFijo()             → fondo_fijo_diario desde configuraciones
+       ├─ obtenerFondoFijo()             → caja_fondo_fijo_diario desde configuraciones
        └─ obtenerDeficitTurnoAnterior()  → ver §4
         ↓
 [VerificarFondoModalComponent]
@@ -72,12 +72,14 @@ El banner usa `estadoCaja.estado` + el getter `esMiTurno` (compara `turnoActivo.
 
 | Estado | `esMiTurno` | Título | Subtítulo | Botón | Estilo card |
 | --- | --- | --- | --- | --- | --- |
-| `SIN_ABRIR` | — | Sin Turno | "Abrí turno para iniciar operaciones" | Abrir Caja | Normal |
-| `TURNO_EN_CURSO` | `true` | Turno Activo | Nombre del empleado | Cerrar Turno | Normal |
-| `TURNO_EN_CURSO` | `false` | Turno en Progreso | "Abierto por [nombre]" | — (sin botón) | Tinte amarillo (`.ajeno`) |
-| `CERRADA` | — | Turno Cerrado | "Caja cerrada por hoy" | Abrir Caja | Normal |
+| `SIN_ABRIR` | — | Sin Turno Hoy | "Abre Caja Chica para habilitar ventas POS" | Abrir Caja Chica | Normal |
+| `TURNO_EN_CURSO` | `true` | Turno Activo | "Caja Chica abierta · Ventas POS habilitadas" | Cerrar Turno | Normal |
+| `TURNO_EN_CURSO` | `false` | Turno en Progreso | "Caja Chica abierta por [nombre]" | — (sin botón) | Tinte amarillo (`.ajeno`) |
+| `CERRADA` | — | Turno Cerrado | "Caja Chica cerrada · Ventas POS deshabilitadas" | Abrir Caja Chica | Normal |
 
 > **Turno en Progreso:** cuando el turno activo pertenece a otro empleado, el card muestra la información de forma pasiva (sin acción disponible). El empleado logueado no puede ni abrir ni cerrar — solo el dueño del turno puede cerrarlo.
+
+> **Menú ⋮ de Caja Chica en turno ajeno:** cuando el estado es "Turno en Progreso", el botón `⋮` de la tarjeta Caja Chica aparece atenuado (opacity 35%) con cursor prohibido y no abre el popover. Las otras 4 cajas no se ven afectadas. La misma restricción aplica dentro de `OperacionesCajaPage`: si se navega a Caja Chica con turno ajeno, el `⋮` del header queda deshabilitado (`turnoAjeno=true` via query param).
 
 `turnosHoy` en `EstadoCaja` indica si es el 1° o 2° turno del día.
 
@@ -91,7 +93,7 @@ Determina si el último turno cerrado tuvo déficit y cuánto debe reponerse al 
 
 1. Obtiene el último turno cerrado: `hora_fecha_cierre IS NOT NULL ORDER BY hora_fecha_cierre DESC LIMIT 1`. Incluye `fondo_cubierto`.
 2. Extrae la **fecha local** del cierre (sin desfase UTC).
-3. En paralelo: busca el ID de VARIOS en `cajas` y lee `fondo_fijo_diario` + `varios_transferencia_diaria` de `configuraciones`.
+3. En paralelo: busca el ID de VARIOS en `cajas` y lee `caja_fondo_fijo_diario` + `caja_varios_transferencia_dia` de `configuraciones` (vía `ConfigService`).
 4. Verifica si VARIOS ya cobró ese día buscando en `operaciones_cajas` cualquiera de:
    - `tipo_operacion = 'TRANSFERENCIA_ENTRANTE'` → cierre normal sin déficit
    - `tipo_operacion = 'INGRESO'` + `categorias_operaciones.codigo = 'IN-004'` → reparación de apertura ya ejecutada hoy
@@ -103,10 +105,10 @@ const variosYaCobro = !!(transferenciaEncontrada || ingresoIN004Encontrado);
 // Los dos déficits son independientes — puede haber uno, ambos o ninguno
 const deficitVarios = variosYaCobro
   ? 0
-  : varios_transferencia_diaria;
+  : caja_varios_transferencia_dia;
 
 const fondoFaltante = (ultimoTurno.fondo_cubierto === false)
-  ? fondo_fijo_diario
+  ? caja_fondo_fijo_diario
   : 0;
 
 if (deficitVarios <= 0 && fondoFaltante <= 0) return null;
@@ -122,7 +124,7 @@ return { deficitVarios, fondoFaltante };
 | Sí | `true` | $0 | $0 | `null` → solo Paso 2 |
 | Sí | `false` | $0 | $20 | Paso 1 + Paso 2 |
 
-> `fondo_cubierto` lo escribe `fn_ejecutar_cierre_diario`: `TRUE` si `p_efectivo_fisico >= fondo_fijo_diario`, `FALSE` si el cajón no tenía suficiente ni para el fondo.
+> `fondo_cubierto` lo escribe `fn_ejecutar_cierre_diario`: `TRUE` si `p_efectivo_fisico >= caja_fondo_fijo_diario`, `FALSE` si el cajón no tenía suficiente ni para el fondo.
 
 ### Por qué se verifica INGRESO IN-004 además de TRANSFERENCIA_ENTRANTE
 

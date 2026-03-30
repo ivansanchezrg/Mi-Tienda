@@ -1,5 +1,5 @@
 -- =============================================================================
--- FUNCIÓN: crear_transferencia
+-- FUNCIÓN: fn_crear_transferencia
 -- Versión: 1.0
 -- Descripción: Crea una transferencia atómica entre dos cajas usando códigos.
 --              Busca las cajas por código, valida saldo suficiente en el origen,
@@ -8,7 +8,7 @@
 --
 -- Llamada desde: CajasService.crearTransferencia()
 -- =============================================================================
-CREATE OR REPLACE FUNCTION crear_transferencia(
+CREATE OR REPLACE FUNCTION fn_crear_transferencia(
   p_codigo_origen    TEXT,
   p_codigo_destino   TEXT,
   p_monto            NUMERIC,
@@ -97,10 +97,10 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) FROM anon;
-GRANT EXECUTE ON FUNCTION crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION fn_crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) FROM anon;
+GRANT EXECUTE ON FUNCTION fn_crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
 
-COMMENT ON FUNCTION crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) IS
+COMMENT ON FUNCTION fn_crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) IS
   'Transfiere monto entre dos cajas por código. Operación atómica con validación de saldo. v1.0';

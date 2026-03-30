@@ -1,13 +1,20 @@
 -- ==========================================
--- DROP — descomentar SOLO si cambia la firma (parámetros o tipo de retorno)
+-- DROP — firmas anteriores
 -- ==========================================
--- v1.1 → v1.2: nueva firma — agregar p_estado
-DROP FUNCTION IF EXISTS public.fn_listar_ventas(TEXT, TEXT, INT, INT);
+DROP FUNCTION IF EXISTS public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT);
+DROP FUNCTION IF EXISTS public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT, UUID);
+DROP FUNCTION IF EXISTS public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT, UUID, INTEGER);
 
 -- ==========================================
--- FUNCIÓN: fn_listar_ventas (v1.2)
+-- FUNCIÓN: fn_listar_ventas (v1.4)
 -- ==========================================
--- Lista paginada de ventas con soporte de filtro por período, búsqueda libre y estado.
+-- Lista paginada de ventas con soporte de filtro por período, búsqueda libre,
+-- estado y turno. Todos los roles ven todas las ventas.
+-- El filtro por turno es solo visible para ADMIN (client-side).
+--
+-- v1.4 — Simplificado: todos los roles ven todas las ventas. Filtro de turno
+--         solo disponible para ADMIN en el frontend.
+-- v1.3 — Agrega: p_turno_id para filtrar ventas de un turno específico.
 --
 -- Llamada desde: VentasService.obtenerVentas()
 -- Parámetros:
@@ -16,6 +23,7 @@ DROP FUNCTION IF EXISTS public.fn_listar_ventas(TEXT, TEXT, INT, INT);
 --   p_page       — página 0-based
 --   p_page_size  — registros por página (default 10)
 --   p_estado     — 'COMPLETADA' | 'ANULADA' | NULL (NULL = solo COMPLETADA, default operativo)
+--   p_turno_id   — UUID del turno. NULL = todos los turnos del período
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION public.fn_listar_ventas(
@@ -23,7 +31,8 @@ CREATE OR REPLACE FUNCTION public.fn_listar_ventas(
     p_busqueda  TEXT    DEFAULT NULL,
     p_page      INT     DEFAULT 0,
     p_page_size INT     DEFAULT 10,
-    p_estado    TEXT    DEFAULT NULL
+    p_estado    TEXT    DEFAULT NULL,
+    p_turno_id  UUID    DEFAULT NULL
 )
 RETURNS TABLE (
     id                    UUID,
@@ -112,6 +121,8 @@ BEGIN
     LEFT JOIN clientes  c ON v.cliente_id  = c.id
     LEFT JOIN usuarios  e ON v.empleado_id = e.id
     WHERE v.estado = COALESCE(p_estado, 'COMPLETADA')
+      -- Filtro de turno (solo ADMIN lo usa desde el frontend)
+      AND (p_turno_id IS NULL OR v.turno_id = p_turno_id)
       -- Filtro de fecha
       AND (v_inicio IS NULL OR v.fecha >= v_inicio)
       AND (v_fin    IS NULL OR v.fecha <  v_fin)
@@ -136,7 +147,7 @@ $$;
 -- ==========================================
 -- PERMISOS
 -- ==========================================
-REVOKE EXECUTE ON FUNCTION public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT, UUID) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT, UUID) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

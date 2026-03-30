@@ -28,6 +28,17 @@
       </div>
     </div>
 
+    <!-- Filtro por turno (solo cuando hay 2+ turnos y filtro es día único) -->
+    @if (mostrarFiltroTurno) {
+    <div class="turno-bar">
+      <button class="turno-selector" (click)="abrirSelectorTurno()">
+        <ion-icon name="people-outline"></ion-icon>
+        <span>{{ labelTurno }}</span>
+        <ion-icon name="chevron-down-outline" class="turno-arrow"></ion-icon>
+      </button>
+    </div>
+    }
+
     <!-- Toggle anuladas + chip búsqueda -->
     <div class="estado-bar">
       <button class="estado-pill" [class.active]="filtroEstado === 'ANULADA'" (click)="toggleFiltroAnuladas()">

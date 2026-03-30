@@ -18,8 +18,25 @@
 
   <div class="resumen-container">
 
-    <!-- Fecha del día -->
-    <p class="resumen-fecha">{{ fechaLabel }}</p>
+    <!-- Filtros de período -->
+    <div class="filter-bar">
+      @for (f of filtros; track f) {
+        <button class="filter-tab" [class.active]="filtro === f" (click)="cambiarFiltro(f)">
+          {{ f === 'todo' ? 'Todo' : (f === 'hoy' ? 'Hoy' : f === 'semana' ? 'Semana' : 'Mes') }}
+        </button>
+      }
+    </div>
+
+    <!-- Filtro por turno (solo cuando hay 2+ turnos y filtro es Hoy) -->
+    @if (mostrarFiltroTurno) {
+    <div class="turno-bar">
+      <button class="turno-selector" (click)="abrirSelectorTurno()">
+        <ion-icon name="people-outline"></ion-icon>
+        <span>{{ labelTurno }}</span>
+        <ion-icon name="chevron-down-outline" class="turno-arrow"></ion-icon>
+      </button>
+    </div>
+    }
 
     <!-- ══ SKELETON ══ -->
     @if (loading) {
@@ -67,9 +84,11 @@
     <!-- ══ DATOS ══ -->
     @else {
 
-    <!-- Hero: total del día -->
+    <!-- Hero: total del período -->
     <div class="card hero-card">
-      <span class="hero-label">Total del día</span>
+      <span class="hero-label">
+        {{ filtro === 'hoy' ? 'Total del día' : filtro === 'semana' ? 'Total de la semana' : filtro === 'mes' ? 'Total del mes' : 'Total histórico' }}
+      </span>
       <div class="hero-monto">
         <span class="hero-currency">$</span>{{ currencyService.format(reporte.total_monto) }}
       </div>
@@ -137,6 +156,54 @@
         <span class="comprobante-monto">${{ currencyService.format(item.monto) }}</span>
       </div>
       }
+    </div>
+    }
+
+    <!-- Top productos -->
+    @if (reporte.top_productos.length > 0) {
+    <div class="card">
+      <h3 class="section-title">
+        <ion-icon name="trophy-outline"></ion-icon>
+        Más vendidos
+      </h3>
+      @for (item of reporte.top_productos; track item.producto_id; let i = $index) {
+      <div class="producto-row">
+        <span class="producto-rank">{{ i + 1 }}</span>
+        <div class="producto-info">
+          <span class="producto-nombre">{{ item.nombre }}</span>
+          <span class="producto-sub">{{ item.total_unidades }} unid. · {{ item.total_ventas }} {{ item.total_ventas === 1 ? 'venta' : 'ventas' }}</span>
+        </div>
+        <span class="producto-monto">${{ currencyService.format(item.total_monto) }}</span>
+      </div>
+      }
+    </div>
+    }
+
+    <!-- Ganancia bruta -->
+    @if (reporte.total_ventas > 0) {
+    <div class="card ganancia-card">
+      <h3 class="section-title">
+        <ion-icon name="trending-up-outline"></ion-icon>
+        Ganancia bruta
+      </h3>
+      <div class="ganancia-row">
+        <div class="ganancia-item">
+          <span class="ganancia-label">Ingresos</span>
+          <span class="ganancia-valor ingreso">${{ currencyService.format(reporte.total_monto) }}</span>
+        </div>
+        <div class="ganancia-item">
+          <span class="ganancia-label">Costo</span>
+          <span class="ganancia-valor costo">−${{ currencyService.format(reporte.costo_total) }}</span>
+        </div>
+        <div class="ganancia-divider"></div>
+        <div class="ganancia-item destacado">
+          <span class="ganancia-label">Ganancia</span>
+          <span class="ganancia-valor ganancia">${{ currencyService.format(reporte.ganancia_bruta) }}</span>
+        </div>
+        <div class="ganancia-margen">
+          <span class="margen-badge">{{ reporte.margen_pct }}% margen</span>
+        </div>
+      </div>
     </div>
     }
 

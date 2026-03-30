@@ -11,7 +11,7 @@
 | `recargas_virtuales` | Recargas del proveedor. Se filtran por `created_at > último_cierre_at` para evitar duplicados entre turnos. |
 | `operaciones_cajas` | Trazabilidad completa: cada movimiento contable con saldo anterior/posterior. |
 | `cajas` | Saldos actuales de las 5 cajas. Se actualizan al cierre. |
-| `configuraciones` | `fondo_fijo_diario` y `varios_transferencia_diaria`. Fuente de verdad. |
+| `configuraciones` | `caja_fondo_fijo_diario` y `caja_varios_transferencia_dia` (clave/valor). Fuente de verdad. |
 
 > **v5:** Las tablas `caja_fisica_diaria` y `gastos_diarios` fueron **eliminadas**. El cierre no escribe en `caja_fisica_diaria`. El turno cerrado se detecta por `hora_fecha_cierre IS NOT NULL` en `turnos_caja`. El déficit del turno queda registrado en `fondo_cubierto` (columna de `turnos_caja`).
 
@@ -118,7 +118,7 @@ depositoCaja        = efectivoFisico - transferenciaVarios - (fondoEnCajon ? fon
 
 ---
 
-## 3. Función SQL: `ejecutar_cierre_diario` (v5)
+## 3. Función SQL: `fn_ejecutar_cierre_diario` (v5)
 
 > 📄 Código fuente completo: [`docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql`](./sql/functions/fn_ejecutar_cierre_diario_v5.sql)
 
@@ -146,7 +146,7 @@ Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo en una trans
 ### Lo que ejecuta (en orden)
 
 1. Valida: turno existe, no tiene `hora_fecha_cierre`, `p_efectivo_fisico >= 0`
-2. Lee `fondo_fijo_diario` y `varios_transferencia_diaria` de `configuraciones`
+2. Lee `caja_fondo_fijo_diario` y `caja_varios_transferencia_dia` de `configuraciones`
 3. Obtiene `MAX(hora_fecha_cierre)` de `turnos_caja` → filtra `recargas_virtuales` pendientes desde ese timestamp
 4. Lee saldos actuales de `CAJA_CHICA`, `CAJA` y `VARIOS` con `FOR UPDATE` (lock de consistencia en las 3 cajas que cambian por el cierre)
 5. **Detecta si VARIOS ya recibió su transferencia diaria hoy** — busca en `operaciones_cajas` para `p_fecha` cualquiera de:

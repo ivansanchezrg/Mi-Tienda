@@ -4,6 +4,13 @@ ion-button {
     --padding-end: 4px;
 }
 
+// Estado deshabilitado — cursor prohibido, icono atenuado
+ion-button.disabled-menu {
+    cursor: not-allowed;
+    pointer-events: auto;
+    opacity: 0.35;
+}
+
 .options-list {
     min-width: 180px;
 

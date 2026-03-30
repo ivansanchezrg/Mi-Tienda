@@ -1,16 +1,23 @@
 -- ==========================================
--- DROP — la firma cambia (nuevo parámetro p_idempotency_key):
+-- DROP — la firma cambia (nuevo parámetro p_descuento_pct):
 -- ejecutar UNA VEZ antes del CREATE
 -- ==========================================
-DROP FUNCTION IF EXISTS public.registrar_venta_pos(
-  UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB
+DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
+  UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID
 );
 
 -- ==========================================
--- FUNCIÓN: registrar_venta_pos (v1.4)
+-- FUNCIÓN: fn_registrar_venta_pos (v1.6)
 -- ==========================================
 -- Procesa una venta del POS en una transacción atómica.
 -- Si CUALQUIER paso falla, PostgreSQL hace rollback automático completo.
+--
+-- v1.6 — Descuentos: persiste porcentaje aplicado (p_descuento_pct SMALLINT).
+--   El descuento NO aplica para ventas FIADO (validado en frontend).
+--   Se guardan tanto el monto (descuento) como el % (descuento_pct)
+--   para trazabilidad histórica independiente de configuración futura.
+--
+-- v1.5 — Descuentos automáticos: acepta p_descuento DECIMAL.
 --
 -- v1.4 — Idempotencia: acepta p_idempotency_key UUID.
 --   Si la clave ya existe en ventas, retorna la venta existente
@@ -36,6 +43,8 @@ DROP FUNCTION IF EXISTS public.registrar_venta_pos(
 --   p_tipo_comprobante  — 'TICKET' | 'NOTA_VENTA' | 'FACTURA'
 --   p_total             — Monto total cobrado al cliente (incluye IVA si aplica)
 --   p_subtotal          — Base neta sin IVA (= total en TICKET/NOTA_VENTA, = base0+base15 en FACTURA)
+--   p_descuento         — Monto de descuento aplicado (0 si no aplica o si es FIADO)
+--   p_descuento_pct     — Porcentaje de descuento aplicado (0 si no aplica o si es FIADO)
 --   p_base_iva_0        — Base gravada 0% (solo FACTURA, sino 0)
 --   p_base_iva_15       — Base gravada 15% antes de IVA (solo FACTURA, sino 0)
 --   p_iva_valor         — Valor del IVA 15% extraído (solo FACTURA, sino 0)
@@ -44,13 +53,15 @@ DROP FUNCTION IF EXISTS public.registrar_venta_pos(
 --   p_idempotency_key   — UUID generado por el cliente antes del RPC (protección contra duplicados)
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.registrar_venta_pos(
+CREATE OR REPLACE FUNCTION public.fn_registrar_venta_pos(
   p_turno_id         UUID,
   p_empleado_id      INTEGER,
   p_cliente_id       UUID             DEFAULT NULL,
   p_tipo_comprobante TEXT             DEFAULT 'TICKET',
   p_total            DECIMAL(12,2)    DEFAULT 0,
   p_subtotal         DECIMAL(12,2)    DEFAULT 0,
+  p_descuento        DECIMAL(12,2)    DEFAULT 0,
+  p_descuento_pct    SMALLINT         DEFAULT 0,
   p_base_iva_0       DECIMAL(12,2)    DEFAULT 0,
   p_base_iva_15      DECIMAL(12,2)    DEFAULT 0,
   p_iva_valor        DECIMAL(12,2)    DEFAULT 0,
@@ -111,6 +122,8 @@ BEGIN
       tipo_comprobante,
       numero_comprobante,
       subtotal,
+      descuento,
+      descuento_pct,
       total,
       base_iva_0,
       base_iva_15,
@@ -126,6 +139,8 @@ BEGIN
       p_tipo_comprobante::tipo_comprobante_enum,
       v_numero_comprobante,
       p_subtotal,
+      p_descuento,
+      p_descuento_pct,
       p_total,
       p_base_iva_0,
       p_base_iva_15,
@@ -184,16 +199,16 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
--- Permisos (firma cambió — incluye p_idempotency_key)
-REVOKE EXECUTE ON FUNCTION public.registrar_venta_pos(UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.registrar_venta_pos(UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID) TO authenticated;
+-- Permisos (firma v1.6 — incluye p_descuento_pct SMALLINT)
+REVOKE EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, INTEGER, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID) TO authenticated;
 
 -- Refrescar caché PostgREST
 NOTIFY pgrst, 'reload schema';
 
-COMMENT ON FUNCTION public.registrar_venta_pos IS
-  'v1.4 — Idempotencia: acepta p_idempotency_key UUID para evitar ventas duplicadas por reintento. '
-  'SELECT previo + EXCEPTION WHEN unique_violation como doble barrera contra race conditions. '
+COMMENT ON FUNCTION public.fn_registrar_venta_pos IS
+  'v1.6 — Descuentos: persiste monto (p_descuento) y porcentaje (p_descuento_pct). '
+  'Descuento no aplica para FIADO (validado en frontend). '
+  'v1.4 — Idempotencia: p_idempotency_key UUID para evitar duplicados por reintento. '
   'Registra venta completa del POS en transacción atómica. '
-  'Triggers automáticos: descuento de stock (kardex) y actualización de CAJA_CHICA. '
-  'Campos SRI (secuencial_sri, clave_acceso_sri, estado_sri) dormidos para fase futura.';
+  'Triggers automáticos: descuento de stock (kardex) y actualización de CAJA_CHICA.';

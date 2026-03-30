@@ -24,6 +24,7 @@ import { CajasService } from '../../services/cajas.service';
 import { StorageService } from '@core/services/storage.service';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
 import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
+import { AuthService } from '../../../auth/services/auth.service';
 
 interface OperacionAgrupada {
   fecha: string;
@@ -55,6 +56,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   private storageService = inject(StorageService);
   private networkService = inject(NetworkService);
   private route = inject(ActivatedRoute);
+  private authService = inject(AuthService);
   private networkSub?: Subscription;
 
   @ViewChild(IonInfiniteScroll) infiniteScroll!: IonInfiniteScroll;
@@ -84,6 +86,25 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   // Flag para saber si hubo cambios y refrescar home al volver
   hayCambios = false;
 
+  // true si el turno activo de Caja Chica pertenece a otro empleado
+  turnoAjeno = false;
+
+  // true si el usuario logueado es quien abrió el turno de Caja Chica
+  esMiTurno = false;
+
+  // Código de la caja (CAJA, CAJA_CHICA, CAJA_CELULAR, CAJA_BUS, VARIOS)
+  cajaCodigo = '';
+
+  // true si el usuario logueado es ADMIN
+  esAdmin = false;
+
+  // true si el ⋮ debe mostrarse según caja y rol
+  get mostrarMenuOpciones(): boolean {
+    if (this.cajaCodigo === 'CAJA_CHICA') return this.esMiTurno;
+    if (['CAJA_CELULAR', 'CAJA_BUS'].includes(this.cajaCodigo)) return this.esAdmin;
+    return true; // CAJA y VARIOS siempre
+  }
+
   constructor() {
     addIcons({
       chevronBackOutline, arrowDownOutline, arrowUpOutline,
@@ -98,6 +119,9 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     const params = this.route.snapshot.queryParams;
     this.cajaId = Number(params['cajaId']) || 0;
     this.cajaNombre = params['cajaNombre'] || '';
+    this.cajaCodigo = params['cajaCodigo'] || '';
+    this.turnoAjeno = params['turnoAjeno'] === 'true';
+    this.esMiTurno = params['esMiTurno'] === 'true';
 
     if (!this.cajaId) {
       this.router.navigate(['/home']);
@@ -107,6 +131,9 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
 
   async ionViewWillEnter() {
     this.ui.hideTabs();
+
+    const usuario = await this.authService.getUsuarioActual();
+    this.esAdmin = usuario?.rol === 'ADMIN';
 
     // Suscribirse al estado de red (limpiar anterior si existe)
     this.networkSub?.unsubscribe();
@@ -335,6 +362,8 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
 
   async mostrarMenuOperaciones(event: Event) {
     event.stopPropagation();
+
+    if (this.turnoAjeno) return;
 
     // Verificar conexión
     if (!this.isOnline) {

@@ -1,10 +1,10 @@
 -- ==========================================
 -- DROP — descomentar SOLO si cambia la firma (parámetros o tipo de retorno)
 -- ==========================================
--- DROP FUNCTION IF EXISTS public.abrir_turno(INTEGER);
+-- DROP FUNCTION IF EXISTS public.fn_abrir_turno(INTEGER);
 
 -- ==========================================
--- FUNCIÓN: abrir_turno (v1.0)
+-- FUNCIÓN: fn_abrir_turno (v1.0)
 -- ==========================================
 -- Apertura atómica de turno de caja.
 -- Reemplaza la lógica multi-query de TurnosCajaService.abrirTurno() (3 queries separadas)
@@ -20,7 +20,7 @@
 --   p_empleado_id — empleado que abre el turno
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.abrir_turno(
+CREATE OR REPLACE FUNCTION public.fn_abrir_turno(
   p_empleado_id INTEGER
 )
 RETURNS JSON
@@ -70,12 +70,12 @@ END;
 $$;
 
 -- Permisos
-GRANT EXECUTE ON FUNCTION public.abrir_turno(INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.fn_abrir_turno(INTEGER) TO authenticated;
 
 -- Refrescar caché PostgREST
 NOTIFY pgrst, 'reload schema';
 
-COMMENT ON FUNCTION public.abrir_turno IS
+COMMENT ON FUNCTION public.fn_abrir_turno IS
   'v1.0 - Apertura atómica de turno de caja. '
   'Valida que no haya turno abierto hoy antes de insertar. '
   'Calcula número de turno secuencial dentro del día. '
