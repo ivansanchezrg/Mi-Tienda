@@ -228,7 +228,7 @@ export class CajasService {
     const { codigoOrigen, codigoDestino, monto, empleadoId, descripcion } = params;
 
     const response = await this.supabase.call(
-      this.supabase.client.rpc('crear_transferencia', {
+      this.supabase.client.rpc('fn_crear_transferencia', {
         p_codigo_origen: codigoOrigen,
         p_codigo_destino: codigoDestino,
         p_monto: monto,

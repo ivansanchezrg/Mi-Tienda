@@ -1,12 +1,12 @@
 -- ==========================================
 -- DROP — descomentar SOLO si cambia la firma (parámetros o tipo de retorno)
 -- ==========================================
--- DROP FUNCTION IF EXISTS public.reparar_deficit_turno(
+-- DROP FUNCTION IF EXISTS public.fn_reparar_deficit_turno(
 --   INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER
 -- );
 
 -- ==========================================
--- FUNCIÓN: reparar_deficit_turno (v1.4)
+-- FUNCIÓN: fn_reparar_deficit_turno (v1.4)
 -- ==========================================
 -- CAMBIOS v1.4:
 --   - El déficit de VARIOS y del fondo son costos operacionales del negocio.
@@ -37,7 +37,7 @@
 --   p_cat_ingreso_id     — ID de categoría IN-004 (Reposición Déficit Turno Anterior)
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.reparar_deficit_turno(
+CREATE OR REPLACE FUNCTION public.fn_reparar_deficit_turno(
   p_empleado_id        INTEGER,
   p_deficit_varios DECIMAL(12,2),
   p_fondo_faltante     DECIMAL(12,2),
@@ -183,13 +183,13 @@ END;
 $$;
 
 -- Permisos
-REVOKE EXECUTE ON FUNCTION public.reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER) FROM anon;
-GRANT EXECUTE ON FUNCTION public.reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER) FROM anon;
+GRANT EXECUTE ON FUNCTION public.fn_reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER) TO authenticated;
 
 -- Refrescar caché PostgREST
 NOTIFY pgrst, 'reload schema';
 
-COMMENT ON FUNCTION public.reparar_deficit_turno IS
+COMMENT ON FUNCTION public.fn_reparar_deficit_turno IS
   'v1.4 - Reparación déficit operacional + apertura de turno en una sola transacción atómica. '
   'EGRESO de Tienda (validando saldo) + INGRESO a VARIOS (si hay déficit de transferencia) + INSERT en turnos_caja. '
   'El déficit de VARIOS y del fondo son costos operacionales — NO son deudas del empleado. '

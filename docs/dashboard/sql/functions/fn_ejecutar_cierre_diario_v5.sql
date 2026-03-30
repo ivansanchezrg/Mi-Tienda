@@ -2,13 +2,13 @@
 -- DROP — firma cambia en v5 (parámetros distintos a v4.9)
 -- ==========================================
 -- ⚠️  Descomentar y ejecutar PRIMERO si ya existe la función en la BD:
--- DROP FUNCTION IF EXISTS public.ejecutar_cierre_diario(
+-- DROP FUNCTION IF EXISTS public.fn_ejecutar_cierre_diario(
 --   UUID, DATE, INTEGER, DECIMAL, DECIMAL, DECIMAL,
 --   DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
 -- );
 
 -- ==========================================
--- FUNCIÓN: ejecutar_cierre_diario (v5.0)
+-- FUNCIÓN: fn_ejecutar_cierre_diario (v5.0)
 -- ==========================================
 -- CAMBIOS v5.0 respecto a v4.9:
 --   - Eliminado: p_efectivo_recaudado, p_saldo_anterior_caja, p_saldo_anterior_caja_chica
@@ -29,7 +29,7 @@
 --   - Ventas negativas lanzan excepción con mensaje descriptivo
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.ejecutar_cierre_diario(  -- v5.1
+CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v5.1
   p_turno_id               UUID,
   p_fecha                  DATE,
   p_empleado_id            INTEGER,
@@ -145,10 +145,10 @@ BEGIN
   -- 3. OBTENER CONFIGURACIÓN
   -- ==========================================
 
-  SELECT fondo_fijo_diario, varios_transferencia_diaria
-  INTO v_fondo_fijo, v_transferencia_diaria
-  FROM configuraciones
-  LIMIT 1;
+  SELECT
+    (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_fondo_fijo_diario'),
+    (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_varios_transferencia_dia')
+  INTO v_fondo_fijo, v_transferencia_diaria;
 
   IF v_fondo_fijo IS NULL OR v_transferencia_diaria IS NULL THEN
     RAISE EXCEPTION 'No se encontró configuración del sistema';
@@ -569,11 +569,11 @@ $function$;
 -- PERMISOS
 -- ==========================================
 
-REVOKE EXECUTE ON FUNCTION public.ejecutar_cierre_diario(
+REVOKE EXECUTE ON FUNCTION public.fn_ejecutar_cierre_diario(
   UUID, DATE, INTEGER, DECIMAL, DECIMAL, DECIMAL,
   DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
 ) FROM anon;
-GRANT EXECUTE ON FUNCTION public.ejecutar_cierre_diario(
+GRANT EXECUTE ON FUNCTION public.fn_ejecutar_cierre_diario(
   UUID, DATE, INTEGER, DECIMAL, DECIMAL, DECIMAL,
   DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
 ) TO authenticated;
@@ -581,7 +581,7 @@ GRANT EXECUTE ON FUNCTION public.ejecutar_cierre_diario(
 -- Refrescar caché de PostgREST
 NOTIFY pgrst, 'reload schema';
 
-COMMENT ON FUNCTION public.ejecutar_cierre_diario IS
+COMMENT ON FUNCTION public.fn_ejecutar_cierre_diario IS
 'Cierre diario v5.2 — Distribución en cascada "todo o nada" por nivel. '
 'Inserta en deudas_empleados solo cuando efectivo_fisico < efectivo_esperado (faltante de conteo). '
 'El déficit de VARIOS y del fondo son costos operacionales — NO se registran como deuda del empleado. '

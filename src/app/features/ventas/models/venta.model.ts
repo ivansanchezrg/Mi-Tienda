@@ -28,13 +28,18 @@ export interface VentasResumen {
 // ──────────────────────────────────────────────
 
 export interface ReporteVentasDia {
-    fecha: string;
+    fecha_inicio: string;
+    fecha_fin: string;
     total_ventas: number;
     total_monto: number;
     total_anuladas: number;
     monto_anulado: number;
+    costo_total: number;
+    ganancia_bruta: number;
+    margen_pct: number;
     por_metodo_pago: ReporteMetodoPago[];
     por_tipo_comprobante: ReporteTipoComprobante[];
+    top_productos: ProductoMasVendido[];
 }
 
 export interface ReporteMetodoPago {
@@ -49,6 +54,14 @@ export interface ReporteTipoComprobante {
     monto: number;
 }
 
+export interface ProductoMasVendido {
+    producto_id: string;
+    nombre: string;
+    total_unidades: number;
+    total_monto: number;
+    total_ventas: number;
+}
+
 // ──────────────────────────────────────────────
 // Modelo: Venta individual
 // ──────────────────────────────────────────────
@@ -61,6 +74,8 @@ export interface Venta {
     tipo_comprobante: TipoComprobanteType;
     numero_comprobante: number | null;  // Correlativo interno (ej: 42 → "#42")
     subtotal: number;
+    descuento: number;
+    descuento_pct: number;
     total: number;
     base_iva_0: number;
     base_iva_15: number;

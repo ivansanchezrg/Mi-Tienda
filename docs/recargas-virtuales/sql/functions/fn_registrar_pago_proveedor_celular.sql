@@ -1,5 +1,5 @@
 -- ==========================================
--- FUNCIÓN: registrar_pago_proveedor_celular
+-- FUNCIÓN: fn_registrar_pago_proveedor_celular
 -- VERSIÓN: 2.1
 -- FECHA: 2026-02-25
 -- ==========================================
@@ -26,9 +26,9 @@
 -- ==========================================
 
 -- Descomentar solo si cambia la firma (parámetros o tipo de retorno):
--- DROP FUNCTION IF EXISTS registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT);
+-- DROP FUNCTION IF EXISTS fn_registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT);
 
-CREATE OR REPLACE FUNCTION registrar_pago_proveedor_celular(
+CREATE OR REPLACE FUNCTION fn_registrar_pago_proveedor_celular(
   p_empleado_id  INTEGER,
   p_deuda_ids    UUID[],
   p_observaciones        TEXT DEFAULT NULL
@@ -223,13 +223,13 @@ EXCEPTION
 END;
 $$;
 
-COMMENT ON FUNCTION registrar_pago_proveedor_celular IS
+COMMENT ON FUNCTION fn_registrar_pago_proveedor_celular IS
 'v2.1 - Registra pago al proveedor CELULAR. Crea EGRESO en CAJA_CELULAR (monto_a_pagar)
 y transfiere la ganancia acumulada (de recargas_virtuales.ganancia) a CAJA_CHICA.
 Ganancia NO hardcodeada: se lee de cada deuda seleccionada.
 Las operaciones TRANSFERENCIA_SALIENTE/ENTRANTE no usan categoria_id (NULL).';
 
-REVOKE EXECUTE ON FUNCTION registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) FROM anon;
-GRANT EXECUTE ON FUNCTION registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION fn_registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) FROM anon;
+GRANT EXECUTE ON FUNCTION fn_registrar_pago_proveedor_celular(INTEGER, UUID[], TEXT) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

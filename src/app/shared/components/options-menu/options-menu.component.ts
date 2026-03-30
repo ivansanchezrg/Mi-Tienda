@@ -37,6 +37,9 @@ export class OptionsMenuComponent {
     /** Color del botón ⋮ */
     @Input() triggerColor = 'medium';
 
+    /** Deshabilita el menú: muestra cursor prohibido y no abre el popover */
+    @Input() disabled = false;
+
     /** Se emite con la opción seleccionada */
     @Output() optionSelected = new EventEmitter<MenuOption>();
 

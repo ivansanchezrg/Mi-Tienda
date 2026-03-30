@@ -1,26 +1,33 @@
 -- ==========================================
--- DROP — descomentar SOLO si cambia la firma (parámetros o tipo de retorno)
+-- DROP — firmas anteriores
 -- ==========================================
--- v1.0 → v1.1: nueva firma — agregar p_estado
-DROP FUNCTION IF EXISTS public.fn_resumir_ventas(TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.fn_resumir_ventas(TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.fn_resumir_ventas(TEXT, TEXT, TEXT, UUID);
+DROP FUNCTION IF EXISTS public.fn_resumir_ventas(TEXT, TEXT, TEXT, UUID, INTEGER);
 
 -- ==========================================
--- FUNCIÓN: fn_resumir_ventas (v1.1)
+-- FUNCIÓN: fn_resumir_ventas (v1.3)
 -- ==========================================
 -- Devuelve el total de registros y el monto acumulado de ventas
--- para un filtro de período + búsqueda + estado, SIN paginación.
+-- para un filtro de período + búsqueda + estado + turno, SIN paginación.
+-- Todos los roles ven todas las ventas. El filtro de turno es solo para ADMIN.
+--
+-- v1.3 — Simplificado: todos los roles ven todas las ventas. Se elimina p_empleado_id.
+-- v1.2 — Agrega: p_turno_id para filtrar ventas de un turno específico.
 --
 -- Llamada desde: VentasService.resumirVentas()
 -- Parámetros:
 --   p_filtro    — 'hoy' | 'semana' | 'mes' | 'todo' | 'YYYY-MM-DD'
 --   p_busqueda  — término libre (nombre, cédula o nro. comprobante). NULL = sin filtro
 --   p_estado    — 'COMPLETADA' | 'ANULADA' | NULL (NULL = solo COMPLETADA)
+--   p_turno_id  — UUID del turno. NULL = todos los turnos del período
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION public.fn_resumir_ventas(
     p_filtro    TEXT    DEFAULT 'hoy',
     p_busqueda  TEXT    DEFAULT NULL,
-    p_estado    TEXT    DEFAULT NULL
+    p_estado    TEXT    DEFAULT NULL,
+    p_turno_id  UUID    DEFAULT NULL
 )
 RETURNS TABLE (
     total_registros BIGINT,
@@ -76,6 +83,8 @@ BEGIN
     FROM ventas v
     LEFT JOIN clientes c ON v.cliente_id = c.id
     WHERE v.estado = COALESCE(p_estado, 'COMPLETADA')
+      -- Filtro de turno (solo ADMIN lo usa desde el frontend)
+      AND (p_turno_id IS NULL OR v.turno_id = p_turno_id)
       AND (v_inicio IS NULL OR v.fecha >= v_inicio)
       AND (v_fin    IS NULL OR v.fecha <  v_fin)
       AND (
@@ -92,7 +101,7 @@ $$;
 -- ==========================================
 -- PERMISOS
 -- ==========================================
-REVOKE EXECUTE ON FUNCTION public.fn_resumir_ventas(TEXT, TEXT, TEXT) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.fn_resumir_ventas(TEXT, TEXT, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_resumir_ventas(TEXT, TEXT, TEXT, UUID) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_resumir_ventas(TEXT, TEXT, TEXT, UUID) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

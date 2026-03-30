@@ -20,7 +20,9 @@ Panel principal con 4 secciones:
 
 **Datos:** Conectado a Supabase mediante servicios.
 
-**Notificaciones:** `NotificacionesService.getNotificaciones()` se llama al cargar y muestra un badge con el total de alertas activas. Tipos posibles: `DEUDA_CELULAR`, `SALDO_BAJO_BUS`, `FACTURACION_BUS_PENDIENTE`, `FACTURACION_BUS_PROXIMA`. Ver detalle en [RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md#notificaciones-bus-en-home).
+**Notificaciones:** `NotificacionesService.getNotificaciones()` se llama al cargar y muestra un badge con el total de alertas activas. Tipos posibles: `DEUDA_CELULAR`, `SALDO_BAJO_BUS`, `FACTURACION_BUS_PENDIENTE`, `FACTURACION_BUS_PROXIMA`, `STOCK_BAJO`. Ver detalle en [RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md#notificaciones-bus-en-home).
+
+El modal de notificaciones (`NotificacionesModalComponent`) soporta un ítem expandible para `STOCK_BAJO`: si hay 1 producto navega directo a su Kárdex; si hay 2+ despliega la lista con acceso individual a cada producto.
 
 **Documentación completa:** Ver [8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)
 
@@ -115,6 +117,8 @@ Historial de movimientos por caja con diseño híbrido (Home pattern + empresari
 - 📜 **Scroll infinito** con agrupación por fecha
 - 📱 **Header dinámico** - saldo aparece al hacer scroll
 - 🎨 **Diseño adaptativo** dark/light mode
+- 🔒 **Restricción de turno ajeno:** si se navega a Caja Chica con turno activo de otro empleado (`turnoAjeno=true` en query params), el `⋮` del header queda deshabilitado. La función SQL también lo rechaza como última línea de defensa.
+- 👤 **Menú por rol:** CELULAR y BUS solo muestran el `⋮` a usuarios con rol `ADMIN`. Para empleados el menú está oculto. El rol se lee desde `AuthService.getUsuarioActual()` (Preferences, sin consulta a BD).
 
 **Documentación completa:** Ver [1_OPERACIONES-CAJA.md](./1_OPERACIONES-CAJA.md)
 
@@ -167,10 +171,10 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 | CajasService             | `dashboard/services/cajas.service.ts`                  | Operaciones de cajas, transferencias, saldos        |
 | OperacionesCajaService   | `dashboard/services/operaciones-caja.service.ts`       | Consulta de operaciones con filtros y paginación    |
 | TurnosCajaService        | `dashboard/services/turnos-caja.service.ts`            | Gestión de turnos de caja (abrir/cerrar)            |
-| NotificacionesService    | `dashboard/services/notificaciones.service.ts`         | Agrega y expone todas las notificaciones de la app  |
+| NotificacionesService    | `core/services/notificaciones.service.ts` ⬆️           | Agrega y expone todas las notificaciones de la app  |
 | RecargasVirtualesService | `core/services/recargas-virtuales.service.ts` ⬆️       | Gestión de saldo virtual, deudas, liquidaciones     |
 | GananciasService         | `core/services/ganancias.service.ts` ⬆️                | Cálculo y verificación de ganancias mensuales BUS   |
-> ⬆️ = Movido fuera de dashboard en el refactor de features (2026-02-25)
+> ⬆️ = Movido fuera de dashboard. `RecargasVirtualesService` y `GananciasService`: refactor features (2026-02-25). `NotificacionesService`: movido a `core/services/` (2026-03-27) — usado por dashboard e inventario.
 
 ---
 
@@ -221,7 +225,7 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 
 - Constantes centralizadas en tabla `configuraciones`
 - Fácil modificación sin redeploy
-- Ejemplos: `fondo_fijo_diario`, `porcentaje_comision`
+- Claves con prefijo por módulo: `caja_fondo_fijo_diario`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`
 
 ### Transactional PostgreSQL Functions
 

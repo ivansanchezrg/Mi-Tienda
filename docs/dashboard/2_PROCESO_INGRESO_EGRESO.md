@@ -130,6 +130,8 @@ Categorías especiales usadas por el sistema (no aparecen en este modal):
 
 **Nota crítica:** `p_tipo_operacion` es `TEXT`, no `tipo_operacion_caja_enum`. PostgREST no castea automáticamente strings a enums PostgreSQL (genera 400 Bad Request). La función castea internamente: `v_tipo := p_tipo_operacion::tipo_operacion_caja_enum`.
 
+**Restricción de turno (v2.2):** para `CAJA_CHICA`, la función valida que `p_empleado_id` tenga un turno activo hoy (`hora_fecha_cierre IS NULL`). Si el empleado no es el dueño del turno activo, lanza excepción. Esta validación es la última línea de defensa — la UI ya bloquea el acceso via `turnoAjeno=true`.
+
 ---
 
 ## 8. Permisos Android

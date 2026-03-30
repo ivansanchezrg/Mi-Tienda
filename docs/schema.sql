@@ -76,15 +76,22 @@ CREATE TABLE IF NOT EXISTS cajas (
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 3. configuraciones — Parámetros globales del negocio (1 sola fila)
+-- 3. configuraciones — Parámetros globales del negocio (clave/valor)
+-- Cada fila es una configuración independiente.
+-- Agregar nueva config = INSERT de una fila, sin ALTER TABLE.
+-- Prefijo por módulo: negocio_, caja_, bus_, pos_
+-- Claves actuales:
+--   negocio_nombre                — Nombre del negocio (aparece en comprobantes)
+--   caja_fondo_fijo_diario        — Efectivo que queda en caja para mañana
+--   caja_varios_transferencia_dia — Monto transferido a VARIOS en cada cierre
+--   bus_alerta_saldo_bajo         — Alerta cuando saldo virtual BUS <= este valor
+--   bus_dias_antes_facturacion    — Anticipación para recordar facturación mensual BUS
+--   pos_descuentos_habilitados    — 'true'/'false' — activa descuentos automáticos en POS
+--   pos_descuento_maximo_pct      — Porcentaje máximo de descuento aplicable (ej: '10')
+--   pos_umbral_monto_descuento    — Monto mínimo de venta para descuento automático (ej: '50.00')
 CREATE TABLE IF NOT EXISTS configuraciones (
-    id                              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nombre_negocio                  VARCHAR(150) DEFAULT 'Mi Tienda',             -- Nombre del negocio (aparece en comprobantes)
-    fondo_fijo_diario               DECIMAL(12,2) DEFAULT 20.00,                  -- Efectivo que queda en caja para mañana
-    varios_transferencia_diaria     DECIMAL(12,2),                                -- Monto transferido a Caja Chica en cada cierre
-    bus_alerta_saldo_bajo           DECIMAL(12,2) DEFAULT 75.00,                  -- Alerta cuando saldo virtual BUS <= este valor
-    bus_dias_antes_facturacion      INTEGER,                                       -- Anticipación para recordar facturación mensual BUS
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    clave      VARCHAR(100) PRIMARY KEY,
+    valor      TEXT NOT NULL
 );
 
 -- 4. tipos_servicio — BUS y CELULAR con sus reglas de comisión
@@ -180,7 +187,7 @@ CREATE TABLE IF NOT EXISTS operaciones_cajas (
 
 -- 10. recargas_virtuales — Saldo virtual agregado al sistema
 -- CELULAR: proveedor carga a crédito (pagado=false hasta que se le pague, pagado=true al pagar)
--- BUS v4.0: pagado=false al comprar saldo, pagado=true al liquidar la ganancia mensual via liquidar_ganancias_bus()
+-- BUS v4.0: pagado=false al comprar saldo, pagado=true al liquidar la ganancia mensual via fn_liquidar_ganancias_bus()
 CREATE TABLE IF NOT EXISTS recargas_virtuales (
     id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     fecha             DATE    NOT NULL,
@@ -257,6 +264,7 @@ CREATE TABLE IF NOT EXISTS ventas (
 
     subtotal        DECIMAL(12,2) NOT NULL,
     descuento       DECIMAL(12,2) DEFAULT 0,
+    descuento_pct   SMALLINT DEFAULT 0,
     total           DECIMAL(12,2) NOT NULL,
     metodo_pago     VARCHAR(20) DEFAULT 'EFECTIVO' CHECK (metodo_pago IN ('EFECTIVO', 'DEUNA', 'TRANSFERENCIA', 'FIADO')),
 
@@ -336,6 +344,7 @@ CREATE INDEX IF NOT EXISTS idx_ventas_fecha                  ON ventas(fecha);
 CREATE INDEX IF NOT EXISTS idx_ventas_turno_id               ON ventas(turno_id);
 CREATE INDEX IF NOT EXISTS idx_ventas_cliente_id             ON ventas(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_ventas_detalles_venta_id      ON ventas_detalles(venta_id);
+CREATE INDEX IF NOT EXISTS idx_ventas_detalles_producto_id   ON ventas_detalles(producto_id);
 CREATE INDEX IF NOT EXISTS idx_kardex_inventario_producto_id ON kardex_inventario(producto_id);
 CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_venta          ON cuentas_cobrar(venta_id);
 CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_fecha          ON cuentas_cobrar(fecha);
@@ -521,8 +530,15 @@ INSERT INTO categorias_operaciones (tipo, nombre, descripcion, seleccionable) VA
 ('INGRESO', 'Reposición Déficit Turno Anterior','Ingreso a Varios por reposición del déficit pendiente del turno anterior',          FALSE),
 ('INGRESO', 'Ajuste Diferencia Conteo',         'Ajuste al cierre cuando el conteo físico supera al saldo digital del cajón',       FALSE);
 
-INSERT INTO configuraciones (nombre_negocio, fondo_fijo_diario, varios_transferencia_diaria, bus_alerta_saldo_bajo, bus_dias_antes_facturacion) VALUES
-('Panaderia Don Viche', 20.00, 20.00, 75.00, 3);
+INSERT INTO configuraciones (clave, valor) VALUES
+('negocio_nombre',                'Panaderia Don Viche'),
+('caja_fondo_fijo_diario',        '20.00'),
+('caja_varios_transferencia_dia', '20.00'),
+('bus_alerta_saldo_bajo',         '75.00'),
+('bus_dias_antes_facturacion',    '3'),
+('pos_descuentos_habilitados',    'false'),
+('pos_descuento_maximo_pct',      '10'),
+('pos_umbral_monto_descuento',    '50.00');
 
 INSERT INTO usuarios (nombre, usuario, rol) VALUES
 ('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN');
@@ -555,23 +571,23 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 --
 -- ⚠️  FUNCIONES POSTGRESQL (archivos separados, ejecutar después del schema):
 --   Dashboard:
---   • abrir_turno                              → docs/dashboard/sql/functions/fn_abrir_turno.sql
---   • ejecutar_cierre_diario v5               → docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
---   • reparar_deficit_turno                   → docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql
---   • verificar_transferencia_caja_chica_hoy  → docs/dashboard/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql
---   • registrar_operacion_manual              → docs/dashboard/sql/functions/fn_registrar_operacion_manual.sql
---   • crear_transferencia                     → docs/dashboard/sql/functions/fn_crear_transferencia.sql
+--   • fn_abrir_turno                            → docs/dashboard/sql/functions/fn_abrir_turno.sql
+--   • fn_ejecutar_cierre_diario v5             → docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
+--   • fn_reparar_deficit_turno                 → docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql
+--   • fn_verificar_transferencia_caja_chica_hoy → docs/dashboard/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql
+--   • fn_registrar_operacion_manual            → docs/dashboard/sql/functions/fn_registrar_operacion_manual.sql
+--   • fn_crear_transferencia                   → docs/dashboard/sql/functions/fn_crear_transferencia.sql
 --   Recargas Virtuales:
---   • registrar_recarga_proveedor_celular     → docs/recargas-virtuales/sql/functions/
---   • registrar_pago_proveedor_celular        → docs/recargas-virtuales/sql/functions/
---   • registrar_compra_saldo_bus              → docs/recargas-virtuales/sql/functions/
---   • liquidar_ganancias_bus                  → docs/recargas-virtuales/sql/functions/
+--   • fn_registrar_recarga_proveedor_celular   → docs/recargas-virtuales/sql/functions/
+--   • fn_registrar_pago_proveedor_celular      → docs/recargas-virtuales/sql/functions/
+--   • fn_registrar_compra_saldo_bus            → docs/recargas-virtuales/sql/functions/
+--   • fn_liquidar_ganancias_bus                → docs/recargas-virtuales/sql/functions/
 --   POS:
---   • registrar_venta_pos                     → docs/pos/sql/functions/fn_registrar_venta_pos.sql
+--   • fn_registrar_venta_pos                   → docs/pos/sql/functions/fn_registrar_venta_pos.sql
 --   Cuentas por Cobrar:
---   • registrar_pago_fiado                     → docs/cuentas-cobrar/sql/functions/fn_registrar_pago_fiado.sql
---   • listar_cuentas_cobrar                    → docs/cuentas-cobrar/sql/functions/fn_listar_cuentas_cobrar.sql
---   • resumir_cuentas_cobrar                   → docs/cuentas-cobrar/sql/functions/fn_resumir_cuentas_cobrar.sql
+--   • fn_registrar_pago_fiado                  → docs/cuentas-cobrar/sql/functions/fn_registrar_pago_fiado.sql
+--   • fn_listar_cuentas_cobrar                 → docs/cuentas-cobrar/sql/functions/fn_listar_cuentas_cobrar.sql
+--   • fn_resumir_cuentas_cobrar                → docs/cuentas-cobrar/sql/functions/fn_resumir_cuentas_cobrar.sql
 --   Inventario:
 --   • fn_ajustar_stock_inventario              → docs/inventario/sql/functions/fn_ajustar_stock_inventario.sql
 --   • fn_generar_codigo_interno                → docs/inventario/sql/functions/fn_generar_codigo_interno.sql
@@ -579,12 +595,12 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 --   • fn_listar_ventas                         → docs/ventas/sql/functions/fn_listar_ventas.sql
 --   • fn_resumir_ventas                        → docs/ventas/sql/functions/fn_resumir_ventas.sql
 --   POS — Anulación:
---   • anular_venta                             → docs/pos/sql/functions/fn_anular_venta.sql
---   Reportes:
---   • reporte_ventas_dia                       → docs/reportes/sql/functions/fn_reporte_ventas_dia.sql
+--   • fn_anular_venta                          → docs/pos/sql/functions/fn_anular_venta.sql
+--   Ventas — Reporte período:
+--   • fn_reporte_ventas_periodo                → docs/ventas/sql/functions/fn_reporte_ventas_periodo.sql
 --
 -- ✅ 18 Tablas | 24 Funciones SQL
--- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 2 inventario + 2 ventas + 1 reportes + 4 triggers/helpers)
+-- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 2 inventario + 3 ventas + 4 triggers/helpers)
 --
 -- ⚠️  MIGRACIÓN desde v4.9: ejecutar v5_migracion_cajas.sql (NO este schema completo)
 --   → docs/dashboard/sql/migrations/v5_migracion_cajas.sql

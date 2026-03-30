@@ -52,7 +52,7 @@ export class InventarioService {
     async buscarProductosPOS(texto: string): Promise<ProductoPOS[]> {
         const { data } = await this.supabase.client
             .from('productos')
-            .select('id, nombre, codigo_barras, precio_venta, stock_actual, imagen_url, tiene_iva')
+            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva')
             .eq('activo', true)
             .or(`nombre.ilike.%${texto}%,codigo_barras.ilike.%${texto}%`)
             .order('nombre')
@@ -200,6 +200,15 @@ export class InventarioService {
                 .order('fecha', { ascending: false })
         );
         return res || [];
+    }
+
+    async obtenerProductosStockBajo(): Promise<{ id: string; nombre: string; stock_actual: number }[]> {
+        const { data } = await this.supabase.client
+            .from('productos')
+            .select('id, nombre, stock_actual, stock_minimo')
+            .eq('activo', true)
+            .order('stock_actual');
+        return (data || []).filter(p => p.stock_actual <= p.stock_minimo);
     }
 
     async ajustarStock(productoId: string, tipoMovimiento: string, cantidad: number, observaciones: string): Promise<{ stock_nuevo: number }> {

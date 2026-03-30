@@ -1,5 +1,5 @@
 -- ==========================================
--- FUNCIÓN: registrar_compra_saldo_bus
+-- FUNCIÓN: fn_registrar_compra_saldo_bus
 -- VERSIÓN: 4.0
 -- FECHA: 2026-03-03
 -- ==========================================
@@ -37,10 +37,10 @@
 -- COMPATIBILIDAD: firma idéntica a v3.x, sin cambios en TypeScript
 -- ==========================================
 
-DROP FUNCTION IF EXISTS public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT);
-DROP FUNCTION IF EXISTS public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC);
+DROP FUNCTION IF EXISTS public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT);
+DROP FUNCTION IF EXISTS public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC);
 
-CREATE OR REPLACE FUNCTION public.registrar_compra_saldo_bus(
+CREATE OR REPLACE FUNCTION public.fn_registrar_compra_saldo_bus(
   p_fecha                 DATE,
   p_empleado_id           INTEGER,
   p_monto                 NUMERIC,
@@ -283,7 +283,7 @@ EXCEPTION
 END;
 $$;
 
-COMMENT ON FUNCTION public.registrar_compra_saldo_bus IS
+COMMENT ON FUNCTION public.fn_registrar_compra_saldo_bus IS
 'v4.0 - Ganancia BUS como deuda pendiente: pagado=false, monto_a_pagar=monto_completo, ganancia=0.
 La liquidación (liquidar_ganancias_bus) calcula ROUND(SUM(monto_a_pagar)*comision%, 2) WHERE pagado=false,
 transfiere ese total de CAJA_BUS→CAJA_CHICA y marca pagado=true en una transacción atómica.
@@ -291,7 +291,7 @@ v3.1 - Fix timestamp: clock_timestamp() garantiza created_at > snapshot del mini
 v3.0 - Mini cierre integrado: con p_saldo_virtual_maquina y ventas > 0 crea snapshot
 en recargas (ON CONFLICT acumula) + INGRESO por ventas + EGRESO por compra. CAJA_BUS nunca negativa.';
 
-REVOKE EXECUTE ON FUNCTION public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) FROM anon;
-GRANT EXECUTE ON FUNCTION public.registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) FROM anon;
+GRANT EXECUTE ON FUNCTION public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

@@ -12,7 +12,7 @@
 
     @if (cargando) {
     <div class="config-form skeleton-form">
-      @for (i of [1,2,3]; track i) {
+      @for (i of [1,2,3,4]; track i) {
       <div class="section-card">
         <ion-skeleton-text animated style="width: 30%; height: 14px; margin-bottom: 16px; border-radius: 4px;"></ion-skeleton-text>
         <div class="input-group">
@@ -37,7 +37,7 @@
 
         <div class="input-group">
           <label class="input-label">Nombre del negocio</label>
-          <input type="text" formControlName="nombre_negocio" autocomplete="off"
+          <input type="text" formControlName="negocio_nombre" autocomplete="off"
             placeholder="Ej: Mi Tienda" maxlength="100">
           <span class="input-hint">Aparece en comprobantes y estados de cuenta</span>
         </div>
@@ -55,7 +55,7 @@
           <div class="input-with-prefix">
             <span class="prefix">$</span>
             <input type="number" inputmode="decimal" step="0.01" min="0"
-              formControlName="fondo_fijo_diario" autocomplete="off">
+              formControlName="caja_fondo_fijo_diario" autocomplete="off">
           </div>
           <span class="input-hint">Efectivo que queda en caja para el día siguiente</span>
         </div>
@@ -65,7 +65,7 @@
           <div class="input-with-prefix">
             <span class="prefix">$</span>
             <input type="number" inputmode="decimal" step="0.01" min="0"
-              formControlName="varios_transferencia_diaria" autocomplete="off">
+              formControlName="caja_varios_transferencia_dia" autocomplete="off">
           </div>
           <span class="input-hint">Monto fijo que se transfiere a Varios (fondo emergencia) en cada cierre</span>
         </div>
@@ -96,6 +96,45 @@
             <span class="suffix">días</span>
           </div>
           <span class="input-hint">Anticipación para recordar la facturación mensual de Bus</span>
+        </div>
+      </div>
+
+      <!-- ── SECCIÓN: POS (Descuentos) ────────────────────── -->
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="cart-outline"></ion-icon>
+          <span>POS — Descuentos</span>
+        </div>
+
+        <div class="input-group">
+          <label class="toggle-row">
+            <span class="input-label">Descuentos automáticos</span>
+            <label class="toggle-switch">
+              <input type="checkbox" formControlName="pos_descuentos_habilitados">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          <span class="input-hint">Aplica descuento automático cuando la venta supera el monto mínimo</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Porcentaje de descuento</label>
+          <div class="input-with-suffix">
+            <input type="number" inputmode="decimal" step="1" min="0" max="100"
+              formControlName="pos_descuento_maximo_pct" autocomplete="off">
+            <span class="suffix">%</span>
+          </div>
+          <span class="input-hint">Porcentaje que se descuenta del subtotal (ej: 10%)</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Monto mínimo para descuento</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input type="number" inputmode="decimal" step="0.01" min="0"
+              formControlName="pos_umbral_monto_descuento" autocomplete="off">
+          </div>
+          <span class="input-hint">Solo aplica descuento si la venta supera este monto</span>
         </div>
       </div>
 

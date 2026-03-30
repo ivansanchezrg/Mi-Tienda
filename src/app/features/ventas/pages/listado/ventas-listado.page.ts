@@ -19,15 +19,21 @@ import {
     documentOutline, cashOutline, cardOutline,
     phonePortraitOutline, handRightOutline,
     cartOutline, chevronDownCircleOutline, banOutline,
-    arrowUpOutline, closeOutline, searchOutline
+    arrowUpOutline, closeOutline, searchOutline,
+    peopleOutline, chevronDownOutline
 } from 'ionicons/icons';
 import { VentasService } from '../../services/ventas.service';
+import { AuthService } from '../../../auth/services/auth.service';
+import { TurnosCajaService } from '../../../dashboard/services/turnos-caja.service';
+import { RolUsuario } from '../../../auth/models/usuario_actual.model';
+import { TurnoCajaConEmpleado } from '../../../dashboard/models/turno-caja.model';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { Venta } from '../../models/venta.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { getFechaLocal, formatFechaEC, formatHoraEC } from '../../../../core/utils/date.util';
 import { VentaDetalleModalComponent } from '../../components/venta-detalle-modal/venta-detalle-modal.component';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
+import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { VentasTabsComponent } from '../../components/ventas-tabs/ventas-tabs.component';
 
@@ -53,6 +59,8 @@ import { VentasTabsComponent } from '../../components/ventas-tabs/ventas-tabs.co
 export class VentasListadoPage extends PaginatedListPage<Venta> implements OnInit, OnDestroy {
 
     private ventasService = inject(VentasService);
+    private authService = inject(AuthService);
+    private turnosCajaService = inject(TurnosCajaService);
     public currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
     private alertCtrl = inject(AlertController);
@@ -73,6 +81,28 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
     anulando = false;
     filtroEstado: string | null = null;
 
+    // Rol y usuario actual
+    rolUsuario: RolUsuario | null = null;
+    usuarioId: number | null = null;
+
+    // Filtro por turno (solo ADMIN)
+    turnosDelDia: TurnoCajaConEmpleado[] = [];
+    turnoSeleccionado: TurnoCajaConEmpleado | null = null;
+
+    get mostrarFiltroTurno(): boolean {
+        return this.rolUsuario === 'ADMIN'
+            && this.turnosDelDia.length > 1
+            && (this.filtroActivo === 'hoy' || this.filtroActivo === 'custom');
+    }
+
+    get labelTurno(): string {
+        if (!this.turnoSeleccionado) return 'Todos los turnos';
+        const t = this.turnoSeleccionado;
+        const hora = this.formatHoraTurno(t.hora_fecha_apertura);
+        const cierre = t.hora_fecha_cierre ? this.formatHoraTurno(t.hora_fecha_cierre) : 'en curso';
+        return `Turno ${t.numero_turno} (${hora} - ${cierre}) — ${t.empleado?.nombre ?? ''}`;
+    }
+
     get fechaLabel(): string {
         const [y, m, d] = this.fechaFiltro.split('-').map(Number);
         return new Date(y, m - 1, d).toLocaleDateString('es-EC', {
@@ -82,6 +112,9 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
 
     getVentaMenuOpciones(venta: Venta): MenuOption[] {
         if (venta.estado === 'ANULADA') return [];
+        // EMPLEADO solo puede anular sus propias ventas
+        const puedeAnular = this.rolUsuario === 'ADMIN' || venta.empleado_id === this.usuarioId;
+        if (!puedeAnular) return [];
         return [{ label: 'Anular venta', icon: 'ban-outline', value: 'anular', color: 'danger' }];
     }
 
@@ -92,7 +125,8 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
             documentOutline, cashOutline, cardOutline,
             phonePortraitOutline, handRightOutline,
             cartOutline, chevronDownCircleOutline, banOutline,
-            arrowUpOutline, closeOutline, searchOutline
+            arrowUpOutline, closeOutline, searchOutline,
+            peopleOutline, chevronDownOutline
         });
     }
 
@@ -100,7 +134,13 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         this.searchSub = this.search$
             .pipe(debounceTime(500), distinctUntilChanged())
             .subscribe(() => this.cargar());
-        await this.cargar();
+        const usuario = await this.authService.getUsuarioActual();
+        this.rolUsuario = usuario?.rol ?? null;
+        this.usuarioId = usuario?.id ?? null;
+        await Promise.all([
+            this.cargar(),
+            this.cargarTurnos()
+        ]);
     }
 
     ngOnDestroy() {
@@ -109,7 +149,12 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
 
     protected async fetchPage(page: number): Promise<Venta[]> {
         const filtro = this.filtroActivo === 'custom' ? this.fechaFiltro : this.filtroActivo;
-        return this.ventasService.obtenerVentas(filtro, page, this.busqueda || undefined, this.filtroEstado || undefined);
+        return this.ventasService.obtenerVentas(
+            filtro, page,
+            this.busqueda || undefined,
+            this.filtroEstado || undefined,
+            this.turnoSeleccionado?.id
+        );
     }
 
     toggleFiltroAnuladas() {
@@ -129,6 +174,12 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
 
     onFiltroClick(filtro: string) {
         this.filtroActivo = filtro;
+        this.turnoSeleccionado = null;
+        if (filtro === 'hoy') {
+            this.cargarTurnos();
+        } else if (filtro !== 'custom') {
+            this.turnosDelDia = [];
+        }
         this.cargar();
     }
 
@@ -137,8 +188,58 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         if (val) {
             this.fechaFiltro = val.split('T')[0];
             this.filtroActivo = 'custom';
+            this.turnoSeleccionado = null;
+            this.cargarTurnos(this.fechaFiltro);
             this.cargar();
         }
+    }
+
+    private async cargarTurnos(fecha?: string) {
+        this.turnosDelDia = await this.turnosCajaService.obtenerTurnosDeFecha(fecha);
+    }
+
+    async abrirSelectorTurno() {
+        const groups: ModalOptionGroup[] = [{
+            options: [
+                { label: 'Todos los turnos', value: 'todos' },
+                ...this.turnosDelDia.map(t => {
+                    const hora = this.formatHoraTurno(t.hora_fecha_apertura);
+                    const cierre = t.hora_fecha_cierre ? this.formatHoraTurno(t.hora_fecha_cierre) : 'en curso';
+                    return {
+                        label: `Turno ${t.numero_turno} — ${t.empleado?.nombre ?? ''}`,
+                        subtitle: `${hora} - ${cierre}`,
+                        value: t.id
+                    };
+                })
+            ]
+        }];
+
+        const modal = await this.modalCtrl.create({
+            component: OptionsModalComponent,
+            componentProps: {
+                title: 'Filtrar por turno',
+                groups,
+                selectedValue: this.turnoSeleccionado?.id ?? 'todos'
+            },
+            cssClass: 'options-modal',
+            breakpoints: [0, 1],
+            initialBreakpoint: 1
+        });
+        await modal.present();
+
+        const { data } = await modal.onDidDismiss();
+        if (data !== undefined) {
+            this.turnoSeleccionado = data === 'todos'
+                ? null
+                : this.turnosDelDia.find(t => t.id === data) ?? null;
+            this.cargar();
+        }
+    }
+
+    formatHoraTurno(iso: string): string {
+        return new Date(iso).toLocaleTimeString('es-EC', {
+            hour: '2-digit', minute: '2-digit', hour12: true
+        });
     }
 
     async abrirDetalle(venta: Venta) {

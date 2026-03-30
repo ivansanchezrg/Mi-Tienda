@@ -101,8 +101,8 @@ Así el fondo queda "implícito" en la fórmula. Registrar un INGRESO por el fon
     - TRANSFERENCIA_ENTRANTE  (cierre normal)
     - INGRESO cat. IN-004     (reparación anterior del mismo día)
 
-déficitVarios  = variosYaCobro ? 0 : varios_transferencia_diaria
-fondoFaltante  = (fondo_cubierto === false) ? fondo_fijo_diario : 0
+déficitVarios  = variosYaCobro ? 0 : caja_varios_transferencia_dia
+fondoFaltante  = (fondo_cubierto === false) ? caja_fondo_fijo_diario : 0
 
 Si ambos = 0 → no hay déficit, abre directo
 ```
@@ -123,12 +123,12 @@ Si ambos = 0 → no hay déficit, abre directo
 
 | Función | Cuándo se llama | Qué hace |
 |---|---|---|
-| `abrir_turno` | Apertura sin déficit | Valida + crea registro en `turnos_caja` — atómico, elimina race condition |
-| `reparar_deficit_turno` | Apertura con déficit | EGRESO Tienda + INGRESO Varios (IN-004) + abre turno — todo atómico |
-| `ejecutar_cierre_diario` | Cierre | Ajuste conteo + distribución cascada + recargas + cierra turno — todo atómico |
-| `registrar_operacion_manual` | Ingreso/Egreso manual | INSERT operacion + UPDATE saldo caja — atómico |
-| `crear_transferencia` | Transferencia entre cajas | EGRESO origen + INGRESO destino — atómico |
-| `verificar_transferencia_caja_chica_hoy` | Pre-cierre | Booleano: ¿VARIOS ya recibió hoy? |
+| `fn_abrir_turno` | Apertura sin déficit | Valida + crea registro en `turnos_caja` — atómico, elimina race condition |
+| `fn_reparar_deficit_turno` | Apertura con déficit | EGRESO Tienda + INGRESO Varios (IN-004) + abre turno — todo atómico |
+| `fn_ejecutar_cierre_diario` | Cierre | Ajuste conteo + distribución cascada + recargas + cierra turno — todo atómico |
+| `fn_registrar_operacion_manual` | Ingreso/Egreso manual | INSERT operacion + UPDATE saldo caja — atómico |
+| `fn_crear_transferencia` | Transferencia entre cajas | EGRESO origen + INGRESO destino — atómico |
+| `fn_verificar_transferencia_caja_chica_hoy` | Pre-cierre | Booleano: ¿VARIOS ya recibió hoy? |
 
 ---
 

@@ -41,11 +41,20 @@ Módulo de autenticación usando Supabase Auth con Google como proveedor OAuth.
 
 **Archivo:** `features/auth/pages/callback/callback.page.ts`
 
-- **Web** (`handleWebCallback`): Verifica sesión con `getSession()`. Si no existe aún, se suscribe a `onAuthStateChange` esperando el evento `SIGNED_IN`. La suscripción se limpia en `ngOnDestroy()`.
+Supabase OAuth en web usa **flujo implícito**: redirige a `/auth/callback#access_token=...&refresh_token=...` con los tokens en el **hash** de la URL. Con `detectSessionInUrl: false` el SDK **no procesa ese hash automáticamente** — hay que hacerlo manual.
+
+- **Web** (`handleWebCallback`): 3 casos en orden:
+  1. **Hash con tokens** (caso normal): parsea `#access_token` + `#refresh_token` del hash y llama `setSession()` directamente — mismo mecanismo que Android
+  2. **`?code` PKCE en query params** (flujo alternativo): llama `exchangeCodeForSession()`
+  3. **SDK ya procesó la sesión** (fallback): verifica con `getSession()`
+  - Si ningún caso tiene tokens → redirige a login directamente (sin esperar `SIGNED_IN`)
 - **Android** (`handleAndroidCallback`): Lee `pendingDeepLinkUrl`, parsea el hash para extraer `access_token` y `refresh_token`, llama a `setSession()` para establecer la sesión manualmente.
 - Después de establecer sesión (ambas plataformas), llama a `validateAndRedirect()` que ejecuta `AuthService.validarUsuario()` para verificar que el email exista en la tabla `usuarios` con `activo = true`
 - Si no es usuario válido → cierra sesión y redirige a `/auth/login`
 - Si es usuario válido → redirige a `/home`
+
+> **⚠️ Gotcha crítico — `detectSessionInUrl: false` + flujo implícito web:**
+> La implementación de refresh automático de JWT (sección 7) requiere `detectSessionInUrl: false` para que el SDK no interfiera con el callback. Pero esto tiene un efecto secundario: el SDK tampoco procesa el `#hash` con los tokens OAuth al redirigir. Si el callback solo espera el evento `SIGNED_IN` via `onAuthStateChange`, ese evento nunca llega porque el SDK no sabe que hay tokens en la URL — el spinner queda infinito. **Solución: parsear el hash manualmente con `setSession()`**, igual que se hace en Android.
 
 ### 5. Rutas
 
@@ -157,10 +166,12 @@ createClient(url, key, {
   auth: {
     autoRefreshToken: true,    // Renueva JWT automáticamente (default: true)
     persistSession: true,      // Guarda tokens en localStorage (default: true)
-    detectSessionInUrl: false   // No parsear tokens de la URL (lo hacemos manual en callback)
+    detectSessionInUrl: false  // No parsear tokens de la URL (lo hacemos manual en callback)
   }
 });
 ```
+
+> **⚠️ Efecto secundario de `detectSessionInUrl: false`:** Al desactivar la detección automática, el SDK tampoco procesa el `#hash` con `access_token` y `refresh_token` que Supabase envía en el redirect OAuth. El callback **debe parsear el hash manualmente** con `setSession()`. Si se omite este paso y solo se espera el evento `SIGNED_IN`, ese evento nunca llega y el login queda colgado con spinner infinito. Ver sección 4 (Callback) para el detalle de implementación.
 
 #### Problema en Capacitor/Android
 

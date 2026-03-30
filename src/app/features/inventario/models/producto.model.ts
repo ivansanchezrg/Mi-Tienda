@@ -19,4 +19,4 @@ export interface Producto {
 }
 
 /** Proyección liviana para búsqueda POS — campos necesarios para mostrar resultados y calcular totales/IVA. */
-export type ProductoPOS = Pick<Producto, 'id' | 'nombre' | 'codigo_barras' | 'precio_venta' | 'stock_actual' | 'imagen_url' | 'tiene_iva'>;
+export type ProductoPOS = Pick<Producto, 'id' | 'nombre' | 'codigo_barras' | 'precio_venta' | 'stock_actual' | 'stock_minimo' | 'imagen_url' | 'tiene_iva'>;

@@ -235,6 +235,11 @@ ion-toolbar {
             .monto-pagado  { color: var(--ion-color-success); }
             .monto-pendiente { color: var(--ion-color-danger); font-weight: 700; }
 
+            &--descuento {
+                .monto-label,
+                .monto-valor { color: var(--ion-color-success); }
+            }
+
             &--total {
                 border-top: 1px solid var(--ion-color-step-100);
                 padding-top: 8px;

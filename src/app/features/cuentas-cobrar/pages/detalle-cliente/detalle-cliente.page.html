@@ -107,6 +107,16 @@
       <p class="venta-fecha-line">{{ formatFecha(venta.fecha) }} · {{ formatHora(venta.fecha) }}</p>
 
       <div class="venta-montos">
+        @if (venta.descuento > 0) {
+        <div class="monto-row">
+          <span class="monto-label">Subtotal</span>
+          <span class="monto-valor">${{ currencyService.format(venta.subtotal) }}</span>
+        </div>
+        <div class="monto-row monto-row--descuento">
+          <span class="monto-label">Descuento ({{ venta.descuento_pct }}%)</span>
+          <span class="monto-valor">-${{ currencyService.format(venta.descuento) }}</span>
+        </div>
+        }
         <div class="monto-row">
           <span class="monto-label">Total venta</span>
           <span class="monto-valor">${{ currencyService.format(venta.total) }}</span>

@@ -204,20 +204,24 @@ export class ShareEstadoCuentaService {
 
         const esFactura = venta.tipo_comprobante === 'FACTURA';
 
-        const ivaHtml = esFactura ? `
-            <div style="padding:4px 0 2px;">
-                <div style="display:flex; justify-content:space-between; padding:2px 0;">
+        const ivaRows = esFactura ? [
+            venta.base_iva_0 > 0 ? `<div style="display:flex; justify-content:space-between; padding:2px 0;">
                     <span style="font-size:12px; color:#888;">Base 0%</span>
                     <span style="font-size:12px; font-weight:600; color:#1a1a1a;">$${this.currency.format(venta.base_iva_0)}</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:2px 0;">
+                </div>` : '',
+            venta.base_iva_15 > 0 ? `<div style="display:flex; justify-content:space-between; padding:2px 0;">
                     <span style="font-size:12px; color:#888;">Base 15%</span>
                     <span style="font-size:12px; font-weight:600; color:#1a1a1a;">$${this.currency.format(venta.base_iva_15)}</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; padding:2px 0;">
+                </div>` : '',
+            venta.iva_valor > 0 ? `<div style="display:flex; justify-content:space-between; padding:2px 0;">
                     <span style="font-size:12px; color:#888;">IVA 15%</span>
                     <span style="font-size:12px; font-weight:600; color:#1a1a1a;">$${this.currency.format(venta.iva_valor)}</span>
-                </div>
+                </div>` : '',
+        ].filter(Boolean) : [];
+
+        const ivaHtml = ivaRows.length > 0 ? `
+            <div style="padding:4px 0 2px;">
+                ${ivaRows.join('')}
             </div>
             <div style="border-top:1.5px solid #ccc; margin:6px 0;"></div>` : '';
 
@@ -246,6 +250,15 @@ export class ShareEstadoCuentaService {
 
             <!-- Totales -->
             <div>
+                ${venta.descuento > 0 ? `
+                <div style="display:flex; justify-content:space-between; padding:3px 0;">
+                    <span style="font-size:13px; color:#888;">Subtotal</span>
+                    <span style="font-size:13px; font-weight:600; color:#1a1a1a;">$${this.currency.format(venta.subtotal)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:3px 0;">
+                    <span style="font-size:13px; color:#27ae60;">Descuento (${venta.descuento_pct}%)</span>
+                    <span style="font-size:13px; font-weight:600; color:#27ae60;">-$${this.currency.format(venta.descuento)}</span>
+                </div>` : ''}
                 <div style="display:flex; justify-content:space-between; padding:3px 0;">
                     <span style="font-size:13px; color:#888;">Total venta</span>
                     <span style="font-size:13px; font-weight:600; color:#1a1a1a;">$${this.currency.format(venta.total)}</span>

@@ -51,7 +51,7 @@ export class CuentasCobrarService {
     async obtenerVentasFiadas(clienteId: string): Promise<VentaFiada[]> {
         const query = this.supabase.client
             .from('ventas')
-            .select('id, numero_comprobante, tipo_comprobante, fecha, total, base_iva_0, base_iva_15, iva_valor, empleado:empleado_id(nombre), cuentas_cobrar(monto)')
+            .select('id, numero_comprobante, tipo_comprobante, fecha, subtotal, descuento, descuento_pct, total, base_iva_0, base_iva_15, iva_valor, empleado:empleado_id(nombre), cuentas_cobrar(monto)')
             .eq('cliente_id', clienteId)
             .eq('metodo_pago', 'FIADO')
             .eq('estado', 'COMPLETADA')
@@ -69,6 +69,9 @@ export class CuentasCobrarService {
                 numero_comprobante: v.numero_comprobante,
                 tipo_comprobante: v.tipo_comprobante,
                 fecha: v.fecha,
+                subtotal: v.subtotal ?? v.total,
+                descuento: v.descuento ?? 0,
+                descuento_pct: v.descuento_pct ?? 0,
                 total: v.total,
                 monto_pagado: montoPagado,
                 saldo_pendiente: v.total - montoPagado,

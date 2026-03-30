@@ -1,18 +1,21 @@
-export interface Configuracion {
-  id: string;
-  nombre_negocio: string;
-  fondo_fijo_diario: number;
-  varios_transferencia_diaria: number;
-  bus_alerta_saldo_bajo: number;
-  bus_dias_antes_facturacion: number;
-  created_at?: string;
+// Fila cruda de la tabla configuraciones (clave/valor)
+export interface ConfiguracionRow {
+    clave: string;
+    valor: string;
 }
 
-export type UpdateConfiguracionDto = Pick<
-  Configuracion,
-  | 'nombre_negocio'
-  | 'fondo_fijo_diario'
-  | 'varios_transferencia_diaria'
-  | 'bus_alerta_saldo_bajo'
-  | 'bus_dias_antes_facturacion'
->;
+// Objeto tipado que se usa en toda la app
+// Prefijo por módulo: negocio_, caja_, bus_, pos_
+export interface Configuracion {
+    negocio_nombre: string;
+    caja_fondo_fijo_diario: number;
+    caja_varios_transferencia_dia: number;
+    bus_alerta_saldo_bajo: number;
+    bus_dias_antes_facturacion: number;
+    pos_descuentos_habilitados: boolean;
+    pos_descuento_maximo_pct: number;
+    pos_umbral_monto_descuento: number;
+}
+
+// Claves que se pueden actualizar desde la página de parámetros
+export type ConfiguracionKey = keyof Configuracion;

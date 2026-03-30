@@ -33,9 +33,10 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 | `recargas-virtuales`| ✅ Completo                                  |
 | `usuarios`          | ✅ Completo                                  |
 | `inventario`        | ✅ Completo                                  |
-| `pos`               | 🚧 En desarrollo                             |
+| `pos`               | ✅ Completo (descuentos, idempotencia, escáner) |
 | `cuentas-cobrar`    | ✅ Completo                                  |
 | `clientes`          | ✅ Completo                                  |
+| `configuracion`     | ✅ Completo (parámetros negocio, categorías)  |
 | ~~`reportes`~~      | ❌ Eliminado (2026-03-26) — el resumen diario se integró como panel colapsable en `ventas` |
 | ~~`gastos-diarios`~~| ❌ Eliminado en v5 (2026-03-06) — los gastos van como EGRESO en `operacion-modal` |
 
@@ -68,7 +69,7 @@ src/app/
 | ------------------------- | ----------------------------------------------------------- |
 | `SupabaseService`         | Todas las queries y auth. Usar siempre `.call()` o `.rpc()`. Tiene listener global de auth (TOKEN_REFRESHED, SIGNED_OUT), detección de JWT expirado en `call()`, refresh proactivo al volver del background (`refreshSessionOnResume()`), y `handleExpiredSession()` como punto centralizado de limpieza de sesión |
 | `UiService`               | Loading, toasts, alertas, confirmaciones, `hideTabs()`/`showTabs()` para ocultar tabs en páginas de detalle |
-| `ConfigService`           | Lee tabla `configuraciones` (nombre_negocio, fondo_fijo, etc.) con cache en memoria. Métodos: `get()`, `getNombreNegocio()`, `invalidar()` |
+| `ConfigService`           | Lee tabla `configuraciones` (clave/valor con prefijo por módulo: `negocio_`, `caja_`, `bus_`, `pos_`) con cache en memoria. Métodos: `get()`, `getNombreNegocio()`, `invalidar()` |
 | `CurrencyService`         | Formateo de moneda: `format(value)` y `parse(value)`. No formatear manualmente |
 | `StorageService`          | Sube imágenes a Supabase Storage con compresión automática. `uploadImage(dataUrl, bucket, subfolder)` |
 | `GananciasService`        | Lógica de comisiones recargas virtuales (liquidación BUS mensual) |
@@ -160,7 +161,7 @@ const modal = await this.modalCtrl.create({
 - El usuario cierra con el botón ✕ del header (modales fullscreen) o swipe down (bottom sheets)
 - **NUNCA usar `ion-select`, `ActionSheetController` ni `PopoverController`** → bug de Ionic 8 + Capacitor en Android con standalone components: estos overlay controllers no se inicializan hasta que otra página los cargue primero. Afecta **tanto modales como pages** en primera carga.
   - **Selects y Action Sheets**: usar `OptionsModalComponent` (`shared/components/options-modal/`). Se abre como bottom sheet con swipe-to-dismiss.
-  - **Confirmaciones simples**: usar `AlertController`.
+  - **Confirmaciones simples (texto plano)**: usar `AlertController`. Los alerts NO renderizan HTML custom en Android — Ionic sanitiza el `message` y muestra las etiquetas como texto. `IonicSafeString` tampoco funciona de forma confiable. **Si necesitas UI custom (estilos, layout, tipografía grande), usar un `ModalController` con componente dedicado.**
   - **Overlays que SÍ funcionan**: `AlertController`, `ModalController`, `LoadingController`, `ToastController`.
 
 ### `OptionsModalComponent` — componente estándar para selects y action sheets
@@ -508,7 +509,8 @@ Camera.getPhoto({ quality: 80, width: 1200, height: 1600, correctOrientation: tr
 ```
 
 ### Configuración — NUNCA hardcodear valores de negocio
-Los valores como `fondo_fijo_diario`, `varios_transferencia_diaria` viven en la tabla `configuraciones`. Leerlos con query, no hardcodearlos en el código.
+Los valores de negocio viven en la tabla `configuraciones` (clave/valor). Leerlos con `ConfigService.get()`, no hardcodearlos.
+Convención de claves: prefijo por módulo (`negocio_nombre`, `caja_fondo_fijo_diario`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`).
 
 ---
 
@@ -612,4 +614,5 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Shared              | `docs/shared/README.md`                                    |
 | Estructura/Patrones | `docs/ESTRUCTURA-PROYECTO.md`                              |
 | Schema BD           | `docs/schema.sql`                                          |
+| Configuracion       | `docs/configuracion/CONFIGURACION-README.md`               |
 | Arquitectura cajas  | `docs/ARQUITECTURA.md`                                     |

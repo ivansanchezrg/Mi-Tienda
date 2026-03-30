@@ -98,9 +98,11 @@
         } @else {
         <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCajaChica | number:'1.2-2')) }}</span>
         }
-        <app-options-menu triggerId="menu-caja-chica" [options]="cajaOptions"
-          (optionSelected)="onCajaMenuOption($event, 'cajaChica')">
-        </app-options-menu>
+        @if (esMiTurno) {
+          <app-options-menu triggerId="menu-caja-chica" [options]="cajaOptions"
+            (optionSelected)="onCajaMenuOption($event, 'cajaChica')">
+          </app-options-menu>
+        }
       </div>
     </div>
 
@@ -148,9 +150,11 @@
             number:'1.2-2')) }}</span>
         </div>
         }
-        <app-options-menu triggerId="menu-celular" [options]="cajaOptions"
-          (optionSelected)="onCajaMenuOption($event, 'celular')">
-        </app-options-menu>
+        @if (esAdmin) {
+          <app-options-menu triggerId="menu-celular" [options]="cajaOptions"
+            (optionSelected)="onCajaMenuOption($event, 'celular')">
+          </app-options-menu>
+        }
       </div>
     </div>
 
@@ -175,9 +179,11 @@
             }}</span>
         </div>
         }
-        <app-options-menu triggerId="menu-bus" [options]="cajaOptions"
-          (optionSelected)="onCajaMenuOption($event, 'bus')">
-        </app-options-menu>
+        @if (esAdmin) {
+          <app-options-menu triggerId="menu-bus" [options]="cajaOptions"
+            (optionSelected)="onCajaMenuOption($event, 'bus')">
+          </app-options-menu>
+        }
       </div>
     </div>
   </div>
@@ -188,7 +194,7 @@
     <!-- Mi turno: puedo cerrarlo -->
     <div class="info">
       <h3>Turno Activo</h3>
-      <p>{{ estadoCaja.empleadoNombre }}</p>
+      <p>Caja Chica abierta · Ventas POS habilitadas</p>
     </div>
     <ion-button fill="clear" class="btn-action danger" (click)="onCerrarCaja()">
       Cerrar Turno
@@ -198,27 +204,27 @@
     <!-- Turno de otro empleado: solo informativo -->
     <div class="info">
       <h3>Turno en Progreso</h3>
-      <p>Abierto por {{ estadoCaja.empleadoNombre }}</p>
+      <p>Caja Chica abierta por {{ estadoCaja.empleadoNombre }}</p>
     </div>
 
     } @else if (estadoCaja.estado === 'CERRADA') {
     <!-- Ya hubo turno hoy pero está cerrado -->
     <div class="info">
       <h3>Turno Cerrado</h3>
-      <p>Caja cerrada por hoy</p>
+      <p>Caja Chica cerrada · Ventas POS deshabilitadas</p>
     </div>
     <ion-button fill="solid" color="dark" class="btn-action" (click)="onAbrirCaja()">
-      Abrir Caja
+      Abrir Caja Chica
     </ion-button>
 
     } @else {
     <!-- Sin turno hoy -->
     <div class="info">
-      <h3>Sin Turno</h3>
-      <p>Abrí turno para iniciar operaciones</p>
+      <h3>Sin Turno Hoy</h3>
+      <p>Abre Caja Chica para habilitar ventas POS</p>
     </div>
     <ion-button fill="solid" color="dark" class="btn-action" (click)="onAbrirCaja()">
-      Abrir Caja
+      Abrir Caja Chica
     </ion-button>
     }
 

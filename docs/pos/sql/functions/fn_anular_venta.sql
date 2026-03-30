@@ -1,5 +1,5 @@
 -- ==========================================
--- FUNCIÓN: anular_venta (v1.1)
+-- FUNCIÓN: fn_anular_venta (v1.1)
 -- ==========================================
 -- Anula una venta completada revirtiendo TODOS sus efectos:
 --   1. Repone stock de cada producto vendido
@@ -20,7 +20,7 @@
 --   p_motivo      — Razón de la anulación (obligatorio)
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.anular_venta(
+CREATE OR REPLACE FUNCTION public.fn_anular_venta(
     p_venta_id    UUID,
     p_empleado_id INTEGER,
     p_motivo      TEXT
@@ -181,13 +181,13 @@ END;
 $$;
 
 -- Permisos
-REVOKE EXECUTE ON FUNCTION public.anular_venta(UUID, INTEGER, TEXT) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.anular_venta(UUID, INTEGER, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_anular_venta(UUID, INTEGER, TEXT) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_anular_venta(UUID, INTEGER, TEXT) TO authenticated;
 
 -- Refrescar caché PostgREST
 NOTIFY pgrst, 'reload schema';
 
-COMMENT ON FUNCTION public.anular_venta IS
+COMMENT ON FUNCTION public.fn_anular_venta IS
     'v1.1 — Anula una venta completada revirtiendo stock (kardex ANULACION_VENTA), '
     'saldo de caja (EGRESO si fue EFECTIVO), y cuentas por cobrar (DELETE si fue FIADO sin abonos). '
     'Bloquea si es FIADO con abonos parciales — esa transacción ya es real y no se puede revertir automáticamente. '

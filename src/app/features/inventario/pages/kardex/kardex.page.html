@@ -58,20 +58,18 @@
                 </div>
 
                 <!-- Cantidad -->
-                <div class="mb-md">
-                    <ion-item class="custom-input flat-item" lines="none">
-                        <ion-input [(ngModel)]="cantidad" label="Cantidad *" labelPlacement="floating"
-                            type="number" inputmode="numeric" [min]="1"
-                            placeholder="Ej. 10"></ion-input>
-                    </ion-item>
+                <div class="campo">
+                    <label class="campo-label">Cantidad *</label>
+                    <input class="campo-input" [(ngModel)]="cantidad"
+                        type="number" inputmode="numeric" min="1"
+                        placeholder="Ej. 10">
                 </div>
 
                 <!-- Observaciones -->
-                <div class="mb-md">
-                    <ion-item class="custom-input flat-item" lines="none">
-                        <ion-textarea [(ngModel)]="observaciones" label="Observaciones *" labelPlacement="floating"
-                            [rows]="2" placeholder="Ej. Llegó pedido proveedor, Producto dañado..."></ion-textarea>
-                    </ion-item>
+                <div class="campo">
+                    <label class="campo-label">Observaciones *</label>
+                    <textarea class="campo-input campo-textarea" [(ngModel)]="observaciones"
+                        rows="2" placeholder="Ej. Llegó pedido proveedor, Producto dañado..."></textarea>
                 </div>
 
                 <!-- Preview resultado -->
@@ -87,9 +85,9 @@
                 </div>
                 }
 
-                <ion-button expand="block" [color]="esIngreso ? 'success' : 'danger'"
+                <ion-button expand="block" fill="solid" [color]="esIngreso ? 'success' : 'danger'"
                     [disabled]="guardandoAjuste || !cantidad || cantidad <= 0 || !observaciones.trim()"
-                    (click)="confirmarAjuste()" class="rounded-sm">
+                    (click)="confirmarAjuste()" class="confirmar-btn">
                     @if (guardandoAjuste) {
                     <ion-spinner name="crescent" slot="start"></ion-spinner>
                     Procesando...
@@ -132,16 +130,15 @@
                     </div>
 
                     <div class="timeline-body mt-sm">
-                        <div class="stock-change text-lg text-bold"
+                        <div class="stock-change"
                             [ngClass]="'text-' + getColorMovimiento(mov.tipo_movimiento)">
-                            {{ (mov.tipo_movimiento === 'VENTA' || mov.tipo_movimiento === 'AJUSTE_NEGATIVO') ? '-' :
-                            '+' }}{{ mov.cantidad }}
+                            {{ (mov.tipo_movimiento === 'VENTA' || mov.tipo_movimiento === 'AJUSTE_NEGATIVO') ? '-' : '+' }}{{ mov.cantidad }}
                         </div>
 
-                        <div class="stock-details text-sm">
-                            <span class="text-muted">Anterior: </span>{{ mov.stock_anterior }}
-                            <ion-icon name="arrow-forward-outline" class="mx-xs"></ion-icon>
-                            <span class="text-bold">Quedan: {{ mov.stock_nuevo }}</span>
+                        <div class="stock-details">
+                            <span class="pill">Anterior: {{ mov.stock_anterior }}</span>
+                            <span class="arrow">→</span>
+                            <span class="pill pill-nuevo">Quedan: {{ mov.stock_nuevo }}</span>
                         </div>
                     </div>
 

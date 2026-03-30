@@ -42,6 +42,12 @@
 // ── Formulario de ajuste ──
 .ajuste-card {
     border: 2px solid var(--ion-color-primary);
+
+    ion-card-content {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
 }
 
 .ajuste-title {
@@ -90,16 +96,54 @@
     }
 }
 
-.custom-input {
-    --background: var(--ion-color-step-50);
-    --border-radius: var(--radius-md);
-    --padding-start: var(--spacing-md);
-    border: 1px solid transparent;
-    transition: border-color var(--transition-fast);
+// ── Campos nativos (reemplazo de ion-item/ion-input) ──
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
 
-    &.ion-focused {
-        border-color: var(--ion-color-primary);
+.campo-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ion-color-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.campo-input {
+    width: 100%;
+    padding: 12px var(--spacing-md);
+    background: var(--ion-item-background);
+    border: 2px solid #aaa;
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    color: var(--ion-text-color);
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &::placeholder {
+        color: var(--ion-color-medium);
+        opacity: 0.6;
     }
+
+    &:focus {
+        border-color: var(--ion-color-primary);
+        box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.15);
+    }
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+}
+
+.campo-textarea {
+    resize: none;
+    font-family: inherit;
+    line-height: 1.5;
 }
 
 .preview-resultado {
@@ -123,32 +167,47 @@
     }
 }
 
+// ── Botón confirmar ──
+.confirmar-btn {
+    --border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: 15px;
+    height: 48px;
+    margin-top: var(--spacing-xs);
+}
+
 // ── Timeline ──
 .timeline {
     position: relative;
+    padding-left: var(--spacing-sm);
 
     &::before {
         content: '';
         position: absolute;
-        top: 0;
-        left: 20px;
-        bottom: 0;
+        top: 8px;
+        bottom: 8px;
+        left: calc(var(--spacing-sm) + 13px); // centra en el ícono de 28px
         width: 2px;
-        background: var(--ion-color-step-300);
+        background: linear-gradient(
+            to bottom,
+            var(--ion-color-step-300),
+            var(--ion-color-step-100)
+        );
     }
 }
 
 .timeline-item {
     position: relative;
-    margin-left: 40px;
+    margin-left: 44px;
     border-radius: var(--radius-lg);
     border: 1px solid var(--ion-color-step-100);
     background: var(--ion-item-background);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 
     .timeline-icon {
         position: absolute;
         top: 16px;
-        left: -32px;
+        left: -36px;
         width: 28px;
         height: 28px;
         border-radius: var(--radius-circle);
@@ -163,11 +222,11 @@
             font-size: 14px;
         }
 
-        &.danger { background: var(--ion-color-danger); }
-        &.success { background: var(--ion-color-success); }
-        &.warning { background: var(--ion-color-warning); }
+        &.danger   { background: var(--ion-color-danger); }
+        &.success  { background: var(--ion-color-success); }
+        &.warning  { background: var(--ion-color-warning); }
         &.tertiary { background: var(--ion-color-tertiary); }
-        &.medium { background: var(--ion-color-medium); }
+        &.medium   { background: var(--ion-color-medium); }
     }
 }
 
@@ -179,6 +238,7 @@
 
     h4 {
         font-size: 14px;
+        font-weight: 700;
         color: var(--ion-text-color);
     }
 
@@ -188,6 +248,7 @@
         gap: 4px;
         white-space: nowrap;
         font-size: 11px;
+        color: var(--ion-color-medium);
     }
 }
 
@@ -197,24 +258,44 @@
     gap: var(--spacing-md);
 
     .stock-change {
-        font-size: 18px;
-        min-width: 48px;
+        font-size: 20px;
+        font-weight: 800;
+        min-width: 52px;
     }
 
     .stock-details {
         display: flex;
         align-items: center;
-        background: var(--ion-color-step-50);
-        padding: 4px 12px;
-        border-radius: var(--radius-pill);
+        gap: var(--spacing-xs);
+        font-size: 13px;
         color: var(--ion-color-step-600);
+
+        .pill {
+            background: var(--ion-color-step-100);
+            border-radius: var(--radius-pill);
+            padding: 2px 10px;
+            font-weight: 600;
+            color: var(--ion-color-step-700);
+
+            &.pill-nuevo {
+                background: rgba(var(--ion-color-primary-rgb), 0.10);
+                color: var(--ion-color-primary);
+            }
+        }
+
+        .arrow {
+            color: var(--ion-color-step-400);
+            font-size: 12px;
+        }
     }
 }
 
 .timeline-footer {
-    border-top: 1px dashed var(--ion-color-step-200);
+    border-top: 1px dashed var(--ion-color-step-150);
     padding-top: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
     color: var(--ion-color-step-500);
+    font-size: 12px;
     font-style: italic;
 }
 

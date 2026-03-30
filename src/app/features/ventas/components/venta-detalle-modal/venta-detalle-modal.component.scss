@@ -271,6 +271,14 @@ ion-content {
         font-variant-numeric: tabular-nums;
     }
 
+    &.total-row--descuento {
+        .total-label,
+        .total-val {
+            color: var(--ion-color-success);
+            font-weight: 600;
+        }
+    }
+
     &.total-row--grande {
         padding: 8px 0 4px;
 

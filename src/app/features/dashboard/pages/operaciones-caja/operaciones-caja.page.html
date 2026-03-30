@@ -10,9 +10,11 @@
       @if (showHeaderBalance) {
         <span class="header-balance">${{ cajaSaldo | number:'1.2-2' }}</span>
       }
-      <ion-button (click)="mostrarMenuOperaciones($event)">
-        <ion-icon slot="icon-only" name="ellipsis-vertical"></ion-icon>
-      </ion-button>
+      @if (mostrarMenuOpciones) {
+        <ion-button (click)="mostrarMenuOperaciones($event)">
+          <ion-icon slot="icon-only" name="ellipsis-vertical"></ion-icon>
+        </ion-button>
+      }
     </ion-buttons>
   </ion-toolbar>
 </ion-header>

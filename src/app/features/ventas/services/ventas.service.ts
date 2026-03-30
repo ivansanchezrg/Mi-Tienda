@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { Venta, VentaDetalle, VentasResumen, ReporteVentasDia } from '../models/venta.model';
+import { getFechaLocal } from '../../../core/utils/date.util';
 import { PAGINATION_CONFIG } from '../../../core/config/pagination.config';
 
 @Injectable({
@@ -17,13 +18,13 @@ export class VentasService {
 
     /**
      * Devuelve las ventas según el filtro aplicado, paginadas.
-     * Delega toda la lógica de filtros, fechas (Ecuador) y búsqueda a fn_listar_ventas.
+     * Todos los roles ven todas las ventas. El filtro de turno es solo para ADMIN (frontend).
      *
      * @param filtro    'hoy' | 'semana' | 'mes' | 'todo' | 'YYYY-MM-DD'
      * @param page      Página 0-based (infinite scroll)
      * @param busqueda  Término libre: nombre, cédula o número de comprobante
      */
-    async obtenerVentas(filtro: string = 'hoy', page: number = 0, busqueda?: string, estado?: string): Promise<Venta[]> {
+    async obtenerVentas(filtro: string = 'hoy', page: number = 0, busqueda?: string, estado?: string, turnoId?: string): Promise<Venta[]> {
         const raw = await this.supabase.call<any[]>(
             this.supabase.client.rpc('fn_listar_ventas', {
                 p_filtro:    filtro,
@@ -31,6 +32,7 @@ export class VentasService {
                 p_page:      page,
                 p_page_size: PAGINATION_CONFIG.ventas.pageSize,
                 p_estado:    estado ?? null,
+                p_turno_id:  turnoId ?? null,
             })
         ) ?? [];
         return raw.map(v => this.mapVenta(v));
@@ -40,12 +42,13 @@ export class VentasService {
      * Devuelve el total de registros y el monto acumulado para el filtro activo.
      * Sin paginación — siempre refleja el universo completo de resultados.
      */
-    async resumirVentas(filtro: string = 'hoy', busqueda?: string, estado?: string): Promise<VentasResumen> {
+    async resumirVentas(filtro: string = 'hoy', busqueda?: string, estado?: string, turnoId?: string): Promise<VentasResumen> {
         const raw = await this.supabase.call<VentasResumen[]>(
             this.supabase.client.rpc('fn_resumir_ventas', {
                 p_filtro:   filtro,
                 p_busqueda: busqueda ?? null,
                 p_estado:   estado ?? null,
+                p_turno_id: turnoId ?? null,
             })
         ) ?? [];
         return raw[0] ?? { total_registros: 0, total_monto: 0 };
@@ -53,27 +56,61 @@ export class VentasService {
 
 
     // ──────────────────────────────────────────────
-    // REPORTE RESUMEN DIARIO
+    // REPORTE RESUMEN POR PERÍODO
     // ──────────────────────────────────────────────
 
     /**
-     * Obtiene el resumen agregado de ventas de un día específico.
-     * Delega toda la lógica de fechas (Ecuador) y agrupación a reporte_ventas_dia.
+     * Obtiene el resumen agregado de ventas para el período dado.
+     * Todos los roles ven todas las ventas. El filtro de turno es solo para ADMIN (frontend).
+     * @param filtro 'hoy' | 'semana' | 'mes' | 'todo'
      */
-    async obtenerReporteDia(fecha: string): Promise<ReporteVentasDia> {
+    async obtenerReportePeriodo(filtro: string, turnoId?: string): Promise<ReporteVentasDia> {
+        const { inicio, fin } = this.calcularRangoFiltro(filtro);
+
         const resultado = await this.supabase.call<ReporteVentasDia>(
-            this.supabase.client.rpc('reporte_ventas_dia', { p_fecha: fecha })
+            this.supabase.client.rpc('fn_reporte_ventas_periodo', {
+                p_fecha_inicio: inicio,
+                p_fecha_fin:    fin,
+                p_turno_id:     turnoId ?? null,
+            })
         );
 
         return resultado ?? {
-            fecha,
+            fecha_inicio: inicio,
+            fecha_fin:    fin,
             total_ventas: 0,
             total_monto: 0,
             total_anuladas: 0,
             monto_anulado: 0,
+            costo_total: 0,
+            ganancia_bruta: 0,
+            margen_pct: 0,
             por_metodo_pago: [],
-            por_tipo_comprobante: []
+            por_tipo_comprobante: [],
+            top_productos: []
         };
+    }
+
+    private calcularRangoFiltro(filtro: string): { inicio: string; fin: string } {
+        const hoy = getFechaLocal();
+        const fecha = new Date(hoy + 'T00:00:00');
+
+        if (filtro === 'semana') {
+            const lunes = new Date(fecha);
+            lunes.setDate(fecha.getDate() - fecha.getDay() + (fecha.getDay() === 0 ? -6 : 1));
+            return { inicio: lunes.toISOString().split('T')[0], fin: hoy };
+        }
+
+        if (filtro === 'mes') {
+            return { inicio: `${hoy.slice(0, 7)}-01`, fin: hoy };
+        }
+
+        if (filtro === 'todo') {
+            return { inicio: '2000-01-01', fin: hoy };
+        }
+
+        // 'hoy' por defecto
+        return { inicio: hoy, fin: hoy };
     }
 
     // ──────────────────────────────────────────────
@@ -95,6 +132,8 @@ export class VentasService {
                     tipo_comprobante,
                     numero_comprobante,
                     subtotal,
+                    descuento,
+                    descuento_pct,
                     total,
                     base_iva_0,
                     base_iva_15,
@@ -140,7 +179,7 @@ export class VentasService {
         if (!usuario) throw new Error('No se pudo obtener el usuario actual');
 
         return this.supabase.call(
-            this.supabase.client.rpc('anular_venta', {
+            this.supabase.client.rpc('fn_anular_venta', {
                 p_venta_id: ventaId,
                 p_empleado_id: usuario.id,
                 p_motivo: motivo

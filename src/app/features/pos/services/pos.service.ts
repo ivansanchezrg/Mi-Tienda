@@ -6,6 +6,8 @@ import { CartItem } from '../models/cart-item.model';
 export interface VentaPayload {
     total: number;
     subtotal: number;        // base neta sin IVA (= total en TICKET/NOTA_VENTA, = base0+base15 en FACTURA)
+    descuento: number;       // descuento automático aplicado (0 si no aplica o si es FIADO)
+    descuentoPct: number;    // porcentaje aplicado (0 si no aplica o si es FIADO)
     metodoPago: string;
     tipoComprobante: string;
     clienteId?: string;
@@ -53,13 +55,15 @@ export class PosService {
 
         // 3. Llamar a la función PostgreSQL (1 sola llamada — transacción atómica)
         const resultado = await this.supabase.call<{ success: boolean; venta_id: string; numero_comprobante: number }>(
-            this.supabase.client.rpc('registrar_venta_pos', {
+            this.supabase.client.rpc('fn_registrar_venta_pos', {
                 p_turno_id:          turno.id,
                 p_empleado_id:       turno.empleado_id,
                 p_cliente_id:        payload.clienteId ?? null,
                 p_tipo_comprobante:  payload.tipoComprobante,
                 p_total:             payload.total,
                 p_subtotal:          payload.subtotal,
+                p_descuento:         payload.descuento,
+                p_descuento_pct:     payload.descuentoPct,
                 p_base_iva_0:        payload.baseIva0,
                 p_base_iva_15:       payload.baseIva15,
                 p_iva_valor:         payload.ivaValor,

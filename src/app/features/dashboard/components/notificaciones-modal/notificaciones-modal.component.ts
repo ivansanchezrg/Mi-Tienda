@@ -9,9 +9,9 @@ import {
 import { addIcons } from 'ionicons';
 import {
   closeOutline, phonePortraitOutline, busOutline, calendarOutline,
-  notificationsOffOutline, chevronForwardOutline
+  notificationsOffOutline, chevronForwardOutline, cubeOutline, chevronDownOutline
 } from 'ionicons/icons';
-import { Notificacion } from '../../services/notificaciones.service';
+import { Notificacion, ProductoStockBajo } from '@core/services/notificaciones.service';
 
 @Component({
   selector: 'app-notificaciones-modal',
@@ -29,18 +29,31 @@ export class NotificacionesModalComponent {
   private router = inject(Router);
 
   notificaciones: Notificacion[] = [];
+  stockExpandido = false;
 
   constructor() {
     addIcons({
       closeOutline, phonePortraitOutline, busOutline, calendarOutline,
-      notificationsOffOutline, chevronForwardOutline
+      notificationsOffOutline, chevronForwardOutline, cubeOutline, chevronDownOutline
     });
   }
 
   getIconClass(tipo: string): string {
     if (tipo === 'DEUDA_CELULAR') return 'celular';
     if (tipo === 'SALDO_BAJO_BUS') return 'bus';
+    if (tipo === 'STOCK_BAJO') return 'stock';
     return 'facturacion';
+  }
+
+  toggleStock() {
+    this.stockExpandido = !this.stockExpandido;
+  }
+
+  async navegarProducto(producto: ProductoStockBajo) {
+    await this.modalCtrl.dismiss({ reload: false });
+    await this.router.navigate(['/inventario/kardex', producto.id], {
+      queryParams: { nombre: producto.nombre, stock: producto.stock_actual }
+    });
   }
 
   cerrar() {
@@ -48,6 +61,14 @@ export class NotificacionesModalComponent {
   }
 
   async navegar(notif: Notificacion) {
+    if (notif.tipo === 'STOCK_BAJO') {
+      if (notif.productos?.length === 1) {
+        await this.navegarProducto(notif.productos[0]);
+      } else {
+        this.toggleStock();
+      }
+      return;
+    }
     await this.modalCtrl.dismiss({ reload: false });
     const tab = notif.tipo === 'SALDO_BAJO_BUS' ? 'BUS' : 'CELULAR';
     await this.router.navigate(['/home/recargas-virtuales'], { queryParams: { tab } });
