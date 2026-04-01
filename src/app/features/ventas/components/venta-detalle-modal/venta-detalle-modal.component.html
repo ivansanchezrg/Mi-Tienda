@@ -1,9 +1,14 @@
 <ion-content [scrollY]="true">
 
-  <!-- Botón cerrar flotante — no se mueve al hacer scroll -->
+  <!-- Botones flotantes — no se mueven al hacer scroll -->
   <button slot="fixed" class="btn-cerrar-flotante" (click)="cerrar()">
     <ion-icon name="close-outline"></ion-icon>
   </button>
+  @if (venta && !loading) {
+  <button slot="fixed" class="btn-compartir-flotante" [disabled]="compartiendo" (click)="compartir()">
+    <ion-icon name="share-outline"></ion-icon>
+  </button>
+  }
 
   <!-- Spinner de carga -->
   @if (loading) {

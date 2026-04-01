@@ -1,35 +1,69 @@
-<!-- Header del Menú con info del usuario -->
-<div class="menu-header">
-  <ion-avatar class="menu-avatar">
-    <ion-icon [icon]="userIcon"></ion-icon>
-  </ion-avatar>
-  <h3>{{ empleadoNombre }}</h3>
-  <span class="menu-role">{{ empleadoRol === 'ADMIN' ? 'Administrador' : 'Empleado' }}</span>
-</div>
+<!-- Contenedor flex: header fijo | body scrolleable | footer fijo -->
+<div class="sidebar-container">
 
-<!-- Items del Menú -->
-<ion-list lines="none" class="menu-list">
-  <ion-menu-toggle *ngFor="let item of menuItems" auto-hide="false">
-    <ion-item button class="menu-item" [routerLink]="item.url" routerLinkActive="active-item"
-      [routerLinkActiveOptions]="{exact: !!item.exact}" (click)="closeMenu()">
-      <ion-icon [icon]="item.icon" slot="start"></ion-icon>
-      <ion-label>{{ item.title }}</ion-label>
-    </ion-item>
-  </ion-menu-toggle>
-</ion-list>
+  <!-- HEADER — nombre del negocio -->
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <ion-icon name="storefront-outline"></ion-icon>
+    </div>
+    <h2 class="sidebar-negocio">{{ nombreNegocio }}</h2>
+  </div>
 
-<!-- Footer con Settings y Logout -->
-<div class="menu-footer">
-  <div class="footer-actions">
-    <ion-button fill="clear" class="btn-logout" color="medium" (click)="logout()">
-      <ion-icon [icon]="logoutIcon" slot="start"></ion-icon>
-      Cerrar Sesión
-    </ion-button>
+  <!-- ACCIONES RÁPIDAS — fijas, solo desktop -->
+  <div class="quick-actions">
+    <button class="quick-action-btn" (click)="onAccionRapida('nueva-nota')">
+      <ion-icon name="reader-outline" class="qa-icon secondary"></ion-icon>
+      <span>Nueva nota</span>
+    </button>
+    <button class="quick-action-btn" (click)="onAccionRapida('cuadre')">
+      <ion-icon name="clipboard-outline" class="qa-icon tertiary"></ion-icon>
+      <span>Cuadre</span>
+    </button>
+  </div>
 
-    @if (empleadoRol === 'ADMIN') {
-    <ion-button fill="clear" color="medium" class="btn-settings" [routerLink]="'/configuracion'" (click)="closeMenu()">
-      <ion-icon [icon]="settingsIcon" slot="icon-only"></ion-icon>
-    </ion-button>
+  <!-- BODY — scrolleable -->
+  <div class="sidebar-body">
+
+    <!-- Grupos de navegación -->
+    @for (group of menuGroups; track group.label) {
+      <div class="menu-group">
+        @if (group.label) {
+          <div class="menu-group-label">{{ group.label }}</div>
+        }
+        <ion-list lines="none" class="menu-list">
+          <ion-menu-toggle *ngFor="let item of group.items" auto-hide="false">
+            <ion-item button class="menu-item" [routerLink]="item.url" routerLinkActive="active-item"
+              [routerLinkActiveOptions]="{exact: !!item.exact}" (click)="closeMenu()">
+              <ion-icon [icon]="item.icon" slot="start"></ion-icon>
+              <ion-label>{{ item.title }}</ion-label>
+            </ion-item>
+          </ion-menu-toggle>
+        </ion-list>
+      </div>
     }
   </div>
+
+  <!-- FOOTER — info del usuario + acciones de cuenta -->
+  <div class="sidebar-footer">
+    <div class="footer-user">
+      <ion-avatar class="footer-avatar">
+        <ion-icon [icon]="userIcon"></ion-icon>
+      </ion-avatar>
+      <div class="footer-user-info">
+        <span class="footer-nombre">{{ empleadoNombre }}</span>
+        <span class="footer-rol">{{ empleadoRol === 'ADMIN' ? 'Administrador' : 'Empleado' }}</span>
+      </div>
+    </div>
+    <div class="footer-actions">
+      @if (empleadoRol === 'ADMIN') {
+        <ion-button fill="clear" color="medium" class="btn-settings" [routerLink]="'/configuracion'" (click)="closeMenu()">
+          <ion-icon [icon]="settingsIcon" slot="icon-only"></ion-icon>
+        </ion-button>
+      }
+      <ion-button fill="clear" color="medium" class="btn-logout" (click)="logout()">
+        <ion-icon [icon]="logoutIcon" slot="icon-only"></ion-icon>
+      </ion-button>
+    </div>
+  </div>
+
 </div>

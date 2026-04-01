@@ -9,6 +9,12 @@
  * https://ionicframework.com/docs/layout/global-stylesheets
  */
 
+ 
+// Estilos personalizados
+@use './theme/custom/index';
+
+
+
 /* Core CSS required for Ionic components to work properly */
 @import "@ionic/angular/css/core.css";
 
@@ -56,16 +62,49 @@ ion-fab {
 }
 
 /**
- * Date Picker Modal (ion-datetime-button en Ventas)
- * -----------------------------------------------------
- * Los overlays de Ionic escapan el encapsulamiento del componente,
- * por eso estos estilos van aquí (global) y no en ventas.page.scss.
+ * .tab-animate — Animación de entrada para contenido de tabs
+ * ---------------------------------------------------
+ * Aplicar al contenedor del contenido de cada tab.
+ * Se dispara automáticamente cada vez que Angular crea
+ * el elemento (con @if al cambiar de tab).
+ *
+ * Uso:
+ *   <div class="tab-animate"> ... contenido del tab ... </div>
  */
-.date-picker-modal {
-  --height: auto;
-  --border-radius: 16px 16px 0 0;
-  align-items: flex-end;
+.tab-animate {
+  animation: tabEnter 0.2s ease forwards;
 }
+
+@keyframes tabEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/**
+ * ion-title — Estilo global de títulos de página
+ * ---------------------------------------------------
+ * Aplica a todos los ion-title de la app.
+ * Centralizado aquí para evitar duplicación en cada página.
+ *
+ * padding-inline-start: separa el título del ion-menu-button
+ * font-weight:          títulos pesados, más presencia visual
+ * letter-spacing:       compresión tipográfica para títulos grandes
+ *
+ * EXCEPCIÓN: modales con ion-title propio pueden sobreescribir
+ * letter-spacing si el contexto lo requiere (ej: pago-fiado-modal).
+ */
+ion-title {
+  padding-inline-start: var(--spacing-lg);
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
 
 
 // ─────────────────────────────────────────
@@ -112,11 +151,3 @@ body.scanner-active ion-modal .scanner-overlay * {
   visibility: visible;
 }
 
-// ── Modal de opciones (menú contextual tipo bottom sheet) ──
-// Usa breakpoints porque NO tiene scroll interno (lista corta de acciones).
-// El conflicto swipe/scroll de CLAUDE.md solo aplica a modales con contenido scrolleable.
-ion-modal.options-modal {
-  --height: auto;
-  --border-radius: var(--radius-xl, 16px) var(--radius-xl, 16px) 0 0;
-  --box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
-}

@@ -389,10 +389,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     // Si el modal ya abrió el turno (caso con déficit, atómico en SQL), no hace falta llamar abrirTurno()
     if (resultado.turnoId) {
-      await this.ui.showSuccess('Caja abierta');
-      await new Promise(resolve => setTimeout(resolve, 300));
       await this.cargarDatos();
       this.cdr.detectChanges();
+      await this.irAlPOSTrasTurno();
       return;
     }
 
@@ -402,9 +401,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     await this.ui.hideLoading();
 
     if (success) {
-      await new Promise(resolve => setTimeout(resolve, 300));
       await this.cargarDatos();
       this.cdr.detectChanges();
+      await this.irAlPOSTrasTurno();
     } else {
       // abrirTurno() devuelve false: puede ser turno ya abierto (datos desactualizados)
       // o error real. Verificar cuál es para dar el mensaje correcto.
@@ -412,10 +411,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       if (turnoActivo) {
         if (turnoActivo.empleado_id === this.empleadoActualId) {
           // Lock timeout de Supabase — el turno del usuario actual ya existe
-          await this.ui.showSuccess('Caja abierta');
-          await new Promise(resolve => setTimeout(resolve, 300));
           await this.cargarDatos();
           this.cdr.detectChanges();
+          await this.irAlPOSTrasTurno();
         } else {
           // Datos desactualizados — hay un turno de otro empleado abierto
           const nombre = turnoActivo.empleado?.nombre || 'otro empleado';
@@ -427,6 +425,16 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       } else {
         await this.ui.showError('No se pudo abrir el turno. Verificá tu conexión e intentá de nuevo.');
       }
+    }
+  }
+
+  private async irAlPOSTrasTurno() {
+    if (!this.esAdmin) {
+      this.ui.showToast('¡Listo! Ya puedes registrar ventas', 'success');
+      await new Promise(resolve => setTimeout(resolve, 600));
+      this.router.navigate(['/pos']);
+    } else {
+      this.ui.showToast('Caja abierta', 'success');
     }
   }
 

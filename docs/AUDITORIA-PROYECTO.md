@@ -1,7 +1,7 @@
 # Auditoría Completa del Proyecto — Mi Tienda
 
 Fecha: 2026-03-25
-Última actualización: 2026-03-28 (sesión 7)
+Última actualización: 2026-03-30 (sesión 8)
 
 Auditoría de estado actual del proyecto: qué está completo, qué falta, qué corregir.
 
@@ -256,6 +256,18 @@ Implementaciones nuevas (2026-03-27 sesión 5):
 | Seed de prueba ventas (15 ventas en 4 períodos) | ✅ | `docs/ventas/sql/seeds/seed_ventas_prueba.sql` |
 | VENTAS-README.md actualizado | ✅ | `docs/ventas/VENTAS-README.md` |
 
+Implementaciones nuevas (2026-03-30 sesión 8):
+
+| Implementación | Estado | Archivos |
+|----------------|--------|----------|
+| `ShareVentaService` — genera comprobante de venta como imagen PNG con Canvas nativo | ✅ | `share-venta.service.ts` (nuevo) |
+| Botón "Compartir comprobante" en menú de opciones del listado de ventas | ✅ | `ventas-listado.page.ts/html` |
+| Botón compartir flotante en modal detalle de venta (top-left, espeja el botón cerrar) | ✅ | `venta-detalle-modal.component.ts/html/scss` |
+| Two-pass rendering en `ShareVentaService` y `ShareEstadoCuentaService` — `NullCanvas` mide altura exacta antes de dibujar | ✅ | `share-venta.service.ts`, `share-estado-cuenta.service.ts` |
+| Fix footer cortado en comprobante — `drawFooter()` ahora retorna `y`; eliminada línea duplicada | ✅ | `share-estado-cuenta.service.ts` |
+| Padding top en título del estado de cuenta (y=90) | ✅ | `share-estado-cuenta.service.ts` |
+| Padding top `.comprobante` modal detalle venta: `56px → 72px` (espacio para 2 botones flotantes) | ✅ | `venta-detalle-modal.component.scss` |
+
 Implementaciones nuevas (2026-03-28 sesión 7):
 
 | Implementación | Estado | Archivos |
@@ -311,3 +323,19 @@ El sistema está **listo para uso en producción** con todos los módulos core c
 |-----------|-----------|
 | ~~🟡 Media~~ | ~~Resumen por turno~~ → ✅ Filtro por turno en ventas |
 | 🟢 Baja | Impresión recibo, multi-pago, devoluciones parciales |
+
+### ⚠️ Bugs conocidos pendientes de investigación
+
+#### Loading overlay persiste al regresar del share sheet de Android
+
+**Comportamiento:** Al compartir un comprobante (venta o estado de cuenta), se muestra un loading spinner. En Android, `Share.share()` de `@capacitor/share` resuelve su promesa **cuando el usuario regresa a la app** (no cuando selecciona el destino). Resultado: el overlay se mantiene visible mientras el usuario está en WhatsApp u otra app, y desaparece con un pequeño delay al volver.
+
+**Causa raíz:** `Share.share()` no emite ningún evento al seleccionar el target — el `await` solo completa al recuperar el foco de la app. Es comportamiento del plugin en Android.
+
+**Intentos fallidos:**
+- `onReady` callback antes del `Share.share()` para cerrar el loading antes de mostrar el share sheet — no funcionó.
+- Fire-and-forget (no `await`) + cerrar loading antes de `Share.share()` — no mejoró la experiencia perceptiblemente.
+
+**Posible solución a investigar:** Usar `App.addListener('appStateChange', ...)` de `@capacitor/app` para detectar cuando la app recupera el foco y cerrar el overlay en ese momento, independientemente de la promesa de `Share.share()`.
+
+**Archivos afectados:** `share-venta.service.ts`, `share-estado-cuenta.service.ts`, y todos los componentes que llaman a estos servicios.

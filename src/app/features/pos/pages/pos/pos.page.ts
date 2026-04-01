@@ -12,7 +12,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline, ellipsisHorizontalOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline } from 'ionicons/icons';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
@@ -119,7 +119,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       cubeOutline, searchOutline, addCircleOutline,
       cardOutline, phonePortraitOutline, handRightOutline,
       receiptOutline, documentTextOutline, documentOutline,
-      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline, ellipsisHorizontalOutline
+      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline
     });
   }
 
@@ -740,10 +740,15 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     if (!data) return;
 
-    // FIADO con consumidor final → abrir selector de cliente
+    // FIADO con consumidor final → abrir selector de cliente y reabrir cobro automáticamente
     if (data.necesitaCliente) {
-      this.ui.showToast('Para venta fiada debes seleccionar un cliente', 'warning');
-      this.abrirSelectorCliente();
+      this.ui.showToast('Fiado requiere seleccionar un cliente', 'warning');
+      await this.abrirSelectorCliente();
+      // Si el usuario eligió un cliente real, confirmar y reabrir el modal de cobro
+      if (!this.clienteSeleccionado?.es_consumidor_final) {
+        this.ui.showToast(`${this.clienteSeleccionado?.nombre} seleccionado correctamente`, 'success');
+        await this.cobrar();
+      }
       return;
     }
 

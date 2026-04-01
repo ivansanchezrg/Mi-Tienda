@@ -7,7 +7,7 @@ import { CurrencyService } from '../../../core/services/currency.service';
 import { ConfigService } from '../../../core/services/config.service';
 import { formatFechaEC } from '../../../core/utils/date.util';
 
-const TEMP_FILE = 'estado-cuenta-temp.png';
+const TEMP_FILE = 'estado-cuenta.jpg';
 
 export interface ComprobantePagoItem {
     tipoComprobante: string;
@@ -17,61 +17,47 @@ export interface ComprobantePagoItem {
     saldoVenta: number;
 }
 
+// Canvas nulo: acepta todas las llamadas pero no dibuja nada.
+// Úsalo en la primera pasada para medir el y final sin crear una imagen real.
+class NullCanvas {
+    font = '';
+    fillStyle = '';
+    strokeStyle = '';
+    textAlign: CanvasTextAlign = 'left';
+    lineWidth = 1;
+
+    fillRect() {}
+    fillText() {}
+    strokeRect() {}
+    beginPath() {}
+    moveTo() {}
+    lineTo() {}
+    stroke() {}
+    setLineDash() {}
+    measureText(text: string): TextMetrics {
+        const sizeMatch = this.font.match(/(\d+)px/);
+        const size = sizeMatch ? parseInt(sizeMatch[1]) : 13;
+        const isBold = this.font.includes('bold') || /[6-9]00/.test(this.font);
+        const factor = isBold ? 0.62 : 0.52;
+        return { width: text.length * size * factor } as TextMetrics;
+    }
+    scale() {}
+}
+
 @Injectable({ providedIn: 'root' })
 export class ShareEstadoCuentaService {
 
     private currency = inject(CurrencyService);
     private config   = inject(ConfigService);
 
-    // Lazy-cached: se resuelve una sola vez en la primera llamada
-    private h2cFn: any = null;
+    private readonly CANVAS_WIDTH = 400;
+    private readonly PADDING = 28;
+    private readonly CONTENT_WIDTH = this.CANVAS_WIDTH - (this.PADDING * 2);
 
-    private async getHtml2Canvas(): Promise<any> {
-        if (!this.h2cFn) {
-            this.h2cFn = (await import('html2canvas-pro')).default;
-        }
-        return this.h2cFn;
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // ESTADO DE CUENTA
+    // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Captura un wrapper HTML como imagen, la guarda en cache y retorna el URI.
-     * Centralizado para evitar duplicar la lógica de render + write + share.
-     */
-    private async capturarYCompartir(wrapper: HTMLElement, titulo: string): Promise<void> {
-        const html2canvas = await this.getHtml2Canvas();
-
-        // Un frame para que el spinner se muestre antes del render bloqueante
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-        const canvas = await html2canvas(wrapper, {
-            scale: 1.5,
-            backgroundColor: '#ffffff',
-            logging: false,
-        });
-
-        const base64 = canvas.toDataURL('image/png').split(',')[1];
-
-        await Filesystem.writeFile({
-            path: TEMP_FILE,
-            data: base64,
-            directory: Directory.Cache,
-        });
-
-        const { uri } = await Filesystem.getUri({
-            path: TEMP_FILE,
-            directory: Directory.Cache,
-        });
-
-        await Share.share({
-            title: titulo,
-            files: [uri],
-            dialogTitle: titulo,
-        });
-    }
-
-    /**
-     * Genera la imagen del estado de cuenta y abre el menú de compartir nativo.
-     */
     async compartirEstadoCuenta(
         cliente: Cliente,
         ventas: VentaFiada[],
@@ -79,131 +65,109 @@ export class ShareEstadoCuentaService {
     ): Promise<void> {
         const nombreNegocio = await this.config.getNombreNegocio();
 
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;z-index:-1;';
-        wrapper.innerHTML = this.buildTicketHtml(cliente, ventas, itemsPorVenta, nombreNegocio);
-        document.body.appendChild(wrapper);
+        // Pasada 1: medir altura real
+        const measuredY = this.renderEstadoCuenta(new NullCanvas() as any, nombreNegocio, cliente, ventas, itemsPorVenta);
+        const totalHeight = measuredY + 20;
 
-        try {
-            await this.capturarYCompartir(wrapper, `Estado de cuenta — ${cliente.nombre}`);
-        } finally {
-            document.body.removeChild(wrapper);
-            Filesystem.deleteFile({ path: TEMP_FILE, directory: Directory.Cache }).catch(() => {});
-        }
+        // Pasada 2: dibujar con altura exacta
+        const base64 = await this.drawToCanvas(totalHeight, (ctx) => {
+            this.renderEstadoCuenta(ctx, nombreNegocio, cliente, ventas, itemsPorVenta);
+        });
+
+        await this.saveAndShare(base64, `Estado de cuenta — ${cliente.nombre}`);
     }
 
-    // ──────────────────────────────────────────────
-    // HTML del ticket — CSS inline (obligatorio para html2canvas-pro)
-    // Diseño inspirado en VentaDetalleModal (tabla con grid)
-    // ──────────────────────────────────────────────
-
-    private buildTicketHtml(
+    private renderEstadoCuenta(
+        ctx: CanvasRenderingContext2D,
+        nombreNegocio: string,
         cliente: Cliente,
         ventas: VentaFiada[],
-        itemsPorVenta: Map<string, VentaFiadaItem[]>,
-        nombreNegocio: string
-    ): string {
-        const totalPendiente = ventas.reduce((s, v) => s + v.saldo_pendiente, 0);
-        const hoy = new Date();
-        const fechaGen = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()} ${hoy.getHours().toString().padStart(2, '0')}:${hoy.getMinutes().toString().padStart(2, '0')}`;
-        const ventasHtml = ventas.map(v => this.buildVentaHtml(v, itemsPorVenta.get(v.id) ?? [])).join('');
-        const multipleVentas = ventas.length > 1;
+        itemsPorVenta: Map<string, VentaFiadaItem[]>
+    ): number {
+        let y = 90;
 
-        return `
-        <div style="width:380px;background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1a1a1a;padding:28px 24px;">
-            <div style="text-align:center;padding-bottom:18px;">
-                <div style="font-size:20px;font-weight:800;color:#1a1a1a;">${this.esc(nombreNegocio)}</div>
-                <div style="font-size:12px;font-weight:600;color:#888;margin-top:4px;">ESTADO DE CUENTA</div>
-            </div>
-            <hr style="border:none;border-top:1.5px dashed #ddd;margin:0 0 16px;">
-            <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
-                <tr>
-                    <td style="font-size:13px;color:#888;padding:3px 0;">Nombre</td>
-                    <td style="font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;padding:3px 0;">${this.esc(cliente.nombre)}</td>
-                </tr>
-                ${cliente.identificacion ? `
-                <tr>
-                    <td style="font-size:13px;color:#888;padding:3px 0;">Cédula/RUC</td>
-                    <td style="font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;padding:3px 0;">${this.esc(cliente.identificacion)}</td>
-                </tr>` : ''}
-            </table>
-            <hr style="border:none;border-top:1.5px dashed #ddd;margin:0 0 16px;">
-            ${ventasHtml}
-            ${multipleVentas ? `
-            <table style="width:100%;border-collapse:collapse;border-top:2px solid #1a1a1a;margin-top:4px;padding-top:12px;">
-                <tr>
-                    <td style="font-size:16px;font-weight:800;color:#1a1a1a;padding-top:12px;">TOTAL PENDIENTE</td>
-                    <td style="font-size:20px;font-weight:800;color:#c0392b;text-align:right;padding-top:12px;">$${this.currency.format(totalPendiente)}</td>
-                </tr>
-            </table>` : ''}
-            <hr style="border:none;border-top:1.5px dashed #ddd;margin:20px 0 0;">
-            <div style="text-align:center;padding-top:14px;">
-                <div style="font-size:11px;color:#aaa;">Generado: ${fechaGen}</div>
-                <div style="font-size:11px;color:#aaa;margin-top:3px;">Este documento no es un comprobante fiscal</div>
-            </div>
-        </div>`;
+        this.drawCenteredText(ctx, nombreNegocio, y, '22px', '800');
+        y += 24;
+        this.drawCenteredText(ctx, 'ESTADO DE CUENTA', y, '12px', '600', '#888');
+        y += 24;
+        y = this.drawDashedLine(ctx, y);
+        y += 24;
+
+        y = this.drawRow(ctx, 'Nombre', cliente.nombre, y, true);
+        if (cliente.identificacion) {
+            y = this.drawRow(ctx, 'Cédula/RUC', cliente.identificacion, y, true);
+        }
+        y += 10;
+        y = this.drawDashedLine(ctx, y);
+        y += 35;
+
+        for (const v of ventas) {
+            const label  = this.getLabelTipo(v.tipo_comprobante);
+            const numero = v.numero_comprobante ? ` #${v.numero_comprobante}` : '';
+            const fecha  = formatFechaEC(v.fecha);
+
+            ctx.font = 'bold 15px Arial';
+            ctx.fillStyle = '#1a1a1a';
+            ctx.textAlign = 'left';
+            ctx.fillText(`${label}${numero}`, this.PADDING, y);
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#888';
+            ctx.fillText(fecha, this.CANVAS_WIDTH - this.PADDING, y);
+            y += 25;
+
+            const items = itemsPorVenta.get(v.id) ?? [];
+            if (items.length > 0) {
+                y = this.drawItemsTable(ctx, items, y);
+            } else {
+                ctx.font = 'italic 12px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('Sin detalle disponible', this.PADDING, y);
+                y += 20;
+            }
+
+            y += 10;
+            y = this.drawLine(ctx, y, '#ccc');
+            y += 18;
+
+            const esFactura = v.tipo_comprobante === 'FACTURA';
+            if (esFactura && (v.base_iva_0 > 0 || v.base_iva_15 > 0 || v.iva_valor > 0)) {
+                if (v.base_iva_0 > 0)  y = this.drawRow(ctx, 'Base 0%',  `$${this.currency.format(v.base_iva_0)}`,  y, false, '#888', '12px');
+                if (v.base_iva_15 > 0) y = this.drawRow(ctx, 'Base 15%', `$${this.currency.format(v.base_iva_15)}`, y, false, '#888', '12px');
+                if (v.iva_valor > 0)   y = this.drawRow(ctx, 'IVA 15%',  `$${this.currency.format(v.iva_valor)}`,   y, false, '#888', '12px');
+                y += 5;
+                y = this.drawLine(ctx, y, '#ccc');
+                y += 15;
+            }
+
+            if (v.descuento > 0) {
+                y = this.drawRow(ctx, 'Subtotal', `$${this.currency.format(v.subtotal)}`, y);
+                y = this.drawRow(ctx, `Descuento (${v.descuento_pct}%)`, `-$${this.currency.format(v.descuento)}`, y, false, '#27ae60');
+            }
+            y = this.drawRow(ctx, 'Total venta', `$${this.currency.format(v.total)}`, y);
+            if (v.monto_pagado > 0) {
+                y = this.drawRow(ctx, 'Abonado', `-$${this.currency.format(v.monto_pagado)}`, y, false, '#27ae60');
+            }
+            y = this.drawRow(ctx, 'Pendiente', `$${this.currency.format(v.saldo_pendiente)}`, y, true, '#c0392b', '17px');
+
+            y += 15;
+            y = this.drawDashedLine(ctx, y);
+            y += 30;
+        }
+
+        if (ventas.length > 1) {
+            const totalPendiente = ventas.reduce((s, v) => s + v.saldo_pendiente, 0);
+            y = this.drawRow(ctx, 'TOTAL PENDIENTE', `$${this.currency.format(totalPendiente)}`, y, true, '#c0392b', '20px');
+            y += 20;
+        }
+
+        y = this.drawFooter(ctx, y);
+        return y;
     }
 
-    private buildVentaHtml(venta: VentaFiada, items: VentaFiadaItem[]): string {
-        const label = venta.tipo_comprobante === 'FACTURA' ? 'Factura'
-            : venta.tipo_comprobante === 'NOTA_VENTA' ? 'Nota de Venta' : 'Ticket';
-        const numero = venta.numero_comprobante ? ` #${venta.numero_comprobante}` : '';
-        const fecha = formatFechaEC(venta.fecha);
-
-        const itemsHtml = items.length > 0 ? `
-            <table style="width:100%;border-collapse:collapse;margin-bottom:4px;">
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="font-size:11px;font-weight:700;color:#888;padding-bottom:6px;">Descripción</td>
-                    <td style="font-size:11px;font-weight:700;color:#888;text-align:right;padding-bottom:6px;width:42px;">Cant.</td>
-                    <td style="font-size:11px;font-weight:700;color:#888;text-align:right;padding-bottom:6px;width:62px;">P.Unit.</td>
-                    <td style="font-size:11px;font-weight:700;color:#888;text-align:right;padding-bottom:6px;width:66px;">Subtotal</td>
-                </tr>
-                ${items.map(item => `
-                <tr>
-                    <td style="font-size:13px;font-weight:500;color:#1a1a1a;padding:4px 0;">${this.esc(item.producto_nombre)}</td>
-                    <td style="font-size:13px;color:#1a1a1a;text-align:right;padding:4px 0;">${item.cantidad}</td>
-                    <td style="font-size:12px;color:#888;text-align:right;padding:4px 0;">$${this.currency.format(item.precio_unitario)}</td>
-                    <td style="font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;padding:4px 0;">$${this.currency.format(item.subtotal)}</td>
-                </tr>`).join('')}
-            </table>`
-            : '<div style="color:#999;font-size:12px;padding:4px 0;">Sin detalle disponible</div>';
-
-        const esFactura = venta.tipo_comprobante === 'FACTURA';
-
-        const ivaHtml = esFactura && (venta.base_iva_0 > 0 || venta.base_iva_15 > 0 || venta.iva_valor > 0) ? `
-            <table style="width:100%;border-collapse:collapse;padding:4px 0 2px;">
-                ${venta.base_iva_0 > 0 ? `<tr><td style="font-size:12px;color:#888;padding:2px 0;">Base 0%</td><td style="font-size:12px;font-weight:600;color:#1a1a1a;text-align:right;">$${this.currency.format(venta.base_iva_0)}</td></tr>` : ''}
-                ${venta.base_iva_15 > 0 ? `<tr><td style="font-size:12px;color:#888;padding:2px 0;">Base 15%</td><td style="font-size:12px;font-weight:600;color:#1a1a1a;text-align:right;">$${this.currency.format(venta.base_iva_15)}</td></tr>` : ''}
-                ${venta.iva_valor > 0 ? `<tr><td style="font-size:12px;color:#888;padding:2px 0;">IVA 15%</td><td style="font-size:12px;font-weight:600;color:#1a1a1a;text-align:right;">$${this.currency.format(venta.iva_valor)}</td></tr>` : ''}
-            </table>
-            <hr style="border:none;border-top:1.5px solid #ccc;margin:6px 0;">` : '';
-
-        return `
-        <div style="margin-bottom:20px;">
-            <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
-                <tr>
-                    <td style="font-size:14px;font-weight:700;color:#1a1a1a;">${label}${numero}</td>
-                    <td style="font-size:12px;color:#888;text-align:right;">${fecha}</td>
-                </tr>
-            </table>
-            ${itemsHtml}
-            <hr style="border:none;border-top:1.5px solid #ccc;margin:10px 0;">
-            ${ivaHtml}
-            <table style="width:100%;border-collapse:collapse;">
-                ${venta.descuento > 0 ? `
-                <tr><td style="font-size:13px;color:#888;padding:3px 0;">Subtotal</td><td style="font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;padding:3px 0;">$${this.currency.format(venta.subtotal)}</td></tr>
-                <tr><td style="font-size:13px;color:#27ae60;padding:3px 0;">Descuento (${venta.descuento_pct}%)</td><td style="font-size:13px;font-weight:600;color:#27ae60;text-align:right;padding:3px 0;">-$${this.currency.format(venta.descuento)}</td></tr>` : ''}
-                <tr><td style="font-size:13px;color:#888;padding:3px 0;">Total venta</td><td style="font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;padding:3px 0;">$${this.currency.format(venta.total)}</td></tr>
-                ${venta.monto_pagado > 0 ? `<tr><td style="font-size:13px;color:#27ae60;padding:3px 0;">Abonado</td><td style="font-size:13px;font-weight:600;color:#27ae60;text-align:right;padding:3px 0;">-$${this.currency.format(venta.monto_pagado)}</td></tr>` : ''}
-                <tr><td style="font-size:15px;font-weight:800;color:#1a1a1a;padding:6px 0 0;">Pendiente</td><td style="font-size:17px;font-weight:800;color:#c0392b;text-align:right;padding:6px 0 0;">$${this.currency.format(venta.saldo_pendiente)}</td></tr>
-            </table>
-        </div>
-        <hr style="border:none;border-top:1.5px dashed #ddd;margin-bottom:18px;">`;
-    }
-
-    // ──────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
     // COMPROBANTE DE PAGO
-    // ──────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
 
     async compartirComprobantePago(
         cliente: Cliente,
@@ -214,255 +178,313 @@ export class ShareEstadoCuentaService {
     ): Promise<void> {
         const nombreNegocio = await this.config.getNombreNegocio();
 
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;z-index:-1;';
-        wrapper.innerHTML = this.buildComprobanteHtml(cliente, items, montoTotal, saldoRestante, ventasPendientes, nombreNegocio);
-        document.body.appendChild(wrapper);
+        // Pasada 1: medir altura real
+        const measuredY = this.renderComprobantePago(new NullCanvas() as any, nombreNegocio, cliente, items, montoTotal, saldoRestante, ventasPendientes);
+        const totalHeight = measuredY + 20;
 
-        try {
-            await this.capturarYCompartir(wrapper, `Comprobante de pago — ${cliente.nombre}`);
-        } finally {
-            document.body.removeChild(wrapper);
-            Filesystem.deleteFile({ path: TEMP_FILE, directory: Directory.Cache }).catch(() => {});
-        }
+        // Pasada 2: dibujar con altura exacta
+        const base64 = await this.drawToCanvas(totalHeight, (ctx) => {
+            this.renderComprobantePago(ctx, nombreNegocio, cliente, items, montoTotal, saldoRestante, ventasPendientes);
+        });
+
+        await this.saveAndShare(base64, `Comprobante de pago — ${cliente.nombre}`);
     }
 
-    private buildComprobanteHtml(
+    private renderComprobantePago(
+        ctx: CanvasRenderingContext2D,
+        nombreNegocio: string,
         cliente: Cliente,
         items: ComprobantePagoItem[],
         montoTotal: number,
         saldoRestante: number,
-        ventasPendientes: VentaFiada[],
-        nombreNegocio: string
-    ): string {
-        const hoy = new Date();
-        const fecha = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()}`;
-        const hora = `${hoy.getHours().toString().padStart(2, '0')}:${hoy.getMinutes().toString().padStart(2, '0')}`;
+        ventasPendientes: VentaFiada[]
+    ): number {
+        let y = 40;
 
-        const labelTipo = (tipo: string) => tipo === 'FACTURA' ? 'Factura'
-            : tipo === 'NOTA_VENTA' ? 'Nota de Venta' : 'Ticket';
+        this.drawCenteredText(ctx, nombreNegocio, y, '22px', '800');
+        y += 24;
+        this.drawCenteredText(ctx, 'COMPROBANTE DE PAGO', y, '12px', '600', '#888');
+        y += 24;
+        y = this.drawDashedLine(ctx, y);
+        y += 24;
 
-        // ── Sección: lo que se pagó ahora ──
-        const pagadosHtml = items.map(item => {
-            const label = labelTipo(item.tipoComprobante);
+        y = this.drawRow(ctx, 'Nombre', cliente.nombre, y, true);
+        if (cliente.identificacion) {
+            y = this.drawRow(ctx, 'Cédula/RUC', cliente.identificacion, y, true);
+        }
+        y += 10;
+        y = this.drawDashedLine(ctx, y);
+        y += 35;
+
+        // Bloque destacado de monto cobrado
+        ctx.fillStyle = '#eafaf1';
+        ctx.fillRect(this.PADDING, y - 20, this.CONTENT_WIDTH, 80);
+        y += 15;
+        this.drawCenteredText(ctx, 'MONTO COBRADO', y, '11px', '700', '#27ae60');
+        y += 38;
+        this.drawCenteredText(ctx, `$${this.currency.format(montoTotal)}`, y, '38px', '800', '#1a1a1a');
+        y += 55;
+
+        ctx.font = 'bold 11px Arial';
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'left';
+        ctx.fillText('DETALLE DEL PAGO', this.PADDING, y);
+        y += 18;
+
+        for (const item of items) {
+            const label  = this.getLabelTipo(item.tipoComprobante);
             const numero = item.numeroComprobante ? ` #${item.numeroComprobante}` : '';
-            const badge = item.completa
-                ? `<span style="font-size:11px;font-weight:700;color:#27ae60;padding:2px 6px;border:1px solid #27ae60;">SALDADO</span>`
-                : `<span style="font-size:11px;font-weight:700;color:#e67e22;padding:2px 6px;border:1px solid #e67e22;">ABONO PARCIAL</span>`;
-            const quedaHtml = !item.completa
-                ? `<div style="font-size:12px;color:#888;margin-top:3px;">Queda: <strong style="color:#c0392b;">$${this.currency.format(item.saldoVenta)}</strong></div>`
-                : '';
-            return `
-            <table style="width:100%;border-collapse:collapse;border-bottom:1px solid #f0f0f0;">
-                <tr>
-                    <td style="font-size:13px;font-weight:700;color:#1a1a1a;padding:8px 8px 8px 0;">
-                        ${label}${numero}
-                        ${quedaHtml}
-                    </td>
-                    <td style="text-align:right;padding:8px 0;vertical-align:top;">
-                        ${badge}<br>
-                        <span style="font-size:14px;font-weight:800;color:#1a1a1a;">$${this.currency.format(item.pago)}</span>
-                    </td>
-                </tr>
-            </table>`;
-        }).join('');
 
-        const pendientesHtml = ventasPendientes.length > 0 ? `
-            <hr style="border:none;border-top:1.5px dashed #ddd;margin:16px 0 12px;">
-            <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:6px;">PENDIENTE POR COBRAR</div>
-            <table style="width:100%;border-collapse:collapse;">
-                ${ventasPendientes.map(v => {
-                    const label = labelTipo(v.tipo_comprobante);
-                    const numero = v.numero_comprobante ? ` #${v.numero_comprobante}` : '';
-                    return `<tr style="border-bottom:1px solid #f0f0f0;">
-                        <td style="font-size:13px;font-weight:600;color:#1a1a1a;padding:6px 0;">${label}${numero}</td>
-                        <td style="font-size:14px;font-weight:800;color:#c0392b;text-align:right;padding:6px 0;">$${this.currency.format(v.saldo_pendiente)}</td>
-                    </tr>`;
-                }).join('')}
-                <tr>
-                    <td style="font-size:15px;font-weight:800;color:#1a1a1a;padding-top:10px;">Total pendiente</td>
-                    <td style="font-size:18px;font-weight:800;color:#c0392b;text-align:right;padding-top:10px;">$${this.currency.format(saldoRestante)}</td>
-                </tr>
-            </table>` : `
-            <hr style="border:none;border-top:1.5px dashed #ddd;margin:16px 0 0;">
-            <div style="text-align:center;padding-top:12px;font-size:13px;font-weight:700;color:#27ae60;">Deuda saldada completamente</div>`;
+            ctx.font = 'bold 13px Arial';
+            ctx.fillStyle = '#1a1a1a';
+            ctx.textAlign = 'left';
+            ctx.fillText(`${label}${numero}`, this.PADDING, y);
 
-        return `
-        <div style="width:380px;background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1a1a1a;padding:28px 24px;">
-            <div style="text-align:center;padding-bottom:18px;">
-                <div style="font-size:20px;font-weight:800;color:#1a1a1a;">${this.esc(nombreNegocio)}</div>
-                <div style="font-size:12px;font-weight:600;color:#888;margin-top:4px;">COMPROBANTE DE PAGO</div>
-            </div>
-            <hr style="border:none;border-top:1.5px dashed #ddd;margin-bottom:14px;">
-            <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
-                <tr>
-                    <td style="color:#888;font-size:13px;padding:3px 0;">Nombre</td>
-                    <td style="font-size:13px;font-weight:600;text-align:right;padding:3px 0;">${this.esc(cliente.nombre)}</td>
-                </tr>
-                ${cliente.identificacion ? `
-                <tr>
-                    <td style="color:#888;font-size:13px;padding:3px 0;">Cédula/RUC</td>
-                    <td style="font-size:13px;font-weight:600;text-align:right;padding:3px 0;">${this.esc(cliente.identificacion)}</td>
-                </tr>` : ''}
-            </table>
-            <hr style="border:none;border-top:1.5px dashed #ddd;margin-bottom:14px;">
-            <div style="text-align:center;padding:14px;background:#eafaf1;margin-bottom:16px;">
-                <div style="font-size:11px;font-weight:700;color:#27ae60;margin-bottom:6px;">MONTO COBRADO</div>
-                <div style="font-size:34px;font-weight:800;color:#1a1a1a;">$${this.currency.format(montoTotal)}</div>
-            </div>
-            <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:6px;">DETALLE DEL PAGO</div>
-            ${pagadosHtml}
-            ${pendientesHtml}
-            <hr style="border:none;border-top:1.5px dashed #ddd;margin-top:20px;">
-            <div style="text-align:center;padding-top:14px;">
-                <div style="font-size:11px;color:#aaa;">Generado: ${fecha} ${hora}</div>
-                <div style="font-size:11px;color:#aaa;margin-top:3px;">Este documento no es un comprobante fiscal</div>
-            </div>
-        </div>`;
+            const badgeTxt   = item.completa ? 'SALDADO' : 'ABONO PARCIAL';
+            const badgeColor = item.completa ? '#27ae60' : '#e67e22';
+            ctx.font = 'bold 10px Arial';
+            const badgeW = ctx.measureText(badgeTxt).width + 12;
+            ctx.strokeStyle = badgeColor;
+            ctx.strokeRect(this.CANVAS_WIDTH - this.PADDING - badgeW, y - 12, badgeW, 18);
+            ctx.fillStyle = badgeColor;
+            ctx.textAlign = 'center';
+            ctx.fillText(badgeTxt, this.CANVAS_WIDTH - this.PADDING - (badgeW / 2), y + 1);
+
+            const yMonto = y;
+            y += 22;
+            if (!item.completa) {
+                ctx.font = '12px Arial';
+                ctx.fillStyle = '#888';
+                ctx.textAlign = 'left';
+                ctx.fillText('Queda pendiente: ', this.PADDING, y);
+                ctx.fillStyle = '#c0392b';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText(`$${this.currency.format(item.saldoVenta)}`, this.PADDING + 105, y);
+                y += 18;
+            }
+
+            ctx.font = 'bold 16px Arial';
+            ctx.fillStyle = '#1a1a1a';
+            ctx.textAlign = 'right';
+            ctx.fillText(`$${this.currency.format(item.pago)}`, this.CANVAS_WIDTH - this.PADDING, yMonto);
+
+            y += 12;
+            y = this.drawLine(ctx, y, '#f0f0f0');
+            y += 25;
+        }
+
+        if (ventasPendientes.length > 0) {
+            y += 10;
+            y = this.drawDashedLine(ctx, y);
+            y += 25;
+            ctx.font = 'bold 11px Arial';
+            ctx.fillStyle = '#888';
+            ctx.textAlign = 'left';
+            ctx.fillText('RESTANTE POR COBRAR', this.PADDING, y);
+            y += 22;
+
+            for (const v of ventasPendientes) {
+                y = this.drawRow(ctx, `${this.getLabelTipo(v.tipo_comprobante)}${v.numero_comprobante ? ' #' + v.numero_comprobante : ''}`, `$${this.currency.format(v.saldo_pendiente)}`, y, true, '#c0392b');
+                y = this.drawLine(ctx, y, '#f0f0f0');
+                y += 20;
+            }
+            y += 10;
+            y = this.drawRow(ctx, 'Total pendiente', `$${this.currency.format(saldoRestante)}`, y, true, '#c0392b', '19px');
+        } else {
+            y += 15;
+            y = this.drawDashedLine(ctx, y);
+            y += 35;
+            this.drawCenteredText(ctx, '\u00A1Deuda saldada completamente!', y, '15px', '700', '#27ae60');
+            y += 24;
+        }
+
+        y += 35;
+        y = this.drawFooter(ctx, y, true);
+        return y;
     }
 
-    // ──────────────────────────────────────────────
-    // WHATSAPP WEB — resumen en texto plano
-    // ──────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // HELPERS DE DIBUJO (PRIVATE)
+    // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Genera un resumen en texto plano y abre WhatsApp con el número del cliente.
-     * Usado como fallback en web donde Share nativo no está disponible.
-     */
-    enviarResumenWhatsApp(
-        cliente: Cliente,
-        ventas: VentaFiada[],
-        nombreNegocio: string
-    ): void {
+    private drawCenteredText(ctx: CanvasRenderingContext2D, text: string, y: number, size: string, weight: string, color = '#1a1a1a') {
+        ctx.font = `${weight} ${size} Arial, Helvetica, sans-serif`;
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.fillText(text, this.CANVAS_WIDTH / 2, y);
+    }
+
+    private drawRow(ctx: CanvasRenderingContext2D, label: string, value: string, y: number, bold = false, color = '#1a1a1a', size = '13px'): number {
+        ctx.font = `${bold ? 'bold' : 'normal'} ${size} Arial, Helvetica, sans-serif`;
+        ctx.fillStyle = color;
+        ctx.textAlign = 'left';
+        ctx.fillText(label, this.PADDING, y);
+        ctx.textAlign = 'right';
+        ctx.fillText(value, this.CANVAS_WIDTH - this.PADDING, y);
+        return y + 24;
+    }
+
+    private drawItemsTable(ctx: CanvasRenderingContext2D, items: VentaFiadaItem[], y: number): number {
+        ctx.font = 'bold 11px Arial';
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'left';
+        ctx.fillText('Descripción', this.PADDING, y);
+        ctx.textAlign = 'right';
+        ctx.fillText('Cant.',    this.CANVAS_WIDTH - this.PADDING - 130, y);
+        ctx.fillText('P.Unit.',  this.CANVAS_WIDTH - this.PADDING - 70,  y);
+        ctx.fillText('Subtotal', this.CANVAS_WIDTH - this.PADDING,       y);
+        y += 10;
+        y = this.drawLine(ctx, y, '#eee');
+        y += 18;
+
+        for (const item of items) {
+            ctx.font = 'bold 13px Arial';
+            ctx.fillStyle = '#1a1a1a';
+            ctx.textAlign = 'left';
+
+            const maxWidth = 160;
+            const words = item.producto_nombre.split(' ');
+            let line = '';
+            const lines: string[] = [];
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+                    lines.push(line);
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+
+            let itemY = y;
+            for (const l of lines) {
+                ctx.fillText(l.trim(), this.PADDING, itemY);
+                itemY += 16;
+            }
+
+            ctx.textAlign = 'right';
+            ctx.font = '13px Arial';
+            ctx.fillText(item.cantidad.toString(), this.CANVAS_WIDTH - this.PADDING - 130, y);
+            ctx.fillStyle = '#888';
+            ctx.font = '12px Arial';
+            ctx.fillText(`$${this.currency.format(item.precio_unitario)}`, this.CANVAS_WIDTH - this.PADDING - 70, y);
+            ctx.fillStyle = '#1a1a1a';
+            ctx.font = 'bold 13px Arial';
+            ctx.fillText(`$${this.currency.format(item.subtotal)}`, this.CANVAS_WIDTH - this.PADDING, y);
+
+            y = Math.max(itemY, y + 18) + 4;
+        }
+        return y;
+    }
+
+    private drawDashedLine(ctx: CanvasRenderingContext2D, y: number): number {
+        ctx.beginPath();
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = '#ddd';
+        ctx.lineWidth = 1.5;
+        ctx.moveTo(this.PADDING, y);
+        ctx.lineTo(this.CANVAS_WIDTH - this.PADDING, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        return y + 1;
+    }
+
+    private drawLine(ctx: CanvasRenderingContext2D, y: number, color: string): number {
+        ctx.beginPath();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.moveTo(this.PADDING, y);
+        ctx.lineTo(this.CANVAS_WIDTH - this.PADDING, y);
+        ctx.stroke();
+        return y + 1;
+    }
+
+    private drawFooter(ctx: CanvasRenderingContext2D, y: number, incluirHora = false): number {
+        y = this.drawDashedLine(ctx, y);
+        y += 24;
+        const hoy      = new Date();
+        const fechaStr = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()}`;
+        const horaStr  = incluirHora ? ` ${hoy.getHours().toString().padStart(2, '0')}:${hoy.getMinutes().toString().padStart(2, '0')}` : '';
+        this.drawCenteredText(ctx, `Generado: ${fechaStr}${horaStr}`, y, '11px', '400', '#aaa');
+        y += 18;
+        this.drawCenteredText(ctx, 'Este documento no es un comprobante fiscal', y, '11px', '400', '#aaa');
+        y += 18;
+        return y;
+    }
+
+    private async drawToCanvas(height: number, drawFn: (ctx: CanvasRenderingContext2D) => void): Promise<string> {
+        const canvas  = document.createElement('canvas');
+        const scale   = 2;
+        canvas.width  = this.CANVAS_WIDTH * scale;
+        canvas.height = height * scale;
+
+        const ctx = canvas.getContext('2d')!;
+        ctx.scale(scale, scale);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, this.CANVAS_WIDTH, height);
+
+        drawFn(ctx);
+
+        return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+    }
+
+    private async saveAndShare(base64: string, titulo: string): Promise<void> {
+        await Filesystem.writeFile({ path: TEMP_FILE, data: base64, directory: Directory.Cache });
+        const { uri } = await Filesystem.getUri({ path: TEMP_FILE, directory: Directory.Cache });
+        await Share.share({ title: titulo, files: [uri], dialogTitle: titulo });
+        Filesystem.deleteFile({ path: TEMP_FILE, directory: Directory.Cache }).catch(() => {});
+    }
+
+    private getLabelTipo(tipo: string): string {
+        return tipo === 'FACTURA' ? 'Factura' : tipo === 'NOTA_VENTA' ? 'Nota de Venta' : 'Ticket';
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // FALLBACK WHATSAPP (TEXTO PLANO)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    enviarResumenWhatsApp(cliente: Cliente, ventas: VentaFiada[], nombreNegocio: string): void {
         const totalPendiente = ventas.reduce((s, v) => s + v.saldo_pendiente, 0);
-        const labelTipo = (tipo: string) =>
-            tipo === 'FACTURA' ? 'Factura' : tipo === 'NOTA_VENTA' ? 'Nota de Venta' : 'Ticket';
-
-        // Emojis via Unicode escape — evita problemas de encoding del archivo
-        const E = {
-            doc: '\uD83D\uDCC4',     // 📄
-            person: '\uD83D\uDC64',  // 👤
-            diamond: '\uD83D\uDD39', // 🔹
-            red: '\uD83D\uDD34',     // 🔴
-            check: '\u2705',         // ✅
-            party: '\uD83C\uDF89',   // 🎉
-        };
-
-        const lineas: string[] = [];
-        lineas.push(`${E.doc} *ESTADO DE CUENTA*`);
-        lineas.push(`${nombreNegocio}`);
-        lineas.push(``);
-        lineas.push(`${E.person} *${cliente.nombre}*`);
-        lineas.push(`------------------------`);
+        const lineas: string[] = [`\uD83D\uDCC4 *ESTADO DE CUENTA*`, nombreNegocio, ``, `\uD83D\uDC64 *${cliente.nombre}*`, `------------------------`];
 
         for (const v of ventas) {
-            const label = labelTipo(v.tipo_comprobante);
-            const numero = v.numero_comprobante ? ` #${v.numero_comprobante}` : '';
-            const fecha = formatFechaEC(v.fecha);
-            lineas.push(``);
-            lineas.push(`${E.diamond} *${label}${numero}*`);
-            lineas.push(`   Fecha: ${fecha}`);
-            lineas.push(`   Total: $${this.currency.format(v.total)}`);
-            if (v.monto_pagado > 0) {
-                lineas.push(`   ${E.check} Abonado: $${this.currency.format(v.monto_pagado)}`);
-            }
-            lineas.push(`   ${E.red} *Pendiente: $${this.currency.format(v.saldo_pendiente)}*`);
+            lineas.push(``, `\uD83D\uDD39 *${this.getLabelTipo(v.tipo_comprobante)}${v.numero_comprobante ? ' #' + v.numero_comprobante : ''}*`);
+            lineas.push(`   Fecha: ${formatFechaEC(v.fecha)}`, `   Total: $${this.currency.format(v.total)}`);
+            if (v.monto_pagado > 0) lineas.push(`   \u2705 Abonado: $${this.currency.format(v.monto_pagado)}`);
+            lineas.push(`   \uD83D\uDD34 *Pendiente: $${this.currency.format(v.saldo_pendiente)}*`);
         }
 
         if (ventas.length > 1) {
-            lineas.push(``);
-            lineas.push(`------------------------`);
-            lineas.push(`${E.red} *TOTAL PENDIENTE: $${this.currency.format(totalPendiente)}*`);
+            lineas.push(``, `------------------------`, `\uD83D\uDD34 *TOTAL PENDIENTE: $${this.currency.format(totalPendiente)}*`);
         }
-
-        lineas.push(``);
-        lineas.push(`_Resumen informativo. Para comprobante con imagen usa la app._`);
-
-        let telefono = (cliente.telefono ?? '').replace(/\D/g, '');
-        if (telefono.startsWith('0')) telefono = '593' + telefono.slice(1);
-        const url = `https://api.whatsapp.com/send?phone=${telefono}&text=${encodeURIComponent(lineas.join('\n'))}`;
-        window.open(url, '_blank');
+        this.openWhatsApp(cliente.telefono, lineas.join('\n'));
     }
 
-    enviarComprobanteWhatsApp(
-        cliente: Cliente,
-        items: ComprobantePagoItem[],
-        montoTotal: number,
-        saldoRestante: number,
-        ventasPendientes: VentaFiada[],
-        nombreNegocio: string
-    ): void {
-        const labelTipo = (tipo: string) =>
-            tipo === 'FACTURA' ? 'Factura' : tipo === 'NOTA_VENTA' ? 'Nota de Venta' : 'Ticket';
+    enviarComprobanteWhatsApp(cliente: Cliente, items: ComprobantePagoItem[], montoTotal: number, saldoRestante: number, ventasPendientes: VentaFiada[], nombreNegocio: string): void {
+        const lineas: string[] = [`\u2705 *COMPROBANTE DE PAGO*`, nombreNegocio, ``, `\uD83D\uDC64 *${cliente.nombre}*`, `------------------------`, ``, `\uD83D\uDCB0 *Monto: $${this.currency.format(montoTotal)}*`, ``, `\uD83D\uDCC4 *Detalle:*`];
 
-        const E = {
-            check: '\u2705',         // ✅
-            person: '\uD83D\uDC64',  // 👤
-            money: '\uD83D\uDCB0',   // 💰
-            doc: '\uD83D\uDCC4',     // 📄
-            diamond: '\uD83D\uDD39', // 🔹
-            small: '\uD83D\uDD38',   // 🔸
-            pin: '\uD83D\uDCCC',     // 📌
-            red: '\uD83D\uDD34',     // 🔴
-            hourglass: '\u231B',     // ⌛
-            party: '\uD83C\uDF89',   // 🎉
-        };
-
-        const lineas: string[] = [];
-        lineas.push(`${E.check} *COMPROBANTE DE PAGO*`);
-        lineas.push(`${nombreNegocio}`);
-        lineas.push(``);
-        lineas.push(`${E.person} *${cliente.nombre}*`);
-        lineas.push(`------------------------`);
-        lineas.push(``);
-        lineas.push(`${E.money} *Monto: $${this.currency.format(montoTotal)}*`);
-        lineas.push(``);
-
-        lineas.push(`${E.doc} *Detalle:*`);
         for (const item of items) {
-            const label = labelTipo(item.tipoComprobante);
-            const numero = item.numeroComprobante ? ` #${item.numeroComprobante}` : '';
-            const estado = item.completa ? `${E.check} Saldado` : `${E.hourglass} Abono`;
-            lineas.push(`${E.diamond} ${label}${numero}`);
-            lineas.push(`   Pago: *$${this.currency.format(item.pago)}*`);
-            lineas.push(`   ${estado}`);
-            if (!item.completa) {
-                lineas.push(`   Pendiente: *$${this.currency.format(item.saldoVenta)}*`);
-            }
+            lineas.push(`\uD83D\uDD39 ${this.getLabelTipo(item.tipoComprobante)}${item.numeroComprobante ? ' #' + item.numeroComprobante : ''}`);
+            lineas.push(`   Pago: *$${this.currency.format(item.pago)}*`, `   ${item.completa ? '\u2705 Saldado' : '\u231B Abono'}`);
+            if (!item.completa) lineas.push(`   Pendiente: *$${this.currency.format(item.saldoVenta)}*`);
             lineas.push(``);
         }
 
         if (ventasPendientes.length > 0) {
-            lineas.push(`------------------------`);
-            lineas.push(`${E.pin} *Pendientes:*`);
-            for (const v of ventasPendientes) {
-                const label = labelTipo(v.tipo_comprobante);
-                const numero = v.numero_comprobante ? ` #${v.numero_comprobante}` : '';
-                lineas.push(`${E.small} ${label}${numero}: *$${this.currency.format(v.saldo_pendiente)}*`);
-            }
-            lineas.push(``);
-            lineas.push(`${E.red} *TOTAL: $${this.currency.format(saldoRestante)}*`);
-        } else {
-            lineas.push(``);
-            lineas.push(`${E.party} *Todo pagado*`);
+            lineas.push(`------------------------`, `\uD83D\uDCCC *Pendientes:*`);
+            for (const v of ventasPendientes) lineas.push(`\uD83D\uDD38 ${this.getLabelTipo(v.tipo_comprobante)}${v.numero_comprobante ? ' #' + v.numero_comprobante : ''}: *$${this.currency.format(v.saldo_pendiente)}*`);
+            lineas.push(``, `\uD83D\uDD34 *TOTAL: $${this.currency.format(saldoRestante)}*`);
         }
-
-        lineas.push(``);
-        lineas.push(`_Resumen informativo_`);
-
-        let telefono = (cliente.telefono ?? '').replace(/\D/g, '');
-        if (telefono.startsWith('0')) telefono = '593' + telefono.slice(1);
-        const url = `https://api.whatsapp.com/send?phone=${telefono}&text=${encodeURIComponent(lineas.join('\n'))}`;
-        window.open(url, '_blank');
+        this.openWhatsApp(cliente.telefono, lineas.join('\n'));
     }
 
-    /** Escapa caracteres HTML para evitar XSS en el ticket */
-    private esc(str: string | null | undefined): string {
-        if (!str) return '';
-        return str
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
+    private openWhatsApp(tel: string | null | undefined, text: string) {
+        let telefono = (tel ?? '').replace(/\D/g, '');
+        if (telefono.startsWith('0')) telefono = '593' + telefono.slice(1);
+        const url = `https://api.whatsapp.com/send?phone=${telefono}&text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
     }
 }

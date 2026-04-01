@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import {
     IonContent, IonHeader, IonTitle, IonToolbar,
     IonButtons, IonBackButton, IonIcon,
-    IonButton, IonFooter,
+    IonButton, IonFooter, IonCard,
     IonSkeletonText, IonRefresher, IonRefresherContent,
     ModalController, AlertController,
     ViewWillEnter, ViewWillLeave
@@ -41,7 +41,7 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
         CommonModule,
         IonContent, IonHeader, IonTitle, IonToolbar,
         IonButtons, IonBackButton, IonIcon,
-        IonButton, IonFooter,
+        IonButton, IonFooter, IonCard,
         IonSkeletonText, IonRefresher, IonRefresherContent,
         EmptyStateComponent
     ]
@@ -101,15 +101,16 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
     async cargarDatos(silencioso = false) {
         if (!silencioso) this.loading = true;
         try {
-            const [cliente, ventas] = await Promise.all([
-                this.clientesService.obtenerClientePorId(this.clienteId),
-                this.cuentasService.obtenerVentasFiadas(this.clienteId),
-            ]);
+            // 1️⃣ Carga el cliente primero → el header card aparece de inmediato
+            const cliente = await this.clientesService.obtenerClientePorId(this.clienteId);
             if (!cliente) {
                 this.ui.showToast('Cliente no encontrado', 'danger');
                 return;
             }
             this.cliente = cliente;
+
+            // 2️⃣ Ahora carga las ventas — el skeleton sigue visible debajo
+            const ventas = await this.cuentasService.obtenerVentasFiadas(this.clienteId);
             this.ventasFiadas = ventas;
 
             // Cargar items de cada venta en paralelo — fallo parcial no rompe la página
@@ -209,10 +210,7 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
             );
         } catch (err: any) {
             const msg = err?.message ?? '';
-            if (msg === 'CLIPBOARD_FALLBACK') {
-                this.ui.showToast('Imagen copiada al portapapeles', 'success');
-                return;
-            }
+            if (msg === 'CLIPBOARD_FALLBACK') { this.ui.showToast('Imagen copiada al portapapeles', 'success'); return; }
             if (msg.toLowerCase().includes('cancel') || msg.toLowerCase().includes('dismiss') || msg.toLowerCase().includes('abort')) return;
             this.ui.showToast('No se pudo generar el comprobante', 'danger');
         } finally {
@@ -273,16 +271,11 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
         await this.ui.showLoading('Generando estado de cuenta...');
         try {
             await this.shareService.compartirEstadoCuenta(
-                this.cliente,
-                this.ventasFiadas,
-                this.itemsPorVenta
+                this.cliente, this.ventasFiadas, this.itemsPorVenta
             );
         } catch (err: any) {
             const msg = err?.message ?? '';
-            if (msg === 'CLIPBOARD_FALLBACK') {
-                this.ui.showToast('Imagen copiada al portapapeles', 'success');
-                return;
-            }
+            if (msg === 'CLIPBOARD_FALLBACK') { this.ui.showToast('Imagen copiada al portapapeles', 'success'); return; }
             if (msg.toLowerCase().includes('cancel') || msg.toLowerCase().includes('dismiss') || msg.toLowerCase().includes('abort')) return;
             this.ui.showToast('No se pudo generar el estado de cuenta', 'danger');
         } finally {

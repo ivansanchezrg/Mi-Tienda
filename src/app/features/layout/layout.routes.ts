@@ -46,6 +46,10 @@ export const LAYOUT_ROUTES: Routes = [
         loadChildren: () => import('../clientes/clientes.routes').then(m => m.CLIENTES_ROUTES)
       },
       {
+        path: 'notas',
+        loadChildren: () => import('../notas/notas.routes').then(m => m.NOTAS_ROUTES)
+      },
+      {
         path: '',
         redirectTo: 'home',
         pathMatch: 'full'

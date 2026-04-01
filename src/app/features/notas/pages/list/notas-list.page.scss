@@ -1,0 +1,102 @@
+.list-container {
+    padding: var(--spacing-md) var(--spacing-lg);
+}
+
+// ── Lista ────────────────────────────────────────
+.notas-list {
+    background: transparent;
+    padding: 0;
+}
+
+// ── Item ─────────────────────────────────────────
+.nota-item {
+    --background: var(--ion-item-background);
+    --padding-start: 12px;
+    --inner-padding-end: 12px;
+    --padding-top: 12px;
+    --padding-bottom: 12px;
+    --min-height: 0;
+    border-radius: 12px;
+    margin-bottom: var(--spacing-sm);
+    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, 0.08));
+    transition: opacity 0.2s ease;
+}
+
+// Nota completada: ligeramente atenuada
+.nota-completada .nota-item {
+    opacity: 0.6;
+}
+
+// ── Checkbox visual ──────────────────────────────
+.nota-check {
+    display: flex;
+    align-items: center;
+    margin-right: 12px;
+    flex-shrink: 0;
+
+    ion-icon {
+        font-size: 24px;
+    }
+}
+
+// ── Texto ─────────────────────────────────────────
+.nota-texto {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ion-text-color);
+    margin: 0 0 6px 0;
+    white-space: pre-wrap;
+    line-height: 1.4;
+}
+
+.nota-texto--tachado {
+    text-decoration: line-through;
+    color: var(--ion-color-medium);
+    font-weight: 400;
+}
+
+// ── Meta ──────────────────────────────────────────
+.nota-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--ion-color-medium);
+
+    ion-icon {
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+}
+
+.meta-chip--done {
+    color: var(--ion-color-success);
+}
+
+// ── Skeleton ──────────────────────────────────────
+.nota-skeleton {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--ion-item-background);
+    border-radius: 12px;
+    padding: 14px 12px;
+    margin-bottom: var(--spacing-sm);
+    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, 0.08));
+}
+
+// ── Delete swipe ──────────────────────────────────
+.delete-option {
+    border-radius: 0 12px 12px 0;
+}
+
+// ── FAB scroll top ────────────────────────────────
+.scroll-top-fab {
+    margin-bottom: env(safe-area-inset-bottom);
+}

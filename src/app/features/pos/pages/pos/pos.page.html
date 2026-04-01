@@ -34,8 +34,11 @@
     <div class="searchbar-wrapper">
       <div class="search-box">
         <button class="search-mode-btn" (click)="toggleModoBusqueda()" type="button">
-          <ion-icon [name]="modoBusqueda === 'codigo' ? 'barcode-outline' : 'search-outline'"
-            color="primary"></ion-icon>
+          @if (modoBusqueda === 'codigo') {
+            <ion-icon name="barcode-outline"></ion-icon>
+          } @else {
+            <ion-icon name="search-outline"></ion-icon>
+          }
         </button>
         <input class="search-input" #searchInput
           [(ngModel)]="buscarTexto"
@@ -145,7 +148,12 @@
           <h2>{{ prod.nombre }}</h2>
           <p>Stock: {{ prod.stock_actual }}</p>
         </ion-label>
-        <span slot="end" class="suggestion-price">${{ currencyService.format(prod.precio_venta) }}</span>
+        <div slot="end" class="suggestion-end">
+          <span class="suggestion-price">${{ currencyService.format(prod.precio_venta) }}</span>
+          <div class="suggestion-add-btn">
+            <ion-icon name="add-outline"></ion-icon>
+          </div>
+        </div>
       </ion-item>
       }
     </ion-list>
@@ -295,14 +303,14 @@
       </div>
 
       <div class="btn-charge-row">
+        <ion-button expand="block" fill="outline" color="medium" class="btn-charge-other" (click)="cobrar()"
+          [disabled]="carrito.length === 0 || cobroEnProceso">
+          Otros métodos
+        </ion-button>
         <ion-button expand="block" color="primary" class="btn-charge-main" (click)="cobrarEfectivo()"
           [disabled]="carrito.length === 0 || cobroEnProceso">
           <ion-icon name="cash-outline" slot="start"></ion-icon>
-          Cobrar en Efectivo
-        </ion-button>
-        <ion-button color="primary" fill="outline" class="btn-charge-other" (click)="cobrar()"
-          [disabled]="carrito.length === 0 || cobroEnProceso">
-          <ion-icon name="ellipsis-horizontal-outline" slot="icon-only"></ion-icon>
+          Cobrar Efectivo
         </ion-button>
       </div>
 

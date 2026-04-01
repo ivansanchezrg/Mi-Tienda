@@ -9,12 +9,14 @@ import {
     closeOutline, receiptOutline, documentTextOutline, documentOutline,
     cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
     personOutline, calendarOutline, printOutline, alertCircleOutline,
-    banOutline
+    banOutline, shareOutline
 } from 'ionicons/icons';
 import { VentasService } from '../../services/ventas.service';
+import { ShareVentaService } from '../../services/share-venta.service';
 import { Venta } from '../../models/venta.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { ConfigService } from '../../../../core/services/config.service';
+import { UiService } from '../../../../core/services/ui.service';
 import { formatFechaHoraEC, formatHoraEC } from '../../../../core/utils/date.util';
 
 @Component({
@@ -31,20 +33,23 @@ export class VentaDetalleModalComponent implements OnInit {
     @Input() ventaId!: string;
 
     private ventasService = inject(VentasService);
+    private shareService  = inject(ShareVentaService);
     public currencyService = inject(CurrencyService);
     private configService  = inject(ConfigService);
     private modalCtrl = inject(ModalController);
+    private ui = inject(UiService);
 
     venta: Venta | null = null;
     loading = true;
     nombreNegocio = 'Mi Tienda';
+    compartiendo = false;
 
     constructor() {
         addIcons({
             closeOutline, receiptOutline, documentTextOutline, documentOutline,
             cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
             personOutline, calendarOutline, printOutline, alertCircleOutline,
-            banOutline
+            banOutline, shareOutline
         });
     }
 
@@ -58,6 +63,22 @@ export class VentaDetalleModalComponent implements OnInit {
 
     cerrar() {
         this.modalCtrl.dismiss();
+    }
+
+    async compartir() {
+        if (!this.venta || this.compartiendo) return;
+        this.compartiendo = true;
+        await this.ui.showLoading('Generando comprobante...');
+        try {
+            await this.shareService.compartirVenta(this.venta);
+        } catch (err: any) {
+            const msg = (err?.message ?? '').toLowerCase();
+            if (msg.includes('cancel') || msg.includes('dismiss') || msg.includes('abort')) return;
+            this.ui.showToast('No se pudo generar el comprobante', 'danger');
+        } finally {
+            await this.ui.hideLoading();
+            this.compartiendo = false;
+        }
     }
 
     // ── helpers template ──────────────────────────

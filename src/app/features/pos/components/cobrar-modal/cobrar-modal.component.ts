@@ -1,4 +1,4 @@
-import { Component, Input, inject } from '@angular/core';
+import { Component, Input, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -32,6 +32,8 @@ export class CobrarModalComponent {
     @Input() esConsumidorFinal = false;
     @Input() iniciarEnEfectivo = false;
 
+    @ViewChild('montoInput') montoInputRef!: ElementRef<HTMLInputElement>;
+
     public currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
 
@@ -44,6 +46,16 @@ export class CobrarModalComponent {
             this.metodoSeleccionado = 'EFECTIVO';
             this.paso = 'monto';
         }
+    }
+
+    ngAfterViewInit() {
+        if (this.paso === 'monto') {
+            this.focusInput();
+        }
+    }
+
+    private focusInput() {
+        setTimeout(() => this.montoInputRef?.nativeElement?.focus(), 300);
     }
 
     constructor() {
@@ -65,7 +77,7 @@ export class CobrarModalComponent {
     }
 
     get montoValido(): boolean {
-        return this.recibido >= this.total;
+        return this.montoRecibido === '' || this.recibido >= this.total;
     }
 
     // ── Paso 1: selección de método ──────────────
@@ -85,6 +97,7 @@ export class CobrarModalComponent {
 
         if (metodo === 'EFECTIVO') {
             this.paso = 'monto';
+            setTimeout(() => this.focusInput(), 50);
         } else if (metodo === 'FIADO' && this.descuento > 0) {
             // FIADO con descuento activo → paso de confirmación sin descuento
             this.paso = 'confirmar-fiado';

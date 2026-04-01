@@ -31,5 +31,11 @@ export const PAGINATION_CONFIG = {
    */
   clientes: {
     pageSize: 25
+  },
+  /**
+   * Notas compartidas
+   */
+  notas: {
+    pageSize: 30
   }
 } as const;
