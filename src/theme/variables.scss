@@ -40,6 +40,7 @@
  * ============================================================================
  */
 
+
 :root {
   // ============================================================================
   // COLORES BASE (Ionic Nativo - Adaptativo al modo oscuro)
@@ -218,6 +219,28 @@
   --ion-color-step-950: #0d0d0d;   // Casi negro
 
   
+}
+
+// ============================================================================
+// DESKTOP (Split pane activo — pantallas ≥992px)
+// ============================================================================
+// Solo se sobreescriben los tokens que deben escalar en pantallas grandes.
+// El resto (colores, sombras, radios) se mantienen igual.
+
+@media (min-width: 992px) {
+  :root {
+    // Spacing ligeramente más generoso
+    --spacing-sm: 10px;
+    --spacing-md: 14px;
+    --spacing-lg: 18px;
+    --spacing-xl: 24px;
+    --spacing-2xl: 28px;
+
+    // Tipografía base más legible en pantalla grande
+    --font-size-base: 16px;
+    --font-size-sm: 14px;
+    --font-size-lg: 18px;
+  }
 }
 
 // ============================================================================

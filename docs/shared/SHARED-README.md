@@ -209,6 +209,84 @@ Hace scroll al top de un `ion-content` automáticamente cuando el valor vinculad
 
 ---
 
+---
+
+## Estilos globales — `src/theme/custom/`
+
+Los estilos globales reutilizables (que escapan el encapsulamiento de componentes) viven en `src/theme/custom/`.
+
+### Estructura
+
+```
+src/theme/custom/
+├── index.scss    → re-exporta todo con @forward (punto de entrada)
+└── modals.scss   → estilos de modales reutilizables
+```
+
+### Cómo se importa
+
+```scss
+// global.scss — único punto de entrada
+@use './theme/custom/index';
+
+// index.scss — re-exporta con @forward
+@forward './modals';
+```
+
+> **Convención Sass:** `@forward` en `index.scss` para agrupar, `@use` en `global.scss` para consumir. No usar `@import` (deprecated en Dart Sass 3.0).
+
+### `bottom-sheet-modal` — clase genérica para modales compactos
+
+Usar en cualquier modal sin scroll interno que deba abrirse desde abajo:
+
+```typescript
+const modal = await this.modalCtrl.create({
+  component: MiModalComponent,
+  cssClass: 'bottom-sheet-modal',
+  breakpoints: [0, 1],
+  initialBreakpoint: 1
+});
+```
+
+**Estructura HTML obligatoria** (sin `ion-content` — div directo):
+
+```html
+<div class="modal-wrapper">
+
+  <div class="modal-header">
+    <div class="modal-header-icon">   <!-- color específico en SCSS local -->
+      <ion-icon name="mi-icono"></ion-icon>
+    </div>
+    <span class="modal-header-title">Título</span>
+    <button class="modal-close-btn" (click)="cerrar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <!-- contenido específico del modal -->
+
+  <div class="modal-actions">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
+    <ion-button expand="block" color="primary" (click)="confirmar()">Confirmar</ion-button>
+  </div>
+
+</div>
+```
+
+**SCSS local** — solo el color del icono (todo lo demás viene de `modals.scss`):
+
+```scss
+.modal-header-icon {
+  background: rgba(var(--ion-color-primary-rgb), 0.1);
+  ion-icon { color: var(--ion-color-primary); }
+}
+```
+
+> **NO usar** `breakpoints` en modales con scroll interno largo → bloquea el swipe en Android.
+> Ejemplos actuales: `NuevaNotaModalComponent`, `CuadreCajaPage`.
+
+---
+
 ## Convenciones
 
 - Todos los elementos son **standalone** — importar directamente en el `imports[]` del componente.

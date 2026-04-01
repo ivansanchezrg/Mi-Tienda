@@ -1,16 +1,28 @@
 ion-menu {
-  --width: 280px;
+  --width: 300px;
+  --max-width: 300px;
 }
 
+ion-split-pane {
+  --side-width: 300px;
+  --side-max-width: 300px;
+  --side-min-width: 300px;
+}
+
+.main-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  contain: strict;
+  position: relative;
+}
+
+
 ion-tab-bar {
-  --background: transparent;
-  background: linear-gradient(
-    to bottom,
-    var(--ion-item-background) 68px,
-    var(--ion-background-color) 68px
-  );
-  border-top: 1px solid var(--ion-color-step-100);
-  box-shadow: var(--shadow-level-1);
+  --background: var(--ion-background-color);
+  border-top: none;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
   height: calc(68px + env(safe-area-inset-bottom) / 2);
   padding-bottom: calc(env(safe-area-inset-bottom) / 2);
 }
@@ -21,22 +33,26 @@ ion-tab-button {
   --color-selected: var(--ion-color-primary);
   position: relative;
 
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%) scaleX(0);
-    width: 40px;
-    height: 3px;
-    border-radius: var(--radius-pill);
-    background: var(--ion-color-primary);
-    transition: transform var(--transition-normal) ease;
+  ion-icon {
+    transition: transform var(--transition-normal), opacity var(--transition-normal);
   }
 
-  &.tab-selected::before {
-    transform: translateX(-50%) scaleX(1);
+  ion-label {
+    transition: font-weight var(--transition-normal);
+    font-weight: var(--font-weight-regular);
   }
+
+  &.tab-selected {
+    ion-icon {
+      transform: scale(1.25);
+      animation: tabBounce 0.3s ease;
+    }
+
+    ion-label {
+      font-weight: var(--font-weight-bold);
+    }
+  }
+
 }
 
 
@@ -64,7 +80,7 @@ ion-tab-bar.tabs-oculto {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, var(--opacity-medium));
+  background: rgba(0, 0, 0, var(--opacity-strong));
   z-index: 999;
   animation: fadeIn 0.2s ease;
 }
@@ -95,7 +111,7 @@ ion-fab-button {
   }
 }
 
-// Contenedor de opciones (pills verticales) - fuera del tab-bar
+// Contenedor de opciones — centrado sobre el FAB
 .fab-options {
   position: fixed;
   bottom: calc(80px + env(safe-area-inset-bottom));
@@ -103,42 +119,32 @@ ion-fab-button {
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  align-items: center;
+  gap: var(--spacing-xs);
   z-index: 1000;
 }
 
-// Cada opción tipo pill/chip
+// Cada opción tipo card grande
 .fab-option {
-  background: var(--ion-card-background, var(--ion-background-color));
-  border-radius: var(--radius-pill);
+  background: var(--ion-item-background);
+  border-radius: var(--radius-xl);
   padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-sm) var(--spacing-sm);
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  box-shadow: var(--shadow-level-2);
+  gap: var(--spacing-lg);
+  box-shadow: var(--shadow-level-3);
   cursor: pointer;
-  transition: all var(--transition-normal);
-  min-width: 140px;
-  animation: slideUpItem 0.18s ease forwards;
+  animation: slideUpItem 0.2s ease forwards;
   opacity: 0;
 
-  // Delay escalonado para cada opción (de abajo hacia arriba)
-  &:nth-child(1) {
-    animation-delay: 0.08s;
-  }
+  &:nth-child(1) { animation-delay: 0.12s; }
+  &:nth-child(2) { animation-delay: 0.04s; }
 
-  &:nth-child(2) {
-    animation-delay: 0.02s;
-  }
+  &:active { transform: scale(0.97); }
 
-  &:active {
-    transform: scale(0.95);
-  }
-
-  // Icono circular con color
   .fab-option-icon {
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     border-radius: var(--radius-full);
     display: flex;
     align-items: center;
@@ -146,26 +152,26 @@ ion-fab-button {
     flex-shrink: 0;
 
     ion-icon {
-      font-size: 22px;
+      font-size: 18px;
       color: white;
     }
 
-    &.tertiary {
-      background: var(--ion-color-tertiary);
-    }
-
-    &.warning {
-      background: var(--ion-color-warning);
-    }
+    &.secondary { background: var(--ion-color-secondary); }
+    &.tertiary  { background: var(--ion-color-tertiary); }
+    &.warning   { background: var(--ion-color-warning); }
   }
 
-  // Texto de la opción
   .fab-option-label {
-    font-size: 15px;
-    font-weight: var(--font-weight-semibold);
+    font-size: 17px;
+    font-weight: var(--font-weight-bold);
     color: var(--ion-text-color);
-    white-space: nowrap;
   }
+}
+
+@keyframes tabBounce {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.35); }
+  100% { transform: scale(1.25); }
 }
 
 // Animación para cada opción individual
@@ -177,5 +183,20 @@ ion-fab-button {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+// ============================================================================
+// DESKTOP — Ocultar tab bar y FAB (la navegación está en el sidebar)
+// Breakpoint alineado con ion-split-pane when="lg" (992px)
+// ============================================================================
+@media (min-width: 992px) {
+  ion-tab-bar {
+    display: none !important;
+  }
+
+  .fab-overlay,
+  .fab-options {
+    display: none !important;
   }
 }

@@ -1,61 +1,173 @@
-ion-content {
-  --background: var(--ion-background-color);
+// ============================================================================
+// SIDEBAR — Layout flex: header fijo | body scroll | footer fijo
+// ============================================================================
+
+:host {
+  display: block;
+  height: 100%;
 }
 
-.menu-header {
-  padding: var(--spacing-xl) var(--spacing-2xl) var(--spacing-xl);
-  background: linear-gradient(135deg, var(--ion-color-primary) 0%, var(--ion-color-primary-shade) 100%) !important;
+.sidebar-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ion-background-color);
+}
+
+// ============================================================================
+// HEADER — Nombre del negocio (fijo)
+// ============================================================================
+.sidebar-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  background: linear-gradient(135deg, var(--ion-color-primary) 0%, var(--ion-color-primary-shade) 100%);
   color: white;
-  text-align: center;
 
   :host-context(body.dark) & {
-    background: linear-gradient(135deg, var(--ion-color-dark) 0%, var(--ion-color-dark-shade) 100%) !important;
+    background: linear-gradient(135deg, var(--ion-color-dark) 0%, var(--ion-color-dark-shade) 100%);
+  }
+}
+
+.sidebar-logo {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.20);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  ion-icon {
+    font-size: 22px;
+    color: white;
+  }
+}
+
+.sidebar-negocio {
+  margin: 0;
+  font-size: 17px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// ============================================================================
+// BODY — Scrolleable (acciones rápidas + grupos de nav)
+// ============================================================================
+.sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: var(--spacing-md);
+
+  // Scrollbar sutil y profesional
+  &::-webkit-scrollbar {
+    width: 4px;
   }
 
-  .menu-avatar {
-    width: 52px;
-    height: 52px;
-    margin: 0 auto var(--spacing-md) auto;
-    background: rgba(255, 255, 255, 0.20);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: var(--radius-full);
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-    ion-icon {
-      font-size: 32px;
-      color: white;
+  &::-webkit-scrollbar-thumb {
+    background: var(--ion-color-step-200);
+    border-radius: var(--radius-pill);
+
+    &:hover {
+      background: var(--ion-color-step-300);
     }
   }
+}
 
-  h3 {
-    margin: 0 0 var(--spacing-sm) 0;
+// ============================================================================
+// ACCIONES RÁPIDAS — fijas, solo desktop (flex-shrink: 0 como el header)
+// ============================================================================
+.quick-actions {
+  flex-shrink: 0;
+  display: none;
+  padding: var(--spacing-md) var(--spacing-lg);
+  gap: var(--spacing-sm);
+  border-bottom: 1px solid var(--ion-color-step-150);
+}
+
+@media (min-width: 992px) {
+  .quick-actions {
+    display: flex;
+  }
+}
+
+.quick-action-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--ion-color-step-150);
+  border-radius: var(--radius-sm);
+  background: var(--ion-item-background);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+
+  .qa-icon {
     font-size: 18px;
-    font-weight: var(--font-weight-semibold);
+    flex-shrink: 0;
+
+    &.secondary { color: var(--ion-color-secondary); }
+    &.tertiary  { color: var(--ion-color-tertiary); }
   }
 
-  .menu-role {
-    display: inline-block;
-    padding: var(--spacing-xs) var(--spacing-md);
-    background: rgba(255, 255, 255, 0.20);
-    border-radius: var(--radius-md);
-    font-size: 11px;
+  span {
+    font-size: 13px;
     font-weight: var(--font-weight-medium);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    color: var(--ion-text-color);
   }
+
+  &:hover {
+    background: rgba(var(--ion-color-primary-rgb), 0.05);
+    border-color: rgba(var(--ion-color-primary-rgb), 0.2);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+// Grupos de navegación
+.menu-group {
+  &:first-child {
+    padding-top: var(--spacing-xs);
+  }
+
+  &:not(:first-child) {
+    border-top: 1px solid var(--ion-color-step-150);
+    margin-top: var(--spacing-xs);
+    padding-top: var(--spacing-xs);
+  }
+}
+
+.menu-group-label {
+  padding: var(--spacing-sm) var(--spacing-2xl) var(--spacing-xs) var(--spacing-3xl);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--ion-color-medium);
 }
 
 .menu-list {
-  padding: var(--spacing-md) 0;
+  padding: 0;
   background: transparent;
 }
 
 .menu-item {
   --padding-start: var(--spacing-2xl);
   --padding-end: var(--spacing-2xl);
-  --min-height: 52px;
+  --min-height: 48px;
   font-size: 15px;
   margin: var(--spacing-xs) var(--spacing-md);
   border-radius: var(--radius-sm);
@@ -63,7 +175,7 @@ ion-content {
 
   ion-icon {
     margin-right: var(--spacing-lg);
-    font-size: 24px;
+    font-size: 22px;
     color: var(--ion-color-medium);
   }
 
@@ -93,54 +205,93 @@ ion-content {
   }
 }
 
-.menu-footer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+// ============================================================================
+// FOOTER — Info del usuario + acciones de cuenta (fijo)
+// ============================================================================
+.sidebar-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom));
-  background: var(--ion-color-light);
-  border-top: 1px solid var(--ion-color-step-150, #ececec);
+  background: var(--ion-item-background);
+  border-top: 1px solid var(--ion-color-step-150);
 
   :host-context(body.dark) & {
     background: var(--ion-background-color);
-    border-top: 1px solid var(--ion-color-step-150, #222);
+  }
+}
+
+.footer-user {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0; // permite que el texto se trunque
+}
+
+.footer-avatar {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  background: rgba(var(--ion-color-primary-rgb), 0.10);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  ion-icon {
+    font-size: 20px;
+    color: var(--ion-color-primary);
+  }
+}
+
+.footer-user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.footer-nombre {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.footer-rol {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  .btn-settings,
+  .btn-logout {
+    --padding-start: 6px;
+    --padding-end: 6px;
+    margin: 0;
+    height: 36px;
+
+    ion-icon {
+      font-size: 20px;
+      color: var(--ion-color-medium);
+    }
+
+    &:hover ion-icon {
+      color: var(--ion-text-color);
+    }
   }
 
-  .footer-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    .btn-logout {
-      margin: 0;
-      min-height: 48px;
-      font-size: 13px;
-      font-weight: var(--font-weight-medium);
-      --color: var(--ion-color-medium);
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-
-      ion-icon {
-        font-size: 20px;
-        margin-right: var(--spacing-md);
-      }
-
-      &:hover {
-        --color: var(--ion-color-danger);
-      }
-    }
-
-    .btn-settings {
-      --padding-start: 4px;
-      --padding-end: 4px;
-      margin: 0;
-
-      ion-icon {
-        font-size: 22px;
-        color: var(--ion-color-medium);
-      }
-    }
+  .btn-logout:hover ion-icon {
+    color: var(--ion-color-danger);
   }
 }

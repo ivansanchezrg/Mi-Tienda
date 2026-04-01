@@ -12,6 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ==========================================
 -- LIMPIEZA (orden: más dependiente → menos)
 -- ==========================================
+DROP TABLE IF EXISTS notas CASCADE;
 DROP TABLE IF EXISTS cuentas_cobrar CASCADE;
 DROP TABLE IF EXISTS ventas_detalles CASCADE;
 DROP TABLE IF EXISTS kardex_inventario CASCADE;
@@ -320,6 +321,17 @@ CREATE TABLE IF NOT EXISTS cuentas_cobrar (
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 18. notas — Tablón de notas compartido visible por todos los empleados
+CREATE TABLE IF NOT EXISTS notas (
+    id             UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    texto          TEXT        NOT NULL CHECK (char_length(texto) BETWEEN 1 AND 500),
+    completada     BOOLEAN     NOT NULL DEFAULT false,
+    creada_por     INTEGER     REFERENCES usuarios(id) ON DELETE SET NULL,
+    completada_por INTEGER     REFERENCES usuarios(id) ON DELETE SET NULL,
+    completada_at  TIMESTAMP WITH TIME ZONE,
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ==========================================
 -- ÍNDICES (todos con IF NOT EXISTS → re-ejecutable sin errores)
 -- ==========================================
@@ -350,6 +362,7 @@ CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_venta          ON cuentas_cobrar(v
 CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_fecha          ON cuentas_cobrar(fecha);
 CREATE INDEX IF NOT EXISTS idx_ventas_estado_pago            ON ventas(estado_pago);
 CREATE INDEX IF NOT EXISTS idx_ventas_metodo_pago            ON ventas(metodo_pago);
+CREATE INDEX IF NOT EXISTS idx_notas_completada              ON notas(completada, created_at DESC);
 
 -- ==========================================
 -- TRIGGERS — AUTO-GENERACIÓN DE CÓDIGOS Y POS
@@ -557,7 +570,7 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 -- ==========================================
 -- RESUMEN (v5.0)
 -- ==========================================
--- ✅ 17 Tablas | 2 Enums | 26 Índices
+-- ✅ 18 Tablas | 2 Enums | 27 Índices
 -- ✅ 2 Tipos de servicio (BUS, CELULAR)
 -- ✅ 4 Tipos de referencia (eliminado caja_fisica_diaria)
 -- ✅ 18 Categorías de operaciones (13 egresos + 5 ingresos)
@@ -599,7 +612,7 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 --   Ventas — Reporte período:
 --   • fn_reporte_ventas_periodo                → docs/ventas/sql/functions/fn_reporte_ventas_periodo.sql
 --
--- ✅ 18 Tablas | 24 Funciones SQL
+-- ✅ 19 Tablas | 24 Funciones SQL
 -- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 2 inventario + 3 ventas + 4 triggers/helpers)
 --
 -- ⚠️  MIGRACIÓN desde v4.9: ejecutar v5_migracion_cajas.sql (NO este schema completo)

@@ -17,6 +17,7 @@
     text-decoration: none;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
+    background: var(--ion-item-background);
     transition: color var(--transition-fast), border-color var(--transition-fast);
 
     ion-icon {

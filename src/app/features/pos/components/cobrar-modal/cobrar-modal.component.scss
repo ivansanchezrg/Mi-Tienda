@@ -8,8 +8,7 @@ ion-content {
     align-items: center;
     justify-content: center;
     min-height: 100%;
-    padding: var(--spacing-xl);
-    gap: var(--spacing-2xl);
+    padding: var(--spacing-lg);
 }
 
 // ── Total a cobrar ────────────────────────────
@@ -40,10 +39,10 @@ ion-content {
     }
 
     .total-monto {
-        font-size: 32px;
+        font-size: 44px;
         font-weight: 800;
         color: var(--ion-text-color);
-        letter-spacing: -1px;
+        letter-spacing: -1.5px;
     }
 
     .total-articulos {
@@ -124,6 +123,19 @@ ion-content {
     }
 }
 
+// ── Card — engloba todo el contenido ─────────
+.cobro-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-lg);
+    background: var(--ion-item-background, #fff);
+    border-radius: var(--radius-lg, 16px);
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-level-1);
+}
+
 // ── Input monto recibido ──────────────────────
 .input-section {
     width: 100%;
@@ -180,24 +192,24 @@ ion-content {
     }
 }
 
-// ── Vuelto en tiempo real ─────────────────────
+// ── Vuelto en tiempo real — protagonista fuera del card ──
 .vuelto-section {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--spacing-xs);
-    transition: all 0.2s ease;
+    gap: 2px;
+    animation: vueltoIn 0.2s ease both;
 
     .vuelto-label {
-        font-size: 14px;
-        font-weight: 600;
+        font-size: 12px;
+        font-weight: 700;
         color: var(--ion-color-danger);
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 1px;
     }
 
     .vuelto-monto {
-        font-size: 48px;
+        font-size: 56px;
         font-weight: 800;
         color: var(--ion-color-danger);
         letter-spacing: -2px;
@@ -213,6 +225,11 @@ ion-content {
             color: var(--ion-color-primary);
         }
     }
+}
+
+@keyframes vueltoIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 // ── Aviso fiado sin descuento ────────────────
@@ -245,7 +262,6 @@ ion-content {
     color: var(--ion-color-danger) !important;
 }
 
-// ── Botones ───────────────────────────────────
 .acciones {
     width: 100%;
     display: flex;
@@ -253,9 +269,9 @@ ion-content {
 
     ion-button {
         flex: 1;
-        --border-radius: var(--radius-md, 12px);
+        --border-radius: var(--radius-lg, 16px);
         font-weight: 700;
         font-size: 16px;
-        height: 50px;
+        height: 54px;
     }
 }

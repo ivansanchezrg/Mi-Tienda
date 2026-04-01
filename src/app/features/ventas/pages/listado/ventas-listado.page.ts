@@ -20,9 +20,10 @@ import {
     phonePortraitOutline, handRightOutline,
     cartOutline, chevronDownCircleOutline, banOutline,
     arrowUpOutline, closeOutline, searchOutline,
-    peopleOutline, chevronDownOutline
+    peopleOutline, chevronDownOutline, shareOutline
 } from 'ionicons/icons';
 import { VentasService } from '../../services/ventas.service';
+import { ShareVentaService } from '../../services/share-venta.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { TurnosCajaService } from '../../../dashboard/services/turnos-caja.service';
 import { RolUsuario } from '../../../auth/models/usuario_actual.model';
@@ -61,6 +62,7 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
 export class VentasListadoPage extends PaginatedListPage<Venta> implements OnInit, OnDestroy {
 
     private ventasService = inject(VentasService);
+    private shareService  = inject(ShareVentaService);
     private authService = inject(AuthService);
     private turnosCajaService = inject(TurnosCajaService);
     public currencyService = inject(CurrencyService);
@@ -81,6 +83,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
     private searchSub!: Subscription;
 
     anulando = false;
+    compartiendo = false;
     filtroEstado: string | null = null;
 
     // Rol y usuario actual
@@ -114,10 +117,15 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
 
     getVentaMenuOpciones(venta: Venta): MenuOption[] {
         if (venta.estado === 'ANULADA') return [];
+        const opciones: MenuOption[] = [
+            { label: 'Compartir comprobante', icon: 'share-outline', value: 'compartir' },
+        ];
         // EMPLEADO solo puede anular sus propias ventas
         const puedeAnular = this.rolUsuario === 'ADMIN' || venta.empleado_id === this.usuarioId;
-        if (!puedeAnular) return [];
-        return [{ label: 'Anular venta', icon: 'ban-outline', value: 'anular', color: 'danger' }];
+        if (puedeAnular) {
+            opciones.push({ label: 'Anular venta', icon: 'ban-outline', value: 'anular', color: 'danger' });
+        }
+        return opciones;
     }
 
     constructor() {
@@ -128,7 +136,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
             phonePortraitOutline, handRightOutline,
             cartOutline, chevronDownCircleOutline, banOutline,
             arrowUpOutline, closeOutline, searchOutline,
-            peopleOutline, chevronDownOutline
+            peopleOutline, chevronDownOutline, shareOutline
         });
     }
 
@@ -253,7 +261,29 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
     }
 
     async onVentaMenuOption(opcion: MenuOption, venta: Venta) {
-        if (opcion.value === 'anular') await this.confirmarAnulacion(venta);
+        if (opcion.value === 'anular')    await this.confirmarAnulacion(venta);
+        if (opcion.value === 'compartir') await this.compartirVenta(venta);
+    }
+
+    private async compartirVenta(venta: Venta) {
+        if (this.compartiendo) return;
+        this.compartiendo = true;
+        await this.ui.showLoading('Generando comprobante...');
+        try {
+            const ventaDetalle = await this.ventasService.obtenerVentaDetalle(venta.id);
+            if (!ventaDetalle) {
+                this.ui.showToast('No se pudo cargar el detalle', 'danger');
+                return;
+            }
+            await this.shareService.compartirVenta(ventaDetalle);
+        } catch (err: any) {
+            const msg = (err?.message ?? '').toLowerCase();
+            if (msg.includes('cancel') || msg.includes('dismiss') || msg.includes('abort')) return;
+            this.ui.showToast('No se pudo generar el comprobante', 'danger');
+        } finally {
+            await this.ui.hideLoading();
+            this.compartiendo = false;
+        }
     }
 
     private async confirmarAnulacion(venta: Venta) {

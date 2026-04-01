@@ -164,6 +164,50 @@ const modal = await this.modalCtrl.create({
   - **Confirmaciones simples (texto plano)**: usar `AlertController`. Los alerts NO renderizan HTML custom en Android — Ionic sanitiza el `message` y muestra las etiquetas como texto. `IonicSafeString` tampoco funciona de forma confiable. **Si necesitas UI custom (estilos, layout, tipografía grande), usar un `ModalController` con componente dedicado.**
   - **Overlays que SÍ funcionan**: `AlertController`, `ModalController`, `LoadingController`, `ToastController`.
 
+### `bottom-sheet-modal` — patrón para modales compactos sin scroll
+
+Para modales compactos (formularios cortos, confirmaciones con UI custom) que deben abrirse desde abajo y ajustarse al contenido:
+
+```typescript
+const modal = await this.modalCtrl.create({
+  component: MiModalComponent,
+  cssClass: 'bottom-sheet-modal',   // ← clase global en theme/custom/modals.scss
+  breakpoints: [0, 1],
+  initialBreakpoint: 1
+});
+```
+
+**Template del componente** — `div` directo, sin `ion-content`:
+```html
+<div class="modal-wrapper">
+  <div class="modal-header">
+    <div class="modal-header-icon">  <!-- color en SCSS local del componente -->
+      <ion-icon name="mi-icono"></ion-icon>
+    </div>
+    <span class="modal-header-title">Título</span>
+    <button class="modal-close-btn" (click)="cerrar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+  <!-- contenido -->
+  <div class="modal-actions">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
+    <ion-button expand="block" color="primary" (click)="confirmar()">Confirmar</ion-button>
+  </div>
+</div>
+```
+
+**SCSS local** — solo el color del icono, todo lo demás viene de `modals.scss`:
+```scss
+.modal-header-icon {
+  background: rgba(var(--ion-color-primary-rgb), 0.1);
+  ion-icon { color: var(--ion-color-primary); }
+}
+```
+
+> **NO usar** en modales con scroll largo — bloquea el swipe en Android (misma regla de `breakpoints`).
+> Ejemplos actuales: `NuevaNotaModalComponent`, `CuadreCajaPage`.
+
 ### `OptionsModalComponent` — componente estándar para selects y action sheets
 
 Ubicación: `shared/components/options-modal/`. Reemplaza `<select>` nativo, `ion-select`, `ActionSheetController` y `PopoverController`.
@@ -392,6 +436,34 @@ constructor() {
 
 Ejemplo real: módulo `ventas` (`VentasTabsComponent` + `VentasListadoPage` + `VentasResumenPage`)
 
+### Animación de tabs — `.tab-animate`
+
+Clase global en `global.scss`. Aplica fade + leve subida (8px → 0) al entrar un elemento al DOM.
+
+**Cuándo usarla:** Solo en tabs **state-driven** (contenido controlado con `@if` dentro de una misma página). El `@if` destruye y recrea el DOM al cambiar tab, disparando la animación automáticamente.
+
+```html
+@if (tabActivo === 'CELULAR') {
+  <div class="tab-animate">
+    <!-- contenido del tab -->
+  </div>
+}
+@if (tabActivo === 'BUS') {
+  <div class="tab-animate">
+    <!-- contenido del tab -->
+  </div>
+}
+```
+
+**Cuándo NO usarla:** Tabs **router-driven** (rutas separadas como `ventas`). Ionic ya aplica su propia animación nativa de transición de página en `ion-router-outlet` — agregar `.tab-animate` duplicaría la animación.
+
+| Tipo de tabs | Animación |
+|---|---|
+| State-driven (`@if` en misma página) | `.tab-animate` en el div contenedor |
+| Router-driven (rutas separadas) | Animación nativa de Ionic — no agregar nada |
+
+Ejemplo real: `recargas-virtuales.page.html`
+
 ---
 
 ## Patrones Supabase — OBLIGATORIOS
@@ -542,6 +614,20 @@ Convención de claves: prefijo por módulo (`negocio_nombre`, `caja_fondo_fijo_d
 - **Guías visuales para acciones físicas**: cuando hay que hacer algo con dinero físico (sobres, fondos), mostrar tarjetas visuales explicativas.
 - **Wizards multi-paso**: indicador "Paso X de Y" + barra de progreso + paso de resumen antes de confirmar.
 - **Campo principal**: clase `.destacado` (border primary + box-shadow).
+
+### FAB central — menú de acciones rápidas (`main-layout`)
+
+El FAB del centro del tab bar abre un menú de opciones tipo cards flotantes (`fab-options` en `main-layout.page.scss`).
+
+**Regla de orden**: la opción con el **nombre más largo va primero** (más arriba). Las cards se ajustan al tamaño de su contenido — la más larga queda más ancha y la más corta más angosta, creando un efecto pirámide visual natural.
+
+```
+  ┌──────────────────────┐  ← opción nombre largo (arriba)
+  ┌───────────────┐         ← opción nombre corto (abajo)
+        [ + ]
+```
+
+Cada opción usa `.fab-option` con `.fab-option-icon.<color>` para el círculo del icono. Colores actuales: `secondary` (notas), `tertiary` (cuadre). Al agregar una nueva opción, respetar el orden por longitud de nombre.
 
 ---
 

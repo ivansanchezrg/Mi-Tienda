@@ -11,10 +11,10 @@ ion-content {
 // BOTÓN CERRAR FLOTANTE
 // ─────────────────────────────────────────
 
-.btn-cerrar-flotante {
+.btn-cerrar-flotante,
+.btn-compartir-flotante {
     position: absolute;
     top: calc(14px + env(safe-area-inset-top));
-    right: 16px;
     z-index: 100;
     width: 34px;
     height: 34px;
@@ -30,6 +30,18 @@ ion-content {
         font-size: 20px;
         color: var(--ion-color-medium);
     }
+
+    &:disabled {
+        opacity: 0.4;
+    }
+}
+
+.btn-cerrar-flotante {
+    right: 16px;
+}
+
+.btn-compartir-flotante {
+    left: 16px;
 }
 
 // ─────────────────────────────────────────
@@ -68,7 +80,7 @@ ion-content {
 // ─────────────────────────────────────────
 
 .comprobante {
-    padding: 56px 20px 40px; // top aumentado: sin header + espacio para el botón X flotante
+    padding: 72px 20px 40px; // top aumentado: espacio para los dos botones flotantes (X y compartir)
     max-width: 420px;
     margin: 0 auto;
 }

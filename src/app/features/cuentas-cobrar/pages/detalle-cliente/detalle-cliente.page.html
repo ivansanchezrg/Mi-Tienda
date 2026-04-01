@@ -13,14 +13,8 @@
     </ion-buttons>
   </ion-toolbar>
 
-  <!-- Cabecera del cliente — fija, no scrollea -->
-  @if (loading) {
-  <div class="cliente-header-card">
-    <ion-skeleton-text animated style="width: 64px; height: 64px; border-radius: 50%;"></ion-skeleton-text>
-    <ion-skeleton-text animated style="width: 50%; height: 20px; border-radius: 4px; margin-top: 12px;"></ion-skeleton-text>
-    <ion-skeleton-text animated style="width: 30%; height: 14px; border-radius: 4px; margin-top: 8px;"></ion-skeleton-text>
-  </div>
-  } @else if (cliente) {
+  <!-- ── Cabecera del cliente — siempre visible cuando cargó ── -->
+  @if (cliente) {
   <div class="cliente-header-card">
     <div class="cliente-header-row">
       <div class="cliente-avatar-sm">
@@ -75,9 +69,36 @@
     </ion-refresher-content>
   </ion-refresher>
 
-  @if (!loading) {
+  <!-- ── Skeleton: sección de ventas mientras carga ── -->
+  @if (loading) {
+  <div class="sk-date-header">
+    <ion-skeleton-text animated style="width: 110px; height: 13px; border-radius: 4px;"></ion-skeleton-text>
+  </div>
+
+  @for (card of [1, 2, 3]; track card) {
+  <ion-card class="venta-card-sk">
+    @for (row of [1, 2]; track row) {
+    <div class="sk-row">
+      <!-- ícono -->
+      <div class="sk-icon-wrap">
+        <ion-skeleton-text animated style="width: 100%; height: 100%; border-radius: 6px; opacity: 0;"></ion-skeleton-text>
+      </div>
+      <!-- líneas de texto -->
+      <div class="sk-details">
+        <ion-skeleton-text animated style="width: 55%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+        <ion-skeleton-text animated style="width: 38%; height: 12px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text>
+      </div>
+      <!-- monto -->
+      <ion-skeleton-text animated style="width: 56px; height: 15px; border-radius: 4px;"></ion-skeleton-text>
+    </div>
+    @if (row < 2) { <div class="sk-divider"></div> }
+    }
+  </ion-card>
+  }
+  }
+
   <!-- Sin ventas -->
-  @if (ventasFiadas.length === 0) {
+  @else if (ventasFiadas.length === 0) {
   <app-empty-state
     icon="checkmark-circle-outline"
     hint="Este cliente no tiene deudas pendientes"
@@ -85,7 +106,7 @@
   </app-empty-state>
   }
 
-  <!-- Lista de ventas fiadas -->
+  <!-- ── Lista de ventas fiadas ── -->
   @else {
   <div class="p-sm">
     @for (venta of ventasFiadas; track venta.id) {
@@ -100,7 +121,7 @@
           <span class="venta-numero">#{{ venta.numero_comprobante }}</span>
           }
         </div>
-        <button class="btn-detalle" (click)="verDetalleVenta(venta.id, $event)">
+        <button class="btn-detalle" (click)="verDetalleVenta(venta.id, $event)" aria-label="Ver detalle de venta">
           <ion-icon name="eye-outline"></ion-icon>
         </button>
       </div>
@@ -137,7 +158,6 @@
     </div>
     }
   </div>
-  }
   }
 
 </ion-content>

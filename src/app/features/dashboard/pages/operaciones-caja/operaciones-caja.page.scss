@@ -20,9 +20,10 @@ ion-content {
   align-items: center;
   padding: 28px var(--spacing-xl) var(--spacing-2xl);
   background: var(--ion-item-background);
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  margin: var(--spacing-md);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-level-2);
-  margin-bottom: var(--spacing-xs);
+  border: 1px solid var(--ion-color-step-50);
 
   .balance-label {
     font-size: 12px;

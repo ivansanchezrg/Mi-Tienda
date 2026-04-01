@@ -18,9 +18,6 @@ ion-toolbar {
     padding: 0 var(--spacing-sm);
 
     ion-title {
-        font-weight: var(--font-weight-bold);
-        letter-spacing: -0.5px;
-        padding-inline-start: 0;
 
         .title-with-chip {
             display: flex;
@@ -93,20 +90,22 @@ ion-toolbar {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 44px;
-            height: 44px;
             flex-shrink: 0;
-            background: transparent;
+            width: 46px;
+            align-self: stretch;
+            background: var(--ion-color-step-100);
             border: none;
-            cursor: pointer;
+            border-right: 1px solid var(--ion-color-step-150);
             border-radius: 12px 0 0 12px;
+            cursor: pointer;
+            color: var(--ion-color-primary);
 
             ion-icon {
                 font-size: 20px;
             }
 
             &:active {
-                background: rgba(var(--ion-color-primary-rgb), 0.08);
+                background: rgba(var(--ion-color-primary-rgb), 0.12);
             }
         }
 
@@ -118,7 +117,7 @@ ion-toolbar {
             font-size: 15px;
             color: var(--ion-text-color);
             outline: none;
-            padding: 0 4px;
+            padding: 0 4px 0 12px;
 
             &::placeholder {
                 color: var(--ion-color-medium);
@@ -221,23 +220,23 @@ ion-toolbar {
 
 .search-results-wrapper {
     width: 100%;
-    padding: var(--spacing-xs) var(--spacing-md);
     z-index: 9000;
 
     .search-results-list {
         max-height: 260px;
         overflow-y: auto;
-        background: var(--ion-item-background);
-        border: 1px solid var(--ion-color-step-150);
-        border-radius: var(--radius-md);
+        background: var(--ion-color-step-50);
+        border-bottom: 1px solid var(--ion-color-step-150);
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 
         .suggestion-item {
-            --padding-start: var(--spacing-md);
-            --inner-padding-end: var(--spacing-md);
-            --min-height: 48px;
+            --padding-start: var(--spacing-xl);
+            --inner-padding-end: var(--spacing-xl);
+            --min-height: 52px;
             --border-color: var(--ion-color-step-100);
+            --background: var(--ion-color-step-50);
             border-bottom: 1px solid var(--ion-color-step-100);
+            animation: suggestionSlideIn 0.2s ease both;
 
             &:last-child {
                 border-bottom: none;
@@ -261,11 +260,33 @@ ion-toolbar {
             }
         }
 
+        .suggestion-end {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
         .suggestion-price {
             font-size: 14px;
             font-weight: var(--font-weight-bold);
             color: var(--ion-color-primary);
             white-space: nowrap;
+        }
+
+        .suggestion-add-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--ion-color-primary);
+            color: white;
+            flex-shrink: 0;
+
+            ion-icon {
+                font-size: 18px;
+            }
         }
     }
 }
@@ -274,6 +295,11 @@ ion-toolbar {
 // ─────────────────────────────────────────
 // LISTA DE CARRITO
 // ─────────────────────────────────────────
+
+@keyframes suggestionSlideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
 
 .cart-list {
     background: transparent;
@@ -801,14 +827,11 @@ ion-toolbar {
 
     .btn-charge-other {
         --border-radius: var(--radius-md);
+        font-weight: var(--font-weight-semibold);
+        font-size: 14px;
         height: 54px;
-        width: 54px;
+        flex: 0.7;
         margin: 0;
-        flex-shrink: 0;
-
-        ion-icon {
-            font-size: 20px;
-        }
     }
 }
 
