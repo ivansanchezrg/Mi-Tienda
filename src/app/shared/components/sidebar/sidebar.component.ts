@@ -1,4 +1,5 @@
-import { Component, inject, OnInit, Output, EventEmitter } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, Output, EventEmitter } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import {
@@ -9,8 +10,8 @@ import { MenuController } from '@ionic/angular/standalone';
 import {
   peopleOutline, settingsOutline, logOutOutline, personCircleOutline,
   listOutline, swapHorizontalOutline, homeOutline, cubeOutline, handRightOutline,
-  personOutline, readerOutline, barcodeOutline, receiptOutline, clipboardOutline,
-  storefrontOutline
+  personOutline, readerOutline, barcodeOutline, receiptOutline,
+  storefrontOutline, calculatorOutline, createOutline, scaleOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 import { RolUsuario } from '../../../features/auth/models/usuario_actual.model';
@@ -25,6 +26,7 @@ interface MenuItem {
   icon: string;
   exact?: boolean;
   soloAdmin?: boolean;
+  soloPos?: boolean;
 }
 
 interface MenuGroup {
@@ -41,24 +43,23 @@ interface MenuGroup {
     CommonModule,
     RouterModule,
     IonList, IonItem, IonIcon, IonLabel,
-    IonMenuToggle, IonAvatar, IonButton
+    IonMenuToggle, IonButton
   ]
 })
-export class SidebarComponent implements OnInit {
+export class SidebarComponent implements OnInit, OnDestroy {
   private menuCtrl = inject(MenuController);
   private authService = inject(AuthService);
   private turnosCajaService = inject(TurnosCajaService);
   private ui = inject(UiService);
   private configService = inject(ConfigService);
 
-  @Output() accionRapida = new EventEmitter<'nueva-nota' | 'cuadre'>();
+  @Output() accionRapida = new EventEmitter<'nueva-nota' | 'cuadre' | 'calculadora'>();
 
   // Iconos
   userIcon = personCircleOutline;
   logoutIcon = logOutOutline;
   settingsIcon = settingsOutline;
   readerIcon = readerOutline;
-  clipboardIcon = clipboardOutline;
 
   // Nombre del negocio (header)
   nombreNegocio = '';
@@ -75,9 +76,9 @@ export class SidebarComponent implements OnInit {
       label: 'Principal',
       items: [
         { title: 'Inicio', url: '/home', icon: homeOutline, exact: true },
-        { title: 'POS', url: '/pos', icon: barcodeOutline },
+        { title: 'POS', url: '/pos', icon: barcodeOutline, soloPos: true },
         { title: 'Inventario', url: '/inventario', icon: cubeOutline },
-        { title: 'Ventas', url: '/ventas', icon: receiptOutline },
+        { title: 'Ventas', url: '/ventas', icon: receiptOutline, soloPos: true },
       ]
     },
     {
@@ -91,7 +92,7 @@ export class SidebarComponent implements OnInit {
     {
       label: 'Recargas',
       items: [
-        { title: 'Historial', url: '/historial-recargas', icon: listOutline },
+        { title: 'Historial de Recargas', url: '/historial-recargas', icon: listOutline },
         { title: 'Saldo Virtual', url: '/home/recargas-virtuales', icon: swapHorizontalOutline },
       ]
     },
@@ -105,15 +106,17 @@ export class SidebarComponent implements OnInit {
 
   // Grupos filtrados según el rol del usuario
   menuGroups: MenuGroup[] = [];
+  private posSub!: Subscription;
 
   constructor() {
-    addIcons({ readerOutline, clipboardOutline, storefrontOutline });
+    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline });
   }
 
   async ngOnInit() {
-    const [usuario, nombreNegocio] = await Promise.all([
+    const [usuario, nombreNegocio, config] = await Promise.all([
       this.authService.getUsuarioActual(),
-      this.configService.getNombreNegocio()
+      this.configService.getNombreNegocio(),
+      this.configService.get()
     ]);
 
     this.nombreNegocio = nombreNegocio;
@@ -125,16 +128,30 @@ export class SidebarComponent implements OnInit {
       this.empleadoId = usuario.id ?? null;
     }
 
-    // Filtrar items por rol y eliminar grupos vacíos
+    this.recalcularMenu(config.pos_habilitado);
+
+    this.posSub = this.configService.posHabilitado$.subscribe(pos => {
+      this.recalcularMenu(pos);
+    });
+  }
+
+  ngOnDestroy() {
+    this.posSub?.unsubscribe();
+  }
+
+  private recalcularMenu(posHabilitado: boolean) {
     this.menuGroups = this.todosLosGrupos
       .map(group => ({
         ...group,
-        items: group.items.filter(item => !item.soloAdmin || this.empleadoRol === 'ADMIN')
+        items: group.items.filter(item =>
+          (!item.soloAdmin || this.empleadoRol === 'ADMIN') &&
+          (!item.soloPos   || posHabilitado)
+        )
       }))
       .filter(group => group.items.length > 0);
   }
 
-  async onAccionRapida(accion: 'nueva-nota' | 'cuadre') {
+  async onAccionRapida(accion: 'nueva-nota' | 'cuadre' | 'calculadora') {
     await this.closeMenu();
     this.accionRapida.emit(accion);
   }

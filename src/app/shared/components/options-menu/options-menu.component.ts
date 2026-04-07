@@ -18,6 +18,8 @@ export interface MenuOption {
     active?: boolean;
     /** Color Ionic: 'primary' | 'danger' | 'medium' … */
     color?: string;
+    /** Renderiza un separador <hr> en lugar de un ítem */
+    separator?: boolean;
 }
 
 @Component({

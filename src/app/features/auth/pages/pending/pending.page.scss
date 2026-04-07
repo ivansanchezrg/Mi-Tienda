@@ -1,0 +1,67 @@
+ion-content {
+  --background: var(--ion-background-color);
+}
+
+.pending-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--spacing-4xl) var(--spacing-lg);
+  background: var(--ion-background-color);
+}
+
+// ============================================================================
+// CARD — Contenedor blanco central
+// ============================================================================
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--ion-item-background);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-level-3);
+  padding: var(--spacing-4xl) var(--spacing-3xl);
+  text-align: center;
+}
+
+.pending-icon-wrap {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-full);
+  background: rgba(var(--ion-color-warning-rgb), 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--spacing-xl);
+
+  ion-icon {
+    font-size: 40px;
+    color: var(--ion-color-warning-shade);
+  }
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ion-text-color);
+  margin: 0 0 var(--spacing-md);
+  letter-spacing: -0.3px;
+}
+
+.pending-message {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ion-color-medium);
+  margin: 0 0 var(--spacing-3xl);
+}
+
+.pending-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+
+  ion-button {
+    --border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-semibold);
+  }
+}

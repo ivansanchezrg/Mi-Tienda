@@ -201,19 +201,21 @@ Ubicación: `docs/ventas/sql/functions/`
 - Mismos filtros que la lista (incluye `p_turno_id`)
 - Retorna: `total_registros` + `total_monto` (1 fila siempre)
 
-### `fn_reporte_ventas_periodo(p_fecha_inicio, p_fecha_fin, p_turno_id)` — v1.3
+### `fn_reporte_ventas_periodo(p_fecha_inicio, p_fecha_fin, p_turno_id)` — v1.4
 
 - Resumen agregado de un rango de fechas en timezone Ecuador
 - `p_turno_id`: UUID del turno. `NULL` = todos los turnos. Solo el ADMIN lo envía desde el frontend
 - Solo incluye ventas `COMPLETADAS` (excluye `ANULADAS` de totales)
 - Retorna JSON con:
   - `total_ventas`, `total_monto`, `total_anuladas`, `monto_anulado`
-  - `costo_total` — suma de `precio_costo × cantidad` por cada ítem vendido
+  - `costo_total` — suma de `vd.precio_costo × cantidad` (snapshot histórico, no el costo actual del producto)
   - `ganancia_bruta` — `total_monto - costo_total`
   - `margen_pct` — `ganancia_bruta / total_monto × 100` (redondeado a 2 decimales)
   - `por_metodo_pago[]` — `{ metodo, cantidad, monto }`
   - `por_tipo_comprobante[]` — `{ tipo, cantidad, monto }`
   - `top_productos[]` — `{ producto_id, nombre, total_unidades, total_monto, total_ventas }`
+
+> **v1.4**: usa `vd.precio_costo` de `ventas_detalles` en lugar de `p.precio_costo` de `productos`. Los reportes históricos ya no cambian si se modifica el costo de un producto en inventario.
 
 ---
 
@@ -245,7 +247,7 @@ Ubicación: `docs/pos/sql/functions/fn_anular_venta.sql` (v1.1)
 | Tabla | Rol |
 |-------|-----|
 | `ventas` | Registro principal con estado y estado_pago |
-| `ventas_detalles` | Ítems de cada venta |
+| `ventas_detalles` | Ítems de cada venta. Incluye `precio_costo` (snapshot al momento de la venta) |
 | `clientes` | Datos del cliente (JOIN en detalle) |
 | `empleados` | Nombre del cajero (JOIN en detalle) |
 | `cuentas_cobrar` | Pagos registrados (FIADO) — JOIN para calcular total_abonado |

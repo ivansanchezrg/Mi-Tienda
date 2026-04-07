@@ -7,7 +7,7 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true">
+<ion-content #content [fullscreen]="true">
   <div class="page-container">
 
     @if (cargando) {
@@ -22,7 +22,6 @@
         </div>
       </div>
       }
-      <ion-skeleton-text animated style="width: 100%; height: 52px; border-radius: 12px; margin-top: 8px;"></ion-skeleton-text>
     </div>
     } @else {
 
@@ -41,6 +40,14 @@
             placeholder="Ej: Mi Tienda" maxlength="100">
           <span class="input-hint">Aparece en comprobantes y estados de cuenta</span>
         </div>
+
+        @if (tieneCambios['negocio']) {
+        <div id="footer-negocio" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['negocio']" (click)="guardarSeccion('negocio')">
+            @if (guardando['negocio']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
       </div>
 
       <!-- ── SECCIÓN: CAJA ──────────────────────────────── -->
@@ -69,6 +76,14 @@
           </div>
           <span class="input-hint">Monto fijo que se transfiere a Varios (fondo emergencia) en cada cierre</span>
         </div>
+
+        @if (tieneCambios['caja']) {
+        <div id="footer-caja" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['caja']" (click)="guardarSeccion('caja')">
+            @if (guardando['caja']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
       </div>
 
       <!-- ── SECCIÓN: BUS ───────────────────────────────── -->
@@ -97,14 +112,37 @@
           </div>
           <span class="input-hint">Anticipación para recordar la facturación mensual de Bus</span>
         </div>
+
+        @if (tieneCambios['bus']) {
+        <div id="footer-bus" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['bus']" (click)="guardarSeccion('bus')">
+            @if (guardando['bus']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
       </div>
 
-      <!-- ── SECCIÓN: POS (Descuentos) ────────────────────── -->
+      <!-- ── SECCIÓN: POS ──────────────────────────────────── -->
       <div class="section-card">
         <div class="section-header">
           <ion-icon name="cart-outline"></ion-icon>
-          <span>POS — Descuentos</span>
+          <span>POS</span>
         </div>
+
+        <div class="input-group" [class.last]="!form.value.pos_habilitado">
+          <label class="toggle-row">
+            <span class="input-label">{{ form.value.pos_habilitado ? 'Módulo POS activo' : 'Módulo POS desactivado' }}</span>
+            <label class="toggle-switch">
+              <input type="checkbox" formControlName="pos_habilitado">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          @if (!form.value.pos_habilitado) {
+          <span class="input-hint pos-disabled-hint">Oculta el POS, Ventas, la Caja Chica en inicio y los ingresos/egresos manuales del turno</span>
+          }
+        </div>
+
+        @if (form.value.pos_habilitado) {
 
         <div class="input-group">
           <label class="toggle-row">
@@ -117,6 +155,7 @@
           <span class="input-hint">Aplica descuento automático cuando la venta supera el monto mínimo</span>
         </div>
 
+        @if (form.value.pos_descuentos_habilitados) {
         <div class="input-group">
           <label class="input-label">Porcentaje de descuento</label>
           <div class="input-with-suffix">
@@ -127,7 +166,7 @@
           <span class="input-hint">Porcentaje que se descuenta del subtotal (ej: 10%)</span>
         </div>
 
-        <div class="input-group last">
+        <div class="input-group">
           <label class="input-label">Monto mínimo para descuento</label>
           <div class="input-with-prefix">
             <span class="prefix">$</span>
@@ -136,17 +175,28 @@
           </div>
           <span class="input-hint">Solo aplica descuento si la venta supera este monto</span>
         </div>
-      </div>
-
-      <!-- ── BOTÓN GUARDAR ──────────────────────────────── -->
-      <button type="button" class="submit-btn" [disabled]="form.invalid || guardando" (click)="guardar()">
-        @if (guardando) {
-        <ion-spinner name="crescent"></ion-spinner>
-        Guardando...
-        } @else {
-        Guardar Cambios
         }
-      </button>
+
+        <div class="input-group last">
+          <label class="input-label">Tarifa IVA vigente</label>
+          <div class="input-with-suffix">
+            <input type="number" inputmode="numeric" step="1" min="1" max="100"
+              formControlName="pos_iva_porcentaje" autocomplete="off">
+            <span class="suffix">%</span>
+          </div>
+          <span class="input-hint">Tasa de IVA para facturas (actualmente 15% en Ecuador). Cambiar solo si el SRI actualiza la tarifa.</span>
+        </div>
+
+        }
+
+        @if (tieneCambios['pos']) {
+        <div id="footer-pos" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['pos']" (click)="guardarSeccion('pos')">
+            @if (guardando['pos']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
+      </div>
 
     </form>
 

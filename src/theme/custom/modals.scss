@@ -112,4 +112,18 @@ ion-modal.bottom-sheet-modal {
       font-size: 14px;
     }
   }
+
+  // Variante compacta — botones de ancho fijo, alineados a la derecha
+  // Para modales de herramienta/info (calculadora, cuadre)
+  &--compact {
+    flex-direction: row;
+    justify-content: center;
+
+    ion-button {
+      height: 36px;
+      font-size: 13px;
+      --padding-start: var(--spacing-lg);
+      --padding-end: var(--spacing-lg);
+    }
+  }
 }

@@ -4,7 +4,7 @@ import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, Validators, 
 import { IonicModule, AlertController, NavController, ViewWillEnter } from '@ionic/angular';
 import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline } from 'ionicons/icons';
+import { arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline } from 'ionicons/icons';
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
@@ -64,7 +64,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private audioCtx: AudioContext | null = null;
 
     constructor() {
-        addIcons({ arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline });
+        addIcons({ arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline });
     }
 
     async ngOnInit() {
@@ -113,21 +113,25 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             precio_venta: [this.producto?.precio_venta || '', [Validators.required, Validators.min(0.01)]],
             stock_actual: [this.producto?.stock_actual || '', [Validators.required, Validators.min(0)]],
             stock_minimo: [this.producto?.stock_minimo || 5, [Validators.required, Validators.min(0)]],
-            tiene_iva: [this.producto?.tiene_iva || false]
+            tiene_iva: [this.producto?.tiene_iva ?? true]
         }, { validators: this.ventaMayorCostoValidator.bind(this) });
 
         // Cálculo dinámico del margen de ganancia
-        this.productoForm.valueChanges.subscribe(v => {
-            const costo = this.currencyService.parse(v.precio_costo);
-            const venta = this.currencyService.parse(v.precio_venta);
-            if (costo > 0 && venta > 0 && venta >= costo) {
-                this.margenAbsoluto = venta - costo;
-                this.margenPorcentaje = Math.round(((venta - costo) / costo) * 100);
-            } else {
-                this.margenAbsoluto = 0;
-                this.margenPorcentaje = 0;
-            }
-        });
+        this.productoForm.valueChanges.subscribe(v => this.calcularMargen(v));
+        // Al editar, los valores ya están cargados — calcular margen inicial
+        this.calcularMargen(this.productoForm.value);
+    }
+
+    private calcularMargen(v: any) {
+        const costo = this.currencyService.parse(v.precio_costo);
+        const venta = this.currencyService.parse(v.precio_venta);
+        if (costo > 0 && venta > 0 && venta >= costo) {
+            this.margenAbsoluto = venta - costo;
+            this.margenPorcentaje = Math.round(((venta - costo) / costo) * 100);
+        } else {
+            this.margenAbsoluto = 0;
+            this.margenPorcentaje = 0;
+        }
     }
 
     private ventaMayorCostoValidator(group: AbstractControl): ValidationErrors | null {

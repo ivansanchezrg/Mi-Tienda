@@ -138,10 +138,14 @@
 
 .margin-hint {
     color: var(--ion-color-success-shade);
-    font-size: 12px;
+    font-size: 12.5px;
     padding-left: var(--spacing-sm);
     margin: 0;
     font-weight: var(--font-weight-medium, 500);
+
+    strong {
+        font-weight: var(--font-weight-semibold, 600);
+    }
 }
 
 .auto-code-hint {

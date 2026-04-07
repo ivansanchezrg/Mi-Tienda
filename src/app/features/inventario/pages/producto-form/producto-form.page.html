@@ -162,7 +162,7 @@
                 </span>
                 } @else if (margenPorcentaje > 0) {
                 <p class="margin-hint mt-xs">
-                    Margen de ganancia: {{ margenPorcentaje }}% (${{ currencyService.format(margenAbsoluto) }})
+                    Margen de ganancia: <strong>{{ margenPorcentaje }}%</strong> (<strong>${{ currencyService.format(margenAbsoluto) }}</strong>)
                 </p>
                 }
 
@@ -170,6 +170,17 @@
                     <ion-item class="custom-input flat-item" lines="none">
                         <ion-toggle formControlName="tiene_iva" color="primary">Genera IVA (Impuesto)</ion-toggle>
                     </ion-item>
+                    @if (productoForm.get('tiene_iva')?.value) {
+                    <p class="help-text mt-xs">
+                        <ion-icon name="checkmark-circle-outline" color="primary" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
+                        <strong>Tarifa 15%</strong> — aplica a la mayoría de productos (snacks, bebidas, electrodomésticos, ropa, etc.)
+                    </p>
+                    } @else {
+                    <p class="help-text mt-xs">
+                        <ion-icon name="information-circle-outline" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
+                        <strong>Tarifa 0%</strong> — solo para <strong>canasta básica exenta de IVA</strong>: verduras, frutas, leche, pan, arroz, medicamentos, etc.
+                    </p>
+                    }
                 </div>
             </ion-card-content>
         </ion-card>

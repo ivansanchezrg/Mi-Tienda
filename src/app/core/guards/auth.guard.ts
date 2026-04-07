@@ -15,6 +15,12 @@ export const authGuard: CanActivateFn = async () => {
 
   if (!status.connected) {
     if (auth.hasLocalSession()) {
+      // Offline: verificar que el usuario cacheado esté activo
+      const usuario = await auth.getUsuarioActual();
+      if (usuario && !usuario.activo) {
+        logger.warn('authGuard', 'Usuario inactivo (offline) → pending');
+        return router.createUrlTree(['/auth/pending']);
+      }
       logger.info('authGuard', 'Acceso offline con sesión local');
       ui.showToast('Sin conexión a internet', 'warning');
       return true;
@@ -26,6 +32,12 @@ export const authGuard: CanActivateFn = async () => {
   const session = await auth.getSession();
 
   if (session) {
+    // Online: verificar que el usuario cacheado esté activo
+    const usuario = await auth.getUsuarioActual();
+    if (usuario && !usuario.activo) {
+      logger.warn('authGuard', 'Usuario inactivo → pending');
+      return router.createUrlTree(['/auth/pending']);
+    }
     return true;
   }
 

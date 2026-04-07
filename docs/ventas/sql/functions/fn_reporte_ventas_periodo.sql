@@ -6,7 +6,7 @@ DROP FUNCTION IF EXISTS public.fn_reporte_ventas_periodo(TEXT, TEXT, UUID);
 DROP FUNCTION IF EXISTS public.fn_reporte_ventas_periodo(TEXT, TEXT, UUID, INTEGER);
 
 -- ==========================================
--- FUNCIÓN: fn_reporte_ventas_periodo (v1.3)
+-- FUNCIÓN: fn_reporte_ventas_periodo (v1.4)
 -- ==========================================
 -- Genera un resumen de ventas para un rango de fechas.
 -- Incluye totales generales, desglose por método de pago,
@@ -15,6 +15,9 @@ DROP FUNCTION IF EXISTS public.fn_reporte_ventas_periodo(TEXT, TEXT, UUID, INTEG
 -- Las ventas anuladas se reportan aparte (total_anuladas, monto_anulado).
 -- Todos los roles ven todas las ventas. El filtro de turno es solo para ADMIN.
 --
+-- v1.4 — Usa vd.precio_costo (snapshot histórico en ventas_detalles) en lugar de
+--   p.precio_costo (precio actual del producto). Los reportes históricos ya no
+--   cambian si se modifica el costo de un producto.
 -- v1.3 — Simplificado: todos los roles ven todas las ventas. Se elimina p_empleado_id.
 -- v1.2 — Agrega: p_turno_id para filtrar ventas de un turno específico.
 -- v1.1 — Agrega: costo_total, ganancia_bruta, margen_pct
@@ -78,13 +81,12 @@ BEGIN
       AND  fecha <  v_fin;
 
     -- ── Ganancia bruta: (precio_venta - precio_costo) * unidades ──
-    -- precio_costo actual del producto como aproximación histórica
-    SELECT COALESCE(SUM(p.precio_costo * vd.cantidad), 0),
-           COALESCE(SUM((vd.precio_unitario - p.precio_costo) * vd.cantidad), 0)
+    -- precio_costo es el snapshot guardado al momento de la venta → históricamente exacto
+    SELECT COALESCE(SUM(vd.precio_costo * vd.cantidad), 0),
+           COALESCE(SUM((vd.precio_unitario - vd.precio_costo) * vd.cantidad), 0)
     INTO   v_costo_total, v_ganancia_bruta
     FROM   ventas_detalles vd
-    JOIN   ventas   v ON v.id = vd.venta_id
-    JOIN   productos p ON p.id = vd.producto_id
+    JOIN   ventas v ON v.id = vd.venta_id
     WHERE  v.estado = 'COMPLETADA'
       AND  (p_turno_id IS NULL OR v.turno_id = p_turno_id)
       AND  v.fecha  >= v_inicio
@@ -176,6 +178,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_reporte_ventas_periodo(TEXT, TEXT, UUID) TO
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_reporte_ventas_periodo IS
+    'v1.4 — Usa vd.precio_costo (snapshot histórico) para cálculo de ganancia bruta. '
     'v1.3 — Resumen de ventas de un período: totales, ganancia bruta, margen %, '
     'desglose por método de pago, tipo de comprobante y top 5 productos más vendidos '
     '(solo COMPLETADAS). Filtro opcional por turno (solo ADMIN lo usa desde el frontend). '

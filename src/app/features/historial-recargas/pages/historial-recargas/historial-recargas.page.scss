@@ -2,28 +2,14 @@
 
 
 
-// Barra de filtros (mismo estilo que operaciones-caja)
-.filter-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-lg);
-  border-bottom: 1px solid var(--ion-color-step-100);
-  margin-bottom: var(--spacing-sm);
-  position: sticky;
-  top: 0;
-  background: var(--ion-background-color);
-  z-index: 10;
-
-  .filter-label {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--ion-text-color);
-  }
+// Segunda toolbar con filtros en el header
+.filter-toolbar {
+  --min-height: 44px;
 
   .filter-tabs {
     display: flex;
     gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-lg);
 
     .filter-tab {
       background: transparent;

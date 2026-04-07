@@ -10,13 +10,16 @@ Feature principal de la app. Contiene el panel de inicio y las operaciones diari
 
 Panel principal con 4 secciones:
 
-| Sección             | Descripción                                                       | Visible           |
-| ------------------- | ----------------------------------------------------------------- | ----------------- |
-| Estado Banner       | Indicador verde/rojo si la caja está abierta o cerrada            | Siempre           |
-| Saldos              | Lista con saldos de Tienda, Varios, Celular, Bus + total efectivo | Siempre           |
-| Operaciones Rápidas | Botones de Ingreso, Egreso, Transferir, Gasto                     | Solo caja abierta |
-| Cuadre de Caja      | Acceso rápido para iniciar un cuadre                              | Solo caja abierta |
-| Cierre Diario       | Botón para cerrar o abrir el día                                  | Siempre           |
+| Sección             | Descripción                                                       | Visible                      |
+| ------------------- | ----------------------------------------------------------------- | ---------------------------- |
+| Estado Banner       | Indicador verde/rojo si la caja está abierta o cerrada            | Siempre                      |
+| Saldos              | Lista con saldos de Tienda, Varios, Celular, Bus + total efectivo | Siempre                      |
+| Caja Chica          | Saldo del cajón diario (CAJA_CHICA)                               | Solo si `pos_habilitado`     |
+| Operaciones Rápidas | Botones de Ingreso, Egreso, Transferir, Gasto                     | Solo caja abierta            |
+| Cuadre de Caja      | Acceso rápido para iniciar un cuadre                              | Solo caja abierta            |
+| Cierre Diario       | Botón para cerrar o abrir el día                                  | Siempre                      |
+
+**`pos_habilitado`** se lee de `ConfigService` al cargar Home. Cuando es `false`: oculta la fila de Caja Chica y la excluye del cálculo de Total Efectivo.
 
 **Datos:** Conectado a Supabase mediante servicios.
 
@@ -35,21 +38,27 @@ Wizard de **2 pasos** para cerrar el día (v5 — 2026-03-06):
 **Paso 1 — Datos del Turno (3 inputs):**
 - Saldo virtual celular final (input)
 - Saldo virtual bus final (input)
-- Efectivo contado en cajón (input `.destacado`)
+- Efectivo contado en cajón (input `.destacado`) — siempre visible aunque POS esté OFF
 - Feedback en tiempo real: ventas calculadas, diferencia de conteo, alertas
 - Bloquea "Ver Resumen" si algún campo es inválido o hay ventas negativas
 
 **Paso 2 — Resumen y Confirmación:**
-- Ventas de recargas del turno (celular + bus)
+- **Card "Conteo del Cajón"**: visible solo si `pos_habilitado = true`. Si POS está OFF no se muestra (sin movimientos en CAJA_CHICA no hay nada que conciliar).
 - Distribución del cajón: desglose efectivo → VARIOS → CAJA; cajón queda en $0
 - Alerta de déficit si VARIOS no recibió su fondo hoy
 - Verificación antes→después de los 4 saldos: Tienda, Varios, Celular, Bus
 - Observaciones opcionales + botón "Cerrar Caja"
 
+**`pos_habilitado` en el cierre:**
+- Se lee de `ConfigService` en paralelo con el resto de datos del lote 1
+- Controla la visibilidad de la card "Conteo del Cajón" en el Paso 2
+- La función SQL `fn_ejecutar_cierre_diario` (v5.4) lee `pos_habilitado` directamente de la tabla `configuraciones` en el paso 3. El ajuste de conteo solo aplica si **ambas** condiciones se cumplen: `v_pos_habilitado = TRUE` y `v_hubo_movimientos_caja_chica = TRUE`. Esto evita ajustes falsos tanto cuando POS está desactivado como cuando está activo pero no se usó en el turno
+
 **Patrones utilizados:**
 - `ScrollResetDirective` para scroll al top al cambiar de paso
 - `PendingChangesGuard` para prevenir salida accidental con datos sin guardar
 - `CurrencyService` para parseo inteligente de moneda
+- `ConfigService` para leer `pos_habilitado` (cargado en paralelo en lote 1)
 - `UiService` para loading y toasts
 
 **Documentación completa:** Ver [3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md)
@@ -225,7 +234,8 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 
 - Constantes centralizadas en tabla `configuraciones`
 - Fácil modificación sin redeploy
-- Claves con prefijo por módulo: `caja_fondo_fijo_diario`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`
+- Claves con prefijo por módulo: `caja_fondo_fijo_diario`, `bus_alerta_saldo_bajo`, `pos_habilitado`, `pos_descuentos_habilitados`
+- `pos_habilitado` es leída por: Home (oculta Caja Chica), CierreDiario (card Conteo del Cajón), MainLayout (tabs POS/Ventas), Sidebar (items POS/Ventas), y `fn_ejecutar_cierre_diario` (ajuste de conteo en paso 7)
 
 ### Transactional PostgreSQL Functions
 
@@ -281,12 +291,12 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 
 ## Estado del Proyecto
 
-**Última actualización:** 2026-03-06 — **Refactor v5** (arquitectura 5 cajas, elimina módulo gastos-diarios)
+**Última actualización:** 2026-04-06 — **v5.4** (pos_habilitado en cierre, DisabledTabComponent, UI condicional POS)
 
 **Módulos completados:**
 
 - ✅ Home con saldos en tiempo real (CAJA, CAJA_CHICA, VARIOS, CELULAR, BUS)
-- ✅ Cierre Diario (v5 — wizard 3 pasos, CAJA_CHICA como cajón diario)
+- ✅ Cierre Diario (v5.4 — wizard 2 pasos, pos_habilitado condiciona card "Conteo del Cajón" y ajuste SQL)
 - ✅ Operaciones de Caja con historial
 - ✅ Cuadre de Caja (calculadora)
 - ✅ Recargas Virtuales (CELULAR/BUS)

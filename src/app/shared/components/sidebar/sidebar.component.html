@@ -1,30 +1,41 @@
 <!-- Contenedor flex: header fijo | body scrolleable | footer fijo -->
 <div class="sidebar-container">
 
-  <!-- HEADER — nombre del negocio -->
+  <!-- HEADER -->
   <div class="sidebar-header">
     <div class="sidebar-logo">
       <ion-icon name="storefront-outline"></ion-icon>
     </div>
-    <h2 class="sidebar-negocio">{{ nombreNegocio }}</h2>
+    <div class="sidebar-header-text">
+      <h2 class="sidebar-negocio">{{ nombreNegocio }}</h2>
+      <span class="sidebar-subtitle">Panel de gestión</span>
+    </div>
   </div>
 
-  <!-- ACCIONES RÁPIDAS — fijas, solo desktop -->
+  <!-- ACCIONES RÁPIDAS — solo desktop -->
   <div class="quick-actions">
-    <button class="quick-action-btn" (click)="onAccionRapida('nueva-nota')">
-      <ion-icon name="reader-outline" class="qa-icon secondary"></ion-icon>
-      <span>Nueva nota</span>
+    <button class="quick-action-btn qa-success" (click)="onAccionRapida('calculadora')">
+      <div class="qa-icon-wrap success">
+        <ion-icon name="calculator-outline"></ion-icon>
+      </div>
+      <span class="qa-label">Calc. Margen</span>
     </button>
-    <button class="quick-action-btn" (click)="onAccionRapida('cuadre')">
-      <ion-icon name="clipboard-outline" class="qa-icon tertiary"></ion-icon>
-      <span>Cuadre</span>
+    <button class="quick-action-btn qa-secondary" (click)="onAccionRapida('nueva-nota')">
+      <div class="qa-icon-wrap secondary">
+        <ion-icon name="create-outline"></ion-icon>
+      </div>
+      <span class="qa-label">Nueva nota</span>
+    </button>
+    <button class="quick-action-btn qa-tertiary" (click)="onAccionRapida('cuadre')">
+      <div class="qa-icon-wrap tertiary">
+        <ion-icon name="scale-outline"></ion-icon>
+      </div>
+      <span class="qa-label">Cuadre</span>
     </button>
   </div>
 
   <!-- BODY — scrolleable -->
   <div class="sidebar-body">
-
-    <!-- Grupos de navegación -->
     @for (group of menuGroups; track group.label) {
       <div class="menu-group">
         @if (group.label) {
@@ -43,12 +54,12 @@
     }
   </div>
 
-  <!-- FOOTER — info del usuario + acciones de cuenta -->
+  <!-- FOOTER -->
   <div class="sidebar-footer">
     <div class="footer-user">
-      <ion-avatar class="footer-avatar">
-        <ion-icon [icon]="userIcon"></ion-icon>
-      </ion-avatar>
+      <div class="footer-avatar">
+        <span>{{ empleadoNombre.charAt(0) }}</span>
+      </div>
       <div class="footer-user-info">
         <span class="footer-nombre">{{ empleadoNombre }}</span>
         <span class="footer-rol">{{ empleadoRol === 'ADMIN' ? 'Administrador' : 'Empleado' }}</span>

@@ -24,13 +24,16 @@ features/pos/
 
 1. Empleado busca productos (por nombre o código) o escanea con cámara/pistola
 2. Productos se agregan al carrito local (array en memoria)
-3. Empleado presiona "Cobrar" → `CobrarModalComponent` (flujo unificado en 2 pasos internos):
-   - **Paso 1**: selección de método de pago (Efectivo, Tarjeta/DeUna, Transferencia, Fiado)
+3. Empleado presiona "Cobrar":
+   - Si el cliente es **Consumidor Final** → se abre el selector de cliente **antes** del modal de cobro. Si cancela sin elegir, el flujo se corta
+   - Una vez con cliente real seleccionado → abre `CobrarModalComponent`
+4. `CobrarModalComponent` (flujo unificado en 2 pasos internos):
+   - **Paso 1**: selección de método de pago (Efectivo, DeUna, Transferencia, Fiado)
    - **Paso 2** (solo Efectivo): ingreso de monto recibido + cálculo de vuelto en tiempo real
-4. `PosService.procesarVenta()` llama a `fn_registrar_venta_pos` (RPC PostgreSQL)
-5. La función SQL hace todo en una transacción atómica:
+5. `PosService.procesarVenta()` llama a `fn_registrar_venta_pos` (RPC PostgreSQL)
+6. La función SQL hace todo en una transacción atómica:
    - INSERT en `ventas`
-   - INSERT en `ventas_detalles`
+   - INSERT en `ventas_detalles` (con snapshot de `precio_costo` al momento de la venta)
    - Trigger descuenta stock + graba kardex
    - Trigger actualiza saldo CAJA_CHICA si es EFECTIVO
 
@@ -42,6 +45,7 @@ features/pos/
 - Debounce de 450ms
 - Muestra lista de sugerencias (slot="fixed", no scrollea con el carrito)
 - Click en sugerencia agrega al carrito
+- **Navegación por teclado** (desktop/pistola con teclado): `↓`/`↑` navegan la lista, `Enter` agrega el ítem resaltado (o el primero si ninguno está resaltado). En Android no tiene efecto (el teclado virtual no emite flechas)
 
 ### 2. Búsqueda por código
 - Código simple (≥8 chars): busca automáticamente sin Enter
@@ -90,15 +94,37 @@ body.scanner-active .scanner-overlay * {
 
 ---
 
+## Menú ⋮ (opciones de comprobante)
+
+El botón ⋮ del header abre un `OptionsMenuComponent` con las siguientes opciones:
+
+| Opción | Acción |
+|--------|--------|
+| Ticket | Cambia tipo de comprobante a TICKET |
+| Nota de Venta | Cambia tipo de comprobante a NOTA_VENTA |
+| Factura | Cambia tipo de comprobante a FACTURA |
+| *(separador)* | `<hr>` visual — no clickeable |
+| Limpiar carrito | Pide confirmación (`AlertController`) y vacía el carrito + resetea cliente y comprobante a defaults |
+
+El handler unificado `onComprobanteOption()` distingue la acción por `option.value`:
+- `__LIMPIAR__` → llama `confirmarLimpiarCarrito()`
+- Cualquier `TipoComprobante` → actualiza `tipoComprobante` y el checkmark activo en el menú
+
+---
+
 ## Comprobantes fiscales
 
 | Tipo | Desglose IVA | Cliente requerido |
 |------|-------------|-------------------|
 | TICKET | No muestra | Consumidor Final (default) |
 | NOTA_VENTA | No muestra | Consumidor Final (default) |
-| FACTURA | Muestra base 0%, base 15%, IVA | Cliente con RUC/cédula |
+| FACTURA | Muestra base 0%, base 15%, IVA desglosado | Cliente con RUC/cédula |
 
-**Cálculo IVA**: `precio_venta` YA incluye IVA. Para factura se extrae: `base15 = totalConIva / 1.15`.
+**Cálculo IVA**: `precio_venta` YA incluye IVA. Para factura se extrae: `base15 = totalConIva / _ivaDivisor`.
+
+> **Tarifa dinámica**: el divisor se calcula desde `appConfig.pos_iva_porcentaje` (tabla `configuraciones`, clave `pos_iva_porcentaje`, default `15`). Si el SRI cambia la tasa, el admin la actualiza en Parámetros sin redeploy.
+
+**Indicador visual en carrito**: cuando el comprobante es FACTURA, los productos con `tiene_iva = false` muestran un badge gris `IVA 0%` junto al precio unitario, para que el cajero detecte productos mal configurados antes de emitir.
 
 ---
 
@@ -127,7 +153,8 @@ La validación de turno activo vive en `PosService.procesarVenta()` (no en la p�
 | Error de red en escáner | `procesarCodigoRapido()` | try/catch con toast "Error de conexión" |
 | Doble cobro | `ejecutarCobro()` | Loading overlay bloquea UI inmediatamente |
 | Turno inactivo | `PosService.procesarVenta()` | Valida turno activo antes del RPC, lanza excepción |
-| Factura sin cliente válido | `cobrar()` | Bloquea si `es_consumidor_final` |
+| Cliente requerido para FIADO/DEUNA/TRANSFERENCIA | `cobrar()` | Si es Consumidor Final, abre selector de cliente antes del modal. Si cancela, corta el flujo |
+| Factura sin cliente válido | `cobrar()` **y** `cobrarEfectivo()` | Bloquea si `es_consumidor_final` en ambas rutas de cobro |
 | Fallo silencioso en cobro | `ejecutarCobro()` | Toast rojo si `response.success === false` o si hay excepción |
 | Idempotencia de cobro | `ejecutarCobro()` + `fn_registrar_venta_pos` | UUID persistido en localStorage antes del RPC + `UNIQUE` constraint en BD |
 
@@ -189,7 +216,7 @@ El POS aplica descuentos automáticos sobre el subtotal bruto si se cumplen las 
 - Si `subtotalBruto >= umbral` y descuentos habilitados → `descuento = subtotal * (pct / 100)`
 - **FIADO no lleva descuento** — son beneficios mutuamente excluyentes. Al elegir FIADO en el cobrar-modal, se muestra paso de confirmación con total sin descuento + aviso "El descuento no aplica para ventas fiadas"
 - Se persiste en BD: `ventas.descuento` (monto) + `ventas.descuento_pct` (porcentaje) para trazabilidad histórica independiente de configuración futura
-- Función SQL: `fn_registrar_venta_pos` v1.6 (parámetros `p_descuento` + `p_descuento_pct`)
+- Función SQL: `fn_registrar_venta_pos` v1.7 (parámetros `p_descuento` + `p_descuento_pct` + snapshot `precio_costo`)
 
 **Indicadores visuales:**
 - **Header**: chip verde `-X%` junto al chip de comprobante (solo si descuentos habilitados)
@@ -208,7 +235,7 @@ El POS aplica descuentos automáticos sobre el subtotal bruto si se cumplen las 
 - `PosService` — RPC `fn_registrar_venta_pos`
 - `CobrarModalComponent` — modal unificado de cobro (reemplaza OptionsModal + VueltoModal)
 - `ClientesService` — consumidor final default + selector de cliente
-- `ConfigService` — configuración de descuentos automáticos (cache en memoria)
+- `ConfigService` — configuración de descuentos automáticos y tarifa IVA (`pos_iva_porcentaje`) — cache en memoria
 - `NetworkService` — verificación de conectividad antes de queries
 - `CurrencyService` — formateo de precios (nunca formatear manual)
 - `LoggerService` — errores en producción (nunca console.log)

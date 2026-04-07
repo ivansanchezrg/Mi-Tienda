@@ -142,8 +142,9 @@
   @if (buscarTexto && productosBusqueda.length > 0) {
   <div class="search-results-wrapper" slot="fixed">
     <ion-list class="search-results-list" lines="none">
-      @for (prod of productosBusqueda; track prod.id) {
-      <ion-item button (click)="seleccionarProductoBusqueda(prod)" class="suggestion-item">
+      @for (prod of productosBusqueda; track prod.id; let i = $index) {
+      <ion-item button (click)="seleccionarProductoBusqueda(prod)"
+        class="suggestion-item" [class.suggestion-active]="i === sugerenciaActiva">
         <ion-label>
           <h2>{{ prod.nombre }}</h2>
           <p>Stock: {{ prod.stock_actual }}</p>
@@ -191,6 +192,9 @@
             <p class="product-name">{{ item.nombre }}</p>
             <div class="price-row">
               <span class="unit-price">${{ currencyService.format(item.precio_venta) }} c/u</span>
+              @if (mostrarDesglose && !item.tiene_iva) {
+                <ion-badge color="medium" class="stock-badge">IVA 0%</ion-badge>
+              }
               @if (item.stock_actual <= item.cantidad) {
                 <ion-badge color="danger" class="stock-badge">¡Último!</ion-badge>
               } @else if ((item.stock_actual - item.cantidad) <= item.stock_minimo) {

@@ -238,6 +238,11 @@ ion-toolbar {
             border-bottom: 1px solid var(--ion-color-step-100);
             animation: suggestionSlideIn 0.2s ease both;
 
+            &.suggestion-active {
+                --background: rgba(var(--ion-color-primary-rgb), 0.08);
+                --border-color: rgba(var(--ion-color-primary-rgb), 0.2);
+            }
+
             &:last-child {
                 border-bottom: none;
             }

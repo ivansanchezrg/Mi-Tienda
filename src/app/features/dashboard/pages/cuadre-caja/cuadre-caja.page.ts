@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
@@ -7,7 +7,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   closeOutline, phonePortraitOutline, busOutline,
-  cashOutline, calculatorOutline, informationCircleOutline
+  cashOutline, scaleOutline, informationCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
@@ -28,6 +28,8 @@ import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive'
   ]
 })
 export class CuadreCajaPage implements OnInit {
+  @ViewChild('saldoCelularInput') saldoCelularInputRef!: ElementRef<HTMLInputElement>;
+
   private modalCtrl = inject(ModalController);
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
@@ -46,7 +48,7 @@ export class CuadreCajaPage implements OnInit {
       phonePortraitOutline,
       busOutline,
       cashOutline,
-      calculatorOutline,
+      scaleOutline,
       informationCircleOutline
     });
   }
@@ -110,6 +112,7 @@ export class CuadreCajaPage implements OnInit {
 
   limpiar() {
     this.form.reset();
+    setTimeout(() => this.saldoCelularInputRef?.nativeElement?.focus(), 50);
   }
 }
 

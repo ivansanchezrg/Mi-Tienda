@@ -44,13 +44,18 @@
     } @else {
     <ion-list lines="none" class="notas-list">
       @for (nota of notas; track nota.id) {
-      <ion-item-sliding #slidingItem [class.nota-completada]="nota.completada">
+      <ion-item-sliding #slidingItem class="nota-sliding"
+        [class.nota-completada]="nota.completada"
+        [class.nota-procesando]="procesando.has(nota.id)">
 
-        <ion-item class="nota-item" lines="none" (click)="toggleCompletada(nota)">
+        <ion-item class="nota-item" lines="none"
+          [class.nota-item--toggling]="procesando.has(nota.id)">
 
           <!-- Icono estado -->
-          <div slot="start" class="nota-check">
-            @if (nota.completada) {
+          <div slot="start" class="nota-check" (click)="toggleCompletada(nota)">
+            @if (procesando.has(nota.id)) {
+              <ion-spinner name="crescent" class="nota-spinner"></ion-spinner>
+            } @else if (nota.completada) {
               <ion-icon name="checkmark-circle" color="success"></ion-icon>
             } @else {
               <ion-icon name="ellipse-outline" color="medium"></ion-icon>
@@ -59,7 +64,28 @@
 
           <!-- Contenido -->
           <ion-label>
-            <p class="nota-texto" [class.nota-texto--tachado]="nota.completada">{{ nota.texto }}</p>
+            <div class="nota-texto-bloque" [class.nota-texto--tachado]="nota.completada">
+              @for (linea of lineasVisibles(nota); track $index) {
+                @if (linea.prefijo) {
+                  <p class="nota-texto nota-texto--lista">
+                    <strong class="nota-prefijo">{{ linea.prefijo }}</strong>
+                    <span> {{ linea.cuerpo }}</span>
+                  </p>
+                } @else {
+                  <p class="nota-texto">{{ linea.cuerpo }}</p>
+                }
+              }
+            </div>
+
+            @if (esLarga(nota)) {
+              <button class="ver-mas-btn" (click)="toggleExpandir($event, nota)">
+                @if (expandidas.has(nota.id)) {
+                  Ver menos
+                } @else {
+                  Ver más
+                }
+              </button>
+            }
 
             <div class="nota-meta">
               <!-- Quién la creó -->
@@ -84,12 +110,14 @@
 
         </ion-item>
 
-        <!-- Swipe → eliminar -->
-        <ion-item-options side="end">
-          <ion-item-option color="danger" (click)="eliminar(nota, slidingItem)" class="delete-option">
-            <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
-          </ion-item-option>
-        </ion-item-options>
+        <!-- Swipe → eliminar (solo ADMIN) -->
+        @if (esAdmin) {
+          <ion-item-options side="end">
+            <ion-item-option color="danger" (click)="eliminar(nota, slidingItem)" class="delete-option">
+              <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+            </ion-item-option>
+          </ion-item-options>
+        }
 
       </ion-item-sliding>
       }
