@@ -101,7 +101,8 @@
       "Bash(grep -E \"\\\\.\\(ts|html\\)$\")",
       "Bash(grep \"\"\"@ionic/angular\"\"\" package.json)",
       "Bash(grep -A5 -B5 \"split-pane-main\\\\|SPLIT_PANE_MAIN\" node_modules/@ionic/core/dist/esm/ion-split-pane*.js)",
-      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/recargas-virtuales -name *.routes.ts -o -name *routes.ts)"
+      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/recargas-virtuales -name *.routes.ts -o -name *routes.ts)",
+      "Bash(del \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\theme\\\\custom\\\\desktop.scss\")"
     ]
   },
   "disableAllHooks": true

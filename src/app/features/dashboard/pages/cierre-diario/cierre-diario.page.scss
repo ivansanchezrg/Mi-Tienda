@@ -431,6 +431,48 @@
   }
 }
 
+// Cajón verificado (cuadra exacto)
+.cajón-ok {
+  .desglose-label {
+    color: var(--ion-color-success) !important;
+    font-weight: var(--font-weight-bold) !important;
+
+    ion-icon {
+      color: var(--ion-color-success);
+      font-size: 18px;
+    }
+  }
+}
+
+// Fila de diferencia (faltante / sobrante)
+.diferencia-row {
+  border-radius: var(--radius-xs);
+  padding: var(--spacing-md) var(--spacing-sm) !important;
+  margin-top: var(--spacing-xs);
+
+  &.es-faltante {
+    background: rgba(var(--ion-color-danger-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.25);
+
+    .diferencia-label ion-icon { color: var(--ion-color-danger); font-size: 18px; }
+    .diferencia-valor { color: var(--ion-color-danger); font-size: 16px; font-weight: var(--font-weight-extrabold); }
+  }
+
+  &.es-sobrante {
+    background: rgba(var(--ion-color-success-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.20);
+
+    .diferencia-label ion-icon { color: var(--ion-color-success); font-size: 18px; }
+    .diferencia-valor { color: var(--ion-color-success); font-size: 16px; font-weight: var(--font-weight-bold); }
+  }
+
+  .diferencia-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+}
+
 // Badge de déficit (aparece en desglose y en verificación de Caja Chica)
 .deficit-badge {
   display: inline-block;

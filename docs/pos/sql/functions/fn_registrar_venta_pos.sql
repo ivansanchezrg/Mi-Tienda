@@ -7,10 +7,14 @@ DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
 );
 
 -- ==========================================
--- FUNCIÓN: fn_registrar_venta_pos (v1.6)
+-- FUNCIÓN: fn_registrar_venta_pos (v1.7)
 -- ==========================================
 -- Procesa una venta del POS en una transacción atómica.
 -- Si CUALQUIER paso falla, PostgreSQL hace rollback automático completo.
+--
+-- v1.7 — Snapshot de costo: lee precio_costo de productos al momento de la venta
+--   y lo persiste en ventas_detalles. Garantiza que los reportes históricos no
+--   se vean afectados por cambios futuros en el costo del producto.
 --
 -- v1.6 — Descuentos: persiste porcentaje aplicado (p_descuento_pct SMALLINT).
 --   El descuento NO aplica para ventas FIADO (validado en frontend).
@@ -80,6 +84,7 @@ DECLARE
   v_numero_comprobante INTEGER;
   v_existing_id        UUID;
   v_existing_numero    INTEGER;
+  v_precio_costo       DECIMAL(12,2);
 BEGIN
 
   -- 0. Idempotencia: si la clave ya existe, retornar la venta previa sin tocar nada.
@@ -170,19 +175,26 @@ BEGIN
   -- 3. Insertar los detalles (líneas de ítems)
   --    El trigger trg_descontar_stock_venta se ejecuta automáticamente
   --    por cada INSERT en ventas_detalles → descuenta stock + graba kardex
+  --    precio_costo se lee de productos en este momento → snapshot histórico inmutable
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
+    SELECT precio_costo INTO v_precio_costo
+    FROM   productos
+    WHERE  id = (v_item->>'producto_id')::UUID;
+
     INSERT INTO ventas_detalles (
       venta_id,
       producto_id,
       cantidad,
       precio_unitario,
+      precio_costo,
       subtotal
     ) VALUES (
       v_venta_id,
       (v_item->>'producto_id')::UUID,
       (v_item->>'cantidad')::DECIMAL,
       (v_item->>'precio_unitario')::DECIMAL,
+      COALESCE(v_precio_costo, 0),
       (v_item->>'subtotal')::DECIMAL
     );
   END LOOP;
@@ -207,6 +219,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, INTEGER, UUID, TE
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_registrar_venta_pos IS
+  'v1.7 — Snapshot de costo: persiste precio_costo en ventas_detalles al momento de la venta. '
   'v1.6 — Descuentos: persiste monto (p_descuento) y porcentaje (p_descuento_pct). '
   'Descuento no aplica para FIADO (validado en frontend). '
   'v1.4 — Idempotencia: p_idempotency_key UUID para evitar duplicados por reintento. '

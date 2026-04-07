@@ -17,15 +17,21 @@
     <!-- Opciones del FAB -->
     @if (showTabs && fabAbierto) {
     <div class="fab-options">
+      <div class="fab-option" (click)="abrirCalculadora()">
+        <div class="fab-option-icon success">
+          <ion-icon [icon]="calculatorIcon"></ion-icon>
+        </div>
+        <span class="fab-option-label">Calc. Margen</span>
+      </div>
       <div class="fab-option" (click)="nuevaNota()">
         <div class="fab-option-icon secondary">
-          <ion-icon [icon]="readerIcon"></ion-icon>
+          <ion-icon [icon]="createIcon"></ion-icon>
         </div>
         <span class="fab-option-label">Nueva nota</span>
       </div>
       <div class="fab-option" (click)="irACuadre()">
         <div class="fab-option-icon tertiary">
-          <ion-icon [icon]="clipboardIcon"></ion-icon>
+          <ion-icon [icon]="scaleIcon"></ion-icon>
         </div>
         <span class="fab-option-label">Cuadre</span>
       </div>
@@ -43,10 +49,14 @@
         <ion-label>Inicio</ion-label>
       </ion-tab-button>
 
+      @if (posHabilitado) {
       <ion-tab-button tab="pos">
         <ion-icon [icon]="posIcon"></ion-icon>
         <ion-label>POS</ion-label>
       </ion-tab-button>
+      } @else {
+      <app-disabled-tab [icon]="posIcon" label="POS"></app-disabled-tab>
+      }
 
       <!-- FAB integrado como tab -->
       <ion-tab-button class="fab-tab-container">
@@ -60,10 +70,14 @@
         <ion-label>Inventario</ion-label>
       </ion-tab-button>
 
+      @if (posHabilitado) {
       <ion-tab-button tab="ventas">
         <ion-icon [icon]="ventasIcon"></ion-icon>
         <ion-label>Ventas</ion-label>
       </ion-tab-button>
+      } @else {
+      <app-disabled-tab [icon]="ventasIcon" label="Ventas"></app-disabled-tab>
+      }
     </ion-tab-bar>
 
   </ion-tabs>

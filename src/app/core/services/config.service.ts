@@ -1,17 +1,8 @@
 import { Injectable, inject } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
+import { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseService } from './supabase.service';
-import { Configuracion, ConfiguracionRow } from '../../features/configuracion/models/configuracion.model';
-
-const DEFAULTS: Configuracion = {
-    negocio_nombre: 'Mi Tienda',
-    caja_fondo_fijo_diario: 20,
-    caja_varios_transferencia_dia: 20,
-    bus_alerta_saldo_bajo: 75,
-    bus_dias_antes_facturacion: 3,
-    pos_descuentos_habilitados: false,
-    pos_descuento_maximo_pct: 10,
-    pos_umbral_monto_descuento: 50,
-};
+import { Configuracion, ConfiguracionRow, CONFIGURACION_DEFAULTS, mapRowsToConfig } from '../../features/configuracion/models/configuracion.model';
 
 @Injectable({ providedIn: 'root' })
 export class ConfigService {
@@ -20,6 +11,10 @@ export class ConfigService {
 
     private cache: Configuracion | null = null;
     private loadingPromise: Promise<Configuracion> | null = null;
+    private realtimeChannel: RealtimeChannel | null = null;
+
+    /** Emite cada vez que pos_habilitado cambia. Permite reaccionar sin recargar la app. */
+    readonly posHabilitado$ = new BehaviorSubject<boolean>(true);
 
     /** Carga una sola vez por sesión y cachea en memoria. */
     async get(): Promise<Configuracion> {
@@ -33,12 +28,14 @@ export class ConfigService {
                 )
                 .then(rows => {
                     this.cache = this.mapRowsToConfig(rows ?? []);
+                    this.posHabilitado$.next(this.cache.pos_habilitado);
                     this.loadingPromise = null;
+                    this.iniciarRealtime();
                     return this.cache;
                 })
                 .catch(() => {
                     this.loadingPromise = null;
-                    return DEFAULTS;
+                    return CONFIGURACION_DEFAULTS;
                 });
         }
 
@@ -55,19 +52,38 @@ export class ConfigService {
         this.cache = null;
     }
 
-    /** Convierte filas clave/valor a objeto tipado con defaults para claves ausentes */
-    private mapRowsToConfig(rows: ConfiguracionRow[]): Configuracion {
-        const map = new Map(rows.map(r => [r.clave, r.valor]));
+    /** Notifica a todos los suscriptores que pos_habilitado cambió. Llamar tras guardar la sección POS. */
+    actualizarPosHabilitado(valor: boolean): void {
+        this.posHabilitado$.next(valor);
+    }
 
-        return {
-            negocio_nombre:                map.get('negocio_nombre')                ?? DEFAULTS.negocio_nombre,
-            caja_fondo_fijo_diario:        Number(map.get('caja_fondo_fijo_diario'))        || DEFAULTS.caja_fondo_fijo_diario,
-            caja_varios_transferencia_dia: Number(map.get('caja_varios_transferencia_dia')) || DEFAULTS.caja_varios_transferencia_dia,
-            bus_alerta_saldo_bajo:         Number(map.get('bus_alerta_saldo_bajo'))         || DEFAULTS.bus_alerta_saldo_bajo,
-            bus_dias_antes_facturacion:    Number(map.get('bus_dias_antes_facturacion'))    || DEFAULTS.bus_dias_antes_facturacion,
-            pos_descuentos_habilitados:    map.get('pos_descuentos_habilitados') === 'true',
-            pos_descuento_maximo_pct:      Number(map.get('pos_descuento_maximo_pct'))      || DEFAULTS.pos_descuento_maximo_pct,
-            pos_umbral_monto_descuento:    Number(map.get('pos_umbral_monto_descuento'))    || DEFAULTS.pos_umbral_monto_descuento,
-        };
+    /**
+     * Escucha cambios en la tabla configuraciones via Supabase Realtime.
+     * Solo se suscribe una vez. Si la clave pos_habilitado cambia en cualquier
+     * dispositivo, todos los suscriptores de posHabilitado$ reaccionan de inmediato.
+     */
+    private iniciarRealtime() {
+        if (this.realtimeChannel) return;
+
+        this.realtimeChannel = this.supabase.client
+            .channel('config-changes')
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'configuraciones', filter: 'clave=eq.pos_habilitado' },
+                (payload) => {
+                    const nuevoValor = payload.new as ConfiguracionRow;
+                    const habilitado = nuevoValor.valor === 'true';
+                    // Actualizar cache si existe
+                    if (this.cache) {
+                        this.cache = { ...this.cache, pos_habilitado: habilitado };
+                    }
+                    this.posHabilitado$.next(habilitado);
+                }
+            )
+            .subscribe();
+    }
+
+    private mapRowsToConfig(rows: ConfiguracionRow[]): Configuracion {
+        return mapRowsToConfig(rows);
     }
 }

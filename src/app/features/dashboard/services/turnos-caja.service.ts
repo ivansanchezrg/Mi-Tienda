@@ -27,13 +27,12 @@ export class TurnosCajaService {
    * Obtiene el turno activo (abierto) de hoy, si existe
    */
   async obtenerTurnoActivo(): Promise<TurnoCajaConEmpleado | null> {
-    const inicioDia = new Date(`${getFechaLocal()}T00:00:00`).toISOString();
-
+    // Sin filtro de fecha: un turno abierto es uno con hora_fecha_cierre IS NULL,
+    // independientemente de cuándo se abrió (puede ser de un día anterior no cerrado).
     const turno = await this.supabase.call<TurnoCajaConEmpleado>(
       this.supabase.client
         .from('turnos_caja')
         .select('*, empleado:usuarios(id, nombre)')
-        .gte('hora_fecha_apertura', inicioDia)
         .is('hora_fecha_cierre', null)
         .maybeSingle()
     );
@@ -294,7 +293,6 @@ export class TurnosCajaService {
       this.supabase.client
         .from('turnos_caja')
         .select('*, empleado:usuarios(id, nombre)')
-        .gte('hora_fecha_apertura', inicioDia)
         .is('hora_fecha_cierre', null)
         .maybeSingle(),
       undefined,

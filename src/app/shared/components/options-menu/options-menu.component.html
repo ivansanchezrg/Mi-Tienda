@@ -8,17 +8,21 @@
     <ng-template>
         <ion-list lines="none" class="options-list">
             @for (option of options; track option.value) {
-            <ion-item button (click)="onSelect(option)">
-                <ion-icon [name]="option.icon" slot="start"
-                    [color]="option.active ? 'primary' : (option.color ?? 'medium')">
-                </ion-icon>
-                <ion-label [color]="option.active ? 'primary' : option.color">
-                    {{ option.label }}
-                </ion-label>
-                @if (option.active) {
-                <ion-icon name="checkmark-outline" slot="end" color="primary"></ion-icon>
-                }
-            </ion-item>
+              @if (option.separator) {
+                <hr class="options-separator">
+              } @else {
+                <ion-item button (click)="onSelect(option)">
+                    <ion-icon [name]="option.icon" slot="start"
+                        [color]="option.active ? 'primary' : (option.color ?? 'medium')">
+                    </ion-icon>
+                    <ion-label [color]="option.active ? 'primary' : option.color">
+                        {{ option.label }}
+                    </ion-label>
+                    @if (option.active) {
+                    <ion-icon name="checkmark-outline" slot="end" color="primary"></ion-icon>
+                    }
+                </ion-item>
+              }
             }
         </ion-list>
     </ng-template>

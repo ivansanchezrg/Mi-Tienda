@@ -1,5 +1,5 @@
 -- ==========================================
--- SCHEMA - MI TIENDA v5.3
+-- SCHEMA - MI TIENDA v5.4
 -- Sistema de Gestión de Cajas, Ventas POS y Recargas
 -- ==========================================
 -- ⚠️  Ejecutar UNA SOLA VEZ. Incluye DROP de tablas → borra todos los datos.
@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS cajas (
 --   pos_descuentos_habilitados    — 'true'/'false' — activa descuentos automáticos en POS
 --   pos_descuento_maximo_pct      — Porcentaje máximo de descuento aplicable (ej: '10')
 --   pos_umbral_monto_descuento    — Monto mínimo de venta para descuento automático (ej: '50.00')
+--   pos_iva_porcentaje            — Tarifa IVA vigente en % (ej: '15'). Usado en POS/Factura para extraer base gravada.
 CREATE TABLE IF NOT EXISTS configuraciones (
     clave      VARCHAR(100) PRIMARY KEY,
     valor      TEXT NOT NULL
@@ -226,7 +227,7 @@ CREATE TABLE IF NOT EXISTS productos (
     precio_venta    DECIMAL(12,2) NOT NULL,
     stock_actual    DECIMAL(12,2) DEFAULT 0,
     stock_minimo    INTEGER DEFAULT 5,
-    tiene_iva       BOOLEAN DEFAULT FALSE,
+    tiene_iva       BOOLEAN DEFAULT TRUE,
     activo          BOOLEAN DEFAULT TRUE,
     imagen_url      TEXT,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -292,6 +293,7 @@ CREATE TABLE IF NOT EXISTS ventas_detalles (
     producto_id     UUID NOT NULL REFERENCES productos(id),
     cantidad        DECIMAL(12,2) NOT NULL,
     precio_unitario DECIMAL(12,2) NOT NULL,
+    precio_costo    DECIMAL(12,2) NOT NULL DEFAULT 0, -- snapshot del costo al momento de la venta
     subtotal        DECIMAL(12,2) NOT NULL
 );
 
@@ -549,9 +551,11 @@ INSERT INTO configuraciones (clave, valor) VALUES
 ('caja_varios_transferencia_dia', '20.00'),
 ('bus_alerta_saldo_bajo',         '75.00'),
 ('bus_dias_antes_facturacion',    '3'),
+('pos_habilitado',                'true'),
 ('pos_descuentos_habilitados',    'false'),
 ('pos_descuento_maximo_pct',      '10'),
-('pos_umbral_monto_descuento',    '50.00');
+('pos_umbral_monto_descuento',    '50.00'),
+('pos_iva_porcentaje',            '15');
 
 INSERT INTO usuarios (nombre, usuario, rol) VALUES
 ('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN');
@@ -577,7 +581,7 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 --    → EG-013 y IN-005: Ajuste Diferencia Conteo (seleccionable=FALSE)
 -- ✅ 5 Cajas inicializadas en $0.00
 --    → CAJA (bóveda), CAJA_CHICA (cajón diario), VARIOS (fondo emergencia), CAJA_CELULAR, CAJA_BUS
--- ✅ Configuración: fondo=$20 | varios=$20 | alerta_bus=$75 | dias_fact=3
+-- ✅ Configuración: fondo=$20 | varios=$20 | alerta_bus=$75 | dias_fact=3 | iva=15%
 -- ✅ Admin inicial: Ivan Sanchez
 -- ✅ 3 Productos de prueba
 -- ❌ Tablas eliminadas en v5: caja_fisica_diaria, gastos_diarios, categorias_gastos

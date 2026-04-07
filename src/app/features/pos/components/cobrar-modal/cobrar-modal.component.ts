@@ -29,7 +29,6 @@ export class CobrarModalComponent {
     @Input() descuento = 0;
     @Input() descuentoPct = 0;
     @Input() totalArticulos!: number;
-    @Input() esConsumidorFinal = false;
     @Input() iniciarEnEfectivo = false;
 
     @ViewChild('montoInput') montoInputRef!: ElementRef<HTMLInputElement>;
@@ -87,12 +86,6 @@ export class CobrarModalComponent {
     }
 
     seleccionarMetodo(metodo: MetodoPago) {
-        if (metodo === 'FIADO' && this.esConsumidorFinal) {
-            // No se permite fiado sin cliente real — el modal retorna señal especial
-            this.modalCtrl.dismiss({ necesitaCliente: true });
-            return;
-        }
-
         this.metodoSeleccionado = metodo;
 
         if (metodo === 'EFECTIVO') {

@@ -17,7 +17,7 @@ import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
-import { Producto, ProductoPOS } from '../../../inventario/models/producto.model';
+import { ProductoPOS } from '../../../inventario/models/producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { PosService, VentaPayload } from '../../services/pos.service';
@@ -72,6 +72,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   carrito: CartItem[] = [];
   buscarTexto = '';
   productosBusqueda: ProductoPOS[] = [];
+  sugerenciaActiva = -1;
   buscando = false;
   modoBusqueda: 'codigo' | 'nombre' = 'codigo';
   private searchVersion = 0;
@@ -88,11 +89,47 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   tipoComprobante: TipoComprobante = TipoComprobante.TICKET;
 
   /** Opciones del menú ⋮ para el componente reutilizable */
+  readonly ACCION_LIMPIAR = '__LIMPIAR__';
+
   comprobanteOptions: MenuOption[] = [
-    { label: 'Ticket', icon: 'receipt-outline', value: TipoComprobante.TICKET, active: true },
-    { label: 'Nota de Venta', icon: 'document-text-outline', value: TipoComprobante.NOTA_VENTA, active: false },
-    { label: 'Factura', icon: 'document-outline', value: TipoComprobante.FACTURA, active: false },
+    { label: 'Ticket',       icon: 'receipt-outline',        value: TipoComprobante.TICKET,      active: true },
+    { label: 'Nota de Venta',icon: 'document-text-outline',  value: TipoComprobante.NOTA_VENTA,  active: false },
+    { label: 'Factura',      icon: 'document-outline',       value: TipoComprobante.FACTURA,     active: false },
+    { label: '',             icon: '',                       value: '__sep__',                   active: false, separator: true },
+    { label: 'Limpiar carrito', icon: 'trash-outline',       value: '__LIMPIAR__',               active: false, color: 'danger' },
   ];
+
+  /** Handler unificado del menú ⋮ */
+  async onComprobanteOption(option: MenuOption) {
+    if (option.value === this.ACCION_LIMPIAR) {
+      if (this.carrito.length === 0) return;
+      await this.confirmarLimpiarCarrito();
+      return;
+    }
+    // Cambio de tipo de comprobante
+    this.tipoComprobante = option.value as TipoComprobante;
+    this.comprobanteOptions = this.comprobanteOptions.map(o => ({
+      ...o,
+      active: o.value === this.tipoComprobante
+    }));
+  }
+
+  /** Pide confirmación antes de vaciar el carrito */
+  private async confirmarLimpiarCarrito() {
+    const alert = await this.alertCtrl.create({
+      header: 'Limpiar carrito',
+      message: `¿Descartás los ${this.totalArticulos} artículos del carrito?`,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Limpiar',
+          role: 'destructive',
+          handler: () => this.limpiarCarrito()
+        }
+      ]
+    });
+    await alert.present();
+  }
 
   // Buffer para pistola lectora física
   private barcodeBuffer = '';
@@ -226,15 +263,21 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     return Math.round(this._brutoIva0 * this._factorDescuento * 100) / 100;
   }
 
-  /** Base gravada 15% — (precio con IVA × factor descuento) ÷ 1.15 */
+  /** Base gravada según tarifa IVA configurada — (precio con IVA × factor descuento) ÷ divisor */
   get baseIva15(): number {
     const conIvaDescontado = this._brutoConIva * this._factorDescuento;
-    return Math.round((conIvaDescontado / 1.15) * 100) / 100;
+    return Math.round((conIvaDescontado / this._ivaDivisor) * 100) / 100;
   }
 
-  /** IVA 15% extraído del precio (NO sumado encima) */
+  /** IVA extraído del precio (NO sumado encima) — usa tarifa de configuración */
   get ivaValor(): number {
     return Math.round((this.totalPagar - this.baseIva0 - this.baseIva15) * 100) / 100;
+  }
+
+  /** Divisor para extraer base sin IVA. Ej: iva=15% → divisor=1.15 */
+  private get _ivaDivisor(): number {
+    const pct = this.appConfig?.pos_iva_porcentaje ?? 15;
+    return 1 + pct / 100;
   }
 
   /** Subtotal neto = base0 + base15 (sin IVA) */
@@ -247,19 +290,6 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     return this.tipoComprobante === TipoComprobante.FACTURA;
   }
 
-  /** Callback del componente options-menu — actualiza el tipo y el checkmark */
-  async onComprobanteOption(option: MenuOption) {
-    this.tipoComprobante = option.value as TipoComprobante;
-    this.comprobanteOptions = this.comprobanteOptions.map(o => ({
-      ...o,
-      active: o.value === option.value
-    }));
-
-    // FACTURA avisa si aún está en Consumidor Final
-    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado?.es_consumidor_final) {
-      this.ui.showToast('Factura requiere un cliente con RUC o cédula', 'warning');
-    }
-  }
 
   async abrirSelectorCliente() {
     if (this.errorCliente || !this.clienteSeleccionado?.id) {
@@ -482,7 +512,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const texto = (event.target as HTMLInputElement).value?.trim();
 
     if (this.modoBusqueda === 'nombre') {
-      if (!texto || texto.length < 2) { this.productosBusqueda = []; return; }
+      if (!texto || texto.length < 2) { this.productosBusqueda = []; this.sugerenciaActiva = -1; return; }
       clearTimeout(this.searchDebounce);
       this.searchDebounce = setTimeout(() => this.buscarPorNombre(texto), 600);
     } else {
@@ -496,13 +526,31 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  // Enter en modo código también dispara (pistola lectora envía Enter al final)
+  // Enter en modo código dispara búsqueda (pistola lectora envía Enter al final)
+  // En modo nombre: ↑/↓ navegan sugerencias, Enter selecciona la activa (o la primera)
   onSearchKeyup(event: KeyboardEvent) {
-    if (this.modoBusqueda !== 'codigo') return;
-    if (event.key === 'Enter') {
-      clearTimeout(this.searchDebounce);
-      const texto = this.buscarTexto?.trim();
-      if (texto) this.buscarPorCodigo(texto);
+    if (this.modoBusqueda === 'codigo') {
+      if (event.key === 'Enter') {
+        clearTimeout(this.searchDebounce);
+        const texto = this.buscarTexto?.trim();
+        if (texto) this.buscarPorCodigo(texto);
+      }
+      return;
+    }
+
+    // Modo nombre — navegación por teclado
+    const total = this.productosBusqueda.length;
+    if (total === 0) return;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.sugerenciaActiva = Math.min(this.sugerenciaActiva + 1, total - 1);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.sugerenciaActiva = Math.max(this.sugerenciaActiva - 1, 0);
+    } else if (event.key === 'Enter') {
+      const idx = this.sugerenciaActiva >= 0 ? this.sugerenciaActiva : 0;
+      this.seleccionarProductoBusqueda(this.productosBusqueda[idx]);
     }
   }
 
@@ -567,6 +615,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.agregarAlCarrito(producto);
     this.buscarTexto = '';
     this.productosBusqueda = [];
+    this.sugerenciaActiva = -1;
   }
 
   // ==========================
@@ -675,6 +724,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
+    // FACTURA requiere cliente con identificación
+    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado.es_consumidor_final) {
+      this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
+      return;
+    }
+
     const turnoActivo = await this.posService.hayTurnoActivo();
     if (!turnoActivo) {
       await this.mostrarAlertSinTurno();
@@ -689,7 +744,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         descuento: this.descuentoAplicado,
         descuentoPct: this.descuentoPct,
         totalArticulos: this.totalArticulos,
-        esConsumidorFinal: !!this.clienteSeleccionado?.es_consumidor_final,
+        esConsumidorFinal: false,
         iniciarEnEfectivo: true
       },
       backdropDismiss: false
@@ -709,6 +764,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
+    // Si es consumidor final, forzar selección de cliente antes de abrir el modal
+    if (this.clienteSeleccionado.es_consumidor_final) {
+      this.ui.showToast('Seleccioná un cliente para continuar', 'warning');
+      await this.abrirSelectorCliente();
+      if (this.clienteSeleccionado.es_consumidor_final) return; // canceló o no eligió
+    }
+
     // Verificar turno activo antes de abrir el modal de cobro
     const turnoActivo = await this.posService.hayTurnoActivo();
     if (!turnoActivo) {
@@ -717,7 +779,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
 
     // Validación FACTURA: requiere cliente con identificación
-    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado?.es_consumidor_final) {
+    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado.es_consumidor_final) {
       this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
       return;
     }
@@ -730,7 +792,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         descuento: this.descuentoAplicado,
         descuentoPct: this.descuentoPct,
         totalArticulos: this.totalArticulos,
-        esConsumidorFinal: !!this.clienteSeleccionado?.es_consumidor_final
+        esConsumidorFinal: false
       },
       backdropDismiss: false
     });
@@ -738,21 +800,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     await modal.present();
     const { data } = await modal.onDidDismiss();
 
-    if (!data) return;
-
-    // FIADO con consumidor final → abrir selector de cliente y reabrir cobro automáticamente
-    if (data.necesitaCliente) {
-      this.ui.showToast('Fiado requiere seleccionar un cliente', 'warning');
-      await this.abrirSelectorCliente();
-      // Si el usuario eligió un cliente real, confirmar y reabrir el modal de cobro
-      if (!this.clienteSeleccionado?.es_consumidor_final) {
-        this.ui.showToast(`${this.clienteSeleccionado?.nombre} seleccionado correctamente`, 'success');
-        await this.cobrar();
-      }
-      return;
-    }
-
-    if (data.confirmado) {
+    if (data?.confirmado) {
       this.ejecutarCobro(data.metodoPago);
     }
   }

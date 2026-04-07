@@ -8,23 +8,41 @@
     padding: 0;
 }
 
+// ── Sliding wrapper ───────────────────────────────
+ion-item-sliding.nota-sliding {
+    margin-bottom: var(--spacing-sm);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, 0.08));
+}
+
+ion-item-sliding.nota-sliding ion-item-options {
+    border-bottom-right-radius: 12px;
+    border-top-right-radius: 12px;
+    overflow: hidden;
+}
+
 // ── Item ─────────────────────────────────────────
 .nota-item {
     --background: var(--ion-item-background);
+    --border-radius: 12px;
     --padding-start: 12px;
     --inner-padding-end: 12px;
     --padding-top: 12px;
     --padding-bottom: 12px;
     --min-height: 0;
-    border-radius: 12px;
-    margin-bottom: var(--spacing-sm);
-    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, 0.08));
     transition: opacity 0.2s ease;
 }
 
-// Nota completada: ligeramente atenuada
+// Nota completada: texto atenuado sin transparencia en el fondo
 .nota-completada .nota-item {
-    opacity: 0.6;
+    --background: var(--ion-color-step-50, #f9f9f9);
+}
+
+.nota-completada .nota-texto,
+.nota-completada .nota-prefijo,
+.nota-completada .meta-chip {
+    color: var(--ion-color-medium);
 }
 
 // ── Checkbox visual ──────────────────────────────
@@ -39,20 +57,69 @@
     }
 }
 
-// ── Texto ─────────────────────────────────────────
-.nota-texto {
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--ion-text-color);
-    margin: 0 0 6px 0;
-    white-space: pre-wrap;
-    line-height: 1.4;
+.nota-spinner {
+    width: 22px;
+    height: 22px;
+    color: var(--ion-color-medium);
 }
 
-.nota-texto--tachado {
-    text-decoration: line-through;
-    color: var(--ion-color-medium);
+// Item durante el toggle — leve pulso de opacidad
+.nota-item--toggling {
+    pointer-events: none;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+}
+
+// Ítem siendo eliminado — fade out
+.nota-procesando .nota-item {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+// ── Texto ─────────────────────────────────────────
+.nota-texto-bloque {
+    margin-bottom: 4px;
+
+    &.nota-texto--tachado .nota-texto,
+    &.nota-texto--tachado .nota-prefijo {
+        text-decoration: line-through;
+        color: var(--ion-color-medium);
+    }
+}
+
+.nota-texto {
+    font-size: 15px;
     font-weight: 400;
+    color: var(--ion-text-color);
+    margin: 0;
+    line-height: 1.55;
+}
+
+// Línea de lista: indent respecto al texto normal
+.nota-texto--lista {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    padding-left: 12px;
+}
+
+.nota-prefijo {
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+// ── Ver más / Ver menos ───────────────────────────
+.ver-mas-btn {
+    display: inline-block;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ion-color-primary);
+    cursor: pointer;
+    letter-spacing: 0.01em;
 }
 
 // ── Meta ──────────────────────────────────────────
@@ -93,7 +160,10 @@
 
 // ── Delete swipe ──────────────────────────────────
 .delete-option {
-    border-radius: 0 12px 12px 0;
+    background: var(--ion-color-danger);
+    color: var(--ion-color-danger-contrast);
+    --padding-start: var(--spacing-xl);
+    --padding-end: var(--spacing-xl);
 }
 
 // ── FAB scroll top ────────────────────────────────

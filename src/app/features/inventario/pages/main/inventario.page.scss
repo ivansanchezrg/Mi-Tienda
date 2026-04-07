@@ -16,8 +16,17 @@ ion-toolbar {
 }
 
 ion-searchbar {
-    text-align: left;
-    --icon-padding: 8px;
+    --background: var(--ion-item-background);
+    --border-radius: var(--radius-md);
+    --box-shadow: none;
+    --placeholder-color: var(--ion-color-step-400);
+    --placeholder-opacity: 1;
+    --color: var(--ion-text-color);
+    --icon-color: var(--ion-color-step-400);
+    --clear-button-color: var(--ion-color-step-400);
+    padding-inline: var(--spacing-md);
+    padding-top: 0;
+    padding-bottom: var(--spacing-xs);
 }
 
 .categories-toolbar {

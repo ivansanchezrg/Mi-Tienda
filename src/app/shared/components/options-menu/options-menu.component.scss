@@ -11,6 +11,12 @@ ion-button.disabled-menu {
     opacity: 0.35;
 }
 
+.options-separator {
+    margin: 4px 0;
+    border: none;
+    border-top: 1px solid var(--ion-color-light-shade);
+}
+
 .options-list {
     min-width: 180px;
 

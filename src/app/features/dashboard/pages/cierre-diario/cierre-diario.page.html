@@ -156,12 +156,13 @@
         <p>Revisá la distribución y confirmá el cierre del turno</p>
       </div>
 
-      <!-- Card 1: Conciliación del Cajón -->
+      <!-- Card 1: Conteo del Cajón — solo si POS está habilitado -->
+      @if (posHabilitado) {
       <ion-card class="resumen-card">
         <ion-card-header>
           <ion-card-title>
             <ion-icon name="receipt-outline"></ion-icon>
-            Conciliación del Cajón
+            Conteo del Cajón
           </ion-card-title>
         </ion-card-header>
         <ion-card-content>
@@ -172,43 +173,54 @@
             </div>
             @if (otrosIngresos > 0) {
             <div class="desglose-item">
-              <span class="desglose-label">+ Otros ingresos manuales</span>
+              <span class="desglose-label">+ Ingresos del turno</span>
               <span class="desglose-valor">{{ otrosIngresos | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
             }
             @if (egresos > 0) {
             <div class="desglose-item">
-              <span class="desglose-label">− Egresos / gastos</span>
+              <span class="desglose-label">− Gastos del turno</span>
               <span class="desglose-valor resta">{{ egresos | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
             }
             <div class="desglose-item resultado">
-              <span class="desglose-label">= Neto del turno</span>
+              <span class="desglose-label">= Saldo en cajón</span>
               <span class="desglose-valor destacado">{{ saldoCajaChicaDigital | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
             <div class="desglose-item">
-              <span class="desglose-label">+ Fondo inicial (cajón)</span>
+              <span class="desglose-label">+ Fondo inicial</span>
               <span class="desglose-valor">{{ fondoFijo | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
+            @if (!hasDiferencia) {
+            <!-- Cuadra: una sola fila con checkmark -->
+            <div class="desglose-item resultado cajón-ok">
+              <span class="desglose-label">
+                <ion-icon name="checkmark-circle-outline" class="desglose-icon"></ion-icon>
+                Cajón cuadrado
+              </span>
+              <span class="desglose-valor destacado">{{ efectivoEsperado | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+            </div>
+            } @else {
+            <!-- No cuadra: mostrar ambas líneas + diferencia -->
             <div class="desglose-item resultado">
-              <span class="desglose-label">= Esperado en cajón</span>
+              <span class="desglose-label">= Debería haber</span>
               <span class="desglose-valor destacado">{{ efectivoEsperado | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
             <div class="desglose-item">
-              <span class="desglose-label">Contado físicamente</span>
+              <span class="desglose-label">Contaste</span>
               <span class="desglose-valor">{{ efectivoFisico | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
-            @if (hasDiferencia) {
-            <div class="desglose-item">
-              <span class="desglose-label">
-                Diferencia
+            <div class="desglose-item diferencia-row" [class.es-faltante]="diferencia < 0" [class.es-sobrante]="diferencia > 0">
+              <span class="desglose-label diferencia-label">
                 @if (diferencia < 0) {
+                <ion-icon name="alert-circle-outline"></ion-icon>
                 <span class="deficit-badge">faltante</span>
                 } @else {
+                <ion-icon name="information-circle-outline"></ion-icon>
                 <span class="ya-hecha-badge">sobrante</span>
                 }
               </span>
-              <span class="desglose-valor" [class.resta]="diferencia < 0" [class.sobrante]="diferencia > 0">
+              <span class="desglose-valor diferencia-valor">
                 {{ diferencia | currency:'USD':'symbol-narrow':'1.2-2' }}
               </span>
             </div>
@@ -216,6 +228,7 @@
           </div>
         </ion-card-content>
       </ion-card>
+      }
 
       <!-- Card 2: Distribución del Efectivo -->
       <ion-card class="resumen-card">

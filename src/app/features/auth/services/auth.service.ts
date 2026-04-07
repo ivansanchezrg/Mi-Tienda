@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { AlertController } from '@ionic/angular/standalone';
 import { Preferences } from '@capacitor/preferences';
 import { SupabaseService } from '@core/services/supabase.service';
@@ -12,6 +13,7 @@ import { UsuarioActual } from '../models/usuario_actual.model';
 })
 export class AuthService {
   private supabase = inject(SupabaseService);
+  private router = inject(Router);
   private ui = inject(UiService);
   private alertCtrl = inject(AlertController);
   private logger = inject(LoggerService);
@@ -55,9 +57,9 @@ export class AuthService {
 
   /**
    * Valida que el email del usuario logueado exista en la tabla usuarios y esté activo.
-   * Retorna true si es válido, false si no.
-   * Si no es válido, cierra sesión automáticamente.
-   * Si es válido, guarda los datos del usuario en Preferences para acceso rápido.
+   * - Si no existe → auto-registra con activo: false y redirige a /auth/pending.
+   * - Si existe pero activo: false → redirige a /auth/pending.
+   * - Si existe y activo: true → guarda en Preferences y retorna true.
    */
   async validarUsuario(): Promise<boolean> {
     const user = await this.getUser();
@@ -71,31 +73,56 @@ export class AuthService {
       .from('usuarios')
       .select('id, nombre, usuario, activo, rol')
       .eq('usuario', user.email)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      this.logger.warn('AuthService', `validarUsuario: usuario ${user.email} no encontrado en BD`);
-      await this.ui.showError('No tienes acceso. Contacta al administrador.');
+    if (error) {
+      this.logger.error('AuthService', 'Error al consultar usuario en BD', error);
+      await this.ui.showError('Error al verificar tu cuenta. Intentá de nuevo.');
       await this.forceLogout();
       return false;
     }
 
+    // Usuario no existe → auto-registro con activo: false
+    if (!data) {
+      this.logger.info('AuthService', `Auto-registro: ${user.email}`);
+      const nombre = user.user_metadata?.['full_name'] || user.user_metadata?.['name'] || user.email.split('@')[0];
+
+      const { error: insertError } = await this.supabase.client
+        .from('usuarios')
+        .insert({ nombre, usuario: user.email, rol: 'EMPLEADO', activo: false });
+
+      if (insertError) {
+        this.logger.error('AuthService', 'Error al auto-registrar usuario', insertError);
+        await this.ui.showError('Error al registrar tu cuenta. Intentá de nuevo.');
+        await this.forceLogout();
+        return false;
+      }
+
+      this.router.navigate(['/auth/pending'], { queryParams: { estado: 'nuevo' }, replaceUrl: true });
+      return false;
+    }
+
+    // Usuario existe pero inactivo → pantalla de pendiente
     if (!data.activo) {
-      this.logger.warn('AuthService', `validarUsuario: usuario ${user.email} desactivado`);
-      await this.ui.showError('Tu cuenta está desactivada. Contacta al administrador.');
-      await this.forceLogout();
+      this.logger.warn('AuthService', `validarUsuario: usuario ${user.email} inactivo`);
+      await this.saveUsuarioActual(data);
+      this.router.navigate(['/auth/pending'], { replaceUrl: true });
       return false;
     }
 
     this.logger.info('AuthService', `Usuario validado: ${data.nombre} (${data.rol})`);
     await this.saveUsuarioActual(data);
-
     return true;
   }
 
   /** Cierra sesión sin mostrar loading (uso interno) */
   private async forceLogout() {
     await this.supabase.handleExpiredSession();
+  }
+
+  /** Cierra sesión directo, sin confirmación (para pantallas pre-app como pending) */
+  async logoutSilent() {
+    await this.executeLogout();
   }
 
   /** Muestra confirmación y cierra sesión si el usuario acepta */

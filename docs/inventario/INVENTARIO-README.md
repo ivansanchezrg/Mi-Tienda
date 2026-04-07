@@ -62,7 +62,7 @@ src/app/features/inventario/
 
 | Tabla                  | Uso                                    |
 | ---------------------- | -------------------------------------- |
-| `productos`            | Catálogo de productos                  |
+| `productos`            | Catálogo de productos (`tiene_iva DEFAULT TRUE` — tarifa 15% por defecto) |
 | `categorias_productos` | Categorías (Bebidas, Snacks, etc.)     |
 | `kardex_inventario`    | Auditoría de movimientos de stock      |
 | `ventas_detalles`      | Referenciado por FK (no eliminar productos) |
@@ -96,6 +96,8 @@ src/app/features/inventario/
 3. **Select nativo para categorías:** En vez de chips horizontales con scroll. Escala mejor con muchas categorías y siempre muestra la selección actual
 4. **Código de barras auto-generado:** Productos sin código (a granel, caseros) reciben EAN-13 interno con prefijo `20` (estándar GS1 para uso interno)
 5. **Stock atómico:** Todo cambio de stock pasa por función PostgreSQL para evitar race conditions y garantizar consistencia kardex ↔ stock
+6. **Campo `tiene_iva`:** Booleano, `DEFAULT TRUE` (tarifa 15%). Se usa en POS para extraer la base gravada al emitir Facturas. Solo poner `false` en productos de canasta básica exentos (arroz, leche, pan, medicamentos). El formulario de producto muestra un hint contextual que cambia según el estado del toggle.
+7. **Buscador en listado:** Usa handler `onSearchInput` (no `ngModel` + `ionClear`) para evitar estado residual al borrar. Al limpiar la búsqueda siempre se restaura "Todas las categorías".
 
 ---
 

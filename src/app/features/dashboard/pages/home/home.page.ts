@@ -65,6 +65,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   nombreNegocio = 'Mi Tienda';
   private networkSub?: Subscription;
   private queryParamsSub?: Subscription;
+  private posSub?: Subscription;
 
   // Estado del turno de caja
   estadoCaja: EstadoCaja = {
@@ -129,6 +130,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   // Privacidad
   montosOcultos = false;
 
+  // POS
+  posHabilitado = true;
+
   // Opciones del menú ⋮ — compartidas por todas las cajas
   readonly cajaOptions: MenuOption[] = [
     { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'ingreso', color: 'success' },
@@ -154,6 +158,11 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       this.isOnline = isOnline;
     });
 
+    this.posSub = this.configService.posHabilitado$.subscribe(v => {
+      this.posHabilitado = v;
+      this.cdr.detectChanges();
+    });
+
     this.queryParamsSub = this.route.queryParams.subscribe(async params => {
       const action = params['action'];
       if (action) {
@@ -168,6 +177,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.networkSub?.unsubscribe();
     this.queryParamsSub?.unsubscribe();
+    this.posSub?.unsubscribe();
   }
 
   private async manejarAccion(action: string) {
@@ -186,15 +196,18 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   async cargarDatos() {
     this.cargando = true;
     try {
-      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones, empleado] = await Promise.all([
+      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones, empleado, config] = await Promise.all([
         this.turnosCajaService.obtenerEstadoCaja(),
         this.cajasService.obtenerSaldosCajas(),
         this.cajasService.obtenerFechaUltimoCierre(),
         this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
         this.recargasVirtualesService.getSaldoVirtualActual('BUS'),
         this.notificacionesService.getNotificaciones(),
-        this.authService.getUsuarioActual()
+        this.authService.getUsuarioActual(),
+        this.configService.get()
       ]);
+
+      this.posHabilitado = config.pos_habilitado;
 
       this.estadoCaja = { ...estadoCaja };
 
@@ -240,6 +253,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   get totalEfectivo(): number {
+    if (!this.posHabilitado) return this.totalSaldos - this.saldoCajaChica;
     return this.totalSaldos;
   }
 

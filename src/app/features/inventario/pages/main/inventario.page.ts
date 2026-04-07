@@ -129,15 +129,25 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     return productos.map(p => this.resolverImagenUrl(p));
   }
 
+  onSearchInput(event: CustomEvent) {
+    // Leer el valor del evento directamente — evita desfase con ngModel
+    // cubre: tipeo, borrado tecla a tecla, y el botón X del searchbar
+    this.buscarTexto = (event.detail.value ?? '').toString();
+    this.aplicarFiltro();
+  }
+
   aplicarFiltro() {
     clearTimeout(this.searchDebounce);
     this.searchDebounce = setTimeout(async () => {
-      // Si hay texto de búsqueda, limpiar filtro de categoría para buscar en todas
-      if (this.buscarTexto.trim()) {
-        this.categoriaSeleccionada = undefined;
-      }
+      // 1️⃣ Reset SIEMPRE primero — garantiza que limpiar el texto
+      //    devuelve el filtro a "Todas las categorías" sin estado residual
+      this.categoriaSeleccionada = undefined;
+      this.mostrarDesactivados = false;
+
       await this.cargar();
-      // Auto-seleccionar categoría si todos los resultados pertenecen a la misma
+
+      // 2️⃣ Auto-seleccionar categoría SOLO si hay texto y todos los
+      //    resultados pertenecen a la misma — actualiza el label del filtro
       if (this.buscarTexto.trim() && this.items.length > 0) {
         const categoriaIds = new Set(this.items.map(p => p.categoria_id).filter(Boolean));
         if (categoriaIds.size === 1) {
@@ -168,6 +178,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     this.mostrarDesactivados = false;
     this.cargar();
   }
+
 
   irACrear(codigoBarras?: string) {
     const extras = codigoBarras ? { queryParams: { codigo: codigoBarras } } : {};

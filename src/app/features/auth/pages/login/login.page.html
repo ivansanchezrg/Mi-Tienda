@@ -1,22 +1,30 @@
 <ion-content [fullscreen]="true">
   <div class="login-container">
+    <div class="auth-card">
 
-    <div class="brand-section">
-      <ion-icon name="storefront" class="logo-icon"></ion-icon>
-      <h1>Mi Tienda</h1>
-      <p>Gestiona tu negocio fácil</p>
-    </div>
-
-    <div class="actions-section">
-      <ion-button (click)="loginWithGoogle()" expand="block" fill="clear" class="google-btn" [disabled]="iniciando">
-        <ion-icon slot="start" name="logo-google"></ion-icon>
-        Continuar con Google
-      </ion-button>
-
-      <div class="terms-text">
-        <p>Al continuar, aceptas nuestros <a href="#">Términos</a> y <a href="#">Política de Privacidad</a>.</p>
+      <div class="brand-section">
+        <div class="logo-wrap">
+          <ion-icon name="storefront"></ion-icon>
+        </div>
+        <h1>Mi Tienda</h1>
+        <p>Gestiona tu negocio fácil</p>
       </div>
-    </div>
 
+      <div class="actions-section">
+        <button class="google-btn" (click)="loginWithGoogle()" [disabled]="iniciando">
+          @if (iniciando) {
+            <span class="btn-spinner"></span>
+          } @else {
+            <ion-icon name="logo-google"></ion-icon>
+          }
+          <span class="btn-label">{{ iniciando ? 'Conectando...' : 'Continuar con Google' }}</span>
+        </button>
+
+        <p class="terms-text">
+          Al continuar, aceptas nuestros <a href="#">Términos</a> y <a href="#">Política de Privacidad</a>.
+        </p>
+      </div>
+
+    </div>
   </div>
 </ion-content>

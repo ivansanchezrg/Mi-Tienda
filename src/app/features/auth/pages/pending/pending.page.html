@@ -1,0 +1,37 @@
+<ion-content [fullscreen]="true">
+  <div class="pending-container">
+    <div class="auth-card">
+
+      <div class="pending-icon-wrap">
+        <ion-icon name="time-outline"></ion-icon>
+      </div>
+
+      @if (esNuevo) {
+        <h1>Registro exitoso</h1>
+        <p class="pending-message">
+          Tu cuenta fue creada. Un administrador debe
+          aprobarla antes de que puedas ingresar.
+        </p>
+      } @else {
+        <h1>Aprobación pendiente</h1>
+        <p class="pending-message">
+          Tu solicitud está siendo revisada.<br>
+          Volvé a intentarlo cuando el administrador te dé acceso.
+        </p>
+      }
+
+      <div class="pending-actions">
+        <ion-button expand="block" (click)="reintentar()" [disabled]="verificando">
+          <ion-icon slot="start" name="refresh-outline"></ion-icon>
+          {{ verificando ? 'Verificando...' : 'Verificar estado' }}
+        </ion-button>
+
+        <ion-button expand="block" fill="clear" color="medium" (click)="cerrarSesion()">
+          <ion-icon slot="start" name="log-out-outline"></ion-icon>
+          Salir
+        </ion-button>
+      </div>
+
+    </div>
+  </div>
+</ion-content>

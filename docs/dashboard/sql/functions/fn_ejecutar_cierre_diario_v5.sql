@@ -8,8 +8,19 @@
 -- );
 
 -- ==========================================
--- FUNCIÓN: fn_ejecutar_cierre_diario (v5.0)
+-- FUNCIÓN: fn_ejecutar_cierre_diario (v5.4)
 -- ==========================================
+-- CAMBIOS v5.4 respecto a v5.3:
+--   - Lee pos_habilitado de configuraciones en el paso 3
+--   - Paso 7: ajuste solo si v_pos_habilitado AND v_hubo_movimientos_caja_chica
+--     Antes: solo verificaba movimientos → un ingreso/egreso manual con POS OFF
+--     podía disparar un ajuste incorrecto. Ahora la intención es explícita.
+--   - COALESCE(v_pos_habilitado, TRUE): si la clave no existe en BD, default TRUE
+--
+-- CAMBIOS v5.3 respecto a v5.0:
+--   - Paso 7: verifica v_hubo_movimientos_caja_chica antes de calcular ajuste
+--     (evita ajuste falso cuando no se usa POS)
+--
 -- CAMBIOS v5.0 respecto a v4.9:
 --   - Eliminado: p_efectivo_recaudado, p_saldo_anterior_caja, p_saldo_anterior_caja_chica
 --   - Agregado:  p_efectivo_fisico (conteo físico del empleado en el cajón)
@@ -29,7 +40,7 @@
 --   - Ventas negativas lanzan excepción con mensaje descriptivo
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v5.1
+CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v5.4
   p_turno_id               UUID,
   p_fecha                  DATE,
   p_empleado_id            INTEGER,
@@ -68,6 +79,7 @@ DECLARE
   -- Configuración
   v_fondo_fijo           DECIMAL(12,2);
   v_transferencia_diaria DECIMAL(12,2);
+  v_pos_habilitado       BOOLEAN;
 
   -- Recargas virtuales pendientes
   v_agregado_celular DECIMAL(12,2);
@@ -97,6 +109,9 @@ DECLARE
   v_venta_bus                DECIMAL(12,2);
   v_saldo_final_caja_celular DECIMAL(12,2);
   v_saldo_final_caja_bus     DECIMAL(12,2);
+
+  -- Sin POS ni movimientos manuales en CAJA_CHICA
+  v_hubo_movimientos_caja_chica BOOLEAN := FALSE;
 
   -- IDs generados
   v_recarga_celular_id UUID;
@@ -147,12 +162,16 @@ BEGIN
 
   SELECT
     (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_fondo_fijo_diario'),
-    (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_varios_transferencia_dia')
-  INTO v_fondo_fijo, v_transferencia_diaria;
+    (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_varios_transferencia_dia'),
+    (SELECT valor::BOOLEAN FROM configuraciones WHERE clave = 'pos_habilitado')
+  INTO v_fondo_fijo, v_transferencia_diaria, v_pos_habilitado;
 
   IF v_fondo_fijo IS NULL OR v_transferencia_diaria IS NULL THEN
     RAISE EXCEPTION 'No se encontró configuración del sistema';
   END IF;
+
+  -- pos_habilitado default TRUE si no existe la clave
+  v_pos_habilitado := COALESCE(v_pos_habilitado, TRUE);
 
   -- ==========================================
   -- 4. OBTENER TIMESTAMP DEL ÚLTIMO CIERRE
@@ -199,16 +218,39 @@ BEGIN
   -- ==========================================
   -- 7. AJUSTE POR DIFERENCIA DE CONTEO FÍSICO
   --
-  -- efectivo_esperado = saldo_digital + fondo_fijo
-  --   (el empleado debe tener exactamente esto en el cajón)
-  -- diferencia = p_efectivo_fisico - efectivo_esperado
-  --   > 0 → encontró más de lo esperado  → INGRESO de ajuste (faltó registrar algún ingreso)
-  --   < 0 → encontró menos de lo esperado → EGRESO de ajuste (faltó registrar algún egreso)
-  --   = 0 → conteo exacto, no se necesita ajuste
+  -- Solo aplica si el módulo POS está habilitado Y hubo movimientos reales
+  -- en CAJA_CHICA durante el turno (ventas POS, ingresos o egresos manuales).
+  --
+  -- Dos condiciones independientes:
+  --   a) v_pos_habilitado = FALSE → el cajón no se usó como cajón POS,
+  --      no tiene sentido calcular diferencia ni registrar ajuste.
+  --   b) v_hubo_movimientos_caja_chica = FALSE → aunque POS esté activo,
+  --      si no hubo ningún movimiento el saldo_digital = 0 no es un error,
+  --      el efectivo va directo a distribución sin ajuste.
+  --
+  -- Cuando ambas condiciones se cumplen:
+  --   efectivo_esperado = saldo_digital + fondo_fijo
+  --   diferencia = p_efectivo_fisico - efectivo_esperado
+  --     > 0 → encontró más de lo esperado  → INGRESO de ajuste
+  --     < 0 → encontró menos de lo esperado → EGRESO de ajuste + deuda empleado
+  --     = 0 → conteo exacto, no se necesita ajuste
   -- ==========================================
 
-  v_efectivo_esperado := v_saldo_caja_chica_digital + v_fondo_fijo;
-  v_diferencia        := p_efectivo_fisico - v_efectivo_esperado;
+  -- Verificar si hubo movimientos reales en CAJA_CHICA durante este turno
+  SELECT EXISTS (
+    SELECT 1 FROM operaciones_cajas
+    WHERE caja_id = v_caja_chica_id
+      AND fecha >= (SELECT hora_fecha_apertura FROM turnos_caja WHERE id = p_turno_id)
+  ) INTO v_hubo_movimientos_caja_chica;
+
+  IF v_pos_habilitado AND v_hubo_movimientos_caja_chica THEN
+    v_efectivo_esperado := v_saldo_caja_chica_digital + v_fondo_fijo;
+    v_diferencia        := p_efectivo_fisico - v_efectivo_esperado;
+  ELSE
+    -- POS desactivado o sin movimientos: no hay ajuste, el efectivo va directo a distribución
+    v_efectivo_esperado := p_efectivo_fisico;
+    v_diferencia        := 0;
+  END IF;
 
   IF v_diferencia > 0 THEN
     -- Más físico del esperado → INGRESO de ajuste a CAJA_CHICA
@@ -582,7 +624,10 @@ GRANT EXECUTE ON FUNCTION public.fn_ejecutar_cierre_diario(
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_ejecutar_cierre_diario IS
-'Cierre diario v5.2 — Distribución en cascada "todo o nada" por nivel. '
+'Cierre diario v5.4 — Distribución en cascada "todo o nada" por nivel. '
+'Ajuste de conteo solo si pos_habilitado=true (config) Y hubo movimientos reales en CAJA_CHICA. '
+'Doble condición explícita: módulo activo + uso real. Evita ajuste falso tanto cuando POS está '
+'desactivado como cuando está activo pero no se usó en el turno. '
 'Inserta en deudas_empleados solo cuando efectivo_fisico < efectivo_esperado (faltante de conteo). '
 'El déficit de VARIOS y del fondo son costos operacionales — NO se registran como deuda del empleado. '
 '1° VARIOS recibe si efectivo >= transferencia_diaria completa. '

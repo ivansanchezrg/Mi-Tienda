@@ -1,0 +1,85 @@
+<div class="modal-wrapper">
+
+  <div class="modal-header">
+    <div class="modal-header-icon">
+      <ion-icon name="calculator-outline"></ion-icon>
+    </div>
+    <span class="modal-header-title">Calc. Margen</span>
+    <button class="modal-close-btn" (click)="cerrar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Inputs -->
+  <div class="calc-inputs">
+    <div class="calc-field">
+      <label class="calc-label">Costo ($)</label>
+      <input
+        #costoInput
+        class="calc-input"
+        type="number"
+        inputmode="decimal"
+        placeholder="0.00"
+        [(ngModel)]="costo"
+        (ngModelChange)="onCostoChange()"
+        min="0">
+    </div>
+
+    <div class="calc-field">
+      <label class="calc-label">Precio de venta ($)</label>
+      <input
+        class="calc-input destacado"
+        type="number"
+        inputmode="decimal"
+        placeholder="0.00"
+        [(ngModel)]="precioVenta"
+        (ngModelChange)="onPrecioVentaChange()"
+        min="0">
+    </div>
+  </div>
+
+  <!-- Slider de margen -->
+  <div class="slider-section">
+    <div class="slider-header">
+      <span class="slider-label">Ganancia sobre costo</span>
+      <span class="slider-value" [class]="margenColor">{{ margenPct }}%</span>
+    </div>
+
+    <input
+      class="margen-slider"
+      type="range"
+      min="0"
+      max="100"
+      step="1"
+      [(ngModel)]="margenPct"
+      (ngModelChange)="onSliderChange()">
+
+    <div class="slider-ticks">
+      <span>0%</span>
+      <span>25%</span>
+      <span>50%</span>
+      <span>75%</span>
+      <span>100%</span>
+    </div>
+  </div>
+
+  <!-- Resultado -->
+  @if (costo && precioVenta && precioVenta > 0) {
+  <div class="resultado-card" [class]="margenColor + '-card'">
+    <div class="resultado-row">
+      <span class="resultado-label">Ganancia</span>
+      <span class="resultado-valor">${{ ganancia.toFixed(2) }}</span>
+    </div>
+    <div class="resultado-row">
+      <span class="resultado-label">{{ margenLabel }}</span>
+      <span class="resultado-badge" [class]="margenColor">{{ margenPct }}% margen</span>
+    </div>
+  </div>
+  }
+
+  <!-- Botones -->
+  <div class="modal-actions modal-actions--compact">
+    <ion-button fill="solid" color="success" (click)="limpiar()">Limpiar</ion-button>
+  </div>
+
+</div>
