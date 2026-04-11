@@ -66,9 +66,16 @@
 
       <!-- Badges -->
       <div class="employee-badges">
+        @if (usuario.es_superadmin) {
+        <span class="badge-superadmin">
+          <ion-icon name="shield-checkmark-outline"></ion-icon>
+          Super
+        </span>
+        } @else {
         <span class="badge-rol" [class.admin]="usuario.rol === 'ADMIN'">
           {{ usuario.rol === 'ADMIN' ? 'Admin' : 'Empleado' }}
         </span>
+        }
         @if (!usuario.activo) {
         <span class="badge-inactivo">Inactivo</span>
         }

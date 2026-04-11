@@ -11,7 +11,7 @@ Módulo de autenticación usando Supabase Auth con Google como proveedor OAuth.
 **Archivo:** `core/services/supabase.service.ts` → método `signInWithGoogle()`
 
 - Detecta la plataforma (web o Android) y genera el `redirectUrl` correspondiente
-- Web: `localhost:8100/auth/callback`
+- Web: `${window.location.origin}/auth/callback` (dinámico — funciona en cualquier host/puerto)
 - Android: `ec.mitienda.app://auth/callback` (Deep Link)
 - Llama a `client.auth.signInWithOAuth()` con provider `google`
 - **Nativo:** usa `skipBrowserRedirect: true` y abre la URL manualmente con `Browser.open()` (`@capacitor/browser`) para poder cerrar la pestaña después
@@ -53,7 +53,7 @@ Supabase OAuth en web usa **flujo implícito**: redirige a `/auth/callback#acces
 - Después de establecer sesión (ambas plataformas), llama a `validateAndRedirect()` que ejecuta `AuthService.validarUsuario()` para verificar el estado del usuario en la tabla `usuarios`:
   - **No existe** → auto-registro con `activo: false` + redirige a `/auth/pending?estado=nuevo`
   - **Existe, `activo: false`** → redirige a `/auth/pending` (sin query param)
-  - **Existe, `activo: true`** → guarda en Preferences y redirige a `/home`
+  - **Existe, `activo: true`** → guarda en Preferences, inicia Realtime y redirige a `/home`
 
 > **⚠️ Gotcha crítico — `detectSessionInUrl: false` + flujo implícito web:**
 > La implementación de refresh automático de JWT (sección 7) requiere `detectSessionInUrl: false` para que el SDK no interfiera con el callback. Pero esto tiene un efecto secundario: el SDK tampoco procesa el `#hash` con los tokens OAuth al redirigir. Si el callback solo espera el evento `SIGNED_IN` via `onAuthStateChange`, ese evento nunca llega porque el SDK no sabe que hay tokens en la URL — el spinner queda infinito. **Solución: parsear el hash manualmente con `setSession()`**, igual que se hace en Android.
@@ -63,8 +63,9 @@ Supabase OAuth en web usa **flujo implícito**: redirige a `/auth/callback#acces
 **Archivo:** `features/auth/auth.routes.ts`
 
 ```
-/auth/login     → LoginPage
-/auth/callback  → CallbackPage
+/auth/login     → LoginPage       (publicGuard — redirige a /home si ya hay sesión)
+/auth/callback  → CallbackPage    (sin guard — siempre debe ejecutarse)
+/auth/pending   → PendingPage     (sin guard — lazy loaded)
 ```
 
 Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
@@ -73,24 +74,36 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 
 **Archivo:** `features/auth/services/auth.service.ts`
 
+#### Estado reactivo
+
+- `usuarioActual$: Observable<UsuarioActual | null>` — emite cada vez que el usuario cambia (login, cambio de rol/nombre via Realtime, logout). El sidebar y otros componentes se suscriben para actualizar la UI sin refrescar.
+- `yaValidadoEnEstaSesion: boolean` — flag que indica si `validarUsuario()` ya se ejecutó en esta sesión. Permite que `authGuard` solo valide contra BD en la primera navegación.
+
 #### Métodos de Sesión
 
 - `hasLocalSession()` → verifica si hay sesión guardada en localStorage (sin llamada de red). Útil para soporte offline
 - `getSession()` → retorna la sesión actual de Supabase o null
 - `getUser()` → retorna el usuario actual o null
-- `validarUsuario()` → consulta tabla `usuarios` por email con `.maybeSingle()`. Tres caminos:
+- `validarUsuario()` → consulta tabla `usuarios` por email con `.maybeSingle()` (incluye `es_superadmin`). Tres caminos:
   1. **No existe** → auto-inserta `{ nombre, usuario: email, rol: 'EMPLEADO', activo: false }` y navega a `/auth/pending?estado=nuevo`
   2. **Existe, `activo: false`** → guarda en Preferences y navega a `/auth/pending`
-  3. **Existe, `activo: true`** → guarda en Preferences y retorna `true`
+  3. **Existe, `activo: true`** → guarda en Preferences, inicia Realtime (`iniciarRealtimeUsuario(id)`) y retorna `true`
 - `logout()` → muestra `AlertController` de confirmación, cierra sesión y redirige a `/auth/login`. Para usar **dentro de la app** (sidebar)
 - `logoutSilent()` → cierra sesión directo, sin confirmación. Para usar en pantallas pre-app como `PendingPage`
-- `forceLogout()` → cierra sesión sin confirmación ni loading (uso interno). Limpia sesión local y Preferences
+- `forceLogout()` → **privado**, uso interno. Delega a `SupabaseService.handleExpiredSession()` que centraliza toda la limpieza (sesión, storage, canal Realtime via hook, redirect)
+- `handleUsuarioDesactivado()` → **privado**, se llama desde el listener de Realtime cuando `activo=false`. A diferencia de `handleExpiredSession()`, este método **no cierra la sesión OAuth** (conserva el JWT para que "Reintentar" funcione en `/auth/pending`). Solo cierra el canal Realtime, limpia Preferences y redirige a `/auth/pending`
+
+#### Métodos de Realtime
+
+- `iniciarRealtimeUsuario(id)` → abre canal websocket para escuchar cambios del usuario actual (ver sección 9)
+- `cerrarRealtimeUsuario()` → cierra el canal y resetea flags. Se llama automáticamente via hook `registerBeforeCleanup`
 
 #### Métodos de Usuario Actual (Capacitor Preferences)
 
 **Sistema de caché local para evitar consultas repetidas a la base de datos:**
 
 - `getUsuarioActual()` → Obtiene el usuario actual desde **Capacitor Preferences** (lectura local, instantánea). No hace consultas a la BD. Retorna `null` si no hay usuario guardado.
+- `saveUsuarioActual()` → **privado**. Guarda en Preferences y emite en `_usuarioActual$` (BehaviorSubject). Se llama desde `validarUsuario()` y desde el handler de Realtime UPDATE.
 
 **Modelo `UsuarioActual`:**
 
@@ -102,19 +115,22 @@ export type RolUsuario = 'ADMIN' | 'EMPLEADO';
 export interface UsuarioActual {
   id: number;
   nombre: string;
-  usuario: string;  // Email (coincide con Google account)
+  usuario: string;       // Email (coincide con Google account)
   activo: boolean;
-  rol: RolUsuario;  // 'ADMIN' o 'EMPLEADO'
+  rol: RolUsuario;       // 'ADMIN' o 'EMPLEADO'
+  es_superadmin: boolean; // true = administrador principal, no editable
 }
 ```
 
 **¿Cuándo se guarda automáticamente?**
 
-Al iniciar sesión exitosamente, `validarUsuario()` consulta la tabla `usuarios` UNA SOLA VEZ y guarda los datos en Preferences. A partir de ahí, todos los módulos pueden usar `getUsuarioActual()` sin consultar Supabase.
+- Al iniciar sesión exitosamente (`validarUsuario()` consulta la tabla `usuarios` y guarda)
+- Al recibir un UPDATE via Realtime (rol, nombre, etc.)
 
 **¿Cuándo se limpia automáticamente?**
 
-Al cerrar sesión (tanto `logout()` como `forceLogout()`), se limpian automáticamente las Preferences.
+- Al cerrar sesión (`handleExpiredSession()` limpia localStorage + Preferences)
+- Al ser desactivado (`handleUsuarioDesactivado()` limpia Preferences pero conserva sesión OAuth)
 
 **Ejemplo de uso en otros módulos:**
 
@@ -132,23 +148,16 @@ export class MiPage {
       console.log('ID:', usuario.id);
       console.log('Nombre:', usuario.nombre);
       console.log('Email:', usuario.usuario);
-      console.log('Rol:', usuario.rol); // 'ADMIN' o 'EMPLEADO'
+      console.log('Rol:', usuario.rol);
+      console.log('Superadmin:', usuario.es_superadmin);
     }
   }
 }
 ```
 
-**Ventajas:**
-
-- ⚡ **10x más rápido** - Lectura local vs consulta HTTP a Supabase
-- 📱 **Funciona offline** - Datos guardados en el dispositivo
-- 💾 **Ahorra ancho de banda** - No consulta BD repetidamente
-- 🔋 **Ahorra batería** - Menos operaciones de red
-- 🎯 **Automático** - Se guarda al login, se limpia al logout
-
 ### 7. Gestión de JWT y Refresh de Sesión
 
-**Archivos:** `core/services/supabase.service.ts`, `core/services/ui.service.ts`, `app.component.ts`
+**Archivos:** `core/services/supabase.service.ts`, `app.component.ts`
 
 #### Cómo funciona el SDK de Supabase JS v2 (internals)
 
@@ -187,11 +196,28 @@ Cuando la app va a background (el usuario cambia a otra app, apaga pantalla, etc
 
 ##### Capa 1: Refresh proactivo al volver del background
 
-`app.component.ts` escucha el evento `appStateChange` de Capacitor. Cuando la app vuelve a primer plano (`isActive: true`), llama a `SupabaseService.refreshSessionOnResume()` que fuerza un `client.auth.refreshSession()`. Esto renueva el access token antes de que cualquier query lo use.
+`app.component.ts` escucha el evento `appStateChange` de Capacitor. Cuando la app vuelve a primer plano (`isActive: true`), llama a `SupabaseService.refreshSessionOnResume()`.
 
 ```
 app.component.ts → appStateChange → isActive → supabase.refreshSessionOnResume()
 ```
+
+**Optimizaciones aplicadas para evitar lag al volver del background:**
+
+1. **THROTTLE (30s)** — Si el último refresh fue hace menos de 30 segundos, salir inmediatamente. Android dispara `appStateChange` en ráfagas (desbloqueo, notificaciones, switch rápido entre apps), no tiene sentido refrescar en cada uno.
+
+2. **SKIP TOKEN SANO (>5 min de vida)** — Antes de refrescar, lee `session.expires_at` y calcula cuántos segundos quedan. Si quedan más de 5 minutos, el token está sano → no refrescar. Esto elimina el lag en el 95% de los casos (cuando el usuario vuelve después de poco tiempo). El JWT dura 1 hora, refrescarlo después de 1 minuto de inactividad era un desperdicio.
+
+3. **ANTI-CONCURRENCIA** — Si ya hay un refresh HTTP en curso (`resumeRefreshInFlight`), no dispara otro paralelo. Reutiliza la promesa existente.
+
+| Escenario | Comportamiento |
+|---|---|
+| Vuelvo después de 10 segundos | Skip total — 0 ms de lag |
+| Vuelvo después de 1 minuto | Skip total — token sano |
+| Vuelvo después de 30 minutos | Skip total — token tiene 30 min de vida |
+| Vuelvo después de 56 minutos | Refresh HTTP — token a punto de expirar |
+| Android dispara 5 appStateChange en 10s | 1 solo intento — throttle bloquea los demás |
+| Refresh ya está corriendo + otro evento | Reutiliza la promesa en curso |
 
 ##### Capa 2: Listener global de `onAuthStateChange`
 
@@ -215,29 +241,40 @@ Tanto `AuthService.forceLogout()`, `AuthService.executeLogout()`, el listener de
 
 ```typescript
 async handleExpiredSession(): Promise<void> {
-  // 1. Guard anti-múltiples redirects
+  // 1. Guard anti-múltiples redirects (flag + setTimeout 500ms para cubrir signOut async)
   if (this.redirectingToLogin) return;
   this.redirectingToLogin = true;
 
-  // 2. signOut en Supabase (ignora errores si no hay red)
-  this.client.auth.signOut().catch(() => {});
+  // 2. Hook pre-cleanup (ej: cerrar canal de Realtime del usuario)
+  if (this.onBeforeSessionCleanup) {
+    try { await this.onBeforeSessionCleanup(); }
+    catch (err) { /* log error */ }
+  }
 
-  // 3. Limpiar localStorage (tokens) y Preferences (usuario cacheado)
+  // 3. Limpiar storage local ANTES de signOut (evita race conditions)
   localStorage.removeItem(this.STORAGE_KEY);
   await Preferences.remove({ key: 'usuario_actual' });
 
-  // 4. Redirigir al login (replaceUrl evita botón Atrás)
+  // 4. signOut en Supabase (fire-and-forget, emitirá SIGNED_OUT pero
+  //    el listener verifica currentUrl.startsWith('/auth') y no re-ejecuta)
+  this.client.auth.signOut().catch(() => {});
+
+  // 5. Redirigir al login (replaceUrl evita botón Atrás)
   await this.router.navigate(['/auth/login'], { replaceUrl: true });
-  this.redirectingToLogin = false;
+
+  // 6. Resetear flag con delay (el SIGNED_OUT de signOut llega async)
+  setTimeout(() => { this.redirectingToLogin = false; }, 500);
 }
 ```
+
+**Protección contra doble ejecución:** `signOut()` emite `SIGNED_OUT` asíncronamente via `onAuthStateChange`. Sin protección, el listener re-ejecutaría `handleExpiredSession()`. Se evita con dos capas: (1) el listener verifica `currentUrl.startsWith('/auth')` — como ya navegamos a `/auth/login`, no re-entra; (2) el flag `redirectingToLogin` se mantiene `true` por 500ms extras después del navigate para cubrir el delay del evento.
 
 #### Comportamiento del usuario
 
 | Escenario | Qué pasa | El usuario ve |
 |---|---|---|
-| App en background <1h | Access token aún válido | Nada, todo funciona normal |
-| App en background >1h, <30 días | `refreshSessionOnResume()` renueva el token | Nada, transparente |
+| App en background <55 min | Token sano, `refreshSessionOnResume()` hace skip | Nada, cero lag al volver |
+| App en background >55 min, <30 días | `refreshSessionOnResume()` renueva el token | Breve pausa (~500ms) mientras renueva |
 | App cerrada >30 días | Refresh token expiró → SDK emite `SIGNED_OUT` | Toast "Sesión expirada" + redirect a login |
 | Query falla con JWT expired | `call()` detecta y limpia | Toast "Sesión expirada" + redirect a login |
 | Sin internet + sesión local | `authGuard` permite acceso offline | Toast "Sin conexión a internet" |
@@ -253,16 +290,30 @@ App vuelve del background
   │
   ├─ appStateChange(isActive: true)
   │    └─ refreshSessionOnResume()
-  │         ├─ OK → token renovado, queries funcionan
-  │         └─ Error → SDK emite SIGNED_OUT
-  │                     └─ Listener → handleExpiredSession() → login
+  │         ├─ Throttle 30s → skip (si último refresh fue reciente)
+  │         ├─ Token sano (>5 min) → skip (sin lag)
+  │         ├─ Token por expirar (<5 min) → refresh HTTP
+  │         │    ├─ OK → token renovado, queries funcionan
+  │         │    └─ Error → SDK emite SIGNED_OUT
+  │         │                └─ Listener → handleExpiredSession() → login
+  │         └─ Refresh ya en curso → reutiliza promesa existente
   │
   ├─ Primera query después de resume
   │    ├─ OK → flujo normal
   │    └─ JWT expired → call() → handleExpiredSession() → login
   │
+  ├─ Realtime: admin desactiva al usuario (UPDATE activo=false)
+  │    └─ handleUsuarioDesactivado() → cerrar canal + limpiar Preferences → /auth/pending
+  │       (sesión OAuth intacta — usuario puede tocar "Reintentar")
+  │
+  ├─ Realtime: admin cambia rol/nombre del usuario (UPDATE otros campos)
+  │    └─ saveUsuarioActual() → emite en usuarioActual$ → sidebar se actualiza en vivo
+  │
+  ├─ Realtime: admin elimina al usuario (DELETE)
+  │    └─ handleExpiredSession() → hook cierra canal → signOut → /auth/login
+  │
   └─ Logout manual del usuario
-       └─ AuthService.logout() → handleExpiredSession() → login
+       └─ AuthService.logout() → handleExpiredSession() → hook cierra canal → login
 ```
 
 ### 8. Guards (protección de rutas)
@@ -273,20 +324,24 @@ App vuelve del background
 
 Protege el layout principal. Aplicado en `app.routes.ts`.
 
-**Comportamiento con soporte offline:**
-- **Con internet:** Valida sesión con Supabase normalmente
-- **Sin internet + sesión local:** Permite acceso + muestra toast "Sin conexión a internet"
-- **Sin internet + sin sesión:** Redirige a `/auth/login`
+**Comportamiento con soporte offline + validación por sesión:**
 
-En ambos caminos (online y offline), si hay sesión pero `usuario.activo === false`, redirige a `/auth/pending` (sin query param — el usuario ya fue registrado antes).
+| Escenario | Comportamiento |
+|---|---|
+| Online + sesión + primera navegación | `validarUsuario()` consulta BD, inicia Realtime, guarda en Preferences |
+| Online + sesión + navegaciones siguientes | Skip — confía en cache + Realtime (cero queries extra) |
+| Online + sesión + usuario inactivo en BD | `validarUsuario()` redirige a `/auth/pending` |
+| Offline + sesión local + usuario activo | Permite acceso + toast "Sin conexión" |
+| Offline + sesión local + usuario inactivo | Redirige a `/auth/pending` (lee Preferences) |
+| Offline + sin sesión | Redirige a `/auth/login` |
 
-Usa `AuthService.hasLocalSession()` para verificar sesión guardada en localStorage sin hacer llamadas de red. Esto evita que la app se quede en pantalla blanca cuando no hay internet.
+Usa `AuthService.hasLocalSession()` para verificar sesión guardada en localStorage sin hacer llamadas de red. Usa `AuthService.yaValidadoEnEstaSesion` para evitar consultas BD repetidas.
 
 #### publicGuard (rutas públicas)
 
 Protege el login. Con sesión activa → redirige a `/home`. Aplicado en `auth.routes.ts`.
 
-- **Importante:** `publicGuard` NO se aplica a `/auth/callback` para que el callback siempre se ejecute y valide al usuario
+- **Importante:** `publicGuard` NO se aplica a `/auth/callback` ni `/auth/pending` para que siempre se ejecuten correctamente
 
 #### roleGuard (rutas por rol)
 
@@ -326,7 +381,7 @@ Protege rutas que requieren un rol específico. Lee el rol desde `getUsuarioActu
 | Usuarios | ❌ | ✅ |
 | Configuración | ❌ | ✅ |
 
-### 9. Realtime — detección de usuario desactivado/eliminado en vivo
+### 9. Realtime — detección de usuario desactivado/eliminado/modificado en vivo
 
 **Problema que resuelve:** un usuario logueado puede seguir operando indefinidamente si el admin lo desactiva o elimina directamente en BD. El JWT sigue siendo válido hasta expirar (1h), y `validarUsuario()` solo se llama al hacer login. Sin Realtime, la única protección es esperar a que el JWT expire o a que el usuario cierre y vuelva a abrir la app.
 
@@ -336,11 +391,13 @@ Protege rutas que requieren un rol específico. Lee el rol desde `getUsuarioActu
 
 - Se abre **una sola conexión websocket** por sesión (canal `usuario-activo-{id}`)
 - Filtra solo el registro del usuario actual: `filter: 'id=eq.{id}'`
-- Escucha dos eventos:
-  - **`UPDATE`** con `activo=false` → `logoutSilent()` + redirige a `/auth/pending`
-  - **`DELETE`** → `forceLogout()` + redirige a `/auth/login`
-- El canal se **cierra en `handleExpiredSession()`** para no dejar websockets huérfanos al hacer logout
+- Escucha dos eventos con **comportamiento diferente** según el caso:
+  - **`UPDATE`** con `activo=false` → `handleUsuarioDesactivado()` → cierra canal + limpia Preferences + redirige a `/auth/pending`. **NO cierra la sesión OAuth** (el usuario puede tocar "Reintentar" si lo reactivan sin necesidad de hacer login de nuevo)
+  - **`UPDATE`** con otros cambios (rol, nombre, `es_superadmin`) → `saveUsuarioActual()` → emite en `usuarioActual$` → sidebar y UI se actualizan en vivo. Usa `NgZone.run()` para que Angular detecte el cambio.
+  - **`DELETE`** → `handleExpiredSession()` → cierra sesión completa + redirige a `/auth/login` (no hay usuario que validar, el registro ya no existe)
+- El canal se **cierra automáticamente** ante cualquier tipo de logout/expiración via el hook `registerBeforeCleanup` de `SupabaseService`. Esto garantiza cero websockets huérfanos sin importar la causa del cierre de sesión.
 - Se inicia en `iniciarRealtimeUsuario(id)` — llamado desde `validarUsuario()` justo después de guardar el usuario en Preferences
+- Es **idempotente**: si ya hay un canal abierto para el mismo usuario, no abre otro. Si hay un canal para otro usuario (cambio de cuenta), lo cierra primero.
 
 #### Diferencia clave vs `configuraciones`
 
@@ -349,7 +406,7 @@ Protege rutas que requieren un rol específico. Lee el rol desde `getUsuarioActu
 | Canal | `config-changes` (global) | `usuario-activo-{id}` (por usuario) |
 | Filtro | `clave=eq.pos_habilitado` | `id=eq.{id}` |
 | Eventos | `UPDATE` | `UPDATE` + `DELETE` |
-| Al recibir | Emite en `posHabilitado$` | Redirige según caso |
+| Al recibir UPDATE | Emite en `posHabilitado$` | Desactivado → pending / Otros → actualiza cache + UI |
 | Se cierra | Nunca (singleton) | Al hacer logout |
 
 #### Política RLS requerida en BD
@@ -368,27 +425,62 @@ ON usuarios FOR SELECT TO authenticated
 USING (usuario = (auth.jwt() ->> 'email'));
 ```
 
+#### Hook `registerBeforeCleanup` — cómo se cierra el canal sin dependencias circulares
+
+`SupabaseService` no puede importar `AuthService` directamente (dependencia circular). Para cerrar el canal al expirar la sesión, `AuthService` registra un hook genérico en su constructor:
+
+```typescript
+// AuthService constructor
+this.supabase.registerBeforeCleanup(() => this.cerrarRealtimeUsuario());
+```
+
+`handleExpiredSession()` ejecuta este hook antes de limpiar la sesión. Así el canal siempre se cierra sin importar quién disparó el logout (SDK, guard, `call()`, logout manual, Realtime DELETE).
+
 #### Cobertura de escenarios
 
 | Escenario | Sin Realtime | Con Realtime |
 |---|---|---|
-| Admin desactiva usuario logueado | Sigue operando hasta cerrar app | Redirige a `/auth/pending` en segundos |
-| Admin elimina usuario logueado | Sigue operando hasta que JWT expire (1h) | Redirige a `/auth/login` en segundos |
+| Admin desactiva usuario logueado | Sigue operando hasta cerrar app | Redirige a `/auth/pending` en segundos (conserva sesión para "Reintentar") |
+| Admin elimina usuario logueado | Sigue operando hasta que JWT expire (1h) | Redirige a `/auth/login` en segundos (sesión cerrada completa) |
+| Admin cambia rol del usuario | No se entera hasta cerrar app | Sidebar y menú se actualizan en vivo |
+| Admin cambia nombre del usuario | No se entera hasta cerrar app | Sidebar muestra el nombre nuevo en vivo |
+| Admin reactiva usuario tras desactivarlo | Debe cerrar y abrir la app | Puede tocar "Reintentar" en `/auth/pending` sin re-autenticarse |
 | App sin internet al momento del evento | — | Evento se entrega al reconectarse (Supabase encola) |
-| Usuario hace logout manual | — | Canal cerrado, no queda websocket abierto |
+| Usuario hace logout manual | — | Canal cerrado via hook `registerBeforeCleanup` |
+| JWT expira (>1h background) | — | Canal cerrado via hook cuando `handleExpiredSession()` se ejecuta |
+| Doble llamada a `iniciarRealtimeUsuario()` | — | Idempotente: si el canal ya existe para ese ID, no abre otro |
+| Realtime falla al suscribirse | — | Log de error, el usuario entra normal — las capas JWT siguen como red de seguridad |
 
-> **Estado:** pendiente de implementar en `AuthService`. El SQL de setup ya está listo en `docs/auth/sql/setup/realtime_usuarios.sql`.
-
-### 10. Sidebar con datos reales del usuario
+### 10. Sidebar con datos reactivos del usuario
 
 **Archivo:** `shared/components/sidebar/sidebar.component.ts`
 
 - En `ngOnInit()` obtiene el usuario via `AuthService.getUsuarioActual()` (Preferences, sin consulta a BD)
+- Se suscribe a `AuthService.usuarioActual$` (BehaviorSubject) para recibir cambios en tiempo real
+- Cuando Realtime envía un UPDATE (cambio de rol, nombre, etc.), el sidebar se actualiza automáticamente sin refrescar
 - Muestra `nombre`, `usuario` (email) y `rol` del usuario logueado
 - El rol se muestra como "Administrador" o "Empleado" (legible)
-- **Filtra los items del menú según el rol:** ADMIN ve "Usuarios" y "Configuración"; EMPLEADO no los ve
-- Los items con `soloAdmin: true` solo aparecen si `empleadoRol === 'ADMIN'`
+- **Filtra los items del menú según el rol:** ADMIN ve "Usuarios" y "Configuración"; EMPLEADO no los ve. El menú se recalcula cada vez que el rol cambia via Realtime.
 - Logout llama a `AuthService.logout()`
+- La suscripción se limpia en `ngOnDestroy()` para evitar memory leaks
+
+### 11. Superadmin (`es_superadmin`)
+
+**Columna en BD:** `es_superadmin BOOLEAN DEFAULT FALSE` en tabla `usuarios`
+
+Marca a un usuario como el administrador principal del sistema. Solo puede haber uno (el primer usuario insertado en `schema.sql`).
+
+**Protecciones implementadas:**
+
+| Capa | Protección |
+|---|---|
+| UI — editar-usuario-modal | Banner "Administrador principal". Campos de rol y estado deshabilitados visualmente + click guards |
+| Lógica — editar-usuario-modal | El DTO solo envía `nombre` para superadmin (nunca `rol` ni `activo`) |
+| UI — listado usuarios | Badge "Super" con icono escudo (reemplaza badge de rol normal) |
+| Realtime | El handler de UPDATE incluye `es_superadmin` en el modelo actualizado |
+| Cache | `UsuarioActual` y `Usuario` incluyen `es_superadmin: boolean` |
+
+**Misma protección se aplica cuando un usuario edita su propio perfil** (`esMismoUsuario`): no puede cambiar su rol ni desactivarse.
 
 ---
 
@@ -396,20 +488,19 @@ USING (usuario = (auth.jwt() ->> 'email'));
 
 | Archivo | Qué tiene |
 |---|---|
-| `core/services/supabase.service.ts` | `signInWithGoogle()`, `pendingDeepLinkUrl`, listener global de auth, `handleExpiredSession()`, `refreshSessionOnResume()`, detección JWT en `call()` |
-| `core/services/ui.service.ts` | `formatErrorMessage()` (convierte errores técnicos a mensajes amigables) |
-| `core/guards/auth.guard.ts` | Guard para rutas privadas (autenticación + offline fallback) |
+| `core/services/supabase.service.ts` | `signInWithGoogle()`, `pendingDeepLinkUrl`, listener global de auth, `handleExpiredSession()` (con hook `registerBeforeCleanup` + protección anti-doble-ejecución), `refreshSessionOnResume()` (con throttle 30s + skip token sano + anti-concurrencia), detección JWT en `call()` |
+| `core/guards/auth.guard.ts` | Guard para rutas privadas (autenticación + offline fallback + validación por sesión con `yaValidadoEnEstaSesion`) |
 | `core/guards/public.guard.ts` | Guard para rutas públicas (evita login si ya hay sesión) |
 | `core/guards/role.guard.ts` | Guard para rutas por rol (`roleGuard(['ADMIN'])`) |
 | `app.component.ts` | `setupDeepLinkListener()` (deep links Android) + `setupResumeListener()` (refresh on resume) |
 | `app.routes.ts` | `authGuard` aplicado a layout |
-| `features/auth/models/usuario_actual.model.ts` | `UsuarioActual`, `RolUsuario` |
+| `features/auth/models/usuario_actual.model.ts` | `UsuarioActual` (con `es_superadmin`), `RolUsuario` |
 | `features/auth/pages/login/login.page.ts` | UI de login + botón Google con spinner inline + `ChangeDetectorRef` para forzar render antes del OAuth |
 | `features/auth/pages/callback/callback.page.ts` | Procesa tokens web y Android, llama `validarUsuario()` |
-| `features/auth/pages/pending/pending.page.ts` | Pantalla de cuenta pendiente — dos estados: `?estado=nuevo` (primer registro) vs sin param (ya registrado, sin aprobación) |
-| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (con auto-registro), `logout()`, `logoutSilent()`, **`getUsuarioActual()`** (Preferences) |
-| `features/auth/auth.routes.ts` | Rutas `/auth/login` (con `publicGuard`), `/auth/callback` (sin guard), `/auth/pending` (sin guard) |
-| `shared/components/sidebar/sidebar.component.ts` | Muestra datos del usuario, filtra items por rol, logout |
+| `features/auth/pages/pending/pending.page.ts` | Pantalla de cuenta pendiente — dos estados: `?estado=nuevo` (primer registro) vs sin param (ya registrado, sin aprobación). Botón "Reintentar" llama `validarUsuario()`, botón "Salir" llama `logoutSilent()` |
+| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (auto-registro + inicia Realtime), `logout()`, `logoutSilent()`, `iniciarRealtimeUsuario()`, `cerrarRealtimeUsuario()`, `handleUsuarioDesactivado()`, `getUsuarioActual()` (Preferences), `usuarioActual$` (BehaviorSubject reactivo) |
+| `features/auth/auth.routes.ts` | Rutas `/auth/login` (con `publicGuard`), `/auth/callback` (sin guard), `/auth/pending` (lazy loaded, sin guard) |
+| `shared/components/sidebar/sidebar.component.ts` | Muestra datos del usuario, filtra items por rol, suscripción reactiva a `usuarioActual$`, logout |
 | `docs/auth/sql/setup/realtime_usuarios.sql` | Script SQL para habilitar Realtime en tabla `usuarios` + política RLS (ejecutar 1 vez en Supabase) |
 
 ---

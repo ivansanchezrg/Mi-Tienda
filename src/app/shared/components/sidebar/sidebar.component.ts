@@ -107,6 +107,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
   // Grupos filtrados según el rol del usuario
   menuGroups: MenuGroup[] = [];
   private posSub!: Subscription;
+  private usuarioSub!: Subscription;
+  private posHabilitado = false;
 
   constructor() {
     addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline });
@@ -122,30 +124,45 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.nombreNegocio = nombreNegocio;
 
     if (usuario) {
-      this.empleadoNombre = usuario.nombre;
-      this.empleadoEmail = usuario.usuario;
-      this.empleadoRol = usuario.rol;
-      this.empleadoId = usuario.id ?? null;
+      this.aplicarDatosUsuario(usuario);
     }
 
-    this.recalcularMenu(config.pos_habilitado);
+    this.posHabilitado = config.pos_habilitado;
+    this.recalcularMenu();
 
     this.posSub = this.configService.posHabilitado$.subscribe(pos => {
-      this.recalcularMenu(pos);
+      this.posHabilitado = pos;
+      this.recalcularMenu();
+    });
+
+    // Realtime: actualizar sidebar cuando el admin cambia rol, nombre, etc.
+    this.usuarioSub = this.authService.usuarioActual$.subscribe(usr => {
+      if (usr) {
+        this.aplicarDatosUsuario(usr);
+        this.recalcularMenu();
+      }
     });
   }
 
   ngOnDestroy() {
     this.posSub?.unsubscribe();
+    this.usuarioSub?.unsubscribe();
   }
 
-  private recalcularMenu(posHabilitado: boolean) {
+  private aplicarDatosUsuario(usuario: { id?: number; nombre: string; usuario: string; rol: RolUsuario }) {
+    this.empleadoNombre = usuario.nombre;
+    this.empleadoEmail = usuario.usuario;
+    this.empleadoRol = usuario.rol;
+    this.empleadoId = usuario.id ?? null;
+  }
+
+  private recalcularMenu() {
     this.menuGroups = this.todosLosGrupos
       .map(group => ({
         ...group,
         items: group.items.filter(item =>
           (!item.soloAdmin || this.empleadoRol === 'ADMIN') &&
-          (!item.soloPos   || posHabilitado)
+          (!item.soloPos   || this.posHabilitado)
         )
       }))
       .filter(group => group.items.length > 0);

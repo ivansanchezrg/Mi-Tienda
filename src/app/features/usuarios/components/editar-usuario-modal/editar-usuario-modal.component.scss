@@ -19,7 +19,26 @@ ion-content {
   gap: 14px;
 }
 
-// ── Aviso propio perfil ───────────────────────────────────────────────────────
+// ── Avisos ────────────────────────────────────────────────────────────────────
+
+.aviso-superadmin {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(var(--ion-color-primary-rgb), 0.08);
+  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.35);
+  border-radius: 12px;
+  color: var(--ion-color-primary-shade);
+  font-size: 13px;
+  line-height: 1.4;
+
+  ion-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+}
 
 .aviso-propio {
   display: flex;
@@ -81,6 +100,11 @@ ion-content {
   display: flex;
   flex-direction: column;
   gap: 7px;
+
+  &.disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
 }
 
 .input-label {
