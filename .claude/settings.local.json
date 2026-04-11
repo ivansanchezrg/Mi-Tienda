@@ -103,7 +103,22 @@
       "Bash(grep -A5 -B5 \"split-pane-main\\\\|SPLIT_PANE_MAIN\" node_modules/@ionic/core/dist/esm/ion-split-pane*.js)",
       "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/recargas-virtuales -name *.routes.ts -o -name *routes.ts)",
       "Bash(del \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\theme\\\\custom\\\\desktop.scss\")",
-      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/src/app -name *.ts -path */auth/* -o -name *.html -path */auth/*)"
+      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/src/app -name *.ts -path */auth/* -o -name *.html -path */auth/*)",
+      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda -name *main-layout* -o -name layout.routes.ts)",
+      "Bash(npx capacitor-assets:*)",
+      "Bash(npx cap:*)",
+      "Bash(cp mipmap-ldpi/ic_launcher.png mipmap-ldpi/ic_launcher_foreground.png)",
+      "Bash(cp mipmap-mdpi/ic_launcher.png mipmap-mdpi/ic_launcher_foreground.png)",
+      "Bash(cp mipmap-hdpi/ic_launcher.png mipmap-hdpi/ic_launcher_foreground.png)",
+      "Bash(cp mipmap-xhdpi/ic_launcher.png mipmap-xhdpi/ic_launcher_foreground.png)",
+      "Bash(cp mipmap-xxhdpi/ic_launcher.png mipmap-xxhdpi/ic_launcher_foreground.png)",
+      "Bash(cp mipmap-xxxhdpi/ic_launcher.png mipmap-xxxhdpi/ic_launcher_foreground.png)",
+      "Bash(__NEW_LINE_f731eb8be5994bea__ SRC=\"c:/Users/ivan/Desktop/Proyectos/mi-tienda/assets/IconKitchen-Output/android/res\")",
+      "Bash(DST=\"c:/Users/ivan/Desktop/Proyectos/mi-tienda/android/app/src/main/res\")",
+      "Bash(__NEW_LINE_f731eb8be5994bea__ for:*)",
+      "Bash(do)",
+      "Bash(cp \"$SRC/$density/ic_launcher.png\" \"$DST/$density/ic_launcher.png\")",
+      "Bash(find c:UsersivanDesktopProyectosmi-tiendaandroidappsrcmainjava -name *.java -o -name *.kt)"
     ]
   },
   "disableAllHooks": true

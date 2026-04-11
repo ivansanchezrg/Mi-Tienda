@@ -1,12 +1,15 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, inject } from '@angular/core';
 import { IonIcon, IonLabel } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { lockClosedOutline, barcodeOutline, receiptOutline } from 'ionicons/icons';
+import { UiService } from '@core/services/ui.service';
 
 /**
- * Placeholder para tabs deshabilitadas por configuración.
- * Muestra el ícono + label con candado superpuesto.
- * Uso: reemplaza <ion-tab-button> cuando la feature está OFF.
+ * Placeholder para tabs deshabilitadas por estado del sistema (ej: POS sin
+ * caja abierta). Muestra el icono + label con candado superpuesto. Al hacer
+ * click muestra un toast explicativo en lugar de navegar.
+ *
+ * Uso: reemplaza <ion-tab-button> cuando la feature esta OFF.
  *
  * IMPORTANTE: icon debe ser un objeto de ionicons (no un string)
  * para evitar el bug de tree-shaking en Android.
@@ -15,7 +18,7 @@ import { lockClosedOutline, barcodeOutline, receiptOutline } from 'ionicons/icon
 @Component({
   selector: 'app-disabled-tab',
   template: `
-    <div class="disabled-tab-btn">
+    <div class="disabled-tab-btn" (click)="onClick()">
       <div class="icon-wrapper">
         <ion-icon [icon]="icon" class="feature-icon"></ion-icon>
         <div class="lock-badge">
@@ -39,11 +42,10 @@ import { lockClosedOutline, barcodeOutline, receiptOutline } from 'ionicons/icon
       align-items: center;
       justify-content: center;
       gap: 3px;
-      cursor: not-allowed;
+      cursor: pointer;
       user-select: none;
       width: 100%;
       padding: 4px 0;
-      pointer-events: none;
     }
 
     .icon-wrapper {
@@ -87,8 +89,16 @@ import { lockClosedOutline, barcodeOutline, receiptOutline } from 'ionicons/icon
 export class DisabledTabComponent {
   @Input() icon!: unknown;  // objeto ionicon, no string
   @Input() label!: string;
+  /** Mensaje que se muestra al hacer click. Default: mensaje generico del POS. */
+  @Input() disabledMessage = 'Abri la caja desde Inicio para usar el POS';
+
+  private ui = inject(UiService);
 
   constructor() {
     addIcons({ lockClosedOutline, barcodeOutline, receiptOutline });
+  }
+
+  async onClick() {
+    await this.ui.showToast(this.disabledMessage, 'warning');
   }
 }

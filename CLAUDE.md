@@ -724,3 +724,4 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Schema BD           | `docs/schema.sql`                                          |
 | Configuracion       | `docs/configuracion/CONFIGURACION-README.md`               |
 | Arquitectura cajas  | `docs/ARQUITECTURA.md`                                     |
+| App icon & splash   | `docs/assets/ASSETS-README.md`                             |

@@ -41,16 +41,19 @@ export class SupabaseService {
   private resumeRefreshInFlight: Promise<void> | null = null;
 
   /**
-   * Hook opcional que se ejecuta antes de limpiar la sesión en handleExpiredSession().
-   * Permite que otros servicios (ej: AuthService) cierren recursos propios (canales
-   * de Realtime, subscriptions, etc.) sin crear dependencias circulares.
-   * Registrado desde AuthService en su constructor.
+   * Hooks que se ejecutan antes de limpiar la sesión en handleExpiredSession().
+   * Permite que otros servicios (AuthService, TurnosCajaService, etc.) cierren
+   * recursos propios (canales de Realtime, subscriptions) sin crear dependencias
+   * circulares. Cada servicio registra su callback en su constructor.
+   *
+   * Es un array (no un solo callback) porque varios servicios necesitan
+   * engancharse al mismo punto de cleanup.
    */
-  private onBeforeSessionCleanup: (() => Promise<void> | void) | null = null;
+  private beforeCleanupListeners: Array<() => Promise<void> | void> = [];
 
   /** Registra un callback que se ejecutará antes de limpiar la sesión. */
   registerBeforeCleanup(fn: () => Promise<void> | void): void {
-    this.onBeforeSessionCleanup = fn;
+    this.beforeCleanupListeners.push(fn);
   }
 
   constructor() {
@@ -200,13 +203,18 @@ export class SupabaseService {
 
     this.logger.warn('SupabaseService', 'Sesión expirada — limpiando y redirigiendo al login');
 
-    // Hook pre-cleanup (ej: cerrar canal de Realtime del usuario)
-    if (this.onBeforeSessionCleanup) {
-      try {
-        await this.onBeforeSessionCleanup();
-      } catch (err) {
-        this.logger.error('SupabaseService', 'Error en onBeforeSessionCleanup', err);
-      }
+    // Hooks pre-cleanup (ej: cerrar canales de Realtime de usuario y turnos).
+    // Se ejecutan en paralelo porque son independientes entre si.
+    if (this.beforeCleanupListeners.length > 0) {
+      await Promise.all(
+        this.beforeCleanupListeners.map(async (fn) => {
+          try {
+            await fn();
+          } catch (err) {
+            this.logger.error('SupabaseService', 'Error en beforeCleanup listener', err);
+          }
+        })
+      );
     }
 
     // Limpiar storage local ANTES de signOut para evitar race conditions

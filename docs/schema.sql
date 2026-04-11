@@ -552,7 +552,6 @@ INSERT INTO configuraciones (clave, valor) VALUES
 ('caja_varios_transferencia_dia', '20.00'),
 ('bus_alerta_saldo_bajo',         '75.00'),
 ('bus_dias_antes_facturacion',    '3'),
-('pos_habilitado',                'true'),
 ('pos_descuentos_habilitados',    'false'),
 ('pos_descuento_maximo_pct',      '10'),
 ('pos_umbral_monto_descuento',    '50.00'),

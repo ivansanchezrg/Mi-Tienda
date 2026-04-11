@@ -129,21 +129,6 @@
           <span>POS</span>
         </div>
 
-        <div class="input-group" [class.last]="!form.value.pos_habilitado">
-          <label class="toggle-row">
-            <span class="input-label">{{ form.value.pos_habilitado ? 'Módulo POS activo' : 'Módulo POS desactivado' }}</span>
-            <label class="toggle-switch">
-              <input type="checkbox" formControlName="pos_habilitado">
-              <span class="toggle-track"></span>
-            </label>
-          </label>
-          @if (!form.value.pos_habilitado) {
-          <span class="input-hint pos-disabled-hint">Oculta el POS, Ventas, la Caja Chica en inicio y los ingresos/egresos manuales del turno</span>
-          }
-        </div>
-
-        @if (form.value.pos_habilitado) {
-
         <div class="input-group">
           <label class="toggle-row">
             <span class="input-label">Descuentos automáticos</span>
@@ -186,8 +171,6 @@
           </div>
           <span class="input-hint">Tasa de IVA para facturas (actualmente 15% en Ecuador). Cambiar solo si el SRI actualiza la tarifa.</span>
         </div>
-
-        }
 
         @if (tieneCambios['pos']) {
         <div id="footer-pos" class="section-footer">

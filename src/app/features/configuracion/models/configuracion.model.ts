@@ -12,7 +12,6 @@ export interface Configuracion {
     caja_varios_transferencia_dia: number;
     bus_alerta_saldo_bajo: number;
     bus_dias_antes_facturacion: number;
-    pos_habilitado: boolean;
     pos_descuentos_habilitados: boolean;
     pos_descuento_maximo_pct: number;
     pos_umbral_monto_descuento: number;
@@ -30,7 +29,6 @@ export const CONFIGURACION_DEFAULTS: Configuracion = {
     caja_varios_transferencia_dia: 20,
     bus_alerta_saldo_bajo: 75,
     bus_dias_antes_facturacion: 3,
-    pos_habilitado: true,
     pos_descuentos_habilitados: false,
     pos_descuento_maximo_pct: 10,
     pos_umbral_monto_descuento: 50,
@@ -51,7 +49,6 @@ export function mapRowsToConfig(rows: ConfiguracionRow[]): Configuracion {
         caja_varios_transferencia_dia: Number(map.get('caja_varios_transferencia_dia')) || D.caja_varios_transferencia_dia,
         bus_alerta_saldo_bajo:         Number(map.get('bus_alerta_saldo_bajo'))         || D.bus_alerta_saldo_bajo,
         bus_dias_antes_facturacion:    Number(map.get('bus_dias_antes_facturacion'))    || D.bus_dias_antes_facturacion,
-        pos_habilitado:                map.has('pos_habilitado') ? map.get('pos_habilitado') === 'true' : D.pos_habilitado,
         pos_descuentos_habilitados:    map.get('pos_descuentos_habilitados') === 'true',
         pos_descuento_maximo_pct:      Number(map.get('pos_descuento_maximo_pct'))      || D.pos_descuento_maximo_pct,
         pos_umbral_monto_descuento:    Number(map.get('pos_umbral_monto_descuento'))    || D.pos_umbral_monto_descuento,

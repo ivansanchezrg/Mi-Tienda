@@ -17,7 +17,7 @@ const CAMPOS_POR_SECCION: Record<Seccion, string[]> = {
   negocio: ['negocio_nombre'],
   caja:    ['caja_fondo_fijo_diario', 'caja_varios_transferencia_dia'],
   bus:     ['bus_alerta_saldo_bajo', 'bus_dias_antes_facturacion'],
-  pos:     ['pos_habilitado', 'pos_descuentos_habilitados', 'pos_descuento_maximo_pct', 'pos_umbral_monto_descuento', 'pos_iva_porcentaje'],
+  pos:     ['pos_descuentos_habilitados', 'pos_descuento_maximo_pct', 'pos_umbral_monto_descuento', 'pos_iva_porcentaje'],
 };
 
 const MENSAJES_SECCION: Record<Seccion, string> = {
@@ -69,7 +69,6 @@ export class ParametrosPage implements OnInit, OnDestroy {
       caja_varios_transferencia_dia:[null, [Validators.required, Validators.min(0)]],
       bus_alerta_saldo_bajo:        [null, [Validators.required, Validators.min(0)]],
       bus_dias_antes_facturacion:   [null, [Validators.required, Validators.min(1)]],
-      pos_habilitado:               [true],
       pos_descuentos_habilitados:   [false],
       pos_descuento_maximo_pct:     [null, [Validators.required, Validators.min(0), Validators.max(100)]],
       pos_umbral_monto_descuento:   [null, [Validators.required, Validators.min(0)]],
@@ -141,7 +140,6 @@ export class ParametrosPage implements OnInit, OnDestroy {
           caja_varios_transferencia_dia: config.caja_varios_transferencia_dia,
           bus_alerta_saldo_bajo:         config.bus_alerta_saldo_bajo,
           bus_dias_antes_facturacion:    config.bus_dias_antes_facturacion,
-          pos_habilitado:                config.pos_habilitado,
           pos_descuentos_habilitados:    config.pos_descuentos_habilitados,
           pos_descuento_maximo_pct:      config.pos_descuento_maximo_pct,
           pos_umbral_monto_descuento:    config.pos_umbral_monto_descuento,
@@ -178,9 +176,6 @@ export class ParametrosPage implements OnInit, OnDestroy {
       const ok = await this.configuracionService.update(valores, MENSAJES_SECCION[seccion]);
       if (ok) {
         this.configService.invalidar();
-        if (seccion === 'pos') {
-          this.configService.actualizarPosHabilitado(!!this.form.value.pos_habilitado);
-        }
         this.form.patchValue(valores, { emitEvent: false });
         this.savedValues[seccion] = this.snapshotSeccion(seccion);
         this.tieneCambios = { ...this.tieneCambios, [seccion]: false };

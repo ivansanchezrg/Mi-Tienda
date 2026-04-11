@@ -70,14 +70,11 @@
         <ion-label>Inventario</ion-label>
       </ion-tab-button>
 
-      @if (posHabilitado) {
+      <!-- Ventas: siempre visible (es el historial, tambien cuando la caja esta cerrada) -->
       <ion-tab-button tab="ventas">
         <ion-icon [icon]="ventasIcon"></ion-icon>
         <ion-label>Ventas</ion-label>
       </ion-tab-button>
-      } @else {
-      <app-disabled-tab [icon]="ventasIcon" label="Ventas"></app-disabled-tab>
-      }
     </ion-tab-bar>
 
   </ion-tabs>
