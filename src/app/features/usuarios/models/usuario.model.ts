@@ -6,6 +6,7 @@ export interface Usuario {
   usuario: string;
   activo: boolean;
   rol: RolUsuario;
+  es_superadmin: boolean;
   created_at?: string;
 }
 

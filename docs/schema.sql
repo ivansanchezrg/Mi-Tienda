@@ -58,12 +58,13 @@ CREATE TYPE tipo_comprobante_enum AS ENUM (
 
 -- 1. usuarios
 CREATE TABLE IF NOT EXISTS usuarios (
-    id         SERIAL PRIMARY KEY,
-    nombre     VARCHAR(255) NOT NULL,
-    usuario    VARCHAR(50)  NOT NULL UNIQUE,  -- Email Google OAuth
-    rol        rol_usuario_enum NOT NULL DEFAULT 'EMPLEADO',
-    activo     BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id             SERIAL PRIMARY KEY,
+    nombre         VARCHAR(255) NOT NULL,
+    usuario        VARCHAR(50)  NOT NULL UNIQUE,  -- Email Google OAuth
+    rol            rol_usuario_enum NOT NULL DEFAULT 'EMPLEADO',
+    activo         BOOLEAN DEFAULT TRUE,
+    es_superadmin  BOOLEAN DEFAULT FALSE,         -- Protegido: no editable ni eliminable por nadie
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 2. cajas — CAJA | CAJA_CHICA | VARIOS | CAJA_CELULAR | CAJA_BUS
@@ -557,8 +558,8 @@ INSERT INTO configuraciones (clave, valor) VALUES
 ('pos_umbral_monto_descuento',    '50.00'),
 ('pos_iva_porcentaje',            '15');
 
-INSERT INTO usuarios (nombre, usuario, rol) VALUES
-('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN');
+INSERT INTO usuarios (nombre, usuario, rol, es_superadmin) VALUES
+('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN', TRUE);
 
 -- ==========================================
 -- DATOS DE PRUEBA ADICIONALES

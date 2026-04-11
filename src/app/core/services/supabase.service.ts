@@ -34,6 +34,25 @@ export class SupabaseService {
   /** Evita múltiples redirects simultáneos al login */
   private redirectingToLogin = false;
 
+  /** Timestamp del último intento de refresh on-resume (ms). Usado para throttle. */
+  private lastResumeRefreshAt = 0;
+
+  /** Promesa del refresh en curso, para evitar refreshes concurrentes. */
+  private resumeRefreshInFlight: Promise<void> | null = null;
+
+  /**
+   * Hook opcional que se ejecuta antes de limpiar la sesión en handleExpiredSession().
+   * Permite que otros servicios (ej: AuthService) cierren recursos propios (canales
+   * de Realtime, subscriptions, etc.) sin crear dependencias circulares.
+   * Registrado desde AuthService en su constructor.
+   */
+  private onBeforeSessionCleanup: (() => Promise<void> | void) | null = null;
+
+  /** Registra un callback que se ejecutará antes de limpiar la sesión. */
+  registerBeforeCleanup(fn: () => Promise<void> | void): void {
+    this.onBeforeSessionCleanup = fn;
+  }
+
   constructor() {
     const projectRef = environment.supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || '';
     this.STORAGE_KEY = `sb-${projectRef}-auth-token`;
@@ -169,6 +188,11 @@ export class SupabaseService {
    * Se llama cuando:
    * - Una query falla con JWT expirado (call() lo detecta)
    * - El SDK emite SIGNED_OUT (refresh token inválido/expirado)
+   * - AuthService.logout() / logoutSilent() (logout manual)
+   * - AuthService detecta que el usuario fue eliminado via Realtime (DELETE)
+   *
+   * Antes de limpiar la sesión, ejecuta el hook onBeforeSessionCleanup (si existe)
+   * para dar oportunidad a otros servicios de cerrar recursos (canales Realtime, etc.).
    */
   async handleExpiredSession(): Promise<void> {
     if (this.redirectingToLogin) return;
@@ -176,43 +200,103 @@ export class SupabaseService {
 
     this.logger.warn('SupabaseService', 'Sesión expirada — limpiando y redirigiendo al login');
 
-    // Limpiar sesión de Supabase (ignora errores si no hay red)
-    this.client.auth.signOut().catch(() => {});
+    // Hook pre-cleanup (ej: cerrar canal de Realtime del usuario)
+    if (this.onBeforeSessionCleanup) {
+      try {
+        await this.onBeforeSessionCleanup();
+      } catch (err) {
+        this.logger.error('SupabaseService', 'Error en onBeforeSessionCleanup', err);
+      }
+    }
 
-    // Limpiar storage local
+    // Limpiar storage local ANTES de signOut para evitar race conditions
+    // (signOut emite SIGNED_OUT que re-entra a este método)
     localStorage.removeItem(this.STORAGE_KEY);
     await Preferences.remove({ key: this.USUARIO_KEY }).catch(() => {});
 
+    // Limpiar sesión de Supabase (ignora errores si no hay red).
+    // signOut() emite SIGNED_OUT via onAuthStateChange — el listener
+    // verifica `currentUrl.startsWith('/auth')` y no re-ejecuta porque
+    // ya estamos en /auth/login después del navigate() abajo.
+    this.client.auth.signOut().catch(() => {});
+
     await this.router.navigate(['/auth/login'], { replaceUrl: true });
-    this.redirectingToLogin = false;
+
+    // Resetear flag con delay mínimo para que el SIGNED_OUT del signOut()
+    // (que llega async) encuentre redirectingToLogin=true y no re-entre.
+    setTimeout(() => { this.redirectingToLogin = false; }, 500);
   }
 
   /**
-   * Intenta renovar la sesión proactivamente.
-   * Se llama cuando la app vuelve del background (appStateChange → active).
+   * Intenta renovar la sesión proactivamente cuando la app vuelve del background.
    *
-   * El SDK de Supabase tiene auto-refresh, pero su timer interno se detiene
-   * cuando la app está en background/suspendida. Al volver, el access token
-   * puede estar expirado y el SDK aún no lo sabe. Este método fuerza el
-   * refresh inmediato para evitar que la primera query falle con JWT expired.
+   * Se llama desde el listener de appStateChange en AppComponent.
+   *
+   * Optimizaciones aplicadas para evitar lag al volver del background:
+   *
+   * 1. THROTTLE — Si el último refresh fue hace menos de 30 segundos, salir
+   *    inmediatamente. Android dispara appStateChange en ráfagas (desbloqueo,
+   *    notificaciones, switch rápido entre apps), no tiene sentido refrescar
+   *    en cada uno.
+   *
+   * 2. SKIP TOKEN SANO — Si al token le quedan más de 5 minutos de vida, no
+   *    refrescar. El JWT dura 1 hora, refrescarlo después de 1 min de inactividad
+   *    es desperdicio y causa el lag perceptible al volver a la app.
+   *
+   * 3. ANTI-CONCURRENCIA — Si ya hay un refresh en curso, reutilizar la misma
+   *    promesa en lugar de disparar otro paralelo.
+   *
+   * El SDK de Supabase tiene auto-refresh interno, pero su timer se detiene
+   * cuando la app está suspendida. Por eso necesitamos este refresh manual
+   * cuando realmente hace falta (token a punto de expirar).
    *
    * Si el refresh token también expiró (>30 días sin abrir la app), el SDK
    * emitirá SIGNED_OUT y el listener global redirigirá al login.
    */
   async refreshSessionOnResume(): Promise<void> {
-    try {
-      const { data } = await this.client.auth.getSession();
-      if (!data.session) return; // no hay sesión, nada que renovar
-
-      const { error } = await this.client.auth.refreshSession();
-      if (error) {
-        this.logger.error('SupabaseService', 'Refresh on resume falló', error);
-        // No redirigimos aquí — el listener de SIGNED_OUT lo hará si corresponde
-      } else {
-        this.logger.info('SupabaseService', 'Sesión renovada al volver del background');
-      }
-    } catch (err) {
-      this.logger.error('SupabaseService', 'Error en refreshSessionOnResume', err);
+    // 1. THROTTLE — bloquear ráfagas de appStateChange (desbloqueo, switches rápidos, etc.)
+    const nowMs = Date.now();
+    if (nowMs - this.lastResumeRefreshAt < 30_000) {
+      return;
     }
+
+    // 3. ANTI-CONCURRENCIA — si ya hay un refresh en curso, no disparar otro
+    if (this.resumeRefreshInFlight) {
+      return;
+    }
+
+    this.lastResumeRefreshAt = nowMs;
+
+    this.resumeRefreshInFlight = (async () => {
+      try {
+        const { data } = await this.client.auth.getSession();
+        if (!data.session) return; // no hay sesión, nada que renovar
+
+        // 2. SKIP TOKEN SANO — expires_at viene en segundos (Unix timestamp)
+        const expiresAt = data.session.expires_at ?? 0;
+        const nowSec = Math.floor(Date.now() / 1000);
+        const secondsLeft = expiresAt - nowSec;
+
+        // Si quedan más de 5 minutos, el token está sano — no refrescar
+        if (secondsLeft > 300) {
+          return;
+        }
+
+        // Quedan menos de 5 min → refrescar proactivamente
+        const { error } = await this.client.auth.refreshSession();
+        if (error) {
+          this.logger.error('SupabaseService', 'Refresh on resume falló', error);
+          // No redirigimos aquí — el listener de SIGNED_OUT lo hará si corresponde
+        } else {
+          this.logger.info('SupabaseService', 'Sesión renovada al volver del background');
+        }
+      } catch (err) {
+        this.logger.error('SupabaseService', 'Error en refreshSessionOnResume', err);
+      } finally {
+        this.resumeRefreshInFlight = null;
+      }
+    })();
+
+    return this.resumeRefreshInFlight;
   }
 }

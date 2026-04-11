@@ -32,11 +32,15 @@ export const authGuard: CanActivateFn = async () => {
   const session = await auth.getSession();
 
   if (session) {
-    // Online: verificar que el usuario cacheado esté activo
-    const usuario = await auth.getUsuarioActual();
-    if (usuario && !usuario.activo) {
-      logger.warn('authGuard', 'Usuario inactivo → pending');
-      return router.createUrlTree(['/auth/pending']);
+    // Primera navegación de la sesión: validar contra BD para detectar
+    // desactivaciones que ocurrieron mientras la app estaba cerrada.
+    // Navegaciones siguientes: confiar en cache + Realtime (cero queries extra).
+    if (!auth.yaValidadoEnEstaSesion) {
+      const isValid = await auth.validarUsuario();
+      if (!isValid) {
+        // validarUsuario() ya redirigió a /auth/pending o /auth/login según el caso
+        return false;
+      }
     }
     return true;
   }

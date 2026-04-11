@@ -7,7 +7,7 @@ import {
   ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, warningOutline } from 'ionicons/icons';
+import { closeOutline, warningOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import { UsuarioService } from '../../services/usuario.service';
 import { UiService } from '@core/services/ui.service';
 import { AuthService } from '../../../auth/services/auth.service';
@@ -40,10 +40,13 @@ export class EditarUsuarioModalComponent implements OnInit {
   /** True si el usuario que se edita es el mismo que está logueado */
   esMismoUsuario = false;
 
+  /** True si el usuario que se edita es el superadmin (protegido, no editable en rol/activo) */
+  esSuperadmin = false;
+
   form!: FormGroup;
 
   constructor() {
-    addIcons({ closeOutline, warningOutline });
+    addIcons({ closeOutline, warningOutline, shieldCheckmarkOutline });
   }
 
   async ngOnInit() {
@@ -55,6 +58,13 @@ export class EditarUsuarioModalComponent implements OnInit {
 
     const actual = await this.authService.getUsuarioActual();
     this.esMismoUsuario = actual?.id === this.usuario.id;
+    this.esSuperadmin = this.usuario.es_superadmin === true;
+
+    // Superadmin o mismo usuario: deshabilitar campos de rol y estado (solo se puede editar el nombre)
+    if (this.esSuperadmin || this.esMismoUsuario) {
+      this.form.get('rol')?.disable();
+      this.form.get('activo')?.disable();
+    }
   }
 
   cancelar() {
@@ -67,22 +77,12 @@ export class EditarUsuarioModalComponent implements OnInit {
       return;
     }
 
-    const rolNuevo    = this.form.value.rol;
-    const activoNuevo = this.form.value.activo;
+    // Superadmin o mismo usuario: solo se permite editar el nombre
+    const bloqueado   = this.esSuperadmin || this.esMismoUsuario;
+    const rolNuevo    = bloqueado ? this.usuario.rol    : this.form.value.rol;
+    const activoNuevo = bloqueado ? this.usuario.activo : this.form.value.activo;
 
-    // ── 1. AUTO-PROTECCIÓN ──────────────────────────────────────────
-    if (this.esMismoUsuario) {
-      if (rolNuevo !== 'ADMIN') {
-        await this.ui.showError('No podés cambiar tu propio rol a Empleado.');
-        return;
-      }
-      if (!activoNuevo) {
-        await this.ui.showError('No podés desactivar tu propia cuenta.');
-        return;
-      }
-    }
-
-    // ── 2. PROTECCIÓN DEL ÚLTIMO ADMIN ──────────────────────────────
+    // ── PROTECCIÓN DEL ÚLTIMO ADMIN ────────────────────────────────
     const estaDesactivando = this.usuario.activo && !activoNuevo;
     const estaDegradando   = this.usuario.rol === 'ADMIN' && rolNuevo === 'EMPLEADO';
 
@@ -103,11 +103,10 @@ export class EditarUsuarioModalComponent implements OnInit {
     // ── GUARDAR ──────────────────────────────────────────────────────
     this.guardando = true;
     try {
-      const dto: UpdateUsuarioDto = {
-        nombre: this.form.value.nombre.trim(),
-        rol:    rolNuevo,
-        activo: activoNuevo
-      };
+      // Superadmin o mismo usuario: solo permitir cambio de nombre, nunca rol/activo
+      const dto: UpdateUsuarioDto = bloqueado
+        ? { nombre: this.form.value.nombre.trim() }
+        : { nombre: this.form.value.nombre.trim(), rol: rolNuevo, activo: activoNuevo };
 
       const updated = await this.usuarioService.update(this.usuario.id, dto);
       if (!updated) {

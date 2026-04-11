@@ -8,7 +8,7 @@ import {
   ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { addOutline, personOutline } from 'ionicons/icons';
+import { addOutline, personOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import { UsuarioService } from '../../services/usuario.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Usuario } from '../../models/usuario.model';
@@ -37,7 +37,7 @@ export class ListPage implements OnInit {
   loading = false;
 
   constructor() {
-    addIcons({ addOutline, personOutline });
+    addIcons({ addOutline, personOutline, shieldCheckmarkOutline });
   }
 
   ngOnInit() {
