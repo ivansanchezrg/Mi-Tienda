@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Fondo blanco -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M0,0 L108,0 L108,108 L0,108 Z" />
+
+    <!-- Base / plataforma -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M22,72 L86,72 L86,76 Q86,78 84,78 L24,78 Q22,78 22,76 Z" />
+
+    <!-- Cuerpo de la tienda -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M26,44 L82,44 L82,72 L26,72 Z" />
+
+    <!-- Ventana izquierda -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,48 L52,48 L52,68 L30,68 Z" />
+
+    <!-- Marco ventana izquierda -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M30,48 L52,48 L52,50 L30,50 Z" />
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M30,48 L32,48 L32,68 L30,68 Z" />
+
+    <!-- Puerta -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M58,54 L74,54 L74,72 L58,72 Z" />
+
+    <!-- Marco puerta -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M58,54 L74,54 L74,56 L58,56 Z" />
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M58,54 L60,54 L60,72 L58,72 Z" />
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M72,54 L74,54 L74,72 L72,72 Z" />
+
+    <!-- Pomo puerta -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M61,63 Q63,63 63,65 Q63,67 61,67 Q59,67 59,65 Q59,63 61,63 Z" />
+
+    <!-- Toldo - fondo -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M20,38 Q54,30 88,38 L86,44 L22,44 Z" />
+
+    <!-- Toldo - rayas blancas -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,44 L35,31 L38,44 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M45,44 L48,30 L51,44 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M58,44 L61,31 L64,44 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M71,44 L74,33 L77,44 Z" />
+
+    <!-- Ondas del toldo -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M22,44 Q25,48 28,44 Q31,48 34,44 Q37,48 40,44 Q43,48 46,44 Q49,48 52,44 Q55,48 58,44 Q61,48 64,44 Q67,48 70,44 Q73,48 76,44 Q79,48 82,44 L82,46 Q79,50 76,46 Q73,50 70,46 Q67,50 64,46 Q61,50 58,46 Q55,50 52,46 Q49,50 46,46 Q43,50 40,46 Q37,50 34,46 Q31,50 28,46 Q25,50 22,46 Z" />
+
+    <!-- Parte superior tienda -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M24,36 L84,36 L84,40 Q84,42 82,42 L26,42 Q24,42 24,40 Z" />
+
+</vector>

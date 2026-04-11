@@ -129,7 +129,7 @@ export class AuthService {
 
     // Usuario no existe → auto-registro con activo: false
     if (!data) {
-      this.logger.info('AuthService', `Auto-registro: ${user.email}`);
+      this.logger.info('AuthService', 'Auto-registro de nuevo usuario');
       const nombre = user.user_metadata?.['full_name'] || user.user_metadata?.['name'] || user.email.split('@')[0];
 
       const { error: insertError } = await this.supabase.client
@@ -149,13 +149,13 @@ export class AuthService {
 
     // Usuario existe pero inactivo → pantalla de pendiente
     if (!data.activo) {
-      this.logger.warn('AuthService', `validarUsuario: usuario ${user.email} inactivo`);
+      this.logger.warn('AuthService', 'validarUsuario: cuenta inactiva');
       await this.saveUsuarioActual(data);
       this.router.navigate(['/auth/pending'], { replaceUrl: true });
       return false;
     }
 
-    this.logger.info('AuthService', `Usuario validado: ${data.nombre} (${data.rol})`);
+    this.logger.info('AuthService', `Usuario validado (rol: ${data.rol})`);
     await this.saveUsuarioActual(data);
     this.iniciarRealtimeUsuario(data.id);
     this.validadoEnEstaSesion = true;
@@ -252,9 +252,9 @@ export class AuthService {
         )
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            this.logger.info('AuthService', `Realtime usuario ${id} suscrito`);
+            this.logger.info('AuthService', 'Realtime usuario suscrito');
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            this.logger.error('AuthService', `Realtime usuario ${id} falló: ${status}`);
+            this.logger.error('AuthService', `Realtime usuario falló: ${status}`);
           }
         });
 
@@ -280,7 +280,7 @@ export class AuthService {
 
     try {
       await this.supabase.client.removeChannel(this.canalUsuario);
-      this.logger.info('AuthService', `Realtime usuario ${this.canalUsuarioId} cerrado`);
+      this.logger.info('AuthService', 'Realtime usuario cerrado');
     } catch (err) {
       this.logger.error('AuthService', 'Error al cerrar canal Realtime', err);
     } finally {

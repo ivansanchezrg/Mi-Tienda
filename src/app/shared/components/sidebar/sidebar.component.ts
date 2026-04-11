@@ -78,7 +78,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
         { title: 'Inicio', url: '/home', icon: homeOutline, exact: true },
         { title: 'POS', url: '/pos', icon: barcodeOutline, soloPos: true },
         { title: 'Inventario', url: '/inventario', icon: cubeOutline },
-        { title: 'Ventas', url: '/ventas', icon: receiptOutline, soloPos: true },
+        { title: 'Ventas', url: '/ventas', icon: receiptOutline },
       ]
     },
     {
@@ -115,10 +115,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
-    const [usuario, nombreNegocio, config] = await Promise.all([
+    const [usuario, nombreNegocio] = await Promise.all([
       this.authService.getUsuarioActual(),
-      this.configService.getNombreNegocio(),
-      this.configService.get()
+      this.configService.getNombreNegocio()
     ]);
 
     this.nombreNegocio = nombreNegocio;
@@ -127,11 +126,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
       this.aplicarDatosUsuario(usuario);
     }
 
-    this.posHabilitado = config.pos_habilitado;
-    this.recalcularMenu();
-
-    this.posSub = this.configService.posHabilitado$.subscribe(pos => {
-      this.posHabilitado = pos;
+    // El estado del POS depende de si hay un turno de caja abierto.
+    // TurnosCajaService emite cajaAbierta$ via Realtime de la tabla turnos_caja.
+    this.posSub = this.turnosCajaService.cajaAbierta$.subscribe(abierta => {
+      this.posHabilitado = abierta;
       this.recalcularMenu();
     });
 

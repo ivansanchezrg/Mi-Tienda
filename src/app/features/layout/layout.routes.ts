@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { MainLayoutPage } from './pages/main/main-layout.page';
 import { roleGuard } from '../../core/guards/role.guard';
+import { cajaAbiertaGuard } from '../../core/guards/caja-abierta.guard';
 
 export const LAYOUT_ROUTES: Routes = [
   {
@@ -35,6 +36,7 @@ export const LAYOUT_ROUTES: Routes = [
       },
       {
         path: 'pos',
+        canActivate: [cajaAbiertaGuard],
         loadChildren: () => import('../pos/pos.routes').then(m => m.POS_ROUTES)
       },
       {

@@ -31,7 +31,6 @@ import { RecargasVirtualesService } from '@core/services/recargas-virtuales.serv
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { CajasService } from '../../services/cajas.service';
 import { AuthService } from '../../../auth/services/auth.service';
-import { ConfigService } from '@core/services/config.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { getFechaLocal } from '@core/utils/date.util';
@@ -66,9 +65,6 @@ export class CierreDiarioPage implements HasPendingChanges {
   private authService = inject(AuthService);
   private alertCtrl = inject(AlertController);
   private currencyService = inject(CurrencyService);
-  private configService = inject(ConfigService);
-
-  posHabilitado = true;
 
   // ==========================================
   // ESTADO DEL WIZARD (v5: 2 pasos)
@@ -175,16 +171,14 @@ export class CierreDiarioPage implements HasPendingChanges {
     this.cargandoDatos = true;
     try {
       // Lote 1: todo en paralelo
-      const [datos, saldoVirtualCelular, saldoVirtualBus, transferenciaYaHecha, saldosCajas, estadoCaja, config] = await Promise.all([
+      const [datos, saldoVirtualCelular, saldoVirtualBus, transferenciaYaHecha, saldosCajas, estadoCaja] = await Promise.all([
         this.recargasService.getDatosCierreDiario(),
         this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
         this.recargasVirtualesService.getSaldoVirtualActual('BUS'),
         this.recargasService.verificarTransferenciaYaHecha(),
         this.cajasService.obtenerSaldosCajas(),
-        this.turnosCajaService.obtenerEstadoCaja(),
-        this.configService.get()
+        this.turnosCajaService.obtenerEstadoCaja()
       ]);
-      this.posHabilitado = config.pos_habilitado;
 
       // Saldos virtuales
       this.saldoAnteriorCelular      = datos.saldosVirtuales.celular;
@@ -485,6 +479,10 @@ export class CierreDiarioPage implements HasPendingChanges {
 
       await this.ui.hideLoading();
       await this.ui.showSuccess('Cierre guardado correctamente');
+
+      // Sincroniza turnoActivo$ inmediatamente para que el layout deshabilite el
+      // tab POS sin esperar al round-trip del evento Realtime UPDATE.
+      await this.turnosCajaService.refrescarTurnoActivo();
 
       this.cierreForm.markAsPristine();
       this.resetState();

@@ -4,6 +4,7 @@ import { App, URLOpenListenerEvent } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 import { SupabaseService } from './core/services/supabase.service';
+import { TurnosCajaService } from './features/dashboard/services/turnos-caja.service';
 import { Capacitor } from '@capacitor/core';
 import { OfflineBannerComponent } from './core/components/offline-banner/offline-banner.component';
 
@@ -17,6 +18,12 @@ export class AppComponent {
   private supabase = inject(SupabaseService);
   private router = inject(Router);
   private zone = inject(NgZone);
+
+  // Instanciamos TurnosCajaService aqui para garantizar que su constructor
+  // corra desde el bootstrap del app — asi se suscribe a usuarioActual$ de
+  // AuthService antes de cualquier login. providedIn:'root' es lazy, sin esta
+  // inyeccion el servicio no existe hasta que alguna pagina lo pida.
+  private turnosCaja = inject(TurnosCajaService);
 
   constructor() {
     this.setupDeepLinkListener();

@@ -59,11 +59,12 @@ Prefijo por módulo seguido de guion bajo:
 | `caja_varios_transferencia_dia` | number | `20` | Transferencia diaria a caja VARIOS ($) |
 | `bus_alerta_saldo_bajo` | number | `75` | Umbral de alerta saldo bajo bus ($) |
 | `bus_dias_antes_facturacion` | number | `3` | Dias antes de facturacion para notificar |
-| `pos_habilitado` | boolean | `true` | Activa/desactiva el modulo POS completo. Cuando es false oculta POS, Ventas y Caja Chica |
 | `pos_descuentos_habilitados` | boolean | `false` | Activa/desactiva descuentos automaticos POS |
 | `pos_descuento_maximo_pct` | number | `10` | Porcentaje de descuento a aplicar (%) |
 | `pos_umbral_monto_descuento` | number | `50` | Monto minimo del subtotal para aplicar descuento ($) |
 | `pos_iva_porcentaje` | number | `15` | Tarifa IVA vigente en %. Usado en POS/Factura para extraer base gravada |
+
+> **Nota (2026-04-11):** `pos_habilitado` fue **eliminado** de la tabla. El estado del POS ahora se deriva automaticamente de si hay un turno de caja abierto (`turnos_caja.hora_fecha_cierre IS NULL`) via `TurnosCajaService.cajaAbierta$`. Esto elimina la duplicacion de estado entre `configuraciones` y `turnos_caja` (Single Source of Truth). Migracion: [`sql/migrations/eliminar_pos_habilitado.sql`](./sql/migrations/eliminar_pos_habilitado.sql).
 
 ---
 
@@ -75,9 +76,8 @@ Ubicacion: `src/app/core/services/config.service.ts`
 
 - **Proposito**: lectura rapida desde cualquier modulo de la app
 - **Cache**: en memoria, una sola query por sesion
-- **Metodos**: `get()`, `getNombreNegocio()`, `invalidar()`, `actualizarPosHabilitado(valor)`
-- **Realtime**: `posHabilitado$` — `BehaviorSubject<boolean>` que emite cada vez que `pos_habilitado` cambia, ya sea en el mismo dispositivo o en otro via Supabase Realtime
-- **Quien lo usa**: POS (descuentos), Dashboard (cierre, fondo fijo), Recargas (alertas bus), Share tickets (nombre negocio), MainLayout y Sidebar (reaccionan a `posHabilitado$`)
+- **Metodos**: `get()`, `getNombreNegocio()`, `invalidar()`
+- **Quien lo usa**: POS (descuentos, IVA), Dashboard (fondo fijo), Recargas (alertas bus), Share tickets (nombre negocio)
 
 ```typescript
 // Lectura tipada con cache
@@ -86,13 +86,9 @@ const nombre = config.negocio_nombre;
 
 // Despues de que el admin guarda cambios:
 this.configService.invalidar(); // limpia cache → proxima lectura va a BD
-
-// Suscribirse a cambios de pos_habilitado en tiempo real:
-this.posSub = this.configService.posHabilitado$.subscribe(v => this.posHabilitado = v);
-
-// Al guardar la seccion POS (notifica al mismo dispositivo; Realtime notifica a los demas):
-this.configService.actualizarPosHabilitado(nuevoValor);
 ```
+
+> El estado reactivo del POS vive en `TurnosCajaService.cajaAbierta$` — no en `ConfigService`. Ver [DASHBOARD-README.md](../dashboard/DASHBOARD-README.md#estado-reactivo-de-turno--single-source-of-truth).
 
 ### `ConfiguracionService` (feature — CRUD admin)
 
@@ -139,12 +135,11 @@ Formulario reactivo (`FormGroup`) agrupado en secciones visuales. Cada seccion t
 | Negocio | `storefront-outline` | Nombre del negocio |
 | Caja | `wallet-outline` | Fondo fijo diario, Transferencia diaria VARIOS |
 | Bus | `bus-outline` | Alerta saldo bajo, Dias antes facturacion |
-| POS | `cart-outline` | Toggle POS habilitado, Descuentos, Porcentaje, Monto minimo, IVA |
+| POS | `cart-outline` | Descuentos, Porcentaje, Monto minimo, IVA |
 
 **Comportamiento condicional de la seccion POS**:
-- `pos_habilitado = OFF` → muestra solo el toggle con hint explicativo. Oculta todos los demas campos.
-- `pos_habilitado = ON` → muestra todos los campos.
 - `pos_descuentos_habilitados = OFF` → oculta los campos de porcentaje y monto minimo.
+- El campo IVA siempre es visible.
 
 **Flujo de guardado por seccion**:
 1. Detecta cambios con `valueChanges` comparando snapshot guardado vs valor actual
@@ -152,19 +147,7 @@ Formulario reactivo (`FormGroup`) agrupado en secciones visuales. Cada seccion t
 3. Valida solo los campos de esa seccion (markAsTouched)
 4. `ConfiguracionService.update()` con UPSERT solo de esos campos
 5. `ConfigService.invalidar()` → limpia cache global
-6. Si es la seccion POS: `ConfigService.actualizarPosHabilitado()` → notifica al mismo dispositivo de inmediato
-7. Actualiza snapshot → oculta boton
-
-**Efectos de `pos_habilitado` en la app** (gestionados por cada modulo al leer `ConfigService`):
-
-| Elemento | Comportamiento cuando POS = OFF |
-|----------|--------------------------------|
-| Tab "POS" en tab bar | `DisabledTabComponent` — grisado con candado |
-| Tab "Ventas" en tab bar | `DisabledTabComponent` — grisado con candado |
-| Item "POS" en sidebar | Oculto |
-| Item "Ventas" en sidebar | Oculto |
-| Caja Chica en home | Oculto |
-| Total efectivo en home | Excluye saldo Caja Chica |
+6. Actualiza snapshot → oculta boton
 
 ### Categorias de Operaciones (`pages/categorias-operaciones/`)
 
@@ -184,34 +167,19 @@ Cuando el admin guarda parametros:
 
 1. `ConfiguracionService.update()` escribe en BD
 2. `ConfigService.invalidar()` limpia cache en memoria
-3. **Mismo dispositivo (seccion POS)**: `ConfigService.actualizarPosHabilitado()` emite en `posHabilitado$` → tab bar y sidebar reaccionan instantaneamente
-4. **Otros dispositivos**: Supabase Realtime detecta el UPDATE en `configuraciones` y lo entrega via websocket → `ConfigService` emite en `posHabilitado$` → misma reaccion instantanea sin recargar la app
+3. La proxima lectura va a BD y obtiene el valor nuevo
 
-El POS implementa `ion-refresher` para que el empleado recargue la configuracion de descuentos sin perder el carrito. Para `pos_habilitado` no hace falta — el Realtime lo maneja automaticamente.
+El POS implementa `ion-refresher` para que el empleado recargue la configuracion de descuentos sin perder el carrito tras un cambio del admin.
 
-### Realtime — configuracion de BD requerida
+> **Estado del POS (habilitado/deshabilitado)** no vive aqui. Se deriva reactivamente de `turnos_caja` via `TurnosCajaService.cajaAbierta$` — ver [DASHBOARD-README.md](../dashboard/DASHBOARD-README.md#estado-reactivo-de-turno--single-source-of-truth).
 
-La propagacion multi-dispositivo requiere dos pasos ejecutados **una sola vez** en Supabase:
+### Realtime — tabla `configuraciones`
 
-```sql
--- 1. Publicar la tabla en el canal Realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE configuraciones;
-
--- 2. Politica RLS para que usuarios autenticados reciban los eventos
-CREATE POLICY "authenticated puede leer configuraciones"
-ON configuraciones FOR SELECT TO authenticated USING (true);
-```
+La tabla sigue publicada en Realtime para propagar cambios entre dispositivos (util si en el futuro se agregan mas campos reactivos). Setup ejecutado una sola vez:
 
 Script completo con verificacion: [`sql/setup/realtime_configuraciones.sql`](./sql/setup/realtime_configuraciones.sql)
 
-### Como funciona el listener en `ConfigService`
-
-- Se abre **una sola conexion websocket** por sesion (canal `config-changes`)
-- Filtra solo la clave `pos_habilitado` — no recibe todos los cambios de la tabla
-- Al recibir un evento: actualiza el cache en memoria + emite en `posHabilitado$`
-- `MainLayoutPage` y `SidebarComponent` se suscriben en `ngOnInit()` y limpian en `ngOnDestroy()`
-
-**`DisabledTabComponent`** (`shared/components/disabled-tab/`): componente reutilizable para tabs deshabilitadas por config. Recibe `[icon]` (objeto ionicon, NO string — evita tree-shaking en Android) y `label`. Muestra el icono con un badge candado en la esquina superior derecha. Usar siempre con `[icon]="iconObj"` desde el componente padre.
+**`DisabledTabComponent`** (`shared/components/disabled-tab/`): componente reutilizable para tabs deshabilitadas por estado del sistema (ej: POS sin caja abierta). Recibe `[icon]` (objeto ionicon, NO string — evita tree-shaking en Android), `label` y `disabledMessage` opcional. Muestra el icono con un badge candado en la esquina superior derecha. Al hacer click muestra un toast explicativo en lugar de navegar.
 
 ---
 

@@ -10,11 +10,11 @@ import { SidebarComponent } from 'src/app/shared/components/sidebar/sidebar.comp
 import { DisabledTabComponent } from 'src/app/shared/components/disabled-tab/disabled-tab.component';
 import { homeOutline, cartOutline, cubeOutline, receiptOutline, add, close, barcodeOutline, createOutline, scaleOutline, calculatorOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { ConfigService } from '@core/services/config.service';
 import { CuadreCajaPage } from 'src/app/features/dashboard/pages/cuadre-caja/cuadre-caja.page';
 import { NuevaNotaModalComponent } from 'src/app/features/notas/components/nueva-nota-modal/nueva-nota-modal.component';
 import { NotasService } from 'src/app/features/notas/services/notas.service';
 import { AuthService } from 'src/app/features/auth/services/auth.service';
+import { TurnosCajaService } from 'src/app/features/dashboard/services/turnos-caja.service';
 import { CalculadoraMargenComponent } from 'src/app/shared/components/calculadora-margen/calculadora-margen.component';
 
 @Component({
@@ -31,12 +31,16 @@ import { CalculadoraMargenComponent } from 'src/app/shared/components/calculador
 })
 export class MainLayoutPage implements OnInit, OnDestroy {
   private ui = inject(UiService);
-  private configService = inject(ConfigService);
+  private turnosCajaService = inject(TurnosCajaService);
   private modalCtrl = inject(ModalController);
   private notasService = inject(NotasService);
   private authService = inject(AuthService);
 
-  posHabilitado = true;
+  /**
+   * True si hay turno de caja abierto. Determina si el tab POS está habilitado.
+   * Se sincroniza via Realtime con TurnosCajaService.cajaAbierta$.
+   */
+  posHabilitado = false;
   private posSub!: Subscription;
 
   homeIcon = homeOutline;
@@ -53,9 +57,11 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   fabAbierto = false;
 
   async ngOnInit() {
-    const config = await this.configService.get();
-    this.posHabilitado = config.pos_habilitado;
-    this.posSub = this.configService.posHabilitado$.subscribe(v => this.posHabilitado = v);
+    // El POS se habilita automaticamente cuando hay un turno de caja abierto.
+    // TurnosCajaService sincroniza el estado via Realtime de la tabla turnos_caja.
+    this.posSub = this.turnosCajaService.cajaAbierta$.subscribe(abierta => {
+      this.posHabilitado = abierta;
+    });
   }
 
   ngOnDestroy() {

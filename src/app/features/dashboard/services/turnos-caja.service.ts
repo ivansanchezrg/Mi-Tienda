@@ -1,9 +1,12 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, NgZone } from '@angular/core';
+import { BehaviorSubject, map, distinctUntilChanged } from 'rxjs';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseService } from '@core/services/supabase.service';
 import { UiService } from '@core/services/ui.service';
+import { LoggerService } from '@core/services/logger.service';
 import { ConfigService } from '@core/services/config.service';
 import { AuthService } from '../../auth/services/auth.service';
-import { TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
+import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
 import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
 
 @Injectable({
@@ -13,7 +16,199 @@ export class TurnosCajaService {
   private supabase = inject(SupabaseService);
   private authService = inject(AuthService);
   private ui = inject(UiService);
+  private logger = inject(LoggerService);
   private configService = inject(ConfigService);
+  private zone = inject(NgZone);
+
+  // ==========================================
+  // ESTADO REACTIVO — turno activo + caja abierta
+  // ==========================================
+
+  /**
+   * Turno actualmente abierto (hora_fecha_cierre IS NULL), o null si no hay.
+   * Fuente unica de verdad del estado del turno — todos los consumidores
+   * (POS, Cajon, Sidebar, HomePage, layout) se suscriben aqui.
+   *
+   * Se carga una vez tras validarUsuario() exitoso (desde AuthService) y se
+   * mantiene sincronizado via Realtime de la tabla turnos_caja.
+   */
+  private readonly _turnoActivo$ = new BehaviorSubject<TurnoCajaConEmpleado | null>(null);
+  readonly turnoActivo$ = this._turnoActivo$.asObservable();
+
+  /**
+   * Derivado: true si hay caja abierta (turno activo no-null).
+   * Usado por guards, layout y sidebar para habilitar/deshabilitar secciones
+   * del app que dependen de un turno en curso (POS, Cajon).
+   */
+  readonly cajaAbierta$ = this._turnoActivo$.pipe(
+    map(t => t !== null),
+    distinctUntilChanged()
+  );
+
+  /** Canal de Realtime que escucha cambios en turnos_caja. Uno solo a la vez. */
+  private canalTurnos: RealtimeChannel | null = null;
+
+  constructor() {
+    // 1. Auto-inicializar cuando AuthService emita un usuario valido.
+    //    Esto evita una dependencia circular explicita: AuthService no necesita
+    //    llamar a TurnosCajaService — este se engancha al observable del usuario.
+    //    AuthService emite en usuarioActual$ tras validarUsuario() exitoso.
+    this.authService.usuarioActual$.subscribe(usuario => {
+      if (usuario) {
+        this.inicializarEstadoReactivo();
+      } else {
+        // logout / sesion expirada → reset defensivo (el hook beforeCleanup
+        // tambien lo hace, pero dejar ambos garantiza consistencia).
+        this._turnoActivo$.next(null);
+      }
+    });
+
+    // 2. Cerrar canal cuando se limpia la sesion via handleExpiredSession().
+    //    SupabaseService expone registerBeforeCleanup como array — no pisa el
+    //    listener que ya tiene registrado AuthService.
+    this.supabase.registerBeforeCleanup(() => this.cerrarRealtimeTurnos());
+  }
+
+  /** Valor sincronico del turno activo (util en codigo imperativo). */
+  get turnoActivoValue(): TurnoCajaConEmpleado | null {
+    return this._turnoActivo$.value;
+  }
+
+  /**
+   * Carga inicial del turno activo + apertura del canal de Realtime.
+   * Se llama desde AuthService tras validarUsuario() exitoso, para que el
+   * estado reactivo este listo antes de que cualquier pagina se suscriba.
+   *
+   * Idempotente: si ya hay un canal abierto, solo refresca el valor actual.
+   */
+  async inicializarEstadoReactivo(): Promise<void> {
+    try {
+      const turno = await this.obtenerTurnoActivo();
+      this._turnoActivo$.next(turno);
+      this.abrirRealtimeTurnos();
+    } catch (err) {
+      this.logger.error('TurnosCajaService', 'Error al inicializar estado reactivo', err);
+    }
+  }
+
+  /**
+   * Abre el canal de Realtime que escucha cambios en turnos_caja.
+   * Propaga automaticamente apertura (INSERT), cierre (UPDATE con
+   * hora_fecha_cierre IS NOT NULL) y eliminacion (DELETE) al BehaviorSubject.
+   *
+   * Requiere que la tabla este publicada en Realtime con REPLICA IDENTITY FULL
+   * y RLS que permita SELECT a authenticated (ver
+   * docs/dashboard/sql/setup/realtime_turnos_caja.sql).
+   */
+  private abrirRealtimeTurnos(): void {
+    if (this.canalTurnos) return; // idempotente
+
+    try {
+      const canal = this.supabase.client
+        .channel('turnos-caja-activo')
+        .on(
+          'postgres_changes' as any,
+          { event: '*', schema: 'public', table: 'turnos_caja' },
+          (payload: any) => {
+            this.zone.run(() => this.handleTurnoChange(payload));
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            this.logger.info('TurnosCajaService', 'Realtime turnos suscrito');
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            this.logger.error('TurnosCajaService', `Realtime turnos fallo: ${status}`);
+          }
+        });
+
+      this.canalTurnos = canal;
+    } catch (err) {
+      this.logger.error('TurnosCajaService', 'Error al abrir Realtime turnos', err);
+      this.canalTurnos = null;
+    }
+  }
+
+  /**
+   * Procesa eventos de Realtime de turnos_caja y actualiza turnoActivo$.
+   *
+   * Reglas:
+   * - INSERT con hora_fecha_cierre IS NULL → nuevo turno abierto → refetch
+   *   (necesitamos el JOIN con empleado que el payload no trae)
+   * - UPDATE: si cambio hora_fecha_cierre de null → not null, cerro el turno
+   *   → turnoActivo = null
+   * - DELETE del turno activo actual → turnoActivo = null
+   *
+   * Para INSERT hacemos refetch en lugar de construir el objeto del payload
+   * porque TurnoCajaConEmpleado incluye el JOIN usuarios(nombre) que Realtime
+   * no entrega. Es una query extra pero solo corre al abrir turno (infrecuente).
+   */
+  private async handleTurnoChange(payload: any): Promise<void> {
+    const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
+    const nuevo = payload.new as TurnoCaja | null;
+    const viejo = payload.old as TurnoCaja | null;
+    const actual = this._turnoActivo$.value;
+
+    if (eventType === 'INSERT') {
+      // Solo refetch si el INSERT es de un turno abierto
+      if (nuevo && !nuevo.hora_fecha_cierre) {
+        const turno = await this.obtenerTurnoActivo();
+        this._turnoActivo$.next(turno);
+        this.logger.info('TurnosCajaService', 'Turno abierto detectado en tiempo real');
+      }
+      return;
+    }
+
+    if (eventType === 'UPDATE') {
+      // Si el turno que estaba activo se cerro, bajar el estado a null
+      if (actual && nuevo && nuevo.id === actual.id && nuevo.hora_fecha_cierre) {
+        this._turnoActivo$.next(null);
+        this.logger.info('TurnosCajaService', 'Turno cerrado detectado en tiempo real');
+        return;
+      }
+      // Caso borde: un turno se reabrio (no deberia pasar, pero protegemos)
+      if (!actual && nuevo && !nuevo.hora_fecha_cierre) {
+        const turno = await this.obtenerTurnoActivo();
+        this._turnoActivo$.next(turno);
+      }
+      return;
+    }
+
+    if (eventType === 'DELETE') {
+      if (actual && viejo && viejo.id === actual.id) {
+        this._turnoActivo$.next(null);
+        this.logger.warn('TurnosCajaService', 'Turno eliminado en tiempo real');
+      }
+    }
+  }
+
+  /**
+   * Cierra el canal de Realtime y resetea el estado.
+   * Se llama automaticamente via registerBeforeCleanup cuando la sesion
+   * se limpia (logout, JWT expirado, etc.).
+   */
+  private async cerrarRealtimeTurnos(): Promise<void> {
+    if (this.canalTurnos) {
+      try {
+        await this.supabase.client.removeChannel(this.canalTurnos);
+        this.logger.info('TurnosCajaService', 'Realtime turnos cerrado');
+      } catch (err) {
+        this.logger.error('TurnosCajaService', 'Error al cerrar canal Realtime turnos', err);
+      } finally {
+        this.canalTurnos = null;
+      }
+    }
+    this._turnoActivo$.next(null);
+  }
+
+  /**
+   * Refresca manualmente el turno activo desde la BD y emite el valor.
+   * Util despues de abrirTurno() cuando queremos garantizar el estado
+   * antes de que Realtime notifique (evita flash de UI).
+   */
+  async refrescarTurnoActivo(): Promise<void> {
+    const turno = await this.obtenerTurnoActivo();
+    this._turnoActivo$.next(turno);
+  }
 
   /**
    * Obtiene el fondo fijo diario desde configuraciones (usa caché)
@@ -65,6 +260,11 @@ export class TurnosCajaService {
 
     const data = response as any;
     if (!data?.success) return false; // home.page.ts verifica si el turno ya existía
+
+    // Sincronizamos turnoActivo$ de forma proactiva para que el layout (tab POS)
+    // y el sidebar reaccionen sin esperar al round-trip del evento Realtime INSERT.
+    // El evento Realtime luego dispara un refetch idempotente, no duplica nada.
+    await this.refrescarTurnoActivo();
 
     await this.ui.showSuccess('Caja abierta');
     return true;
@@ -203,6 +403,10 @@ export class TurnosCajaService {
     if (!data?.success) {
       return { ok: false, errorMsg: data?.error || 'Error desconocido al registrar el ajuste' };
     }
+
+    // Sincronizar turnoActivo$ proactivamente (la apertura con reparacion de
+    // deficit es atomica en SQL y abre el turno en la misma transaccion).
+    await this.refrescarTurnoActivo();
 
     return { ok: true, turnoId: data.turno_id };
   }
