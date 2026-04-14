@@ -75,9 +75,9 @@
 // Operations Card (mismo estilo que operaciones-caja)
 .operations-card {
   margin: 0 var(--spacing-lg) var(--spacing-sm);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-sm);
   background: var(--ion-item-background);
-  box-shadow: var(--shadow-level-2);
+  box-shadow: var(--shadow-level-1);
   overflow: hidden;
 }
 
@@ -90,6 +90,7 @@
   .op-icon {
     width: 40px;
     height: 40px;
+    border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -99,12 +100,15 @@
 
     &[data-type="primary"] {
       color: var(--ion-color-primary);
+      background: rgba(var(--ion-color-primary-rgb), 0.10);
     }
     &[data-type="secondary"] {
-      color: var(--ion-color-secondary);
+      color: var(--ion-color-success);
+      background: rgba(var(--ion-color-success-rgb), 0.10);
     }
     &[data-type="virtual"] {
       color: var(--ion-color-tertiary, #5260ff);
+      background: rgba(82, 96, 255, 0.10);
     }
   }
 

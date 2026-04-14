@@ -101,8 +101,8 @@ features/
 ├── recargas-virtuales/        # Saldo celular/bus, liquidaciones
 ├── historial-recargas/        # Historial de recargas (página standalone)
 ├── usuarios/                  # CRUD de empleados (solo ADMIN)
-├── configuracion/             # Parámetros, categorías, logs (solo ADMIN)
-└── reportes/                  # Reportes (🚧 en desarrollo)
+├── movimientos-empleados/     # Cuenta corriente empleados (solo ADMIN)
+└── configuracion/             # Parámetros, categorías, logs (solo ADMIN)
 ```
 
 ### Detalle de cada feature
@@ -126,7 +126,6 @@ dashboard/
 ├── dashboard.routes.ts
 ├── models/
 │   ├── categoria-operacion.model.ts
-│   ├── deuda-empleado.model.ts
 │   ├── operacion-caja.model.ts
 │   ├── saldos-anteriores.model.ts
 │   └── turno-caja.model.ts
@@ -143,7 +142,6 @@ dashboard/
     ├── cajas.service.ts
     ├── categorias-operaciones.service.ts
     ├── categorias-gastos.service.ts   # ⚠️ OBSOLETO — pendiente eliminar
-    ├── deudas-empleados.service.ts
     ├── notificaciones.service.ts
     ├── operaciones-caja.service.ts
     ├── recargas.service.ts
@@ -271,6 +269,22 @@ configuracion/
 │   └── logs-modal/
 └── services/
     └── configuracion.service.ts
+```
+
+#### movimientos-empleados/
+```
+movimientos-empleados/
+├── movimientos-empleados.routes.ts
+├── models/
+│   └── movimiento-empleado.model.ts
+├── pages/
+│   ├── lista/                         # Lista empleados con saldo
+│   └── detalle/                       # Historial + acciones por empleado
+├── components/
+│   ├── adelanto-modal/                # Fullscreen con instrucciones fisicas
+│   └── pagar-nomina-modal/            # Wizard 3 pasos con preview descuentos
+└── services/
+    └── movimientos-empleados.service.ts  # Queries + RPCs (adelanto, nomina)
 ```
 
 ---

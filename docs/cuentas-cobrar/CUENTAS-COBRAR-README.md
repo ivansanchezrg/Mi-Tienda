@@ -191,7 +191,7 @@ Ubicación: `docs/cuentas-cobrar/sql/functions/`
 
 - JOIN ventas → clientes, LEFT JOIN cuentas_cobrar (pagos)
 - Filtra: `metodo_pago = 'FIADO'`, `estado = 'COMPLETADA'`, `estado_pago IN ('PENDIENTE', 'PAGADO_PARCIAL')`
-- Búsqueda: ILIKE en nombre, identificación, teléfono
+- Búsqueda: ILIKE en nombre, identificación
 - Orden: mayor deuda primero
 - Paginación: LIMIT/OFFSET
 

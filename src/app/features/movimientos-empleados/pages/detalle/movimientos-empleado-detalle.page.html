@@ -1,0 +1,147 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/movimientos-empleados" text=""></ion-back-button>
+    </ion-buttons>
+    <ion-title>Cuenta del empleado</ion-title>
+    <ion-buttons slot="end">
+      @if (!loading) {
+      <ion-button (click)="abrirMenuAcciones()">
+        <ion-icon slot="icon-only" name="ellipsis-horizontal-outline"></ion-icon>
+      </ion-button>
+      }
+    </ion-buttons>
+  </ion-toolbar>
+
+  <!-- Cabecera del empleado -->
+  @if (!loading) {
+  <div class="empleado-header-card">
+    <div class="empleado-header-row">
+      <div class="empleado-avatar-lg">
+        <ion-icon name="person-outline"></ion-icon>
+      </div>
+      <div class="empleado-header-info">
+        <h2 class="empleado-nombre">{{ empleadoNombre }}</h2>
+        <p class="empleado-saldo-label" [class]="'saldo-' + colorSaldo(saldo)">
+          {{ labelSaldo(saldo) }}
+        </p>
+      </div>
+    </div>
+
+    <div class="saldo-display" [class]="'saldo-' + colorSaldo(saldo)">
+      @if (saldo !== 0) {
+      <span class="saldo-signo">{{ saldo > 0 ? '+' : '-' }}</span>
+      }
+      <span class="saldo-currency">$</span>
+      <span class="saldo-monto">{{ currencyService.format(saldo > 0 ? saldo : saldo < 0 ? -saldo : 0) }}</span>
+    </div>
+  </div>
+  }
+
+  <!-- Filtro activo -->
+  @if (!loading && verLiquidados) {
+  <div class="filtro-bar">
+    <button class="filtro-chip" (click)="toggleLiquidados()">
+      <span>Historial completo</span>
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+  }
+</ion-header>
+
+<ion-content #content>
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent"
+      refreshingText="Cargando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Skeleton -->
+  @if (loading) {
+  <div class="p-sm">
+    @for (i of [1, 2, 3, 4]; track i) {
+    <div class="mov-card skeleton-card">
+      <div class="mov-row">
+        <div class="mov-icon-wrap">
+          <ion-skeleton-text animated style="width: 100%; height: 100%; border-radius: 6px; opacity: 0;"></ion-skeleton-text>
+        </div>
+        <div class="mov-details">
+          <ion-skeleton-text animated style="width: 50%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 35%; height: 12px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text>
+        </div>
+        <ion-skeleton-text animated style="width: 60px; height: 16px; border-radius: 4px;"></ion-skeleton-text>
+      </div>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- Vacio -->
+  @else if (movimientos.length === 0) {
+  <app-empty-state
+    icon="wallet-outline"
+    title="Sin movimientos"
+    [hint]="verLiquidados ? 'No hay movimientos registrados' : 'No hay movimientos pendientes'"
+    style="min-height: auto">
+  </app-empty-state>
+  }
+
+  <!-- Lista de movimientos -->
+  @else {
+  <div class="p-sm">
+    @for (mov of movimientos; track mov.id) {
+    <div class="mov-card" [class.liquidado]="mov.estado_liquidacion === 'LIQUIDADO'">
+      <div class="mov-row">
+
+        <!-- Icono tipo -->
+        <div class="mov-icon-wrap" [class]="'icon-' + TIPO_CONFIG[mov.tipo_movimiento].color">
+          @if (mov.tipo_movimiento === 'SUELDO_BASE') {
+          <ion-icon name="wallet-outline"></ion-icon>
+          }
+          @else if (mov.tipo_movimiento === 'BONO_COMISION') {
+          <ion-icon name="star-outline"></ion-icon>
+          }
+          @else if (mov.tipo_movimiento === 'FALTANTE_CAJA') {
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          }
+          @else if (mov.tipo_movimiento === 'ADELANTO_SUELDO') {
+          <ion-icon name="cash-outline"></ion-icon>
+          }
+          @else if (mov.tipo_movimiento === 'PAGO_NOMINA') {
+          <ion-icon name="checkmark-circle-outline"></ion-icon>
+          }
+          @else if (mov.tipo_movimiento === 'AJUSTE_ABONO' || mov.tipo_movimiento === 'AJUSTE_CARGO') {
+          <ion-icon name="create-outline"></ion-icon>
+          }
+        </div>
+
+        <!-- Detalles -->
+        <div class="mov-details">
+          <span class="mov-tipo">{{ TIPO_CONFIG[mov.tipo_movimiento].label }}</span>
+          @if (mov.descripcion) {
+          <span class="mov-desc">{{ mov.descripcion }}</span>
+          }
+          <span class="mov-fecha">{{ formatFecha(mov.fecha) }} · {{ formatHora(mov.fecha) }}</span>
+        </div>
+
+        <!-- Monto -->
+        <div class="mov-monto" [class]="'monto-' + (signoEfectivo(mov) === '+' ? 'positivo' : 'negativo')">
+          {{ signoEfectivo(mov) }}${{ currencyService.format(mov.monto) }}
+        </div>
+
+      </div>
+
+      @if (mov.estado_liquidacion === 'LIQUIDADO') {
+      <div class="mov-badge-liquidado">LIQUIDADO</div>
+      }
+    </div>
+    }
+  </div>
+  }
+
+  <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent" loadingText="Cargando mas movimientos..."></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
+</ion-content>

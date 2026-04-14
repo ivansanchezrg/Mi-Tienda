@@ -226,3 +226,40 @@ Verificar que `windowSplashScreenAnimatedIcon` en `styles.xml` apunte a `@mipmap
 
 ### El ícono se ve borroso en el splash
 El `ic_launcher_foreground.png` es un PNG rasterizado — se ve borroso si Android lo escala. Para mayor nitidez, IconKitchen genera los PNGs en la densidad correcta para cada tamaño de pantalla, lo que minimiza el escalado.
+
+### Flash blanco entre el splash y el contenido de la app
+**Síntoma**: el splash desaparece correctamente, pero por una fracción de segundo se ve una pantalla blanca antes de que aparezca la primera página (login o dashboard).
+
+**Causa**: Capacitor oculta el splash automáticamente en cuanto monta el WebView, pero Angular todavía no terminó de renderizar la primera ruta.
+
+**Solución implementada** (control manual del splash):
+
+`capacitor.config.ts` — desactivar el ocultamiento automático:
+```typescript
+plugins: {
+  SplashScreen: {
+    launchAutoHide: false,   // Capacitor NO oculta el splash solo
+    backgroundColor: '#0052CC'  // debe coincidir con windowSplashScreenBackground
+  }
+}
+```
+
+`app.component.ts` — ocultar manualmente en el primer `NavigationEnd`:
+```typescript
+private setupSplashScreenHide() {
+  if (!Capacitor.isNativePlatform()) return;
+
+  this.router.events
+    .pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      take(1)
+    )
+    .subscribe(async () => {
+      await SplashScreen.hide();
+    });
+}
+```
+
+**Por qué esperar al `NavigationEnd`**: la app tiene guards (`auth`, `caja-abierta`) y servicios que arrancan en el bootstrap (`TurnosCajaService`). Con `setTimeout` fijo o `requestAnimationFrame` el splash se puede ocultar antes de que esos procesos terminen en dispositivos lentos. `NavigationEnd` garantiza que la primera ruta real ya fue resuelta y renderizada.
+
+> Si algún día se agrega una ruta que falle permanentemente en el bootstrap, el splash quedaría visible indefinidamente. En ese caso añadir un timeout de seguridad de 5–8 s como fallback.

@@ -1,6 +1,6 @@
 -- ==========================================
--- SCHEMA - MI TIENDA v5.4
--- Sistema de Gestión de Cajas, Ventas POS y Recargas
+-- SCHEMA - MI TIENDA v6.0
+-- Sistema de Gestión de Cajas, Ventas POS, Recargas y Nómina
 -- ==========================================
 -- ⚠️  Ejecutar UNA SOLA VEZ. Incluye DROP de tablas → borra todos los datos.
 -- ⚠️  Para actualizar funciones PostgreSQL usar archivos en docs/*/sql/functions/
@@ -20,7 +20,7 @@ DROP TABLE IF EXISTS ventas CASCADE;
 DROP TABLE IF EXISTS productos CASCADE;
 DROP TABLE IF EXISTS categorias_productos CASCADE;
 DROP TABLE IF EXISTS clientes CASCADE;
-DROP TABLE IF EXISTS deudas_empleados CASCADE;
+DROP TABLE IF EXISTS movimientos_empleados CASCADE;
 DROP TABLE IF EXISTS operaciones_cajas CASCADE;
 DROP TABLE IF EXISTS turnos_caja CASCADE;
 DROP TABLE IF EXISTS recargas CASCADE;
@@ -34,6 +34,7 @@ DROP TABLE IF EXISTS tipos_servicio CASCADE;
 DROP TABLE IF EXISTS usuarios CASCADE;
 DROP TYPE IF EXISTS tipo_comprobante_enum CASCADE;
 DROP TYPE IF EXISTS tipo_operacion_caja_enum CASCADE;
+DROP TYPE IF EXISTS tipo_movimiento_empleado_enum CASCADE;
 DROP TYPE IF EXISTS rol_usuario_enum CASCADE;
 
 -- ==========================================
@@ -50,6 +51,16 @@ CREATE TYPE rol_usuario_enum AS ENUM (
 
 CREATE TYPE tipo_comprobante_enum AS ENUM (
     'TICKET', 'NOTA_VENTA', 'FACTURA'
+);
+
+CREATE TYPE tipo_movimiento_empleado_enum AS ENUM (
+    'SUELDO_BASE',       -- (+) Sueldo devengado del periodo
+    'BONO_COMISION',     -- (+) Extras a favor del empleado
+    'FALTANTE_CAJA',     -- (-) Faltante de conteo fisico al cierre
+    'ADELANTO_SUELDO',   -- (-) Anticipo/prestamo en efectivo
+    'PAGO_NOMINA',       -- (-) Pago final del periodo (liquida todo)
+    'AJUSTE_ABONO',      -- (+) Correccion manual a favor del empleado
+    'AJUSTE_CARGO'       -- (-) Correccion manual en contra del empleado
 );
 
 -- ==========================================
@@ -92,6 +103,7 @@ CREATE TABLE IF NOT EXISTS cajas (
 --   pos_descuento_maximo_pct      — Porcentaje máximo de descuento aplicable (ej: '10')
 --   pos_umbral_monto_descuento    — Monto mínimo de venta para descuento automático (ej: '50.00')
 --   pos_iva_porcentaje            — Tarifa IVA vigente en % (ej: '15'). Usado en POS/Factura para extraer base gravada.
+--   nomina_sueldo_base            — Sueldo base mensual precargado en el wizard de pagar nómina (ej: '450')
 CREATE TABLE IF NOT EXISTS configuraciones (
     clave      VARCHAR(100) PRIMARY KEY,
     valor      TEXT NOT NULL
@@ -119,23 +131,7 @@ CREATE TABLE IF NOT EXISTS turnos_caja (
     observaciones       TEXT
 );
 
--- 6. deudas_empleados — Faltantes de conteo físico al cierre (posibles descuentos de nómina)
--- Causa: efectivo_fisico < efectivo_esperado al contar el cajón.
--- Insertado automáticamente por fn_ejecutar_cierre_diario cuando v_diferencia < 0.
--- El déficit de VARIOS y el fondo NO se registran aquí — son costos operacionales del negocio,
--- no responsabilidad del empleado. Solo el faltante del conteo físico implica deuda.
--- Marcado SALDADA manualmente cuando el empleado repone (pago en efectivo o descuento en nómina).
-CREATE TABLE IF NOT EXISTS deudas_empleados (
-    id             UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
-    empleado_id    INTEGER      NOT NULL REFERENCES usuarios(id),
-    turno_id       UUID         NOT NULL REFERENCES turnos_caja(id),   -- turno en que ocurrió el faltante
-    fecha          DATE         NOT NULL,                               -- fecha local del cierre
-    monto_faltante DECIMAL(12,2) NOT NULL,                             -- ABS(efectivo_fisico - efectivo_esperado)
-    estado         VARCHAR(20)  NOT NULL DEFAULT 'PENDIENTE'
-                     CHECK (estado IN ('PENDIENTE', 'SALDADA', 'CANCELADA'))
-);
-
--- 7. recargas — Control de saldo virtual por servicio y turno
+-- 6. recargas — Control de saldo virtual por servicio y turno
 CREATE TABLE IF NOT EXISTS recargas (
     id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     fecha                 DATE    NOT NULL,
@@ -188,7 +184,39 @@ CREATE TABLE IF NOT EXISTS operaciones_cajas (
     comprobante_url    TEXT
 );
 
--- 10. recargas_virtuales — Saldo virtual agregado al sistema
+-- 10. movimientos_empleados — Cuenta corriente por empleado
+-- Registra todo lo que el negocio le debe al empleado y viceversa:
+--   SUELDO_BASE (+), BONO_COMISION (+) → a favor del empleado
+--   FALTANTE_CAJA (-), ADELANTO_SUELDO (-), PAGO_NOMINA (-) → en contra del empleado
+--   AJUSTE (+/-) → segun es_cargo
+-- El saldo se calcula sumando los movimientos PENDIENTES (no se almacena):
+--   saldo > 0 → el negocio le debe al empleado
+--   saldo < 0 → el empleado le debe al negocio
+--   saldo = 0 → al dia
+-- FALTANTE_CAJA: insertado automaticamente por fn_ejecutar_cierre_diario cuando efectivo_fisico < efectivo_esperado
+-- PAGO_NOMINA: liquida todos los movimientos PENDIENTE del empleado (pasan a LIQUIDADO)
+CREATE TABLE IF NOT EXISTS movimientos_empleados (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    empleado_id         INTEGER NOT NULL REFERENCES usuarios(id),
+    fecha               TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    tipo_movimiento     tipo_movimiento_empleado_enum NOT NULL,
+    monto               DECIMAL(12,2) NOT NULL CHECK (monto > 0),  -- siempre positivo, signo lo da el tipo
+
+    -- Trazabilidad cruzada (nullable — no todo movimiento viene de otra tabla)
+    turno_id            UUID REFERENCES turnos_caja(id),            -- FALTANTE_CAJA viene del cierre
+
+    descripcion         TEXT,
+
+    -- Liquidacion: indica si este movimiento ya fue incluido en un pago de nomina
+    estado_liquidacion  VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE'
+                          CHECK (estado_liquidacion IN ('PENDIENTE', 'LIQUIDADO')),
+    liquidado_en        UUID REFERENCES movimientos_empleados(id),  -- apunta al PAGO_NOMINA que lo liquido
+
+    creado_por          INTEGER REFERENCES usuarios(id),            -- quien registro el movimiento
+    created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 11. recargas_virtuales — Saldo virtual agregado al sistema
 -- CELULAR: proveedor carga a crédito (pagado=false hasta que se le pague, pagado=true al pagar)
 -- BUS v4.0: pagado=false al comprar saldo, pagado=true al liquidar la ganancia mensual via fn_liquidar_ganancias_bus()
 CREATE TABLE IF NOT EXISTS recargas_virtuales (
@@ -344,9 +372,9 @@ CREATE INDEX IF NOT EXISTS idx_recargas_tipo_servicio        ON recargas(tipo_se
 CREATE INDEX IF NOT EXISTS idx_recargas_empleado             ON recargas(empleado_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_turnos_caja_fecha_turno ON turnos_caja ((CAST(hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS date)), numero_turno);
 CREATE INDEX IF NOT EXISTS idx_turnos_caja_empleado          ON turnos_caja(empleado_id);
-CREATE INDEX IF NOT EXISTS idx_deudas_empleado               ON deudas_empleados(empleado_id);  -- listado/suma por empleado
-CREATE INDEX IF NOT EXISTS idx_deudas_estado                 ON deudas_empleados(estado);       -- filtro PENDIENTE / SALDADA
-CREATE INDEX IF NOT EXISTS idx_deudas_turno                  ON deudas_empleados(turno_id);     -- lookup por turno
+CREATE INDEX IF NOT EXISTS idx_mov_empleados_saldo           ON movimientos_empleados(empleado_id, estado_liquidacion);  -- calculo de saldo (PENDIENTE por empleado)
+CREATE INDEX IF NOT EXISTS idx_mov_empleados_fecha           ON movimientos_empleados(empleado_id, fecha DESC);           -- historial cronologico
+CREATE INDEX IF NOT EXISTS idx_mov_empleados_turno           ON movimientos_empleados(turno_id) WHERE turno_id IS NOT NULL; -- lookup por turno (cierre diario)
 CREATE INDEX IF NOT EXISTS idx_operaciones_cajas_fecha       ON operaciones_cajas(fecha);
 CREATE INDEX IF NOT EXISTS idx_operaciones_cajas_caja        ON operaciones_cajas(caja_id);
 CREATE INDEX IF NOT EXISTS idx_operaciones_cajas_empleado    ON operaciones_cajas(empleado_id);
@@ -366,6 +394,35 @@ CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_fecha          ON cuentas_cobrar(f
 CREATE INDEX IF NOT EXISTS idx_ventas_estado_pago            ON ventas(estado_pago);
 CREATE INDEX IF NOT EXISTS idx_ventas_metodo_pago            ON ventas(metodo_pago);
 CREATE INDEX IF NOT EXISTS idx_notas_completada              ON notas(completada, created_at DESC);
+
+-- ==========================================
+-- VISTAS
+-- ==========================================
+
+-- Vista que calcula el saldo actual de cada empleado a partir de sus movimientos PENDIENTES
+-- Uso: sidebar badge, pagina de cuentas empleados, calculo de liquido a pagar
+CREATE OR REPLACE VIEW v_saldos_empleados AS
+SELECT
+  u.id AS empleado_id,
+  u.nombre,
+  COALESCE(SUM(
+    CASE
+      WHEN m.tipo_movimiento IN ('SUELDO_BASE', 'BONO_COMISION', 'AJUSTE_ABONO') THEN m.monto
+      WHEN m.tipo_movimiento IN ('FALTANTE_CAJA', 'ADELANTO_SUELDO', 'PAGO_NOMINA', 'AJUSTE_CARGO') THEN -m.monto
+    END
+  ), 0) AS saldo
+FROM usuarios u
+LEFT JOIN movimientos_empleados m
+  ON m.empleado_id = u.id
+  AND m.estado_liquidacion = 'PENDIENTE'
+WHERE u.activo = TRUE
+  AND u.rol IN ('ADMIN', 'EMPLEADO')
+GROUP BY u.id, u.nombre;
+
+-- Interpretacion del saldo:
+--   saldo > 0 → el negocio le debe al empleado (sueldo pendiente)
+--   saldo < 0 → el empleado le debe al negocio (faltantes/adelantos netos)
+--   saldo = 0 → al dia
 
 -- ==========================================
 -- TRIGGERS — AUTO-GENERACIÓN DE CÓDIGOS Y POS
@@ -501,10 +558,11 @@ INSERT INTO cajas (codigo, nombre, descripcion, saldo_actual) VALUES
 ('CAJA_BUS',     'Bus',        'Saldo digital de recargas bus',                                               0.00);
 
 INSERT INTO tipos_referencia (tabla, descripcion) VALUES
-('recargas',           'Operaciones originadas desde recargas diarias'),
-('turnos_caja',        'Operaciones originadas desde el cierre de turno (depósito, transferencia a Varios)'),
-('recargas_virtuales', 'Pagos al proveedor celular y compras de saldo bus'),
-('ventas',             'Operaciones originadas desde ventas POS');
+('recargas',               'Operaciones originadas desde recargas diarias'),
+('turnos_caja',            'Operaciones originadas desde el cierre de turno (depósito, transferencia a Varios)'),
+('recargas_virtuales',     'Pagos al proveedor celular y compras de saldo bus'),
+('ventas',                 'Operaciones originadas desde ventas POS'),
+('movimientos_empleados',  'Egresos de caja originados desde adelantos de sueldo o pago de nómina');
 
 -- Agregar Consumidor Final Básico
 INSERT INTO clientes (identificacion, nombre, es_consumidor_final) 
@@ -525,20 +583,21 @@ ON CONFLICT (nombre) DO NOTHING;
 -- EGRESO → EG-001, EG-002... / INGRESO → IN-001, IN-002...
 -- seleccionable = FALSE → creada por funciones SQL, no aparece en dropdowns del usuario
 INSERT INTO categorias_operaciones (tipo, nombre, descripcion, seleccionable) VALUES
--- EGRESOS (EG-001 a EG-013)
+-- EGRESOS (EG-001 a EG-014)
 ('EGRESO',  'Compras/Mercadería',               'Compra de productos para reventa o uso en el negocio',                              TRUE),
 ('EGRESO',  'Servicios Básicos',                'Pago de luz, agua, internet, teléfono',                                             TRUE),
 ('EGRESO',  'Alquiler',                         'Pago de alquiler del local',                                                        TRUE),
 ('EGRESO',  'Mantenimiento',                    'Reparaciones y mantenimiento del local o equipo',                                   TRUE),
 ('EGRESO',  'Transporte/Combustible',           'Gastos de transporte y combustible',                                                TRUE),
 ('EGRESO',  'Papelería/Suministros',            'Papelería, útiles de oficina y suministros generales',                              TRUE),
-('EGRESO',  'Salarios',                         'Pago de salarios a empleados',                                                      TRUE),
+('EGRESO',  'Salarios',                         'Pago de salarios a empleados (via flujo de nomina)',                                FALSE),
 ('EGRESO',  'Impuestos/Tasas',                  'Pago de impuestos y tasas municipales',                                             TRUE),
 ('EGRESO',  'Otros Gastos',                     'Otros gastos operativos no clasificados',                                           TRUE),
 ('EGRESO',  'Pago Proveedor Recargas',          'Pago al proveedor de recargas celular (saldo prestado a crédito)',                  FALSE),
 ('EGRESO',  'Compra Saldo Virtual Bus',         'Compra de saldo virtual bus mediante depósito bancario',                            FALSE),
 ('EGRESO',  'Ajuste Déficit Turno Anterior',    'Retiro de Tienda para reponer déficit del turno anterior',                         FALSE),
 ('EGRESO',  'Ajuste Diferencia Conteo',         'Ajuste al cierre cuando el conteo físico es menor al saldo digital del cajón',     FALSE),
+('EGRESO',  'Adelanto Sueldo Empleado',         'Anticipo de sueldo entregado al empleado en efectivo (via flujo de nomina)',        FALSE),
 -- INGRESOS (IN-001 a IN-005)
 ('INGRESO', 'Ventas',                           'Ingresos por ventas del negocio',                                                   TRUE),
 ('INGRESO', 'Devoluciones de Proveedores',      'Devolución de dinero por parte de proveedores',                                     TRUE),
@@ -555,7 +614,8 @@ INSERT INTO configuraciones (clave, valor) VALUES
 ('pos_descuentos_habilitados',    'false'),
 ('pos_descuento_maximo_pct',      '10'),
 ('pos_umbral_monto_descuento',    '50.00'),
-('pos_iva_porcentaje',            '15');
+('pos_iva_porcentaje',            '15'),
+('nomina_sueldo_base',            '450');
 
 INSERT INTO usuarios (nombre, usuario, rol, es_superadmin) VALUES
 ('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN', TRUE);
@@ -572,24 +632,28 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 (4, '786123456003', 'Yogur Toni Fresa 200ml', 0.40, 0.60, 15, 5, FALSE);
 
 -- ==========================================
--- RESUMEN (v5.0)
+-- RESUMEN (v6.0)
 -- ==========================================
--- ✅ 18 Tablas | 2 Enums | 27 Índices
+-- ✅ 18 Tablas | 3 Enums | 27 Índices | 1 Vista
 -- ✅ 2 Tipos de servicio (BUS, CELULAR)
 -- ✅ 4 Tipos de referencia (eliminado caja_fisica_diaria)
--- ✅ 18 Categorías de operaciones (13 egresos + 5 ingresos)
+-- ✅ 19 Categorías de operaciones (14 egresos + 5 ingresos)
+--    → EG-007: Salarios (seleccionable=FALSE, via flujo de nomina)
 --    → EG-013 y IN-005: Ajuste Diferencia Conteo (seleccionable=FALSE)
+--    → EG-014: Adelanto Sueldo Empleado (seleccionable=FALSE, via flujo de nomina)
 -- ✅ 5 Cajas inicializadas en $0.00
 --    → CAJA (bóveda), CAJA_CHICA (cajón diario), VARIOS (fondo emergencia), CAJA_CELULAR, CAJA_BUS
+-- ✅ Vista v_saldos_empleados — saldo calculado por empleado
 -- ✅ Configuración: fondo=$20 | varios=$20 | alerta_bus=$75 | dias_fact=3 | iva=15%
 -- ✅ Admin inicial: Ivan Sanchez
 -- ✅ 3 Productos de prueba
 -- ❌ Tablas eliminadas en v5: caja_fisica_diaria, gastos_diarios, categorias_gastos
+-- ❌ Tablas eliminadas en v6: deudas_empleados (cuenta corriente ahora en movimientos_empleados)
 --
 -- ⚠️  FUNCIONES POSTGRESQL (archivos separados, ejecutar después del schema):
 --   Dashboard:
 --   • fn_abrir_turno                            → docs/dashboard/sql/functions/fn_abrir_turno.sql
---   • fn_ejecutar_cierre_diario v5             → docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
+--   • fn_ejecutar_cierre_diario v5.6           → docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
 --   • fn_reparar_deficit_turno                 → docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql
 --   • fn_verificar_transferencia_caja_chica_hoy → docs/dashboard/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql
 --   • fn_registrar_operacion_manual            → docs/dashboard/sql/functions/fn_registrar_operacion_manual.sql
@@ -615,12 +679,12 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 --   • fn_anular_venta                          → docs/pos/sql/functions/fn_anular_venta.sql
 --   Ventas — Reporte período:
 --   • fn_reporte_ventas_periodo                → docs/ventas/sql/functions/fn_reporte_ventas_periodo.sql
+--   Movimientos Empleados (nómina):
+--   • fn_registrar_adelanto_sueldo             → docs/movimientos-empleados/sql/functions/fn_registrar_adelanto_sueldo.sql
+--   • fn_pagar_nomina_empleado                 → docs/movimientos-empleados/sql/functions/fn_pagar_nomina_empleado.sql
 --
--- ✅ 19 Tablas | 24 Funciones SQL
--- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 2 inventario + 3 ventas + 4 triggers/helpers)
---
--- ⚠️  MIGRACIÓN desde v4.9: ejecutar v5_migracion_cajas.sql (NO este schema completo)
---   → docs/dashboard/sql/migrations/v5_migracion_cajas.sql
+-- ✅ 18 Tablas | 26 Funciones SQL
+-- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 2 inventario + 3 ventas + 2 nomina + 4 triggers/helpers)
 -- ==========================================
 
 -- Refresca el schema cache de PostgREST para que reconozca los cambios DDL

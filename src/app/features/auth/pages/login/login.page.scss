@@ -19,7 +19,8 @@ ion-content {
   max-width: 380px;
   background: var(--ion-item-background);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-level-3);
+  border: 1px solid var(--ion-color-step-100);
+  box-shadow: var(--shadow-level-1);
   padding: var(--spacing-4xl) var(--spacing-3xl);
 }
 

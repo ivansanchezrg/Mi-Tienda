@@ -5,19 +5,20 @@ import {
   IonSpinner, IonSkeletonText, IonIcon
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { storefrontOutline, walletOutline, busOutline, cartOutline } from 'ionicons/icons';
+import { storefrontOutline, walletOutline, busOutline, cartOutline, peopleOutline } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
 import { ConfiguracionService } from '../../services/configuracion.service';
 
-type Seccion = 'negocio' | 'caja' | 'bus' | 'pos';
+type Seccion = 'negocio' | 'caja' | 'bus' | 'pos' | 'nomina';
 
 const CAMPOS_POR_SECCION: Record<Seccion, string[]> = {
   negocio: ['negocio_nombre'],
   caja:    ['caja_fondo_fijo_diario', 'caja_varios_transferencia_dia'],
   bus:     ['bus_alerta_saldo_bajo', 'bus_dias_antes_facturacion'],
   pos:     ['pos_descuentos_habilitados', 'pos_descuento_maximo_pct', 'pos_umbral_monto_descuento', 'pos_iva_porcentaje'],
+  nomina:  ['nomina_sueldo_base'],
 };
 
 const MENSAJES_SECCION: Record<Seccion, string> = {
@@ -25,6 +26,7 @@ const MENSAJES_SECCION: Record<Seccion, string> = {
   caja:    'Parámetros de caja guardados',
   bus:     'Parámetros de bus guardados',
   pos:     'Configuración POS guardada',
+  nomina:  'Configuración de nómina guardada',
 };
 
 @Component({
@@ -40,7 +42,7 @@ const MENSAJES_SECCION: Record<Seccion, string> = {
 })
 export class ParametrosPage implements OnInit, OnDestroy {
   constructor() {
-    addIcons({ storefrontOutline, walletOutline, busOutline, cartOutline });
+    addIcons({ storefrontOutline, walletOutline, busOutline, cartOutline, peopleOutline });
   }
 
   private fb = inject(FormBuilder);
@@ -53,11 +55,11 @@ export class ParametrosPage implements OnInit, OnDestroy {
   cargando = true;
 
   guardando: Record<string, boolean> = {
-    negocio: false, caja: false, bus: false, pos: false,
+    negocio: false, caja: false, bus: false, pos: false, nomina: false,
   };
 
   tieneCambios: Record<string, boolean> = {
-    negocio: false, caja: false, bus: false, pos: false,
+    negocio: false, caja: false, bus: false, pos: false, nomina: false,
   };
 
   private savedValues: Record<string, Record<string, any>> = {};
@@ -72,7 +74,8 @@ export class ParametrosPage implements OnInit, OnDestroy {
       pos_descuentos_habilitados:   [false],
       pos_descuento_maximo_pct:     [null, [Validators.required, Validators.min(0), Validators.max(100)]],
       pos_umbral_monto_descuento:   [null, [Validators.required, Validators.min(0)]],
-      pos_iva_porcentaje:           [null, [Validators.required, Validators.min(1), Validators.max(100)]]
+      pos_iva_porcentaje:           [null, [Validators.required, Validators.min(1), Validators.max(100)]],
+      nomina_sueldo_base:           [null, [Validators.required, Validators.min(0)]],
     });
 
     this.cargarConfiguracion();
@@ -143,7 +146,8 @@ export class ParametrosPage implements OnInit, OnDestroy {
           pos_descuentos_habilitados:    config.pos_descuentos_habilitados,
           pos_descuento_maximo_pct:      config.pos_descuento_maximo_pct,
           pos_umbral_monto_descuento:    config.pos_umbral_monto_descuento,
-          pos_iva_porcentaje:            config.pos_iva_porcentaje
+          pos_iva_porcentaje:            config.pos_iva_porcentaje,
+          nomina_sueldo_base:            config.nomina_sueldo_base,
         }, { emitEvent: false });
 
         this.guardarSnapshot();

@@ -37,5 +37,11 @@ export const PAGINATION_CONFIG = {
    */
   notas: {
     pageSize: 30
+  },
+  /**
+   * Movimientos de empleados (cuenta corriente)
+   */
+  movimientosEmpleados: {
+    pageSize: 20
   }
 } as const;

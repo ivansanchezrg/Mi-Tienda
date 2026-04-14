@@ -236,21 +236,22 @@ efectivo_esperado = saldo_digital + fondo_fijo
 diferencia        = efectivo_fisico - efectivo_esperado
 ```
 
-Si `diferencia < 0` (el empleado tiene menos efectivo del esperado), `fn_ejecutar_cierre_diario` inserta automáticamente un registro en `deudas_empleados`:
+Si `diferencia < 0` (el empleado tiene menos efectivo del esperado), `fn_ejecutar_cierre_diario` inserta automáticamente un registro en `movimientos_empleados`:
 
 ```sql
 -- Dentro del bloque ELSIF v_diferencia < 0 (paso 7, ajuste de conteo)
-INSERT INTO deudas_empleados (empleado_id, turno_id, fecha, monto_faltante, estado)
-VALUES (p_empleado_id, p_turno_id, p_fecha, ABS(v_diferencia), 'PENDIENTE');
+INSERT INTO movimientos_empleados (empleado_id, turno_id, tipo_movimiento, monto, descripcion, creado_por)
+VALUES (p_empleado_id, p_turno_id, 'FALTANTE_CAJA', ABS(v_diferencia), '...', p_empleado_id);
 ```
 
 | Campo | Valor |
 | --- | --- |
 | `empleado_id` | El empleado que cerró |
-| `monto_faltante` | `ABS(v_diferencia)` — cuánto faltó en el cajón |
-| `estado` | `PENDIENTE` hasta que el empleado reponga el dinero |
+| `tipo_movimiento` | `FALTANTE_CAJA` |
+| `monto` | `ABS(v_diferencia)` — cuánto faltó en el cajón |
+| `estado_liquidacion` | `PENDIENTE` hasta que se incluya en un pago de nómina |
 
-**Cómo se salda:** el empleado entrega el efectivo (se registra un INGRESO manual en Cajón) y alguien marca la deuda como `SALDADA` desde la UI (módulo Reportes, pendiente de implementar). **No se salda automáticamente.**
+**Cómo se salda:** al pagar la nómina del empleado desde "Cuentas empleados", `fn_pagar_nomina_empleado` descuenta automáticamente los faltantes pendientes del sueldo bruto. El saldo del empleado se calcula con la vista `v_saldos_empleados`.
 
 ---
 

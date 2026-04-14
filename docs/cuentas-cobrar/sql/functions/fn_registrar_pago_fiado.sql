@@ -100,7 +100,7 @@ BEGIN
         SELECT id INTO v_tipo_referencia_id
         FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1;
 
-        IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN
+        IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL AND v_tipo_referencia_id IS NOT NULL THEN
             SELECT saldo_actual INTO v_saldo_caja FROM cajas WHERE id = v_caja_id;
 
             INSERT INTO operaciones_cajas (

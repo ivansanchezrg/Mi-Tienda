@@ -105,11 +105,20 @@ Historial completo de recargas registradas con filtros.
 
 **Características:**
 
-- 📜 **Lista agrupada por fecha** con scroll infinito
-- 🔍 **Filtros por servicio** (Todas, Celular, Bus)
-- 📊 **Información detallada** de cada recarga
-- 🔄 **Pull-to-refresh** para actualizar datos
-- 🎨 **Diseño adaptativo** dark/light mode
+- Lista agrupada por fecha con scroll infinito
+- Filtros por servicio (Todas, Celular, Bus)
+- Pull-to-refresh para actualizar datos
+
+**Fuentes de datos — dos tablas distintas:**
+
+| Tipo en UI | Tabla | Quién escribe |
+|---|---|---|
+| `CIERRE` | `recargas` | `fn_ejecutar_cierre_diario` (pasos 13 y 14) — un registro CELULAR + uno BUS por cada cierre de turno |
+| `CARGA_VIRTUAL` | `recargas_virtuales` | `fn_registrar_recarga_proveedor_celular`, `fn_registrar_compra_saldo_bus` |
+
+La página combina ambas fuentes en `HistorialRecargasPage.cargarHistorial()` con `Promise.all` y las ordena por `created_at` descendente antes de agrupar por fecha.
+
+> Ver flujo completo en [RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md#base-de-datos).
 
 ---
 

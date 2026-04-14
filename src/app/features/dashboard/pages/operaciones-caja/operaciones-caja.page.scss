@@ -55,14 +55,23 @@ ion-content {
     }
 
     .summary-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-sm);
       display: flex;
       align-items: center;
       justify-content: center;
 
       ion-icon { font-size: 16px; }
 
-      &.income { ion-icon { color: var(--ion-color-success); } }
-      &.expense { ion-icon { color: var(--ion-color-danger); } }
+      &.income {
+        background: rgba(var(--ion-color-success-rgb), 0.10);
+        ion-icon { color: var(--ion-color-success); }
+      }
+      &.expense {
+        background: rgba(var(--ion-color-danger-rgb), 0.10);
+        ion-icon { color: var(--ion-color-danger); }
+      }
     }
 
     .summary-info {
@@ -75,7 +84,7 @@ ion-content {
         font-weight: var(--font-weight-bold);
         color: var(--ion-text-color);
 
-        &.income { color: var(--ion-color-success); }
+        &.income  { color: var(--ion-color-success); }
         &.expense { color: var(--ion-color-danger); }
       }
 
@@ -185,10 +194,10 @@ ion-content {
   padding: 13px var(--spacing-lg);
   gap: var(--spacing-md);
 
-  // Icono sin fondo
   .op-icon-wrap {
     width: 40px;
     height: 40px;
+    border-radius: var(--radius-sm);
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -196,11 +205,26 @@ ion-content {
 
     ion-icon { font-size: 20px; color: var(--ion-color-medium); }
 
-    &[data-type="success"] { ion-icon { color: var(--ion-color-success); } }
-    &[data-type="danger"]  { ion-icon { color: var(--ion-color-danger); } }
-    &[data-type="primary"] { ion-icon { color: var(--ion-color-primary); } }
-    &[data-type="warning"] { ion-icon { color: var(--ion-color-warning-shade); } }
-    &[data-type="medium"]  { ion-icon { color: var(--ion-color-medium); } }
+    &[data-type="success"] {
+      background: rgba(var(--ion-color-success-rgb), 0.10);
+      ion-icon { color: var(--ion-color-success); }
+    }
+    &[data-type="danger"] {
+      background: rgba(var(--ion-color-danger-rgb), 0.10);
+      ion-icon { color: var(--ion-color-danger); }
+    }
+    &[data-type="primary"] {
+      background: rgba(var(--ion-color-primary-rgb), 0.10);
+      ion-icon { color: var(--ion-color-primary); }
+    }
+    &[data-type="warning"] {
+      background: rgba(var(--ion-color-warning-rgb), 0.10);
+      ion-icon { color: var(--ion-color-warning-shade); }
+    }
+    &[data-type="medium"] {
+      background: rgba(var(--ion-color-medium-rgb), 0.10);
+      ion-icon { color: var(--ion-color-medium); }
+    }
   }
 
   // Detalles

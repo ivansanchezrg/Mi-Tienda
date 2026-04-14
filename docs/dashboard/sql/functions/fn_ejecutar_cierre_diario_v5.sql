@@ -8,8 +8,24 @@
 -- );
 
 -- ==========================================
--- FUNCIÓN: fn_ejecutar_cierre_diario (v5.4)
+-- FUNCIÓN: fn_ejecutar_cierre_diario (v5.6)
 -- ==========================================
+-- CAMBIOS v5.6 respecto a v5.5:
+--   - Paso 7: reemplaza INSERT en deudas_empleados por INSERT en movimientos_empleados
+--     con tipo_movimiento = 'FALTANTE_CAJA'. La tabla deudas_empleados fue eliminada
+--     en v6.0 del schema y reemplazada por movimientos_empleados (cuenta corriente).
+--     El faltante se descuenta automaticamente al pagar nomina (fn_pagar_nomina_empleado).
+--
+-- CAMBIOS v5.5 respecto a v5.4:
+--   - Paso 13 (CELULAR): INSERT en recargas ahora condicional a v_venta_celular > 0.
+--     Antes: siempre insertaba aunque venta_dia = 0 y saldo no se moviera.
+--     Ahora: si no hubo venta celular, no se crea snapshot ni operación de caja.
+--   - Paso 14 (BUS): INSERT en recargas ahora condicional a v_venta_bus > 0
+--     OR EXISTS registro previo del mini cierre para el turno.
+--     El mini cierre (fn_registrar_compra_saldo_bus) puede haber creado el registro
+--     antes del cierre — en ese caso igual se actualiza saldo_virtual_actual final.
+--     Si no hubo venta BUS y no hubo mini cierre, no se crea ningún registro.
+--
 -- CAMBIOS v5.4 respecto a v5.3:
 --   - Lee pos_habilitado de configuraciones en el paso 3
 --   - Paso 7: ajuste solo si v_pos_habilitado AND v_hubo_movimientos_caja_chica
@@ -40,7 +56,7 @@
 --   - Ventas negativas lanzan excepción con mensaje descriptivo
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v5.4
+CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v5.6
   p_turno_id               UUID,
   p_fecha                  DATE,
   p_empleado_id            INTEGER,
@@ -296,18 +312,20 @@ BEGIN
       )
     );
 
-    -- Registrar deuda del empleado: el cajón tiene menos de lo esperado.
+    -- Registrar faltante en cuenta corriente del empleado (movimientos_empleados).
     -- Causas posibles: dinero tomado sin registrar, error de conteo, billete falso, etc.
-    -- El déficit de VARIOS y del fondo NO son deudas del empleado (son costos operacionales).
-    -- Esta deuda se salda MANUALMENTE (pago en efectivo o descuento en nómina).
-    INSERT INTO deudas_empleados (
-      empleado_id, turno_id, fecha, monto_faltante, estado
+    -- El déficit de VARIOS y del fondo NO son responsabilidad del empleado (son costos operacionales).
+    -- Este faltante se descuenta automaticamente al pagar nomina (fn_pagar_nomina_empleado).
+    INSERT INTO movimientos_empleados (
+      empleado_id, turno_id, tipo_movimiento, monto, descripcion, creado_por
     ) VALUES (
       p_empleado_id,
       p_turno_id,
-      p_fecha,
+      'FALTANTE_CAJA',
       ABS(v_diferencia),
-      'PENDIENTE'
+      format('Faltante de conteo fisico al cierre del %s ($%s)',
+             TO_CHAR(p_fecha, 'DD/MM/YYYY'), TO_CHAR(ABS(v_diferencia), 'FM999990.00')),
+      p_empleado_id
     );
   END IF;
 
@@ -464,24 +482,26 @@ BEGIN
 
   -- ==========================================
   -- 13. RECARGAS CELULAR
+  -- Solo se registra si hubo venta real (saldo virtual se movió).
+  -- Si venta_dia = 0, no hay snapshot que guardar ni operación de caja.
   -- ==========================================
 
-  INSERT INTO recargas (
-    id, fecha, turno_id, empleado_id, tipo_servicio_id,
-    venta_dia, saldo_virtual_anterior, saldo_virtual_actual
-  ) VALUES (
-    gen_random_uuid(),
-    p_fecha,
-    p_turno_id,
-    p_empleado_id,
-    v_tipo_servicio_celular_id,
-    v_venta_celular,
-    p_saldo_anterior_celular,
-    p_saldo_celular_final
-  )
-  RETURNING id INTO v_recarga_celular_id;
-
   IF v_venta_celular > 0 THEN
+    INSERT INTO recargas (
+      id, fecha, turno_id, empleado_id, tipo_servicio_id,
+      venta_dia, saldo_virtual_anterior, saldo_virtual_actual
+    ) VALUES (
+      gen_random_uuid(),
+      p_fecha,
+      p_turno_id,
+      p_empleado_id,
+      v_tipo_servicio_celular_id,
+      v_venta_celular,
+      p_saldo_anterior_celular,
+      p_saldo_celular_final
+    )
+    RETURNING id INTO v_recarga_celular_id;
+
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, monto,
       saldo_anterior, saldo_actual, descripcion,
@@ -505,44 +525,51 @@ BEGIN
   -- 14. RECARGAS BUS (ON CONFLICT para mini cierre)
   -- ON CONFLICT: si hubo mini cierre durante el día (registrar_compra_saldo_bus v3.0),
   -- ya existe un registro BUS para este turno. Acumula venta_dia y actualiza saldo final.
+  -- Se omite el INSERT si venta_bus = 0 Y no hubo mini cierre previo para este turno.
   -- ==========================================
 
-  INSERT INTO recargas (
-    id, fecha, turno_id, empleado_id, tipo_servicio_id,
-    venta_dia, saldo_virtual_anterior, saldo_virtual_actual
-  ) VALUES (
-    gen_random_uuid(),
-    p_fecha,
-    p_turno_id,
-    p_empleado_id,
-    v_tipo_servicio_bus_id,
-    v_venta_bus,
-    p_saldo_anterior_bus,
-    p_saldo_bus_final
-  )
-  ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
-    venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
-    saldo_virtual_actual = EXCLUDED.saldo_virtual_actual
-  RETURNING id INTO v_recarga_bus_id;
-
-  IF v_venta_bus > 0 THEN
-    INSERT INTO operaciones_cajas (
-      id, caja_id, empleado_id, tipo_operacion, monto,
-      saldo_anterior, saldo_actual, descripcion,
-      tipo_referencia_id, referencia_id
+  IF v_venta_bus > 0 OR EXISTS (
+    SELECT 1 FROM recargas
+    WHERE turno_id = p_turno_id
+      AND tipo_servicio_id = v_tipo_servicio_bus_id
+  ) THEN
+    INSERT INTO recargas (
+      id, fecha, turno_id, empleado_id, tipo_servicio_id,
+      venta_dia, saldo_virtual_anterior, saldo_virtual_actual
     ) VALUES (
       gen_random_uuid(),
-      v_caja_bus_id,
+      p_fecha,
+      p_turno_id,
       p_empleado_id,
-      'INGRESO',
+      v_tipo_servicio_bus_id,
       v_venta_bus,
-      p_saldo_anterior_caja_bus,
-      v_saldo_final_caja_bus,
-      'Venta bus del turno ' || p_fecha,
-      v_tipo_ref_recargas_id,
-      v_recarga_bus_id
-    );
-    UPDATE cajas SET saldo_actual = v_saldo_final_caja_bus WHERE id = v_caja_bus_id;
+      p_saldo_anterior_bus,
+      p_saldo_bus_final
+    )
+    ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
+      venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
+      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual
+    RETURNING id INTO v_recarga_bus_id;
+
+    IF v_venta_bus > 0 THEN
+      INSERT INTO operaciones_cajas (
+        id, caja_id, empleado_id, tipo_operacion, monto,
+        saldo_anterior, saldo_actual, descripcion,
+        tipo_referencia_id, referencia_id
+      ) VALUES (
+        gen_random_uuid(),
+        v_caja_bus_id,
+        p_empleado_id,
+        'INGRESO',
+        v_venta_bus,
+        p_saldo_anterior_caja_bus,
+        v_saldo_final_caja_bus,
+        'Venta bus del turno ' || p_fecha,
+        v_tipo_ref_recargas_id,
+        v_recarga_bus_id
+      );
+      UPDATE cajas SET saldo_actual = v_saldo_final_caja_bus WHERE id = v_caja_bus_id;
+    END IF;
   END IF;
 
   -- ==========================================
@@ -624,12 +651,12 @@ GRANT EXECUTE ON FUNCTION public.fn_ejecutar_cierre_diario(
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_ejecutar_cierre_diario IS
-'Cierre diario v5.4 — Distribución en cascada "todo o nada" por nivel. '
+'Cierre diario v5.6 — Distribución en cascada "todo o nada" por nivel. '
 'Ajuste de conteo solo si pos_habilitado=true (config) Y hubo movimientos reales en CAJA_CHICA. '
 'Doble condición explícita: módulo activo + uso real. Evita ajuste falso tanto cuando POS está '
 'desactivado como cuando está activo pero no se usó en el turno. '
-'Inserta en deudas_empleados solo cuando efectivo_fisico < efectivo_esperado (faltante de conteo). '
-'El déficit de VARIOS y del fondo son costos operacionales — NO se registran como deuda del empleado. '
+'Inserta en movimientos_empleados (FALTANTE_CAJA) cuando efectivo_fisico < efectivo_esperado. '
+'El déficit de VARIOS y del fondo son costos operacionales — NO se registran como faltante del empleado. '
 '1° VARIOS recibe si efectivo >= transferencia_diaria completa. '
 '2° Fondo fijo queda en cajón solo si efectivo >= transferencia_diaria + fondo_fijo. '
 '3° CAJA recibe el resto. Si un nivel no alcanza, ese monto va a CAJA. '

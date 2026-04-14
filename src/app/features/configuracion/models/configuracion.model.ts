@@ -5,7 +5,7 @@ export interface ConfiguracionRow {
 }
 
 // Objeto tipado que se usa en toda la app
-// Prefijo por módulo: negocio_, caja_, bus_, pos_
+// Prefijo por módulo: negocio_, caja_, bus_, pos_, nomina_
 export interface Configuracion {
     negocio_nombre: string;
     caja_fondo_fijo_diario: number;
@@ -17,6 +17,8 @@ export interface Configuracion {
     pos_umbral_monto_descuento: number;
     /** Tarifa IVA vigente en %. Usado en POS/Factura para extraer base gravada. Default: 15 */
     pos_iva_porcentaje: number;
+    /** Sueldo base por defecto para pago de nómina. Se precarga en el wizard, editable por el admin. */
+    nomina_sueldo_base: number;
 }
 
 // Claves que se pueden actualizar desde la página de parámetros
@@ -33,6 +35,7 @@ export const CONFIGURACION_DEFAULTS: Configuracion = {
     pos_descuento_maximo_pct: 10,
     pos_umbral_monto_descuento: 50,
     pos_iva_porcentaje: 15,
+    nomina_sueldo_base: 450,
 };
 
 /**
@@ -53,5 +56,6 @@ export function mapRowsToConfig(rows: ConfiguracionRow[]): Configuracion {
         pos_descuento_maximo_pct:      Number(map.get('pos_descuento_maximo_pct'))      || D.pos_descuento_maximo_pct,
         pos_umbral_monto_descuento:    Number(map.get('pos_umbral_monto_descuento'))    || D.pos_umbral_monto_descuento,
         pos_iva_porcentaje:            Number(map.get('pos_iva_porcentaje'))            || D.pos_iva_porcentaje,
+        nomina_sueldo_base:            Number(map.get('nomina_sueldo_base'))            || D.nomina_sueldo_base,
     };
 }

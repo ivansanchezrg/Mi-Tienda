@@ -11,7 +11,8 @@ import {
   peopleOutline, settingsOutline, logOutOutline, personCircleOutline,
   listOutline, swapHorizontalOutline, homeOutline, cubeOutline, handRightOutline,
   personOutline, readerOutline, barcodeOutline, receiptOutline,
-  storefrontOutline, calculatorOutline, createOutline, scaleOutline
+  storefrontOutline, calculatorOutline, createOutline, scaleOutline,
+  walletOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 import { RolUsuario } from '../../../features/auth/models/usuario_actual.model';
@@ -99,6 +100,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
     {
       label: 'Admin',
       items: [
+        { title: 'Cuentas Empleados', url: '/movimientos-empleados', icon: walletOutline, soloAdmin: true },
         { title: 'Usuarios', url: '/usuarios', icon: peopleOutline, soloAdmin: true }
       ]
     }
@@ -111,7 +113,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private posHabilitado = false;
 
   constructor() {
-    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline });
+    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline, walletOutline });
   }
 
   async ngOnInit() {
