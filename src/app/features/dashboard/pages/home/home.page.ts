@@ -176,6 +176,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   override async ionViewWillEnter(): Promise<void> {
     super.ionViewWillEnter();
+    this.ui.showTabs();
     const refresh = this.route.snapshot.queryParams['refresh'];
     if (refresh) {
       await this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
