@@ -1,12 +1,12 @@
 import { Component, inject, OnInit, OnDestroy, ViewChild } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCard, IonChip,
+  IonContent, IonIcon, IonCard,
   IonInfiniteScroll, IonInfiniteScrollContent,
   IonRefresher, IonRefresherContent,
-  ModalController, ActionSheetController, IonSkeletonText
+  ModalController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -23,6 +23,9 @@ import { NetworkService } from '@core/services/network.service';
 import { CajasService } from '../../services/cajas.service';
 import { StorageService } from '@core/services/storage.service';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
+import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
+import { AuthService } from '../../../auth/services/auth.service';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 interface OperacionAgrupada {
   fecha: string;
@@ -40,9 +43,10 @@ interface OperacionAgrupada {
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonCard, IonChip,
+    IonContent, IonIcon, IonCard,
     IonInfiniteScroll, IonInfiniteScrollContent, IonSkeletonText,
-    IonRefresher, IonRefresherContent
+    IonRefresher, IonRefresherContent,
+    EmptyStateComponent
   ]
 })
 export class OperacionesCajaPage implements OnInit, OnDestroy {
@@ -52,8 +56,9 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   private ui = inject(UiService);
   private modalCtrl = inject(ModalController);
   private storageService = inject(StorageService);
-  private actionSheetCtrl = inject(ActionSheetController);
   private networkService = inject(NetworkService);
+  private route = inject(ActivatedRoute);
+  private authService = inject(AuthService);
   private networkSub?: Subscription;
 
   @ViewChild(IonInfiniteScroll) infiniteScroll!: IonInfiniteScroll;
@@ -83,6 +88,25 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   // Flag para saber si hubo cambios y refrescar home al volver
   hayCambios = false;
 
+  // true si el turno activo de Caja Chica pertenece a otro empleado
+  turnoAjeno = false;
+
+  // true si el usuario logueado es quien abrió el turno de Caja Chica
+  esMiTurno = false;
+
+  // Código de la caja (CAJA, CAJA_CHICA, CAJA_CELULAR, CAJA_BUS, VARIOS)
+  cajaCodigo = '';
+
+  // true si el usuario logueado es ADMIN
+  esAdmin = false;
+
+  // true si el ⋮ debe mostrarse según caja y rol
+  get mostrarMenuOpciones(): boolean {
+    if (this.cajaCodigo === 'CAJA_CHICA') return this.esMiTurno;
+    if (['CAJA_CELULAR', 'CAJA_BUS'].includes(this.cajaCodigo)) return this.esAdmin;
+    return true; // CAJA y VARIOS siempre
+  }
+
   constructor() {
     addIcons({
       chevronBackOutline, arrowDownOutline, arrowUpOutline,
@@ -91,14 +115,16 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       documentAttachOutline, closeOutline, ellipsisVertical, close
     });
 
-    const navigation = this.router.getCurrentNavigation();
-    if (navigation?.extras?.state) {
-      this.cajaId = navigation.extras.state['cajaId'];
-      this.cajaNombre = navigation.extras.state['cajaNombre'];
-    }
   }
 
   ngOnInit() {
+    const params = this.route.snapshot.queryParams;
+    this.cajaId = Number(params['cajaId']) || 0;
+    this.cajaNombre = params['cajaNombre'] || '';
+    this.cajaCodigo = params['cajaCodigo'] || '';
+    this.turnoAjeno = params['turnoAjeno'] === 'true';
+    this.esMiTurno = params['esMiTurno'] === 'true';
+
     if (!this.cajaId) {
       this.router.navigate(['/home']);
       return;
@@ -107,6 +133,9 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
 
   async ionViewWillEnter() {
     this.ui.hideTabs();
+
+    const usuario = await this.authService.getUsuarioActual();
+    this.esAdmin = usuario?.rol === 'ADMIN';
 
     // Suscribirse al estado de red (limpiar anterior si existe)
     this.networkSub?.unsubscribe();
@@ -172,9 +201,9 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     this.totalEgresos = 0;
 
     for (const op of this.operaciones) {
-      if (this.esIngreso(op.tipo_operacion)) {
+      if (this.esIngresoReal(op.tipo_operacion)) {
         this.totalIngresos += op.monto;
-      } else if (this.esEgreso(op.tipo_operacion)) {
+      } else if (this.esEgresoReal(op.tipo_operacion)) {
         this.totalEgresos += op.monto;
       }
     }
@@ -200,9 +229,9 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       const grupo = grupos.get(fechaKey)!;
       grupo.operaciones.push(op);
 
-      if (this.esIngreso(op.tipo_operacion)) {
+      if (this.esIngresoReal(op.tipo_operacion)) {
         grupo.totalIngresos += op.monto;
-      } else if (this.esEgreso(op.tipo_operacion)) {
+      } else if (this.esEgresoReal(op.tipo_operacion)) {
         grupo.totalEgresos += op.monto;
       }
     }
@@ -210,12 +239,24 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     this.operacionesAgrupadas = Array.from(grupos.values());
   }
 
+  // Visual: flecha + signo en la lista de operaciones
   esIngreso(tipo: string): boolean {
-    return ['INGRESO', 'TRANSFERENCIA_ENTRANTE', 'APERTURA'].includes(tipo);
+    return ['INGRESO', 'TRANSFERENCIA_ENTRANTE', 'CIERRE'].includes(tipo);
   }
 
   esEgreso(tipo: string): boolean {
-    return ['EGRESO', 'TRANSFERENCIA_SALIENTE', 'CIERRE'].includes(tipo);
+    return ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(tipo);
+  }
+
+  // Resumen del período: incluye todo lo que sumó/restó al saldo de la caja.
+  // CIERRE cuenta como ingreso porque es dinero que entró a la caja.
+  // APERTURA y AJUSTE son neutros (no suman a ingresos ni egresos).
+  private esIngresoReal(tipo: string): boolean {
+    return ['INGRESO', 'TRANSFERENCIA_ENTRANTE', 'CIERRE'].includes(tipo);
+  }
+
+  private esEgresoReal(tipo: string): boolean {
+    return ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(tipo);
   }
 
   async cambiarFiltro(event: any) {
@@ -262,7 +303,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       'TRANSFERENCIA_ENTRANTE': 'success',
       'TRANSFERENCIA_SALIENTE': 'danger',
       'APERTURA': 'primary',
-      'CIERRE': 'medium',
+      'CIERRE': 'success',
       'AJUSTE': 'warning'
     };
     return colors[tipo] || 'medium';
@@ -275,7 +316,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
       'TRANSFERENCIA_ENTRANTE': 'Transferencia recibida',
       'TRANSFERENCIA_SALIENTE': 'Transferencia enviada',
       'APERTURA': 'Apertura',
-      'CIERRE': 'Cierre',
+      'CIERRE': 'Cierre de turno',
       'AJUSTE': 'Ajuste'
     };
     return labels[tipo] || tipo;
@@ -324,42 +365,35 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   async mostrarMenuOperaciones(event: Event) {
     event.stopPropagation();
 
+    if (this.turnoAjeno) return;
+
     // Verificar conexión
     if (!this.isOnline) {
       await this.ui.showError('Sin conexión a internet. No puedes realizar operaciones.');
       return;
     }
 
-    const actionSheet = await this.actionSheetCtrl.create({
-      header: this.cajaNombre,
-      cssClass: 'caja-action-sheet',
-      buttons: [
-        {
-          text: 'Ingreso',
-          icon: 'arrow-down-outline',
-          cssClass: 'action-sheet-success',
-          handler: () => {
-            this.abrirModalOperacion('INGRESO');
-          }
-        },
-        {
-          text: 'Egreso',
-          icon: 'arrow-up-outline',
-          cssClass: 'action-sheet-danger',
-          handler: () => {
-            this.abrirModalOperacion('EGRESO');
-          }
-        },
-        {
-          text: 'Cancelar',
-          icon: 'close',
-          role: 'cancel',
-          cssClass: 'action-sheet-cancel'
-        }
+    const groups: ModalOptionGroup[] = [{
+      options: [
+        { label: 'Ingreso', icon: 'arrow-down-outline', value: 'INGRESO', color: 'success' },
+        { label: 'Egreso', icon: 'arrow-up-outline', value: 'EGRESO', color: 'danger' },
       ]
+    }];
+
+    const modal = await this.modalCtrl.create({
+      component: OptionsModalComponent,
+      componentProps: { title: this.cajaNombre, groups },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
-    await actionSheet.present();
+    await modal.present();
+    const { data } = await modal.onDidDismiss();
+
+    if (data === 'INGRESO' || data === 'EGRESO') {
+      this.abrirModalOperacion(data);
+    }
   }
 
   async abrirModalOperacion(tipo: 'INGRESO' | 'EGRESO') {
@@ -373,9 +407,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
           tipo: tipo,
           cajas: cajas,
           cajaIdPreseleccionada: this.cajaId
-        },
-        breakpoints: [0, 1],
-        initialBreakpoint: 1
+        }
       });
 
       await modal.present();

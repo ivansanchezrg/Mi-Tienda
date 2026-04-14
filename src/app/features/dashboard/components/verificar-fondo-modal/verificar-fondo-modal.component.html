@@ -1,0 +1,174 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-title>Abrir Caja</ion-title>
+    <ion-buttons slot="end">
+      @if (!hayDeficit || pasoActual === 2) {
+        <ion-button (click)="cancelar()">
+          <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+        </ion-button>
+      }
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <div class="modal-content">
+
+    <!-- INDICADOR DE PASOS (solo si hay deficit) -->
+    @if (hayDeficit) {
+      <div class="paso-indicator">
+        <div class="paso-dot" [class.activo]="pasoActual === 1" [class.completado]="pasoActual === 2">
+          @if (pasoActual === 2) {
+            <ion-icon name="checkmark-circle"></ion-icon>
+          } @else {
+            1
+          }
+        </div>
+        <div class="paso-linea" [class.completada]="pasoActual === 2"></div>
+        <div class="paso-dot" [class.activo]="pasoActual === 2">2</div>
+      </div>
+      <div class="paso-labels">
+        <span [class.activo]="pasoActual === 1" [class.completado]="pasoActual === 2">Reponer deficit</span>
+        <span [class.activo]="pasoActual === 2">Verificar fondo</span>
+      </div>
+    }
+
+    <!-- ====== PASO 1: REPONER DEFICIT ====== -->
+    @if (hayDeficit && pasoActual === 1) {
+      <div class="section-card">
+
+        <div class="deficit-header">
+          <ion-icon name="alert-circle-outline" class="deficit-icon-grande"></ion-icon>
+          <h2 class="deficit-titulo">Deficit del turno anterior</h2>
+          <p class="deficit-subtitulo">El turno anterior cerro sin completar las transferencias</p>
+        </div>
+
+        <div class="deficit-resumen">
+          @if (deficitVarios > 0) {
+            <div class="deficit-item">
+              <div class="deficit-item-left">
+                <ion-icon name="wallet-outline" color="warning"></ion-icon>
+                <span>Varios pendiente</span>
+              </div>
+              <span class="deficit-monto warning">${{ deficitVarios | number:'1.2-2' }}</span>
+            </div>
+          }
+          @if (fondoFaltante > 0) {
+            <div class="deficit-item">
+              <div class="deficit-item-left">
+                <ion-icon name="cash-outline" color="success"></ion-icon>
+                <span>Fondo faltante</span>
+              </div>
+              <span class="deficit-monto success">${{ fondoFaltante | number:'1.2-2' }}</span>
+            </div>
+          }
+          <div class="deficit-item total">
+            <div class="deficit-item-left">
+              <ion-icon name="briefcase-outline" color="primary"></ion-icon>
+              <span>Retirar de TIENDA</span>
+            </div>
+            <span class="deficit-monto primary">${{ totalAReponer | number:'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <div class="instrucciones-fisicas">
+          <p class="instrucciones-titulo">Haz esto ahora fisicamente:</p>
+          <div class="instrucciones-pasos">
+            <div class="instruccion-paso">
+              <div class="paso-numero">1</div>
+              <p>Toma <strong>${{ totalAReponer | number:'1.2-2' }}</strong> de la funda <strong>TIENDA</strong></p>
+            </div>
+            @if (deficitVarios > 0) {
+              <div class="instruccion-paso">
+                <div class="paso-numero">2</div>
+                <p>Pon <strong>${{ deficitVarios | number:'1.2-2' }}</strong> en la funda <strong>VARIOS</strong></p>
+              </div>
+            }
+            @if (fondoFaltante > 0) {
+              <div class="instruccion-paso">
+                <div class="paso-numero">{{ deficitVarios > 0 ? 3 : 2 }}</div>
+                <p>Pon <strong>${{ fondoFaltante | number:'1.2-2' }}</strong> en el <strong>cajon</strong> (fondo del dia)</p>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <button class="primary-btn warning" (click)="avanzarPaso2()">
+            <ion-icon name="checkmark-circle-outline"></ion-icon>
+            Ya lo hice — Continuar
+          </button>
+          <button class="secondary-btn" (click)="cancelar()">
+            Cancelar
+          </button>
+        </div>
+
+      </div>
+    }
+
+    <!-- ====== PASO 2: VERIFICAR FONDO ====== -->
+    @if (!hayDeficit || pasoActual === 2) {
+      <div class="section-card">
+
+        @if (errorMsg) {
+          <div class="error-banner">
+            <ion-icon name="alert-circle-outline"></ion-icon>
+            <span>{{ errorMsg }}</span>
+          </div>
+        }
+
+        @if (hayDeficit && pasoActual === 2) {
+          <div class="paso1-ok">
+            <ion-icon name="checkmark-circle" color="success"></ion-icon>
+            <div class="paso1-ok-text">
+              <strong>Listo — acciones fisicas completadas</strong>
+              <span>
+                Al confirmar se registrara: EGRESO Tienda −${{ totalAReponer | number:'1.2-2' }}
+                @if (deficitVarios > 0) { · INGRESO Varios +${{ deficitVarios | number:'1.2-2' }} }
+              </span>
+              @if (fondoFaltante > 0) {
+                <span class="paso1-fondo-aviso">
+                  <ion-icon name="checkmark-circle-outline"></ion-icon>
+                  Fondo del dia: ${{ fondoFaltante | number:'1.2-2' }} en el cajon
+                </span>
+              }
+            </div>
+          </div>
+        }
+
+        <div class="fondo-display">
+          <ion-icon name="cash-outline"></ion-icon>
+          <div class="fondo-info">
+            <span class="fondo-label">Fondo fijo inicial</span>
+            <span class="fondo-value">${{ fondoFijo | number:'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <p class="fondo-descripcion">
+          Confirma que este monto esta en la caja fisica antes de continuar.
+        </p>
+
+        <div class="checkbox-section">
+          <ion-checkbox [(ngModel)]="confirmado" labelPlacement="end">
+            He verificado el fondo en la caja
+          </ion-checkbox>
+        </div>
+
+        <div class="actions-section">
+          <button
+            class="primary-btn success"
+            [disabled]="!confirmado || abriendo"
+            (click)="abrirCaja()">
+            <ion-icon name="lock-open-outline"></ion-icon>
+            Confirmar y Abrir Caja
+          </button>
+          <button class="secondary-btn" (click)="cancelar()">
+            Cancelar
+          </button>
+        </div>
+
+      </div>
+    }
+
+  </div>
+</ion-content>

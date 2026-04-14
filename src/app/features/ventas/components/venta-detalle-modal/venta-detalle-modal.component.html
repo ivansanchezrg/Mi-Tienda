@@ -1,0 +1,198 @@
+<ion-content [scrollY]="true">
+
+  <!-- Botones flotantes — no se mueven al hacer scroll -->
+  <button slot="fixed" class="btn-cerrar-flotante" (click)="cerrar()">
+    <ion-icon name="close-outline"></ion-icon>
+  </button>
+  @if (venta && !loading) {
+  <button slot="fixed" class="btn-compartir-flotante" [disabled]="compartiendo" (click)="compartir()">
+    <ion-icon name="share-outline"></ion-icon>
+  </button>
+  }
+
+  <!-- Spinner de carga -->
+  @if (loading) {
+  <div class="loading-state">
+    <ion-spinner name="crescent" color="primary"></ion-spinner>
+  </div>
+  }
+
+  @else if (venta) {
+  <div class="comprobante">
+
+
+    <!-- ══ BANNER ANULADA (solo si está anulada) ════ -->
+    @if (esAnulada) {
+    <div class="banner-anulada">
+      <ion-icon name="ban-outline"></ion-icon>
+      <div class="banner-anulada-texto">
+        <span class="banner-anulada-titulo">Venta anulada</span>
+        @if (motivoAnulacion) {
+        <span class="banner-anulada-motivo">{{ motivoAnulacion }}</span>
+        }
+      </div>
+    </div>
+    }
+
+    <!-- ══ CABECERA ══════════════════════════════════ -->
+    <div class="cabecera">
+      <div class="negocio-nombre">{{ nombreNegocio }}</div>
+      <div class="tipo-comprobante-label">
+        {{ labelComprobante(venta.tipo_comprobante) }}
+        @if (venta.numero_comprobante) {<span class="comprobante-numero"> #{{ venta.numero_comprobante }}</span>}
+      </div>
+      <div class="meta-row">
+        <span>{{ formatFechaHora(venta.fecha) }}</span>
+      </div>
+      @if (venta.empleado_nombre) {
+      <div class="meta-row">
+        <span>Cajero: {{ venta.empleado_nombre }}</span>
+      </div>
+      }
+    </div>
+
+    <div class="divider-dashed"></div>
+
+    <!-- ══ DATOS DEL COMPRADOR (solo FACTURA o cliente real) ══ -->
+    @if (esFactura || tieneClienteReal) {
+    <div class="section">
+      <div class="section-title">
+        <ion-icon name="person-outline"></ion-icon>
+        @if (esFactura) { Datos del comprador } @else { Cliente }
+      </div>
+      <div class="dato-row">
+        <span class="dato-label">Nombre</span>
+        <span class="dato-val">{{ venta.cliente_nombre || 'Consumidor Final' }}</span>
+      </div>
+      @if (esFactura && venta.cliente_identificacion) {
+      <div class="dato-row">
+        <span class="dato-label">RUC / Cédula</span>
+        <span class="dato-val">{{ venta.cliente_identificacion }}</span>
+      </div>
+      }
+    </div>
+
+    <div class="divider-dashed"></div>
+    }
+
+    <!-- ══ ÍTEMS ══════════════════════════════════════ -->
+    <div class="section">
+      <div class="section-title">
+        <ion-icon name="receipt-outline"></ion-icon>
+        Detalle
+      </div>
+
+      <div class="items-header">
+        <span class="col-desc">Descripción</span>
+        <span class="col-cant">Cant.</span>
+        <span class="col-precio">P. Unit.</span>
+        <span class="col-subtotal">Subtotal</span>
+      </div>
+
+      @for (item of venta.ventas_detalles; track item.id) {
+      <div class="item-row">
+        <span class="col-desc item-nombre">{{ item.producto_nombre }}</span>
+        <span class="col-cant">{{ item.cantidad }}</span>
+        <span class="col-precio">${{ currencyService.format(item.precio_unitario) }}</span>
+        <span class="col-subtotal">${{ currencyService.format(item.subtotal) }}</span>
+      </div>
+      }
+    </div>
+
+    <div class="divider-solid"></div>
+
+    <!-- ══ TOTALES ════════════════════════════════════ -->
+    <div class="totales">
+
+      <!-- Desglose IVA (solo FACTURA) -->
+      @if (esFactura) {
+        @if (venta.base_iva_0 > 0) {
+        <div class="total-row">
+          <span class="total-label">Base 0%</span>
+          <span class="total-val">${{ currencyService.format(venta.base_iva_0) }}</span>
+        </div>
+        }
+        @if (venta.base_iva_15 > 0) {
+        <div class="total-row">
+          <span class="total-label">Base 15%</span>
+          <span class="total-val">${{ currencyService.format(venta.base_iva_15) }}</span>
+        </div>
+        }
+        @if (venta.iva_valor > 0) {
+        <div class="total-row">
+          <span class="total-label">IVA 15%</span>
+          <span class="total-val">${{ currencyService.format(venta.iva_valor) }}</span>
+        </div>
+        }
+        <div class="divider-thin"></div>
+      }
+
+      <!-- Descuento (si aplica) -->
+      @if (venta.descuento > 0) {
+      <div class="total-row total-row--descuento">
+        <span class="total-label">Descuento ({{ venta.descuento_pct }}%)</span>
+        <span class="total-val">-${{ currencyService.format(venta.descuento) }}</span>
+      </div>
+      <div class="divider-thin"></div>
+      }
+
+      <!-- Total final -->
+      <div class="total-row total-row--grande" [class.total-anulado]="esAnulada">
+        <span class="total-label">TOTAL</span>
+        <span class="total-val total-val--grande">${{ currencyService.format(venta.total) }}</span>
+      </div>
+
+      <!-- Estado de cuenta FIADO -->
+      @if (esFiado && !esAnulada && totalAbonado > 0) {
+      <div class="divider-thin"></div>
+      <div class="total-row fiado-abonado">
+        <span class="total-label">Abonado</span>
+        <span class="total-val fiado-abonado-val">${{ currencyService.format(totalAbonado) }}</span>
+      </div>
+      @if (estadoPago === 'PAGADO') {
+      <div class="total-row fiado-saldado">
+        <span class="total-label">Estado</span>
+        <span class="total-val fiado-saldado-val">Deuda cancelada</span>
+      </div>
+      } @else {
+      <div class="total-row fiado-pendiente">
+        <span class="total-label">Pendiente</span>
+        <span class="total-val fiado-pendiente-val">${{ currencyService.format(totalPendiente) }}</span>
+      </div>
+      }
+      }
+    </div>
+
+    <div class="divider-dashed"></div>
+
+    <!-- ══ PIE: MÉTODO DE PAGO ═══════════════════════ -->
+    <div class="pie">
+      <div class="metodo-pago-row">
+        <ion-icon [name]="iconMetodoPago(venta.metodo_pago)"></ion-icon>
+        <span>{{ labelMetodoPago(venta.metodo_pago) }}</span>
+      </div>
+
+      <!-- Nota de fiado (solo si no está anulada y no está pagado) -->
+      @if (venta.metodo_pago === 'FIADO' && !esAnulada && estadoPago !== 'PAGADO') {
+      <p class="fiado-nota">Pendiente de cobro</p>
+      }
+
+      @if (esAnulada) {
+      <p class="gracias anulada-pie">Venta anulada — stock repuesto</p>
+      } @else {
+      <p class="gracias">¡Gracias por su compra!</p>
+      }
+      <p class="nota-fiscal">Este documento no es un comprobante fiscal</p>
+    </div>
+
+  </div>
+  }
+
+  @else {
+  <div class="error-state">
+    <ion-icon name="alert-circle-outline"></ion-icon>
+    <p>No se pudo cargar el detalle</p>
+  </div>
+  }
+
+</ion-content>

@@ -1,0 +1,324 @@
+<ion-header class="ion-no-border" [class.ion-hide]="escaneando">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>
+      <div class="title-with-chip">
+        <span>POS</span>
+        <div class="comprobante-chip">
+          <ion-icon [name]="tipoComprobante === TipoComprobante.TICKET ? 'receipt-outline' : 'document-text-outline'">
+          </ion-icon>
+          <span>{{
+            tipoComprobante === TipoComprobante.TICKET ? 'Ticket' :
+            tipoComprobante === TipoComprobante.NOTA_VENTA ? 'Nota de Venta' : 'Factura'
+            }}</span>
+        </div>
+        @if (descuentoActivo) {
+        <div class="descuento-chip">
+          <ion-icon name="pricetag-outline"></ion-icon>
+          <span>-{{ descuentoPct }}%</span>
+        </div>
+        }
+      </div>
+    </ion-title>
+    <ion-buttons slot="end">
+      <!-- Menú ⋮ reutilizable — opciones de comprobante -->
+      <app-options-menu triggerId="pos-options" [options]="comprobanteOptions"
+        (optionSelected)="onComprobanteOption($event)">
+      </app-options-menu>
+    </ion-buttons>
+  </ion-toolbar>
+
+  <ion-toolbar class="search-toolbar">
+    <div class="searchbar-wrapper">
+      <div class="search-box">
+        <button class="search-mode-btn" (click)="toggleModoBusqueda()" type="button">
+          @if (modoBusqueda === 'codigo') {
+            <ion-icon name="barcode-outline"></ion-icon>
+          } @else {
+            <ion-icon name="search-outline"></ion-icon>
+          }
+        </button>
+        <input class="search-input" #searchInput
+          [(ngModel)]="buscarTexto"
+          [placeholder]="modoBusqueda === 'codigo' ? 'Buscar por código...' : 'Buscar por nombre...'"
+          [inputMode]="modoBusqueda === 'codigo' ? 'numeric' : 'text'"
+          (input)="onSearchInput($event)"
+          (keyup)="onSearchKeyup($event)"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false" />
+        @if (buscando) {
+          <ion-spinner name="crescent" class="search-spinner" color="medium"></ion-spinner>
+        } @else if (buscarTexto) {
+          <button class="search-clear-btn" (click)="limpiarBusqueda()" type="button">
+            <ion-icon name="close-outline" color="medium"></ion-icon>
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Fila cliente — solo el botón > abre el modal -->
+    <div class="cliente-header-row"
+      [class.cliente-header-row--requerido]="tipoComprobante === TipoComprobante.FACTURA && clienteSeleccionado?.es_consumidor_final">
+      <span class="chr-label">
+        <ion-icon name="person-outline"></ion-icon>
+        Cliente
+      </span>
+      <span class="chr-value">
+        @if (cargandoCliente) {
+          <ion-spinner name="crescent" style="width:14px;height:14px;"></ion-spinner>
+        } @else if (errorCliente) {
+          <button class="chr-action-btn" (click)="abrirSelectorCliente()">
+            <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+            <span>Error — reintentar</span>
+            <ion-icon name="refresh-outline" color="danger"></ion-icon>
+          </button>
+        } @else {
+          <span class="chr-nombre">{{ clienteSeleccionado?.nombre || 'Consumidor Final' }}</span>
+          <button class="chr-action-btn" (click)="abrirSelectorCliente()">
+            <ion-icon name="chevron-forward-outline"></ion-icon>
+          </button>
+        }
+      </span>
+    </div>
+  </ion-toolbar>
+</ion-header>
+
+
+<!-- ═══════════════════════════════════════ -->
+<!-- MODO ESCÁNER: fullscreen cámara + badge info + finalizar -->
+<!-- ═══════════════════════════════════════ -->
+@if (escaneando) {
+<div class="scanner-stack">
+  <div class="scanner-camera-layer">
+    <div class="scanner-frame">
+      <div class="scan-line"></div>
+    </div>
+    <p class="scanner-hint">Apunta al código de barras</p>
+
+    <!-- Preview efímero del último producto escaneado -->
+    @if (scanPreview) {
+    <div class="scanner-preview">
+      <div class="sp-left">
+        <span class="sp-name">{{ scanPreview.nombre }}</span>
+        <span class="sp-unit">${{ currencyService.format(scanPreview.precioUnitario) }} c/u</span>
+      </div>
+      <div class="sp-right">
+        <span class="sp-total">${{ currencyService.format(scanPreview.subtotal) }}</span>
+        <span class="sp-qty">x{{ scanPreview.cantidad }}</span>
+      </div>
+    </div>
+    }
+
+    <!-- Badge-botón: tap para cerrar escáner -->
+    <button class="scanner-cart-badge" (click)="cerrarEscaner()">
+      @if (carrito.length > 0) {
+        <ion-icon name="cart-outline"></ion-icon>
+        <span>{{ totalArticulos }} · ${{ currencyService.format(totalPagar) }}</span>
+        <ion-icon name="chevron-forward-outline" class="badge-arrow"></ion-icon>
+      } @else {
+        <ion-icon name="close-outline"></ion-icon>
+        <span>Cerrar escáner</span>
+      }
+    </button>
+  </div>
+</div>
+}
+
+<!-- ═══════════════════════════════════════ -->
+<!-- MODO NORMAL: POS completo -->
+<!-- ═══════════════════════════════════════ -->
+@if (!escaneando) {
+<ion-content color="light">
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  <!-- SUGERENCIAS: slot="fixed" → fijo debajo del input, no scrollea con el carrito -->
+  @if (buscarTexto && productosBusqueda.length > 0) {
+  <div class="search-results-wrapper" slot="fixed">
+    <ion-list class="search-results-list" lines="none">
+      @for (prod of productosBusqueda; track prod.id; let i = $index) {
+      <ion-item button (click)="seleccionarProductoBusqueda(prod)"
+        class="suggestion-item" [class.suggestion-active]="i === sugerenciaActiva">
+        <ion-label>
+          <h2>{{ prod.nombre }}</h2>
+          <p>Stock: {{ prod.stock_actual }}</p>
+        </ion-label>
+        <div slot="end" class="suggestion-end">
+          <span class="suggestion-price">${{ currencyService.format(prod.precio_venta) }}</span>
+          <div class="suggestion-add-btn">
+            <ion-icon name="add-outline"></ion-icon>
+          </div>
+        </div>
+      </ion-item>
+      }
+    </ion-list>
+  </div>
+  }
+
+  <div class="p-md">
+
+    @if (carrito.length === 0) {
+    <!-- Estado vacío del carrito -->
+    <app-empty-state
+      icon="cart-outline"
+      title="Sin productos"
+      hint="Escanea un código o busca por nombre para agregar productos">
+    </app-empty-state>
+    } @else {
+    <!-- Lista del Carrito -->
+    <ion-list class="cart-list" lines="none">
+      @for (item of carrito; track item.id) {
+      <ion-item-sliding class="cart-sliding" [class.cart-item-enter]="lastAddedId === item.id">
+
+        <ion-item class="cart-item" lines="none">
+
+          <!-- Imagen producto -->
+          <div slot="start" class="item-thumb">
+            @if (item.imagen_url) {
+              <img [src]="storageService.getPublicUrl(item.imagen_url, 'productos')" [alt]="item.nombre" />
+            } @else {
+              <ion-icon name="image-outline"></ion-icon>
+            }
+          </div>
+
+          <!-- Nombre y precio unitario -->
+          <div class="item-main">
+            <p class="product-name">{{ item.nombre }}</p>
+            <div class="price-row">
+              <span class="unit-price">${{ currencyService.format(item.precio_venta) }} c/u</span>
+              @if (mostrarDesglose && !item.tiene_iva) {
+                <ion-badge color="medium" class="stock-badge">IVA 0%</ion-badge>
+              }
+              @if (item.stock_actual <= item.cantidad) {
+                <ion-badge color="danger" class="stock-badge">¡Último!</ion-badge>
+              } @else if ((item.stock_actual - item.cantidad) <= item.stock_minimo) {
+                <ion-badge color="warning" class="stock-badge">Quedan {{ item.stock_actual - item.cantidad }}</ion-badge>
+              }
+            </div>
+          </div>
+
+          <!-- Total + Stepper -->
+          <div slot="end" class="item-actions">
+            <span class="total-price">${{ currencyService.format(item.subtotal) }}</span>
+
+            <div class="stepper-wrapper">
+              <button class="stepper-btn" (click)="decrementar(item)" [disabled]="item.cantidad <= 1">
+                <ion-icon name="remove-outline"></ion-icon>
+              </button>
+              <span class="stepper-val" (click)="editarCantidad(item)">{{ item.cantidad }}</span>
+              <button class="stepper-btn" (click)="incrementar(item)">
+                <ion-icon name="add-outline"></ion-icon>
+              </button>
+            </div>
+          </div>
+
+        </ion-item>
+
+        <!-- Swipe to delete -->
+        <ion-item-options side="end">
+          <ion-item-option color="danger" (click)="eliminar(item)" class="delete-option">
+            <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+          </ion-item-option>
+        </ion-item-options>
+
+      </ion-item-sliding>
+      }
+    </ion-list>
+    }
+
+  </div>
+
+  <!-- Botón escáner — esquina inferior derecha, anclado sobre el footer -->
+  <button class="scanner-corner-btn" slot="fixed" (click)="abrirEscanerCamara()">
+    <ion-icon name="barcode-outline"></ion-icon>
+  </button>
+
+</ion-content>
+
+  <!-- Footer Fijo de Cobro — solo visible con items en el carrito -->
+  @if (carrito.length > 0) {
+  <ion-footer class="ion-no-border">
+    <div class="pos-footer p-md">
+      <!-- Desglose fiscal: solo visible en FACTURA -->
+      @if (mostrarDesglose) {
+      <div class="breakdown mb-xs">
+        @if (baseIva0 > 0) {
+        <div class="breakdown-row">
+          <span class="breakdown-label">Base 0%</span>
+          <span class="breakdown-value">${{ currencyService.format(baseIva0) }}</span>
+        </div>
+        }
+        @if (baseIva15 > 0) {
+        <div class="breakdown-row">
+          <span class="breakdown-label">Base 15%</span>
+          <span class="breakdown-value">${{ currencyService.format(baseIva15) }}</span>
+        </div>
+        }
+        @if (ivaValor > 0) {
+        <div class="breakdown-row">
+          <span class="breakdown-label">IVA 15%</span>
+          <span class="breakdown-value">${{ currencyService.format(ivaValor) }}</span>
+        </div>
+        }
+        <div class="breakdown-divider"></div>
+      </div>
+      }
+
+      <!-- Descuento automático (solo visible cuando aplica) -->
+      @if (descuentoAplicado > 0) {
+      <div class="breakdown mb-xs">
+        @if (!mostrarDesglose) {
+        <div class="breakdown-row">
+          <span class="breakdown-label">Subtotal</span>
+          <span class="breakdown-value">${{ currencyService.format(subtotalBruto) }}</span>
+        </div>
+        }
+        <div class="breakdown-row discount">
+          <span class="breakdown-label">Descuento ({{ descuentoPct }}%)</span>
+          <span class="breakdown-value">-${{ currencyService.format(descuentoAplicado) }}</span>
+        </div>
+        <div class="breakdown-divider"></div>
+      </div>
+      }
+
+      <!-- Upselling: falta poco para el descuento -->
+      @if (mostrarUpselling) {
+      <div class="upselling-hint">
+        <ion-icon name="pricetag-outline"></ion-icon>
+        <span>${{ currencyService.format(faltaParaDescuento) }} más para -{{ descuentoPct }}%</span>
+      </div>
+      }
+
+      <!-- Fila total (siempre visible) -->
+      <div class="total-row">
+        <div class="total-left">
+          <span class="total-label">Total</span>
+          <span class="total-articles">
+            {{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}
+          </span>
+        </div>
+        <span class="total-amount">${{ currencyService.format(totalPagar) }}</span>
+      </div>
+
+      <div class="btn-charge-row">
+        <ion-button expand="block" fill="outline" color="medium" class="btn-charge-other" (click)="cobrar()"
+          [disabled]="carrito.length === 0 || cobroEnProceso">
+          Otros métodos
+        </ion-button>
+        <ion-button expand="block" color="primary" class="btn-charge-main" (click)="cobrarEfectivo()"
+          [disabled]="carrito.length === 0 || cobroEnProceso">
+          <ion-icon name="cash-outline" slot="start"></ion-icon>
+          Cobrar Efectivo
+        </ion-button>
+      </div>
+
+    </div>
+  </ion-footer>
+  }
+}

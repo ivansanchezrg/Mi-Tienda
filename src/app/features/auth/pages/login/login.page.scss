@@ -4,71 +4,138 @@ ion-content {
 
 .login-container {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
-  height: 100%;
-  padding: var(--spacing-4xl) 28px;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--spacing-4xl) var(--spacing-lg);
+  background: var(--ion-background-color);
 }
 
+// ============================================================================
+// CARD — Contenedor blanco central
+// ============================================================================
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--ion-item-background);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ion-color-step-100);
+  box-shadow: var(--shadow-level-1);
+  padding: var(--spacing-4xl) var(--spacing-3xl);
+}
+
+// ============================================================================
+// BRAND — Logo + título
+// ============================================================================
 .brand-section {
   text-align: center;
-  margin-bottom: 60px;
+  margin-bottom: var(--spacing-4xl);
+}
 
-  .logo-icon {
-    font-size: 72px;
+.logo-wrap {
+  width: 88px;
+  height: 88px;
+  margin: 0 auto var(--spacing-xl);
+  border-radius: var(--radius-xl);
+  background: rgba(var(--ion-color-primary-rgb), 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  ion-icon {
+    font-size: 44px;
     color: var(--ion-color-primary);
-    margin-bottom: var(--spacing-lg);
-  }
-
-  h1 {
-    font-size: 28px;
-    font-weight: var(--font-weight-bold);
-    color: var(--ion-text-color);
-    margin: 0;
-    letter-spacing: -0.5px;
-  }
-
-  p {
-    font-size: 15px;
-    color: var(--ion-color-medium);
-    margin: var(--spacing-sm) 0 0;
   }
 }
 
+.brand-section h1 {
+  font-size: 26px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ion-text-color);
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.brand-section p {
+  font-size: 14px;
+  color: var(--ion-color-medium);
+  margin: var(--spacing-xs) 0 0;
+}
+
+// ============================================================================
+// ACTIONS — Botón Google + términos
+// ============================================================================
 .actions-section {
   width: 100%;
+}
 
-  .google-btn {
-    --color: var(--ion-text-color);
-    --border-radius: var(--radius-sm);
-    font-weight: var(--font-weight-semibold);
-    height: 54px;
-    border: 1.5px solid var(--ion-color-light-shade);
-    border-radius: var(--radius-sm);
-    transition: all var(--transition-normal);
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 50px;
+  padding: 0 var(--spacing-xl);
+  border: 1.5px solid var(--ion-color-step-150);
+  border-radius: var(--radius-sm);
+  background: var(--ion-item-background);
+  box-shadow: var(--shadow-level-1);
+  cursor: pointer;
+  transition: all var(--transition-normal);
 
-    ion-icon {
-      font-size: 22px;
-      margin-right: 10px;
-    }
+  ion-icon {
+    font-size: 20px;
+    flex-shrink: 0;
   }
 
-  .terms-text {
-    margin-top: var(--spacing-2xl);
-    text-align: center;
+  .btn-spinner {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    border: 2px solid var(--ion-color-step-200);
+    border-top-color: var(--ion-color-primary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
 
-    p {
-      font-size: 12px;
-      color: var(--ion-color-medium);
-      line-height: 1.6;
-      margin: 0;
-    }
+  .btn-label {
+    font-size: 15px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+    letter-spacing: -0.1px;
+  }
 
-    a {
-      color: var(--ion-color-primary);
-      font-weight: var(--font-weight-semibold);
-      text-decoration: none;
-    }
+  &:hover {
+    border-color: var(--ion-color-step-300);
+    box-shadow: var(--shadow-level-2);
+  }
+
+  &:active {
+    transform: scale(0.99);
+    box-shadow: var(--shadow-level-1);
+  }
+
+  &:disabled {
+    opacity: var(--opacity-muted);
+    pointer-events: none;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.terms-text {
+  margin-top: var(--spacing-2xl);
+  text-align: center;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  line-height: 1.6;
+
+  a {
+    color: var(--ion-color-primary);
+    font-weight: var(--font-weight-semibold);
+    text-decoration: none;
   }
 }

@@ -5,6 +5,7 @@ export interface TurnoCaja {
   hora_fecha_apertura: string;
   hora_fecha_cierre: string | null;
   observaciones: string | null;
+  fondo_cubierto: boolean | null;
 }
 
 export interface TurnoCajaConEmpleado extends TurnoCaja {

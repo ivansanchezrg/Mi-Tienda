@@ -1,0 +1,267 @@
+// ==========================================
+// Detalle Empleado — Cuenta Corriente
+// ==========================================
+
+:host {
+  --bg-soft: var(--ion-background-color, #f8f9fa);
+}
+
+ion-content {
+  --background: var(--bg-soft);
+}
+
+ion-toolbar {
+  --background: var(--bg-soft);
+  --border-width: 0;
+}
+
+// ─────────────────────────────────────────
+// CABECERA DEL EMPLEADO
+// ─────────────────────────────────────────
+
+.empleado-header-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-xl) var(--spacing-lg);
+  background: var(--ion-item-background);
+  margin: var(--spacing-md);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-level-2);
+  border: 1px solid var(--ion-color-step-50);
+
+  .empleado-header-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .empleado-avatar-lg {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-sm);
+    background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle, 0.08));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-bottom: var(--spacing-xs);
+
+    ion-icon {
+      font-size: 32px;
+      color: var(--ion-color-primary);
+    }
+  }
+
+  .empleado-header-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    flex: 1;
+    width: 100%;
+  }
+
+  .empleado-nombre {
+    font-size: 20px;
+    font-weight: var(--font-weight-extrabold);
+    color: var(--ion-text-color);
+    margin: 0 0 var(--spacing-xs) 0;
+    letter-spacing: -0.5px;
+  }
+
+  .empleado-saldo-label {
+    font-size: 13px;
+    font-weight: var(--font-weight-medium);
+    margin: 0;
+
+    &.saldo-success { color: var(--ion-color-success); }
+    &.saldo-danger  { color: var(--ion-color-danger); }
+    &.saldo-medium  { color: var(--ion-color-medium); }
+  }
+}
+
+// ─────────────────────────────────────────
+// SALDO GRANDE
+// ─────────────────────────────────────────
+
+.saldo-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--spacing-md);
+  background: var(--ion-color-step-50);
+  border-radius: var(--radius-sm);
+  width: 100%;
+
+  .saldo-signo {
+    font-size: 22px;
+    font-weight: var(--font-weight-extrabold);
+  }
+
+  .saldo-currency {
+    font-size: 18px;
+    font-weight: var(--font-weight-extrabold);
+  }
+
+  .saldo-monto {
+    font-size: 28px;
+    font-weight: var(--font-weight-extrabold);
+    letter-spacing: -1px;
+  }
+
+  &.saldo-success { color: var(--ion-color-success); }
+  &.saldo-danger  { color: var(--ion-color-danger); }
+  &.saldo-medium  { color: var(--ion-color-medium); }
+}
+
+// ─────────────────────────────────────────
+// FILTRO BAR
+// ─────────────────────────────────────────
+
+.filtro-bar {
+  display: flex;
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-bottom: 1px solid var(--ion-color-step-100);
+
+  .filtro-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    color: var(--ion-color-primary);
+    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.25);
+    border-radius: 20px;
+    padding: 4px 10px 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+
+    ion-icon {
+      font-size: 14px;
+    }
+  }
+}
+
+// ─────────────────────────────────────────
+// TARJETA DE MOVIMIENTO
+// ─────────────────────────────────────────
+
+.mov-card {
+  background: var(--ion-item-background, #fff);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, .08));
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-sm, 8px);
+  position: relative;
+
+  &.liquidado {
+    opacity: 0.6;
+  }
+
+  &.skeleton-card {
+    pointer-events: none;
+  }
+
+  .mov-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+  }
+
+  .mov-icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    ion-icon {
+      font-size: 18px;
+    }
+
+    &.icon-success {
+      background: rgba(var(--ion-color-success-rgb), 0.1);
+      ion-icon { color: var(--ion-color-success); }
+    }
+
+    &.icon-danger {
+      background: rgba(var(--ion-color-danger-rgb), 0.1);
+      ion-icon { color: var(--ion-color-danger); }
+    }
+
+    &.icon-warning {
+      background: rgba(var(--ion-color-warning-rgb), 0.1);
+      ion-icon { color: var(--ion-color-warning-shade); }
+    }
+
+    &.icon-primary {
+      background: rgba(var(--ion-color-primary-rgb), 0.1);
+      ion-icon { color: var(--ion-color-primary); }
+    }
+
+    &.icon-medium {
+      background: var(--ion-color-step-100);
+      ion-icon { color: var(--ion-color-medium); }
+    }
+  }
+
+  .mov-details {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+
+    .mov-tipo {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ion-text-color);
+    }
+
+    .mov-desc {
+      font-size: 12px;
+      color: var(--ion-color-medium);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+    }
+
+    .mov-fecha {
+      font-size: 11px;
+      color: var(--ion-color-medium);
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+  }
+
+  .mov-monto {
+    font-size: 15px;
+    font-weight: 700;
+    flex-shrink: 0;
+    letter-spacing: -0.3px;
+
+    &.monto-positivo { color: var(--ion-color-success); }
+    &.monto-negativo { color: var(--ion-color-danger); }
+  }
+
+  .mov-badge-liquidado {
+    position: absolute;
+    top: var(--spacing-xs);
+    right: var(--spacing-xs);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ion-color-medium);
+    background: var(--ion-color-step-100);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+}

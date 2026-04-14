@@ -1,16 +1,53 @@
-// ==========================================
-// EDITAR USUARIO MODAL
-// ==========================================
+ion-header {
+  &::after { display: none; }
+}
 
-// Banner de aviso al editar el propio perfil
+ion-toolbar {
+  --border-width: 0 !important;
+}
+
+ion-content {
+  --background: var(--ion-background-color);
+}
+
+// ── Contenido ─────────────────────────────────────────────────────────────────
+
+.form-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+// ── Avisos ────────────────────────────────────────────────────────────────────
+
+.aviso-superadmin {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(var(--ion-color-primary-rgb), 0.08);
+  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.35);
+  border-radius: 12px;
+  color: var(--ion-color-primary-shade);
+  font-size: 13px;
+  line-height: 1.4;
+
+  ion-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+}
+
 .aviso-propio {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: rgba(var(--ion-color-warning-rgb), 0.12);
-  border: 1px solid rgba(var(--ion-color-warning-rgb), 0.4);
-  border-radius: var(--radius-md);
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(var(--ion-color-warning-rgb), 0.08);
+  border: 1px solid rgba(var(--ion-color-warning-rgb), 0.35);
+  border-radius: 12px;
   color: var(--ion-color-warning-shade);
   font-size: 13px;
   line-height: 1.4;
@@ -22,86 +59,76 @@
   }
 }
 
-.form-content {
-  padding: var(--spacing-xl) var(--spacing-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xl);
-}
-
-// ==========================================
-// HEADER DEL EMPLEADO
-// ==========================================
+// ── Header del usuario ────────────────────────────────────────────────────────
 
 .employee-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-lg);
-  background: var(--ion-item-background);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-level-1);
+  gap: 14px;
+  padding: 16px;
+  background: var(--ion-item-background, #fff);
+  border-radius: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 .employee-avatar {
   width: 52px;
   height: 52px;
-  border-radius: var(--radius-full);
+  border-radius: 50%;
   background: var(--ion-color-primary);
   color: white;
   font-size: 22px;
-  font-weight: var(--font-weight-bold);
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 3px 8px rgba(var(--ion-color-primary-rgb), 0.3);
 }
 
-.employee-meta {
-  flex: 1;
-}
+.employee-meta { flex: 1; }
 
 .employee-usuario {
   font-size: 13px;
   color: var(--ion-color-medium);
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
-// ==========================================
-// INPUTS
-// ==========================================
+// ── Inputs ────────────────────────────────────────────────────────────────────
 
 .input-group {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: 7px;
+
+  &.disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
 }
 
 .input-label {
-  font-size: 13px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--ion-text-color);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--ion-color-medium);
 }
 
 input {
   width: 100%;
-  padding: var(--spacing-md) var(--spacing-lg);
-  border: 1.5px solid var(--ion-color-step-150);
-  border-radius: var(--radius-xs);
+  padding: 13px 14px;
+  border: 1.5px solid var(--ion-color-step-200);
+  border-radius: 10px;
   font-size: 15px;
-  background: var(--ion-item-background);
+  background: var(--ion-item-background, #fff);
   color: var(--ion-text-color);
   outline: none;
   box-sizing: border-box;
-  transition: border-color var(--transition-fast);
+  transition: border-color 0.15s;
 
-  &:focus {
-    border-color: var(--ion-color-primary);
-  }
-
-  &::placeholder {
-    color: var(--ion-color-medium);
-  }
+  &:focus { border-color: var(--ion-color-primary); }
+  &::placeholder { color: var(--ion-color-medium); opacity: 0.6; }
 }
 
 .input-error {
@@ -109,74 +136,70 @@ input {
   color: var(--ion-color-danger);
 }
 
-// ==========================================
-// ROL SELECTOR
-// ==========================================
+// ── Rol selector ──────────────────────────────────────────────────────────────
 
 .rol-selector {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 10px;
 }
 
 .rol-option {
   display: flex;
   align-items: center;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-lg);
-  border-radius: var(--radius-sm);
+  gap: 14px;
+  padding: 14px;
+  border-radius: 12px;
   border: 2px solid var(--ion-color-step-150);
   cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
-  background: var(--ion-item-background);
+  background: var(--ion-item-background, #fff);
+  transition: border-color 0.15s, background 0.15s;
 
   &.selected {
     border-color: var(--ion-color-primary);
-    background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
+    background: rgba(var(--ion-color-primary-rgb), 0.05);
   }
 }
 
 .rol-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-full);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
   font-size: 16px;
-  font-weight: var(--font-weight-bold);
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 
   &.empleado {
-    background: rgba(var(--ion-color-medium-rgb), var(--opacity-medium));
+    background: rgba(var(--ion-color-medium-rgb), 0.12);
     color: var(--ion-color-medium-shade);
   }
 
   &.admin {
-    background: rgba(var(--ion-color-primary-rgb), var(--opacity-medium));
+    background: rgba(var(--ion-color-primary-rgb), 0.12);
     color: var(--ion-color-primary);
   }
 }
 
 .rol-name {
   font-size: 14px;
-  font-weight: var(--font-weight-semibold);
+  font-weight: 600;
   color: var(--ion-text-color);
 }
 
 .rol-desc {
   font-size: 12px;
   color: var(--ion-color-medium);
-  margin-top: var(--spacing-xs);
+  margin-top: 2px;
 }
 
-// ==========================================
-// ESTADO SELECTOR
-// ==========================================
+// ── Estado selector ───────────────────────────────────────────────────────────
 
 .estado-selector {
   display: flex;
-  gap: var(--spacing-md);
+  gap: 10px;
 }
 
 .estado-option {
@@ -184,20 +207,20 @@ input {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  border-radius: var(--radius-sm);
+  gap: 8px;
+  padding: 13px;
+  border-radius: 12px;
   border: 2px solid var(--ion-color-step-150);
   cursor: pointer;
   font-size: 14px;
-  font-weight: var(--font-weight-semibold);
+  font-weight: 600;
   color: var(--ion-color-medium);
-  transition: border-color var(--transition-fast), background var(--transition-fast);
-  background: var(--ion-item-background);
+  background: var(--ion-item-background, #fff);
+  transition: border-color 0.15s, background 0.15s;
 
   &.selected {
     border-color: var(--ion-color-primary);
-    background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
+    background: rgba(var(--ion-color-primary-rgb), 0.05);
     color: var(--ion-text-color);
   }
 }
@@ -205,41 +228,39 @@ input {
 .estado-dot {
   width: 10px;
   height: 10px;
-  border-radius: var(--radius-full);
+  border-radius: 50%;
 
-  &.activo {
-    background: var(--ion-color-success);
-  }
-
-  &.inactivo {
-    background: var(--ion-color-danger);
-  }
+  &.activo  { background: var(--ion-color-success); }
+  &.inactivo { background: var(--ion-color-danger); }
 }
 
-// ==========================================
-// BOTÓN
-// ==========================================
+// ── Botón guardar ─────────────────────────────────────────────────────────────
 
 .submit-btn {
   width: 100%;
-  padding: var(--spacing-lg);
-  border-radius: var(--radius-sm);
+  padding: 15px;
+  border-radius: 14px;
   border: none;
   background: var(--ion-color-primary);
   color: white;
-  font-size: 15px;
-  font-weight: var(--font-weight-semibold);
+  font-size: 16px;
+  font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm);
-  transition: opacity var(--transition-fast);
-  margin-top: var(--spacing-xs);
+  gap: 8px;
+  box-shadow: 0 3px 10px rgba(var(--ion-color-primary-rgb), 0.3);
+  transition: transform 0.15s, opacity 0.15s;
+  margin-top: 4px;
+
+  &:active { transform: scale(0.97); }
 
   &:disabled {
-    opacity: var(--opacity-disabled);
+    opacity: 0.4;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
 
   ion-spinner {

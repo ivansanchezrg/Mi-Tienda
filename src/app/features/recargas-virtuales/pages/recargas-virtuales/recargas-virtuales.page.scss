@@ -1,163 +1,198 @@
-// Filter bar (tabs CELULAR/BUS) - Sin esquinas redondeadas
-.filter-bar {
-  display: flex;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: var(--ion-item-background);  
-  border-bottom: 1px solid var(--ion-color-step-150);
+ion-content {
+  --background: var(--ion-background-color);
 }
 
-.filter-tab {
-  flex: 1;
+
+// ── Tabs CELULAR / BUS ────────────────────────────────────────────────────────
+
+.recargas-tabs {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: 1px solid var(--ion-color-step-200);
-  border-radius: 0; // Sin esquinas redondeadas
+  padding: 0 var(--spacing-md);
   background: var(--ion-background-color);
-  color: var(--ion-color-medium);
-  font-size: 14px;
+  gap: var(--spacing-xs);
+  border-bottom: 1px solid var(--ion-color-step-200);
+}
+
+.recargas-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px var(--spacing-md);
+  font-size: 13px;
   font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-step-600);
+  background: var(--ion-item-background);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), border-color var(--transition-fast);
 
   ion-icon {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   &.active {
-    background: var(--ion-color-primary);
-    color: var(--ion-color-primary-contrast);
-    border-color: var(--ion-color-primary);
-  }
-
-  &:active:not(.active) {
-    background: var(--ion-color-step-50);
+    background: var(--ion-item-background);
+    color: var(--ion-color-primary);
+    border-bottom-color: var(--ion-color-primary);
   }
 }
 
-// Saldo header
+// ── Saldo header ──────────────────────────────────────────────────────────────
+
 .saldo-header {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: var(--spacing-xl) var(--spacing-lg);
+  margin: var(--spacing-md);
+  background: var(--ion-item-background);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-level-2);
+  border: 1px solid var(--ion-color-step-50);
   gap: var(--spacing-xs);
-  background: linear-gradient(135deg, rgba(var(--ion-color-primary-rgb), 0.08), rgba(var(--ion-color-primary-rgb), 0.03));
-  border-bottom: 1px solid var(--ion-color-step-150);
+
+  .saldo-tab-nombre {
+    font-size: 13px;
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--ion-color-primary);
+  }
 
   .saldo-label {
-    font-size: 13px;
-    color: var(--ion-color-medium);
+    font-size: 11px;
     font-weight: var(--font-weight-medium);
+    color: var(--ion-color-medium);
+    margin-top: var(--spacing-xs);
   }
 
   .saldo-monto {
-    font-size: 36px;
+    font-size: 40px;
     font-weight: var(--font-weight-extrabold);
     color: var(--ion-color-primary);
+    letter-spacing: -1.5px;
+    line-height: 1.1;
   }
 }
 
-// Section title
+// ── Section title ─────────────────────────────────────────────────────────────
+
 .section-title {
-  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-sm);
-  font-size: 12px;
-  font-weight: var(--font-weight-bold);
+  padding: 20px 16px 8px;
+  font-size: 11px;
+  font-weight: 700;
   color: var(--ion-color-medium);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
 }
 
-// Action card large (botones principales)
+// ── Action cards ──────────────────────────────────────────────────────────────
+
 .action-card-large {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  margin: var(--spacing-md) var(--spacing-lg);
-  padding: var(--spacing-lg);
-  background: var(--ion-item-background);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-level-2);
+  gap: 14px;
+  margin: 0 16px 12px;
+  padding: 16px;
+  background: var(--ion-item-background, #fff);
+  border-radius: 14px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.07);
   cursor: pointer;
-  transition: all var(--transition-normal);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 
   &:active {
-    transform: scale(0.98);
+    transform: scale(0.97);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
   &.danger {
-    border: 2px solid var(--ion-color-danger);
+    border: 1.5px solid rgba(var(--ion-color-danger-rgb), 0.4);
+    background: rgba(var(--ion-color-danger-rgb), 0.03);
+  }
+
+  &.success {
+    border: 1.5px solid rgba(var(--ion-color-success-rgb), 0.4);
+    background: rgba(var(--ion-color-success-rgb), 0.03);
   }
 
   &.disabled {
-    opacity: 0.55;
+    opacity: 0.5;
     cursor: not-allowed;
 
     &:active {
       transform: none;
+      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.07);
     }
   }
 
+  // Icono cuadrado con fondo coloreado
   .action-icon {
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius-lg);
-    background: var(--ion-color-step-100);
-    flex-shrink: 0;
+    border-radius: 12px;
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
 
     ion-icon {
-      font-size: 32px;
+      font-size: 24px;
       color: var(--ion-color-primary);
     }
 
-    &.celular ion-icon {
-      color: var(--ion-color-primary);
+    &.celular {
+      background: rgba(var(--ion-color-primary-rgb), 0.1);
+      ion-icon { color: var(--ion-color-primary); }
     }
 
-    &.bus ion-icon {
-      color: var(--ion-color-secondary);
+    &.bus {
+      background: rgba(var(--ion-color-secondary-rgb), 0.12);
+      ion-icon { color: var(--ion-color-secondary); }
     }
 
     &.danger {
       background: rgba(var(--ion-color-danger-rgb), 0.1);
+      ion-icon { color: var(--ion-color-danger); }
+    }
 
-      ion-icon {
-        color: var(--ion-color-danger);
-      }
+    &.success {
+      background: rgba(var(--ion-color-success-rgb), 0.1);
+      ion-icon { color: var(--ion-color-success); }
     }
   }
 
+  // Texto
   .action-content {
     flex: 1;
     min-width: 0;
 
     h3 {
-      margin: 0 0 4px;
-      font-size: 16px;
-      font-weight: var(--font-weight-bold);
+      margin: 0 0 3px;
+      font-size: 15px;
+      font-weight: 700;
       color: var(--ion-text-color);
       display: flex;
       align-items: center;
-      gap: var(--spacing-xs);
+      gap: 6px;
 
       .badge {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 24px;
-        height: 24px;
-        padding: 0 var(--spacing-xs);
+        min-width: 22px;
+        height: 22px;
+        padding: 0 6px;
         background: var(--ion-color-danger);
         color: white;
         border-radius: 99px;
-        font-size: 12px;
-        font-weight: var(--font-weight-bold);
+        font-size: 11px;
+        font-weight: 700;
+
+        &.success {
+          background: var(--ion-color-success);
+        }
       }
     }
 
@@ -169,28 +204,31 @@
     }
   }
 
+  // Flecha
   .chevron {
-    font-size: 20px;
-    color: var(--ion-color-medium);
+    font-size: 18px;
+    color: var(--ion-color-step-400);
     transform: rotate(180deg);
     flex-shrink: 0;
   }
 }
 
-// Info card (sin deudas / informativas)
+// ── Info card (sin deudas) ────────────────────────────────────────────────────
+
 .info-card {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  margin: var(--spacing-md) var(--spacing-lg);
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-radius: var(--radius-md);
+  gap: 12px;
+  margin: 0 16px 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
 
   &.success {
-    background: rgba(var(--ion-color-success-rgb), 0.1);
-    border: 1px solid rgba(var(--ion-color-success-rgb), 0.3);
+    background: rgba(var(--ion-color-success-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.25);
 
-    ion-icon { color: var(--ion-color-success); }
+    ion-icon { color: var(--ion-color-success); font-size: 20px; }
+    span { color: var(--ion-color-success); font-weight: 600; }
   }
 
   &.ganancia-mes {
@@ -201,14 +239,14 @@
   }
 
   ion-icon {
-    font-size: 24px;
+    font-size: 22px;
     flex-shrink: 0;
   }
 
   span {
     font-size: 14px;
     color: var(--ion-text-color);
-    font-weight: var(--font-weight-medium);
+    font-weight: 500;
   }
 
   .info-card-content {
@@ -219,25 +257,26 @@
     .info-label {
       font-size: 13px;
       color: var(--ion-color-medium);
-      font-weight: var(--font-weight-medium);
+      font-weight: 500;
     }
 
     .info-monto {
       font-size: 18px;
-      font-weight: var(--font-weight-bold);
+      font-weight: 700;
       color: var(--ion-color-primary);
     }
   }
 }
 
-// Empty state
+// ── Empty state ───────────────────────────────────────────────────────────────
+
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-xl);
-  gap: var(--spacing-md);
+  padding: 40px 20px;
+  gap: 12px;
   min-height: 200px;
 
   ion-icon,

@@ -1,35 +1,80 @@
-<!-- Header del Menú con info del usuario -->
-<div class="menu-header">
-  <ion-avatar class="menu-avatar">
-    <ion-icon [icon]="userIcon"></ion-icon>
-  </ion-avatar>
-  <h3>{{ empleadoNombre }}</h3>
-  <span class="menu-role">{{ empleadoRol === 'ADMIN' ? 'Administrador' : 'Empleado' }}</span>
-</div>
+<!-- Contenedor flex: header fijo | body scrolleable | footer fijo -->
+<div class="sidebar-container">
 
-<!-- Items del Menú -->
-<ion-list lines="none" class="menu-list">
-  <ion-menu-toggle *ngFor="let item of menuItems" auto-hide="false">
-    <ion-item button class="menu-item" [routerLink]="item.url" routerLinkActive="active-item"
-      [routerLinkActiveOptions]="{exact: !!item.exact}" (click)="closeMenu()">
-      <ion-icon [icon]="item.icon" slot="start"></ion-icon>
-      <ion-label>{{ item.title }}</ion-label>
-    </ion-item>
-  </ion-menu-toggle>
-</ion-list>
+  <!-- HEADER -->
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <ion-icon name="storefront-outline"></ion-icon>
+    </div>
+    <div class="sidebar-header-text">
+      <h2 class="sidebar-negocio">{{ nombreNegocio }}</h2>
+      <span class="sidebar-subtitle">Panel de gestión</span>
+    </div>
+  </div>
 
-<!-- Footer con Settings y Logout -->
-<div class="menu-footer">
-  <div class="footer-actions">
-    <ion-button fill="clear" class="btn-logout" color="medium" (click)="logout()">
-      <ion-icon [icon]="logoutIcon" slot="start"></ion-icon>
-      Cerrar Sesión
-    </ion-button>
+  <!-- ACCIONES RÁPIDAS — solo desktop -->
+  <div class="quick-actions">
+    <button class="quick-action-btn qa-success" (click)="onAccionRapida('calculadora')">
+      <div class="qa-icon-wrap success">
+        <ion-icon name="calculator-outline"></ion-icon>
+      </div>
+      <span class="qa-label">Calc. Margen</span>
+    </button>
+    <button class="quick-action-btn qa-secondary" (click)="onAccionRapida('nueva-nota')">
+      <div class="qa-icon-wrap secondary">
+        <ion-icon name="create-outline"></ion-icon>
+      </div>
+      <span class="qa-label">Nueva nota</span>
+    </button>
+    <button class="quick-action-btn qa-tertiary" (click)="onAccionRapida('cuadre')">
+      <div class="qa-icon-wrap tertiary">
+        <ion-icon name="scale-outline"></ion-icon>
+      </div>
+      <span class="qa-label">Cuadre</span>
+    </button>
+  </div>
 
-    @if (empleadoRol === 'ADMIN') {
-    <ion-button fill="clear" color="medium" class="btn-settings" [routerLink]="'/configuracion'" (click)="closeMenu()">
-      <ion-icon [icon]="settingsIcon" slot="icon-only"></ion-icon>
-    </ion-button>
+  <!-- BODY — scrolleable -->
+  <div class="sidebar-body">
+    @for (group of menuGroups; track group.label) {
+      <div class="menu-group">
+        @if (group.label) {
+          <div class="menu-group-label">{{ group.label }}</div>
+        }
+        <ion-list lines="none" class="menu-list">
+          <ion-menu-toggle *ngFor="let item of group.items" auto-hide="false">
+            <ion-item button class="menu-item" [routerLink]="item.url" routerLinkActive="active-item"
+              [routerLinkActiveOptions]="{exact: !!item.exact}" (click)="closeMenu()">
+              <ion-icon [icon]="item.icon" slot="start"></ion-icon>
+              <ion-label>{{ item.title }}</ion-label>
+            </ion-item>
+          </ion-menu-toggle>
+        </ion-list>
+      </div>
     }
   </div>
+
+  <!-- FOOTER -->
+  <div class="sidebar-footer">
+    <div class="footer-user">
+      <div class="footer-avatar">
+        <span>{{ empleadoNombre.charAt(0) }}</span>
+      </div>
+      <div class="footer-user-info">
+        <span class="footer-nombre">{{ empleadoNombre }}</span>
+        <span class="footer-rol">{{ empleadoRol === 'ADMIN' ? 'Administrador' : 'Empleado' }}</span>
+      </div>
+    </div>
+    <div class="footer-actions">
+      @if (empleadoRol === 'ADMIN') {
+        <ion-button fill="clear" color="medium" class="btn-settings" [routerLink]="'/configuracion'" (click)="closeMenu()">
+          <ion-icon [icon]="settingsIcon" slot="icon-only"></ion-icon>
+        </ion-button>
+      }
+      <ion-button fill="clear" color="medium" class="btn-logout" (click)="logout()">
+        <ion-icon [icon]="logoutIcon" slot="icon-only"></ion-icon>
+      </ion-button>
+    </div>
+  </div>
+
 </div>

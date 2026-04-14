@@ -1,0 +1,29 @@
+<!-- Botón disparador ⋮ -->
+<ion-button [id]="triggerId" fill="clear" [color]="triggerColor" [class.disabled-menu]="disabled">
+    <ion-icon slot="icon-only" name="ellipsis-vertical-outline"></ion-icon>
+</ion-button>
+
+<!-- Popover -->
+<ion-popover [trigger]="disabled ? undefined : triggerId" triggerAction="click" [dismissOnSelect]="true">
+    <ng-template>
+        <ion-list lines="none" class="options-list">
+            @for (option of options; track option.value) {
+              @if (option.separator) {
+                <hr class="options-separator">
+              } @else {
+                <ion-item button (click)="onSelect(option)">
+                    <ion-icon [name]="option.icon" slot="start"
+                        [color]="option.active ? 'primary' : (option.color ?? 'medium')">
+                    </ion-icon>
+                    <ion-label [color]="option.active ? 'primary' : option.color">
+                        {{ option.label }}
+                    </ion-label>
+                    @if (option.active) {
+                    <ion-icon name="checkmark-outline" slot="end" color="primary"></ion-icon>
+                    }
+                </ion-item>
+              }
+            }
+        </ion-list>
+    </ng-template>
+</ion-popover>

@@ -8,8 +8,9 @@ import {
   ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { addOutline, personOutline } from 'ionicons/icons';
+import { addOutline, personOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import { UsuarioService } from '../../services/usuario.service';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Usuario } from '../../models/usuario.model';
 import { UiService } from '@core/services/ui.service';
 
@@ -23,7 +24,8 @@ import { UiService } from '@core/services/ui.service';
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton, IonIcon, IonSkeletonText,
     IonFab, IonFabButton,
-    IonRefresher, IonRefresherContent
+    IonRefresher, IonRefresherContent,
+    EmptyStateComponent
   ]
 })
 export class ListPage implements OnInit {
@@ -35,7 +37,7 @@ export class ListPage implements OnInit {
   loading = false;
 
   constructor() {
-    addIcons({ addOutline, personOutline });
+    addIcons({ addOutline, personOutline, shieldCheckmarkOutline });
   }
 
   ngOnInit() {
@@ -75,9 +77,7 @@ export class ListPage implements OnInit {
     );
 
     const modal = await this.modalCtrl.create({
-      component: RegistrarUsuarioModalComponent,
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      component: RegistrarUsuarioModalComponent
     });
 
     modal.onDidDismiss().then(({ data, role }) => {
@@ -99,9 +99,7 @@ export class ListPage implements OnInit {
 
     const modal = await this.modalCtrl.create({
       component: EditarUsuarioModalComponent,
-      componentProps: { usuario },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { usuario }
     });
 
     modal.onDidDismiss().then(({ data, role }) => {

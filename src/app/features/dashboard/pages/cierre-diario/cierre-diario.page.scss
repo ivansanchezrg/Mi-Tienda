@@ -1,9 +1,4 @@
-// Variables de colores
-$celular-color: #3b82f6;
-$bus-color: #ef4444;
-$efectivo-color: #f59e0b;
-$caja-color: #10b981;
-$caja-chica-color: #8b5cf6;
+// Variables de colores — usan variables Ionic para compatibilidad dark/light
 
 // Container principal
 .wizard-container {
@@ -18,7 +13,7 @@ $caja-chica-color: #8b5cf6;
   margin-bottom: var(--spacing-xl);
 
   span {
-    background: var(--ion-color-light);
+    background: var(--ion-color-step-100);
     color: var(--ion-color-medium);
     padding: var(--spacing-xs) var(--spacing-md);
     border-radius: var(--radius-md);
@@ -53,20 +48,24 @@ $caja-chica-color: #8b5cf6;
   background: transparent;
 
   .input-item {
-    --background: var(--ion-item-background, #fff);
+    --background: var(--ion-item-background);
     --padding-start: var(--spacing-lg);
     --padding-end: var(--spacing-lg);
     margin-bottom: var(--spacing-lg);
     border-radius: var(--radius-sm);
     box-shadow: var(--shadow-level-1);
 
+    &::part(native) {
+      align-items: center;
+    }
+
     .item-icon {
       font-size: 36px;
       margin-right: var(--spacing-lg);
 
-      &.celular { color: $celular-color; }
-      &.bus { color: $bus-color; }
-      &.efectivo { color: $efectivo-color; }
+      &.celular { color: var(--ion-color-primary); }
+      &.bus { color: var(--ion-color-danger); }
+      &.efectivo { color: var(--ion-color-warning); }
     }
 
     ion-label {
@@ -177,9 +176,9 @@ $caja-chica-color: #8b5cf6;
     .venta-icon {
       font-size: 24px;
 
-      &.celular { color: $celular-color; }
-      &.bus { color: $bus-color; }
-      &.efectivo { color: $efectivo-color; }
+      &.celular { color: var(--ion-color-primary); }
+      &.bus { color: var(--ion-color-danger); }
+      &.efectivo { color: var(--ion-color-warning); }
     }
 
     .venta-nombre {
@@ -207,9 +206,9 @@ $caja-chica-color: #8b5cf6;
 .desglose-efectivo {
   margin-top: var(--spacing-sm);
   padding: var(--spacing-md);
-  background: var(--ion-color-light);
+  background: var(--ion-color-step-50);
   border-radius: var(--radius-xs);
-  border-left: 3px solid $efectivo-color;
+  border-left: 3px solid var(--ion-color-warning);
 
   .desglose-item {
     display: flex;
@@ -244,8 +243,17 @@ $caja-chica-color: #8b5cf6;
       color: var(--ion-text-color);
 
       &.resta {
-        color: $bus-color; // Rojo para las restas
+        color: var(--ion-color-danger);
         font-weight: var(--font-weight-bold);
+      }
+
+      &.sobrante {
+        color: var(--ion-color-success);
+        font-weight: var(--font-weight-bold);
+      }
+
+      &.muted {
+        color: var(--ion-color-medium);
       }
 
       &.destacado {
@@ -265,8 +273,8 @@ $caja-chica-color: #8b5cf6;
 // Verificación de cajas
 .caja-verificacion {
   padding: var(--spacing-lg);
-  background: var(--ion-color-light);
-  border-radius: var(--spacing-sm);
+  background: var(--ion-color-step-50);
+  border-radius: var(--radius-sm);
   margin-bottom: var(--spacing-md);
 
   &:last-child {
@@ -282,10 +290,10 @@ $caja-chica-color: #8b5cf6;
     .caja-icon {
       font-size: 20px;
 
-      &.caja { color: $caja-color; }
-      &.caja-chica { color: $caja-chica-color; }
-      &.celular { color: $celular-color; }
-      &.bus { color: $bus-color; }
+      &.caja { color: var(--ion-color-success); }
+      &.caja-chica { color: var(--ion-color-tertiary); }
+      &.celular { color: var(--ion-color-primary); }
+      &.bus { color: var(--ion-color-danger); }
     }
 
     strong {
@@ -342,14 +350,14 @@ $caja-chica-color: #8b5cf6;
   align-items: flex-start;
   gap: var(--spacing-md);
   padding: var(--spacing-md);
-  background: var(--ion-color-light);
-  border-radius: var(--spacing-sm);
+  background: var(--ion-color-step-50);
+  border-radius: var(--radius-sm);
   margin-bottom: var(--spacing-md);
 
   ion-icon {
     font-size: 24px;
     flex-shrink: 0;
-    margin-top: var(--spacing-2xs);
+    margin-top: 2px;
   }
 
   > div {
@@ -393,6 +401,11 @@ $caja-chica-color: #8b5cf6;
     }
   }
 
+  &.success {
+    background: rgba(var(--ion-color-success-rgb), 0.10);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.20);
+  }
+
   &.info {
     background: rgba(var(--ion-color-primary-rgb), 0.10);
     border: 1px solid rgba(var(--ion-color-primary-rgb), 0.20);
@@ -406,6 +419,57 @@ $caja-chica-color: #8b5cf6;
   &.danger {
     background: rgba(var(--ion-color-danger-rgb), 0.10);
     border: 1px solid rgba(var(--ion-color-danger-rgb), 0.20);
+  }
+
+  &.alerta-deficit {
+    margin-top: var(--spacing-md);
+    margin-bottom: 0;
+  }
+
+  &.alerta-inline {
+    margin: var(--spacing-sm) 0;
+  }
+}
+
+// Cajón verificado (cuadra exacto)
+.cajón-ok {
+  .desglose-label {
+    color: var(--ion-color-success) !important;
+    font-weight: var(--font-weight-bold) !important;
+
+    ion-icon {
+      color: var(--ion-color-success);
+      font-size: 18px;
+    }
+  }
+}
+
+// Fila de diferencia (faltante / sobrante)
+.diferencia-row {
+  border-radius: var(--radius-xs);
+  padding: var(--spacing-md) var(--spacing-sm) !important;
+  margin-top: var(--spacing-xs);
+
+  &.es-faltante {
+    background: rgba(var(--ion-color-danger-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.25);
+
+    .diferencia-label ion-icon { color: var(--ion-color-danger); font-size: 18px; }
+    .diferencia-valor { color: var(--ion-color-danger); font-size: 16px; font-weight: var(--font-weight-extrabold); }
+  }
+
+  &.es-sobrante {
+    background: rgba(var(--ion-color-success-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.20);
+
+    .diferencia-label ion-icon { color: var(--ion-color-success); font-size: 18px; }
+    .diferencia-valor { color: var(--ion-color-success); font-size: 16px; font-weight: var(--font-weight-bold); }
+  }
+
+  .diferencia-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
   }
 }
 
@@ -425,8 +489,8 @@ $caja-chica-color: #8b5cf6;
 }
 
 // Valor en déficit (color naranja en desglose)
-.desglose-valor.deficit {
-  color: var(--ion-color-warning) !important;
+.desglose-efectivo .desglose-item .desglose-valor.deficit {
+  color: var(--ion-color-warning);
 }
 
 // Fila de Caja Chica cuando hay déficit
@@ -444,10 +508,10 @@ $caja-chica-color: #8b5cf6;
 
 // Nota explicativa al pie de los bloques de déficit
 .deficit-nota {
-  margin-top: var(--spacing-sm) !important;
-  margin-bottom: 0 !important;
-  font-size: 12px !important;
-  color: var(--ion-color-medium) !important;
+  margin-top: var(--spacing-sm);
+  margin-bottom: 0;
+  font-size: 12px;
+  color: var(--ion-color-medium);
   font-style: italic;
 }
 
@@ -470,10 +534,34 @@ $caja-chica-color: #8b5cf6;
         font-size: 14px;
         border: 2px solid var(--ion-color-step-150);
         border-radius: var(--radius-sm);
-        background: var(--ion-color-light);
+        background: var(--ion-color-step-50);
       }
     }
   }
+}
+
+// Skeleton loading
+.skeleton-icon { opacity: 0.5; }
+.skeleton-wrapper { border-bottom-color: transparent; }
+
+.skeleton-title {
+  width: 50%; height: 18px; border-radius: var(--radius-xs);
+  &--narrow { width: 40%; }
+  &--wide { width: 55%; }
+}
+
+.skeleton-subtitle {
+  width: 40%; height: 14px; margin-top: 6px; border-radius: var(--radius-xs);
+  &--narrow { width: 35%; }
+  &--wide { width: 45%; }
+}
+
+.skeleton-input {
+  width: 100%; height: 40px; margin-top: var(--spacing-md); border-radius: var(--radius-sm);
+}
+
+.skeleton-button {
+  width: 100%; height: 48px; border-radius: var(--radius-sm);
 }
 
 .paso-actions {

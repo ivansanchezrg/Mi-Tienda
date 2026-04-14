@@ -4,14 +4,15 @@ import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-  IonIcon, IonButton, ModalController, ToastController,
-  IonRippleEffect, IonSkeletonText
+  IonIcon, IonButton, ModalController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   walletOutline, cashOutline, phonePortraitOutline, busOutline,
   chevronForward, notificationsOutline, cloudOfflineOutline,
-  alertCircleOutline, eyeOutline, eyeOffOutline
+  alertCircleOutline, eyeOutline, eyeOffOutline,
+  arrowUpOutline, arrowDownOutline,
+  lockClosedOutline, lockOpenOutline
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
@@ -21,13 +22,16 @@ import { RecargasService } from '../../services/recargas.service';
 import { CajasService, Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
+import { ConfigService } from '@core/services/config.service';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { EstadoCaja } from '../../models/turno-caja.model';
-import { NotificacionesService, Notificacion } from '../../services/notificaciones.service';
+import { NotificacionesService, Notificacion } from '@core/services/notificaciones.service';
 import { NotificacionesModalComponent } from '../../components/notificaciones-modal/notificaciones-modal.component';
 import { VerificarFondoModalComponent } from '../../components/verificar-fondo-modal/verificar-fondo-modal.component';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
+import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
+import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 
 @Component({
   selector: 'app-home',
@@ -38,7 +42,8 @@ import { OperacionModalComponent, OperacionModalResult } from '../../components/
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-    IonIcon, IonButton, IonRippleEffect, IonSkeletonText
+    IonIcon, IonButton, IonSkeletonText,
+    OptionsMenuComponent
   ]
 })
 export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
@@ -53,10 +58,13 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private turnosCajaService = inject(TurnosCajaService);
   private notificacionesService = inject(NotificacionesService);
   private modalCtrl = inject(ModalController);
-  private toastCtrl = inject(ToastController);
   private networkService = inject(NetworkService);
+  private configService  = inject(ConfigService);
   private cdr = inject(ChangeDetectorRef);
+
+  nombreNegocio = 'Mi Tienda';
   private networkSub?: Subscription;
+  private queryParamsSub?: Subscription;
 
   // Estado del turno de caja
   estadoCaja: EstadoCaja = {
@@ -71,15 +79,22 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     return this.estadoCaja.estado === 'TURNO_EN_CURSO';
   }
 
+  /** true si el turno activo fue abierto por el usuario actual */
+  get esMiTurno(): boolean {
+    if (!this.cajaAbierta) return false;
+    return this.estadoCaja.turnoActivo?.empleado_id === this.empleadoActualId;
+  }
+
   // Estado de carga local (para Skeletons UI)
   cargando = true;
 
   // Estado de conexión
   isOnline = true;
 
-  // Saldos de cajas
+  // Saldos de cajas (v5: 5 cajas)
   saldoCaja = 0;
-  saldoCajaChica = 0;
+  saldoCajaChica = 0; // CAJA_CHICA — cajón físico diario
+  saldoVarios = 0;    // VARIOS — fondo de emergencia (v5: antes era CAJA_CHICA)
   saldoCelular = 0;
   saldoBus = 0;
   totalSaldos = 0;
@@ -89,6 +104,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private readonly TIPO_CODIGO: Record<string, string> = {
     'caja': 'CAJA',
     'cajaChica': 'CAJA_CHICA',
+    'varios': 'VARIOS',
     'celular': 'CAJA_CELULAR',
     'bus': 'CAJA_BUS'
   };
@@ -99,6 +115,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   // Usuario
   nombreUsuario = '';
+  empleadoActualId: number | null = null;
+  esAdmin = false;
 
   // Fechas
   fechaUltimoCierre = '';
@@ -111,21 +129,32 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   // Privacidad
   montosOcultos = false;
 
+  // Opciones del menú ⋮ — compartidas por todas las cajas
+  readonly cajaOptions: MenuOption[] = [
+    { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'ingreso', color: 'success' },
+    { label: 'Registrar Egreso', icon: 'arrow-up-outline', value: 'egreso', color: 'danger' },
+  ];
+
+
   constructor() {
     super();
     addIcons({
       walletOutline, cashOutline, phonePortraitOutline, busOutline,
       chevronForward, notificationsOutline, cloudOfflineOutline,
-      alertCircleOutline, eyeOutline, eyeOffOutline
+      alertCircleOutline, eyeOutline, eyeOffOutline,
+      arrowUpOutline, arrowDownOutline,
+      lockClosedOutline, lockOpenOutline
     });
   }
 
   async ngOnInit() {
+    this.configService.getNombreNegocio().then(n => this.nombreNegocio = n);
+
     this.networkSub = this.networkService.getNetworkStatus().subscribe(isOnline => {
       this.isOnline = isOnline;
     });
 
-    this.route.queryParams.subscribe(async params => {
+    this.queryParamsSub = this.route.queryParams.subscribe(async params => {
       const action = params['action'];
       if (action) {
         await this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
@@ -138,6 +167,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.networkSub?.unsubscribe();
+    this.queryParamsSub?.unsubscribe();
   }
 
   private async manejarAccion(action: string) {
@@ -146,6 +176,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   override async ionViewWillEnter(): Promise<void> {
     super.ionViewWillEnter();
+    this.ui.showTabs();
     const refresh = this.route.snapshot.queryParams['refresh'];
     if (refresh) {
       await this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
@@ -156,13 +187,14 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   async cargarDatos() {
     this.cargando = true;
     try {
-      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones] = await Promise.all([
+      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones, empleado] = await Promise.all([
         this.turnosCajaService.obtenerEstadoCaja(),
         this.cajasService.obtenerSaldosCajas(),
         this.cajasService.obtenerFechaUltimoCierre(),
         this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
         this.recargasVirtualesService.getSaldoVirtualActual('BUS'),
-        this.notificacionesService.getNotificaciones()
+        this.notificacionesService.getNotificaciones(),
+        this.authService.getUsuarioActual()
       ]);
 
       this.estadoCaja = { ...estadoCaja };
@@ -170,6 +202,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       if (saldos) {
         this.saldoCaja = saldos.cajaPrincipal;
         this.saldoCajaChica = saldos.cajaChica;
+        this.saldoVarios = saldos.varios;
         this.saldoCelular = saldos.cajaCelular;
         this.saldoBus = saldos.cajaBus;
         this.totalSaldos = saldos.total;
@@ -185,8 +218,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
         this.fechaUltimoCierre = 'Hoy es tu primer turno';
       }
 
-      const empleado = await this.authService.getUsuarioActual();
       this.nombreUsuario = empleado?.nombre || 'Usuario';
+      this.empleadoActualId = empleado?.id ?? null;
+      this.esAdmin = empleado?.rol === 'ADMIN';
       this.fechaActual = this.formatearFecha(new Date());
 
       this.notificaciones = notificaciones;
@@ -207,12 +241,15 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   get totalEfectivo(): number {
+    // Si no hay turno activo, el cajon (CAJA_CHICA) no se muestra en el home
+    // → excluirlo del total para que la cifra mostrada coincida con las cards visibles.
+    if (!this.cajaAbierta) return this.totalSaldos - this.saldoCajaChica;
     return this.totalSaldos;
   }
 
-  async handleRefresh(event: any) {
+  async handleRefresh(event: CustomEvent) {
     await this.cargarDatos();
-    event.target.complete();
+    (event.target as HTMLIonRefresherElement).complete();
   }
 
   toggleMontosOcultos() {
@@ -226,7 +263,27 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   onSaldoClick(tipo: string) {
     const caja = this.cajas.find(c => c.codigo === this.TIPO_CODIGO[tipo]);
     if (!caja) return;
-    this.router.navigate(['/home/operaciones-caja'], { state: { cajaId: caja.id, cajaNombre: caja.nombre } });
+    const esCajaChica = this.TIPO_CODIGO[tipo] === 'CAJA_CHICA';
+    const turnoAjeno = esCajaChica && this.cajaAbierta && !this.esMiTurno;
+    const esMiTurnoCajaChica = esCajaChica && this.esMiTurno;
+    this.router.navigate(['/home/operaciones-caja'], {
+      queryParams: {
+        cajaId: caja.id,
+        cajaNombre: caja.nombre,
+        cajaCodigo: caja.codigo,
+        ...(turnoAjeno ? { turnoAjeno: true } : {}),
+        ...(esMiTurnoCajaChica ? { esMiTurno: true } : {})
+      }
+    });
+  }
+
+  /** Handler del menú ⋮ en cards de Tienda y Cajón */
+  async onCajaMenuOption(option: MenuOption, tipoCaja: string) {
+    if (option.value === 'ver') {
+      this.onSaldoClick(tipoCaja);
+    } else {
+      await this.onOperacion(option.value, tipoCaja);
+    }
   }
 
   async onOperacion(tipo: string, tipoCaja?: string) {
@@ -243,9 +300,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     const modal = await this.modalCtrl.create({
       component: OperacionModalComponent,
-      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada }
     });
 
     await modal.present();
@@ -260,32 +315,136 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     if (success) await this.cargarDatos();
   }
 
-  async onAbrirCaja() {
-    const confirmado = await this.mostrarModalVerificacionFondo();
-    if (!confirmado) return;
+  async onChipTurnoClick() {
+    if (this.esMiTurno) {
+      // Mi turno — mostrar info + opción de cerrar
+      const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
+      const groups: ModalOptionGroup[] = [{
+        options: [
+          { label: 'Cerrar Turno', icon: 'lock-closed-outline', value: 'cerrar', color: 'danger' }
+        ]
+      }];
+      const modal = await this.modalCtrl.create({
+        component: OptionsModalComponent,
+        componentProps: {
+          title: 'Turno Activo',
+          subtitle: `${cajaNombre} abierto · Ventas POS habilitadas · Desde ${this.estadoCaja.horaApertura}`,
+          groups
+        },
+        cssClass: 'options-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1
+      });
+      await modal.present();
+      const { data } = await modal.onDidDismiss();
+      if (data === 'cerrar') await this.onCerrarCaja();
 
-    const success = await this.turnosCajaService.abrirTurno();
-    if (success) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+    } else if (this.cajaAbierta) {
+      // Turno ajeno — solo informativo, sin opciones
+      const nombre = this.estadoCaja.empleadoNombre || 'otro empleado';
+      const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
+      const modal = await this.modalCtrl.create({
+        component: OptionsModalComponent,
+        componentProps: {
+          title: 'Turno en Progreso',
+          subtitle: `${cajaNombre} abierto por ${nombre} · Solo ese empleado puede registrar movimientos`,
+          groups: []
+        },
+        cssClass: 'options-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1
+      });
+      await modal.present();
+
+    } else {
+      // Sin turno — mostrar info + opción de abrir
+      const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
+      const groups: ModalOptionGroup[] = [{
+        options: [
+          { label: 'Abrir Turno', icon: 'lock-open-outline', value: 'abrir' }
+        ]
+      }];
+      const modal = await this.modalCtrl.create({
+        component: OptionsModalComponent,
+        componentProps: {
+          title: 'Caja Cerrada',
+          subtitle: `${cajaNombre} sin turno activo · Ventas POS deshabilitadas`,
+          groups
+        },
+        cssClass: 'options-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1
+      });
+      await modal.present();
+      const { data } = await modal.onDidDismiss();
+      if (data === 'abrir') await this.onAbrirCaja();
+    }
+  }
+
+  async onAbrirCaja() {
+    if (this.estadoCaja.estado === 'TURNO_EN_CURSO') {
+      const nombre = this.estadoCaja.empleadoNombre || 'otro empleado';
+      await this.ui.showError(`Ya hay un turno abierto por ${nombre}. Solo ese empleado puede cerrarlo.`);
+      return;
+    }
+
+    const resultado = await this.mostrarModalVerificacionFondo();
+    if (!resultado) return;
+
+    // Si el modal ya abrió el turno (caso con déficit, atómico en SQL), no hace falta llamar abrirTurno()
+    if (resultado.turnoId) {
       await this.cargarDatos();
       this.cdr.detectChanges();
+      await this.irAlPOSTrasTurno();
+      return;
+    }
+
+    // Caso sin déficit: abre el turno normalmente
+    await this.ui.showLoading('Abriendo caja...');
+    const success = await this.turnosCajaService.abrirTurno();
+    await this.ui.hideLoading();
+
+    if (success) {
+      await this.cargarDatos();
+      this.cdr.detectChanges();
+      await this.irAlPOSTrasTurno();
     } else {
-      await this.ui.showError('No se pudo abrir el turno. Verificá tu conexión e intentá de nuevo.');
+      // abrirTurno() devuelve false: puede ser turno ya abierto (datos desactualizados)
+      // o error real. Verificar cuál es para dar el mensaje correcto.
+      const turnoActivo = await this.turnosCajaService.obtenerTurnoActivo();
+      if (turnoActivo) {
+        if (turnoActivo.empleado_id === this.empleadoActualId) {
+          // Lock timeout de Supabase — el turno del usuario actual ya existe
+          await this.cargarDatos();
+          this.cdr.detectChanges();
+          await this.irAlPOSTrasTurno();
+        } else {
+          // Datos desactualizados — hay un turno de otro empleado abierto
+          const nombre = turnoActivo.empleado?.nombre || 'otro empleado';
+          await this.ui.showError(`Ya hay un turno abierto por ${nombre}. Solo ese empleado puede cerrarlo.`);
+          await new Promise(resolve => setTimeout(resolve, 300));
+          await this.cargarDatos();
+          this.cdr.detectChanges();
+        }
+      } else {
+        await this.ui.showError('No se pudo abrir el turno. Verificá tu conexión e intentá de nuevo.');
+      }
+    }
+  }
+
+  private async irAlPOSTrasTurno() {
+    if (!this.esAdmin) {
+      this.ui.showToast('¡Listo! Ya puedes registrar ventas', 'success');
+      await new Promise(resolve => setTimeout(resolve, 600));
+      this.router.navigate(['/pos']);
+    } else {
+      this.ui.showToast('Caja abierta', 'success');
     }
   }
 
   async onCerrarCaja() {
-    if (!this.estadoCaja.turnoActivo) return;
-    await this.onCerrarDia();
-  }
-
-  async onCerrarDia() {
     if (this.estadoCaja.estado !== 'TURNO_EN_CURSO') {
-      const toast = await this.toastCtrl.create({
-        message: 'Debes abrir la caja primero antes de hacer el cierre diario',
-        duration: 3000, color: 'warning', position: 'top', icon: 'alert-circle-outline'
-      });
-      await toast.present();
+      await this.ui.showToast('No hay un turno activo en este momento.', 'warning');
       return;
     }
 
@@ -303,47 +462,53 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       return;
     }
 
+    const turnoEmpleadoId = this.estadoCaja.turnoActivo?.empleado_id;
+    if (turnoEmpleadoId && this.empleadoActualId && turnoEmpleadoId !== this.empleadoActualId) {
+      const nombre = this.estadoCaja.empleadoNombre || 'el empleado que abrió el turno';
+      await this.ui.showError(`Solo ${nombre} puede realizar el cierre de este turno.`);
+      return;
+    }
+
     await this.router.navigate(['/home/cierre-diario']);
   }
 
   async abrirNotificaciones() {
     const modal = await this.modalCtrl.create({
       component: NotificacionesModalComponent,
-      cssClass: 'notificaciones-modal',
-      componentProps: { notificaciones: this.notificaciones },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { notificaciones: this.notificaciones }
     });
     await modal.present();
     const { data } = await modal.onWillDismiss();
     if (data?.reload) await this.cargarDatos();
   }
 
-  async mostrarModalVerificacionFondo(): Promise<boolean> {
+  async mostrarModalVerificacionFondo(): Promise<{ turnoId: string | null } | null> {
     try {
+      await this.ui.showLoading('Verificando...');
+      this.configService.invalidar(); // Fuerza lectura fresca de BD (fondo puede haber cambiado)
       const [fondoFijo, deficit] = await Promise.all([
         this.turnosCajaService.obtenerFondoFijo(),
         this.turnosCajaService.obtenerDeficitTurnoAnterior()
       ]);
+      await this.ui.hideLoading();
 
       const modal = await this.modalCtrl.create({
         component: VerificarFondoModalComponent,
-        cssClass: 'verificar-fondo-modal',
         componentProps: {
           fondoFijo,
-          deficitCajaChica: deficit?.deficitCajaChica ?? 0,
+          deficitVarios: deficit?.deficitVarios ?? 0,
           fondoFaltante: deficit?.fondoFaltante ?? 0
-        },
-        breakpoints: [0, 1],
-        initialBreakpoint: 1
+        }
       });
 
       await modal.present();
       const { data, role } = await modal.onWillDismiss();
-      return role === 'confirm' && data?.confirmado === true;
+      if (role !== 'confirm' || !data?.confirmado) return null;
+      return { turnoId: data?.turnoId ?? null };
     } catch (error: any) {
+      await this.ui.hideLoading();
       await this.ui.showError('Error al cargar los datos de verificación. Intentá de nuevo.');
-      return false;
+      return null;
     }
   }
 }

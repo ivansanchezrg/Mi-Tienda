@@ -7,81 +7,205 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true">
+<ion-content #content [fullscreen]="true">
   <div class="page-container">
 
     @if (cargando) {
     <div class="config-form skeleton-form">
       @for (i of [1,2,3,4]; track i) {
-      <div class="input-group">
-        <ion-skeleton-text animated
-          style="width: 40%; height: 16px; margin-bottom: 8px; border-radius: 4px;"></ion-skeleton-text>
-        <ion-skeleton-text animated
-          style="width: 100%; height: 48px; border-radius: var(--radius-xs);"></ion-skeleton-text>
-        <ion-skeleton-text animated
-          style="width: 60%; height: 12px; margin-top: 8px; border-radius: 4px;"></ion-skeleton-text>
+      <div class="section-card">
+        <ion-skeleton-text animated style="width: 30%; height: 14px; margin-bottom: 16px; border-radius: 4px;"></ion-skeleton-text>
+        <div class="input-group">
+          <ion-skeleton-text animated style="width: 40%; height: 13px; margin-bottom: 8px; border-radius: 4px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 100%; height: 50px; border-radius: 10px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 65%; height: 11px; margin-top: 6px; border-radius: 4px;"></ion-skeleton-text>
+        </div>
       </div>
       }
-      <ion-skeleton-text animated
-        style="width: 100%; height: 50px; border-radius: var(--radius-xs); margin-top: 32px;"></ion-skeleton-text>
     </div>
     } @else {
 
     <form [formGroup]="form" class="config-form">
 
-      <!-- Fondo fijo diario -->
-      <div class="input-group">
-        <label class="input-label">Fondo fijo diario</label>
-        <div class="input-with-prefix">
-          <span class="prefix">$</span>
-          <input type="number" inputmode="decimal" step="0.01" min="0" formControlName="fondo_fijo_diario"
-            autocomplete="off">
+      <!-- ── SECCIÓN: NEGOCIO ───────────────────────────── -->
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="storefront-outline"></ion-icon>
+          <span>Negocio</span>
         </div>
-        <span class="input-hint">Efectivo que queda en caja para el día siguiente</span>
-      </div>
 
-      <!-- Transferencia diaria a Caja Chica -->
-      <div class="input-group">
-        <label class="input-label">Transferencia diaria a Caja Chica</label>
-        <div class="input-with-prefix">
-          <span class="prefix">$</span>
-          <input type="number" inputmode="decimal" step="0.01" min="0" formControlName="caja_chica_transferencia_diaria"
-            autocomplete="off">
+        <div class="input-group">
+          <label class="input-label">Nombre del negocio</label>
+          <input type="text" formControlName="negocio_nombre" autocomplete="off"
+            placeholder="Ej: Mi Tienda" maxlength="100">
+          <span class="input-hint">Aparece en comprobantes y estados de cuenta</span>
         </div>
-        <span class="input-hint">Monto fijo que se transfiere a Caja Chica en cada cierre</span>
-      </div>
 
-      <!-- Alerta saldo bajo BUS -->
-      <div class="input-group">
-        <label class="input-label">Alerta saldo bajo (BUS)</label>
-        <div class="input-with-prefix">
-          <span class="prefix">$</span>
-          <input type="number" inputmode="decimal" step="0.01" min="0" formControlName="bus_alerta_saldo_bajo"
-            autocomplete="off">
+        @if (tieneCambios['negocio']) {
+        <div id="footer-negocio" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['negocio']" (click)="guardarSeccion('negocio')">
+            @if (guardando['negocio']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
         </div>
-        <span class="input-hint">Se muestra alerta cuando el saldo virtual BUS llega a este valor o menos</span>
-      </div>
-
-      <!-- Días antes de facturación BUS -->
-      <div class="input-group">
-        <label class="input-label">Días antes de facturación (BUS)</label>
-        <div class="input-with-suffix">
-          <input type="number" inputmode="numeric" step="1" min="1" formControlName="bus_dias_antes_facturacion"
-            autocomplete="off">
-          <span class="suffix">días</span>
-        </div>
-        <span class="input-hint">Anticipación para recordar la facturación mensual de Bus</span>
-      </div>
-
-      <!-- Botón Guardar -->
-      <button type="button" class="submit-btn" [disabled]="form.invalid || guardando" (click)="guardar()">
-        @if (guardando) {
-        <ion-spinner name="crescent"></ion-spinner>
-        Guardando...
-        } @else {
-        Guardar Cambios
         }
-      </button>
+      </div>
+
+      <!-- ── SECCIÓN: CAJA ──────────────────────────────── -->
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="wallet-outline"></ion-icon>
+          <span>Caja</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Fondo fijo diario</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input type="number" inputmode="decimal" step="0.01" min="0"
+              formControlName="caja_fondo_fijo_diario" autocomplete="off">
+          </div>
+          <span class="input-hint">Efectivo que queda en caja para el día siguiente</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Transferencia diaria a Varios</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input type="number" inputmode="decimal" step="0.01" min="0"
+              formControlName="caja_varios_transferencia_dia" autocomplete="off">
+          </div>
+          <span class="input-hint">Monto fijo que se transfiere a Varios (fondo emergencia) en cada cierre</span>
+        </div>
+
+        @if (tieneCambios['caja']) {
+        <div id="footer-caja" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['caja']" (click)="guardarSeccion('caja')">
+            @if (guardando['caja']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
+      </div>
+
+      <!-- ── SECCIÓN: BUS ───────────────────────────────── -->
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="bus-outline"></ion-icon>
+          <span>Bus</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Alerta saldo bajo</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input type="number" inputmode="decimal" step="0.01" min="0"
+              formControlName="bus_alerta_saldo_bajo" autocomplete="off">
+          </div>
+          <span class="input-hint">Se muestra alerta cuando el saldo virtual BUS llega a este valor o menos</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Días antes de facturación</label>
+          <div class="input-with-suffix">
+            <input type="number" inputmode="numeric" step="1" min="1"
+              formControlName="bus_dias_antes_facturacion" autocomplete="off">
+            <span class="suffix">días</span>
+          </div>
+          <span class="input-hint">Anticipación para recordar la facturación mensual de Bus</span>
+        </div>
+
+        @if (tieneCambios['bus']) {
+        <div id="footer-bus" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['bus']" (click)="guardarSeccion('bus')">
+            @if (guardando['bus']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
+      </div>
+
+      <!-- ── SECCIÓN: POS ──────────────────────────────────── -->
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="cart-outline"></ion-icon>
+          <span>POS</span>
+        </div>
+
+        <div class="input-group">
+          <label class="toggle-row">
+            <span class="input-label">Descuentos automáticos</span>
+            <label class="toggle-switch">
+              <input type="checkbox" formControlName="pos_descuentos_habilitados">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          <span class="input-hint">Aplica descuento automático cuando la venta supera el monto mínimo</span>
+        </div>
+
+        @if (form.value.pos_descuentos_habilitados) {
+        <div class="input-group">
+          <label class="input-label">Porcentaje de descuento</label>
+          <div class="input-with-suffix">
+            <input type="number" inputmode="decimal" step="1" min="0" max="100"
+              formControlName="pos_descuento_maximo_pct" autocomplete="off">
+            <span class="suffix">%</span>
+          </div>
+          <span class="input-hint">Porcentaje que se descuenta del subtotal (ej: 10%)</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Monto mínimo para descuento</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input type="number" inputmode="decimal" step="0.01" min="0"
+              formControlName="pos_umbral_monto_descuento" autocomplete="off">
+          </div>
+          <span class="input-hint">Solo aplica descuento si la venta supera este monto</span>
+        </div>
+        }
+
+        <div class="input-group last">
+          <label class="input-label">Tarifa IVA vigente</label>
+          <div class="input-with-suffix">
+            <input type="number" inputmode="numeric" step="1" min="1" max="100"
+              formControlName="pos_iva_porcentaje" autocomplete="off">
+            <span class="suffix">%</span>
+          </div>
+          <span class="input-hint">Tasa de IVA para facturas (actualmente 15% en Ecuador). Cambiar solo si el SRI actualiza la tarifa.</span>
+        </div>
+
+        @if (tieneCambios['pos']) {
+        <div id="footer-pos" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['pos']" (click)="guardarSeccion('pos')">
+            @if (guardando['pos']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
+      </div>
+
+      <!-- ── SECCIÓN: NÓMINA ─────────────────────────────── -->
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="people-outline"></ion-icon>
+          <span>Nómina</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Sueldo base mensual</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input type="number" inputmode="decimal" step="0.01" min="0"
+              formControlName="nomina_sueldo_base" autocomplete="off">
+          </div>
+          <span class="input-hint">Se precarga al pagar nómina. El admin puede ajustarlo antes de confirmar.</span>
+        </div>
+
+        @if (tieneCambios['nomina']) {
+        <div id="footer-nomina" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['nomina']" (click)="guardarSeccion('nomina')">
+            @if (guardando['nomina']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
+      </div>
 
     </form>
 

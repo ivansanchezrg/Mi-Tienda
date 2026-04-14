@@ -1,9 +1,12 @@
 import { Component, NgZone, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, take } from 'rxjs/operators';
 import { App, URLOpenListenerEvent } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
+import { SplashScreen } from '@capacitor/splash-screen';
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 import { SupabaseService } from './core/services/supabase.service';
+import { TurnosCajaService } from './features/dashboard/services/turnos-caja.service';
 import { Capacitor } from '@capacitor/core';
 import { OfflineBannerComponent } from './core/components/offline-banner/offline-banner.component';
 
@@ -18,26 +21,66 @@ export class AppComponent {
   private router = inject(Router);
   private zone = inject(NgZone);
 
+  // Instanciamos TurnosCajaService aqui para garantizar que su constructor
+  // corra desde el bootstrap del app — asi se suscribe a usuarioActual$ de
+  // AuthService antes de cualquier login. providedIn:'root' es lazy, sin esta
+  // inyeccion el servicio no existe hasta que alguna pagina lo pida.
+  private turnosCaja = inject(TurnosCajaService);
+
   constructor() {
     this.setupDeepLinkListener();
+    this.setupResumeListener();
+    this.setupSplashScreenHide();
   }
 
-  setupDeepLinkListener() {
+  /**
+   * Oculta el splash screen nativo solo cuando la primera ruta termina de
+   * renderizar. Evita el flash blanco entre el splash de Android y el primer
+   * paint de Angular. Requiere `launchAutoHide: false` en capacitor.config.ts
+   * — sin eso, Capacitor lo oculta automáticamente al montar el WebView.
+   */
+  private setupSplashScreenHide() {
+    if (!Capacitor.isNativePlatform()) return;
+
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        take(1)
+      )
+      .subscribe(async () => {
+        await SplashScreen.hide();
+      });
+  }
+
+  private setupDeepLinkListener() {
     if (!Capacitor.isNativePlatform()) return;
 
     App.addListener('appUrlOpen', async (event: URLOpenListenerEvent) => {
-      // 1. Cerrar la pestaña del navegador que abrimos con Browser.open()
       await Browser.close();
-
-      // 2. Guardamos la URL completa (trae el access_token en el hash)
       this.supabase.pendingDeepLinkUrl = event.url;
 
-      // 3. Navegamos a la página de Callback para procesar el token
       this.zone.run(() => {
         if (event.url.includes('auth/callback')) {
-            this.router.navigateByUrl('/auth/callback');
+          this.router.navigateByUrl('/auth/callback');
         }
       });
+    });
+  }
+
+  /**
+   * Al volver del background, fuerza un refresh de la sesión.
+   * El timer de auto-refresh del SDK de Supabase se detiene cuando la app
+   * está suspendida. Si pasaron >1h en background, el access token expiró
+   * y la primera query fallaría con "JWT expired". Este listener renueva
+   * el token proactivamente al volver.
+   */
+  private setupResumeListener() {
+    App.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
+        this.zone.run(() => {
+          this.supabase.refreshSessionOnResume();
+        });
+      }
     });
   }
 }

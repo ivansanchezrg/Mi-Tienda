@@ -7,43 +7,52 @@
  * ============================================================================
  *
  * FILOSOFÍA:
- * Este sistema de diseño se basa en Flat Design moderno con superficies planas,
- * sombras sutiles, bordes redondeados suaves y espaciado consistente.
+ * Flat Design moderno con superficies planas, sombras sutiles, bordes
+ * redondeados suaves y espaciado consistente.
  * Compatible con modo claro/oscuro usando variables CSS de Ionic.
  *
  * CAPAS VISUALES:
- * ┌─────────────────────────────────────────────────────────────────────────┐
- * │ Fondo General (--ion-background-color) → Gris sutil / Dark #121212     │
- * │   ┌───────────────────────────────────────────────────────────────┐     │
- * │   │ Cards/Items (--ion-item-background) → Blanco / Dark #1e1e1e  │     │
- * │   │   • Sombras sutiles para profundidad                          │     │
- * │   │   • Bordes redondeados suaves                                 │     │
- * │   └───────────────────────────────────────────────────────────────┘     │
- * └─────────────────────────────────────────────────────────────────────────┘
+ * ┌──────────────────────────────────────────────────────────────────────────┐
+ * │ Fondo General   --ion-background-color  → #f4f5f8  / dark: #121212      │
+ * │   ┌──────────────────────────────────────────────────────────────────┐   │
+ * │   │ Cards/Items  --ion-item-background  → #ffffff  / dark: #1e1e1e  │   │
+ * │   │   • Texto    --ion-text-color       → Ionic nativo (auto dark)  │   │
+ * │   │   • Sombras sutiles para profundidad                             │   │
+ * │   └──────────────────────────────────────────────────────────────────┘   │
+ * └──────────────────────────────────────────────────────────────────────────┘
+ *
+ * VARIABLES IONIC NATIVAS (no redefinidas aquí — Ionic las gestiona):
+ *   --ion-text-color        Texto principal (negro/blanco según modo)
+ *   --ion-color-light       Fondo gris claro para ion-content y modales
+ *   --ion-color-medium      Texto secundario / placeholders
+ *   --ion-color-primary     Color de marca
+ *   --ion-color-success     Verde (ingresos, estados positivos)
+ *   --ion-color-danger      Rojo (egresos, errores, destrucción)
+ *   --ion-color-warning     Amarillo (alertas, advertencias)
  *
  * PRINCIPIOS DE USO:
- * 1. Usar design tokens (variables) en lugar de valores hardcodeados
- * 2. Aprovechar variables Ionic nativas para compatibilidad con temas
- * 3. Usar --ion-color-step-* para variaciones sutiles
- * 4. Mantener consistencia en spacing y radios en toda la app
+ * 1. NUNCA hardcodear colores (#fff, #000, rgba literales) en componentes
+ * 2. Usar siempre design tokens de este archivo o variables Ionic nativas
+ * 3. Usar --ion-color-step-* para grises y variaciones sutiles
+ * 4. Excepción documentada: --shadow-level-* usan rgba() porque CSS no
+ *    permite construir box-shadow desde variables separadas
+ * 5. Mantener consistencia de spacing y radios en toda la app
  * ============================================================================
  */
+
 
 :root {
   // ============================================================================
   // COLORES BASE (Ionic Nativo - Adaptativo al modo oscuro)
   // ============================================================================
 
-  // Fondo principal de páginas (gris sutil - resalta cards)
+  // Fondo principal de páginas — gris sutil para que los cards resalten
+  // NOTA: valor literal obligatorio aquí porque es la definición del token
   --ion-background-color: #f4f5f8;
   --ion-background-color-rgb: 244, 245, 248;
 
-  // Fondo de cards/items/elementos destacados (blanco)
+  // Fondo de cards, items y superficies elevadas
   --ion-item-background: #ffffff;
-
-  /* Backdrop para modals, alerts, etc (negro semi-transparente) */
-  // --ion-backdrop-color: rgba(0, 0, 0, 0.9) !important;
-  // --ion-backdrop-opacity: 0.8;
 
   // ============================================================================
   // BORDER RADIUS (Bordes Redondeados)
@@ -75,20 +84,23 @@
   /**
    * Escala de sombras para crear profundidad visual
    * USO:
-   * - none: Elementos planos sin elevación
-   * - level-1: Elevación mínima (chips, badges)
-   * - level-2: Elevación suave (cards, items)
-   * - level-3: Elevación media (modales, popovers)
+   * - none:    Elementos completamente planos
+   * - level-1: Elevación mínima (chips, badges, dividers)
+   * - level-2: Elevación suave (cards, items de lista)
+   * - level-3: Elevación media (modales, bottom sheets)
    * - level-4: Elevación alta (dialogs, overlays)
    *
-   * NOTA: Las sombras se adaptan automáticamente en modo oscuro
-   * (aparecen más sutiles)
+   * EXCEPCIÓN JUSTIFICADA: box-shadow requiere un color concreto — CSS no
+   * permite construirlo desde variables separadas. Se usan rgba() literales
+   * aquí (única excepción al principio de no hardcodear colores).
+   * En dark mode se redefinen con opacidades más altas para compensar
+   * el fondo oscuro.
    */
   --shadow-none: none;
-  --shadow-level-1: 0 2px 8px rgba(0, 0, 0, 0.04);    // Mínima
-  --shadow-level-2: 0 4px 16px rgba(0, 0, 0, 0.06);   // Suave
-  --shadow-level-3: 0 8px 24px rgba(0, 0, 0, 0.08);   // Media
-  --shadow-level-4: 0 12px 32px rgba(0, 0, 0, 0.12);  // Alta
+  --shadow-level-1: 0 1px 4px rgba(0, 0, 0, 0.06);    // Mínima
+  --shadow-level-2: 0 2px 8px rgba(0, 0, 0, 0.08);    // Suave
+  --shadow-level-3: 0 4px 16px rgba(0, 0, 0, 0.10);   // Media
+  --shadow-level-4: 0 8px 24px rgba(0, 0, 0, 0.14);   // Alta
 
   // ============================================================================
   // SPACING (Espaciado Consistente)
@@ -176,20 +188,59 @@
   // ============================================================================
 
   /**
-   * Escala de grises desde casi blanco (50) hasta casi negro (950)
-   * Estos valores NO se generan automáticamente en Ionic 8
-   * Base: #ffffff (blanco) → #000000 (negro)
+   * Escala de grises desde casi blanco (50) hasta casi negro (950).
+   * NOTA: Ionic 8 NO genera estos steps automáticamente — se declaran aquí.
+   * Solo se definen los pasos que realmente se usan en la app (no todos
+   * los 20 posibles), para mantener el archivo limpio.
+   *
+   * USO POR PASO:
+   *   step-50  → Fondos de hover, superficies casi blancas
+   *   step-100 → Bordes sutiles, dividers, fondos de skeleton
+   *   step-150 → Bordes de inputs, separadores visibles
+   *   step-300 → Iconos inactivos, placeholders
+   *   step-400 → Texto deshabilitado
+   *   step-600 → Texto secundario (similar a --ion-color-medium)
+   *   step-900 → Texto casi negro, fondos oscuros
+   *   step-950 → Texto negro puro, máximo contraste
+   *
+   * PATRÓN CONTRASTE INVERTIDO (elemento activo — tab/filtro/chip):
+   *   background: var(--ion-color-step-900)  → oscuro en light, claro en dark
+   *   color:      var(--ion-color-step-50)   → claro en light, oscuro en dark
+   * Se invierte automáticamente en dark mode. Sin ningún valor hardcodeado.
    */
-  --ion-color-step-50: #f2f2f2;    // 98% blanco
-  --ion-color-step-100: #e6e6e6;   // 90% blanco
-  --ion-color-step-150: #d9d9d9;   // 85% blanco
-  --ion-color-step-300: #b3b3b3;   // 70% blanco
-  --ion-color-step-400: #999999;   // 60% blanco
-  --ion-color-step-600: #666666;   // 40% blanco
-  --ion-color-step-900: #1a1a1a;   // 10% blanco (muy oscuro)
-  --ion-color-step-950: #0d0d0d;   // 5% blanco (casi negro)
+  --ion-color-step-50: #f2f2f2;    // Casi blanco
+  --ion-color-step-100: #e6e6e6;   // Muy claro
+  --ion-color-step-150: #d9d9d9;   // Claro
+  --ion-color-step-200: #cccccc;   // Bordes de contenedores, divisores entre secciones
+  --ion-color-step-300: #b3b3b3;   // Gris claro
+  --ion-color-step-400: #999999;   // Gris medio-claro
+  --ion-color-step-600: #666666;   // Gris medio-oscuro
+  --ion-color-step-900: #1a1a1a;   // Muy oscuro
+  --ion-color-step-950: #0d0d0d;   // Casi negro
 
   
+}
+
+// ============================================================================
+// DESKTOP (Split pane activo — pantallas ≥992px)
+// ============================================================================
+// Solo se sobreescriben los tokens que deben escalar en pantallas grandes.
+// El resto (colores, sombras, radios) se mantienen igual.
+
+@media (min-width: 992px) {
+  :root {
+    // Spacing ligeramente más generoso
+    --spacing-sm: 10px;
+    --spacing-md: 14px;
+    --spacing-lg: 18px;
+    --spacing-xl: 24px;
+    --spacing-2xl: 28px;
+
+    // Tipografía base más legible en pantalla grande
+    --font-size-base: 16px;
+    --font-size-sm: 14px;
+    --font-size-lg: 18px;
+  }
 }
 
 // ============================================================================
@@ -203,21 +254,24 @@
     --ion-background-color-rgb: 18, 18, 18;
     --ion-item-background: #1e1e1e;
 
-    // Sombras más sutiles en modo oscuro
-    --shadow-level-1: 0 2px 8px rgba(0, 0, 0, 0.2);
-    --shadow-level-2: 0 4px 16px rgba(0, 0, 0, 0.3);
-    --shadow-level-3: 0 8px 24px rgba(0, 0, 0, 0.4);
-    --shadow-level-4: 0 12px 32px rgba(0, 0, 0, 0.5);
+    // Sombras con mayor opacidad en dark mode — el fondo oscuro absorbe
+    // sombras sutiles y necesitan más contraste para percibirse
+    --shadow-level-1: 0 1px 4px rgba(0, 0, 0, 0.25);
+    --shadow-level-2: 0 2px 8px rgba(0, 0, 0, 0.35);
+    --shadow-level-3: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-level-4: 0 8px 24px rgba(0, 0, 0, 0.55);
 
-    // Step Colors invertidos para dark mode (claro → oscuro)
-    --ion-color-step-50: #0d0d0d;    // Casi negro
+    // Steps invertidos en dark mode — los valores "claros" se vuelven oscuros
+    // y viceversa, manteniendo la semántica de contraste de cada variable
+    --ion-color-step-50: #0d0d0d;    // Casi negro  (← era casi blanco)
     --ion-color-step-100: #1a1a1a;   // Muy oscuro
     --ion-color-step-150: #262626;   // Oscuro
+    --ion-color-step-200: #333333;   // Bordes de contenedores, divisores entre secciones
     --ion-color-step-300: #4d4d4d;   // Gris oscuro
     --ion-color-step-400: #666666;   // Gris medio
-    --ion-color-step-600: #999999;   // Gris claro
+    --ion-color-step-600: #999999;   // Gris medio-claro
     --ion-color-step-900: #e6e6e6;   // Muy claro
-    --ion-color-step-950: #f2f2f2;   // Casi blanco
+    --ion-color-step-950: #f2f2f2;   // Casi blanco (← era casi negro)
   }
 }
 
@@ -242,6 +296,18 @@
 .m-md { margin: var(--spacing-md); }
 .m-lg { margin: var(--spacing-lg); }
 .m-xl { margin: var(--spacing-xl); }
+
+.mt-xs { margin-top: var(--spacing-xs); }
+.mt-sm { margin-top: var(--spacing-sm); }
+.mt-md { margin-top: var(--spacing-md); }
+.mt-lg { margin-top: var(--spacing-lg); }
+.mt-xl { margin-top: var(--spacing-xl); }
+
+.mb-xs { margin-bottom: var(--spacing-xs); }
+.mb-sm { margin-bottom: var(--spacing-sm); }
+.mb-md { margin-bottom: var(--spacing-md); }
+.mb-lg { margin-bottom: var(--spacing-lg); }
+.mb-xl { margin-bottom: var(--spacing-xl); }
 
 // Border radius utilities
 .rounded-sm { border-radius: var(--radius-sm); }

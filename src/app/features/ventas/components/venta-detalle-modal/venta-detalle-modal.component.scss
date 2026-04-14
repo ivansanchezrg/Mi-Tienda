@@ -1,0 +1,443 @@
+// ==========================================
+// Venta Detalle Modal — estilo comprobante
+// ==========================================
+
+ion-content {
+    --background: var(--ion-background-color, #f8f9fa);
+    --overflow: auto;
+}
+
+// ─────────────────────────────────────────
+// BOTÓN CERRAR FLOTANTE
+// ─────────────────────────────────────────
+
+.btn-cerrar-flotante,
+.btn-compartir-flotante {
+    position: absolute;
+    top: calc(14px + env(safe-area-inset-top));
+    z-index: 100;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(var(--ion-color-dark-rgb), 0.08);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    ion-icon {
+        font-size: 20px;
+        color: var(--ion-color-medium);
+    }
+
+    &:disabled {
+        opacity: 0.4;
+    }
+}
+
+.btn-cerrar-flotante {
+    right: 16px;
+}
+
+.btn-compartir-flotante {
+    left: 16px;
+}
+
+// ─────────────────────────────────────────
+// LOADING / ERROR
+// ─────────────────────────────────────────
+
+.loading-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 40vh;
+}
+
+.error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 40vh;
+    gap: 12px;
+    color: var(--ion-color-medium);
+
+    ion-icon {
+        font-size: 48px;
+        opacity: 0.5;
+    }
+
+    p {
+        font-size: 14px;
+        margin: 0;
+    }
+}
+
+// ─────────────────────────────────────────
+// CONTENEDOR PRINCIPAL DEL COMPROBANTE
+// ─────────────────────────────────────────
+
+.comprobante {
+    padding: 72px 20px 40px; // top aumentado: espacio para los dos botones flotantes (X y compartir)
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+// ─────────────────────────────────────────
+// CABECERA (nombre tienda, tipo, fecha)
+// ─────────────────────────────────────────
+
+.cabecera {
+    text-align: center;
+    padding-bottom: 16px;
+
+    .negocio-nombre {
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        color: var(--ion-text-color);
+        margin-bottom: 4px;
+    }
+
+    .tipo-comprobante-label {
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--ion-color-medium);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+
+        .comprobante-numero {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--ion-color-medium);
+            letter-spacing: 0.5px;
+        }
+    }
+
+    .meta-row {
+        font-size: 13px;
+        color: var(--ion-color-medium);
+        line-height: 1.6;
+    }
+}
+
+// ─────────────────────────────────────────
+// DIVISORES
+// ─────────────────────────────────────────
+
+.divider-dashed {
+    border: none;
+    border-top: 1.5px dashed var(--ion-color-step-200, #ddd);
+    margin: 14px 0;
+}
+
+.divider-solid {
+    border: none;
+    border-top: 1.5px solid var(--ion-color-step-300, #ccc);
+    margin: 14px 0;
+}
+
+.divider-thin {
+    border: none;
+    border-top: 1px solid var(--ion-color-step-150, #eee);
+    margin: 8px 0;
+}
+
+// ─────────────────────────────────────────
+// SECCIONES GENÉRICAS
+// ─────────────────────────────────────────
+
+.section {
+    margin-bottom: 4px;
+
+    .section-title {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--ion-color-medium);
+        margin-bottom: 10px;
+
+        ion-icon { font-size: 13px; }
+    }
+}
+
+// ─────────────────────────────────────────
+// DATOS COMPRADOR
+// ─────────────────────────────────────────
+
+.dato-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 3px 0;
+    gap: 12px;
+
+    .dato-label {
+        font-size: 13px;
+        color: var(--ion-color-medium);
+        flex-shrink: 0;
+    }
+
+    .dato-val {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ion-text-color);
+        text-align: right;
+    }
+}
+
+// ─────────────────────────────────────────
+// TABLA DE ÍTEMS
+// ─────────────────────────────────────────
+
+.items-header {
+    display: grid;
+    grid-template-columns: 1fr 40px 64px 64px;
+    gap: 4px;
+    padding: 0 0 6px 0;
+    border-bottom: 1px solid var(--ion-color-step-150, #eee);
+    margin-bottom: 6px;
+
+    span {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: var(--ion-color-medium);
+    }
+
+    .col-cant,
+    .col-precio,
+    .col-subtotal {
+        text-align: right;
+    }
+}
+
+.item-row {
+    display: grid;
+    grid-template-columns: 1fr 40px 64px 64px;
+    gap: 4px;
+    padding: 5px 0;
+    align-items: start;
+
+    span {
+        font-size: 13px;
+        color: var(--ion-text-color);
+    }
+
+    .item-nombre {
+        font-weight: 500;
+        line-height: 1.3;
+    }
+
+    .col-cant,
+    .col-precio,
+    .col-subtotal {
+        text-align: right;
+    }
+
+    .col-precio {
+        color: var(--ion-color-medium);
+        font-size: 12px;
+    }
+
+    .col-subtotal {
+        font-weight: 600;
+    }
+}
+
+// ─────────────────────────────────────────
+// TOTALES
+// ─────────────────────────────────────────
+
+.totales {
+    padding: 4px 0;
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+
+    .total-label {
+        font-size: 13px;
+        color: var(--ion-color-medium);
+    }
+
+    .total-val {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ion-text-color);
+        font-variant-numeric: tabular-nums;
+    }
+
+    &.total-row--descuento {
+        .total-label,
+        .total-val {
+            color: var(--ion-color-success);
+            font-weight: 600;
+        }
+    }
+
+    &.total-row--grande {
+        padding: 8px 0 4px;
+
+        .total-label {
+            font-size: 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: var(--ion-text-color);
+        }
+
+        .total-val--grande {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--ion-color-primary);
+            letter-spacing: -1px;
+        }
+    }
+}
+
+// ─────────────────────────────────────────
+// PIE DEL COMPROBANTE
+// ─────────────────────────────────────────
+// BANNER ANULADA
+// ─────────────────────────────────────────
+
+.banner-anulada {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(var(--ion-color-danger-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.3);
+    border-radius: var(--radius-sm, 6px);
+    padding: 12px 14px;
+    margin: 0 16px 0 16px;
+
+    ion-icon {
+        font-size: 22px;
+        color: var(--ion-color-danger);
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
+    .banner-anulada-texto {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .banner-anulada-titulo {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--ion-color-danger);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .banner-anulada-motivo {
+        font-size: 13px;
+        color: var(--ion-color-danger);
+        opacity: 0.85;
+        line-height: 1.4;
+    }
+}
+
+// ─────────────────────────────────────────
+// TOTAL ANULADO
+// ─────────────────────────────────────────
+
+.total-anulado {
+    .total-val--grande {
+        text-decoration: line-through;
+        color: var(--ion-color-danger) !important;
+        opacity: 0.7;
+    }
+}
+
+// ─────────────────────────────────────────
+// ESTADO DE CUENTA FIADO
+// ─────────────────────────────────────────
+
+.fiado-abonado-val {
+    color: var(--ion-color-success);
+    font-weight: 600;
+}
+
+.fiado-pendiente {
+    .total-label {
+        font-weight: 600;
+        color: var(--ion-color-warning-shade);
+    }
+}
+
+.fiado-pendiente-val {
+    color: var(--ion-color-warning-shade);
+    font-weight: 700;
+}
+
+.fiado-saldado-val {
+    color: var(--ion-color-success);
+    font-weight: 700;
+}
+
+
+// ─────────────────────────────────────────
+
+.pie {
+    text-align: center;
+    padding-top: 4px;
+
+    .metodo-pago-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--ion-text-color);
+        margin-bottom: 6px;
+
+        ion-icon {
+            font-size: 16px;
+            color: var(--ion-color-primary);
+        }
+    }
+
+    .fiado-nota {
+        font-size: 12px;
+        color: var(--ion-color-warning-shade);
+        font-weight: 600;
+        margin: 0 0 6px 0;
+    }
+
+
+    .gracias {
+        font-size: 13px;
+        color: var(--ion-color-medium);
+
+        &.anulada-pie {
+            color: var(--ion-color-danger);
+            font-weight: 600;
+        }
+        margin: 12px 0 0 0;
+        font-style: italic;
+    }
+
+    .nota-fiscal {
+        font-size: 11px;
+        color: var(--ion-color-step-400, #aaa);
+        margin: 6px 0 0 0;
+    }
+}

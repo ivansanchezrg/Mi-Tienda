@@ -9,6 +9,12 @@
  * https://ionicframework.com/docs/layout/global-stylesheets
  */
 
+ 
+// Estilos personalizados
+@use './theme/custom/index';
+
+
+
 /* Core CSS required for Ionic components to work properly */
 @import "@ionic/angular/css/core.css";
 
@@ -53,5 +59,95 @@
  */
 ion-fab {
   margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/**
+ * .tab-animate — Animación de entrada para contenido de tabs
+ * ---------------------------------------------------
+ * Aplicar al contenedor del contenido de cada tab.
+ * Se dispara automáticamente cada vez que Angular crea
+ * el elemento (con @if al cambiar de tab).
+ *
+ * Uso:
+ *   <div class="tab-animate"> ... contenido del tab ... </div>
+ */
+.tab-animate {
+  animation: tabEnter 0.2s ease forwards;
+}
+
+@keyframes tabEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/**
+ * ion-title — Estilo global de títulos de página
+ * ---------------------------------------------------
+ * Aplica a todos los ion-title de la app.
+ * Centralizado aquí para evitar duplicación en cada página.
+ *
+ * padding-inline-start: separa el título del ion-menu-button
+ * font-weight:          títulos pesados, más presencia visual
+ * letter-spacing:       compresión tipográfica para títulos grandes
+ *
+ * EXCEPCIÓN: modales con ion-title propio pueden sobreescribir
+ * letter-spacing si el contexto lo requiere (ej: pago-fiado-modal).
+ */
+ion-title {
+  padding-inline-start: var(--spacing-lg);
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+
+
+// ─────────────────────────────────────────
+// ESCÁNER DE CÁMARA — fondo transparente
+// ─────────────────────────────────────────
+// Cuando el escáner nativo está activo, el WebView debe ser transparente
+// para que la cámara de MLKit sea visible debajo.
+body.scanner-active {
+  visibility: hidden;
+  --background: transparent;
+  --ion-background-color: transparent;
+
+  ion-app,
+  ion-content,
+  ion-router-outlet {
+    --background: transparent !important;
+    background: transparent !important;
+  }
+}
+
+// Los overlays del escáner deben seguir visibles aunque el body esté oculto
+body.scanner-active .scanner-stack,
+body.scanner-active .scanner-overlay {
+  visibility: visible;
+}
+
+// Ocultar el tab bar durante el escaneo y colapsar su altura para que el scanner ocupe toda la pantalla
+body.scanner-active ion-tab-bar {
+  visibility: hidden;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+// Toasts visibles durante el escaneo (el body está hidden pero los toasts deben verse)
+body.scanner-active ion-toast {
+  visibility: visible;
+}
+
+// Dentro de un ion-modal, solo el overlay del escáner debe ser visible (no el formulario de fondo)
+body.scanner-active ion-modal .scanner-overlay,
+body.scanner-active ion-modal .scanner-overlay * {
+  visibility: visible;
 }
 

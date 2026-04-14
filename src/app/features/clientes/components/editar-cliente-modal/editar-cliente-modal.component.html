@@ -1,0 +1,97 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-title>{{ esCreacion ? 'Nuevo cliente' : 'Editar cliente' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cerrar()">
+        <ion-icon name="close-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [scrollY]="true">
+  <div class="modal-content">
+
+    <!-- Cédula / RUC -->
+    <div class="form-field">
+      <label class="field-label">Cédula / RUC</label>
+      @if (esCreacion) {
+      <div class="cedula-input-wrap">
+        <input class="field-input"
+          [(ngModel)]="identificacion"
+          (ngModelChange)="onIdentificacionInput()"
+          placeholder="0123456789"
+          type="text"
+          inputmode="numeric"
+          maxlength="13"
+          autocomplete="off" />
+        @if (cedulaEstado === 'buscando') {
+        <ion-spinner name="crescent" class="cedula-spinner"></ion-spinner>
+        } @else if (cedulaEstado === 'valida' && !clienteDuplicado) {
+        <ion-icon name="checkmark-circle-outline" color="success" class="cedula-icon"></ion-icon>
+        } @else if (cedulaEstado === 'invalida') {
+        <ion-icon name="alert-circle-outline" color="danger" class="cedula-icon"></ion-icon>
+        }
+      </div>
+      @if (cedulaEstado === 'invalida') {
+      <p class="field-error">Cédula ecuatoriana inválida</p>
+      }
+      } @else {
+      <input class="field-input readonly" [value]="cliente?.identificacion || 'Sin identificación'" readonly />
+      }
+    </div>
+
+    <!-- Cliente duplicado encontrado -->
+    @if (clienteDuplicado) {
+    <div class="duplicate-card">
+      <p class="duplicate-label">Ya existe un cliente con esta cédula:</p>
+      <div class="duplicate-item" (click)="seleccionarDuplicado()">
+        <div class="duplicate-info">
+          <strong>{{ clienteDuplicado.nombre }}</strong>
+          <span>{{ clienteDuplicado.identificacion }}
+            @if (clienteDuplicado.telefono) { · {{ clienteDuplicado.telefono }} }
+          </span>
+        </div>
+        <span class="duplicate-action">Editar</span>
+      </div>
+    </div>
+    }
+
+    <!-- Campos editables (habilitados tras cédula válida en creación, siempre en edición) -->
+    @if (camposHabilitados) {
+    <div class="form-field">
+      <label class="field-label">Nombre *</label>
+      <input class="field-input" [(ngModel)]="nombre" placeholder="Nombre completo" type="text" autocomplete="off" />
+    </div>
+
+    <div class="form-field">
+      <label class="field-label">Teléfono</label>
+      <input class="field-input" [(ngModel)]="telefono" placeholder="0991234567" type="tel" autocomplete="off" />
+    </div>
+
+    <div class="form-field">
+      <label class="field-label">Email</label>
+      <input class="field-input" [(ngModel)]="email" placeholder="correo@ejemplo.com" type="email" autocomplete="off" />
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-cancel" (click)="cerrar()">Cancelar</button>
+      <button class="btn-save" (click)="guardar()" [disabled]="guardando || !hayCambios">
+        @if (guardando) {
+        <ion-spinner name="crescent" style="width: 18px; height: 18px;"></ion-spinner>
+        } @else {
+        {{ esCreacion ? 'Crear' : 'Guardar' }}
+        }
+      </button>
+    </div>
+    }
+
+    <!-- Botón cancelar cuando aún no se habilitan campos -->
+    @if (!camposHabilitados && !clienteDuplicado) {
+    <div class="form-actions">
+      <button class="btn-cancel" (click)="cerrar()">Cancelar</button>
+    </div>
+    }
+
+  </div>
+</ion-content>

@@ -12,7 +12,7 @@ export class UsuarioService {
    */
   async getAll(): Promise<Usuario[]> {
     const { data, error } = await this.supabase.client
-      .from('empleados')
+      .from('usuarios')
       .select('*')
       .order('nombre', { ascending: true });
 
@@ -25,7 +25,7 @@ export class UsuarioService {
    */
   async getById(id: number): Promise<Usuario | null> {
     return this.supabase.call<Usuario>(
-      this.supabase.client.from('empleados').select('*').eq('id', id).single()
+      this.supabase.client.from('usuarios').select('*').eq('id', id).single()
     );
   }
 
@@ -35,7 +35,7 @@ export class UsuarioService {
   async create(dto: CreateUsuarioDto): Promise<Usuario | null> {
     return this.supabase.call<Usuario>(
       this.supabase.client
-        .from('empleados')
+        .from('usuarios')
         .insert({ ...dto, activo: true })
         .select()
         .single()
@@ -48,7 +48,7 @@ export class UsuarioService {
    */
   async contarAdmins(): Promise<number> {
     const { count, error } = await this.supabase.client
-      .from('empleados')
+      .from('usuarios')
       .select('*', { count: 'exact', head: true })
       .eq('rol', 'ADMIN')
       .eq('activo', true);
@@ -63,7 +63,7 @@ export class UsuarioService {
   async update(id: number, dto: UpdateUsuarioDto): Promise<Usuario | null> {
     return this.supabase.call<Usuario>(
       this.supabase.client
-        .from('empleados')
+        .from('usuarios')
         .update(dto)
         .eq('id', id)
         .select()

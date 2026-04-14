@@ -1,4 +1,4 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
@@ -43,11 +43,11 @@
     }
   </div>
   } @else if (usuarios.length === 0) {
-  <div class="empty-state">
-    <ion-icon name="person-outline"></ion-icon>
-    <p>No hay usuarios registrados</p>
-    <span>Tocá el botón + para agregar uno</span>
-  </div>
+  <app-empty-state
+    icon="person-outline"
+    title="No hay usuarios registrados"
+    hint="Tocá el botón + para agregar uno">
+  </app-empty-state>
   } @else {
   <div class="employees-list">
     @for (usuario of usuarios; track usuario.id) {
@@ -66,9 +66,16 @@
 
       <!-- Badges -->
       <div class="employee-badges">
+        @if (usuario.es_superadmin) {
+        <span class="badge-superadmin">
+          <ion-icon name="shield-checkmark-outline"></ion-icon>
+          Super
+        </span>
+        } @else {
         <span class="badge-rol" [class.admin]="usuario.rol === 'ADMIN'">
           {{ usuario.rol === 'ADMIN' ? 'Admin' : 'Empleado' }}
         </span>
+        }
         @if (!usuario.activo) {
         <span class="badge-inactivo">Inactivo</span>
         }

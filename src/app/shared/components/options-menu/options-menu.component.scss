@@ -1,0 +1,33 @@
+// Botón trigger ⋮ — sin padding lateral para pegarse al borde
+ion-button {
+    --padding-start: 0px;
+    --padding-end: 4px;
+}
+
+// Estado deshabilitado — cursor prohibido, icono atenuado
+ion-button.disabled-menu {
+    cursor: not-allowed;
+    pointer-events: auto;
+    opacity: 0.35;
+}
+
+.options-separator {
+    margin: 4px 0;
+    border: none;
+    border-top: 1px solid var(--ion-color-light-shade);
+}
+
+.options-list {
+    min-width: 180px;
+
+    ion-item {
+        --padding-start: 14px;
+        --inner-padding-end: 14px;
+        font-size: 15px;
+
+        ion-icon[slot='start'] {
+            font-size: 18px;
+            margin-inline-end: 10px;
+        }
+    }
+}

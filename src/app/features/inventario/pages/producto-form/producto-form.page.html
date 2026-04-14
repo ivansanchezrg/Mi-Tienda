@@ -1,0 +1,268 @@
+<ion-header class="ion-no-border">
+    <ion-toolbar>
+        <ion-buttons slot="start">
+            <ion-button (click)="volver()">
+                <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+            </ion-button>
+        </ion-buttons>
+        <ion-title>{{ modo === 'CREAR' ? 'Nuevo Producto' : 'Editar Producto' }}</ion-title>
+    </ion-toolbar>
+</ion-header>
+
+<ion-content color="light">
+    @if (cargando) {
+    <div class="p-lg form-container">
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+                <ion-skeleton-text animated style="width: 40%; height: 20px; margin-bottom: 16px;"></ion-skeleton-text>
+                <ion-skeleton-text animated style="width: 100%; height: 48px; margin-bottom: 12px;"></ion-skeleton-text>
+                <ion-skeleton-text animated style="width: 100%; height: 48px; margin-bottom: 12px;"></ion-skeleton-text>
+                <ion-skeleton-text animated style="width: 100%; height: 48px;"></ion-skeleton-text>
+            </ion-card-content>
+        </ion-card>
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+                <ion-skeleton-text animated style="width: 50%; height: 20px; margin-bottom: 16px;"></ion-skeleton-text>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <ion-skeleton-text animated style="width: 100%; height: 48px;"></ion-skeleton-text>
+                    <ion-skeleton-text animated style="width: 100%; height: 48px;"></ion-skeleton-text>
+                </div>
+            </ion-card-content>
+        </ion-card>
+    </div>
+    } @else {
+    <form [formGroup]="productoForm" class="p-lg form-container" (ngSubmit)="guardar()">
+
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+                <h3 class="section-title">Información Principal</h3>
+
+                <!-- Código de Barras -->
+                <div class="input-group mb-md">
+                    @if (modo === 'EDITAR') {
+                    <p class="field-label mb-xs">EAN / Código de Barras</p>
+                    <p class="readonly-value">{{ productoForm.get('codigo_barras')?.value || 'Sin código' }}</p>
+                    } @else {
+                    <ion-item class="custom-input flat-item" lines="none">
+                        <ion-input formControlName="codigo_barras" label="EAN / Código de Barras"
+                            labelPlacement="floating" type="text"
+                            placeholder="Escanea o digita el código..."></ion-input>
+                        <ion-button fill="clear" slot="end" (click)="escanearCodigo()" class="scan-btn">
+                            <ion-icon slot="icon-only" name="barcode-outline" color="primary"></ion-icon>
+                        </ion-button>
+                    </ion-item>
+                    @if (!productoForm.get('codigo_barras')?.value?.trim()) {
+                    <p class="auto-code-hint">
+                        <ion-icon name="information-circle-outline"></ion-icon>
+                        Si no tiene código de barras, déjalo vacío. Se asignará uno automáticamente.
+                    </p>
+                    }
+                    }
+                </div>
+
+                <!-- Nombre -->
+                <div class="input-group mb-md">
+                    <ion-item class="custom-input flat-item" lines="none"
+                        [class.ion-invalid]="esCampoInvalido('nombre')">
+                        <ion-input formControlName="nombre" label="Nombre del Producto *" labelPlacement="floating"
+                            type="text" placeholder="Ej. Funda Grande"></ion-input>
+                    </ion-item>
+                    @if (esCampoInvalido('nombre')) {
+                    <span class="error-text">
+                        @if (productoForm.get('nombre')?.errors?.['required']) {
+                            El nombre es requerido
+                        } @else if (productoForm.get('nombre')?.errors?.['minlength']) {
+                            Mínimo 3 caracteres
+                        } @else if (productoForm.get('nombre')?.errors?.['maxlength']) {
+                            Máximo 100 caracteres
+                        }
+                    </span>
+                    }
+                </div>
+
+                <!-- Categoría -->
+                <div class="input-group">
+                    <p class="field-label mb-xs">Categoría *</p>
+                    <button type="button" class="filter-selector"
+                        [class.filter-selector--invalid]="esCampoInvalido('categoria_id')"
+                        (click)="abrirSelectorCategoria()">
+                        <span class="filter-selector-label"
+                            [class.filter-selector-label--placeholder]="!productoForm.get('categoria_id')?.value">
+                            {{ categoriaLabel }}
+                        </span>
+                        <ion-icon name="chevron-down-outline" class="filter-selector-arrow"></ion-icon>
+                    </button>
+                    @if (esCampoInvalido('categoria_id')) {
+                    <span class="error-text">La categoría es requerida</span>
+                    }
+                </div>
+            </ion-card-content>
+        </ion-card>
+
+        <!-- Imagen del Producto -->
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+                <div class="section-header">
+                    <h3 class="section-title" style="border: none; margin: 0; padding: 0;">Imagen del Producto</h3>
+                    <span class="optional-badge">Opcional</span>
+                </div>
+
+                @if (!fotoPreview && !imagenUrlExistente) {
+                <button type="button" class="upload-btn" (click)="seleccionarFoto()">
+                    <ion-icon name="camera-outline"></ion-icon>
+                    <span>Tomar foto o seleccionar de galería</span>
+                </button>
+                } @else {
+                <div class="photo-preview">
+                    <img [src]="fotoPreview || imagenUrlExistente" alt="Imagen del producto">
+                    <button type="button" class="remove-photo" (click)="removerFoto()">
+                        <ion-icon name="close-circle"></ion-icon>
+                    </button>
+                </div>
+                }
+            </ion-card-content>
+        </ion-card>
+
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+                <h3 class="section-title">Precios e Impuestos</h3>
+
+                <div class="grid-2-cols">
+                    <!-- Costo -->
+                    <div class="input-group">
+                        <ion-item class="custom-input flat-item" lines="none"
+                            [class.ion-invalid]="esCampoInvalido('precio_costo')">
+                            <ion-input appNumbersOnly appCurrencyInput formControlName="precio_costo"
+                                label="Costo ($) *" labelPlacement="floating" type="text" inputmode="decimal"
+                                placeholder="0.00"></ion-input>
+                        </ion-item>
+                        @if (esCampoInvalido('precio_costo')) {
+                        <span class="error-text">Ingresa un precio válido</span>
+                        }
+                    </div>
+
+                    <!-- Venta -->
+                    <div class="input-group">
+                        <ion-item class="custom-input flat-item" lines="none"
+                            [class.ion-invalid]="esCampoInvalido('precio_venta')">
+                            <ion-input appNumbersOnly appCurrencyInput formControlName="precio_venta"
+                                label="Precio Venta ($) *" labelPlacement="floating" type="text" inputmode="decimal"
+                                placeholder="0.00"></ion-input>
+                        </ion-item>
+                        @if (esCampoInvalido('precio_venta')) {
+                        <span class="error-text">Ingresa un precio válido</span>
+                        }
+                    </div>
+                </div>
+
+                @if (productoForm.errors?.['ventaMenorQueCosto']) {
+                <span class="error-text mt-xs">
+                    <ion-icon name="alert-circle-outline" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
+                    El precio de venta no puede ser menor al costo
+                </span>
+                } @else if (margenPorcentaje > 0) {
+                <p class="margin-hint mt-xs">
+                    Margen de ganancia: <strong>{{ margenPorcentaje }}%</strong> (<strong>${{ currencyService.format(margenAbsoluto) }}</strong>)
+                </p>
+                }
+
+                <div class="mt-md">
+                    <ion-item class="custom-input flat-item" lines="none">
+                        <ion-toggle formControlName="tiene_iva" color="primary">Genera IVA (Impuesto)</ion-toggle>
+                    </ion-item>
+                    @if (productoForm.get('tiene_iva')?.value) {
+                    <p class="help-text mt-xs">
+                        <ion-icon name="checkmark-circle-outline" color="primary" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
+                        <strong>Tarifa 15%</strong> — aplica a la mayoría de productos (snacks, bebidas, electrodomésticos, ropa, etc.)
+                    </p>
+                    } @else {
+                    <p class="help-text mt-xs">
+                        <ion-icon name="information-circle-outline" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
+                        <strong>Tarifa 0%</strong> — solo para <strong>canasta básica exenta de IVA</strong>: verduras, frutas, leche, pan, arroz, medicamentos, etc.
+                    </p>
+                    }
+                </div>
+            </ion-card-content>
+        </ion-card>
+
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--ion-color-step-100); padding-bottom: var(--spacing-xs); margin-bottom: var(--spacing-md);">
+                    <h3 class="section-title" style="border: none; margin: 0; padding: 0;">Inventario</h3>
+                    @if (modo === 'EDITAR') {
+                    <ion-button fill="clear" size="small" (click)="abrirKardex()">
+                        <ion-icon slot="start" name="document-text-outline"></ion-icon>
+                        Auditar Kárdex
+                    </ion-button>
+                    }
+                </div>
+
+                <div class="grid-2-cols">
+                    <!-- Stock Actual -->
+                    <div class="input-group">
+                        <ion-item class="custom-input flat-item" lines="none"
+                            [class.ion-invalid]="esCampoInvalido('stock_actual')">
+                            <ion-input appNumbersOnly formControlName="stock_actual" label="Stock Bodega *"
+                                labelPlacement="floating" type="text" inputmode="numeric"
+                                [readonly]="modo === 'EDITAR'"></ion-input>
+                        </ion-item>
+                        @if (modo === 'EDITAR') {
+                        <p class="help-text">El stock solo se ajusta en Ventas o Kárdex</p>
+                        } @else if (esCampoInvalido('stock_actual')) {
+                        <span class="error-text">Stock no puede ser negativo</span>
+                        }
+                    </div>
+
+                    <!-- Mínimo -->
+                    <div class="input-group">
+                        <ion-item class="custom-input flat-item" lines="none"
+                            [class.ion-invalid]="esCampoInvalido('stock_minimo')">
+                            <ion-input appNumbersOnly formControlName="stock_minimo" label="Aviso Mínimo *"
+                                labelPlacement="floating" type="text" inputmode="numeric"></ion-input>
+                        </ion-item>
+                        @if (esCampoInvalido('stock_minimo')) {
+                        <span class="error-text">No puede ser negativo</span>
+                        }
+                    </div>
+                </div>
+            </ion-card-content>
+        </ion-card>
+
+        <div class="p-xs">
+            <ion-button expand="block" type="submit" class="main-button rounded-sm"
+                [disabled]="productoForm.invalid || guardando">
+                @if (guardando) {
+                <ion-spinner name="crescent" slot="start"></ion-spinner>
+                Guardando...
+                } @else {
+                <ion-icon slot="start" name="save-outline"></ion-icon>
+                Guardar Producto
+                }
+            </ion-button>
+
+            @if (modo === 'EDITAR') {
+            <button type="button" class="delete-btn mt-md" (click)="desactivarProducto()">
+                <ion-icon name="trash-outline"></ion-icon>
+                Desactivar producto
+            </button>
+            }
+        </div>
+    </form>
+    }
+
+    @if (escaneando) {
+    <div class="scanner-overlay">
+        <div class="scanner-frame">
+            <div class="scan-line"></div>
+        </div>
+
+        <p class="scanner-hint">Apunta al código de barras</p>
+
+        <button class="scanner-close-btn" (click)="cerrarEscaner()">
+            <ion-icon name="close-outline"></ion-icon>
+        </button>
+    </div>
+    }
+</ion-content>

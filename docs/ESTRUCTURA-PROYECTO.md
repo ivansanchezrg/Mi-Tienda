@@ -1,376 +1,1097 @@
 # Estructura del Proyecto
 
-Este documento describe la organización de carpetas y archivos del proyecto.
+Organización de carpetas, convenciones y **patrón para crear nuevos features**.
+
+*Última actualización: 2026-03-25*
+
+---
 
 ## Arquitectura General
 
-El proyecto sigue una arquitectura **basada en features** (feature-based) con componentes standalone de Angular 20 e Ionic 8.
+Arquitectura **feature-based** con standalone components (Angular 20 + Ionic 8).
 
 ```
 mi-tienda/
 ├── src/
 │   ├── app/
-│   │   ├── core/              # Servicios y utilidades centrales
-│   │   ├── features/          # Funcionalidades por módulo
-│   │   └── shared/            # Componentes compartidos
-│   ├── assets/                # Imágenes, iconos, etc.
-│   ├── environments/          # Configuración de entornos
-│   └── theme/                 # Estilos globales
-├── android/                   # Proyecto nativo Android
-├── docs/                      # Toda la documentación centralizada
-│   ├── schema.sql             # Esquema completo de la base de datos
-│   ├── ESTRUCTURA-PROYECTO.md
-│   ├── SCHEMA-CHANGELOG.md
-│   ├── CONFIGURACION-INICIAL.md
-│   ├── DESIGN.md
-│   ├── GOOGLE_OAUTH_SETUP.md
-│   ├── auth/
-│   │   └── AUTH-README.md
-│   ├── dashboard/
-│   │   ├── DASHBOARD-README.md
-│   │   ├── 1_OPERACIONES-CAJA.md
-│   │   ├── 2_PROCESO_INGRESO_EGRESO.md
-│   │   ├── 3_PROCESO_CIERRE_CAJA.md
-│   │   ├── 4_PROCESO_CUADRE_RECARGAS.md
-│   │   ├── 5_ACTUALIZACION-UI-SIN-RECARGA.md
-│   │   ├── 8_PROCESO_ABRIR_CAJA.md
-│   │   └── sql/
-│   │       ├── functions/
-│   │       │   ├── ejecutar_cierre_diario.sql
-│   │       │   ├── registrar_operacion_manual.sql
-│   │       │   ├── reparar_deficit_turno.sql
-│   │       │   ├── crear_transferencia.sql
-│   │       │   └── verificar_transferencia_caja_chica_hoy.sql
-│   │       └── queries/
-│   │           ├── agregar_categorias_deficit.sql
-│   │           └── insertar_datos_reales_recargas.sql
-│   ├── gastos-diarios/
-│   │   └── GASTOS-DIARIOS-README.md
-│   └── recargas-virtuales/
-│       ├── RECARGAS-VIRTUALES-README.md
-│       └── sql/
-│           └── functions/
-│               ├── registrar_recarga_proveedor_celular.sql
-│               ├── registrar_pago_proveedor_celular.sql
-│               └── registrar_compra_saldo_bus.sql
-└── capacitor.config.ts        # Configuración de Capacitor
+│   │   ├── core/              # Servicios, guards, utils globales
+│   │   ├── features/          # Módulos funcionales (autocontenidos)
+│   │   └── shared/            # Componentes y directivas reutilizables
+│   ├── assets/
+│   ├── environments/
+│   │   ├── environment.example.ts   # Plantilla con instrucciones (en git)
+│   │   ├── environment.ts           # Credenciales reales (en .gitignore)
+│   │   └── environment.prod.ts      # Producción (en .gitignore)
+│   ├── global.scss                  # Imports Ionic + dark mode + scanner + options-modal + safe-area FABs
+│   └── theme/
+│       ├── variables.scss           # Design tokens: spacing, radius, shadows, fonts, opacities, step colors, dark mode
+│       └── custom/index.scss        # Entry point de SCSS custom compartidos (overlays, etc.)
+├── android/                   # Proyecto nativo (Capacitor)
+├── docs/                      # Documentación centralizada
+└── capacitor.config.ts
 ```
 
 ---
 
-## Detalle de Carpetas
-
-### `src/app/core/` - Servicios y Utilidades Centrales
-
-Contiene servicios singleton y funcionalidades core usadas en toda la app.
+## `src/app/core/`
 
 ```
 core/
-├── components/                # Componentes core
-│   └── offline-banner/       # Banner de estado offline
-│
-├── config/                    # Configuración global
-│   └── pagination.config.ts  # Constantes de paginación
-│
-├── guards/                    # Guards de Angular
-│   ├── auth.guard.ts         # Protege rutas privadas (requiere login)
-│   ├── pending-changes.guard.ts # Previene salida con cambios sin guardar
-│   └── public.guard.ts       # Protege rutas públicas (redirige si ya autenticado)
-│
-├── pages/                     # Páginas/clases base
-│   └── scrollable.page.ts    # Clase base para páginas con scroll
-│
-└── services/                  # Servicios centrales
-    ├── currency.service.ts           # Formateo de moneda
-    ├── ganancias.service.ts          # Cálculo de ganancia BUS mensual + badge Home
-    ├── logger.service.ts             # Logging centralizado
-    ├── network.service.ts            # Estado de conectividad
-    ├── recargas-virtuales.service.ts # Saldo virtual, deudas, RPCs CELULAR/BUS
-    ├── storage.service.ts            # Almacenamiento local
-    ├── supabase.service.ts           # Manejo centralizado de consultas a Supabase
-    └── ui.service.ts                 # Manejo de loading, toast y tabs
-```
-
-**Convención:**
-
-- Servicios en `core/services/` son **singleton** (providedIn: 'root')
-- Guards protegen rutas según lógica de autenticación
-
----
-
-### `src/app/features/` - Funcionalidades por Módulo
-
-Cada feature tiene su propia carpeta con todo lo necesario (páginas, servicios, modelos, rutas).
-
-#### Estructura de Features
-
-```
-features/
-├── layout/                    # Feature de navegación principal
-│   ├── pages/main/
-│   │   ├── main-layout.page.ts
-│   │   ├── main-layout.page.html
-│   │   └── main-layout.page.scss
-│   └── layout.routes.ts      # Rutas hijas del layout
-│
-├── auth/                      # Feature de autenticación
-│   ├── models/
-│   │   └── empleado_actual.model.ts  # Interface del empleado en sesión
-│   ├── pages/
-│   │   ├── login/            # Página de inicio de sesión
-│   │   └── callback/         # Callback de OAuth (Google)
-│   ├── services/
-│   │   └── auth.service.ts   # Lógica de autenticación con Supabase
-│   └── auth.routes.ts
-│
-├── dashboard/                 # Feature principal (home y operaciones de caja)
-│   ├── models/
-│   │   ├── categoria-operacion.model.ts  # Tipos/categorías de operación
-│   │   ├── operacion-caja.model.ts       # Operaciones, filtros, paginación
-│   │   ├── saldos-anteriores.model.ts    # Modelo de saldos
-│   │   └── turno-caja.model.ts           # Interface del turno/caja
-│   ├── pages/
-│   │   ├── home/                         # Dashboard principal
-│   │   ├── cierre-diario/                # Proceso de cierre de cajas
-│   │   ├── cuadre-caja/                  # Cuadre y verificación de caja
-│   │   ├── historial-recargas/           # Historial de recargas (cierres + virtuales)
-│   │   └── operaciones-caja/             # Movimientos por caja (filtros, scroll infinito)
-│   ├── components/
-│   │   └── operacion-modal/              # Modal ingreso/egreso de caja
-│   ├── services/
-│   │   ├── cajas.service.ts              # CRUD de cajas y saldos
-│   │   ├── operaciones-caja.service.ts   # Consulta de operaciones con filtros
-│   │   ├── recargas.service.ts           # Snapshots de saldo virtual (tabla recargas)
-│   │   └── turnos-caja.service.ts        # Gestión de turnos/apertura de caja
-│   └── dashboard.routes.ts
-│
-├── gastos-diarios/            # Feature de gastos operativos
-│   ├── models/
-│   │   └── gasto-diario.model.ts         # Interface de gastos
-│   ├── pages/
-│   │   └── gastos-diarios/               # Lista + FAB para registrar gastos
-│   ├── components/
-│   │   └── gasto-modal/                  # Modal para registrar gasto con comprobante
-│   └── services/
-│       └── gastos-diarios.service.ts     # CRUD de gastos del día
-│
-├── recargas-virtuales/        # Feature de saldo virtual CELULAR/BUS
-│   ├── pages/
-│   │   ├── recargas-virtuales/           # Panel principal con tabs CELULAR/BUS
-│   │   └── pagar-deudas/                 # Wizard de pago de deudas CELULAR
-│   └── components/
-│       ├── registrar-recarga-modal/      # Modal para nueva carga CELULAR o compra BUS
-│       ├── pagar-deudas-modal/           # Modal para pago de deudas
-│       ├── liquidacion-bus-modal/        # Modal de liquidación mensual BUS
-│       └── historial-modal/              # Modal de historial de recargas
-│
-├── employees/                 # Feature de empleados
-│   ├── models/
-│   │   └── employee.model.ts
-│   ├── pages/list/
-│   │   ├── list.page.ts
-│   │   ├── list.page.html
-│   │   └── list.page.scss
-│   ├── services/
-│   │   └── employee.service.ts
-│   └── employees.routes.ts
-│
-├── ventas/                    # Feature de ventas
-│   ├── pages/main/
-│   │   └── ventas.page.ts
-│   └── ventas.routes.ts
-│
-├── inventario/                # Feature de inventario
-│   ├── pages/main/
-│   │   └── inventario.page.ts
-│   └── inventario.routes.ts
-│
-├── reportes/                  # Feature de reportes
-│   ├── pages/main/
-│   │   └── reportes.page.ts
-│   └── reportes.routes.ts
-│
-└── configuracion/             # Feature de configuración (solo ADMIN)
-    ├── components/
-    │   ├── logs-modal/                    # Modal de logs del sistema
-    │   └── categoria-operacion-modal/     # Modal crear/editar categoría de operación
-    ├── pages/
-    │   ├── main/                          # Página principal (parámetros + catálogos + sistema)
-    │   │   ├── configuracion.page.ts
-    │   │   ├── configuracion.page.html
-    │   │   └── configuracion.page.scss
-    │   └── categorias-operaciones/        # CRUD de categorías de ingreso/egreso
-    │       ├── categorias-operaciones.page.ts
-    │       ├── categorias-operaciones.page.html
-    │       └── categorias-operaciones.page.scss
-    └── configuracion.routes.ts
-```
-
----
-
-### Detalle del Feature `dashboard/`
-
-Este es el módulo principal que agrupa funcionalidades relacionadas con el panel del usuario y operaciones de caja.
-
-**Criterio de agrupación:** Todo lo relacionado con cajas, operaciones y el home del usuario está en `dashboard/` porque:
-
-- Comparten servicios (CajasService, OperacionesCajaService)
-- Comparten modelos (OperacionCaja, FiltroFecha)
-- Son accedidos desde el mismo punto de entrada (home)
-
-> `gastos-diarios` y `recargas-virtuales` fueron extraídos a features independientes porque tienen servicios/modelos exclusivos y flujos suficientemente complejos para justificarlo. Sus rutas siguen siendo registradas en `dashboard.routes.ts`.
-
-```
-dashboard/
-├── models/
-│   ├── operacion-caja.model.ts       # OperacionCaja, FiltroFecha, ResultadoOperaciones
-│   ├── saldos-anteriores.model.ts    # SaldosAnteriores, DatosCierreDiario
-│   ├── categoria-operacion.model.ts  # CategoriaOperacion
-│   └── turno-caja.model.ts           # TurnoCaja
-│
-├── services/
-│   ├── cajas.service.ts              # obtenerCajas(), crearTransferencia()
-│   ├── operaciones-caja.service.ts   # obtenerOperacionesCaja() con filtros
-│   ├── recargas.service.ts           # snapshots de saldo virtual, cierre diario
-│   └── turnos-caja.service.ts        # abrirTurno(), cerrarTurno()
-│
 ├── components/
-│   └── operacion-modal/              # Modal ingreso/egreso de caja
-│
-└── pages/
-    ├── home/                         # Dashboard principal
-    ├── cierre-diario/                # Cierre de cajas (v4.0 - 1 campo)
-    ├── cuadre-caja/                  # Cuadre y verificación
-    ├── historial-recargas/           # Historial de recargas (cierres + virtuales)
-    └── operaciones-caja/             # Movimientos (filtros, scroll infinito)
+│   └── offline-banner/              # Banner de estado offline
+├── config/
+│   └── pagination.config.ts         # PAGINATION_CONFIG (pageSize por módulo)
+├── guards/
+│   ├── auth.guard.ts                # Requiere login
+│   ├── public.guard.ts              # Redirige si ya autenticado
+│   ├── role.guard.ts                # Requiere rol (ej: ADMIN)
+│   └── pending-changes.guard.ts     # Previene salida con cambios sin guardar
+├── pages/
+│   └── scrollable.page.ts           # Clase base para páginas con scroll
+├── services/
+│   ├── supabase.service.ts          # Queries y auth centralizados (.call(), .rpc())
+│   ├── ui.service.ts                # Loading, toasts, alertas, hideTabs()/showTabs()
+│   ├── config.service.ts            # Tabla configuraciones con cache: get(), getNombreNegocio(), invalidar()
+│   ├── currency.service.ts          # Formateo de moneda: format(value), parse(value)
+│   ├── storage.service.ts           # Upload imágenes a Supabase Storage con compresión
+│   ├── logger.service.ts            # Logs a filesystem con rotación (max 3 archivos)
+│   ├── network.service.ts           # Estado de conectividad: isOnline$ (BehaviorSubject)
+│   ├── ganancias.service.ts         # Comisiones recargas virtuales (liquidación BUS mensual)
+│   └── recargas-virtuales.service.ts # Operaciones de saldo celular/bus
+└── utils/
+    ├── date.util.ts                 # getFechaLocal(), formatFechaEC(), etc.
+    └── cedula.util.ts               # Validación de cédula ecuatoriana
 ```
 
 ---
 
-### `src/app/shared/` - Componentes Compartidos
-
-Componentes, pipes y directivas reutilizables en múltiples features.
+## `src/app/shared/`
 
 ```
 shared/
-├── components/               # Componentes compartidos
-│   ├── sidebar/             # Menú lateral de navegación
-│   │   ├── sidebar.component.ts
-│   │   ├── sidebar.component.html
-│   │   └── sidebar.component.scss
-│   └── under-construction/  # Placeholder para features pendientes
-│       └── under-construction.component.ts
-└── directives/               # Directivas personalizadas
-    ├── currency-input.directive.ts  # Formato moneda en inputs
-    ├── numbers-only.directive.ts    # Solo permite dígitos
-    └── scroll-reset.directive.ts    # Resetea scroll al navegar
-```
-
-**Convención:**
-
-- Solo componentes **verdaderamente reutilizables** van aquí
-- Si es específico de un feature, va dentro de ese feature
-
----
-
-### `src/environments/` - Configuración de Entornos
-
-```
-environments/
-├── environment.ts            # Desarrollo
-└── environment.prod.ts       # Producción
-```
-
-**Contenido:**
-
-```typescript
-export const environment = {
-  production: false,
-  supabaseUrl: 'https://tu-proyecto.supabase.co',
-  supabaseKey: 'tu-anon-key'
-};
+├── components/
+│   ├── sidebar/                     # Menú lateral (links a features, user info, logout)
+│   ├── options-modal/               # Reemplazo de ion-select y ActionSheet (modo acción + modo selección)
+│   ├── options-menu/                # Menú popover con opciones (icon + label). Input: options[], Output: (select)
+│   └── under-construction/          # Placeholder para features en desarrollo. Input: title, icon, description, features[]
+├── directives/
+│   ├── currency-input.directive.ts  # [appCurrencyInput] — auto-formatea moneda en blur, limpia en focus
+│   ├── numbers-only.directive.ts    # [appNumbersOnly] — restringe input a números, puntos, comas
+│   └── scroll-reset.directive.ts    # [appScrollReset] — resetea scroll de ion-content al cambiar valor (útil en wizards)
+└── pages/
+    └── paginated-list.page.ts       # Clase base abstracta: items[], loading, hasMore, cargar(), cargarMas(), handleRefresh(), scrollToTop()
 ```
 
 ---
 
-### `android/` - Proyecto Nativo Android
+## `src/app/features/`
 
-Generado por Capacitor. Contiene el proyecto Android Studio.
+Cada feature es **autocontenido**: tiene sus propias páginas, servicios, modelos y componentes.
 
-**Archivos importantes:**
+```
+features/
+├── layout/                    # Navegación principal (tabs + sidebar)
+├── auth/                      # Login, OAuth callback
+├── dashboard/                 # Home, operaciones de caja, cierre, cuadre
+├── pos/                       # Punto de venta (scanner + carrito)
+├── ventas/                    # Historial de ventas
+├── inventario/                # Productos, kardex, categorías
+├── cuentas-cobrar/            # Cuentas por cobrar (fiados)
+├── clientes/                  # Gestión de clientes (listado, creación, edición, selección)
+├── recargas-virtuales/        # Saldo celular/bus, liquidaciones
+├── historial-recargas/        # Historial de recargas (página standalone)
+├── usuarios/                  # CRUD de empleados (solo ADMIN)
+├── movimientos-empleados/     # Cuenta corriente empleados (solo ADMIN)
+└── configuracion/             # Parámetros, categorías, logs (solo ADMIN)
+```
 
-- `android/app/src/main/res/values/styles.xml` - Configuración de splash screen
-- `android/local.properties` - Ruta del SDK de Android (no subir a Git)
+### Detalle de cada feature
+
+#### auth/
+```
+auth/
+├── auth.routes.ts
+├── models/
+│   └── usuario_actual.model.ts
+├── pages/
+│   ├── login/                       # Login con Google OAuth
+│   └── callback/                    # Callback de OAuth
+└── services/
+    └── auth.service.ts
+```
+
+#### dashboard/ (feature más complejo)
+```
+dashboard/
+├── dashboard.routes.ts
+├── models/
+│   ├── categoria-operacion.model.ts
+│   ├── operacion-caja.model.ts
+│   ├── saldos-anteriores.model.ts
+│   └── turno-caja.model.ts
+├── pages/
+│   ├── home/                        # Dashboard principal
+│   ├── cierre-diario/               # Wizard cierre 2 pasos
+│   ├── cuadre-caja/                 # Cuadre y verificación
+│   └── operaciones-caja/            # Movimientos por caja (filtros, scroll infinito)
+├── components/
+│   ├── operacion-modal/             # Modal ingreso/egreso
+│   ├── notificaciones-modal/
+│   └── verificar-fondo-modal/
+└── services/
+    ├── cajas.service.ts
+    ├── categorias-operaciones.service.ts
+    ├── categorias-gastos.service.ts   # ⚠️ OBSOLETO — pendiente eliminar
+    ├── notificaciones.service.ts
+    ├── operaciones-caja.service.ts
+    ├── recargas.service.ts
+    └── turnos-caja.service.ts
+```
+
+#### pos/
+```
+pos/
+├── pos.routes.ts
+├── models/
+│   ├── cart-item.model.ts
+│   └── tipo-comprobante.enum.ts
+├── pages/
+│   └── pos/                         # Pantalla POS (scanner + carrito + cobro)
+└── services/
+    └── pos.service.ts
+```
+
+#### ventas/
+```
+ventas/
+├── ventas.routes.ts
+├── models/
+│   └── venta.model.ts
+├── pages/
+│   ├── listado/                     # Lista paginada con filtros
+│   └── resumen/                     # Resumen diario (KPIs, métodos, comprobantes)
+├── components/
+│   ├── ventas-tabs/                 # Tabs internas (Lista / Resumen)
+│   └── venta-detalle-modal/         # Modal detalle/ticket de venta
+└── services/
+    └── ventas.service.ts
+```
+
+#### inventario/
+```
+inventario/
+├── inventario.routes.ts
+├── models/
+│   ├── producto.model.ts
+│   ├── categoria-producto.model.ts
+│   └── kardex.model.ts
+├── pages/
+│   ├── main/                        # Lista de productos (paginado + filtros)
+│   ├── producto-form/               # Crear/editar producto
+│   └── kardex/                      # Historial de movimientos de stock
+└── services/
+    └── inventario.service.ts
+```
+
+#### cuentas-cobrar/
+```
+cuentas-cobrar/
+├── cuentas-cobrar.routes.ts
+├── models/
+│   └── cuenta-cobrar.model.ts
+├── pages/
+│   ├── main/                        # Lista clientes con deuda (paginado)
+│   └── detalle-cliente/             # Detalle de deuda + abonos
+├── components/
+│   └── pago-fiado-modal/            # Modal para registrar abono
+└── services/
+    ├── cuentas-cobrar.service.ts
+    └── share-estado-cuenta.service.ts  # Generar/compartir comprobantes
+```
+
+#### clientes/
+```
+clientes/
+├── clientes.routes.ts                  # Ruta: '' → listado
+├── models/
+│   └── cliente.model.ts
+├── pages/
+│   └── listado/                        # Lista paginada con búsqueda
+├── components/
+│   ├── seleccionar-cliente-modal/      # Modal selector/creación (usado por POS y listado)
+│   └── editar-cliente-modal/           # Modal edición de cliente
+└── services/
+    └── clientes.service.ts             # CRUD completo + listado paginado
+```
+
+#### recargas-virtuales/
+```
+recargas-virtuales/
+├── pages/
+│   ├── recargas-virtuales/          # Panel principal (tabs CELULAR/BUS)
+│   └── pagar-deudas/                # Wizard de pago deudas CELULAR
+└── components/
+    ├── registrar-recarga-modal/
+    ├── pagar-deudas-modal/
+    ├── liquidacion-bus-modal/
+    └── historial-modal/
+```
+
+#### usuarios/
+```
+usuarios/
+├── usuarios.routes.ts
+├── models/
+│   └── usuario.model.ts
+├── pages/
+│   └── list/                        # Lista de empleados
+├── components/
+│   ├── registrar-usuario-modal/
+│   └── editar-usuario-modal/
+└── services/
+    └── usuario.service.ts
+```
+
+#### configuracion/
+```
+configuracion/
+├── configuracion.routes.ts
+├── models/
+│   └── configuracion.model.ts
+├── pages/
+│   ├── main/                        # Menú principal de configuración
+│   ├── parametros/                  # Parámetros del negocio
+│   ├── categorias-operaciones/      # CRUD categorías ingreso/egreso
+│   └── categorias-gastos/           # ⚠️ OBSOLETO — pendiente eliminar
+├── components/
+│   ├── categoria-operacion-modal/
+│   ├── categoria-gasto-modal/       # ⚠️ OBSOLETO — pendiente eliminar
+│   └── logs-modal/
+└── services/
+    └── configuracion.service.ts
+```
+
+#### movimientos-empleados/
+```
+movimientos-empleados/
+├── movimientos-empleados.routes.ts
+├── models/
+│   └── movimiento-empleado.model.ts
+├── pages/
+│   ├── lista/                         # Lista empleados con saldo
+│   └── detalle/                       # Historial + acciones por empleado
+├── components/
+│   ├── adelanto-modal/                # Fullscreen con instrucciones fisicas
+│   └── pagar-nomina-modal/            # Wizard 3 pasos con preview descuentos
+└── services/
+    └── movimientos-empleados.service.ts  # Queries + RPCs (adelanto, nomina)
+```
 
 ---
 
 ## Convenciones de Nombres
 
-| Tipo        | Convención              | Ejemplo                   |
-| ----------- | ----------------------- | ------------------------- |
-| Componentes | `{nombre}.component.ts` | `sidebar.component.ts`    |
-| Páginas     | `{nombre}.page.ts`      | `home.page.ts`            |
-| Servicios   | `{nombre}.service.ts`   | `cajas.service.ts`        |
-| Guards      | `{nombre}.guard.ts`     | `auth.guard.ts`           |
-| Modelos     | `{nombre}.model.ts`     | `operacion-caja.model.ts` |
-| Rutas       | `{feature}.routes.ts`   | `dashboard.routes.ts`     |
+| Tipo        | Patrón                  | Ejemplo                    |
+| ----------- | ----------------------- | -------------------------- |
+| Página      | `{nombre}.page.ts`      | `ventas.page.ts`           |
+| Componente  | `{nombre}.component.ts` | `sidebar.component.ts`     |
+| Modal       | `{nombre}-modal.component.ts` | `pago-fiado-modal.component.ts` |
+| Servicio    | `{nombre}.service.ts`   | `cuentas-cobrar.service.ts`|
+| Modelo      | `{nombre}.model.ts`     | `cuenta-cobrar.model.ts`   |
+| Enum        | `{nombre}.enum.ts`      | `tipo-comprobante.enum.ts` |
+| Rutas       | `{feature}.routes.ts`   | `cuentas-cobrar.routes.ts` |
+| Guard       | `{nombre}.guard.ts`     | `role.guard.ts`            |
+| Directiva   | `{nombre}.directive.ts` | `currency-input.directive.ts` |
+| Utilidad    | `{nombre}.util.ts`      | `date.util.ts`             |
 
 ---
 
 ## Dónde Colocar Nuevos Archivos
 
-| Quiero agregar...                    | Ubicación                        |
-| ------------------------------------ | -------------------------------- |
-| Nueva página de operaciones          | `features/dashboard/pages/`      |
-| Modal exclusivo del dashboard        | `features/dashboard/components/` |
-| Servicio de cajas                    | `features/dashboard/services/`   |
-| Modelo de operación                  | `features/dashboard/models/`     |
-| Componente modal reutilizable        | `shared/components/`             |
-| Directiva de input personalizada     | `shared/directives/`             |
-| Guard de rutas                       | `core/guards/`                   |
-| Servicio global (red, storage, etc.) | `core/services/`                 |
-| Constante de configuración global    | `core/config/`                   |
-| Nueva feature (ej: productos)        | `features/productos/`            |
-| CRUD de catálogo admin               | `features/configuracion/pages/`  |
-| Modal de configuración/catálogo      | `features/configuracion/components/` |
+| Quiero agregar...                    | Ubicación                            |
+| ------------------------------------ | ------------------------------------ |
+| Nueva feature completa               | `features/{nombre}/`                 |
+| Página de una feature existente      | `features/{feature}/pages/{nombre}/` |
+| Modal exclusivo de una feature       | `features/{feature}/components/{nombre}-modal/` |
+| Servicio de una feature              | `features/{feature}/services/`       |
+| Modelo/interface de una feature      | `features/{feature}/models/`         |
+| Componente reutilizable              | `shared/components/`                 |
+| Directiva reutilizable               | `shared/directives/`                 |
+| Guard de rutas                       | `core/guards/`                       |
+| Servicio global                      | `core/services/`                     |
+| Constante de configuración           | `core/config/`                       |
+| Función utilitaria                   | `core/utils/`                        |
+| CRUD de catálogo admin               | `features/configuracion/pages/`      |
+| Documentación de feature             | `docs/{feature}/`                    |
+| Función SQL documentada              | `docs/{feature}/sql/functions/`      |
 
 ---
 
-## Checklist al Agregar un Nuevo Feature
+## Templates HTML — Patrones de UI
 
-1. Crear carpeta en `features/{nombre-feature}/`
-2. Crear subcarpetas según necesidad:
-   - `pages/` - Obligatorio
-   - `services/` - Si tiene lógica de negocio
-   - `models/` - Si tiene interfaces/tipos propios
-   - `components/` - Si tiene componentes exclusivos
-   - `docs/` - Si requiere documentación
-3. Crear archivo de rutas: `{feature}.routes.ts`
-4. Registrar rutas en `features/layout/layout.routes.ts`
-5. Actualizar este documento si la estructura cambia
+### Página con lista paginada (template completo)
+
+```html
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Mi Feature</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
+
+  <!-- Pull to refresh -->
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline"
+      refreshingSpinner="crescent" refreshingText="Cargando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Skeleton Loading -->
+  @if (loading) {
+  <div class="p-sm">
+    <ion-list lines="none">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+      <ion-item detail="false">
+        <ion-label>
+          <ion-skeleton-text animated style="width: 60%; height: 16px; border-radius: 4px;"></ion-skeleton-text>
+          <div style="margin-top: 6px;">
+            <ion-skeleton-text animated style="width: 40%; height: 13px; border-radius: 4px;"></ion-skeleton-text>
+          </div>
+        </ion-label>
+      </ion-item>
+      }
+    </ion-list>
+  </div>
+  }
+
+  <!-- Empty state -->
+  @else if (items.length === 0) {
+  <div class="empty-state">
+    <ion-icon name="mi-icono-outline" class="empty-icon"></ion-icon>
+    <p class="empty-title">Sin registros</p>
+    <p class="empty-hint">Descripción contextual del estado vacío</p>
+  </div>
+  }
+
+  <!-- Lista de items -->
+  @else {
+  <div class="p-sm">
+    <ion-list lines="none">
+      @for (item of items; track item.id) {
+      <ion-item button (click)="abrirDetalle(item)" detail="false">
+        <ion-label>
+          <h3>{{ item.nombre }}</h3>
+          <p>{{ item.descripcion }}</p>
+        </ion-label>
+        <div slot="end">
+          <span>${{ currencyService.format(item.monto) }}</span>
+        </div>
+      </ion-item>
+      }
+    </ion-list>
+  </div>
+  }
+
+  <!-- Infinite scroll -->
+  <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent"
+      [loadingText]="loadingMoreText">
+    </ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
+  <!-- FAB scroll to top -->
+  @if (showScrollTop) {
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+    <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+      <ion-icon name="arrow-up-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+  }
+</ion-content>
+
+<!-- Footer totalizador (opcional) -->
+@if (!loading && items.length > 0) {
+<ion-footer class="ion-no-border">
+  <div class="footer-content">
+    <span class="footer-label">{{ items.length }} registros</span>
+    <span class="footer-amount">${{ currencyService.format(total) }}</span>
+  </div>
+</ion-footer>
+}
+```
+
+### Página de detalle (con back button)
+
+```html
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/mi-feature"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Detalle</ion-title>
+    <!-- Acciones opcionales en el header -->
+    <ion-buttons slot="end">
+      <ion-button (click)="accion()">
+        <ion-icon slot="icon-only" name="share-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline"
+      refreshingSpinner="crescent">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  @if (loading) {
+    <!-- Skeleton del detalle -->
+  } @else if (!entidad) {
+    <!-- Not found state -->
+  } @else {
+    <!-- Contenido del detalle -->
+  }
+</ion-content>
+```
+
+### Modal fullscreen (con scroll)
+
+Los modales con scroll interno **NO** deben usar `breakpoints`. Abren fullscreen en Android por defecto.
+
+```html
+<!-- Header con botón cerrar a la IZQUIERDA (slot="start") -->
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="cerrar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Título del Modal</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <!-- Contenido con scroll libre -->
+</ion-content>
+
+<!-- Footer con acción principal -->
+<ion-footer class="ion-no-border">
+  <div class="modal-footer">
+    <button class="btn-confirmar" [disabled]="!formValido || guardando" (click)="guardar()">
+      <ion-icon name="checkmark-outline"></ion-icon>
+      Confirmar
+    </button>
+  </div>
+</ion-footer>
+```
+
+**En TypeScript — sin breakpoints:**
+```typescript
+const modal = await this.modalCtrl.create({
+    component: MiModalComponent,
+    componentProps: { dato: valor }
+    // SIN breakpoints, SIN initialBreakpoint
+});
+```
+
+### Modal bottom sheet (sin scroll — listas cortas de acciones)
+
+Solo para modales con contenido corto que no necesita scroll (ej: `OptionsModalComponent`).
+
+```typescript
+const modal = await this.modalCtrl.create({
+    component: OptionsModalComponent,
+    componentProps: { title, groups },
+    cssClass: 'options-modal',
+    breakpoints: [0, 1],      // SÍ — permite swipe-to-dismiss
+    initialBreakpoint: 1       // SÍ — abre al 100%
+});
+```
+
+### Notas clave de UI
+
+- **`ion-no-border`** en todos los `<ion-header>` y `<ion-footer>`
+- **Skeleton**: 5 items placeholder con `ion-skeleton-text animated`
+- **Empty state**: icono grande + título + hint
+- **Pull-to-refresh**: siempre con `silencioso=true` para no duplicar spinner
+- **Botón cerrar modales**: `slot="start"` (izquierda) con `close-outline`
+- **Moneda**: siempre `${{ currencyService.format(monto) }}`, nunca manual
+- **Control flow**: `@if`, `@else if`, `@else`, `@for` — nueva sintaxis Angular
 
 ---
 
-## Patrones de Diseño Utilizados
+## Patrón para Crear un Nuevo Feature
 
-### UI/UX
+### Estructura de carpetas
 
-- **Ionic CSS Variables** para compatibilidad dark/light mode
-- **Diseño híbrido**: Patrón Home + toque empresarial/bancario
-- **Componentes standalone** de Angular 20
-- **Control flow** con `@if`, `@for` (nueva sintaxis Angular)
+```
+features/{mi-feature}/
+├── {mi-feature}.routes.ts           # OBLIGATORIO
+├── models/
+│   └── {mi-feature}.model.ts        # Interfaces, types, DTOs
+├── pages/
+│   └── main/                        # Página principal
+│       ├── {mi-feature}.page.ts
+│       ├── {mi-feature}.page.html
+│       └── {mi-feature}.page.scss
+├── services/
+│   └── {mi-feature}.service.ts      # Queries Supabase
+└── components/                      # Solo si hay modales u otros componentes
+    └── {nombre}-modal/
+        ├── {nombre}-modal.component.ts
+        ├── {nombre}-modal.component.html
+        └── {nombre}-modal.component.scss
+```
 
-### Arquitectura
+### 1. Archivo de rutas (`{feature}.routes.ts`)
 
-- **Feature-based**: Cada módulo es autocontenido
-- **Lazy loading**: Features se cargan bajo demanda
-- **Services singleton**: En `core/` para funcionalidad global
-- **Services scoped**: En `features/{feature}/services/` para lógica específica
+```typescript
+import { Routes } from '@angular/router';
+
+export const MI_FEATURE_ROUTES: Routes = [
+    {
+        path: '',
+        loadComponent: () =>
+            import('./pages/main/mi-feature.page').then(m => m.MiFeaturePage)
+    },
+    // Página de detalle con parámetro:
+    // {
+    //     path: ':id',
+    //     loadComponent: () =>
+    //         import('./pages/detalle/detalle.page').then(m => m.DetallePage)
+    // }
+];
+```
+
+### 2. Modelo (`models/{feature}.model.ts`)
+
+```typescript
+// ──────────────────────────────────────────────
+// Modelo: MiEntidad
+// ──────────────────────────────────────────────
+
+// Tipos literales para columnas con valores fijos
+export type EstadoType = 'ACTIVO' | 'INACTIVO';
+
+// Interface principal (refleja la tabla de BD)
+export interface MiEntidad {
+    id: string;
+    nombre: string;
+    estado: EstadoType;
+    monto: number;
+    fecha: string;
+    // JOINs opcionales
+    categoria_nombre?: string;
+}
+
+// DTO para crear (solo campos que envía el frontend)
+export interface CrearMiEntidadDto {
+    nombre: string;
+    monto: number;
+}
+
+// Resumen para la página principal
+export interface MiEntidadResumen {
+    total_registros: number;
+    total_monto: number;
+}
+```
+
+### 3. Servicio (`services/{feature}.service.ts`)
+
+```typescript
+import { Injectable, inject } from '@angular/core';
+import { SupabaseService } from '@core/services/supabase.service';
+import { MiEntidad, CrearMiEntidadDto, MiEntidadResumen } from '../models/mi-feature.model';
+
+@Injectable({ providedIn: 'root' })
+export class MiFeatureService {
+
+    private supabase = inject(SupabaseService);
+
+    /** Lista paginada */
+    async listar(page: number, pageSize: number, busqueda?: string): Promise<MiEntidad[]> {
+        const from = page * pageSize;
+        let query = this.supabase.client
+            .from('mi_tabla')
+            .select('id, nombre, estado, monto, fecha')
+            .order('fecha', { ascending: false })
+            .range(from, from + pageSize - 1);
+
+        if (busqueda) {
+            query = query.ilike('nombre', `%${busqueda}%`);
+        }
+
+        return this.supabase.call<MiEntidad[]>(query);
+    }
+
+    /** Obtener uno por ID */
+    async obtenerPorId(id: string): Promise<MiEntidad | null> {
+        return this.supabase.call<MiEntidad | null>(
+            this.supabase.client
+                .from('mi_tabla')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle()
+        );
+    }
+
+    /** Crear — operación simple */
+    async crear(dto: CrearMiEntidadDto): Promise<void> {
+        await this.supabase.call(
+            this.supabase.client.from('mi_tabla').insert(dto),
+            'Registro creado correctamente'
+        );
+    }
+
+    /** Operación multi-tabla → siempre función SQL */
+    async operacionCompleja(params: any): Promise<any> {
+        return this.supabase.call(
+            this.supabase.client.rpc('fn_mi_operacion', params),
+            'Operación completada'
+        );
+    }
+}
+```
+
+### 4. Página principal (`pages/main/{feature}.page.ts`)
+
+**Página simple (sin paginación):**
+
+```typescript
+import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import {
+    IonContent, IonHeader, IonTitle, IonToolbar,
+    IonButtons, IonBackButton, IonIcon,
+    IonRefresher, IonRefresherContent,
+    IonSkeletonText,
+    ViewWillEnter
+} from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { addOutline } from 'ionicons/icons';
+import { MiFeatureService } from '../../services/mi-feature.service';
+import { MiEntidad } from '../../models/mi-feature.model';
+import { UiService } from '@core/services/ui.service';
+
+@Component({
+    selector: 'app-mi-feature',
+    templateUrl: './mi-feature.page.html',
+    styleUrls: ['./mi-feature.page.scss'],
+    standalone: true,
+    imports: [
+        CommonModule,
+        IonContent, IonHeader, IonTitle, IonToolbar,
+        IonButtons, IonBackButton, IonIcon,
+        IonRefresher, IonRefresherContent,
+        IonSkeletonText,
+    ]
+})
+export class MiFeaturePage implements OnInit, ViewWillEnter {
+
+    private servicio = inject(MiFeatureService);
+    private ui = inject(UiService);
+
+    items: MiEntidad[] = [];
+    loading = true;
+
+    constructor() {
+        addIcons({ addOutline });
+    }
+
+    async ngOnInit() {
+        await this.cargarDatos();
+    }
+
+    ionViewWillEnter() {
+        if (this.items.length) this.cargarDatos(true);
+    }
+
+    async cargarDatos(silencioso = false) {
+        if (!silencioso) this.loading = true;
+        try {
+            this.items = await this.servicio.listar(0, 50);
+        } catch {
+            this.ui.showToast('Error al cargar datos', 'danger');
+        } finally {
+            this.loading = false;
+        }
+    }
+
+    async handleRefresh(event: CustomEvent) {
+        await this.cargarDatos(true);
+        (event.target as HTMLIonRefresherElement).complete();
+    }
+}
+```
+
+**Página con paginación (extends `PaginatedListPage`):**
+
+```typescript
+import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import {
+    IonContent, IonHeader, IonTitle, IonToolbar,
+    IonButtons, IonMenuButton, IonIcon,
+    IonRefresher, IonRefresherContent,
+    IonList, IonItem, IonLabel,
+    IonSkeletonText,
+    IonInfiniteScroll, IonInfiniteScrollContent,
+    IonFab, IonFabButton,
+    ViewWillEnter
+} from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { arrowUpOutline } from 'ionicons/icons';
+import { MiFeatureService } from '../../services/mi-feature.service';
+import { MiEntidad } from '../../models/mi-feature.model';
+import { PAGINATION_CONFIG } from '@core/config/pagination.config';
+import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
+
+@Component({
+    selector: 'app-mi-feature',
+    templateUrl: './mi-feature.page.html',
+    styleUrls: ['./mi-feature.page.scss'],
+    standalone: true,
+    imports: [
+        CommonModule,
+        IonContent, IonHeader, IonTitle, IonToolbar,
+        IonButtons, IonMenuButton, IonIcon,
+        IonRefresher, IonRefresherContent,
+        IonList, IonItem, IonLabel,
+        IonSkeletonText,
+        IonInfiniteScroll, IonInfiniteScrollContent,
+        IonFab, IonFabButton
+    ]
+})
+export class MiFeaturePage extends PaginatedListPage<MiEntidad> implements OnInit, ViewWillEnter {
+
+    private servicio = inject(MiFeatureService);
+
+    protected readonly pageSize = PAGINATION_CONFIG.miFeature.pageSize;
+    readonly loadingMoreText = 'Cargando más registros...';
+
+    constructor() {
+        super();
+        addIcons({ arrowUpOutline });
+    }
+
+    protected async fetchPage(page: number): Promise<MiEntidad[]> {
+        return this.servicio.listar(page, this.pageSize);
+    }
+
+    async ngOnInit() {
+        await this.cargar();
+    }
+
+    ionViewWillEnter() {
+        if (this.items.length) this.cargar(true);
+    }
+}
+```
+
+### 5. Modal (`components/{nombre}-modal/{nombre}-modal.component.ts`)
+
+```typescript
+import { Component, Input, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import {
+    IonHeader, IonToolbar, IonTitle, IonContent,
+    IonButtons, IonButton, IonIcon,
+    ModalController
+} from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { closeOutline, checkmarkOutline } from 'ionicons/icons';
+
+@Component({
+    selector: 'app-mi-modal',
+    templateUrl: './mi-modal.component.html',
+    styleUrls: ['./mi-modal.component.scss'],
+    standalone: true,
+    imports: [
+        CommonModule, FormsModule,
+        IonHeader, IonToolbar, IonTitle, IonContent,
+        IonButtons, IonButton, IonIcon,
+    ]
+})
+export class MiModalComponent {
+
+    @Input() dato!: string;
+
+    private modalCtrl = inject(ModalController);
+
+    constructor() {
+        addIcons({ closeOutline, checkmarkOutline });
+    }
+
+    cerrar() {
+        this.modalCtrl.dismiss(null);
+    }
+
+    confirmar() {
+        this.modalCtrl.dismiss({ resultado: 'ok' });
+    }
+}
+```
 
 ---
 
-## Mantener Actualizado
+## Checklist: Agregar un Nuevo Feature
 
-**IMPORTANTE:** Este documento debe actualizarse cada vez que se agregue una nueva carpeta o feature importante al proyecto.
+### Crear archivos
 
-*Última actualización: 2026-02-28*
+- [ ] Carpeta `features/{nombre}/`
+- [ ] `{nombre}.routes.ts` con lazy loading de páginas
+- [ ] `models/{nombre}.model.ts` con interfaces y DTOs
+- [ ] `services/{nombre}.service.ts` con queries Supabase
+- [ ] `pages/main/` con `.page.ts`, `.page.html`, `.page.scss`
+- [ ] `components/` solo si hay modales o sub-componentes
+
+### Integrar al proyecto
+
+- [ ] Registrar rutas en `features/layout/layout.routes.ts` (con `loadChildren`)
+- [ ] Si requiere rol: agregar `canActivate: [roleGuard(['ADMIN'])]`
+- [ ] Si es tab: agregar entrada en `main-layout.page.html`
+- [ ] Si es sidebar: agregar link en `shared/components/sidebar/sidebar.component.html`
+- [ ] Si tiene paginación: agregar `pageSize` en `core/config/pagination.config.ts`
+
+### Verificar
+
+- [ ] Todos los componentes son `standalone: true`
+- [ ] Inyección con `inject()`, no en constructor
+- [ ] Iconos registrados en `addIcons()` del constructor
+- [ ] `IonIcon` en `imports[]` si el template usa `<ion-icon>`
+- [ ] Footers con `env(safe-area-inset-bottom)`
+- [ ] Pull-to-refresh con patrón `silencioso` (sin doble spinner)
+- [ ] Moneda formateada con `CurrencyService`, no manual
+- [ ] Fechas con `date.util.ts`, nunca `toISOString()`
+
+### Documentar
+
+- [ ] Crear `docs/{nombre}/{NOMBRE}-README.md` si el feature es complejo
+- [ ] Documentar funciones SQL en `docs/{nombre}/sql/functions/`
+- [ ] Actualizar `CLAUDE.md` (tabla de módulos)
+
+---
+
+## Templates SQL — Funciones y Triggers PostgreSQL
+
+### Dónde documentar
+
+```
+docs/{modulo}/sql/
+├── functions/               # Funciones RPC llamadas desde el frontend
+│   └── fn_{nombre}.sql
+├── triggers/                # Triggers automáticos (AFTER INSERT/UPDATE/DELETE)
+│   └── trg_{nombre}.sql
+├── migrations/              # Migraciones de esquema (ALTER TABLE, nuevas columnas)
+│   └── {descripcion}.sql
+└── queries/                 # Queries de datos iniciales o correcciones
+    └── {descripcion}.sql
+```
+
+### Template: Función RPC (`fn_{nombre}.sql`)
+
+Funciones llamadas desde el frontend con `supabase.rpc('fn_nombre', params)`.
+Se usan para operaciones multi-tabla que deben ser atómicas.
+
+```sql
+-- ==========================================
+-- fn_{nombre}
+-- ==========================================
+-- Descripción breve de qué hace.
+--
+-- Flujo:
+--   1. Valida entrada
+--   2. Operación principal
+--   3. Efectos secundarios (actualizar saldos, etc.)
+--
+-- Retorna JSON: { success: true, dato: valor }
+-- ==========================================
+
+CREATE OR REPLACE FUNCTION fn_{nombre}(
+    p_param1    UUID,
+    p_param2    DECIMAL(12,2),
+    p_opcional  TEXT DEFAULT NULL
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_variable    RECORD;
+    v_empleado_id INTEGER;
+BEGIN
+    -- 0. Obtener empleado autenticado
+    SELECT id INTO v_empleado_id
+    FROM usuarios
+    WHERE usuario = auth.jwt() ->> 'email';
+
+    IF v_empleado_id IS NULL THEN
+        RAISE EXCEPTION 'Usuario no autenticado';
+    END IF;
+
+    -- 1. Validaciones
+    -- ...
+
+    -- 2. Operación principal
+    -- ...
+
+    -- 3. Retorno
+    RETURN json_build_object('success', true);
+END;
+$$;
+
+-- Permisos: solo usuarios autenticados
+REVOKE EXECUTE ON FUNCTION fn_{nombre}(UUID, DECIMAL, TEXT) FROM anon;
+GRANT EXECUTE ON FUNCTION fn_{nombre}(UUID, DECIMAL, TEXT) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
+```
+
+**Reglas obligatorias:**
+- `SECURITY DEFINER` + `SET search_path = public` — evita caída de permisos
+- `REVOKE ... FROM anon` — funciones financieras nunca expuestas a anónimos
+- `NOTIFY pgrst` — refresca cache de PostgREST para que la función sea invocable
+- `FOR UPDATE` en SELECTs que preceden UPDATEs — evita condiciones de carrera
+- Validar con `RAISE EXCEPTION` antes de modificar datos
+- Retornar `JSON` con resultado (el frontend lo recibe vía `supabase.rpc()`)
+
+### Template: Trigger (`trg_{nombre}.sql`)
+
+Triggers se ejecutan automáticamente por PostgreSQL. NO se llaman desde el frontend.
+
+```sql
+-- ==========================================
+-- TRIGGER FUNCTION: fn_{accion}_{tabla}
+-- ==========================================
+-- Se dispara automáticamente AFTER INSERT en {tabla}.
+-- Por cada fila:
+--   1. Acción automática
+--   2. Registro de auditoría
+--
+-- ⚠️  NO ejecutar manualmente. El trigger lo invoca PostgreSQL.
+-- ⚠️  No borrar sin borrar también el trigger trg_{nombre}.
+-- ==========================================
+-- Usado por: trg_{nombre} (ON {tabla} AFTER INSERT)
+-- ==========================================
+
+CREATE OR REPLACE FUNCTION fn_{accion}_{tabla}()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_variable DECIMAL(12,2);
+BEGIN
+    -- Lógica del trigger
+    -- NEW = fila insertada/actualizada
+    -- OLD = fila anterior (solo en UPDATE/DELETE)
+
+    RETURN NEW;  -- AFTER trigger: retorno ignorado pero obligatorio
+END;
+$$ LANGUAGE plpgsql;
+
+-- Crear el trigger
+CREATE TRIGGER trg_{nombre}
+    AFTER INSERT ON {tabla}
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_{accion}_{tabla}();
+```
+
+**Reglas de triggers:**
+- Nombre del trigger: `trg_{accion}_{tabla}` (ej: `trg_descontar_stock_venta`)
+- Nombre de la función: `fn_{accion}_{tabla}` (ej: `fn_actualizar_stock_venta`)
+- Siempre `FOR EACH ROW` (no `FOR EACH STATEMENT`)
+- Documentar en header qué trigger usa esta función
+- No necesitan `SECURITY DEFINER` ni `GRANT` (se ejecutan con permisos del owner de la tabla)
+- No necesitan `NOTIFY pgrst` (no son invocables vía API)
+
+### Cuándo usar query directa vs función RPC vs trigger
+
+#### Query directa (`supabase.client.from().select()`)
+
+Usar cuando **todo se resuelve en una sola tabla** (con JOINs simples de FK):
+
+```typescript
+// ✅ Query directa — lectura de 1 tabla + JOINs por FK
+const data = await this.supabase.call<Venta[]>(
+    this.supabase.client
+        .from('ventas')
+        .select('id, total, empleado:empleado_id(nombre)')
+        .eq('cliente_id', clienteId)
+);
+
+// ✅ Query directa — INSERT/UPDATE de 1 sola tabla
+await this.supabase.call(
+    this.supabase.client.from('configuraciones').update(dto).eq('id', id)
+);
+```
+
+**Criterio:** si solo tocas 1 tabla y no necesitas lógica condicional del lado del servidor, query directa es suficiente. No crear una función SQL para algo que el query builder de Supabase puede hacer.
+
+#### Función RPC (`supabase.rpc('fn_nombre', params)`)
+
+Usar cuando se cumple **al menos uno** de estos criterios:
+
+| Criterio | Ejemplo real |
+|----------|-------------|
+| **Toca 2+ tablas** en una transacción atómica | `fn_registrar_pago_fiado` — inserta en `cuentas_cobrar`, actualiza `ventas`, inserta en `operaciones_cajas`, actualiza `cajas` |
+| **Lógica condicional** que depende de datos del servidor | `fn_registrar_venta_pos` — si metodo_pago=FIADO no ingresa a caja, si es EFECTIVO sí |
+| **Query compleja** imposible con el query builder | `fn_listar_cuentas_cobrar` — GROUP BY + SUM + COUNT + paginación + búsqueda |
+| **Validaciones de negocio** que no pueden estar solo en el frontend | `fn_ejecutar_cierre_diario_v5` — valida saldos, transferencias, turnos |
+| **Necesita `FOR UPDATE`** (lock de filas para evitar concurrencia) | `fn_registrar_pago_fiado` — lock en la venta para evitar pagos dobles |
+
+```typescript
+// ✅ Función RPC — operación multi-tabla
+const resultado = await this.supabase.call(
+    this.supabase.client.rpc('fn_registrar_pago_fiado', {
+        p_venta_id: ventaId,
+        p_monto: monto,
+    })
+);
+```
+
+#### Trigger
+
+Usar cuando un efecto **debe ocurrir siempre** al insertar/modificar una fila, sin importar quién o qué lo haga:
+
+| Criterio | Ejemplo real |
+|----------|-------------|
+| **Efecto automático** que no debe depender del frontend | `trg_descontar_stock_venta` — al insertar en `ventas_detalles`, descuenta stock y graba kardex |
+| **Auditoría automática** | Registrar en kardex cada movimiento de stock |
+| **Generar valores automáticos** | `trg_set_codigo_categoria_operacion` — auto-genera código al insertar |
+
+```sql
+-- El trigger se ejecuta solo, NO se llama desde el frontend
+CREATE TRIGGER trg_descontar_stock_venta
+    AFTER INSERT ON ventas_detalles
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_actualizar_stock_venta();
+```
+
+#### Resumen de decisión
+
+```
+¿Toca solo 1 tabla sin lógica condicional?
+  └─ SÍ → Query directa (supabase.client.from())
+  └─ NO → ¿Debe ocurrir automáticamente sin importar quién inserte?
+            └─ SÍ → Trigger
+            └─ NO → Función RPC (supabase.rpc())
+```
+
+---
+
+## Patrones de Arquitectura
+
+- **Feature-based**: cada módulo es autocontenido con sus propios pages/services/models/components
+- **Lazy loading**: features se cargan bajo demanda vía `loadChildren`/`loadComponent`
+- **Services singleton**: en `core/services/` → `providedIn: 'root'`
+- **Services scoped**: en `features/{feature}/services/` → también `providedIn: 'root'` (Ionic los necesita para modales)
+- **Operaciones multi-tabla**: siempre función SQL (`supabase.rpc()`)
+- **Listas paginadas**: extender `PaginatedListPage<T>` + `PAGINATION_CONFIG`
+- **Selects y action sheets**: usar `OptionsModalComponent` (nunca `ion-select` ni `ActionSheetController`)

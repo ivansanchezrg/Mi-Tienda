@@ -1,0 +1,98 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Cuentas Empleados</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent"
+      refreshingText="Cargando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Skeleton -->
+  @if (loading) {
+  <div class="p-sm">
+    <ion-list class="empleados-list" lines="none">
+      @for (i of [1, 2, 3, 4]; track i) {
+      <ion-item class="empleado-card" detail="false">
+        <div slot="start" class="avatar-placeholder">
+          <ion-skeleton-text animated style="width: 44px; height: 44px; border-radius: 50%;"></ion-skeleton-text>
+        </div>
+        <ion-label>
+          <ion-skeleton-text animated style="width: 55%; height: 16px; border-radius: 4px;"></ion-skeleton-text>
+          <div style="margin-top: 6px;">
+            <ion-skeleton-text animated style="width: 35%; height: 13px; border-radius: 4px;"></ion-skeleton-text>
+          </div>
+        </ion-label>
+        <div slot="end">
+          <ion-skeleton-text animated style="width: 60px; height: 20px; border-radius: 4px;"></ion-skeleton-text>
+        </div>
+      </ion-item>
+      }
+    </ion-list>
+  </div>
+  }
+
+  <!-- Vacio -->
+  @else if (empleados.length === 0) {
+  <app-empty-state
+    icon="wallet-outline"
+    title="Sin empleados"
+    hint="No hay empleados activos registrados">
+  </app-empty-state>
+  }
+
+  <!-- Lista -->
+  @else {
+  <div class="p-sm">
+
+    <!-- Resumen rapido -->
+    <div class="resumen-bar">
+      <span class="resumen-total">{{ empleados.length }} {{ empleados.length === 1 ? 'empleado' : 'empleados' }}</span>
+      @if (empleadosConSaldo > 0) {
+      <span class="resumen-pendientes">{{ empleadosConSaldo }} con saldo pendiente</span>
+      }
+    </div>
+
+    <ion-list class="empleados-list" lines="none">
+      @for (emp of empleados; track emp.empleado_id) {
+      <ion-item class="empleado-card" detail="false" button (click)="abrirDetalle(emp)">
+
+        <!-- Avatar -->
+        <div slot="start" class="empleado-avatar">
+          <span class="avatar-text">{{ iniciales(emp.nombre) }}</span>
+        </div>
+
+        <!-- Info -->
+        <ion-label>
+          <h3 class="empleado-nombre">{{ emp.nombre }}</h3>
+          <p class="empleado-estado" [class]="'estado-' + colorSaldo(emp.saldo)">
+            {{ labelSaldo(emp.saldo) }}
+          </p>
+        </ion-label>
+
+        <!-- Saldo + flecha -->
+        <div slot="end" class="empleado-end">
+          <span class="empleado-saldo" [class]="'saldo-' + colorSaldo(emp.saldo)">
+            @if (emp.saldo !== 0) {
+            {{ emp.saldo > 0 ? '+' : '-' }}${{ currencyService.format(emp.saldo > 0 ? emp.saldo : -emp.saldo) }}
+            } @else {
+            $0.00
+            }
+          </span>
+          <ion-icon name="chevron-forward-outline" class="chevron-icon"></ion-icon>
+        </div>
+
+      </ion-item>
+      }
+    </ion-list>
+  </div>
+  }
+
+</ion-content>

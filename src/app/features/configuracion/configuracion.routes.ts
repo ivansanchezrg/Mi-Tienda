@@ -12,9 +12,5 @@ export const CONFIGURACION_ROUTES: Routes = [
   {
     path: 'categorias-operaciones',
     loadComponent: () => import('./pages/categorias-operaciones/categorias-operaciones.page').then(m => m.CategoriasOperacionesPage)
-  },
-  {
-    path: 'categorias-gastos',
-    loadComponent: () => import('./pages/categorias-gastos/categorias-gastos.page').then(m => m.CategoriasGastosPage)
   }
 ];

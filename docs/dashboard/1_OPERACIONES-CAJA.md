@@ -6,14 +6,17 @@ Página de **historial de movimientos** de una caja específica. Muestra todos l
 
 ### Cajas del sistema
 
-El sistema maneja 4 cajas. Esta página puede mostrar el historial de cualquiera, pero **solo CAJA y CAJA_CHICA permiten operaciones manuales** (ingreso/egreso):
+El sistema maneja 5 cajas. Esta página puede mostrar el historial de cualquiera. Las operaciones manuales dependen del rol:
 
-| Código | Nombre | Operaciones manuales |
-|---|---|---|
-| `CAJA` | Caja Principal | ✅ Sí |
-| `CAJA_CHICA` | Caja Chica | ✅ Sí |
-| `CAJA_CELULAR` | Caja Celular | ❌ Solo automáticas (recargas) |
-| `CAJA_BUS` | Caja Bus | ❌ Solo automáticas (recargas) |
+| Código | Nombre | EMPLEADO | ADMIN |
+|---|---|---|---|
+| `CAJA` | Tienda | ✅ Ingreso/Egreso | ✅ Ingreso/Egreso |
+| `CAJA_CHICA` | Cajón | ✅ Si es su turno | ✅ Si es su turno |
+| `VARIOS` | Varios | ✅ Ingreso/Egreso | ✅ Ingreso/Egreso |
+| `CAJA_CELULAR` | Celular | ❌ Menú oculto | ✅ Ingreso/Egreso |
+| `CAJA_BUS` | Bus | ❌ Menú oculto | ✅ Ingreso/Egreso |
+
+> El `⋮` del header se oculta con `@if (mostrarMenuOpciones)` — getter que combina el código de caja y el rol del usuario (`esAdmin`).
 
 ---
 
@@ -29,15 +32,15 @@ El sistema maneja 4 cajas. Esta página puede mostrar el historial de cualquiera
 ### Fuente de datos
 
 `operaciones_cajas` contiene **dos tipos de registros**:
-- **Automáticos** — creados por `ejecutar_cierre_diario` (INGRESO/EGRESO del cierre, TRANSFERENCIA\_ENTRANTE a Varios, etc.) con `categoria_id = NULL`
-- **Manuales** — creados por `registrar_operacion_manual` vía el modal de ingreso/egreso
+- **Automáticos** — creados por `fn_ejecutar_cierre_diario` (INGRESO/EGRESO del cierre, TRANSFERENCIA\_ENTRANTE a Varios, etc.) con `categoria_id = NULL`
+- **Manuales** — creados por `fn_registrar_operacion_manual` vía el modal de ingreso/egreso
 
 ---
 
 ## Flujo de la página
 
 ```
-Navegación desde Home (state: { cajaId, cajaNombre })
+Navegación desde Home (queryParams: { cajaId, cajaNombre, turnoAjeno? })
         ↓
 ionViewWillEnter()
   ├─ cargarSaldoCaja()         → cajas.obtenerCajas() → cajaSaldo
@@ -48,12 +51,14 @@ Página muestra:
   ├─ Filtros sticky: Hoy / Semana / Mes / Todo
   └─ Lista agrupada por fecha con scroll infinito
         ↓
-Usuario toca "⋮" (menú) — solo visible si la caja permite operaciones manuales
-  └─ mostrarMenuOperaciones() → ActionSheet: Ingreso / Egreso
+Usuario toca "⋮" (menú) — deshabilitado si turnoAjeno=true (Caja Chica con turno de otro empleado)
+  └─ mostrarMenuOperaciones() → OptionsModal: Ingreso / Egreso
        └─ abrirModalOperacion(tipo) → OperacionModalComponent
-            └─ ejecutarOperacion() → registrarOperacion() → rpc('registrar_operacion_manual')
+            └─ ejecutarOperacion() → registrarOperacion() → rpc('fn_registrar_operacion_manual')
                  └─ cargarSaldoCaja() + cargarOperaciones(reset)
 ```
+
+> **Restricción de turno ajeno (Caja Chica):** si el home navega a Caja Chica mientras hay un turno activo de otro empleado, pasa `turnoAjeno=true` en query params. La página lee el param en `ngOnInit` y deshabilita el `⋮` del header (atenuado + cursor prohibido). `mostrarMenuOperaciones()` retorna inmediatamente si `turnoAjeno=true`. La validación final la hace `fn_registrar_operacion_manual` en BD (ver §Función SQL).
 
 ---
 
@@ -117,11 +122,11 @@ Cada grupo tiene: `fecha`, `operaciones[]`, `totalIngresos`, `totalEgresos`.
 
 ---
 
-## Función SQL: `registrar_operacion_manual`
+## Función SQL: `fn_registrar_operacion_manual`
 
-> 📄 Código fuente completo: [`docs/sql/functions/registrar_operacion_manual.sql`](./sql/functions/registrar_operacion_manual.sql)
+> 📄 Código fuente completo: [`docs/sql/functions/fn_registrar_operacion_manual.sql`](./sql/functions/fn_registrar_operacion_manual.sql)
 
-Llamada vía `supabase.rpc('registrar_operacion_manual', params)`. Transacción atómica — si falla cualquier paso, rollback completo.
+Llamada vía `supabase.rpc('fn_registrar_operacion_manual', params)`. Transacción atómica — si falla cualquier paso, rollback completo.
 
 **Parámetros:**
 ```
@@ -136,15 +141,16 @@ p_descripcion      → nullable
 p_comprobante_url  → PATH en Storage (no URL firmada), nullable
 ```
 
-**Lo que ejecuta:**
+**Lo que ejecuta (v2.2):**
 1. Cast `TEXT → tipo_operacion_caja_enum` interno
-2. `SELECT FOR UPDATE` en `cajas` → obtiene saldo y bloquea la fila (evita race conditions)
-3. Calcula `saldo_nuevo` — si EGRESO y `saldo_nuevo < 0` → lanza `'Saldo insuficiente'`
-4. `UPDATE cajas SET saldo_actual`
-5. `INSERT INTO operaciones_cajas`
-6. Retorna JSON `{ success, operacion_id, saldo_anterior, saldo_nuevo }`
+2. **Si la caja es `CAJA_CHICA`:** verifica que `p_empleado_id` tenga un turno activo hoy (`hora_fecha_cierre IS NULL`). Si no → `RAISE EXCEPTION 'Solo el empleado con turno activo puede operar sobre Caja Chica'`
+3. `SELECT FOR UPDATE` en `cajas` → obtiene saldo y bloquea la fila (evita race conditions)
+4. Calcula `saldo_nuevo` — si EGRESO y `saldo_nuevo < 0` → lanza `'Saldo insuficiente'`
+5. `UPDATE cajas SET saldo_actual`
+6. `INSERT INTO operaciones_cajas`
+7. Retorna JSON `{ success, operacion_id, saldo_anterior, saldo_nuevo }`
 
-> **Caso especial:** Si la caja tiene déficit del turno anterior (`saldo_actual = 0` pero hay deuda), usar `reparar_deficit_turno` en lugar de un EGRESO normal — esta función bloquea si `saldo_nuevo < 0`.
+> **Caso especial:** Si la caja tiene déficit del turno anterior (`saldo_actual = 0` pero hay deuda), usar `fn_reparar_deficit_turno` en lugar de un EGRESO normal — esta función bloquea si `saldo_nuevo < 0`.
 
 ---
 
@@ -163,21 +169,29 @@ Para ver el comprobante → `verComprobante(path)`:
 
 ## Navegación
 
-La página recibe datos vía **navigation state** (no query params ni route params):
+La página recibe datos vía **query params**:
 
 ```typescript
 // Desde Home — al tocar una caja
 this.router.navigate(['/home/operaciones-caja'], {
-  state: { cajaId: caja.id, cajaNombre: caja.nombre }
+  queryParams: {
+    cajaId: caja.id,
+    cajaNombre: caja.nombre,
+    cajaCodigo: caja.codigo,        // Para decidir si mostrar el ⋮ según rol
+    // turnoAjeno: true             // Solo para Caja Chica con turno de otro empleado
+  }
 });
 
-// En el constructor de OperacionesCajaPage
-const navigation = this.router.getCurrentNavigation();
-this.cajaId    = navigation?.extras?.state?.['cajaId'];
-this.cajaNombre = navigation?.extras?.state?.['cajaNombre'];
+// En ngOnInit de OperacionesCajaPage
+const params = this.route.snapshot.queryParams;
+this.cajaId    = Number(params['cajaId']) || 0;
+this.cajaNombre = params['cajaNombre'] || '';
+this.cajaCodigo = params['cajaCodigo'] || '';
+this.turnoAjeno = params['turnoAjeno'] === 'true';
+// esAdmin se lee en ionViewWillEnter via authService.getUsuarioActual()
 ```
 
-Si `cajaId` es `0` o `undefined` (navegación directa sin state, ej: reload en browser) → redirige a `/home`.
+Si `cajaId` es `0` (navegación directa sin params) → redirige a `/home`.
 
 ---
 
@@ -197,7 +211,7 @@ SELECT
 FROM operaciones_cajas o
 JOIN cajas c ON o.caja_id = c.id
 LEFT JOIN categorias_operaciones c2 ON o.categoria_id = c2.id
-LEFT JOIN empleados e ON o.empleado_id = e.id
+LEFT JOIN usuarios e ON o.empleado_id = e.id
 WHERE o.caja_id = 1  -- cambiar por el ID de la caja deseada
   AND o.fecha >= NOW() - INTERVAL '7 days'
 ORDER BY o.fecha DESC;

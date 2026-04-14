@@ -121,9 +121,7 @@ export class RecargasVirtualesPage implements OnInit {
   async abrirModalRecarga() {
     const modal = await this.modalCtrl.create({
       component: RegistrarRecargaModalComponent,
-      componentProps: { tipo: 'CELULAR' },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { tipo: 'CELULAR' }
     });
 
     await modal.present();
@@ -144,9 +142,7 @@ export class RecargasVirtualesPage implements OnInit {
   async abrirModalCompraBus() {
     const modal = await this.modalCtrl.create({
       component: RegistrarRecargaModalComponent,
-      componentProps: { tipo: 'BUS' },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { tipo: 'BUS' }
     });
 
     await modal.present();
@@ -172,9 +168,7 @@ export class RecargasVirtualesPage implements OnInit {
         gananciaBusCalculada: this.gananciaBusMesAnterior,
         mesDisplay: this.gananciasService.getMesAnteriorDisplay(),
         mesAnterior: this.gananciasService.getMesAnterior()
-      },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      }
     });
 
     await modal.present();
@@ -191,9 +185,7 @@ export class RecargasVirtualesPage implements OnInit {
 
   async navegarAPagarDeudas() {
     const modal = await this.modalCtrl.create({
-      component: PagarDeudasModalComponent,
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      component: PagarDeudasModalComponent
     });
 
     await modal.present();
@@ -211,9 +203,7 @@ export class RecargasVirtualesPage implements OnInit {
   async abrirHistorial() {
     const modal = await this.modalCtrl.create({
       component: HistorialModalComponent,
-      componentProps: { tipo: this.tabActivo },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { tipo: this.tabActivo }
     });
 
     await modal.present();
