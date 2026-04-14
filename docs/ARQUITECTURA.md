@@ -113,9 +113,9 @@ Si ambos = 0 → no hay déficit, abre directo
 
 | Origen | Responsable | Tabla | Se salda |
 |---|---|---|---|
-| `efectivo_fisico < efectivo_esperado` (faltante de conteo) | Empleado | `deudas_empleados.monto_faltante` | Manualmente (pago o descuento) |
-| VARIOS no cobró (efectivo insuficiente) | Negocio | Solo `fondo_cubierto = FALSE` + ausencia de TRANSFERENCIA | Automáticamente al abrir con `fn_reparar_deficit_turno` |
-| Fondo no cubierto | Negocio | `fondo_cubierto = FALSE` | Automáticamente al abrir |
+| `efectivo_fisico < efectivo_esperado` (faltante de conteo) | Empleado | `movimientos_empleados` (tipo `FALTANTE_CAJA`) | Automaticamente al pagar nomina (`fn_pagar_nomina_empleado`) |
+| VARIOS no cobró (efectivo insuficiente) | Negocio | Solo `fondo_cubierto = FALSE` + ausencia de TRANSFERENCIA | Automaticamente al abrir con `fn_reparar_deficit_turno` |
+| Fondo no cubierto | Negocio | `fondo_cubierto = FALSE` | Automaticamente al abrir |
 
 ---
 

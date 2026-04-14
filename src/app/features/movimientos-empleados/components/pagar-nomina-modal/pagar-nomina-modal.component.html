@@ -1,0 +1,242 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="cerrar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Pagar nomina</ion-title>
+  </ion-toolbar>
+  @if (resultado === 'pendiente') {
+  <ion-progress-bar [value]="progreso" color="primary"></ion-progress-bar>
+  }
+</ion-header>
+
+<ion-content class="ion-padding">
+
+  <!-- ══════════════════════════════════════
+       PASO 1: Ingresar sueldo bruto
+       ══════════════════════════════════════ -->
+  @if (resultado === 'pendiente' && paso === 1) {
+  <div class="step-section">
+    <div class="step-indicator">Paso 1 de {{ totalPasos }}</div>
+
+    <div class="beneficiario-chip">
+      <ion-icon name="wallet-outline"></ion-icon>
+      <span>Nomina de <strong>{{ empleadoNombre }}</strong></span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Sueldo bruto del periodo</label>
+      <ion-input
+        type="text"
+        inputmode="numeric"
+        appCurrencyInput
+        [(ngModel)]="sueldoStr"
+        placeholder="0.00"
+        class="monto-input destacado">
+      </ion-input>
+    </div>
+
+    <ion-button
+      expand="block"
+      color="primary"
+      (click)="avanzarAPaso2()"
+      [disabled]="sueldoNumerico <= 0 || cargandoPreview"
+      class="btn-step">
+      Calcular descuentos
+      <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
+    </ion-button>
+  </div>
+  }
+
+  <!-- ══════════════════════════════════════
+       PASO 2: Resumen de descuentos
+       ══════════════════════════════════════ -->
+  @if (resultado === 'pendiente' && paso === 2 && preview) {
+  <div class="step-section">
+    <div class="step-indicator">Paso 2 de {{ totalPasos }}</div>
+
+    <h3 class="resumen-titulo">Resumen de la nomina</h3>
+
+    <div class="resumen-card">
+      <!-- Sueldo bruto -->
+      <div class="resumen-row">
+        <span class="resumen-label">Sueldo bruto</span>
+        <span class="resumen-valor positivo">${{ currencyService.format(preview.sueldoBase) }}</span>
+      </div>
+
+      <!-- Descuentos -->
+      @if (preview.descuentos.length > 0) {
+      <div class="resumen-separator"></div>
+      <div class="resumen-subtitulo">Descuentos</div>
+      @for (desc of preview.descuentos; track $index) {
+      <div class="resumen-row descuento">
+        <span class="resumen-label">
+          {{ tipoLabel(desc.tipo) }}
+          @if (desc.descripcion) {
+          <span class="resumen-desc">{{ desc.descripcion }}</span>
+          }
+        </span>
+        <span class="resumen-valor negativo">-${{ currencyService.format(desc.monto) }}</span>
+      </div>
+      }
+      }
+
+      <!-- Total -->
+      <div class="resumen-separator total"></div>
+      <div class="resumen-row total">
+        <span class="resumen-label">Liquido a pagar</span>
+        <span class="resumen-valor" [class]="preview.liquido > 0 ? 'positivo' : 'cero'">
+          ${{ currencyService.format(preview.liquido > 0 ? preview.liquido : 0) }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Alerta fondos insuficientes -->
+    @if (preview.liquido > 0 && !preview.fondosSuficientes) {
+    <div class="alerta-fondos">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <span>
+        Fondos insuficientes. Varios: ${{ currencyService.format(preview.saldoVarios) }},
+        Tienda: ${{ currencyService.format(preview.saldoCaja) }}.
+        Total disponible: ${{ currencyService.format(preview.saldoVarios + preview.saldoCaja) }},
+        necesario: ${{ currencyService.format(preview.liquido) }}.
+      </span>
+    </div>
+    }
+
+    <!-- Nota: sueldo absorbido -->
+    @if (preview.liquido <= 0) {
+    <div class="nota-absorbido">
+      Los descuentos absorben el sueldo completo. No sale efectivo de caja.
+    </div>
+    }
+
+    <!-- Distribucion de cajas (preview) -->
+    @if (preview.liquido > 0 && preview.fondosSuficientes) {
+    <div class="distribucion-preview">
+      <div class="distribucion-titulo">Se sacara de:</div>
+      @if (preview.montoDeVarios > 0) {
+      <div class="distribucion-row">
+        <span>Varios</span>
+        <strong>${{ currencyService.format(preview.montoDeVarios) }}</strong>
+      </div>
+      }
+      @if (preview.montoDeCaja > 0) {
+      <div class="distribucion-row">
+        <span>Tienda</span>
+        <strong>${{ currencyService.format(preview.montoDeCaja) }}</strong>
+      </div>
+      }
+    </div>
+    }
+
+    <div class="step-actions">
+      <ion-button fill="outline" color="medium" (click)="retrocederAPaso1()">
+        <ion-icon name="arrow-back-outline" slot="start"></ion-icon>
+        Volver
+      </ion-button>
+      <ion-button
+        color="primary"
+        (click)="avanzarAPaso3()"
+        [disabled]="preview.liquido > 0 && !preview.fondosSuficientes">
+        @if (preview.liquido <= 0) {
+        Confirmar
+        } @else {
+        Continuar
+        <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
+        }
+      </ion-button>
+    </div>
+  </div>
+  }
+
+  <!-- ══════════════════════════════════════
+       PASO 3: Instrucciones fisicas
+       ══════════════════════════════════════ -->
+  @if (resultado === 'pendiente' && paso === 3 && preview) {
+  <div class="step-section">
+    <div class="step-indicator">Paso 3 de {{ totalPasos }}</div>
+
+    <div class="instrucciones-card">
+      <h3 class="instrucciones-titulo">Haz esto ahora fisicamente:</h3>
+      <ol class="instrucciones-lista">
+        @if (preview.montoDeVarios > 0) {
+        <li>
+          Toma <strong>${{ currencyService.format(preview.montoDeVarios) }}</strong>
+          de la funda <strong>Varios</strong>
+        </li>
+        }
+        @if (preview.montoDeCaja > 0) {
+        <li>
+          Toma <strong>${{ currencyService.format(preview.montoDeCaja) }}</strong>
+          de la funda <strong>Tienda</strong>
+        </li>
+        }
+        <li>
+          Entrega <strong>${{ currencyService.format(preview.liquido) }}</strong>
+          a <strong>{{ empleadoNombre }}</strong>
+        </li>
+      </ol>
+    </div>
+
+    <div class="step-actions">
+      <ion-button fill="outline" color="medium" (click)="retrocederAPaso2()">
+        <ion-icon name="arrow-back-outline" slot="start"></ion-icon>
+        Volver
+      </ion-button>
+      <ion-button color="primary" (click)="confirmarPago()" [disabled]="guardando">
+        <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
+        Ya lo hice — Confirmar
+      </ion-button>
+    </div>
+  </div>
+  }
+
+  <!-- ══════════════════════════════════════
+       RESULTADO: Exito
+       ══════════════════════════════════════ -->
+  @if (resultado === 'exito') {
+  <div class="resultado-section">
+    <div class="resultado-icon success">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+    </div>
+    <h2 class="resultado-titulo">Nomina pagada</h2>
+
+    @if (liquidoPagado > 0) {
+    <p class="resultado-monto">${{ currencyService.format(liquidoPagado) }}</p>
+    <p class="resultado-sub">entregados a {{ empleadoNombre }}</p>
+    } @else {
+    <p class="resultado-mensaje">{{ mensajeResultado }}</p>
+    }
+
+    <p class="resultado-nota">Todos los movimientos pendientes fueron liquidados.</p>
+
+    <ion-button expand="block" color="primary" (click)="cerrar()" class="btn-cerrar">
+      Entendido
+    </ion-button>
+  </div>
+  }
+
+  <!-- ══════════════════════════════════════
+       RESULTADO: Error
+       ══════════════════════════════════════ -->
+  @if (resultado === 'error') {
+  <div class="resultado-section">
+    <div class="resultado-icon error">
+      <ion-icon name="close-outline"></ion-icon>
+    </div>
+    <h2 class="resultado-titulo">No se pudo procesar</h2>
+    <p class="resultado-error">{{ mensajeError }}</p>
+
+    <ion-button expand="block" fill="outline" color="medium" (click)="resultado = 'pendiente'; paso = 2">
+      Reintentar
+    </ion-button>
+    <ion-button expand="block" fill="clear" color="medium" (click)="cerrar()">
+      Cerrar
+    </ion-button>
+  </div>
+  }
+
+</ion-content>

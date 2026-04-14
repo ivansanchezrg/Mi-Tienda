@@ -181,6 +181,32 @@
         }
       </div>
 
+      <!-- ── SECCIÓN: NÓMINA ─────────────────────────────── -->
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="people-outline"></ion-icon>
+          <span>Nómina</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Sueldo base mensual</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input type="number" inputmode="decimal" step="0.01" min="0"
+              formControlName="nomina_sueldo_base" autocomplete="off">
+          </div>
+          <span class="input-hint">Se precarga al pagar nómina. El admin puede ajustarlo antes de confirmar.</span>
+        </div>
+
+        @if (tieneCambios['nomina']) {
+        <div id="footer-nomina" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['nomina']" (click)="guardarSeccion('nomina')">
+            @if (guardando['nomina']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
+      </div>
+
     </form>
 
     }

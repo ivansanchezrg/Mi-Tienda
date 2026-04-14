@@ -7,7 +7,8 @@ import {
     cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
     cameraOutline, imagesOutline, addCircleOutline, createOutline,
     trashOutline, banOutline, receiptOutline, documentTextOutline,
-    documentOutline, shareOutline, closeOutline
+    documentOutline, shareOutline, closeOutline,
+    walletOutline, checkmarkCircleOutline, readerOutline
 } from 'ionicons/icons';
 
 export interface ModalOption {
@@ -37,7 +38,8 @@ export class OptionsModalComponent {
             cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
             cameraOutline, imagesOutline, addCircleOutline, createOutline,
             trashOutline, banOutline, receiptOutline, documentTextOutline,
-            documentOutline, shareOutline, closeOutline
+            documentOutline, shareOutline, closeOutline,
+            walletOutline, checkmarkCircleOutline, readerOutline
         });
     }
 

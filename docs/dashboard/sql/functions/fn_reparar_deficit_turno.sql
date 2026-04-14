@@ -10,9 +10,9 @@
 -- ==========================================
 -- CAMBIOS v1.4:
 --   - El déficit de VARIOS y del fondo son costos operacionales del negocio.
---     NO se tocan deudas_empleados — esa tabla solo registra faltantes de
---     conteo físico (cuando empleado tiene menos efectivo del esperado al contar).
---     Las deudas del empleado se saldan MANUALMENTE desde la UI.
+--     NO se tocan movimientos_empleados — esa tabla solo registra faltantes de
+--     conteo físico via fn_ejecutar_cierre_diario (tipo FALTANTE_CAJA).
+--     Los faltantes se descuentan automaticamente al pagar nomina.
 -- CAMBIOS v1.3:
 --   - Agrega apertura de turno al final de la misma transacción.
 --     Antes: la reparación y la apertura eran 2 operaciones separadas (TypeScript).
@@ -193,5 +193,5 @@ COMMENT ON FUNCTION public.fn_reparar_deficit_turno IS
   'v1.4 - Reparación déficit operacional + apertura de turno en una sola transacción atómica. '
   'EGRESO de Tienda (validando saldo) + INGRESO a VARIOS (si hay déficit de transferencia) + INSERT en turnos_caja. '
   'El déficit de VARIOS y del fondo son costos operacionales — NO son deudas del empleado. '
-  'deudas_empleados se gestiona independientemente (solo registra faltantes de conteo físico). '
+  'movimientos_empleados registra faltantes de conteo como FALTANTE_CAJA (via fn_ejecutar_cierre_diario). '
   'Retorna turno_id del turno abierto. Si algo falla, rollback completo — sin operaciones a medias.';

@@ -18,6 +18,10 @@ const config: CapacitorConfig = {
       iosDatabaseLocation: 'Library/CapacitorDatabase',
       iosIsEncryption: false,
       androidIsEncryption: false
+    },
+    SplashScreen: {
+      launchAutoHide: false,
+      backgroundColor: '#0052CC'
     }
   }
 };

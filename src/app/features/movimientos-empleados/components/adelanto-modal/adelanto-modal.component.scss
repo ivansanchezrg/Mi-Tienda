@@ -1,0 +1,185 @@
+// ==========================================
+// Adelanto Modal
+// ==========================================
+
+ion-toolbar {
+  --background: var(--ion-background-color, #f8f9fa);
+}
+
+.form-section {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.beneficiario-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(var(--ion-color-warning-rgb), 0.08);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-xl);
+  font-size: 14px;
+  color: var(--ion-color-warning-shade);
+
+  ion-icon {
+    font-size: 18px;
+  }
+
+  strong {
+    color: var(--ion-text-color);
+  }
+}
+
+.field {
+  margin-bottom: var(--spacing-md);
+
+  .field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ion-color-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: var(--spacing-xs);
+  }
+}
+
+.monto-input {
+  --background: var(--ion-color-step-50);
+  --border-radius: var(--radius-sm);
+  --padding-start: var(--spacing-md);
+  --padding-end: var(--spacing-md);
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.text-input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--ion-color-step-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--ion-item-background);
+  color: var(--ion-text-color);
+  outline: none;
+
+  &:focus { border-color: var(--ion-color-primary); }
+  &::placeholder { color: var(--ion-color-medium); }
+}
+
+.nota-info {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  text-align: center;
+  margin: var(--spacing-lg) 0;
+  line-height: 1.5;
+}
+
+.btn-confirmar {
+  margin-top: var(--spacing-lg);
+  --border-radius: var(--radius-md);
+  font-weight: 700;
+}
+
+// ─────────────────────────────────────────
+// RESULTADO
+// ─────────────────────────────────────────
+
+.resultado-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-xl) 0;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.resultado-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--spacing-lg);
+
+  ion-icon { font-size: 40px; }
+
+  &.success {
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    ion-icon { color: var(--ion-color-success); }
+  }
+
+  &.error {
+    background: rgba(var(--ion-color-danger-rgb), 0.1);
+    ion-icon { color: var(--ion-color-danger); }
+  }
+}
+
+.resultado-titulo {
+  font-size: 20px;
+  font-weight: var(--font-weight-extrabold);
+  color: var(--ion-text-color);
+  margin: 0 0 var(--spacing-xs);
+}
+
+.resultado-monto {
+  font-size: 28px;
+  font-weight: var(--font-weight-extrabold);
+  color: var(--ion-color-success);
+  margin: 0 0 var(--spacing-xl);
+  letter-spacing: -1px;
+}
+
+.resultado-error {
+  font-size: 14px;
+  color: var(--ion-color-danger);
+  text-align: center;
+  margin: 0 0 var(--spacing-xl);
+  line-height: 1.5;
+}
+
+// ─────────────────────────────────────────
+// INSTRUCCIONES FISICAS
+// ─────────────────────────────────────────
+
+.instrucciones-card {
+  width: 100%;
+  background: rgba(var(--ion-color-primary-rgb), 0.04);
+  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.15);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.instrucciones-titulo {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ion-text-color);
+  margin: 0 0 var(--spacing-md);
+}
+
+.instrucciones-lista {
+  margin: 0;
+  padding-left: var(--spacing-lg);
+  list-style: decimal;
+
+  li {
+    font-size: 14px;
+    color: var(--ion-text-color);
+    line-height: 1.8;
+
+    strong {
+      color: var(--ion-color-primary);
+    }
+  }
+}
+
+.btn-cerrar {
+  width: 100%;
+  --border-radius: var(--radius-md);
+  font-weight: 700;
+}

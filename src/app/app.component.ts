@@ -1,7 +1,9 @@
 import { Component, NgZone, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, take } from 'rxjs/operators';
 import { App, URLOpenListenerEvent } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
+import { SplashScreen } from '@capacitor/splash-screen';
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 import { SupabaseService } from './core/services/supabase.service';
 import { TurnosCajaService } from './features/dashboard/services/turnos-caja.service';
@@ -28,6 +30,26 @@ export class AppComponent {
   constructor() {
     this.setupDeepLinkListener();
     this.setupResumeListener();
+    this.setupSplashScreenHide();
+  }
+
+  /**
+   * Oculta el splash screen nativo solo cuando la primera ruta termina de
+   * renderizar. Evita el flash blanco entre el splash de Android y el primer
+   * paint de Angular. Requiere `launchAutoHide: false` en capacitor.config.ts
+   * — sin eso, Capacitor lo oculta automáticamente al montar el WebView.
+   */
+  private setupSplashScreenHide() {
+    if (!Capacitor.isNativePlatform()) return;
+
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        take(1)
+      )
+      .subscribe(async () => {
+        await SplashScreen.hide();
+      });
   }
 
   private setupDeepLinkListener() {

@@ -157,7 +157,7 @@ Llama a `rpc('reparar_deficit_turno', params)`. Todo en una sola transacción at
 3. **INGRESO** a VARIOS por `deficitVarios` (solo si > 0) — categoría `IN-004`. Este INGRESO es lo que `obtenerDeficitTurnoAnterior()` detecta el día siguiente para no re-detectar el déficit.
 4. **INSERT** en `turnos_caja` — abre el turno nuevo en la misma transacción atómica (igual que `fn_abrir_turno` pero combinado con las operaciones de déficit).
 
-> **Nota:** el déficit de VARIOS y del fondo son costos operacionales del negocio — no se tocan `deudas_empleados`. Las deudas del empleado (faltantes de conteo físico) se saldan manualmente desde la UI.
+> **Nota:** el déficit de VARIOS y del fondo son costos operacionales del negocio — no se tocan `movimientos_empleados`. Los faltantes de conteo físico se registran como `FALTANTE_CAJA` en `movimientos_empleados` por `fn_ejecutar_cierre_diario` y se descuentan automáticamente al pagar la nómina.
 
 ### Retorno
 
