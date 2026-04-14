@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { MainLayoutPage } from './pages/main/main-layout.page';
 import { roleGuard } from '../../core/guards/role.guard';
+import { cajaAbiertaGuard } from '../../core/guards/caja-abierta.guard';
 
 export const LAYOUT_ROUTES: Routes = [
   {
@@ -29,13 +30,31 @@ export const LAYOUT_ROUTES: Routes = [
         loadChildren: () => import('../historial-recargas/historial-recargas.routes').then(m => m.HISTORIAL_RECARGAS_ROUTES)
       },
       {
-        path: 'reportes',
-        loadChildren: () => import('../reportes/reportes.routes').then(m => m.REPORTES_ROUTES)
-      },
-      {
         path: 'configuracion',
         canActivate: [roleGuard(['ADMIN'])],
         loadChildren: () => import('../configuracion/configuracion.routes').then(m => m.CONFIGURACION_ROUTES)
+      },
+      {
+        path: 'pos',
+        canActivate: [cajaAbiertaGuard],
+        loadChildren: () => import('../pos/pos.routes').then(m => m.POS_ROUTES)
+      },
+      {
+        path: 'cuentas-cobrar',
+        loadChildren: () => import('../cuentas-cobrar/cuentas-cobrar.routes').then(m => m.CUENTAS_COBRAR_ROUTES)
+      },
+      {
+        path: 'clientes',
+        loadChildren: () => import('../clientes/clientes.routes').then(m => m.CLIENTES_ROUTES)
+      },
+      {
+        path: 'notas',
+        loadChildren: () => import('../notas/notas.routes').then(m => m.NOTAS_ROUTES)
+      },
+      {
+        path: 'movimientos-empleados',
+        canActivate: [roleGuard(['ADMIN'])],
+        loadChildren: () => import('../movimientos-empleados/movimientos-empleados.routes').then(m => m.MOVIMIENTOS_EMPLEADOS_ROUTES)
       },
       {
         path: '',

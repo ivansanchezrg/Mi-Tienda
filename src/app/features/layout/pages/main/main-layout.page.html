@@ -1,71 +1,83 @@
-<!-- Capa 1: Sidebar (Menú Lateral) -->
-<ion-menu contentId="main-content" type="overlay">
-  <ion-content>
-    <app-sidebar></app-sidebar>
-  </ion-content>
-</ion-menu>
+<ion-split-pane contentId="main-content" when="lg">
 
-<!-- Capa 2: Tabs + Router Outlet (directo en el layout, NO extraer) -->
-<ion-tabs id="main-content">
+  <!-- Sidebar (overlay en móvil, fijo en desktop — ion-split-pane maneja el tipo automáticamente) -->
+  <ion-menu contentId="main-content">
+    <app-sidebar (accionRapida)="onAccionRapida($event)"></app-sidebar>
+  </ion-menu>
 
-  <!-- Overlay oscuro del FAB (solo visible cuando tabs están activos) -->
-  @if (showTabs && fabAbierto) {
+  <!-- Wrapper principal — ion-split-pane lo identifica por id, ion-tabs maneja el routing interno -->
+  <div id="main-content" class="main-content-wrapper">
+  <ion-tabs>
+
+    <!-- Overlay oscuro del FAB -->
+    @if (showTabs && fabAbierto) {
     <div class="fab-overlay" (click)="toggleFab()"></div>
-  }
+    }
 
-  <!-- Opciones del FAB (solo visible cuando tabs están activos) -->
-  @if (showTabs && fabAbierto) {
+    <!-- Opciones del FAB -->
+    @if (showTabs && fabAbierto) {
     <div class="fab-options">
-      <!-- Cuadre -->
+      <div class="fab-option" (click)="abrirCalculadora()">
+        <div class="fab-option-icon success">
+          <ion-icon [icon]="calculatorIcon"></ion-icon>
+        </div>
+        <span class="fab-option-label">Calc. Margen</span>
+      </div>
+      <div class="fab-option" (click)="nuevaNota()">
+        <div class="fab-option-icon secondary">
+          <ion-icon [icon]="createIcon"></ion-icon>
+        </div>
+        <span class="fab-option-label">Nueva nota</span>
+      </div>
       <div class="fab-option" (click)="irACuadre()">
         <div class="fab-option-icon tertiary">
-          <ion-icon [icon]="clipboardIcon"></ion-icon>
+          <ion-icon [icon]="scaleIcon"></ion-icon>
         </div>
         <span class="fab-option-label">Cuadre</span>
       </div>
-
-      <!-- Gasto -->
-      <div class="fab-option" (click)="irAGasto()">
-        <div class="fab-option-icon warning">
-          <ion-icon [icon]="receiptIcon"></ion-icon>
-        </div>
-        <span class="fab-option-label">Gastos</span>
-      </div>
     </div>
-  }
+    }
 
-  <!--
-    ion-tab-bar siempre en el DOM para que ion-tabs mantenga
-    la tab activa al volver de páginas secundarias.
-    Se oculta con CSS, nunca se elimina del DOM.
-  -->
-  <ion-tab-bar slot="bottom" [class.tabs-oculto]="!showTabs">
-    <ion-tab-button tab="home">
-      <ion-icon [icon]="homeIcon"></ion-icon>
-      <ion-label>Inicio</ion-label>
-    </ion-tab-button>
+    <!--
+      ion-tab-bar siempre en el DOM para que ion-tabs mantenga
+      la tab activa al volver de páginas secundarias.
+      Se oculta con CSS en desktop y cuando tabs están ocultos.
+    -->
+    <ion-tab-bar slot="bottom" [class.tabs-oculto]="!showTabs">
+      <ion-tab-button tab="home">
+        <ion-icon [icon]="homeIcon"></ion-icon>
+        <ion-label>Inicio</ion-label>
+      </ion-tab-button>
 
-    <ion-tab-button tab="ventas">
-      <ion-icon [icon]="ventasIcon"></ion-icon>
-      <ion-label>Ventas</ion-label>
-    </ion-tab-button>
+      @if (posHabilitado) {
+      <ion-tab-button tab="pos">
+        <ion-icon [icon]="posIcon"></ion-icon>
+        <ion-label>POS</ion-label>
+      </ion-tab-button>
+      } @else {
+      <app-disabled-tab [icon]="posIcon" label="POS"></app-disabled-tab>
+      }
 
-    <!-- FAB integrado como tab -->
-    <ion-tab-button class="fab-tab-container">
-      <ion-fab-button color="dark" (click)="toggleFab()" [class.fab-abierto]="fabAbierto">
-        <ion-icon [icon]="fabAbierto ? closeIcon : addIcon"></ion-icon>
-      </ion-fab-button>
-    </ion-tab-button>
+      <!-- FAB integrado como tab -->
+      <ion-tab-button class="fab-tab-container">
+        <ion-fab-button color="dark" (click)="toggleFab()" [class.fab-abierto]="fabAbierto">
+          <ion-icon [icon]="fabAbierto ? closeIcon : addIcon"></ion-icon>
+        </ion-fab-button>
+      </ion-tab-button>
 
-    <ion-tab-button tab="inventario">
-      <ion-icon [icon]="inventarioIcon"></ion-icon>
-      <ion-label>Inventario</ion-label>
-    </ion-tab-button>
+      <ion-tab-button tab="inventario">
+        <ion-icon [icon]="inventarioIcon"></ion-icon>
+        <ion-label>Inventario</ion-label>
+      </ion-tab-button>
 
-    <ion-tab-button tab="reportes">
-      <ion-icon [icon]="reportesIcon"></ion-icon>
-      <ion-label>Reportes</ion-label>
-    </ion-tab-button>
-  </ion-tab-bar>
+      <!-- Ventas: siempre visible (es el historial, tambien cuando la caja esta cerrada) -->
+      <ion-tab-button tab="ventas">
+        <ion-icon [icon]="ventasIcon"></ion-icon>
+        <ion-label>Ventas</ion-label>
+      </ion-tab-button>
+    </ion-tab-bar>
 
-</ion-tabs>
+  </ion-tabs>
+  </div>
+
+</ion-split-pane>

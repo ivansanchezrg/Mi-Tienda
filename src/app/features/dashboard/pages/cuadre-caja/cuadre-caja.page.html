@@ -1,119 +1,85 @@
-<ion-header>
-  <ion-toolbar>
-    <ion-title>Cuadre de Caja</ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="cerrar()">
-        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
-</ion-header>
+<div class="modal-wrapper">
 
-<ion-content>
-  <form [formGroup]="form">
+  <!-- Header -->
+  <div class="modal-header">
+    <div class="modal-header-icon">
+      <ion-icon name="scale-outline"></ion-icon>
+    </div>
+    <span class="modal-header-title">Cuadre de Saldo Virtual</span>
+    <button class="modal-close-btn" (click)="cerrar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
 
-    <!-- Header Info -->
-    <div class="header-info">
-      <ion-icon name="calculator-outline"></ion-icon>
-      <p class="info-text">
-        Ingresa los saldos virtuales actuales para verificar cuánto efectivo físico deberías tener
-      </p>
+  <form [formGroup]="form" class="modal-body">
+
+    <!-- Saldo Celular -->
+    <div class="input-group">
+      <label class="input-label">
+        <ion-icon name="phone-portrait-outline"></ion-icon>
+        <div class="input-label-text">
+          <span>Saldo Virtual Celular</span>
+          <p class="input-hint">Último cierre: ${{ saldoVirtualActualCelular | number:'1.2-2' }}</p>
+        </div>
+      </label>
+      <div class="amount-wrapper" [class.error]="!ventaCelularValida && saldoCelularActual > 0">
+        <span class="currency">$</span>
+        <input #saldoCelularInput type="number" inputmode="decimal" placeholder="0.00"
+          formControlName="saldoCelularActual" appCurrencyInput appNumbersOnly>
+      </div>
+      @if (!ventaCelularValida && saldoCelularActual > 0) {
+      <span class="error-text">⚠️ Venta negativa — registrá la recarga del proveedor</span>
+      }
     </div>
 
-    <!-- Form Content -->
-    <div class="form-content">
+    <div class="input-divider"></div>
 
-      <!-- Saldo Celular Actual -->
-      <div class="input-group destacado">
-        <label class="input-label">
+    <!-- Saldo Bus -->
+    <div class="input-group">
+      <label class="input-label">
+        <ion-icon name="bus-outline"></ion-icon>
+        <div class="input-label-text">
+          <span>Saldo Virtual Bus</span>
+          <p class="input-hint">Último cierre: ${{ saldoVirtualActualBus | number:'1.2-2' }}</p>
+        </div>
+      </label>
+      <div class="amount-wrapper" [class.error]="!ventaBusValida && saldoBusActual > 0">
+        <span class="currency">$</span>
+        <input type="number" inputmode="decimal" placeholder="0.00"
+          formControlName="saldoBusActual" appCurrencyInput appNumbersOnly>
+      </div>
+      @if (!ventaBusValida && saldoBusActual > 0) {
+      <span class="error-text">⚠️ Venta negativa — registrá la compra de saldo virtual</span>
+      }
+    </div>
+
+    <!-- Resultado -->
+    @if (mostrarResultado) {
+    <div class="result-card">
+      <p class="result-title">Venta estimada del día</p>
+      <div class="result-row">
+        <div class="result-label">
           <ion-icon name="phone-portrait-outline"></ion-icon>
-          Saldo Virtual Celular Actual
-          <span class="required-badge">Obligatorio</span>
-        </label>
-        <div class="amount-wrapper" [class.error]="!ventaCelularValida && saldoCelularActual > 0">
-          <span class="currency">$</span>
-          <input type="number" inputmode="decimal" placeholder="0.00" formControlName="saldoCelularActual"
-            appCurrencyInput appNumbersOnly autofocus>
+          <span>Celular</span>
         </div>
-        <ion-note class="helper-text">
-          Saldo del sistema: ${{ saldoVirtualActualCelular | number:'1.2-2' }}
-        </ion-note>
-        @if (!ventaCelularValida && saldoCelularActual > 0) {
-        <span class="error-text">
-          ⚠️ Venta negativa. Registrá la recarga del proveedor en Recargas Virtuales
-        </span>
-        }
+        <span class="result-value">${{ ventaCelular | number:'1.2-2' }}</span>
       </div>
-
-      <!-- Saldo Bus Actual -->
-      <div class="input-group destacado">
-        <label class="input-label">
+      <div class="result-divider"></div>
+      <div class="result-row">
+        <div class="result-label">
           <ion-icon name="bus-outline"></ion-icon>
-          Saldo Virtual Bus Actual
-          <span class="required-badge">Obligatorio</span>
-        </label>
-        <div class="amount-wrapper" [class.error]="!ventaBusValida && saldoBusActual > 0">
-          <span class="currency">$</span>
-          <input type="number" inputmode="decimal" placeholder="0.00" formControlName="saldoBusActual" appCurrencyInput
-            appNumbersOnly>
+          <span>Bus</span>
         </div>
-        <ion-note class="helper-text">
-          Saldo del sistema: ${{ saldoVirtualActualBus | number:'1.2-2' }}
-        </ion-note>
-        @if (!ventaBusValida && saldoBusActual > 0) {
-        <span class="error-text">
-          ⚠️ Venta negativa. Registrá la compra de saldo virtual en Recargas Virtuales
-        </span>
-        }
+        <span class="result-value">${{ ventaBus | number:'1.2-2' }}</span>
       </div>
-
-      <!-- Resultado: Efectivo Vendido -->
-      @if (mostrarResultado) {
-      <ion-card class="result-card">
-        <div class="result-header">
-          <ion-icon name="cash-outline"></ion-icon>
-          <span>Efectivo Físico Vendido</span>
-        </div>
-
-        <div class="result-content">
-          <!-- Venta Celular -->
-          <div class="result-item">
-            <div class="result-label">
-              <ion-icon name="phone-portrait-outline"></ion-icon>
-              <span>Celular</span>
-            </div>
-            <span class="result-value success">
-              ${{ ventaCelular | number:'1.2-2' }}
-            </span>
-          </div>
-
-          <!-- Venta Bus -->
-          <div class="result-item">
-            <div class="result-label">
-              <ion-icon name="bus-outline"></ion-icon>
-              <span>Bus</span>
-            </div>
-            <span class="result-value success">
-              ${{ ventaBus | number:'1.2-2' }}
-            </span>
-          </div>
-        </div>
-
-        <!-- Info adicional -->
-        <div class="result-footer">
-          <ion-icon name="information-circle-outline"></ion-icon>
-          <p>Efectivo recaudado por ventas de recargas hasta ahora. Se registra en caja al cerrar el día.</p>
-        </div>
-      </ion-card>
-      }
-
-      <!-- Botón Limpiar -->
-      @if (form.value.saldoCelularActual || form.value.saldoBusActual) {
-      <button type="button" class="secondary-btn" (click)="limpiar()">
-        Limpiar
-      </button>
-      }
     </div>
+    }
 
   </form>
-</ion-content>
+
+  <!-- Botones -->
+  <div class="modal-actions modal-actions--compact">
+    <ion-button fill="solid" color="tertiary" (click)="limpiar()">Limpiar</ion-button>
+  </div>
+
+</div>

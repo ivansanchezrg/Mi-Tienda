@@ -86,7 +86,7 @@ export class RecargasVirtualesService {
   async obtenerHistorial(servicio: 'CELULAR' | 'BUS'): Promise<RecargaVirtual[]> {
     const response = await this.supabase.client
       .from('recargas_virtuales')
-      .select('*, tipos_servicio!inner(codigo), empleados!inner(nombre)')
+      .select('*, tipos_servicio!inner(codigo), usuarios!inner(nombre)')
       .eq('tipos_servicio.codigo', servicio)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -96,7 +96,7 @@ export class RecargasVirtualesService {
     return (response.data || []).map((r: any) => ({
       ...r,
       servicio: r.tipos_servicio.codigo,
-      empleado_nombre: r.empleados?.nombre ?? null
+      empleado_nombre: r.usuarios?.nombre ?? null
     }));
   }
 
@@ -169,7 +169,7 @@ export class RecargasVirtualesService {
     monto_virtual: number;
   }): Promise<RegistroRecargaCompletoResult> {
     const result = await this.supabase.call<RegistroRecargaCompletoResult>(
-      this.supabase.client.rpc('registrar_recarga_proveedor_celular', {
+      this.supabase.client.rpc('fn_registrar_recarga_proveedor_celular', {
         p_fecha: params.fecha,
         p_empleado_id: params.empleado_id,
         p_monto_virtual: params.monto_virtual
@@ -194,7 +194,7 @@ export class RecargasVirtualesService {
     observaciones?: string;
   }): Promise<any> {
     return this.supabase.call(
-      this.supabase.client.rpc('registrar_pago_proveedor_celular', {
+      this.supabase.client.rpc('fn_registrar_pago_proveedor_celular', {
         p_empleado_id: params.empleado_id,
         p_deuda_ids: params.deuda_ids,
         p_observaciones: params.observaciones || null
@@ -216,7 +216,7 @@ export class RecargasVirtualesService {
     empleado_id: number;
   }): Promise<{ success: boolean; mes: string; total_ganancia: number; filas_afectadas: number; message: string }> {
     const result = await this.supabase.call<{ success: boolean; mes: string; total_ganancia: number; filas_afectadas: number; message: string }>(
-      this.supabase.client.rpc('liquidar_ganancias_bus', {
+      this.supabase.client.rpc('fn_liquidar_ganancias_bus', {
         p_mes: params.mes,
         p_empleado_id: params.empleado_id
       }),
@@ -248,7 +248,7 @@ export class RecargasVirtualesService {
     saldo_virtual_maquina?: number;
   }): Promise<any> {
     return this.supabase.call(
-      this.supabase.client.rpc('registrar_compra_saldo_bus', {
+      this.supabase.client.rpc('fn_registrar_compra_saldo_bus', {
         p_fecha: params.fecha,
         p_empleado_id: params.empleado_id,
         p_monto: params.monto,

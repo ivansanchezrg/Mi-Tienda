@@ -11,6 +11,7 @@ import {
   cloudDownloadOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { LoggerService } from '@core/services/logger.service';
 import { RecargasService, RecargaHistorial } from '../../../dashboard/services/recargas.service';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 
@@ -62,6 +63,7 @@ export class HistorialRecargasPage implements OnInit {
   private ui = inject(UiService);
   private recargasService = inject(RecargasService);
   private recargasVirtualesService = inject(RecargasVirtualesService);
+  private logger = inject(LoggerService);
 
   loading = true;
   items: HistorialItem[] = [];
@@ -134,7 +136,7 @@ export class HistorialRecargasPage implements OnInit {
 
       this.agruparPorFecha();
     } catch (error) {
-      console.error('Error al cargar historial:', error);
+      this.logger.error('HistorialRecargasPage', 'Error al cargar historial', error);
       await this.ui.showError('Error al cargar el historial de recargas');
     } finally {
       this.loading = false;

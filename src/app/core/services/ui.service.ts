@@ -33,7 +33,7 @@ export class UiService {
       this.loadingElement = await this.loadingCtrl.create({
         message: msg,
         spinner: 'crescent',
-        duration: 15000 // Timeout de seguridad
+        duration: 30000 // Aumentado a 30s para evitar auto-cierre en conexiones MUY lentas
       });
       await this.loadingElement.present();
     }
@@ -52,7 +52,7 @@ export class UiService {
         if (this.loadingCount <= 0 && this.loadingElement) {
           const el = this.loadingElement;
           this.loadingElement = null; // Limpia referencia antes del dismiss
-          await el.dismiss().catch(() => {});
+          await el.dismiss().catch(() => { });
         }
       }, 50);
     }
@@ -126,15 +126,15 @@ export class UiService {
   /** Muestra Toast genérico con color configurable */
   async showToast(message: string, color: string = 'primary') {
     const icon = color === 'success' ? checkmarkCircleOutline
-               : color === 'danger' ? alertCircleOutline
-               : undefined;
+      : color === 'danger' ? alertCircleOutline
+        : undefined;
     const toast = await this.toastCtrl.create({
       message,
       duration: 5000,
       color,
       position: 'top',
       ...(icon && { icon }),
-      ...(color === 'danger' && { buttons: [{ text: 'OK', role: 'cancel' }] })
+      buttons: [{ text: 'OK', role: 'cancel' }]
     });
     await toast.present();
   }
@@ -146,7 +146,8 @@ export class UiService {
       duration: 5000,
       color: 'success',
       position: 'top',
-      icon: checkmarkCircleOutline
+      icon: checkmarkCircleOutline,
+      buttons: [{ text: 'OK', role: 'cancel' }]
     });
     await toast.present();
   }

@@ -1,10 +1,21 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
-    <ion-title>Recargas Virtuales</ion-title>
+    <ion-title>Saldo Virtual</ion-title>
   </ion-toolbar>
+  <!-- Tabs CELULAR / BUS -->
+  <div class="recargas-tabs">
+    <button class="recargas-tab" [class.active]="tabActivo === 'CELULAR'" (click)="cambiarTab('CELULAR')">
+      <ion-icon name="phone-portrait-outline"></ion-icon>
+      <span>Celular</span>
+    </button>
+    <button class="recargas-tab" [class.active]="tabActivo === 'BUS'" (click)="cambiarTab('BUS')">
+      <ion-icon name="bus-outline"></ion-icon>
+      <span>Bus</span>
+    </button>
+  </div>
 </ion-header>
 
 <ion-content>
@@ -12,28 +23,18 @@
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
-  <!-- Tabs CELULAR / BUS -->
-  <div class="filter-bar">
-    <button class="filter-tab" [class.active]="tabActivo === 'CELULAR'" (click)="cambiarTab('CELULAR')">
-      <ion-icon name="phone-portrait-outline"></ion-icon>
-      Celular
-    </button>
-    <button class="filter-tab" [class.active]="tabActivo === 'BUS'" (click)="cambiarTab('BUS')">
-      <ion-icon name="bus-outline"></ion-icon>
-      Bus
-    </button>
-  </div>
-
   <!-- ====================== -->
   <!-- TAB CELULAR            -->
   <!-- ====================== -->
   @if (tabActivo === 'CELULAR') {
+  <div class="tab-animate">
 
   @if (!loading) {
   <!-- Saldo actual -->
   <div class="saldo-header">
-    <div class="saldo-label">Saldo virtual actual</div>
+    <div class="saldo-tab-nombre">Celular</div>
     <div class="saldo-monto">${{ saldoVirtualCelular | number:'1.2-2' }}</div>
+    <div class="saldo-label">Saldo virtual actual</div>
   </div>
 
   <!-- Subtítulo Opciones -->
@@ -119,18 +120,21 @@
   </div>
   }
 
+  </div>
   }
 
   <!-- ====================== -->
   <!-- TAB BUS                -->
   <!-- ====================== -->
   @if (tabActivo === 'BUS') {
+  <div class="tab-animate">
 
   @if (!loading) {
   <!-- Saldo actual -->
   <div class="saldo-header">
-    <div class="saldo-label">Saldo virtual actual</div>
+    <div class="saldo-tab-nombre">Bus</div>
     <div class="saldo-monto">${{ saldoVirtualBus | number:'1.2-2' }}</div>
+    <div class="saldo-label">Saldo virtual actual</div>
   </div>
 
   <!-- Subtítulo Opciones -->
@@ -223,6 +227,7 @@
   </div>
   }
 
+  </div>
   }
 
 </ion-content>

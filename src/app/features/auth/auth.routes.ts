@@ -14,6 +14,10 @@ export const AUTH_ROUTES: Routes = [
     component: CallbackPage
   },
   {
+    path: 'pending',
+    loadComponent: () => import('./pages/pending/pending.page').then(m => m.PendingPage)
+  },
+  {
     path: '',
     redirectTo: 'login',
     pathMatch: 'full'

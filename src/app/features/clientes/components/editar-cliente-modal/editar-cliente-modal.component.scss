@@ -1,0 +1,183 @@
+ion-toolbar {
+    --background: var(--ion-item-background);
+}
+
+ion-content {
+    --background: var(--ion-background-color, #f8f9fa);
+}
+
+.modal-content {
+    padding: 16px 16px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    .field-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ion-color-medium);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .field-input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1.5px solid var(--ion-color-step-200, #ddd);
+        border-radius: 8px;
+        font-size: 15px;
+        color: var(--ion-text-color);
+        background: var(--ion-background-color, #f8f9fa);
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+
+        &:focus {
+            border-color: var(--ion-color-primary);
+        }
+
+        &::placeholder {
+            color: var(--ion-color-medium);
+            opacity: 0.6;
+        }
+
+        &.readonly {
+            background: var(--ion-color-step-50, #f0f0f0);
+            color: var(--ion-color-medium);
+            cursor: default;
+        }
+    }
+
+    .field-error {
+        font-size: 12px;
+        color: var(--ion-color-danger);
+        margin: 0;
+    }
+}
+
+// ── Input cédula con ícono de estado ───────────
+.cedula-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .field-input {
+        padding-right: 38px;
+    }
+
+    .cedula-spinner,
+    .cedula-icon {
+        position: absolute;
+        right: 10px;
+        font-size: 20px;
+        pointer-events: none;
+    }
+
+    .cedula-spinner {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+// ── Card cliente duplicado ──────────────────────
+.duplicate-card {
+    background: rgba(var(--ion-color-warning-rgb), 0.08);
+    border: 1px solid var(--ion-color-warning);
+    border-radius: 10px;
+    padding: 12px;
+
+    .duplicate-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ion-color-warning-shade);
+        margin: 0 0 8px 0;
+    }
+
+    .duplicate-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px;
+        border-radius: 8px;
+        cursor: pointer;
+
+        &:active {
+            background: rgba(var(--ion-color-warning-rgb), 0.12);
+        }
+    }
+
+    .duplicate-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+
+        strong {
+            font-size: 14px;
+            color: var(--ion-text-color);
+        }
+
+        span {
+            font-size: 12px;
+            color: var(--ion-color-medium);
+        }
+    }
+
+    .duplicate-action {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ion-color-primary);
+    }
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+
+    .btn-cancel {
+        flex: 1;
+        padding: 12px;
+        border: 1.5px solid var(--ion-color-step-200, #ddd);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--ion-color-medium);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+
+        &:active {
+            background: var(--ion-color-step-50);
+        }
+    }
+
+    .btn-save {
+        flex: 2;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        background: var(--ion-color-primary);
+        color: white;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.15s;
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        &:active:not(:disabled) {
+            opacity: 0.85;
+        }
+    }
+}

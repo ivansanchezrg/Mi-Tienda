@@ -1,0 +1,141 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Notas</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="nuevaNota()" color="primary" fill="clear" [disabled]="creando">
+        <ion-icon slot="start" name="add-outline"></ion-icon>
+        Nueva
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content #content color="light" [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="list-container">
+
+    @if (loading) {
+    <!-- Skeleton -->
+    <ion-list lines="none" class="notas-list">
+      @for (i of [1,2,3,4,5]; track i) {
+      <div class="nota-skeleton">
+        <ion-skeleton-text animated style="width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;"></ion-skeleton-text>
+        <div style="flex: 1;">
+          <ion-skeleton-text animated style="width: 85%; height: 15px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 50%; height: 12px; margin-top: 6px;"></ion-skeleton-text>
+        </div>
+      </div>
+      }
+    </ion-list>
+
+    } @else if (notas.length === 0) {
+    <app-empty-state
+      icon="reader-outline"
+      title="Sin notas"
+      hint="Crea una nota con el botón &quot;Nueva&quot; para que todos la vean.">
+    </app-empty-state>
+
+    } @else {
+    <ion-list lines="none" class="notas-list">
+      @for (nota of notas; track nota.id) {
+      <ion-item-sliding #slidingItem class="nota-sliding"
+        [class.nota-completada]="nota.completada"
+        [class.nota-procesando]="procesando.has(nota.id)">
+
+        <ion-item class="nota-item" lines="none"
+          [class.nota-item--toggling]="procesando.has(nota.id)">
+
+          <!-- Icono estado -->
+          <div slot="start" class="nota-check" (click)="toggleCompletada(nota)">
+            @if (procesando.has(nota.id)) {
+              <ion-spinner name="crescent" class="nota-spinner"></ion-spinner>
+            } @else if (nota.completada) {
+              <ion-icon name="checkmark-circle" color="success"></ion-icon>
+            } @else {
+              <ion-icon name="ellipse-outline" color="medium"></ion-icon>
+            }
+          </div>
+
+          <!-- Contenido -->
+          <ion-label>
+            <div class="nota-texto-bloque" [class.nota-texto--tachado]="nota.completada">
+              @for (linea of lineasVisibles(nota); track $index) {
+                @if (linea.prefijo) {
+                  <p class="nota-texto nota-texto--lista">
+                    <strong class="nota-prefijo">{{ linea.prefijo }}</strong>
+                    <span> {{ linea.cuerpo }}</span>
+                  </p>
+                } @else {
+                  <p class="nota-texto">{{ linea.cuerpo }}</p>
+                }
+              }
+            </div>
+
+            @if (esLarga(nota)) {
+              <button class="ver-mas-btn" (click)="toggleExpandir($event, nota)">
+                @if (expandidas.has(nota.id)) {
+                  Ver menos
+                } @else {
+                  Ver más
+                }
+              </button>
+            }
+
+            <div class="nota-meta">
+              <!-- Quién la creó -->
+              <span class="meta-chip">
+                <ion-icon name="person-outline"></ion-icon>
+                {{ nota.creada_por_nombre ?? 'Desconocido' }}
+                · {{ formatFecha(nota.created_at) }}
+              </span>
+
+              <!-- Quién la completó (solo si está completada) -->
+              @if (nota.completada && nota.completada_por_nombre) {
+              <span class="meta-chip meta-chip--done">
+                <ion-icon name="checkmark-circle-outline"></ion-icon>
+                {{ nota.completada_por_nombre }}
+                @if (nota.completada_at) {
+                  · {{ formatFecha(nota.completada_at) }}
+                }
+              </span>
+              }
+            </div>
+          </ion-label>
+
+        </ion-item>
+
+        <!-- Swipe → eliminar (solo ADMIN) -->
+        @if (esAdmin) {
+          <ion-item-options side="end">
+            <ion-item-option color="danger" (click)="eliminar(nota, slidingItem)" class="delete-option">
+              <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+            </ion-item-option>
+          </ion-item-options>
+        }
+
+      </ion-item-sliding>
+      }
+    </ion-list>
+    }
+
+  </div>
+
+  <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent" [loadingText]="loadingMoreText"></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
+  @if (showScrollTop) {
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+    <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+      <ion-icon name="arrow-up-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+  }
+
+</ion-content>

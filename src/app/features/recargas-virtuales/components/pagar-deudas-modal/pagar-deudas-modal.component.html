@@ -1,4 +1,4 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-title>Pagar al Proveedor - Celular</ion-title>
     <ion-buttons slot="end">
@@ -105,7 +105,7 @@
         <!-- Botón confirmar -->
         <button
           class="primary-btn"
-          [disabled]="!puedeConfirmar"
+          [disabled]="!puedeConfirmar || procesando"
           (click)="confirmarPago()">
           <ion-icon name="cash-outline"></ion-icon>
           Confirmar Pago

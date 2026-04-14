@@ -176,7 +176,7 @@
           </button>
           <button
             class="primary-btn"
-            [disabled]="!saldoSuficiente"
+            [disabled]="!saldoSuficiente || procesando"
             (click)="confirmarPago()">
             <ion-icon name="cash-outline"></ion-icon>
             Confirmar Pago

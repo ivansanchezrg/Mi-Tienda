@@ -6,4 +6,5 @@ export interface UsuarioActual {
   usuario: string;
   activo: boolean;
   rol: RolUsuario;
+  es_superadmin: boolean;
 }

@@ -1,4 +1,7 @@
-// Banner superior que muestra estado offline
+:host {
+  display: block;
+}
+
 .offline-banner {
   position: fixed;
   top: 0;
@@ -11,25 +14,20 @@
   justify-content: center;
   gap: var(--spacing-sm);
 
-  height: 55px;
+  height: 44px;
   padding: 0 var(--spacing-lg);
 
-  background: var(--ion-color-danger, #ef4444);
-  color: var(--ion-color-danger-contrast, #ffffff);
+  background: var(--ion-color-danger);
+  color: var(--ion-color-danger-contrast);
 
-  font-size: 14px;
+  font-size: 13px;
   font-weight: var(--font-weight-medium);
 
-  box-shadow: var(--shadow-level-2);
   animation: slideDown var(--transition-slow) ease-out;
 
   ion-icon {
-    font-size: 20px;
-    margin-top: 3px;
-  }
-
-  span {
-    margin-top: 3px;
+    font-size: 18px;
+    flex-shrink: 0;
   }
 }
 
@@ -42,89 +40,4 @@
     transform: translateY(0);
     opacity: 1;
   }
-}
-
-// Overlay bloqueante que cubre toda la pantalla
-.offline-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 9998;
-  background: rgba(0, 0, 0, var(--opacity-muted));
-  backdrop-filter: blur(3px);
-  pointer-events: all;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  .offline-message {
-    background: var(--ion-background-color, #ffffff);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-3xl) var(--spacing-2xl);
-    max-width: 400px;
-    margin: 0 var(--spacing-xl);
-    text-align: center;
-    box-shadow: var(--shadow-level-4);
-
-    ion-icon {
-      font-size: 56px;
-      color: var(--ion-color-danger, #ef4444);
-      margin-bottom: var(--spacing-lg);
-    }
-
-    h2 {
-      margin: 0 0 var(--spacing-md) 0;
-      font-size: 18px;
-      font-weight: var(--font-weight-semibold);
-      color: var(--ion-text-color, #1f2937);
-    }
-
-    p {
-      margin: 0 0 var(--spacing-xl) 0;
-      font-size: 14px;
-      color: var(--ion-color-medium, #6b7280);
-      line-height: 1.5;
-    }
-
-    ion-button {
-      margin: 0;
-      --border-radius: var(--radius-xs);
-      --padding-top: 6px;
-      --padding-bottom: 6px;
-      --padding-start: var(--spacing-md);
-      --padding-end: var(--spacing-md);
-      font-size: 13px;
-      font-weight: var(--font-weight-medium);
-      height: 32px;
-
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-
-      ion-spinner {
-        width: 14px;
-        height: 14px;
-        margin-right: 6px;
-      }
-
-      ion-icon {
-        font-size: 16px;
-        margin: 0 var(--spacing-xs) 0 0;
-        color: inherit;
-      }
-
-      span {
-        line-height: 1;
-        margin: 0;
-      }
-    }
-  }
-}
-
-// Ajustar contenido cuando hay banner
-:host {
-  display: block;
 }

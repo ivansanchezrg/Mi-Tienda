@@ -6,7 +6,7 @@ Modal para **registrar movimientos manuales de efectivo** en CAJA o CAJA_CHICA. 
 
 **Punto de entrada:** `OperacionesCajaPage` → toca "⋮" (menú, solo visible si la caja permite operaciones manuales) → ActionSheet → Ingreso / Egreso → abre `OperacionModalComponent`.
 
-> **Diferencia clave con el cierre diario:** Las operaciones del cierre las calcula el sistema (`categoria_id = NULL`). Las manuales las inicia el usuario (categoría + monto + foto). `reparar_deficit_turno` es el único caso intermedio.
+> **Diferencia clave con el cierre diario:** Las operaciones del cierre las calcula el sistema (`categoria_id = NULL`). Las manuales las inicia el usuario (categoría + monto + foto). `fn_reparar_deficit_turno` es el único caso intermedio.
 
 ---
 
@@ -42,7 +42,7 @@ abrirModalOperacion(tipo)
 ejecutarOperacion(tipo, data)
   └─ registrarOperacion(cajaId, tipo, categoriaId, monto, descripcion, foto)
        ├─ Si hay foto → storageService.uploadImage(dataUrl) → path en Storage
-       ├─ rpc('registrar_operacion_manual', {...})
+       ├─ rpc('fn_registrar_operacion_manual', {...})
        │    └─ Si RPC falla y había foto → storageService.deleteFile(path) (limpieza)
        └─ cargarSaldoCaja() + cargarOperaciones(reset)
 ```
@@ -103,14 +103,14 @@ Para ver la imagen → `storageService.getSignedUrl(path)` genera una URL tempor
 `obtenerCategorias(tipo)` filtra `categorias_operaciones` por `tipo = 'INGRESO'` o `tipo = 'EGRESO'` y `activo = true`, ordenadas por `codigo ASC`.
 
 Categorías especiales usadas por el sistema (no aparecen en este modal):
-- `EG-012` — Ajuste Déficit Turno Anterior (usado por `reparar_deficit_turno`)
-- `IN-004` — Reposición Déficit Turno Anterior (usado por `reparar_deficit_turno`)
+- `EG-012` — Ajuste Déficit Turno Anterior (usado por `fn_reparar_deficit_turno`)
+- `IN-004` — Reposición Déficit Turno Anterior (usado por `fn_reparar_deficit_turno`)
 
 ---
 
-## 7. Función SQL: `registrar_operacion_manual`
+## 7. Función SQL: `fn_registrar_operacion_manual`
 
-> 📄 Código fuente completo: [`docs/sql/registrar_operacion_manual.sql`](./sql/registrar_operacion_manual.sql)
+> 📄 Código fuente completo: [`docs/dashboard/sql/functions/fn_registrar_operacion_manual.sql`](./sql/functions/fn_registrar_operacion_manual.sql)
 
 **Firma:**
 ```typescript
@@ -129,6 +129,8 @@ Categorías especiales usadas por el sistema (no aparecen en este modal):
 **Retorna:** `{ success, operacion_id, saldo_anterior, saldo_nuevo }`
 
 **Nota crítica:** `p_tipo_operacion` es `TEXT`, no `tipo_operacion_caja_enum`. PostgREST no castea automáticamente strings a enums PostgreSQL (genera 400 Bad Request). La función castea internamente: `v_tipo := p_tipo_operacion::tipo_operacion_caja_enum`.
+
+**Restricción de turno (v2.2):** para `CAJA_CHICA`, la función valida que `p_empleado_id` tenga un turno activo hoy (`hora_fecha_cierre IS NULL`). Si el empleado no es el dueño del turno activo, lanza excepción. Esta validación es la última línea de defensa — la UI ya bloquea el acceso via `turnoAjeno=true`.
 
 ---
 

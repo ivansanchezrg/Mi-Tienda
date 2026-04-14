@@ -1,53 +1,101 @@
 ion-content {
-  --background: var(--ion-color-light);
+  --background: var(--ion-background-color);
 }
 
 .page-container {
   padding: var(--spacing-lg);
-  padding-bottom: var(--spacing-3xl);
-}
-
-// ── Estado de carga ───────────────────────────────────────────────────────────
-.loading-state {
+  padding-bottom: calc(var(--spacing-3xl) + 16px);
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-3xl);
-  color: var(--ion-color-medium);
-  font-size: 15px;
-
-  p { margin: 0; }
+  gap: 16px;
 }
 
 // ── Formulario ────────────────────────────────────────────────────────────────
+
 .config-form {
-  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
+// ── Tarjeta de sección ────────────────────────────────────────────────────────
+
+.section-card {
+  background: var(--ion-item-background, #fff);
+  border-radius: 16px;
+  padding: 20px 16px 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 16px;
+
+  ion-icon {
+    font-size: 17px;
+    color: var(--ion-color-primary);
+  }
+
+  span {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--ion-color-primary);
+  }
+}
+
+// ── Grupos de input ───────────────────────────────────────────────────────────
+
 .input-group {
-  margin-bottom: var(--spacing-xl);
+  margin-bottom: 20px;
+
+  &.last {
+    margin-bottom: 8px;
+  }
 
   .input-label {
     display: block;
     font-size: 12px;
-    font-weight: var(--font-weight-semibold);
+    font-weight: 600;
     color: var(--ion-color-medium);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: var(--spacing-sm);
+    letter-spacing: 0.4px;
+    margin-bottom: 7px;
   }
 
+  // Input de texto simple
+  > input[type="text"] {
+    width: 100%;
+    padding: 13px 14px;
+    border: 1.5px solid var(--ion-color-step-200);
+    border-radius: 10px;
+    background: var(--ion-background-color, #fafafa);
+    font-size: 16px;
+    color: var(--ion-text-color);
+    font-weight: 500;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+
+    &:focus {
+      border-color: var(--ion-color-primary);
+    }
+  }
+
+  // Input con prefijo ($) o sufijo (días)
   .input-with-prefix,
   .input-with-suffix {
     display: flex;
     align-items: stretch;
-    background: var(--ion-item-background, var(--ion-background-color));
+    background: var(--ion-background-color, #fafafa);
     border: 1.5px solid var(--ion-color-step-200);
-    border-radius: var(--radius-md);
+    border-radius: 10px;
     overflow: hidden;
-    transition: border-color var(--transition-normal);
+    transition: border-color 0.15s;
 
     &:focus-within {
       border-color: var(--ion-color-primary);
@@ -55,11 +103,11 @@ ion-content {
 
     .prefix,
     .suffix {
-      padding: 0 var(--spacing-md);
+      padding: 0 14px;
+      background: var(--ion-color-step-50, #f0f0f0);
       color: var(--ion-color-medium);
       font-size: 15px;
-      font-weight: var(--font-weight-semibold);
-      background: var(--ion-color-step-50);
+      font-weight: 600;
       display: flex;
       align-items: center;
     }
@@ -74,13 +122,13 @@ ion-content {
 
     input {
       flex: 1;
-      padding: var(--spacing-md);
+      padding: 13px 14px;
       border: none;
       outline: none;
       background: transparent;
       font-size: 16px;
       color: var(--ion-text-color);
-      font-weight: var(--font-weight-semibold);
+      font-weight: 600;
       min-width: 0;
 
       &[type="number"] {
@@ -99,34 +147,126 @@ ion-content {
     display: block;
     font-size: 12px;
     color: var(--ion-color-medium);
-    margin-top: var(--spacing-xs);
+    margin-top: 5px;
+    line-height: 1.4;
+
+    &.pos-disabled-hint {
+      color: var(--ion-color-warning-shade);
+    }
   }
 }
 
-// ── Botón guardar ─────────────────────────────────────────────────────────────
-.submit-btn {
-  width: 100%;
-  height: 48px;
+// ── Toggle row (switch habilitación) ──────────────────────────────────────────
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  .input-label {
+    margin-bottom: 0;
+  }
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 56px;
+  height: 28px;
+  flex-shrink: 0;
+  cursor: pointer;
+
+  input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--ion-color-step-300, #ccc);
+    border-radius: 14px;
+    transition: background 0.25s ease;
+
+    // Label OFF/ON
+    &::before {
+      content: 'OFF';
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: rgba(255, 255, 255, 0.85);
+      transition: opacity 0.2s;
+    }
+
+    // Knob
+    &::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+      transition: transform 0.25s ease;
+    }
+  }
+
+  input:checked + .toggle-track {
+    background: var(--ion-color-success);
+
+    &::before {
+      content: 'ON';
+      right: auto;
+      left: 9px;
+    }
+
+    &::after {
+      transform: translateX(28px);
+    }
+  }
+}
+
+// ── Footer de sección con botón guardar ───────────────────────────────────────
+
+.section-footer {
+  border-top: 1px solid var(--ion-color-step-100, #f0f0f0);
+  margin: 4px -16px 0;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.section-save-btn {
+  height: 38px;
+  padding: 0 20px;
   background: var(--ion-color-primary);
   color: white;
   border: none;
-  border-radius: var(--radius-md);
-  font-size: 15px;
-  font-weight: var(--font-weight-bold);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  margin-top: var(--spacing-sm);
+  gap: 6px;
+  transition: opacity 0.15s;
 
   &:disabled {
-    opacity: var(--opacity-muted);
+    opacity: 0.45;
     cursor: not-allowed;
   }
 
   ion-spinner {
-    width: 18px;
-    height: 18px;
+    width: 15px;
+    height: 15px;
   }
 }
+

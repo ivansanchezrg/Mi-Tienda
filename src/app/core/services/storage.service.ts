@@ -1,11 +1,15 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from './supabase.service';
+import { UiService } from './ui.service';
+import { LoggerService } from './logger.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class StorageService {
   private supabase = inject(SupabaseService);
+  private ui = inject(UiService);
+  private logger = inject(LoggerService);
 
   /**
    * Sube una imagen a Supabase Storage.
@@ -16,15 +20,20 @@ export class StorageService {
    *                    Resultado: comprobantes/YYYY/MM/{subfolder}/{uuid}.jpg
    * @returns Path del archivo en Storage o null si falla
    */
-  async uploadImage(dataUrl: string, bucket: string = 'comprobantes', subfolder: string = 'general'): Promise<string | null> {
+  async uploadImage(dataUrl: string, bucket: string = 'comprobantes', subfolder: string = 'general', useDatePrefix = true): Promise<string | null> {
     try {
-      // 1. Convertir DataURL a Blob
-      const blob = this.dataURLtoBlob(dataUrl);
+      // 1. Comprimir imagen si supera el límite (5 MB)
+      const compressed = await this.compressImage(dataUrl);
 
-      // 2. Generar nombre único con estructura de carpetas por fecha y tipo
-      const fileName = this.generateFileName(subfolder);
+      // 2. Convertir a Blob
+      const blob = this.dataURLtoBlob(compressed);
 
-      // 3. Subir a Supabase Storage
+      // 3. Generar nombre único
+      const fileName = useDatePrefix
+        ? this.generateFileName(subfolder)
+        : `${subfolder}/${crypto.randomUUID()}.jpg`;
+
+      // 4. Subir a Supabase Storage
       const { data, error } = await this.supabase.client.storage
         .from(bucket)
         .upload(fileName, blob, {
@@ -33,14 +42,16 @@ export class StorageService {
         });
 
       if (error) {
-        console.error('Error al subir imagen:', error);
+        this.logger.error('StorageService', 'Error al subir imagen', error);
+        this.handleStorageError(error);
         return null;
       }
 
-      // 4. Retornar el path del archivo
+      // 5. Retornar el path del archivo
       return data.path;
     } catch (error) {
-      console.error('Error en uploadImage:', error);
+      this.logger.error('StorageService', 'Error en uploadImage', error);
+      this.handleStorageError(error);
       return null;
     }
   }
@@ -59,13 +70,13 @@ export class StorageService {
         .createSignedUrl(path, expiresIn);
 
       if (error) {
-        console.error('Error al crear URL firmada:', error);
+        this.logger.error('StorageService', 'Error al crear URL firmada', error);
         return null;
       }
 
       return data.signedUrl;
     } catch (error) {
-      console.error('Error en getSignedUrl:', error);
+      this.logger.error('StorageService', 'Error en getSignedUrl', error);
       return null;
     }
   }
@@ -84,7 +95,7 @@ export class StorageService {
 
       return data.publicUrl;
     } catch (error) {
-      console.error('Error al obtener URL pública:', error);
+      this.logger.error('StorageService', 'Error al obtener URL pública', error);
       return null;
     }
   }
@@ -101,15 +112,79 @@ export class StorageService {
         .remove([path]);
 
       if (error) {
-        console.error('Error al eliminar archivo:', error);
+        this.logger.error('StorageService', 'Error al eliminar archivo', error);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error('Error en deleteFile:', error);
+      this.logger.error('StorageService', 'Error en deleteFile', error);
       return false;
     }
+  }
+
+  /**
+   * Detecta errores comunes de Storage y muestra toast descriptivo
+   */
+  private handleStorageError(error: any): void {
+    const message = error?.message || error?.toString() || '';
+
+    if (message.includes('exp') && message.includes('claim')) {
+      this.ui.showToast('Tu sesión expiró. Cierra sesión e inicia de nuevo.', 'warning');
+    } else if (message.includes('Bucket not found')) {
+      this.ui.showToast('Almacenamiento no configurado. Contacta al administrador.', 'danger');
+    } else if (message.includes('maximum allowed size') || message.includes('exceeded')) {
+      this.ui.showToast('La imagen es demasiado grande. Intenta con una foto más pequeña.', 'warning');
+    } else if (message.includes('not allowed') || message.includes('security policy')) {
+      this.ui.showToast('No tienes permisos para subir archivos.', 'danger');
+    }
+  }
+
+  /**
+   * Comprime una imagen DataURL usando canvas.
+   * Redimensiona a máximo 1200x1600 y reduce calidad JPEG progresivamente
+   * hasta que el resultado pese menos de maxSizeBytes (default 5 MB).
+   */
+  private async compressImage(dataUrl: string, maxSizeBytes = 5 * 1024 * 1024): Promise<string> {
+    // Si ya es menor al límite, devolver tal cual
+    const estimatedSize = Math.round((dataUrl.length * 3) / 4);
+    if (estimatedSize <= maxSizeBytes) return dataUrl;
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1600;
+
+        let { width, height } = img;
+        if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+          const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Reducir calidad progresivamente: 0.7 → 0.5 → 0.3
+        for (const quality of [0.7, 0.5, 0.3]) {
+          const result = canvas.toDataURL('image/jpeg', quality);
+          const size = Math.round((result.length * 3) / 4);
+          if (size <= maxSizeBytes) {
+            resolve(result);
+            return;
+          }
+        }
+
+        // Si aún es muy grande con quality 0.3, devolver igual (el servidor rechazará)
+        resolve(canvas.toDataURL('image/jpeg', 0.3));
+      };
+      img.onerror = () => reject(new Error('No se pudo cargar la imagen para comprimir'));
+      img.src = dataUrl;
+    });
   }
 
   /**

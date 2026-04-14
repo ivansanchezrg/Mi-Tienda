@@ -1,4 +1,4 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-title>Liquidación Ganancia Bus</ion-title>
     <ion-buttons slot="end">
@@ -14,7 +14,9 @@
 
     <!-- Hint card -->
     <div class="hint-card">
-      <ion-icon name="bus-outline"></ion-icon>
+      <div class="hint-icon">
+        <ion-icon name="bus-outline"></ion-icon>
+      </div>
       <p>
         El proveedor te acredita saldo virtual por las ventas del mes.
         Ingresá el monto recibido.
@@ -64,7 +66,7 @@
       </button>
       <button
         class="primary-btn"
-        [disabled]="!puedeConfirmar"
+        [disabled]="!puedeConfirmar || procesando"
         (click)="confirmar()">
         <ion-icon name="checkmark-circle-outline"></ion-icon>
         Confirmar

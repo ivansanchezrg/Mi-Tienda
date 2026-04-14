@@ -1,0 +1,111 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="cerrar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Adelanto de sueldo</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+
+  <!-- ── PASO 1: Formulario ── -->
+  @if (resultado === 'pendiente') {
+  <div class="form-section">
+
+    <div class="beneficiario-chip">
+      <ion-icon name="cash-outline"></ion-icon>
+      <span>Adelanto para <strong>{{ empleadoNombre }}</strong></span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Monto del adelanto</label>
+      <ion-input
+        type="text"
+        inputmode="numeric"
+        appCurrencyInput
+        [(ngModel)]="monto"
+        placeholder="0.00"
+        class="monto-input destacado">
+      </ion-input>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Descripcion (opcional)</label>
+      <input
+        type="text"
+        [(ngModel)]="descripcion"
+        placeholder="Ej: Anticipo quincenal"
+        class="text-input"
+        maxlength="200">
+    </div>
+
+    <p class="nota-info">
+      El sistema elegira automaticamente de que caja sacar el efectivo (Varios primero, luego Tienda).
+    </p>
+
+    <ion-button
+      expand="block"
+      color="primary"
+      (click)="confirmar()"
+      [disabled]="!valido || guardando"
+      class="btn-confirmar">
+      Registrar adelanto ${{ montoNumerico > 0 ? currencyService.format(montoNumerico) : '0.00' }}
+    </ion-button>
+  </div>
+  }
+
+  <!-- ── RESULTADO: Exito con instrucciones fisicas ── -->
+  @if (resultado === 'exito') {
+  <div class="resultado-section">
+    <div class="resultado-icon success">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+    </div>
+    <h2 class="resultado-titulo">Adelanto registrado</h2>
+    <p class="resultado-monto">${{ currencyService.format(montoNumerico) }}</p>
+
+    @if (instrucciones.length > 0) {
+    <div class="instrucciones-card">
+      <h3 class="instrucciones-titulo">Haz esto ahora fisicamente:</h3>
+      <ol class="instrucciones-lista">
+        @for (inst of instrucciones; track inst.codigo; let i = $index) {
+        <li>
+          Toma <strong>${{ currencyService.format(inst.monto) }}</strong>
+          de la funda <strong>{{ inst.caja }}</strong>
+        </li>
+        }
+        <li>
+          Entrega <strong>${{ currencyService.format(montoNumerico) }}</strong>
+          a <strong>{{ empleadoNombre }}</strong>
+        </li>
+      </ol>
+    </div>
+    }
+
+    <ion-button expand="block" color="primary" (click)="cerrar()" class="btn-cerrar">
+      Entendido
+    </ion-button>
+  </div>
+  }
+
+  <!-- ── RESULTADO: Error ── -->
+  @if (resultado === 'error') {
+  <div class="resultado-section">
+    <div class="resultado-icon error">
+      <ion-icon name="close-outline"></ion-icon>
+    </div>
+    <h2 class="resultado-titulo">No se pudo registrar</h2>
+    <p class="resultado-error">{{ mensajeError }}</p>
+
+    <ion-button expand="block" fill="outline" color="medium" (click)="resultado = 'pendiente'">
+      Reintentar
+    </ion-button>
+    <ion-button expand="block" fill="clear" color="medium" (click)="cerrar()">
+      Cerrar
+    </ion-button>
+  </div>
+  }
+
+</ion-content>

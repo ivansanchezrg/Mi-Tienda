@@ -17,10 +17,6 @@ export const DASHBOARD_ROUTES: Routes = [
     loadComponent: () => import('./pages/operaciones-caja/operaciones-caja.page').then(m => m.OperacionesCajaPage)
   },
   {
-    path: 'gastos-diarios',
-    loadComponent: () => import('../gastos-diarios/pages/gastos-diarios/gastos-diarios.page').then(m => m.GastosDiariosPage)
-  },
-  {
     path: 'recargas-virtuales',
     loadComponent: () => import('../recargas-virtuales/pages/recargas-virtuales/recargas-virtuales.page').then(m => m.RecargasVirtualesPage)
   },

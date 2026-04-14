@@ -1,0 +1,129 @@
+/**
+ * Modals — Estilos globales de modales
+ * ============================================================================
+ * Clases reutilizables para todos los modales de la app.
+ * Los estilos de modal van aquí porque los overlays de Ionic escapan el
+ * encapsulamiento de componentes (shadow DOM) y deben definirse globalmente.
+ */
+
+// ── Date Picker (ion-datetime-button en Ventas) ───────────────────────────
+.date-picker-modal {
+  --height: auto;
+  --border-radius: 16px 16px 0 0;
+  align-items: flex-end;
+}
+
+// ── Options Modal (menú contextual tipo bottom sheet) ─────────────────────
+// OptionsModalComponent: lista corta de acciones, sin scroll interno.
+ion-modal.options-modal {
+  --height: auto;
+  --border-radius: var(--radius-xl, 16px) var(--radius-xl, 16px) 0 0;
+  --box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+}
+
+// ── Bottom Sheet Modal — clase genérica reutilizable ──────────────────────
+// Usar con: breakpoints: [0,1] + initialBreakpoint: 1 + div.modal-wrapper (sin ion-content).
+// NO usar para modales con scroll interno largo → bloquea el swipe en Android.
+// Ejemplos: nueva-nota-modal, cuadre-caja.
+ion-modal.bottom-sheet-modal {
+  --height: auto;
+  --border-radius: var(--radius-xl, 16px) var(--radius-xl, 16px) 0 0;
+  --box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+}
+
+// ── Estructura interna estándar ───────────────────────────────────────────
+// .modal-wrapper   → div raíz que reemplaza ion-content
+// .modal-header    → fila icono + título + botón X
+// .modal-actions   → fila de botones al pie
+// El color de .modal-header-icon es específico de cada componente (SCSS local).
+
+.modal-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-xl);
+  background: var(--ion-color-light);
+
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.modal-header-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  ion-icon {
+    font-size: 18px;
+  }
+}
+
+.modal-header-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ion-text-color);
+  flex: 1;
+}
+
+.modal-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--ion-color-step-100, #f0f0f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  ion-icon {
+    font-size: 20px;
+    color: var(--ion-color-medium);
+  }
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding-bottom: env(safe-area-inset-bottom);
+
+  ion-button {
+    --border-radius: var(--radius-sm, 14px);
+    height: 52px;
+  }
+
+  // Variante horizontal — botones en fila, más compactos
+  &--row {
+    flex-direction: row;
+
+    ion-button {
+      flex: 1;
+      height: 44px;
+      font-size: 14px;
+    }
+  }
+
+  // Variante compacta — botones de ancho fijo, alineados a la derecha
+  // Para modales de herramienta/info (calculadora, cuadre)
+  &--compact {
+    flex-direction: row;
+    justify-content: center;
+
+    ion-button {
+      height: 36px;
+      font-size: 13px;
+      --padding-start: var(--spacing-lg);
+      --padding-end: var(--spacing-lg);
+    }
+  }
+}

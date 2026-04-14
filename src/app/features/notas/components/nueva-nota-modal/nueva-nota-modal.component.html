@@ -1,0 +1,40 @@
+<div class="modal-wrapper">
+
+  <!-- Header -->
+  <div class="modal-header">
+    <div class="modal-header-icon">
+      <ion-icon name="create-outline"></ion-icon>
+    </div>
+    <span class="modal-header-title">Nueva nota</span>
+    <button class="modal-close-btn" (click)="cancelar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Textarea -->
+  <div class="textarea-section">
+    <textarea
+      class="nota-textarea"
+      [(ngModel)]="texto"
+      (keydown)="onKeydown($event)"
+      placeholder="Escribe la nota aquí..."
+      [maxlength]="MAX"
+      rows="5"
+      autocomplete="off"
+      autocorrect="off"
+      spellcheck="true">
+    </textarea>
+    <span class="char-count" [class.char-count--warn]="restantes <= 50">
+      {{ restantes }} caracteres restantes
+    </span>
+  </div>
+
+  <!-- Botones -->
+  <div class="modal-actions modal-actions--compact">
+    <ion-button fill="solid" color="secondary" (click)="guardar()" [disabled]="!valido">
+      <ion-icon name="checkmark-outline" slot="start"></ion-icon>
+      Guardar
+    </ion-button>
+  </div>
+
+</div>

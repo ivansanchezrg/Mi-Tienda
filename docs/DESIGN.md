@@ -462,48 +462,67 @@ Estos componentes se alinean bien con nuestro sistema de diseño:
 
 ---
 
-### 📋 Patrón Estándar de Modales (Sheet Modal)
+### 📋 Patrón Estándar de Modales
 
-**Todos los modales del proyecto deben abrirse como sheet desde abajo** (igual que el modal de "Crear nuevo usuario"). Esto aplica a **todos los features** sin excepción.
+Existen **dos tipos** de modales según su contenido:
 
-#### Reglas
+#### 1. Modal fullscreen (con scroll) — **sin breakpoints**
 
-| Regla | Valor | Por qué |
-|---|---|---|
-| `breakpoints` | `[0, 1]` | Permite cerrar arrastrando hacia abajo |
-| `initialBreakpoint` | `1` | Abre al 100% de altura |
-| Botón cerrar | `slot="end"` (lado derecho) | Estándar UX del proyecto |
-| Ícono cerrar | `close-outline` | Consistencia visual |
+Para modales con formularios, listas largas o cualquier contenido que necesite scroll.
+En Android (modo `md`), los modales sin breakpoints abren fullscreen por defecto. El usuario cierra con el botón ✕.
 
-#### TypeScript — `modalCtrl.create()`
+**`breakpoints` bloquea el scroll en Android** — Ionic interpreta el swipe como gesto de cierre.
 
 ```typescript
+// ✅ Modal con scroll — fullscreen, sin breakpoints
 const modal = await this.modalCtrl.create({
   component: MiModalComponent,
-  componentProps: { /* props opcionales */ },
-  breakpoints: [0, 1],
-  initialBreakpoint: 1
+  componentProps: { /* props */ }
+  // SIN breakpoints, SIN initialBreakpoint
 });
 await modal.present();
-const { data } = await modal.onWillDismiss();
+const { data } = await modal.onDidDismiss();
 ```
 
-#### HTML — Header del modal
-
 ```html
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
-    <ion-title>Título del Modal</ion-title>
-    <ion-buttons slot="end">
+    <ion-buttons slot="start">
       <ion-button (click)="cerrar()">
         <ion-icon slot="icon-only" name="close-outline"></ion-icon>
       </ion-button>
     </ion-buttons>
+    <ion-title>Título del Modal</ion-title>
   </ion-toolbar>
 </ion-header>
 ```
 
-> **Importante:** `<ion-title>` siempre antes de `<ion-buttons>`. El ícono `close-outline` debe estar registrado en el constructor del componente: `addIcons({ closeOutline })`.
+#### 2. Modal bottom sheet (sin scroll) — **con breakpoints**
+
+Solo para modales con contenido corto que no necesita scroll: listas de acciones, selects, confirmaciones.
+Ejemplo: `OptionsModalComponent`.
+
+```typescript
+// ✅ Modal sin scroll — bottom sheet con swipe-to-dismiss
+const modal = await this.modalCtrl.create({
+  component: OptionsModalComponent,
+  componentProps: { title, groups },
+  cssClass: 'options-modal',
+  breakpoints: [0, 1],
+  initialBreakpoint: 1
+});
+```
+
+#### Reglas comunes
+
+| Regla | Valor |
+|---|---|
+| Botón cerrar | `slot="start"` (lado izquierdo) |
+| Ícono cerrar | `close-outline` (registrado con `addIcons`) |
+| Header | siempre `class="ion-no-border"` |
+| Footer | botón de acción principal, `class="ion-no-border"` |
+
+> **Importante:** El ícono `close-outline` debe estar registrado en el constructor: `addIcons({ closeOutline })`.
 
 ---
 

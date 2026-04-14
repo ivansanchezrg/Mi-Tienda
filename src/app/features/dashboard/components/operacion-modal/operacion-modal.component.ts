@@ -1,13 +1,15 @@
-import { Component, inject, Input, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, Input, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonContent, IonIcon, IonSpinner,
-  ModalController, ActionSheetController
+  ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, imagesOutline } from 'ionicons/icons';
+import { closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, imagesOutline, chevronDownOutline, businessOutline } from 'ionicons/icons';
+import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component'; // usado en ModalController.create()
+import { Subscription } from 'rxjs';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Caja } from '../../services/cajas.service';
 import { CategoriaOperacion } from '../../models/categoria-operacion.model';
@@ -43,10 +45,9 @@ export interface OperacionModalResult {
     NumbersOnlyDirective
   ]
 })
-export class OperacionModalComponent implements OnInit {
+export class OperacionModalComponent implements OnInit, OnDestroy {
   private modalCtrl = inject(ModalController);
   private fb = inject(FormBuilder);
-  private actionSheetCtrl = inject(ActionSheetController);
   private cdr = inject(ChangeDetectorRef);
   private operacionesService = inject(OperacionesCajaService);
   private ui = inject(UiService);
@@ -61,17 +62,18 @@ export class OperacionModalComponent implements OnInit {
   cargandoCategorias = true;
   saldoCajaSeleccionada: number = 0;
   nombreCajaSeleccionada: string = '';
-  fotoComprobante: string | null = null; // URL de la foto cargada
+  fotoComprobante: string | null = null;
+  private cajaIdSub?: Subscription;
 
   constructor() {
-    addIcons({ closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, imagesOutline });
+    addIcons({ closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, imagesOutline, chevronDownOutline, businessOutline });
   }
 
   async ngOnInit() {
     // Filtrar solo cajas donde se permite ingreso/egreso manual
-    // Por ahora: CAJA y CAJA_CHICA
+    // v5: CAJA (vault), CAJA_CHICA (cajón diario), VARIOS (fondo emergencia)
     this.cajasFiltradas = this.cajas.filter(c =>
-      ['CAJA', 'CAJA_CHICA'].includes(c.codigo)
+      ['CAJA', 'CAJA_CHICA', 'VARIOS'].includes(c.codigo)
     );
 
     // Pre-seleccionar caja si se especificó
@@ -94,7 +96,7 @@ export class OperacionModalComponent implements OnInit {
     }
 
     // Escuchar cambios en caja seleccionada
-    this.form.get('cajaId')?.valueChanges.subscribe(cajaId => {
+    this.cajaIdSub = this.form.get('cajaId')?.valueChanges.subscribe(cajaId => {
       const caja = this.cajas.find(c => c.id === cajaId);
       this.saldoCajaSeleccionada = caja?.saldo_actual || 0;
       this.nombreCajaSeleccionada = caja?.nombre || '';
@@ -134,37 +136,72 @@ export class OperacionModalComponent implements OnInit {
     return monto > this.saldoCajaSeleccionada;
   }
 
+  ngOnDestroy() {
+    this.cajaIdSub?.unsubscribe();
+  }
+
   cancelar() {
     this.modalCtrl.dismiss(null, 'cancel');
   }
 
-  async seleccionarFoto() {
-    const actionSheet = await this.actionSheetCtrl.create({
-      header: 'Seleccionar comprobante',
-      buttons: [
-        {
-          text: 'Tomar foto',
-          icon: 'camera-outline',
-          handler: () => {
-            this.tomarFoto(CameraSource.Camera);
-          }
-        },
-        {
-          text: 'Seleccionar de galería',
-          icon: 'images-outline',
-          handler: () => {
-            this.tomarFoto(CameraSource.Photos);
-          }
-        },
-        {
-          text: 'Cancelar',
-          icon: 'close',
-          role: 'cancel'
-        }
-      ]
+  get categoriaLabel(): string {
+    const id = this.form?.get('categoriaId')?.value;
+    if (!id) return 'Seleccionar categoría';
+    return this.categorias.find(c => c.id === Number(id))?.nombre || 'Seleccionar categoría';
+  }
+
+  async abrirSelectorCategoria() {
+    const groups: ModalOptionGroup[] = [{
+      options: this.categorias.map(cat => ({
+        label: cat.nombre,
+        value: String(cat.id)
+      }))
+    }];
+
+    const currentId = this.form.get('categoriaId')?.value;
+
+    const modal = await this.modalCtrl.create({
+      component: OptionsModalComponent,
+      componentProps: {
+        title: 'Categoría',
+        groups,
+        selectedValue: currentId ? String(currentId) : undefined
+      },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
 
-    await actionSheet.present();
+    await modal.present();
+    const { data } = await modal.onDidDismiss();
+
+    if (data) {
+      this.form.patchValue({ categoriaId: Number(data) });
+      this.form.get('categoriaId')?.markAsTouched();
+    }
+  }
+
+  async seleccionarFoto() {
+    const groups: ModalOptionGroup[] = [{
+      options: [
+        { label: 'Tomar foto', icon: 'camera-outline', value: 'camera' },
+        { label: 'Seleccionar de galería', icon: 'images-outline', value: 'gallery' },
+      ]
+    }];
+
+    const modal = await this.modalCtrl.create({
+      component: OptionsModalComponent,
+      componentProps: { title: 'Comprobante', groups },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
+    });
+
+    await modal.present();
+    const { data } = await modal.onDidDismiss();
+
+    if (data === 'camera') this.tomarFoto(CameraSource.Camera);
+    else if (data === 'gallery') this.tomarFoto(CameraSource.Photos);
   }
 
   async tomarFoto(source: CameraSource) {

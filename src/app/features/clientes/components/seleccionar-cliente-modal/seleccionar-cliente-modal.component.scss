@@ -1,0 +1,322 @@
+ion-toolbar {
+    --background: var(--ion-item-background);
+}
+
+ion-content {
+    --background: var(--ion-background-color, #f8f9fa);
+    --overflow: auto; // fuerza scroll en sheet modals con breakpoints
+}
+
+.modal-content {
+    padding: 12px 16px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+// ── Aviso Factura ──────────────────────────────
+.factura-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(var(--ion-color-warning-rgb), 0.1);
+    border: 1px solid var(--ion-color-warning);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--ion-color-warning-shade);
+    font-weight: 500;
+
+    ion-icon {
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+}
+
+// ── Labels de sección ──────────────────────────
+.section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ion-color-medium);
+    margin: 12px 4px 6px;
+}
+
+// ── Lista de clientes ──────────────────────────
+.client-list {
+    background: transparent;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0,0,0,.08));
+    margin-bottom: 4px;
+
+    ion-item {
+        --background: var(--ion-item-background);
+        --padding-start: 12px;
+        --inner-padding-end: 12px;
+        --padding-top: 10px;
+        --padding-bottom: 10px;
+        --min-height: 60px;
+
+        &.item-active {
+            --background: rgba(var(--ion-color-primary-rgb), 0.06);
+
+            h3 {
+                color: var(--ion-color-primary);
+                font-weight: 700;
+            }
+        }
+
+        h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin: 0 0 2px 0;
+            color: var(--ion-text-color);
+        }
+
+        p {
+            font-size: 12px;
+            color: var(--ion-color-medium);
+            margin: 0;
+        }
+    }
+}
+
+.client-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-right: 10px;
+
+    ion-icon {
+        font-size: 20px;
+        color: var(--ion-color-primary);
+    }
+}
+
+// ── Buscador ───────────────────────────────────
+.searchbar-wrap {
+    position: relative;
+
+    ion-searchbar {
+        --box-shadow: none;
+        --border-radius: 10px;
+        --background: var(--ion-item-background);
+        padding: 0;
+        margin: 0 0 8px 0;
+        height: 44px;
+    }
+
+    .search-spinner {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-60%);
+    }
+}
+
+// ── Sin resultados ─────────────────────────────
+.no-results {
+    text-align: center;
+    font-size: 13px;
+    color: var(--ion-color-medium);
+    padding: 12px 0;
+    margin: 0;
+}
+
+// ── Botón agregar nuevo ────────────────────────
+.add-client-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--ion-item-background);
+    border: 1.5px dashed var(--ion-color-primary);
+    border-radius: 12px;
+    color: var(--ion-color-primary);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+
+    ion-icon {
+        font-size: 20px;
+        flex-shrink: 0;
+    }
+
+    &:active {
+        background: rgba(var(--ion-color-primary-rgb), 0.06);
+    }
+}
+
+// ── Formulario nuevo cliente ───────────────────
+.new-client-form {
+    background: var(--ion-item-background);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0,0,0,.08));
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    .field-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ion-color-medium);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+
+        .required {
+            color: var(--ion-color-danger);
+        }
+    }
+
+    .field-input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1.5px solid var(--ion-color-step-200, #ddd);
+        border-radius: 8px;
+        font-size: 15px;
+        color: var(--ion-text-color);
+        background: var(--ion-background-color, #f8f9fa);
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+
+        &:focus {
+            border-color: var(--ion-color-primary);
+        }
+
+        &::placeholder {
+            color: var(--ion-color-medium);
+            opacity: 0.6;
+        }
+    }
+}
+
+// ── Input cédula con ícono de estado ───────────
+.cedula-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .field-input {
+        padding-right: 38px; // espacio para el ícono
+    }
+
+    .cedula-spinner,
+    .cedula-icon {
+        position: absolute;
+        right: 10px;
+        font-size: 20px;
+        pointer-events: none;
+    }
+
+    .cedula-spinner {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+.field-error {
+    font-size: 12px;
+    color: var(--ion-color-danger);
+    margin: 0;
+}
+
+// ── Card cliente duplicado ──────────────────────
+.duplicate-card {
+    background: rgba(var(--ion-color-warning-rgb), 0.08);
+    border: 1px solid var(--ion-color-warning);
+    border-radius: 10px;
+    padding: 10px 12px;
+
+    .duplicate-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ion-color-warning-shade);
+        margin: 0 0 8px 0;
+    }
+
+    .duplicate-item {
+        --background: transparent;
+        --padding-start: 0;
+        --inner-padding-end: 0;
+        --padding-top: 4px;
+        --padding-bottom: 4px;
+        --min-height: 48px;
+        border-radius: 8px;
+
+        h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--ion-text-color);
+        }
+
+        p {
+            font-size: 12px;
+            color: var(--ion-color-medium);
+        }
+    }
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+
+    .btn-cancel {
+        flex: 1;
+        padding: 12px;
+        border: 1.5px solid var(--ion-color-step-200, #ddd);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--ion-color-medium);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+
+        &:active {
+            background: var(--ion-color-step-50);
+        }
+    }
+
+    .btn-save {
+        flex: 2;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        background: var(--ion-color-primary);
+        color: white;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.15s;
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        &:active:not(:disabled) {
+            opacity: 0.85;
+        }
+    }
+}

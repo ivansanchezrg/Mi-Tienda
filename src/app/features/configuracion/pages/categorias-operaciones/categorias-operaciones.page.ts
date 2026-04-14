@@ -10,6 +10,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { addOutline, lockClosedOutline, chevronForwardOutline } from 'ionicons/icons';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { CategoriasOperacionesService } from '../../../dashboard/services/categorias-operaciones.service';
 import { CategoriaOperacion, CategoriaOperacionInsert } from '../../../dashboard/models/categoria-operacion.model';
 import { CategoriaOperacionModalComponent } from '../../components/categoria-operacion-modal/categoria-operacion-modal.component';
@@ -26,7 +27,8 @@ import { UiService } from '@core/services/ui.service';
     IonButtons, IonBackButton, IonIcon, IonSkeletonText, IonLabel,
     IonRefresher, IonRefresherContent,
     IonFab, IonFabButton,
-    IonSegment, IonSegmentButton
+    IonSegment, IonSegmentButton,
+    EmptyStateComponent
   ]
 })
 export class CategoriasOperacionesPage implements OnInit {
@@ -98,9 +100,7 @@ export class CategoriasOperacionesPage implements OnInit {
   async abrirModalNueva() {
     const modal = await this.modalCtrl.create({
       component: CategoriaOperacionModalComponent,
-      componentProps: { tipoInicial: this.segmentoActual },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { tipoInicial: this.segmentoActual }
     });
     await modal.present();
 
@@ -125,9 +125,7 @@ export class CategoriasOperacionesPage implements OnInit {
   private async abrirModalEditar(categoria: CategoriaOperacion) {
     const modal = await this.modalCtrl.create({
       component: CategoriaOperacionModalComponent,
-      componentProps: { categoria },
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      componentProps: { categoria }
     });
     await modal.present();
 

@@ -46,9 +46,7 @@ export class ConfiguracionPage {
 
   async verLogs() {
     const modal = await this.modalCtrl.create({
-      component: LogsModalComponent,
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+      component: LogsModalComponent
     });
     await modal.present();
   }

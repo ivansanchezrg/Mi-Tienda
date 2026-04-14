@@ -10,17 +10,22 @@ Feature principal de la app. Contiene el panel de inicio y las operaciones diari
 
 Panel principal con 4 secciones:
 
-| Sección             | Descripción                                                       | Visible           |
-| ------------------- | ----------------------------------------------------------------- | ----------------- |
-| Estado Banner       | Indicador verde/rojo si la caja está abierta o cerrada            | Siempre           |
-| Saldos              | Lista con saldos de Tienda, Varios, Celular, Bus + total efectivo | Siempre           |
-| Operaciones Rápidas | Botones de Ingreso, Egreso, Transferir, Gasto                     | Solo caja abierta |
-| Cuadre de Caja      | Acceso rápido para iniciar un cuadre                              | Solo caja abierta |
-| Cierre Diario       | Botón para cerrar o abrir el día                                  | Siempre           |
+| Sección             | Descripción                                                       | Visible                      |
+| ------------------- | ----------------------------------------------------------------- | ---------------------------- |
+| Estado Banner       | Indicador verde/rojo si la caja está abierta o cerrada            | Siempre                      |
+| Saldos              | Lista con saldos de Tienda, Varios, Celular, Bus + total efectivo | Siempre                      |
+| Caja Chica          | Saldo del cajón diario (CAJA_CHICA)                               | Solo si caja abierta         |
+| Operaciones Rápidas | Botones de Ingreso, Egreso, Transferir, Gasto                     | Solo caja abierta            |
+| Cuadre de Caja      | Acceso rápido para iniciar un cuadre                              | Solo caja abierta            |
+| Cierre Diario       | Botón para cerrar o abrir el día                                  | Siempre                      |
+
+**Estado "caja abierta"** se lee de `TurnosCajaService.cajaAbierta$` (derivado reactivo de `turnoActivo$`). Cuando no hay turno activo: oculta la fila de Caja Chica y la excluye del cálculo de Total Efectivo. Ver [Estado reactivo de turno](#estado-reactivo-de-turno--single-source-of-truth) más abajo.
 
 **Datos:** Conectado a Supabase mediante servicios.
 
-**Notificaciones:** `NotificacionesService.getNotificaciones()` se llama al cargar y muestra un badge con el total de alertas activas. Tipos posibles: `DEUDA_CELULAR`, `SALDO_BAJO_BUS`, `FACTURACION_BUS_PENDIENTE`, `FACTURACION_BUS_PROXIMA`. Ver detalle en [RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md#notificaciones-bus-en-home).
+**Notificaciones:** `NotificacionesService.getNotificaciones()` se llama al cargar y muestra un badge con el total de alertas activas. Tipos posibles: `DEUDA_CELULAR`, `SALDO_BAJO_BUS`, `FACTURACION_BUS_PENDIENTE`, `FACTURACION_BUS_PROXIMA`, `STOCK_BAJO`. Ver detalle en [RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md#notificaciones-bus-en-home).
+
+El modal de notificaciones (`NotificacionesModalComponent`) soporta un ítem expandible para `STOCK_BAJO`: si hay 1 producto navega directo a su Kárdex; si hay 2+ despliega la lista con acceso individual a cada producto.
 
 **Documentación completa:** Ver [8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)
 
@@ -28,28 +33,30 @@ Panel principal con 4 secciones:
 
 ### Cierre Diario (`pages/cierre-diario/`)
 
-Wizard de 2 pasos para cerrar el día:
+Wizard de **2 pasos** para cerrar el día (v5 — 2026-03-06):
 
-**Paso 1 - Ingresar Saldos:**
+**Paso 1 — Datos del Turno (3 inputs):**
+- Saldo virtual celular final (input)
+- Saldo virtual bus final (input)
+- Efectivo contado en cajón (input `.destacado`)
+- Feedback en tiempo real: ventas calculadas, diferencia de conteo, alertas
+- Bloquea "Ver Resumen" si algún campo es inválido o hay ventas negativas
 
-- Saldo virtual celular final
-- Saldo virtual bus final
-- Efectivo total recaudado
-- Inputs con `CurrencyInputDirective` para formato automático
+**Paso 2 — Resumen y Confirmación:**
+- **Card "Conteo del Cajón"** siempre visible (el cierre requiere turno abierto, siempre hay cajón que conciliar)
+- Distribución del cajón: desglose efectivo → VARIOS → CAJA; cajón queda en $0
+- Alerta de déficit si VARIOS no recibió su fondo hoy
+- Verificación antes→después de los 4 saldos: Tienda, Varios, Celular, Bus
+- Observaciones opcionales + botón "Cerrar Caja"
 
-**Paso 2 - Verificación Final:**
-
-- Ventas del día (calculadas automáticamente)
-- Verificación de cajas (fórmula visible)
-- Alertas informativas
-- Observaciones opcionales
-- Botón de confirmación
+**Sincronización del estado POS tras cierre:**
+Al finalizar con éxito, la página llama a `TurnosCajaService.refrescarTurnoActivo()` **antes** de navegar. Esto sincroniza `turnoActivo$` de inmediato para que tabs/sidebar/home deshabiliten el POS sin esperar al round-trip del evento Realtime UPDATE sobre `turnos_caja`.
 
 **Patrones utilizados:**
-
 - `ScrollResetDirective` para scroll al top al cambiar de paso
 - `PendingChangesGuard` para prevenir salida accidental con datos sin guardar
 - `CurrencyService` para parseo inteligente de moneda
+- `TurnosCajaService.refrescarTurnoActivo()` para sincronización proactiva post-cierre
 - `UiService` para loading y toasts
 
 **Documentación completa:** Ver [3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md)
@@ -98,11 +105,20 @@ Historial completo de recargas registradas con filtros.
 
 **Características:**
 
-- 📜 **Lista agrupada por fecha** con scroll infinito
-- 🔍 **Filtros por servicio** (Todas, Celular, Bus)
-- 📊 **Información detallada** de cada recarga
-- 🔄 **Pull-to-refresh** para actualizar datos
-- 🎨 **Diseño adaptativo** dark/light mode
+- Lista agrupada por fecha con scroll infinito
+- Filtros por servicio (Todas, Celular, Bus)
+- Pull-to-refresh para actualizar datos
+
+**Fuentes de datos — dos tablas distintas:**
+
+| Tipo en UI | Tabla | Quién escribe |
+|---|---|---|
+| `CIERRE` | `recargas` | `fn_ejecutar_cierre_diario` (pasos 13 y 14) — un registro CELULAR + uno BUS por cada cierre de turno |
+| `CARGA_VIRTUAL` | `recargas_virtuales` | `fn_registrar_recarga_proveedor_celular`, `fn_registrar_compra_saldo_bus` |
+
+La página combina ambas fuentes en `HistorialRecargasPage.cargarHistorial()` con `Promise.all` y las ordena por `created_at` descendente antes de agrupar por fecha.
+
+> Ver flujo completo en [RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md#base-de-datos).
 
 ---
 
@@ -117,26 +133,16 @@ Historial de movimientos por caja con diseño híbrido (Home pattern + empresari
 - 📜 **Scroll infinito** con agrupación por fecha
 - 📱 **Header dinámico** - saldo aparece al hacer scroll
 - 🎨 **Diseño adaptativo** dark/light mode
+- 🔒 **Restricción de turno ajeno:** si se navega a Caja Chica con turno activo de otro empleado (`turnoAjeno=true` en query params), el `⋮` del header queda deshabilitado. La función SQL también lo rechaza como última línea de defensa.
+- 👤 **Menú por rol:** CELULAR y BUS solo muestran el `⋮` a usuarios con rol `ADMIN`. Para empleados el menú está oculto. El rol se lee desde `AuthService.getUsuarioActual()` (Preferences, sin consulta a BD).
 
 **Documentación completa:** Ver [1_OPERACIONES-CAJA.md](./1_OPERACIONES-CAJA.md)
 
 ---
 
-### Gastos Diarios
-
-> ⚠️ **Movido a feature independiente:** `src/app/features/gastos-diarios/`
-> La página `gastos-diarios` y el componente `gasto-modal` ya no están en `dashboard/`. La ruta `/home/gastos-diarios` sigue funcionando igual.
-> **Documentación completa:** Ver [GASTOS-DIARIOS-README.md](../../../gastos-diarios/docs/GASTOS-DIARIOS-README.md)
-
 ---
 
 ## Componentes Modales
-
-### Gasto Modal
-
-> ⚠️ **Movido a** `src/app/features/gastos-diarios/components/gasto-modal/`
-
----
 
 ### Registrar Recarga / Pagar Deudas / Liquidación Bus / Historial Modal
 
@@ -169,8 +175,67 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 /home/recargas-virtuales     → RecargasVirtualesPage
 /home/pagar-deudas           → PagarDeudasPage
 /home/historial-recargas     → HistorialRecargasPage
-/home/gastos-diarios         → GastosDiariosPage
 ```
+
+---
+
+## Estado reactivo de turno — Single Source of Truth
+
+Desde 2026-04-11 el estado "POS habilitado" ya **no** vive en `configuraciones.pos_habilitado` (eliminado). Ahora se deriva automáticamente de si hay un turno de caja abierto.
+
+### TurnosCajaService como fuente única
+
+`TurnosCajaService` expone dos observables de estado que todo el resto de la app consume:
+
+```typescript
+turnoActivo$: Observable<TurnoCaja | null>     // turno completo o null
+cajaAbierta$: Observable<boolean>              // derivado: turnoActivo !== null
+turnoActivoValue: TurnoCaja | null             // valor sincrono (para guards)
+```
+
+**Arranque del servicio:**
+- Instanciado en `AppComponent` via `inject(TurnosCajaService)` porque `providedIn: 'root'` es lazy y necesitamos que el constructor corra al bootstrap.
+- El constructor se suscribe a `AuthService.usuarioActual$` y llama `inicializarEstadoReactivo()` al login / `cerrarRealtimeTurnos()` al logout. Se registra en `SupabaseService.registerBeforeCleanup` para limpiar canales antes del sign out.
+- Inversión de dependencia: no es `AuthService` quien llama a `TurnosCajaService` (evita ciclo), sino al revés.
+
+**Realtime:**
+- Canal `turnos-caja-global` filtrado por `hora_fecha_cierre IS NULL`.
+- `INSERT` → si el turno creado está abierto, refresca `turnoActivo$`.
+- `UPDATE` → si el turno en curso se cerró, emite `null`.
+- `DELETE` → si es el turno actual, emite `null`.
+- Requiere `REPLICA IDENTITY FULL` sobre la tabla + política RLS de SELECT — ver [`sql/setup/realtime_turnos_caja.sql`](./sql/setup/realtime_turnos_caja.sql).
+
+**Sincronización proactiva (evita flash de UI incorrecta):**
+- `abrirTurno()` llama `refrescarTurnoActivo()` tras éxito.
+- `repararDeficit()` (apertura atómica + ajuste) también.
+- `CierreDiarioPage` llama `refrescarTurnoActivo()` tras `fn_ejecutar_cierre_diario`.
+
+De esta forma la UI reacciona instantáneamente sin esperar el round-trip del evento Realtime.
+
+### Consumidores del estado
+
+| Elemento | Comportamiento cuando NO hay turno activo |
+|----------|-------------------------------------------|
+| Tab "POS" en tab bar | `DisabledTabComponent` — grisado con candado, click muestra toast |
+| Item "POS" en sidebar | Oculto |
+| Caja Chica en home | Oculto |
+| Total efectivo en home | Excluye saldo Caja Chica |
+| Ruta `/pos` (URL directa) | Bloqueada por `cajaAbiertaGuard` → redirige a `/home` con toast |
+
+**Nota:** el tab "Ventas" y su sidebar item son **siempre visibles** — el historial de ventas no requiere caja abierta.
+
+### Guard de ruta: `cajaAbiertaGuard`
+
+Ubicación: `src/app/core/guards/caja-abierta.guard.ts`
+
+```typescript
+canActivate: [cajaAbiertaGuard]
+```
+
+- Lee `turnoActivoValue` (O(1), sin query).
+- Fallback: primer valor del `turnoActivo$` si el BehaviorSubject aún no emitió.
+- Si no hay turno → toast + redirección a `/home`.
+- Protege `/pos` de deep-links, historial de navegación o URLs directas.
 
 ---
 
@@ -181,13 +246,11 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 | RecargasService          | `dashboard/services/recargas.service.ts`               | Operaciones de cierre diario, historial de recargas |
 | CajasService             | `dashboard/services/cajas.service.ts`                  | Operaciones de cajas, transferencias, saldos        |
 | OperacionesCajaService   | `dashboard/services/operaciones-caja.service.ts`       | Consulta de operaciones con filtros y paginación    |
-| TurnosCajaService        | `dashboard/services/turnos-caja.service.ts`            | Gestión de turnos de caja (abrir/cerrar)            |
-| NotificacionesService    | `dashboard/services/notificaciones.service.ts`         | Agrega y expone todas las notificaciones de la app  |
+| TurnosCajaService        | `dashboard/services/turnos-caja.service.ts`            | Gestión de turnos de caja + estado reactivo global (`turnoActivo$`, `cajaAbierta$`) |
+| NotificacionesService    | `core/services/notificaciones.service.ts` ⬆️           | Agrega y expone todas las notificaciones de la app  |
 | RecargasVirtualesService | `core/services/recargas-virtuales.service.ts` ⬆️       | Gestión de saldo virtual, deudas, liquidaciones     |
 | GananciasService         | `core/services/ganancias.service.ts` ⬆️                | Cálculo y verificación de ganancias mensuales BUS   |
-| GastosDiariosService     | `gastos-diarios/services/gastos-diarios.service.ts` ⬆️ | Registro de gastos operativos (NO afecta saldos)    |
-
-> ⬆️ = Movido fuera de dashboard en el refactor de features (2026-02-25)
+> ⬆️ = Movido fuera de dashboard. `RecargasVirtualesService` y `GananciasService`: refactor features (2026-02-25). `NotificacionesService`: movido a `core/services/` (2026-03-27) — usado por dashboard e inventario.
 
 ---
 
@@ -215,8 +278,8 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 3. **[3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md)** - Flujo completo del cierre diario, arquitectura del sistema de 4 cajas, validaciones y trazabilidad
 4. **[4_PROCESO_CUADRE_RECARGAS.md](./4_PROCESO_CUADRE_RECARGAS.md)** - Calculadora de verificación de efectivo (solo vista, no guarda)
 5. **[5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md)** - Patrón de actualización de UI post-operación (cargarDatos) y gotcha de Supabase INSERT/UPDATE devuelve data:null
-6. **[GASTOS-DIARIOS-README.md](../gastos-diarios/GASTOS-DIARIOS-README.md)** - Sistema de registro de gastos operativos con FAB y comprobantes
-7. **[RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md)** - Sistema completo de gestión de saldo virtual (CELULAR/BUS), deudas, liquidaciones y comisiones
+6. **[RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md)** - Sistema completo de gestión de saldo virtual (CELULAR/BUS), deudas, liquidaciones y comisiones
+7. ~~**GASTOS-DIARIOS-README.md**~~ — **ELIMINADO en v5** (2026-03-06). Los gastos operativos se registran como EGRESO desde CAJA_CHICA en `operacion-modal`.
 8. **[8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)** - Flujo de apertura de turno, modal de verificación de fondo, estados del banner y tabla turnos_caja
 
 ### Otros Recursos
@@ -238,7 +301,8 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 
 - Constantes centralizadas en tabla `configuraciones`
 - Fácil modificación sin redeploy
-- Ejemplos: `fondo_fijo_diario`, `porcentaje_comision`
+- Claves con prefijo por módulo: `caja_fondo_fijo_diario`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`, `pos_iva_porcentaje`
+- El estado "POS habilitado" ya **no** es una configuración: se deriva automáticamente de `turnos_caja` via `TurnosCajaService.cajaAbierta$` (ver [Estado reactivo de turno](#estado-reactivo-de-turno--single-source-of-truth))
 
 ### Transactional PostgreSQL Functions
 
@@ -294,18 +358,17 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 
 ## Estado del Proyecto
 
-**Última actualización:** 2026-02-26
+**Última actualización:** 2026-04-11 — **v5.5** (POS habilitado se deriva de turno abierto; `pos_habilitado` eliminado de BD — Single Source of Truth)
 
 **Módulos completados:**
 
-- ✅ Home con saldos en tiempo real
-- ✅ Cierre Diario (v4.0 ultra-simplificado)
+- ✅ Home con saldos en tiempo real (CAJA, CAJA_CHICA, VARIOS, CELULAR, BUS) y reactivo a `turnoActivo$`
+- ✅ Cierre Diario (v5.5 — wizard 2 pasos, sincronización proactiva de `turnoActivo$` tras cierre)
 - ✅ Operaciones de Caja con historial
 - ✅ Cuadre de Caja (calculadora)
 - ✅ Recargas Virtuales (CELULAR/BUS)
 - ✅ Pagar Deudas con comprobantes
-- ✅ Gastos Diarios con FAB
-- ✅ Ingreso/Egreso con categorías contables
+- ✅ Ingreso/Egreso con categorías contables (reemplaza Gastos Diarios)
 
 **Pendientes:**
 
