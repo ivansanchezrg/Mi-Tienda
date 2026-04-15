@@ -7,10 +7,14 @@ DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
 );
 
 -- ==========================================
--- FUNCIÓN: fn_registrar_venta_pos (v1.7)
+-- FUNCIÓN: fn_registrar_venta_pos (v1.8)
 -- ==========================================
 -- Procesa una venta del POS en una transacción atómica.
 -- Si CUALQUIER paso falla, PostgreSQL hace rollback automático completo.
+--
+-- v1.8 — Padre-hijo: p_items JSONB acepta producto_stock_id y cantidad_stock opcionales.
+--   Si un item es "padre" (ej: cajetilla), producto_stock_id apunta al hijo (ej: cigarro)
+--   y cantidad_stock = cantidad * factor_conversion. El trigger descuenta del hijo.
 --
 -- v1.7 — Snapshot de costo: lee precio_costo de productos al momento de la venta
 --   y lo persiste en ventas_detalles. Garantiza que los reportes históricos no
@@ -188,14 +192,18 @@ BEGIN
       cantidad,
       precio_unitario,
       precio_costo,
-      subtotal
+      subtotal,
+      producto_stock_id,
+      cantidad_stock
     ) VALUES (
       v_venta_id,
       (v_item->>'producto_id')::UUID,
       (v_item->>'cantidad')::DECIMAL,
       (v_item->>'precio_unitario')::DECIMAL,
       COALESCE(v_precio_costo, 0),
-      (v_item->>'subtotal')::DECIMAL
+      (v_item->>'subtotal')::DECIMAL,
+      (v_item->>'producto_stock_id')::UUID,
+      (v_item->>'cantidad_stock')::DECIMAL
     );
   END LOOP;
 
@@ -219,6 +227,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, INTEGER, UUID, TE
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_registrar_venta_pos IS
+  'v1.8 — Padre-hijo: producto_stock_id y cantidad_stock en ventas_detalles para empaques. '
   'v1.7 — Snapshot de costo: persiste precio_costo en ventas_detalles al momento de la venta. '
   'v1.6 — Descuentos: persiste monto (p_descuento) y porcentaje (p_descuento_pct). '
   'Descuento no aplica para FIADO (validado en frontend). '

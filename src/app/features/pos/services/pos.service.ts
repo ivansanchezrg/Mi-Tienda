@@ -55,7 +55,9 @@ export class PosService {
             producto_id: item.id,
             cantidad: item.cantidad,
             precio_unitario: item.precio_venta,
-            subtotal: item.subtotal
+            subtotal: item.subtotal,
+            producto_stock_id: item.producto_stock_id || null,
+            cantidad_stock: item.cantidad_stock || null
         }));
 
         // 3. Llamar a la función PostgreSQL (1 sola llamada — transacción atómica)

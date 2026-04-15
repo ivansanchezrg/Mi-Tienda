@@ -180,7 +180,9 @@ export class ShareVentaService {
             ctx.textAlign = 'right';
             ctx.font = '13px Arial';
             ctx.fillStyle = '#1a1a1a';
-            ctx.fillText(item.cantidad.toString(), this.CANVAS_WIDTH - this.PADDING - 130, y);
+            const cantLabel = item.unidad_medida && item.unidad_medida !== 'und'
+                ? `${item.cantidad} ${item.unidad_medida}` : item.cantidad.toString();
+            ctx.fillText(cantLabel, this.CANVAS_WIDTH - this.PADDING - 130, y);
             ctx.fillStyle = '#888';
             ctx.font = '12px Arial';
             ctx.fillText(`$${this.currency.format(item.precio_unitario)}`, this.CANVAS_WIDTH - this.PADDING - 68, y);

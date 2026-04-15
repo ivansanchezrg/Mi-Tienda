@@ -92,7 +92,7 @@
       @for (item of venta.ventas_detalles; track item.id) {
       <div class="item-row">
         <span class="col-desc item-nombre">{{ item.producto_nombre }}</span>
-        <span class="col-cant">{{ item.cantidad }}</span>
+        <span class="col-cant">{{ item.cantidad }}{{ item.unidad_medida && item.unidad_medida !== 'und' ? ' ' + item.unidad_medida : '' }}</span>
         <span class="col-precio">${{ currencyService.format(item.precio_unitario) }}</span>
         <span class="col-subtotal">${{ currencyService.format(item.subtotal) }}</span>
       </div>

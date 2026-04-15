@@ -147,7 +147,13 @@
         class="suggestion-item" [class.suggestion-active]="i === sugerenciaActiva">
         <ion-label>
           <h2>{{ prod.nombre }}</h2>
+          @if (prod.producto_hijo_id) {
+          <p>Empaque x{{ prod.factor_conversion }}</p>
+          } @else if (prod.tipo_venta === 'PESO') {
+          <p>Stock: {{ prod.stock_actual }} {{ prod.unidad_medida }}</p>
+          } @else {
           <p>Stock: {{ prod.stock_actual }}</p>
+          }
         </ion-label>
         <div slot="end" class="suggestion-end">
           <span class="suggestion-price">${{ currencyService.format(prod.precio_venta) }}</span>
@@ -191,14 +197,14 @@
           <div class="item-main">
             <p class="product-name">{{ item.nombre }}</p>
             <div class="price-row">
-              <span class="unit-price">${{ currencyService.format(item.precio_venta) }} c/u</span>
+              <span class="unit-price">${{ currencyService.format(item.precio_venta) }}{{ item.tipo_venta === 'PESO' ? '/' + item.unidad_medida : ' c/u' }}</span>
               @if (mostrarDesglose && !item.tiene_iva) {
                 <ion-badge color="medium" class="stock-badge">IVA 0%</ion-badge>
               }
-              @if (item.stock_actual <= item.cantidad) {
+              @if (item.stock_disponible <= item.cantidad * (item.producto_stock_id ? item.factor_conversion : 1)) {
                 <ion-badge color="danger" class="stock-badge">¡Último!</ion-badge>
-              } @else if ((item.stock_actual - item.cantidad) <= item.stock_minimo) {
-                <ion-badge color="warning" class="stock-badge">Quedan {{ item.stock_actual - item.cantidad }}</ion-badge>
+              } @else if ((item.stock_disponible - item.cantidad * (item.producto_stock_id ? item.factor_conversion : 1)) <= item.stock_minimo) {
+                <ion-badge color="warning" class="stock-badge">Quedan pocos</ion-badge>
               }
             </div>
           </div>
@@ -207,6 +213,13 @@
           <div slot="end" class="item-actions">
             <span class="total-price">${{ currencyService.format(item.subtotal) }}</span>
 
+            @if (item.tipo_venta === 'PESO') {
+            <!-- PESO: solo muestra cantidad con UoM, click para editar -->
+            <div class="stepper-wrapper">
+              <span class="stepper-val peso-val" (click)="editarCantidad(item)">{{ item.cantidad }} {{ item.unidad_medida }}</span>
+            </div>
+            } @else {
+            <!-- UNIDAD / PADRE: stepper normal -->
             <div class="stepper-wrapper">
               <button class="stepper-btn" (click)="decrementar(item)" [disabled]="item.cantidad <= 1">
                 <ion-icon name="remove-outline"></ion-icon>
@@ -216,6 +229,7 @@
                 <ion-icon name="add-outline"></ion-icon>
               </button>
             </div>
+            }
           </div>
 
         </ion-item>
