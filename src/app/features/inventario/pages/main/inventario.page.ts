@@ -18,7 +18,8 @@ import {
   createOutline,
   trashOutline,
   addCircleOutline,
-  chevronDownOutline
+  chevronDownOutline,
+  layersOutline
 } from 'ionicons/icons';
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
@@ -89,7 +90,8 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       createOutline,
       trashOutline,
       addCircleOutline,
-      chevronDownOutline
+      chevronDownOutline,
+      layersOutline
     });
   }
 
@@ -105,10 +107,40 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       }
       const producto = this.resolverImagenUrl(event.producto);
       if (event.tipo === 'CREADO') {
-        this.items.unshift(producto);
-      } else {
-        const idx = this.items.findIndex(p => p.id === producto.id);
-        if (idx >= 0) this.items[idx] = producto;
+        if (producto.producto_hijo_id) {
+          // Es empaque (padre): no mostrarlo en el grid, decorar el hijo con info del padre
+          const hijo = this.items.find(p => p.id === producto.producto_hijo_id);
+          if (hijo) {
+            hijo.producto_padre = {
+              id: producto.id,
+              nombre: producto.nombre,
+              precio_venta: producto.precio_venta,
+              factor_conversion: producto.factor_conversion
+            };
+          }
+        } else {
+          this.items.unshift(producto);
+        }
+      } else if (event.tipo === 'ACTUALIZADO') {
+        if (producto.producto_hijo_id) {
+          // Empaque actualizado: refrescar decoración en el hijo
+          const hijo = this.items.find(p => p.id === producto.producto_hijo_id);
+          if (hijo) {
+            hijo.producto_padre = {
+              id: producto.id,
+              nombre: producto.nombre,
+              precio_venta: producto.precio_venta,
+              factor_conversion: producto.factor_conversion
+            };
+          }
+        } else {
+          // Producto base actualizado: preservar la decoración producto_padre
+          const idx = this.items.findIndex(p => p.id === producto.id);
+          if (idx >= 0) {
+            const padreInfo = this.items[idx].producto_padre;
+            this.items[idx] = { ...producto, producto_padre: padreInfo };
+          }
+        }
       }
     });
   }
@@ -194,6 +226,10 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
 
   irAEditar(producto: Producto) {
     this.navCtrl.navigateForward(`/inventario/editar/${producto.id}`);
+  }
+
+  irAEditarEmpaque(empaqueId: string) {
+    this.navCtrl.navigateForward(`/inventario/editar/${empaqueId}`);
   }
 
   // ==========================

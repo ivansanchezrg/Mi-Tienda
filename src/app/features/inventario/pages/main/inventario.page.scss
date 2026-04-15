@@ -178,6 +178,11 @@ ion-searchbar {
             background: rgba(0, 0, 0, 0.6);
             color: white;
         }
+
+        &.info {
+            background: var(--ion-color-primary);
+            color: white;
+        }
     }
 }
 
@@ -202,6 +207,73 @@ ion-searchbar {
 .product-category {
     margin: 0;
     font-size: 11px;
+
+    .tipo-tag {
+        display: inline-block;
+        font-size: 9px;
+        font-weight: var(--font-weight-bold);
+        padding: 1px 5px;
+        border-radius: var(--radius-pill);
+        margin-left: 4px;
+        vertical-align: middle;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+
+        &.peso {
+            background: rgba(var(--ion-color-tertiary-rgb, 82, 96, 255), 0.12);
+            color: var(--ion-color-tertiary, #5260ff);
+        }
+
+        &.empaque {
+            background: rgba(var(--ion-color-primary-rgb), 0.1);
+            color: var(--ion-color-primary);
+        }
+    }
+}
+
+.empaque-info-card {
+    margin-top: var(--spacing-sm);
+    padding: 5px 8px;
+    border-radius: var(--radius-sm);
+    background: rgba(var(--ion-color-primary-rgb), 0.07);
+    border-left: 2px solid var(--ion-color-primary);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    &:active {
+        background: rgba(var(--ion-color-primary-rgb), 0.15);
+    }
+
+    .empaque-header {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--ion-color-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        ion-icon {
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+    }
+
+    .empaque-detalle {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        color: var(--ion-color-step-500);
+        margin-top: 1px;
+        padding-left: 17px;
+    }
+
+    .empaque-separator {
+        color: var(--ion-color-step-300);
+    }
 }
 
 .card-footer {

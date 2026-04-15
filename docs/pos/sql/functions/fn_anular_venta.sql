@@ -1,5 +1,5 @@
 -- ==========================================
--- FUNCIÓN: fn_anular_venta (v1.1)
+-- FUNCIÓN: fn_anular_venta (v1.2)
 -- ==========================================
 -- Anula una venta completada revirtiendo TODOS sus efectos:
 --   1. Repone stock de cada producto vendido
@@ -71,30 +71,33 @@ BEGIN
 
     -- ══════════════════════════════════════
     -- 1. Reponer stock + registrar kardex
+    -- v1.2: soporta padre-hijo — repone al hijo si producto_stock_id existe
     -- ══════════════════════════════════════
     FOR v_detalle IN
-        SELECT producto_id, cantidad
+        SELECT producto_id, cantidad,
+               COALESCE(producto_stock_id, producto_id) AS target_id,
+               COALESCE(cantidad_stock, cantidad) AS target_qty
         FROM   ventas_detalles
         WHERE  venta_id = p_venta_id
     LOOP
         SELECT stock_actual INTO v_stock_actual
         FROM   productos
-        WHERE  id = v_detalle.producto_id;
+        WHERE  id = v_detalle.target_id;
 
         UPDATE productos
-        SET    stock_actual = stock_actual + v_detalle.cantidad
-        WHERE  id = v_detalle.producto_id;
+        SET    stock_actual = stock_actual + v_detalle.target_qty
+        WHERE  id = v_detalle.target_id;
 
         INSERT INTO kardex_inventario (
             producto_id, tipo_movimiento, cantidad,
             stock_anterior, stock_nuevo,
             referencia_id, observaciones
         ) VALUES (
-            v_detalle.producto_id,
+            v_detalle.target_id,
             'ANULACION_VENTA',
-            v_detalle.cantidad,
+            v_detalle.target_qty,
             v_stock_actual,
-            v_stock_actual + v_detalle.cantidad,
+            v_stock_actual + v_detalle.target_qty,
             p_venta_id,
             'Anulación Venta POS #' || v_venta.numero_comprobante || ': ' || TRIM(p_motivo)
         );
@@ -188,6 +191,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_anular_venta(UUID, INTEGER, TEXT) TO authen
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_anular_venta IS
+    'v1.2 — Padre-hijo: repone stock al hijo (producto_stock_id) si la venta fue de un empaque. '
     'v1.1 — Anula una venta completada revirtiendo stock (kardex ANULACION_VENTA), '
     'saldo de caja (EGRESO si fue EFECTIVO), y cuentas por cobrar (DELETE si fue FIADO sin abonos). '
     'Bloquea si es FIADO con abonos parciales — esa transacción ya es real y no se puede revertir automáticamente. '

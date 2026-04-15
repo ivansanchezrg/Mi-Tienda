@@ -26,6 +26,7 @@ import { ClientesService } from '../../../clientes/services/clientes.service';
 import { Cliente } from '../../../clientes/models/cliente.model';
 import { SeleccionarClienteModalComponent } from '../../../clientes/components/seleccionar-cliente-modal/seleccionar-cliente-modal.component';
 import { CobrarModalComponent } from '../../components/cobrar-modal/cobrar-modal.component';
+import { CantidadModalComponent, CantidadModalResult } from '../../components/cantidad-modal/cantidad-modal.component';
 import { NetworkService } from '../../../../core/services/network.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
@@ -315,10 +316,35 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  agregarAlCarrito(producto: ProductoPOS) {
+  async agregarAlCarrito(producto: ProductoPOS) {
+    // PESO: si ya está en carrito, editar; si no, agregar nuevo
+    if (producto.tipo_venta === 'PESO') {
+      const existePeso = this.carrito.find(item => item.id === producto.id);
+      if (existePeso) {
+        await this.editarCantidad(existePeso);
+      } else {
+        await this.pedirCantidadPeso(producto);
+      }
+      return;
+    }
+
+    // Resolver stock disponible (hijo si es padre, propio si no)
+    let stockDisponible = producto.stock_actual;
+    if (producto.producto_hijo_id) {
+      stockDisponible = await this.inventarioService.obtenerStockHijo(producto.producto_hijo_id);
+    }
+
+    // Para padres: cuántos paquetes se pueden vender
+    const maxPaquetes = producto.producto_hijo_id
+        ? Math.floor(stockDisponible / producto.factor_conversion)
+        : stockDisponible;
+
     const existe = this.carrito.find(item => item.id === producto.id);
     if (existe) {
-      if (existe.cantidad < producto.stock_actual) {
+      const maxRestante = producto.producto_hijo_id
+          ? maxPaquetes
+          : stockDisponible;
+      if (existe.cantidad < maxRestante) {
         this.incrementar(existe);
         this.feedbackEscaneo(existe.id);
         this.scrollToBottom();
@@ -326,12 +352,18 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         this.ui.showToast('Stock insuficiente', 'warning');
       }
     } else {
-      if (producto.stock_actual > 0) {
-        this.carrito.push({
+      if (maxPaquetes > 0) {
+        const item: CartItem = {
           ...producto,
           cantidad: 1,
-          subtotal: producto.precio_venta
-        });
+          subtotal: producto.precio_venta,
+          stock_disponible: stockDisponible,
+          ...(producto.producto_hijo_id ? {
+            producto_stock_id: producto.producto_hijo_id,
+            cantidad_stock: producto.factor_conversion
+          } : {})
+        };
+        this.carrito.push(item);
         this.lastAddedId = producto.id;
         setTimeout(() => { this.lastAddedId = null; }, 600);
         this.feedbackEscaneo(producto.id);
@@ -340,6 +372,54 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         this.ui.showToast('Producto sin stock', 'danger');
       }
     }
+  }
+
+  /** Modal para ingresar cantidad (granel o unidad) al agregar un producto nuevo */
+  private async pedirCantidadPeso(producto: ProductoPOS, itemExistente?: CartItem) {
+    const yaEnCarrito = itemExistente ? itemExistente.cantidad : 0;
+    const disponible = producto.stock_actual - yaEnCarrito;
+    if (disponible <= 0) {
+      this.ui.showToast('Stock insuficiente', 'warning');
+      return;
+    }
+
+    const modal = await this.modalCtrl.create({
+      component: CantidadModalComponent,
+      componentProps: {
+        nombre: producto.nombre,
+        precioUnitario: producto.precio_venta,
+        unidadMedida: producto.unidad_medida,
+        esPeso: true,
+        stockDisponible: disponible,
+        cantidadActual: yaEnCarrito,
+        esEdicion: !!itemExistente
+      },
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
+      cssClass: 'bottom-sheet-modal',
+      backdropDismiss: false
+    });
+
+    await modal.present();
+    const { data, role } = await modal.onDidDismiss<CantidadModalResult>();
+    if (role !== 'confirm' || !data) return;
+
+    const cantRedondeada = data.cantidad;
+    if (itemExistente) {
+      itemExistente.cantidad += cantRedondeada;
+      itemExistente.subtotal = Math.round(itemExistente.cantidad * itemExistente.precio_venta * 100) / 100;
+    } else {
+      this.carrito.push({
+        ...producto,
+        cantidad: cantRedondeada,
+        subtotal: Math.round(cantRedondeada * producto.precio_venta * 100) / 100,
+        stock_disponible: producto.stock_actual
+      });
+      this.lastAddedId = producto.id;
+      setTimeout(() => { this.lastAddedId = null; }, 600);
+    }
+    this.feedbackEscaneo(producto.id);
+    this.scrollToBottom();
   }
 
   private scrollToBottom() {
@@ -352,16 +432,26 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   /** Agrega N unidades de un producto al carrito (para patrón cantidad*codigo) */
-  agregarAlCarritoConCantidad(producto: ProductoPOS, cantidad: number) {
-    const disponible = producto.stock_actual;
-    if (disponible <= 0) {
+  async agregarAlCarritoConCantidad(producto: ProductoPOS, cantidad: number) {
+    // Resolver stock disponible
+    let stockDisponible = producto.stock_actual;
+    if (producto.producto_hijo_id) {
+      stockDisponible = await this.inventarioService.obtenerStockHijo(producto.producto_hijo_id);
+    }
+
+    const esPadre = !!producto.producto_hijo_id;
+    const maxUnidades = esPadre
+        ? Math.floor(stockDisponible / producto.factor_conversion)
+        : stockDisponible;
+
+    if (maxUnidades <= 0) {
       this.ui.showToast('Producto sin stock', 'danger');
       return;
     }
 
     const existe = this.carrito.find(item => item.id === producto.id);
     const yaEnCarrito = existe ? existe.cantidad : 0;
-    const maximo = disponible - yaEnCarrito;
+    const maximo = maxUnidades - yaEnCarrito;
     const cantidadReal = Math.min(cantidad, maximo);
 
     if (cantidadReal <= 0) {
@@ -371,13 +461,22 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     if (existe) {
       existe.cantidad += cantidadReal;
-      existe.subtotal = existe.cantidad * existe.precio_venta;
+      existe.subtotal = Math.round(existe.cantidad * existe.precio_venta * 100) / 100;
+      if (esPadre) {
+        existe.cantidad_stock = existe.cantidad * producto.factor_conversion;
+      }
     } else {
-      this.carrito.push({
+      const item: CartItem = {
         ...producto,
         cantidad: cantidadReal,
-        subtotal: cantidadReal * producto.precio_venta
-      });
+        subtotal: Math.round(cantidadReal * producto.precio_venta * 100) / 100,
+        stock_disponible: stockDisponible,
+        ...(esPadre ? {
+          producto_stock_id: producto.producto_hijo_id,
+          cantidad_stock: cantidadReal * producto.factor_conversion
+        } : {})
+      };
+      this.carrito.push(item);
       this.lastAddedId = producto.id;
       setTimeout(() => { this.lastAddedId = null; }, 600);
     }
@@ -428,61 +527,73 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   incrementar(item: CartItem) {
-    if (item.cantidad < item.stock_actual) {
+    if (item.tipo_venta === 'PESO') {
+      this.editarCantidad(item);
+      return;
+    }
+    const maxCantidad = item.producto_stock_id
+        ? Math.floor(item.stock_disponible / item.factor_conversion)
+        : item.stock_disponible;
+    if (item.cantidad < maxCantidad) {
       item.cantidad++;
-      item.subtotal = item.cantidad * item.precio_venta;
+      item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
+      if (item.producto_stock_id) {
+        item.cantidad_stock = item.cantidad * item.factor_conversion;
+      }
     } else {
       this.ui.showToast('Máximo stock alcanzado', 'warning');
     }
   }
 
   decrementar(item: CartItem) {
+    if (item.tipo_venta === 'PESO') {
+      this.editarCantidad(item);
+      return;
+    }
     if (item.cantidad > 1) {
       item.cantidad--;
-      item.subtotal = item.cantidad * item.precio_venta;
+      item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
+      if (item.producto_stock_id) {
+        item.cantidad_stock = item.cantidad * item.factor_conversion;
+      }
     } else {
       this.eliminar(item);
     }
   }
 
   async editarCantidad(item: CartItem) {
-    const precio = this.currencyService.format(item.precio_venta);
-    const alert = await this.alertCtrl.create({
-      header: item.nombre,
-      message: `$${precio} c/u · Stock: ${item.stock_actual}`,
-      inputs: [
-        {
-          name: 'cantidad',
-          type: 'number',
-          value: item.cantidad.toString(),
-          min: 1,
-          max: item.stock_actual,
-          attributes: { inputmode: 'numeric' },
-          placeholder: 'Cantidad'
-        }
-      ],
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Confirmar',
-          handler: (data) => {
-            const nueva = parseInt(data.cantidad, 10);
-            if (!nueva || nueva < 1) {
-              this.ui.showToast('Cantidad inválida', 'warning');
-              return false;
-            }
-            if (nueva > item.stock_actual) {
-              this.ui.showToast(`Stock máximo: ${item.stock_actual}`, 'warning');
-              return false;
-            }
-            item.cantidad = nueva;
-            item.subtotal = nueva * item.precio_venta;
-            return true;
-          }
-        }
-      ]
+    const esPeso = item.tipo_venta === 'PESO';
+    const esPadre = !!item.producto_stock_id;
+    const maxStock = esPadre
+        ? Math.floor(item.stock_disponible / item.factor_conversion)
+        : item.stock_disponible;
+
+    const modal = await this.modalCtrl.create({
+      component: CantidadModalComponent,
+      componentProps: {
+        nombre: item.nombre,
+        precioUnitario: item.precio_venta,
+        unidadMedida: item.unidad_medida,
+        esPeso,
+        stockDisponible: maxStock,
+        cantidadActual: item.cantidad,
+        esEdicion: true
+      },
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
+      cssClass: 'bottom-sheet-modal',
+      backdropDismiss: false
     });
-    await alert.present();
+
+    await modal.present();
+    const { data, role } = await modal.onDidDismiss<CantidadModalResult>();
+    if (role !== 'confirm' || !data) return;
+
+    item.cantidad = data.cantidad;
+    item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
+    if (esPadre) {
+      item.cantidad_stock = item.cantidad * item.factor_conversion;
+    }
   }
 
   eliminar(item: CartItem) {
@@ -550,7 +661,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       this.sugerenciaActiva = Math.max(this.sugerenciaActiva - 1, 0);
     } else if (event.key === 'Enter') {
       const idx = this.sugerenciaActiva >= 0 ? this.sugerenciaActiva : 0;
-      this.seleccionarProductoBusqueda(this.productosBusqueda[idx]);
+      void this.seleccionarProductoBusqueda(this.productosBusqueda[idx]);
     }
   }
 
@@ -588,7 +699,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         if (cantidad > 0 && codigo) {
           const producto = await this.inventarioService.obtenerProductoPorCodigo(codigo);
           if (producto) {
-            this.agregarAlCarritoConCantidad(producto, cantidad);
+            await this.agregarAlCarritoConCantidad(producto, cantidad);
             this.buscarTexto = '';
           } else {
             this.ui.showToast(`Código "${codigo}" no encontrado`, 'warning');
@@ -600,7 +711,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       // Código exacto — se agrega directo sin confirmación
       const producto = await this.inventarioService.obtenerProductoPorCodigo(texto);
       if (producto) {
-        this.agregarAlCarrito(producto);
+        await this.agregarAlCarrito(producto);
         this.buscarTexto = '';
       } else {
         this.ui.showToast(`Código "${texto}" no encontrado`, 'warning');
@@ -611,8 +722,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   // Clic en la lista de sugerencias (Resultados de Búsqueda)
-  seleccionarProductoBusqueda(producto: ProductoPOS) {
-    this.agregarAlCarrito(producto);
+  async seleccionarProductoBusqueda(producto: ProductoPOS) {
+    await this.agregarAlCarrito(producto);
     this.buscarTexto = '';
     this.productosBusqueda = [];
     this.sugerenciaActiva = -1;
@@ -636,7 +747,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (event.key === 'Enter') {
       // Si recibimos un Enter y el buffer tiene algo (ej. EAN típico de 8 a 13 digitos)
       if (this.barcodeBuffer.length > 3) {
-        this.procesarCodigoRapido(this.barcodeBuffer);
+        void this.procesarCodigoRapido(this.barcodeBuffer);
       }
       this.barcodeBuffer = '';
     } else {
@@ -661,7 +772,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     try {
       const producto = await this.inventarioService.obtenerProductoPorCodigo(codigo);
       if (producto) {
-        this.agregarAlCarrito(producto);
+        await this.agregarAlCarrito(producto);
       } else {
         this.ui.showToast(`EAN ${codigo} no encontrado en catálogo`, 'warning');
       }

@@ -259,7 +259,14 @@ CREATE TABLE IF NOT EXISTS productos (
     tiene_iva       BOOLEAN DEFAULT TRUE,
     activo          BOOLEAN DEFAULT TRUE,
     imagen_url      TEXT,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    -- ── Granel + padre-hijo (v7) ──
+    tipo_venta          VARCHAR(10) DEFAULT 'UNIDAD' CHECK (tipo_venta IN ('UNIDAD', 'PESO')),
+    unidad_medida       VARCHAR(10) DEFAULT 'und',   -- 'und', 'kg', 'lb', 'g', 'ml', 'L'
+    producto_hijo_id    UUID REFERENCES productos(id),
+    factor_conversion   SMALLINT DEFAULT 1 CHECK (factor_conversion > 0),
+    CONSTRAINT chk_padre_solo_unidad CHECK (producto_hijo_id IS NULL OR tipo_venta = 'UNIDAD'),
+    CONSTRAINT chk_no_autoreferencia CHECK (producto_hijo_id IS DISTINCT FROM id)
 );
 
 -- 13. clientes (Consumidor Final y otros)
@@ -323,7 +330,10 @@ CREATE TABLE IF NOT EXISTS ventas_detalles (
     cantidad        DECIMAL(12,2) NOT NULL,
     precio_unitario DECIMAL(12,2) NOT NULL,
     precio_costo    DECIMAL(12,2) NOT NULL DEFAULT 0, -- snapshot del costo al momento de la venta
-    subtotal        DECIMAL(12,2) NOT NULL
+    subtotal        DECIMAL(12,2) NOT NULL,
+    -- ── Padre-hijo: a quién se descontó stock (v7) ──
+    producto_stock_id UUID REFERENCES productos(id),  -- NULL = normal, UUID hijo = padre-hijo
+    cantidad_stock    DECIMAL(12,2)                    -- NULL = normal, cantidad*factor = padre-hijo
 );
 
 -- 16. kardex_inventario (Auditoría Anti-Fraude Bodega)
@@ -476,20 +486,26 @@ CREATE TRIGGER trg_set_codigo_categoria_operacion
 --    Trigger: trg_generar_codigo_interno → BEFORE INSERT ON productos
 
 -- A. Descontar Stock y grabar Kardex al vender
+-- v7: soporta padre-hijo — si producto_stock_id existe, descuenta del hijo
 CREATE OR REPLACE FUNCTION fn_actualizar_stock_venta()
 RETURNS TRIGGER AS $$
 DECLARE
+    v_target_id    UUID;
+    v_target_qty   DECIMAL(12,2);
     v_stock_actual DECIMAL(12,2);
 BEGIN
-    SELECT stock_actual INTO v_stock_actual FROM productos WHERE id = NEW.producto_id;
-    
-    UPDATE productos 
-    SET stock_actual = stock_actual - NEW.cantidad
-    WHERE id = NEW.producto_id;
-    
+    v_target_id  := COALESCE(NEW.producto_stock_id, NEW.producto_id);
+    v_target_qty := COALESCE(NEW.cantidad_stock, NEW.cantidad);
+
+    SELECT stock_actual INTO v_stock_actual FROM productos WHERE id = v_target_id;
+
+    UPDATE productos
+    SET stock_actual = stock_actual - v_target_qty
+    WHERE id = v_target_id;
+
     INSERT INTO kardex_inventario (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_nuevo, referencia_id, observaciones)
-    VALUES (NEW.producto_id, 'VENTA', NEW.cantidad, v_stock_actual, v_stock_actual - NEW.cantidad, NEW.venta_id, 'Descuento automático por Venta POS');
-    
+    VALUES (v_target_id, 'VENTA', v_target_qty, v_stock_actual, v_stock_actual - v_target_qty, NEW.venta_id, 'Descuento automático por Venta POS');
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -626,14 +642,18 @@ INSERT INTO usuarios (nombre, usuario, rol, es_superadmin) VALUES
 
 -- Insertar 3 productos de prueba (Asumiendo IDs 1 a 6 que se generan secuencialmente arriba)
 -- 1 = Bebidas, 2 = Snacks, 4 = Lácteos
-INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva) VALUES
-(1, '786123456001', 'Coca-Cola 1L', 0.80, 1.25, 24, 5, TRUE),
-(2, '786123456002', 'Ruffles Natural 50g', 0.35, 0.50, 50, 10, TRUE),
-(4, '786123456003', 'Yogur Toni Fresa 200ml', 0.40, 0.60, 15, 5, FALSE);
+INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva, tipo_venta, unidad_medida) VALUES
+(1, '786123456001', 'Coca-Cola 1L', 0.80, 1.25, 24, 5, TRUE, 'UNIDAD', 'und'),
+(2, '786123456002', 'Ruffles Natural 50g', 0.35, 0.50, 50, 10, TRUE, 'UNIDAD', 'und'),
+(4, '786123456003', 'Yogur Toni Fresa 200ml', 0.40, 0.60, 15, 5, FALSE, 'UNIDAD', 'und');
 
 -- ==========================================
--- RESUMEN (v6.0)
+-- RESUMEN (v7.0)
 -- ==========================================
+-- v7: productos soporta granel (tipo_venta PESO + unidad_medida) y padre-hijo
+--     (producto_hijo_id + factor_conversion) para empaques (cajetilla→cigarro, cubeta→huevo).
+--     ventas_detalles agrega producto_stock_id + cantidad_stock para auditoría padre-hijo.
+--     Trigger fn_actualizar_stock_venta usa COALESCE para descontar del hijo cuando aplica.
 -- ✅ 18 Tablas | 3 Enums | 27 Índices | 1 Vista
 -- ✅ 2 Tipos de servicio (BUS, CELULAR)
 -- ✅ 4 Tipos de referencia (eliminado caja_fisica_diaria)
@@ -683,7 +703,7 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 --   • fn_registrar_adelanto_sueldo             → docs/movimientos-empleados/sql/functions/fn_registrar_adelanto_sueldo.sql
 --   • fn_pagar_nomina_empleado                 → docs/movimientos-empleados/sql/functions/fn_pagar_nomina_empleado.sql
 --
--- ✅ 18 Tablas | 26 Funciones SQL
+-- ✅ 18 Tablas | 26 Funciones SQL | Granel + Padre-Hijo (v7)
 -- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 2 inventario + 3 ventas + 2 nomina + 4 triggers/helpers)
 -- ==========================================
 

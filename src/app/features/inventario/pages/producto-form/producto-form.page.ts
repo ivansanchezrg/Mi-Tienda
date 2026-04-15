@@ -4,11 +4,11 @@ import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, Validators, 
 import { IonicModule, AlertController, NavController, ViewWillEnter } from '@ionic/angular';
 import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline } from 'ionicons/icons';
+import { arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline } from 'ionicons/icons';
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
-import { Producto } from '../../models/producto.model';
+import { Producto, TipoVenta } from '../../models/producto.model';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { InventarioService } from '../../services/inventario.service';
 
@@ -47,12 +47,19 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     modo: 'CREAR' | 'EDITAR' = 'CREAR';
     guardando = false;
     cargando = true;
+    formSubmitted = false;
     margenPorcentaje = 0;
     margenAbsoluto = 0;
 
     producto?: Producto;
     categorias: CategoriaProducto[] = [];
     codigoBarrasInicial?: string;
+
+    // Granel + padre-hijo
+    esEmpaque = false;
+    productosHijoCandidatos: Pick<Producto, 'id' | 'nombre' | 'stock_actual'>[] = [];
+    productoHijoSeleccionado: Pick<Producto, 'id' | 'nombre' | 'stock_actual'> | null = null;
+    buscandoHijo = false;
 
     // Imagen del producto
     fotoPreview: string | null = null;       // DataURL para preview local
@@ -64,7 +71,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private audioCtx: AudioContext | null = null;
 
     constructor() {
-        addIcons({ arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline });
+        addIcons({ arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline });
     }
 
     async ngOnInit() {
@@ -105,6 +112,9 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     }
 
     private initForm() {
+        const isEmpaque = !!this.producto?.producto_hijo_id;
+        this.esEmpaque = isEmpaque;
+
         this.productoForm = this.fb.group({
             codigo_barras: [this.codigoBarrasInicial || this.producto?.codigo_barras || ''],
             nombre: [this.producto?.nombre || '', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
@@ -113,8 +123,29 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             precio_venta: [this.producto?.precio_venta || '', [Validators.required, Validators.min(0.01)]],
             stock_actual: [this.producto?.stock_actual || '', [Validators.required, Validators.min(0)]],
             stock_minimo: [this.producto?.stock_minimo || 5, [Validators.required, Validators.min(0)]],
-            tiene_iva: [this.producto?.tiene_iva ?? true]
+            tiene_iva: [this.producto?.tiene_iva ?? true],
+            tipo_venta: [this.producto?.tipo_venta || 'UNIDAD'],
+            unidad_medida: [this.producto?.unidad_medida || 'und'],
+            producto_hijo_id: [this.producto?.producto_hijo_id || null, isEmpaque ? [Validators.required] : []],
+            factor_conversion: [this.producto?.factor_conversion || 1, [Validators.required, Validators.min(1)]]
         }, { validators: this.ventaMayorCostoValidator.bind(this) });
+
+        // Si estamos editando un empaque, deshabilitar stock_actual y cargar datos del hijo
+        if (isEmpaque) {
+            this.productoForm.get('stock_actual')?.disable();
+            if (this.producto?.producto_hijo_id) {
+                this.inventarioService.obtenerProductoPorId(this.producto.producto_hijo_id).then(hijo => {
+                    if (hijo) {
+                        this.productoHijoSeleccionado = { id: hijo.id, nombre: hijo.nombre, stock_actual: hijo.stock_actual };
+                    }
+                });
+            }
+        }
+
+        // En modo CREAR, marcar categoría como touched para que se vea el error de inmediato
+        if (this.modo === 'CREAR') {
+            this.productoForm.get('categoria_id')?.markAsTouched();
+        }
 
         // Cálculo dinámico del margen de ganancia
         this.productoForm.valueChanges.subscribe(v => this.calcularMargen(v));
@@ -175,9 +206,9 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         await modal.present();
         const { data } = await modal.onDidDismiss();
 
+        this.productoForm.get('categoria_id')?.markAsTouched();
         if (data) {
             this.productoForm.patchValue({ categoria_id: Number(data) });
-            this.productoForm.get('categoria_id')?.markAsTouched();
         }
     }
 
@@ -186,6 +217,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     }
 
     async guardar() {
+        this.formSubmitted = true;
         if (this.productoForm.invalid || this.guardando) {
             this.productoForm.markAllAsTouched();
             return;
@@ -196,14 +228,23 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         const value = this.productoForm.value;
         const codigoBarras = value.codigo_barras?.trim() ? value.codigo_barras.trim() : null;
 
+        const isPeso = value.tipo_venta === 'PESO';
+        const isEmpaque = this.esEmpaque && value.producto_hijo_id;
+
         const productoPayload: Partial<Producto> = {
             ...value,
             codigo_barras: codigoBarras,
             precio_costo: this.currencyService.parse(value.precio_costo),
             precio_venta: this.currencyService.parse(value.precio_venta),
-            stock_actual: Number(value.stock_actual) || 0,
+            stock_actual: isEmpaque ? 0 : (Number(value.stock_actual) || 0),
             stock_minimo: Number(value.stock_minimo) || 0,
-            activo: this.producto?.activo ?? true
+            activo: this.producto?.activo ?? true,
+            // Granel
+            tipo_venta: value.tipo_venta,
+            unidad_medida: isPeso ? value.unidad_medida : 'und',
+            // Empaque padre-hijo
+            producto_hijo_id: isEmpaque ? value.producto_hijo_id : null,
+            factor_conversion: isEmpaque ? (Number(value.factor_conversion) || 1) : 1
         };
 
         try {
@@ -378,6 +419,68 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar acentos
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-|-$/g, '');
+    }
+
+    // ==========================================
+    // TIPO VENTA + EMPAQUE
+    // ==========================================
+
+    onTipoVentaChange(tipo: string) {
+        if (tipo === 'PESO') {
+            // PESO no puede ser empaque
+            this.esEmpaque = false;
+            this.productoHijoSeleccionado = null;
+            this.productoForm.patchValue({
+                producto_hijo_id: null,
+                factor_conversion: 1,
+                unidad_medida: 'lb'
+            });
+        } else {
+            this.productoForm.patchValue({ unidad_medida: 'und' });
+        }
+    }
+
+    toggleEmpaque(checked: boolean) {
+        this.esEmpaque = checked;
+        const hijoCtr = this.productoForm.get('producto_hijo_id');
+        if (checked) {
+            this.productoForm.get('stock_actual')?.disable();
+            hijoCtr?.setValidators([Validators.required]);
+        } else {
+            this.productoHijoSeleccionado = null;
+            this.productosHijoCandidatos = [];
+            this.productoForm.get('stock_actual')?.enable();
+            hijoCtr?.clearValidators();
+            this.productoForm.patchValue({ producto_hijo_id: null, factor_conversion: 1 });
+        }
+        hijoCtr?.updateValueAndValidity();
+    }
+
+    async buscarHijo(texto: string) {
+        if (!texto || texto.length < 2) {
+            this.productosHijoCandidatos = [];
+            return;
+        }
+        this.buscandoHijo = true;
+        this.productosHijoCandidatos = await this.inventarioService.buscarProductosHijo(texto);
+        this.buscandoHijo = false;
+    }
+
+    seleccionarHijo(hijo: Pick<Producto, 'id' | 'nombre' | 'stock_actual'>) {
+        this.productoHijoSeleccionado = hijo;
+        this.productoForm.patchValue({ producto_hijo_id: hijo.id });
+        this.productosHijoCandidatos = [];
+    }
+
+    quitarHijo() {
+        this.productoHijoSeleccionado = null;
+        this.productoForm.patchValue({ producto_hijo_id: null, factor_conversion: 1 });
+    }
+
+    get unidadMedidaLabel(): string {
+        const um = this.productoForm?.get('unidad_medida')?.value;
+        const labels: Record<string, string> = { kg: 'Kilogramo', lb: 'Libra', g: 'Gramo', ml: 'Mililitro', L: 'Litro' };
+        return labels[um] || um;
     }
 
     esCampoInvalido(campo: string): boolean {

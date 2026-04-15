@@ -27,10 +27,12 @@ export class InventarioService {
         const from = page * pageSize;
         const to = from + pageSize - 1;
 
+        // Solo productos base (no-padres): paginación limpia sin huecos.
         let query = this.supabase.client
             .from('productos')
             .select('*, categoria:categorias_productos(*)')
             .eq('activo', true)
+            .is('producto_hijo_id', null)
             .order('nombre')
             .range(from, to);
 
@@ -43,7 +45,32 @@ export class InventarioService {
         }
 
         const { data } = await query;
-        return data || [];
+        if (!data || data.length === 0) return [];
+
+        // Decorar hijos: buscar padres que apuntan a estos productos base.
+        const ids = data.map(p => p.id);
+        const { data: padres } = await this.supabase.client
+            .from('productos')
+            .select('id, nombre, precio_venta, factor_conversion, producto_hijo_id')
+            .eq('activo', true)
+            .in('producto_hijo_id', ids);
+
+        if (padres?.length) {
+            const padreMap = new Map(padres.map(p => [p.producto_hijo_id, p]));
+            for (const prod of data) {
+                const padre = padreMap.get(prod.id);
+                if (padre) {
+                    prod.producto_padre = {
+                        id: padre.id,
+                        nombre: padre.nombre,
+                        precio_venta: padre.precio_venta,
+                        factor_conversion: padre.factor_conversion
+                    };
+                }
+            }
+        }
+
+        return data;
     }
 
     /**
@@ -52,7 +79,7 @@ export class InventarioService {
     async buscarProductosPOS(texto: string): Promise<ProductoPOS[]> {
         const { data } = await this.supabase.client
             .from('productos')
-            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva')
+            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_hijo_id, factor_conversion')
             .eq('activo', true)
             .or(`nombre.ilike.%${texto}%,codigo_barras.ilike.%${texto}%`)
             .order('nombre')
@@ -119,6 +146,7 @@ export class InventarioService {
             .from('productos')
             .select('*, categoria:categorias_productos(*)')
             .eq('activo', false)
+            .is('producto_hijo_id', null)
             .order('nombre');
         return data || [];
     }
@@ -207,6 +235,7 @@ export class InventarioService {
             .from('productos')
             .select('id, nombre, stock_actual, stock_minimo')
             .eq('activo', true)
+            .is('producto_hijo_id', null) // excluir padres (su stock=0 por diseño)
             .order('stock_actual');
         return (data || []).filter(p => p.stock_actual <= p.stock_minimo);
     }
@@ -222,6 +251,45 @@ export class InventarioService {
             'Stock ajustado correctamente',
             { showLoading: true }
         );
-        return res || { stock_nuevo: 0 };
+        const resultado = res || { stock_nuevo: 0 };
+
+        // Refrescar el producto en el grid de inventario
+        const productoActualizado = await this.obtenerProductoPorId(productoId);
+        if (productoActualizado) {
+            this.productoChange$.next({ tipo: 'ACTUALIZADO', producto: productoActualizado });
+        }
+
+        return resultado;
+    }
+
+    // ==========================================
+    // PADRE-HIJO (empaques)
+    // ==========================================
+
+    /**
+     * Busca productos candidatos a ser "hijo" de un empaque.
+     * Solo UNIDAD sin hijo propio (evita cadenas padre→padre).
+     */
+    async buscarProductosHijo(texto: string): Promise<Pick<Producto, 'id' | 'nombre' | 'stock_actual'>[]> {
+        const { data } = await this.supabase.client
+            .from('productos')
+            .select('id, nombre, stock_actual')
+            .eq('activo', true)
+            .eq('tipo_venta', 'UNIDAD')
+            .is('producto_hijo_id', null)
+            .ilike('nombre', `%${texto}%`)
+            .order('nombre')
+            .limit(10);
+        return data || [];
+    }
+
+    /** Obtiene stock actual de un producto hijo (para validación POS en padres). */
+    async obtenerStockHijo(productoHijoId: string): Promise<number> {
+        const { data } = await this.supabase.client
+            .from('productos')
+            .select('stock_actual')
+            .eq('id', productoHijoId)
+            .single();
+        return data?.stock_actual ?? 0;
     }
 }

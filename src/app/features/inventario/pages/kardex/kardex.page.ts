@@ -35,6 +35,8 @@ export class KardexPage implements OnInit {
     productoId!: string;
     productoNombre = 'Producto';
     stockActual = 0;
+    unidadMedida = 'und';
+    esPeso = false;
 
     kardex: KardexInventario[] = [];
     cargando = true;
@@ -58,6 +60,27 @@ export class KardexPage implements OnInit {
         this.productoId = this.route.snapshot.paramMap.get('id')!;
         this.productoNombre = this.route.snapshot.queryParamMap.get('nombre') || 'Producto';
         this.stockActual = Number(this.route.snapshot.queryParamMap.get('stock')) || 0;
+
+        // Cargar producto para detectar padre-hijo y tipo_venta
+        const producto = await this.inventarioService.obtenerProductoPorId(this.productoId);
+        if (producto) {
+            // Si es padre (empaque), redirigir al kardex del hijo
+            if (producto.producto_hijo_id) {
+                const hijo = await this.inventarioService.obtenerProductoPorId(producto.producto_hijo_id);
+                if (hijo) {
+                    this.productoId = hijo.id;
+                    this.productoNombre = hijo.nombre;
+                    this.stockActual = hijo.stock_actual;
+                    this.esPeso = hijo.tipo_venta === 'PESO';
+                    this.unidadMedida = hijo.unidad_medida || 'und';
+                }
+            } else {
+                this.esPeso = producto.tipo_venta === 'PESO';
+                this.unidadMedida = producto.unidad_medida || 'und';
+                this.stockActual = producto.stock_actual;
+            }
+        }
+
         await this.cargarKardex();
     }
 
