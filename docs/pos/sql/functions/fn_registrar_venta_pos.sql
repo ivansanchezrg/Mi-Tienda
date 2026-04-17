@@ -7,16 +7,10 @@ DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
 );
 
 -- ==========================================
--- FUNCION: fn_registrar_venta_pos (v2.0)
+-- FUNCIÓN: fn_registrar_venta_pos (v1.7)
 -- ==========================================
--- Procesa una venta del POS en una transaccion atomica.
--- Si CUALQUIER paso falla, PostgreSQL hace rollback automatico completo.
---
--- v2.0 — Presentaciones: p_items JSONB acepta presentacion_id opcional.
---   Si un item tiene presentacion_id, el trigger fn_actualizar_stock_venta
---   obtiene el factor_conversion de producto_presentaciones y descuenta
---   cantidad * factor del stock del producto base.
---   Reemplaza el modelo padre-hijo (producto_stock_id + cantidad_stock eliminados).
+-- Procesa una venta del POS en una transacción atómica.
+-- Si CUALQUIER paso falla, PostgreSQL hace rollback automático completo.
 --
 -- v1.7 — Snapshot de costo: lee precio_costo de productos al momento de la venta
 --   y lo persiste en ventas_detalles. Garantiza que los reportes históricos no
@@ -59,7 +53,7 @@ DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
 --   p_base_iva_15       — Base gravada 15% antes de IVA (solo FACTURA, sino 0)
 --   p_iva_valor         — Valor del IVA 15% extraído (solo FACTURA, sino 0)
 --   p_metodo_pago       — 'EFECTIVO' | 'DEUNA' | 'TRANSFERENCIA' | 'FIADO'
---   p_items             — JSONB array: [{producto_id, cantidad, precio_unitario, subtotal, presentacion_id?}]
+--   p_items             — JSONB array: [{producto_id, cantidad, precio_unitario, subtotal}]
 --   p_idempotency_key   — UUID generado por el cliente antes del RPC (protección contra duplicados)
 -- ==========================================
 
@@ -194,16 +188,14 @@ BEGIN
       cantidad,
       precio_unitario,
       precio_costo,
-      subtotal,
-      presentacion_id
+      subtotal
     ) VALUES (
       v_venta_id,
       (v_item->>'producto_id')::UUID,
       (v_item->>'cantidad')::DECIMAL,
       (v_item->>'precio_unitario')::DECIMAL,
       COALESCE(v_precio_costo, 0),
-      (v_item->>'subtotal')::DECIMAL,
-      (v_item->>'presentacion_id')::UUID   -- NULL si venta directa, UUID si venta via presentacion
+      (v_item->>'subtotal')::DECIMAL
     );
   END LOOP;
 
@@ -227,10 +219,9 @@ GRANT  EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, INTEGER, UUID, TE
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_registrar_venta_pos IS
-  'v2.0 — Presentaciones: presentacion_id en ventas_detalles (reemplaza padre-hijo). '
   'v1.7 — Snapshot de costo: persiste precio_costo en ventas_detalles al momento de la venta. '
   'v1.6 — Descuentos: persiste monto (p_descuento) y porcentaje (p_descuento_pct). '
   'Descuento no aplica para FIADO (validado en frontend). '
   'v1.4 — Idempotencia: p_idempotency_key UUID para evitar duplicados por reintento. '
-  'Registra venta completa del POS en transaccion atomica. '
-  'Triggers automaticos: descuento de stock (kardex) y actualizacion de CAJA_CHICA.';
+  'Registra venta completa del POS en transacción atómica. '
+  'Triggers automáticos: descuento de stock (kardex) y actualización de CAJA_CHICA.';
