@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SupabaseService } from '../../../core/services/supabase.service';
-import { Producto, ProductoPOS } from '../models/producto.model';
+import { Producto, ProductoPOS, ProductoPresentacion } from '../models/producto.model';
 import { CategoriaProducto } from '../models/categoria-producto.model';
 import { KardexInventario } from '../models/kardex.model';
 
@@ -29,8 +29,9 @@ export class InventarioService {
 
         let query = this.supabase.client
             .from('productos')
-            .select('*, categoria:categorias_productos(*)')
+            .select('*, categoria:categorias_productos(*), presentaciones:producto_presentaciones(id)')
             .eq('activo', true)
+            .eq('producto_presentaciones.activo', true)
             .order('nombre')
             .range(from, to);
 
@@ -47,13 +48,19 @@ export class InventarioService {
     }
 
     /**
-     * Búsqueda liviana para POS — solo campos necesarios, limit 10, sin join.
+     * Busqueda para POS — trae presentaciones activas en el mismo query (JOIN).
+     * Permite al POS mostrar el selector de presentacion sin query extra al seleccionar.
      */
     async buscarProductosPOS(texto: string): Promise<ProductoPOS[]> {
         const { data } = await this.supabase.client
             .from('productos')
-            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva')
+            .select(`
+                id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo,
+                imagen_url, tiene_iva, tipo_venta, unidad_medida,
+                presentaciones:producto_presentaciones(id, producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal, activo)
+            `)
             .eq('activo', true)
+            .eq('producto_presentaciones.activo', true)
             .or(`nombre.ilike.%${texto}%,codigo_barras.ilike.%${texto}%`)
             .order('nombre')
             .limit(10);
@@ -66,10 +73,57 @@ export class InventarioService {
             .select('*, categoria:categorias_productos(*)')
             .eq('codigo_barras', codigoBarras)
             .eq('activo', true)
-            .maybeSingle(); // mejor que single para no reventar si no hay
+            .maybeSingle();
 
         if (!data || !data.activo) return null;
         return data;
+    }
+
+    /**
+     * Busca por codigo de barras en productos Y en presentaciones.
+     * Retorna el producto base + la presentacion (si el codigo corresponde a una).
+     * Usado por el POS para resolver escaneos de cajetillas, cubetas, etc.
+     */
+    async buscarPorCodigoBarras(codigo: string): Promise<{
+        producto: ProductoPOS;
+        presentacion?: ProductoPresentacion;
+    } | null> {
+        // 1. Buscar en productos
+        const { data: prod } = await this.supabase.client
+            .from('productos')
+            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida')
+            .eq('codigo_barras', codigo)
+            .eq('activo', true)
+            .maybeSingle();
+
+        if (prod) return { producto: prod as ProductoPOS };
+
+        // 2. Buscar en presentaciones
+        const { data: pres } = await this.supabase.client
+            .from('producto_presentaciones')
+            .select('id, producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida)')
+            .eq('codigo_barras', codigo)
+            .eq('activo', true)
+            .maybeSingle();
+
+        if (pres?.producto) {
+            const productoData = pres.producto as any;
+            return {
+                producto: productoData as ProductoPOS,
+                presentacion: {
+                    id: pres.id,
+                    producto_id: pres.producto_id,
+                    nombre: pres.nombre,
+                    factor_conversion: pres.factor_conversion,
+                    precio_venta: pres.precio_venta,
+                    codigo_barras: pres.codigo_barras,
+                    es_principal: pres.es_principal,
+                    activo: pres.activo
+                }
+            };
+        }
+
+        return null;
     }
 
     async crearProducto(producto: Partial<Producto>): Promise<Producto> {
@@ -133,7 +187,7 @@ export class InventarioService {
     }
 
     // ==========================================
-    // CATEGORÍAS
+    // CATEGORIAS
     // ==========================================
 
     async obtenerCategorias(): Promise<CategoriaProducto[]> {
@@ -222,6 +276,53 @@ export class InventarioService {
             'Stock ajustado correctamente',
             { showLoading: true }
         );
-        return res || { stock_nuevo: 0 };
+        const resultado = res || { stock_nuevo: 0 };
+
+        // Refrescar el producto en el grid de inventario
+        const productoActualizado = await this.obtenerProductoPorId(productoId);
+        if (productoActualizado) {
+            this.productoChange$.next({ tipo: 'ACTUALIZADO', producto: productoActualizado });
+        }
+
+        return resultado;
+    }
+
+    // ==========================================
+    // PRESENTACIONES
+    // ==========================================
+
+    async obtenerPresentaciones(productoId: string): Promise<ProductoPresentacion[]> {
+        const { data } = await this.supabase.client
+            .from('producto_presentaciones')
+            .select('*')
+            .eq('producto_id', productoId)
+            .eq('activo', true)
+            .order('factor_conversion');
+        return data || [];
+    }
+
+    async crearPresentacion(presentacion: Partial<ProductoPresentacion>): Promise<ProductoPresentacion> {
+        const res = await this.supabase.call<ProductoPresentacion[]>(
+            this.supabase.client.from('producto_presentaciones').insert([presentacion]).select(),
+            'Presentación creada',
+            { showLoading: true }
+        );
+        return res ? res[0] : ({} as ProductoPresentacion);
+    }
+
+    async actualizarPresentacion(id: string, presentacion: Partial<ProductoPresentacion>): Promise<void> {
+        await this.supabase.call(
+            this.supabase.client.from('producto_presentaciones').update(presentacion).eq('id', id),
+            'Presentación actualizada',
+            { showLoading: true }
+        );
+    }
+
+    async desactivarPresentacion(id: string): Promise<void> {
+        await this.supabase.call(
+            this.supabase.client.from('producto_presentaciones').update({ activo: false }).eq('id', id),
+            'Presentación eliminada',
+            { showLoading: true }
+        );
     }
 }

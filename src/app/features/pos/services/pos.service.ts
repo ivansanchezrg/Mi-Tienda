@@ -50,12 +50,13 @@ export class PosService {
             throw new Error('SIN_TURNO');
         }
 
-        // 2. Preparar los ítems del carrito para el JSONB del RPC
+        // 2. Preparar los items del carrito para el JSONB del RPC
         const items = carrito.map(item => ({
             producto_id: item.id,
             cantidad: item.cantidad,
             precio_unitario: item.precio_venta,
-            subtotal: item.subtotal
+            subtotal: item.subtotal,
+            presentacion_id: item.presentacion_id || null
         }));
 
         // 3. Llamar a la función PostgreSQL (1 sola llamada — transacción atómica)

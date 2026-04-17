@@ -8,7 +8,7 @@ import {
   IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
   IonItemSliding, IonItemOptions, IonItemOption,
   IonRefresher, IonRefresherContent,
-  AlertController, ModalController, ViewDidLeave, ViewWillEnter
+  ActionSheetController, AlertController, ModalController, ViewDidLeave, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
@@ -17,7 +17,7 @@ import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
-import { ProductoPOS } from '../../../inventario/models/producto.model';
+import { ProductoPOS, ProductoPresentacion } from '../../../inventario/models/producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { PosService, VentaPayload } from '../../services/pos.service';
@@ -26,6 +26,7 @@ import { ClientesService } from '../../../clientes/services/clientes.service';
 import { Cliente } from '../../../clientes/models/cliente.model';
 import { SeleccionarClienteModalComponent } from '../../../clientes/components/seleccionar-cliente-modal/seleccionar-cliente-modal.component';
 import { CobrarModalComponent } from '../../components/cobrar-modal/cobrar-modal.component';
+import { CantidadModalComponent, CantidadModalResult } from '../../components/cantidad-modal/cantidad-modal.component';
 import { NetworkService } from '../../../../core/services/network.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
@@ -56,6 +57,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private ui = inject(UiService);
   private posService = inject(PosService);
   private alertCtrl = inject(AlertController);
+  private actionSheetCtrl = inject(ActionSheetController);
   private modalCtrl = inject(ModalController);
   private clientesService = inject(ClientesService);
   private ngZone = inject(NgZone);
@@ -315,10 +317,37 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  agregarAlCarrito(producto: ProductoPOS) {
-    const existe = this.carrito.find(item => item.id === producto.id);
+  async agregarAlCarrito(producto: ProductoPOS, presentacion?: ProductoPresentacion) {
+    // PESO: si ya está en carrito, editar; si no, agregar nuevo
+    if (producto.tipo_venta === 'PESO') {
+      const existePeso = this.carrito.find(item => item.id === producto.id);
+      if (existePeso) {
+        await this.editarCantidad(existePeso);
+      } else {
+        await this.pedirCantidadPeso(producto);
+      }
+      return;
+    }
+
+    const stockBase = producto.stock_actual;
+    const factor = presentacion?.factor_conversion ?? 1;
+    const precioVenta = presentacion?.precio_venta ?? producto.precio_venta;
+
+    // Cuantas unidades base ya estan comprometidas en el carrito para este producto
+    const stockUsado = this.stockUsadoPorProducto(producto.id);
+    const stockLibre = stockBase - stockUsado;
+    const maxUnidades = Math.floor(stockLibre / factor);
+
+    const existe = this.carrito.find(item =>
+        item.id === producto.id &&
+        item.presentacion_id === (presentacion?.id ?? undefined)
+    );
+
     if (existe) {
-      if (existe.cantidad < producto.stock_actual) {
+      // Recalcular max considerando lo que ya tiene este item
+      const stockLibreSinEste = stockBase - stockUsado + (existe.cantidad * factor);
+      const maxParaEste = Math.floor(stockLibreSinEste / factor);
+      if (existe.cantidad < maxParaEste) {
         this.incrementar(existe);
         this.feedbackEscaneo(existe.id);
         this.scrollToBottom();
@@ -326,12 +355,20 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         this.ui.showToast('Stock insuficiente', 'warning');
       }
     } else {
-      if (producto.stock_actual > 0) {
-        this.carrito.push({
+      if (maxUnidades > 0) {
+        const item: CartItem = {
           ...producto,
+          precio_venta: precioVenta,
           cantidad: 1,
-          subtotal: producto.precio_venta
-        });
+          subtotal: precioVenta,
+          stock_disponible: stockBase,
+          ...(presentacion ? {
+            presentacion_id: presentacion.id,
+            presentacion_nombre: presentacion.nombre,
+            factor_conversion: presentacion.factor_conversion
+          } : {})
+        };
+        this.carrito.push(item);
         this.lastAddedId = producto.id;
         setTimeout(() => { this.lastAddedId = null; }, 600);
         this.feedbackEscaneo(producto.id);
@@ -340,6 +377,61 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         this.ui.showToast('Producto sin stock', 'danger');
       }
     }
+  }
+
+  /** Calcula cuantas unidades base de un producto estan comprometidas en el carrito */
+  private stockUsadoPorProducto(productoId: string): number {
+    return this.carrito
+        .filter(i => i.id === productoId)
+        .reduce((sum, i) => sum + i.cantidad * (i.factor_conversion ?? 1), 0);
+  }
+
+  /** Modal para ingresar cantidad (granel o unidad) al agregar un producto nuevo */
+  private async pedirCantidadPeso(producto: ProductoPOS, itemExistente?: CartItem) {
+    const yaEnCarrito = itemExistente ? itemExistente.cantidad : 0;
+    const disponible = producto.stock_actual - yaEnCarrito;
+    if (disponible <= 0) {
+      this.ui.showToast('Stock insuficiente', 'warning');
+      return;
+    }
+
+    const modal = await this.modalCtrl.create({
+      component: CantidadModalComponent,
+      componentProps: {
+        nombre: producto.nombre,
+        precioUnitario: producto.precio_venta,
+        unidadMedida: producto.unidad_medida,
+        esPeso: true,
+        stockDisponible: disponible,
+        cantidadActual: yaEnCarrito,
+        esEdicion: !!itemExistente
+      },
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
+      cssClass: 'bottom-sheet-modal',
+      backdropDismiss: false
+    });
+
+    await modal.present();
+    const { data, role } = await modal.onDidDismiss<CantidadModalResult>();
+    if (role !== 'confirm' || !data) return;
+
+    const cantRedondeada = data.cantidad;
+    if (itemExistente) {
+      itemExistente.cantidad += cantRedondeada;
+      itemExistente.subtotal = Math.round(itemExistente.cantidad * itemExistente.precio_venta * 100) / 100;
+    } else {
+      this.carrito.push({
+        ...producto,
+        cantidad: cantRedondeada,
+        subtotal: Math.round(cantRedondeada * producto.precio_venta * 100) / 100,
+        stock_disponible: producto.stock_actual
+      });
+      this.lastAddedId = producto.id;
+      setTimeout(() => { this.lastAddedId = null; }, 600);
+    }
+    this.feedbackEscaneo(producto.id);
+    this.scrollToBottom();
   }
 
   private scrollToBottom() {
@@ -352,17 +444,30 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   /** Agrega N unidades de un producto al carrito (para patrón cantidad*codigo) */
-  agregarAlCarritoConCantidad(producto: ProductoPOS, cantidad: number) {
-    const disponible = producto.stock_actual;
-    if (disponible <= 0) {
+  async agregarAlCarritoConCantidad(producto: ProductoPOS, cantidad: number, presentacion?: ProductoPresentacion) {
+    const stockBase = producto.stock_actual;
+    const factor = presentacion?.factor_conversion ?? 1;
+    const precioVenta = presentacion?.precio_venta ?? producto.precio_venta;
+
+    const stockUsado = this.stockUsadoPorProducto(producto.id);
+    const stockLibre = stockBase - stockUsado;
+    const maxUnidades = Math.floor(stockLibre / factor);
+
+    if (maxUnidades <= 0) {
       this.ui.showToast('Producto sin stock', 'danger');
       return;
     }
 
-    const existe = this.carrito.find(item => item.id === producto.id);
+    const existe = this.carrito.find(item =>
+        item.id === producto.id &&
+        item.presentacion_id === (presentacion?.id ?? undefined)
+    );
+
+    // Recalcular max incluyendo lo que ya tiene este item
+    const stockLibreConEste = existe ? stockLibre + (existe.cantidad * factor) : stockLibre;
+    const maxParaEste = Math.floor(stockLibreConEste / factor);
     const yaEnCarrito = existe ? existe.cantidad : 0;
-    const maximo = disponible - yaEnCarrito;
-    const cantidadReal = Math.min(cantidad, maximo);
+    const cantidadReal = Math.min(cantidad, maxParaEste - yaEnCarrito);
 
     if (cantidadReal <= 0) {
       this.ui.showToast('Stock insuficiente', 'warning');
@@ -371,13 +476,21 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     if (existe) {
       existe.cantidad += cantidadReal;
-      existe.subtotal = existe.cantidad * existe.precio_venta;
+      existe.subtotal = Math.round(existe.cantidad * existe.precio_venta * 100) / 100;
     } else {
-      this.carrito.push({
+      const item: CartItem = {
         ...producto,
+        precio_venta: precioVenta,
         cantidad: cantidadReal,
-        subtotal: cantidadReal * producto.precio_venta
-      });
+        subtotal: Math.round(cantidadReal * precioVenta * 100) / 100,
+        stock_disponible: stockBase,
+        ...(presentacion ? {
+          presentacion_id: presentacion.id,
+          presentacion_nombre: presentacion.nombre,
+          factor_conversion: presentacion.factor_conversion
+        } : {})
+      };
+      this.carrito.push(item);
       this.lastAddedId = producto.id;
       setTimeout(() => { this.lastAddedId = null; }, 600);
     }
@@ -428,65 +541,71 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   incrementar(item: CartItem) {
-    if (item.cantidad < item.stock_actual) {
+    if (item.tipo_venta === 'PESO') {
+      this.editarCantidad(item);
+      return;
+    }
+    const factor = item.factor_conversion ?? 1;
+    const stockUsado = this.stockUsadoPorProducto(item.id);
+    const stockLibreSinEste = item.stock_disponible - stockUsado + (item.cantidad * factor);
+    const maxParaEste = Math.floor(stockLibreSinEste / factor);
+    if (item.cantidad < maxParaEste) {
       item.cantidad++;
-      item.subtotal = item.cantidad * item.precio_venta;
+      item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
     } else {
       this.ui.showToast('Máximo stock alcanzado', 'warning');
     }
   }
 
   decrementar(item: CartItem) {
+    if (item.tipo_venta === 'PESO') {
+      this.editarCantidad(item);
+      return;
+    }
     if (item.cantidad > 1) {
       item.cantidad--;
-      item.subtotal = item.cantidad * item.precio_venta;
+      item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
     } else {
       this.eliminar(item);
     }
   }
 
   async editarCantidad(item: CartItem) {
-    const precio = this.currencyService.format(item.precio_venta);
-    const alert = await this.alertCtrl.create({
-      header: item.nombre,
-      message: `$${precio} c/u · Stock: ${item.stock_actual}`,
-      inputs: [
-        {
-          name: 'cantidad',
-          type: 'number',
-          value: item.cantidad.toString(),
-          min: 1,
-          max: item.stock_actual,
-          attributes: { inputmode: 'numeric' },
-          placeholder: 'Cantidad'
-        }
-      ],
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Confirmar',
-          handler: (data) => {
-            const nueva = parseInt(data.cantidad, 10);
-            if (!nueva || nueva < 1) {
-              this.ui.showToast('Cantidad inválida', 'warning');
-              return false;
-            }
-            if (nueva > item.stock_actual) {
-              this.ui.showToast(`Stock máximo: ${item.stock_actual}`, 'warning');
-              return false;
-            }
-            item.cantidad = nueva;
-            item.subtotal = nueva * item.precio_venta;
-            return true;
-          }
-        }
-      ]
+    const esPeso = item.tipo_venta === 'PESO';
+    const factor = item.factor_conversion ?? 1;
+    // Stock libre para este item = stock total - usado por otros items del mismo producto
+    const stockUsadoOtros = this.carrito
+        .filter(i => i.id === item.id && i !== item)
+        .reduce((sum, i) => sum + i.cantidad * (i.factor_conversion ?? 1), 0);
+    const maxStock = Math.floor((item.stock_disponible - stockUsadoOtros) / factor);
+
+    const modal = await this.modalCtrl.create({
+      component: CantidadModalComponent,
+      componentProps: {
+        nombre: item.presentacion_nombre ? `${item.nombre} (${item.presentacion_nombre})` : item.nombre,
+        precioUnitario: item.precio_venta,
+        unidadMedida: item.unidad_medida,
+        esPeso,
+        stockDisponible: maxStock,
+        cantidadActual: item.cantidad,
+        esEdicion: true
+      },
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
+      cssClass: 'bottom-sheet-modal',
+      backdropDismiss: false
     });
-    await alert.present();
+
+    await modal.present();
+    const { data, role } = await modal.onDidDismiss<CantidadModalResult>();
+    if (role !== 'confirm' || !data) return;
+
+    item.cantidad = data.cantidad;
+    item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
   }
 
   eliminar(item: CartItem) {
-    this.carrito = this.carrito.filter(i => i.id !== item.id);
+    this.carrito = this.carrito.filter(i => i !== item);
   }
 
   // ==========================
@@ -550,7 +669,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       this.sugerenciaActiva = Math.max(this.sugerenciaActiva - 1, 0);
     } else if (event.key === 'Enter') {
       const idx = this.sugerenciaActiva >= 0 ? this.sugerenciaActiva : 0;
-      this.seleccionarProductoBusqueda(this.productosBusqueda[idx]);
+      void this.seleccionarProductoBusqueda(this.productosBusqueda[idx]);
     }
   }
 
@@ -586,9 +705,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         const cantidad = parseInt(matchRapido[1], 10);
         const codigo = matchRapido[2].trim();
         if (cantidad > 0 && codigo) {
-          const producto = await this.inventarioService.obtenerProductoPorCodigo(codigo);
-          if (producto) {
-            this.agregarAlCarritoConCantidad(producto, cantidad);
+          const resultado = await this.inventarioService.buscarPorCodigoBarras(codigo);
+          if (resultado) {
+            await this.agregarAlCarritoConCantidad(resultado.producto, cantidad, resultado.presentacion);
             this.buscarTexto = '';
           } else {
             this.ui.showToast(`Código "${codigo}" no encontrado`, 'warning');
@@ -598,9 +717,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       }
 
       // Código exacto — se agrega directo sin confirmación
-      const producto = await this.inventarioService.obtenerProductoPorCodigo(texto);
-      if (producto) {
-        this.agregarAlCarrito(producto);
+      const resultado = await this.inventarioService.buscarPorCodigoBarras(texto);
+      if (resultado) {
+        await this.agregarAlCarrito(resultado.producto, resultado.presentacion);
         this.buscarTexto = '';
       } else {
         this.ui.showToast(`Código "${texto}" no encontrado`, 'warning');
@@ -610,12 +729,41 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  // Clic en la lista de sugerencias (Resultados de Búsqueda)
-  seleccionarProductoBusqueda(producto: ProductoPOS) {
-    this.agregarAlCarrito(producto);
+  // Clic en la lista de sugerencias — las presentaciones ya vienen en el objeto
+  async seleccionarProductoBusqueda(producto: ProductoPOS) {
+    const presentaciones = producto.presentaciones ?? [];
+
+    if (presentaciones.length === 0) {
+      await this.agregarAlCarrito(producto);
+    } else {
+      await this.mostrarSelectorPresentacion(producto, presentaciones);
+    }
+
     this.buscarTexto = '';
     this.productosBusqueda = [];
     this.sugerenciaActiva = -1;
+  }
+
+  /** ActionSheet: unidad suelta + una opcion por presentacion */
+  private async mostrarSelectorPresentacion(producto: ProductoPOS, presentaciones: ProductoPresentacion[]) {
+    const sheet = await this.actionSheetCtrl.create({
+      header: producto.nombre,
+      subHeader: 'Selecciona como venderlo',
+      buttons: [
+        {
+          text: `Unidad suelta  ·  $${this.currencyService.format(producto.precio_venta)}`,
+          icon: 'cube-outline',
+          handler: () => { void this.agregarAlCarrito(producto); }
+        },
+        ...presentaciones.map(pres => ({
+          text: `${pres.nombre}  ·  $${this.currencyService.format(pres.precio_venta)}`,
+          icon: 'pricetag-outline',
+          handler: () => { void this.agregarAlCarrito(producto, pres); }
+        })),
+        { text: 'Cancelar', role: 'cancel', icon: 'close-outline' }
+      ]
+    });
+    await sheet.present();
   }
 
   // ==========================
@@ -636,7 +784,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (event.key === 'Enter') {
       // Si recibimos un Enter y el buffer tiene algo (ej. EAN típico de 8 a 13 digitos)
       if (this.barcodeBuffer.length > 3) {
-        this.procesarCodigoRapido(this.barcodeBuffer);
+        void this.procesarCodigoRapido(this.barcodeBuffer);
       }
       this.barcodeBuffer = '';
     } else {
@@ -659,9 +807,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
 
     try {
-      const producto = await this.inventarioService.obtenerProductoPorCodigo(codigo);
-      if (producto) {
-        this.agregarAlCarrito(producto);
+      const resultado = await this.inventarioService.buscarPorCodigoBarras(codigo);
+      if (resultado) {
+        await this.agregarAlCarrito(resultado.producto, resultado.presentacion);
       } else {
         this.ui.showToast(`EAN ${codigo} no encontrado en catálogo`, 'warning');
       }

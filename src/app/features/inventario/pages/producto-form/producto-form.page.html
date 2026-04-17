@@ -123,6 +123,81 @@
             </ion-card-content>
         </ion-card>
 
+        <!-- Tipo de Venta -->
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+                <h3 class="section-title">Tipo de Venta</h3>
+
+                <!-- Selector Unidad / Peso -->
+                <div class="tipo-venta-selector mb-md">
+                    <button type="button" class="tipo-venta-btn"
+                        [class.tipo-venta-btn--active]="productoForm.get('tipo_venta')?.value === 'UNIDAD'"
+                        (click)="productoForm.patchValue({ tipo_venta: 'UNIDAD' }); onTipoVentaChange('UNIDAD')">
+                        <ion-icon name="cube-outline"></ion-icon>
+                        <span>Unidad</span>
+                    </button>
+                    <button type="button" class="tipo-venta-btn"
+                        [class.tipo-venta-btn--active]="productoForm.get('tipo_venta')?.value === 'PESO'"
+                        (click)="productoForm.patchValue({ tipo_venta: 'PESO' }); onTipoVentaChange('PESO')">
+                        <ion-icon name="scale-outline"></ion-icon>
+                        <span>Peso / Granel</span>
+                    </button>
+                </div>
+
+                <!-- Unidad de medida (solo PESO) -->
+                @if (productoForm.get('tipo_venta')?.value === 'PESO') {
+                <div class="input-group mb-md">
+                    <p class="field-label mb-xs">Unidad de medida *</p>
+                    <div class="um-selector">
+                        @for (um of ['lb']; track um) {
+                        <button type="button" class="um-chip"
+                            [class.um-chip--active]="productoForm.get('unidad_medida')?.value === um"
+                            (click)="productoForm.patchValue({ unidad_medida: um })">
+                            {{ um }}
+                        </button>
+                        }
+                    </div>
+                </div>
+                }
+
+                <!-- Presentaciones (solo en EDITAR y tipo UNIDAD) -->
+                @if (modo === 'EDITAR' && productoForm.get('tipo_venta')?.value === 'UNIDAD') {
+                <div class="presentaciones-section mt-md">
+                    <div class="presentaciones-header">
+                        <p class="field-label">Presentaciones</p>
+                        <button type="button" class="pres-add-btn" (click)="agregarPresentacion()">
+                            <ion-icon name="add-outline"></ion-icon> Agregar
+                        </button>
+                    </div>
+
+                    @if (presentaciones.length === 0) {
+                    <p class="help-text">
+                        <ion-icon name="information-circle-outline" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
+                        Sin presentaciones. Si este producto se vende en paquetes (ej. cajetilla x10), agrega una presentacion.
+                    </p>
+                    } @else {
+                    <div class="presentaciones-list">
+                        @for (pres of presentaciones; track pres.id) {
+                        <div class="pres-item">
+                            <div class="pres-info" (click)="editarPresentacion(pres)">
+                                <span class="pres-nombre">{{ pres.nombre }}</span>
+                                <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
+                                @if (pres.codigo_barras) {
+                                <span class="pres-codigo">{{ pres.codigo_barras }}</span>
+                                }
+                            </div>
+                            <button type="button" class="pres-delete-btn" (click)="eliminarPresentacion(pres)">
+                                <ion-icon name="trash-outline"></ion-icon>
+                            </button>
+                        </div>
+                        }
+                    </div>
+                    }
+                </div>
+                }
+            </ion-card-content>
+        </ion-card>
+
         <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
             <ion-card-content class="p-lg">
                 <h3 class="section-title">Precios e Impuestos</h3>
@@ -204,12 +279,14 @@
                     <div class="input-group">
                         <ion-item class="custom-input flat-item" lines="none"
                             [class.ion-invalid]="esCampoInvalido('stock_actual')">
-                            <ion-input appNumbersOnly formControlName="stock_actual" label="Stock Bodega *"
-                                labelPlacement="floating" type="text" inputmode="numeric"
+                            <ion-input appNumbersOnly formControlName="stock_actual"
+                                [label]="productoForm.get('tipo_venta')?.value === 'PESO' ? 'Stock Bodega (' + productoForm.get('unidad_medida')?.value + ') *' : 'Stock Bodega *'"
+                                labelPlacement="floating" type="text"
+                                [inputmode]="productoForm.get('tipo_venta')?.value === 'PESO' ? 'decimal' : 'numeric'"
                                 [readonly]="modo === 'EDITAR'"></ion-input>
                         </ion-item>
                         @if (modo === 'EDITAR') {
-                        <p class="help-text">El stock solo se ajusta en Ventas o Kárdex</p>
+                        <p class="help-text">El stock solo se ajusta en Ventas o Kardex</p>
                         } @else if (esCampoInvalido('stock_actual')) {
                         <span class="error-text">Stock no puede ser negativo</span>
                         }
@@ -219,7 +296,7 @@
                     <div class="input-group">
                         <ion-item class="custom-input flat-item" lines="none"
                             [class.ion-invalid]="esCampoInvalido('stock_minimo')">
-                            <ion-input appNumbersOnly formControlName="stock_minimo" label="Aviso Mínimo *"
+                            <ion-input appNumbersOnly formControlName="stock_minimo" label="Aviso Minimo *"
                                 labelPlacement="floating" type="text" inputmode="numeric"></ion-input>
                         </ion-item>
                         @if (esCampoInvalido('stock_minimo')) {
