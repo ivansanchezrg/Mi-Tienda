@@ -1,8 +1,8 @@
 -- ==========================================
--- FUNCION: fn_anular_venta (v2.0)
+-- FUNCIÓN: fn_anular_venta (v1.1)
 -- ==========================================
 -- Anula una venta completada revirtiendo TODOS sus efectos:
---   1. Repone stock de cada producto vendido (con factor de presentacion si aplica)
+--   1. Repone stock de cada producto vendido
 --   2. Registra movimiento ANULACION_VENTA en kardex_inventario
 --   3. Revierte saldo de caja CAJA (solo si fue EFECTIVO)
 --   4. Elimina registros de cuentas_cobrar (solo si fue FIADO)
@@ -34,7 +34,6 @@ DECLARE
     v_venta              RECORD;
     v_detalle            RECORD;
     v_stock_actual       DECIMAL(12,2);
-    v_cantidad_real      DECIMAL(12,2);
     v_caja_id            INTEGER;
     v_saldo_actual_caja  DECIMAL(12,2);
     v_categoria_id       INTEGER;
@@ -72,23 +71,18 @@ BEGIN
 
     -- ══════════════════════════════════════
     -- 1. Reponer stock + registrar kardex
-    -- v2.0: soporta presentaciones — usa factor_conversion si presentacion_id existe
     -- ══════════════════════════════════════
     FOR v_detalle IN
-        SELECT vd.producto_id, vd.cantidad, vd.presentacion_id,
-               COALESCE(pp.factor_conversion, 1) AS factor
-        FROM   ventas_detalles vd
-        LEFT JOIN producto_presentaciones pp ON pp.id = vd.presentacion_id
-        WHERE  vd.venta_id = p_venta_id
+        SELECT producto_id, cantidad
+        FROM   ventas_detalles
+        WHERE  venta_id = p_venta_id
     LOOP
-        v_cantidad_real := v_detalle.cantidad * v_detalle.factor;
-
         SELECT stock_actual INTO v_stock_actual
         FROM   productos
         WHERE  id = v_detalle.producto_id;
 
         UPDATE productos
-        SET    stock_actual = stock_actual + v_cantidad_real
+        SET    stock_actual = stock_actual + v_detalle.cantidad
         WHERE  id = v_detalle.producto_id;
 
         INSERT INTO kardex_inventario (
@@ -98,11 +92,11 @@ BEGIN
         ) VALUES (
             v_detalle.producto_id,
             'ANULACION_VENTA',
-            v_cantidad_real,
+            v_detalle.cantidad,
             v_stock_actual,
-            v_stock_actual + v_cantidad_real,
+            v_stock_actual + v_detalle.cantidad,
             p_venta_id,
-            'Anulacion Venta POS #' || v_venta.numero_comprobante || ': ' || TRIM(p_motivo)
+            'Anulación Venta POS #' || v_venta.numero_comprobante || ': ' || TRIM(p_motivo)
         );
     END LOOP;
 
@@ -194,8 +188,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_anular_venta(UUID, INTEGER, TEXT) TO authen
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_anular_venta IS
-    'v2.0 — Presentaciones: repone stock usando factor_conversion de la presentacion (si aplica). '
-    'Anula una venta completada revirtiendo stock (kardex ANULACION_VENTA), '
+    'v1.1 — Anula una venta completada revirtiendo stock (kardex ANULACION_VENTA), '
     'saldo de caja (EGRESO si fue EFECTIVO), y cuentas por cobrar (DELETE si fue FIADO sin abonos). '
-    'Bloquea si es FIADO con abonos parciales — esa transaccion ya es real y no se puede revertir automaticamente. '
+    'Bloquea si es FIADO con abonos parciales — esa transacción ya es real y no se puede revertir automáticamente. '
     'Ambos roles (ADMIN/EMPLEADO) pueden anular. Motivo obligatorio.';
