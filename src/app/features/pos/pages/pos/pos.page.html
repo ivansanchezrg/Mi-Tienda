@@ -147,18 +147,21 @@
         class="suggestion-item" [class.suggestion-active]="i === sugerenciaActiva">
         <ion-label>
           <h2>{{ prod.nombre }}</h2>
-          @if (prod.producto_hijo_id) {
-          <p>Empaque x{{ prod.factor_conversion }}</p>
-          } @else if (prod.tipo_venta === 'PESO') {
-          <p>Stock: {{ prod.stock_actual }} {{ prod.unidad_medida }}</p>
-          } @else {
-          <p>Stock: {{ prod.stock_actual }}</p>
-          }
+          <p>
+            @if (prod.tipo_venta === 'PESO') {
+              Stock: {{ prod.stock_actual }} {{ prod.unidad_medida }}
+            } @else {
+              Stock: {{ prod.stock_actual }}
+            }
+            @if (prod.presentaciones && prod.presentaciones.length > 0) {
+              <span class="pres-hint">· {{ prod.presentaciones.length + 1 }} opciones</span>
+            }
+          </p>
         </ion-label>
         <div slot="end" class="suggestion-end">
           <span class="suggestion-price">${{ currencyService.format(prod.precio_venta) }}</span>
-          <div class="suggestion-add-btn">
-            <ion-icon name="add-outline"></ion-icon>
+          <div class="suggestion-add-btn" [class.suggestion-add-btn--multi]="prod.presentaciones && prod.presentaciones.length > 0">
+            <ion-icon [name]="prod.presentaciones && prod.presentaciones.length > 0 ? 'chevron-down-circle-outline' : 'add-outline'"></ion-icon>
           </div>
         </div>
       </ion-item>
@@ -196,14 +199,17 @@
           <!-- Nombre y precio unitario -->
           <div class="item-main">
             <p class="product-name">{{ item.nombre }}</p>
+            @if (item.presentacion_nombre) {
+              <p class="presentacion-label">{{ item.presentacion_nombre }}</p>
+            }
             <div class="price-row">
               <span class="unit-price">${{ currencyService.format(item.precio_venta) }}{{ item.tipo_venta === 'PESO' ? '/' + item.unidad_medida : ' c/u' }}</span>
               @if (mostrarDesglose && !item.tiene_iva) {
                 <ion-badge color="medium" class="stock-badge">IVA 0%</ion-badge>
               }
-              @if (item.stock_disponible <= item.cantidad * (item.producto_stock_id ? item.factor_conversion : 1)) {
+              @if (item.stock_disponible <= item.cantidad * (item.factor_conversion ?? 1)) {
                 <ion-badge color="danger" class="stock-badge">¡Último!</ion-badge>
-              } @else if ((item.stock_disponible - item.cantidad * (item.producto_stock_id ? item.factor_conversion : 1)) <= item.stock_minimo) {
+              } @else if ((item.stock_disponible - item.cantidad * (item.factor_conversion ?? 1)) <= item.stock_minimo) {
                 <ion-badge color="warning" class="stock-badge">Quedan pocos</ion-badge>
               }
             </div>

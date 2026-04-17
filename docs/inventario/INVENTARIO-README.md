@@ -1,7 +1,7 @@
 # Inventario — Documentacion del modulo
 
 Gestion completa de productos: CRUD, categorias, stock, kardex (auditoria),
-y el sistema padre-hijo para empaques (cajetilla/cigarro, cubeta/huevo, etc.).
+y el sistema de presentaciones para multiples formatos de venta (cajetilla, cubeta, etc.).
 
 ---
 
@@ -14,7 +14,7 @@ features/inventario/
 │   │   ├── inventario.page.ts
 │   │   ├── inventario.page.html
 │   │   └── inventario.page.scss
-│   ├── producto-form/           # Crear / Editar producto (incluye empaque)
+│   ├── producto-form/           # Crear / Editar producto (incluye presentaciones)
 │   │   ├── producto-form.page.ts
 │   │   ├── producto-form.page.html
 │   │   └── producto-form.page.scss
@@ -23,9 +23,9 @@ features/inventario/
 │       ├── kardex.page.html
 │       └── kardex.page.scss
 ├── services/
-│   └── inventario.service.ts    # Queries, CRUD, empaques, ajustes de stock
+│   └── inventario.service.ts    # Queries, CRUD, presentaciones, ajustes de stock
 ├── models/
-│   ├── producto.model.ts        # Producto, ProductoPOS, TipoVenta
+│   ├── producto.model.ts        # Producto, ProductoPOS, ProductoPresentacion, TipoVenta
 │   ├── categoria-producto.model.ts
 │   └── kardex.model.ts          # KardexInventario, TipoMovimientoKardex
 └── inventario.routes.ts         # Lazy-load: '' | 'nuevo' | 'editar/:id' | 'kardex/:id'
@@ -33,117 +33,116 @@ features/inventario/
 
 ---
 
-## Concepto clave: Producto Base vs Empaque (padre-hijo)
+## Concepto clave: Producto + Presentaciones (2 niveles)
 
-El producto base es la **unidad minima de inventario** (ej: 1 cigarro).
-El empaque es solo una **presentacion de venta** (ej: cajetilla de 20 cigarros).
+El **producto** es la unidad base de inventario (ej: 1 cigarro).
+Las **presentaciones** son formatos de venta alternativos (ej: cajetilla x10, cajetilla x20).
 
 ```
-Producto Base: Cigarro Marlboro     → stock_actual = 100, precio_venta = $0.50
-Empaque:       Cajetilla Marlboro   → stock_actual = 0,   precio_venta = $10.00
-                                      producto_hijo_id = UUID del cigarro
-                                      factor_conversion = 20
+Producto:       Cigarro Marlboro     → stock_actual = 200, precio_venta = $0.50
+Presentacion 1: Cajetilla x10       → factor_conversion = 10, precio_venta = $5.00
+Presentacion 2: Cajetilla x20       → factor_conversion = 20, precio_venta = $9.50
 ```
 
 ### Reglas fundamentales
 
 | Concepto | Donde vive | Ejemplo |
 |----------|-----------|---------|
-| Stock real | Siempre en el producto base (hijo) | 100 cigarros |
+| Stock real | Siempre en el producto base | 200 cigarros |
 | Precio unitario | En el producto base | $0.50 |
-| Precio por paquete | En el empaque (padre) | $10.00 |
-| Costo unitario | En el producto base | $0.25 |
-| Costo del empaque | En el empaque | $5.00 (20 x $0.25) |
-| Stock del empaque | Calculado: `hijo.stock / factor_conversion` | 100/20 = 5 cajetillas |
+| Precio por paquete | En cada presentacion | $5.00 (x10), $9.50 (x20) |
+| factor_conversion | En cada presentacion (INTEGER) | 10, 20 |
+| Codigo de barras | En producto Y en cada presentacion (independientes) | EAN del cigarro, EAN de la cajetilla |
+| Stock disponible por presentacion | Calculado: `producto.stock_actual / factor_conversion` | 200/10 = 20 cajetillas x10 |
 
-### Constraints de BD (tabla `productos`)
+### Tabla `producto_presentaciones`
 
 ```sql
-producto_hijo_id    UUID REFERENCES productos(id),
-factor_conversion   SMALLINT DEFAULT 1 CHECK (factor_conversion > 0),
-CONSTRAINT chk_padre_solo_unidad CHECK (producto_hijo_id IS NULL OR tipo_venta = 'UNIDAD'),
-CONSTRAINT chk_no_autoreferencia CHECK (producto_hijo_id IS DISTINCT FROM id)
+CREATE TABLE producto_presentaciones (
+    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    producto_id       UUID NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    nombre            VARCHAR(100) NOT NULL,
+    factor_conversion INTEGER NOT NULL CHECK (factor_conversion > 0),
+    precio_venta      DECIMAL(12,2) NOT NULL,
+    codigo_barras     VARCHAR(50) UNIQUE,
+    es_principal      BOOLEAN DEFAULT FALSE,
+    activo            BOOLEAN DEFAULT TRUE,
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 ```
 
-- Solo productos tipo `UNIDAD` pueden ser empaque (no `PESO`)
-- Un producto no puede ser empaque de si mismo
-- `factor_conversion` siempre >= 1
+### Relacion con granel (PESO)
+
+Presentaciones son ortogonales al tipo de venta. Un producto PESO (granel) no necesita
+presentaciones — se vende por peso con modal de cantidad decimal. El formulario solo
+muestra la seccion de presentaciones cuando `tipo_venta === 'UNIDAD'`.
 
 ---
 
 ## Donde se muestra cada producto
 
-| Vista | Producto base | Empaque (padre) |
-|-------|--------------|-----------------|
-| Grid inventario | Card con stock, precio, y mini-card del empaque si tiene | NO se muestra (filtrado en SQL) |
-| Formulario editar | Campos normales | Campos + seccion empaque (hijo, factor) |
-| Kardex | Historial completo | Redirige al kardex del hijo |
-| Busqueda POS | Aparece como item vendible | Aparece como item vendible |
-| Desactivados | Card normal | NO se muestra |
-| Stock bajo (dashboard) | Aparece si stock <= minimo | NO aparece (filtrado con `producto_hijo_id IS NULL`) |
+| Vista | Producto base | Presentacion |
+|-------|--------------|-------------|
+| Grid inventario | Card con stock, precio, categoria | No se muestra (vive dentro del producto) |
+| Formulario editar | Campos normales + lista de presentaciones (CRUD inline) | Se gestiona desde el form del producto |
+| Kardex | Historial completo del producto base | N/A (stock siempre en producto base) |
+| Busqueda POS (nombre) | Aparece como item vendible | N/A (busqueda solo por nombre de producto) |
+| Busqueda POS (codigo) | Si el EAN es del producto, se agrega directo | Si el EAN es de una presentacion, se agrega con su precio y factor |
+| Stock bajo (dashboard) | Aparece si stock <= minimo | N/A |
 
 ---
 
-## Flujo de datos: Grid de inventario
+## Busqueda dual por codigo de barras (POS)
 
-### Query principal (solo productos base)
-
-```typescript
-// inventario.service.ts → obtenerProductos()
-query = supabase.from('productos')
-    .select('*, categoria:categorias_productos(*)')
-    .eq('activo', true)
-    .is('producto_hijo_id', null)   // ← excluye padres
-    .order('nombre')
-    .range(from, to);
-```
-
-### Decoracion con info del padre (segundo query ligero)
-
-Despues de traer la pagina de productos base, un segundo query busca
-los empaques que apuntan a ellos:
+Cuando el POS escanea un codigo, busca en dos tablas:
 
 ```typescript
-const { data: padres } = await supabase.from('productos')
-    .select('id, nombre, precio_venta, factor_conversion, producto_hijo_id')
+// inventario.service.ts → buscarPorCodigoBarras(codigo)
+// 1. Buscar en productos
+const { data: prod } = await supabase.from('productos')
+    .select('id, nombre, ...')
+    .eq('codigo_barras', codigo)
     .eq('activo', true)
-    .in('producto_hijo_id', ids);    // ids de esta pagina
+    .maybeSingle();
+if (prod) return { producto: prod };
+
+// 2. Buscar en presentaciones (con JOIN al producto padre)
+const { data: pres } = await supabase.from('producto_presentaciones')
+    .select('*, producto:producto_id(id, nombre, ...)')
+    .eq('codigo_barras', codigo)
+    .eq('activo', true)
+    .maybeSingle();
+if (pres?.producto) return { producto: pres.producto, presentacion: pres };
 ```
 
-Se arma un `Map<hijo_id, padre>` y se decora cada producto base con `producto_padre`.
-Esto se renderiza como la mini-card azul debajo del precio.
+---
 
-### Por que no se filtra client-side
+## Stock cruzado en el carrito (POS)
 
-Versiones anteriores traian padres + hijos juntos y filtraban en JS.
-Problemas con paginacion:
+Cuando el mismo producto aparece en el carrito via diferentes presentaciones
+(ej: 3 cigarros sueltos + 2 cajetillas x10), el stock total comprometido se
+calcula sumando `cantidad * factor` de todas las lineas del mismo producto:
 
-1. Padre en pagina 1, hijo en pagina 2 → cards duplicadas/sueltas
-2. Filtrar N padres de 25 resultados → pagina con 22 items visible, huecos
-3. Infinite scroll pierde sincronizacion con la BD
-
-Con `.is('producto_hijo_id', null)` en SQL, cada pagina tiene exactamente
-`pageSize` items visibles sin huecos.
+```typescript
+private stockUsadoPorProducto(productoId: string): number {
+    return this.carrito
+        .filter(i => i.id === productoId)
+        .reduce((sum, i) => sum + i.cantidad * (i.factor_conversion ?? 1), 0);
+}
+// Ejemplo: 3*1 + 2*10 = 23 unidades base comprometidas
+```
 
 ---
 
 ## Eventos reactivos: `onProductoChange$`
 
-Emitido desde el servicio en tres situaciones:
-- CRUD desde `ProductoFormPage` (crear, editar, desactivar, reactivar)
-- Ajuste de stock desde `KardexPage` — `ajustarStock()` hace un query del producto actualizado y emite `ACTUALIZADO` para refrescar el card en el grid sin necesidad de scroll ni pull-to-refresh
+Emitido desde el servicio en CRUD y ajustes de stock.
 
-| Evento | Producto base | Empaque (padre) |
-|--------|--------------|-----------------|
-| CREADO | Se agrega al inicio del grid | No se agrega. Se busca el hijo en el grid y se decora con `producto_padre` |
-| ACTUALIZADO | Se reemplaza en el grid preservando `producto_padre` existente | Se busca el hijo y se refresca la decoracion |
-| DESACTIVADO | Se elimina del grid | Se elimina del grid |
-
-```typescript
-// Clave: al actualizar un producto base, NO perder la decoracion
-const padreInfo = this.items[idx].producto_padre;
-this.items[idx] = { ...producto, producto_padre: padreInfo };
-```
+| Evento | Comportamiento en grid |
+|--------|----------------------|
+| CREADO | Se agrega al inicio del grid |
+| ACTUALIZADO | Se reemplaza en el grid |
+| DESACTIVADO | Se elimina del grid |
 
 ---
 
@@ -152,16 +151,14 @@ this.items[idx] = { ...producto, producto_padre: padreInfo };
 ### Modos
 
 - **CREAR**: todos los campos editables, stock inicial obligatorio
-- **EDITAR**: codigo de barras readonly, stock readonly (se ajusta solo via Kardex o Ventas)
+- **EDITAR**: codigo de barras readonly, stock readonly, + seccion presentaciones
 
-### Seccion Empaque (solo visible si `tipo_venta === 'UNIDAD'`)
+### Seccion Presentaciones (solo EDITAR + tipo UNIDAD)
 
-1. Toggle "Es empaque" → habilita el buscador de producto base
-2. Buscador con debounce: `buscarProductosHijo(texto)` (min 2 chars)
-   - Solo retorna productos UNIDAD sin hijo propio (evita cadenas padre→padre)
-3. Seleccionar hijo → se muestra nombre + stock
-4. Input "Unidades por empaque" → `factor_conversion`
-5. Hint dinamico: "Al vender 1 {empaque}, se descontaran {N} unidades de {hijo}"
+Se muestra una lista de presentaciones existentes con opciones:
+- **Agregar**: AlertController con inputs (nombre, factor, precio, codigo_barras)
+- **Editar**: Click en la presentacion abre alert con valores actuales
+- **Eliminar**: Soft delete (`activo = false`). Las ventas anteriores conservan historial.
 
 ### Validaciones del formulario
 
@@ -171,40 +168,15 @@ this.items[idx] = { ...producto, producto_padre: padreInfo };
 | categoria_id | required |
 | precio_costo | required, min(0.01) |
 | precio_venta | required, min(0.01), >= precio_costo (group validator) |
-| stock_actual | required, min(0) — disabled si es empaque |
+| stock_actual | required, min(0) |
 | stock_minimo | required, min(0) |
-| producto_hijo_id | required solo si `esEmpaque` |
-| factor_conversion | required, min(1) |
-
-### Payload al guardar
-
-```typescript
-{
-    // ... campos normales
-    stock_actual: isEmpaque ? 0 : Number(value.stock_actual),
-    producto_hijo_id: isEmpaque ? value.producto_hijo_id : null,
-    factor_conversion: isEmpaque ? Number(value.factor_conversion) : 1,
-    unidad_medida: isPeso ? value.unidad_medida : 'und'
-}
-```
-
-Empaques siempre se guardan con `stock_actual = 0` y `factor_conversion >= 1`.
 
 ---
 
 ## Kardex (auditoria de stock)
 
-### Redireccion padre → hijo
-
-Si el usuario abre el kardex de un empaque, la pagina detecta `producto_hijo_id`
-y redirige automaticamente al kardex del producto base (que es donde vive el stock real).
-
-```typescript
-if (producto.producto_hijo_id) {
-    const hijo = await obtenerProductoPorId(producto.producto_hijo_id);
-    this.productoId = hijo.id;     // ← todo el kardex se carga del hijo
-}
-```
+El kardex siempre muestra el historial del producto base. No hay redireccion
+porque con el modelo de presentaciones, el stock siempre vive en el producto.
 
 ### Tipos de movimiento
 
@@ -216,14 +188,6 @@ if (producto.producto_hijo_id) {
 | AJUSTE_NEGATIVO | Salida (-) | Ajuste manual (ej: producto danado) |
 | ANULACION_VENTA | Entrada (+) | `fn_anular_venta` revierte el descuento |
 
-### Funcion SQL de ajuste
-
-`fn_ajustar_stock_inventario(p_producto_id, p_tipo_movimiento, p_cantidad, p_observaciones)`
-
-- Actualiza `productos.stock_actual`
-- Inserta registro en `kardex_inventario` con stock anterior y nuevo
-- Observaciones obligatorias (auditoria)
-
 ---
 
 ## Descuento de stock en ventas (Trigger)
@@ -233,27 +197,33 @@ if (producto.producto_hijo_id) {
 Se dispara `AFTER INSERT ON ventas_detalles`. Logica:
 
 ```sql
-v_target_id  := COALESCE(NEW.producto_stock_id, NEW.producto_id);
-v_target_qty := COALESCE(NEW.cantidad_stock, NEW.cantidad);
--- UPDATE productos SET stock_actual = stock_actual - v_target_qty WHERE id = v_target_id
+-- Si tiene presentacion_id, buscar factor_conversion
+IF NEW.presentacion_id IS NOT NULL THEN
+    SELECT factor_conversion INTO v_factor
+    FROM producto_presentaciones WHERE id = NEW.presentacion_id;
+ELSE
+    v_factor := 1;
+END IF;
+v_cantidad_real := NEW.cantidad * v_factor;
+-- UPDATE productos SET stock_actual = stock_actual - v_cantidad_real WHERE id = NEW.producto_id
 -- INSERT INTO kardex_inventario (...)
 ```
 
-| Caso | producto_stock_id | cantidad_stock | Descuenta de | Cantidad |
-|------|-------------------|----------------|-------------|----------|
-| Producto normal | NULL | NULL | producto_id | cantidad |
-| Empaque (cajetilla) | UUID del cigarro | cantidad x factor | UUID del cigarro | cantidad x factor |
+| Caso | presentacion_id | Descuenta de | Cantidad |
+|------|----------------|-------------|----------|
+| Producto directo | NULL | producto_id | cantidad |
+| Presentacion (cajetilla x20) | UUID de la presentacion | producto_id (base) | cantidad * 20 |
 
-### Flujo completo de una venta con empaque
+### Flujo completo de una venta con presentacion
 
 ```
-POS: vender 2 cajetillas (factor=20)
+POS: vender 2 cajetillas x20 (factor=20) de Cigarro Marlboro
   ↓
-CartItem: { id: cajetilla, cantidad: 2, producto_stock_id: cigarro, cantidad_stock: 40 }
+CartItem: { id: cigarro, cantidad: 2, presentacion_id: UUID-cajetilla20, factor_conversion: 20 }
   ↓
-fn_registrar_venta_pos → INSERT ventas_detalles(producto_id=cajetilla, cantidad=2, producto_stock_id=cigarro, cantidad_stock=40)
+fn_registrar_venta_pos → INSERT ventas_detalles(producto_id=cigarro, cantidad=2, presentacion_id=UUID-cajetilla20)
   ↓
-Trigger → COALESCE(cigarro, cajetilla) = cigarro, COALESCE(40, 2) = 40
+Trigger → factor=20, cantidad_real=2*20=40
   ↓
 UPDATE productos SET stock_actual = stock_actual - 40 WHERE id = cigarro
 INSERT kardex_inventario (producto_id=cigarro, cantidad=40, tipo='VENTA')
@@ -261,12 +231,19 @@ INSERT kardex_inventario (producto_id=cigarro, cantidad=40, tipo='VENTA')
 
 ### Anulacion (flujo inverso)
 
-`fn_anular_venta` usa la misma logica COALESCE para reponer stock al hijo:
+`fn_anular_venta` JOIN con `producto_presentaciones` para obtener el factor:
 
 ```sql
-COALESCE(producto_stock_id, producto_id) AS target_id,
-COALESCE(cantidad_stock, cantidad) AS target_qty
--- UPDATE productos SET stock_actual = stock_actual + target_qty WHERE id = target_id
+FOR v_detalle IN
+    SELECT vd.producto_id, vd.cantidad,
+           COALESCE(pp.factor_conversion, 1) AS factor
+    FROM ventas_detalles vd
+    LEFT JOIN producto_presentaciones pp ON pp.id = vd.presentacion_id
+    WHERE vd.venta_id = p_venta_id
+LOOP
+    v_cantidad_real := v_detalle.cantidad * v_detalle.factor;
+    -- UPDATE productos SET stock_actual = stock_actual + v_cantidad_real
+END LOOP;
 ```
 
 ---
@@ -290,30 +267,40 @@ interface Producto {
     imagen_url?: string;
     tipo_venta: 'UNIDAD' | 'PESO';
     unidad_medida: string;           // 'und', 'kg', 'lb', etc.
-    producto_hijo_id?: string;       // Solo padres: UUID del hijo
-    factor_conversion: number;       // Unidades del hijo por 1 padre (default 1)
-
-    // Decoracion runtime (no viene de BD directamente)
     categoria?: CategoriaProducto;
-    producto_padre?: { id, nombre, precio_venta, factor_conversion };
+    presentaciones?: ProductoPresentacion[];
+}
+```
+
+### `ProductoPresentacion`
+
+```typescript
+interface ProductoPresentacion {
+    id: string;
+    producto_id: string;
+    nombre: string;
+    factor_conversion: number;   // INTEGER: unidades base por presentacion
+    precio_venta: number;
+    codigo_barras?: string;
+    es_principal: boolean;
+    activo: boolean;
 }
 ```
 
 ### `ProductoPOS`
 
-Proyeccion liviana para busqueda POS — sin categoria, sin imagen, sin `producto_padre`.
+Proyeccion liviana para busqueda POS — sin categoria, sin presentaciones.
 
 ### `CartItem` (modulo POS)
-
-Extiende `ProductoPOS` y agrega:
 
 ```typescript
 interface CartItem extends ProductoPOS {
     cantidad: number;
     subtotal: number;
-    producto_stock_id?: string;   // UUID del hijo (solo padres)
-    cantidad_stock?: number;      // cantidad * factor_conversion (solo padres)
-    stock_disponible: number;     // Stock real: del hijo si es padre, propio si no
+    stock_disponible: number;
+    presentacion_id?: string;         // UUID de la presentacion (null si venta directa)
+    presentacion_nombre?: string;     // Para mostrar en UI: "Cajetilla x10"
+    factor_conversion?: number;       // Para calcular stock: cantidad * factor
 }
 ```
 
@@ -325,94 +312,20 @@ interface CartItem extends ProductoPOS {
 
 | Metodo | Descripcion |
 |--------|-------------|
-| `obtenerProductos(buscar?, categoriaId?, page, pageSize)` | Paginado. Solo productos base + decoracion padre |
-| `buscarProductosPOS(texto)` | Liviana, limit 10, para POS. Incluye padres (son vendibles) |
-| `obtenerProductoPorCodigo(codigo)` | Por EAN exacto. Usa `maybeSingle()` |
+| `obtenerProductos(buscar?, categoriaId?, page, pageSize)` | Paginado con join categoria |
+| `buscarProductosPOS(texto)` | Liviana, limit 10, para POS |
+| `buscarPorCodigoBarras(codigo)` | Busqueda dual: producto + presentaciones. Retorna `{ producto, presentacion? }` |
+| `obtenerProductoPorCodigo(codigo)` | Por EAN exacto solo en productos. Usa `maybeSingle()` |
 | `obtenerProductoPorId(id)` | Con join categoria |
 | `crearProducto(producto)` | INSERT + emite evento CREADO |
 | `actualizarProducto(id, producto)` | UPDATE + emite evento ACTUALIZADO |
-| `desactivarProducto(id)` | Soft delete (`activo=false`) + emite DESACTIVADO |
+| `desactivarProducto(id)` | Soft delete + emite DESACTIVADO |
 | `reactivarProducto(id)` | `activo=true` + emite ACTUALIZADO |
-| `obtenerProductosDesactivados()` | Solo productos base inactivos |
-| `obtenerProductosStockBajo()` | Excluye padres (stock=0 por diseno) |
-| `buscarProductosHijo(texto)` | Candidatos para empaque: UNIDAD sin hijo propio |
-| `obtenerStockHijo(productoHijoId)` | Stock actual del hijo (validacion POS) |
-| `ajustarStock(productoId, tipo, cantidad, obs)` | Via `fn_ajustar_stock_inventario`. Tras el ajuste emite `ACTUALIZADO` para refrescar el grid |
-
-### Eventos (`onProductoChange$`)
-
-```typescript
-interface ProductoChangeEvent {
-    tipo: 'CREADO' | 'ACTUALIZADO' | 'DESACTIVADO';
-    producto: Producto;
-}
-```
-
-Emitido por `crearProducto`, `actualizarProducto`, `desactivarProducto`, `reactivarProducto`.
-La pagina principal escucha y actualiza el grid sin recargar.
-
----
-
-## Categorias
-
-Tabla `categorias_productos` con soft delete (`activo`).
-
-| Accion | Restriccion |
-|--------|-------------|
-| Crear | Nombre unico |
-| Renombrar | Nombre unico |
-| Eliminar | Solo si no tiene productos activos NI inactivos |
-
-Las categorias se gestionan desde el menu `...` del filtro en la pagina principal,
-no desde una pagina separada.
-
----
-
-## Tabla de BD: `productos`
-
-```sql
-CREATE TABLE productos (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    categoria_id    INTEGER REFERENCES categorias_productos(id),
-    codigo_barras   VARCHAR(50) UNIQUE,
-    nombre          VARCHAR(150) NOT NULL,
-    precio_costo    DECIMAL(12,2) NOT NULL DEFAULT 0,
-    precio_venta    DECIMAL(12,2) NOT NULL,
-    stock_actual    DECIMAL(12,2) DEFAULT 0,
-    stock_minimo    INTEGER DEFAULT 5,
-    tiene_iva       BOOLEAN DEFAULT TRUE,
-    activo          BOOLEAN DEFAULT TRUE,
-    imagen_url      TEXT,
-    tipo_venta      VARCHAR(10) DEFAULT 'UNIDAD' CHECK (tipo_venta IN ('UNIDAD', 'PESO')),
-    unidad_medida   VARCHAR(10) DEFAULT 'und',
-    producto_hijo_id UUID REFERENCES productos(id),
-    factor_conversion SMALLINT DEFAULT 1 CHECK (factor_conversion > 0)
-);
-```
-
-### Tabla: `kardex_inventario`
-
-```sql
-CREATE TABLE kardex_inventario (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    producto_id     UUID NOT NULL REFERENCES productos(id),
-    fecha           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    tipo_movimiento VARCHAR(20) CHECK (tipo_movimiento IN
-                    ('VENTA', 'COMPRA', 'AJUSTE_POSITIVO', 'AJUSTE_NEGATIVO', 'ANULACION_VENTA')),
-    cantidad        DECIMAL(12,2) NOT NULL,
-    stock_anterior  DECIMAL(12,2) NOT NULL,
-    stock_nuevo     DECIMAL(12,2) NOT NULL,
-    referencia_id   UUID,
-    observaciones   TEXT
-);
-```
-
-### Tabla: `ventas_detalles` (campos padre-hijo)
-
-```sql
-producto_stock_id UUID REFERENCES productos(id),  -- NULL=normal, UUID hijo=empaque
-cantidad_stock    DECIMAL(12,2)                    -- NULL=normal, cantidad*factor=empaque
-```
+| `obtenerPresentaciones(productoId)` | Lista activas, ordenadas por factor |
+| `crearPresentacion(presentacion)` | INSERT en producto_presentaciones |
+| `actualizarPresentacion(id, data)` | UPDATE en producto_presentaciones |
+| `desactivarPresentacion(id)` | Soft delete de presentacion |
+| `ajustarStock(productoId, tipo, cantidad, obs)` | Via `fn_ajustar_stock_inventario`. Emite ACTUALIZADO |
 
 ---
 
@@ -421,9 +334,9 @@ cantidad_stock    DECIMAL(12,2)                    -- NULL=normal, cantidad*fact
 | Funcion | Ubicacion | Descripcion |
 |---------|-----------|-------------|
 | `fn_ajustar_stock_inventario` | `docs/inventario/sql/functions/` | Ajuste manual + kardex |
-| `fn_actualizar_stock_venta` | `docs/pos/sql/triggers/` | Trigger: descuenta stock al vender (COALESCE padre-hijo) |
-| `fn_registrar_venta_pos` | `docs/pos/sql/functions/` | RPC atomica. Inserta en ventas_detalles con producto_stock_id |
-| `fn_anular_venta` | `docs/pos/sql/functions/` | Revierte stock con COALESCE al hijo |
+| `fn_actualizar_stock_venta` | `docs/pos/sql/triggers/` | Trigger: descuenta stock al vender (factor desde presentacion) |
+| `fn_registrar_venta_pos` | `docs/pos/sql/functions/` | RPC atomica. Inserta en ventas_detalles con presentacion_id |
+| `fn_anular_venta` | `docs/pos/sql/functions/` | Revierte stock con JOIN a presentaciones |
 | `fn_generar_codigo_interno` | `docs/inventario/sql/functions/` | Trigger: genera codigo_barras si no tiene |
 
 ---
@@ -431,7 +344,7 @@ cantidad_stock    DECIMAL(12,2)                    -- NULL=normal, cantidad*fact
 ## Capas de validacion (orden de ejecucion)
 
 1. **Formulario Angular** — validators (required, min, maxLength, ventaMayorCosto)
-2. **Servicio TypeScript** — logica de negocio (isEmpaque → stock=0, factor=1 si no es empaque)
+2. **Servicio TypeScript** — logica de negocio (parseo precios, tipo_venta)
 3. **Funcion PostgreSQL** — RAISE EXCEPTION si hay inconsistencia
 4. **Constraints de BD** — UNIQUE, NOT NULL, CHECK, FK
 
@@ -451,14 +364,6 @@ cantidad_stock    DECIMAL(12,2)                    -- NULL=normal, cantidad*fact
 1. Agregar al CHECK constraint de `tipo_movimiento` en `schema.sql`
 2. Agregar al type `TipoMovimientoKardex` en `kardex.model.ts`
 3. Agregar case en `getIconoMovimiento()`, `getColorMovimiento()`, `getLabelMovimiento()` en `kardex.page.ts`
-
-### Soportar multiples padres por hijo
-
-Actualmente un hijo solo puede tener un padre (la query usa `Map<hijo_id, padre>` que seria 1:1).
-Si se necesita que un cigarro tenga cajetilla Y media-cajetilla:
-1. Cambiar `Map` a `Map<hijo_id, padre[]>` en `obtenerProductos()`
-2. Cambiar `producto_padre` en el modelo a array
-3. Ajustar el template para mostrar multiples mini-cards
 
 ### Imagenes de productos
 

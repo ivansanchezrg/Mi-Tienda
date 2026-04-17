@@ -152,9 +152,9 @@ export class VentasService {
                         cantidad,
                         precio_unitario,
                         subtotal,
-                        producto_stock_id,
-                        cantidad_stock,
-                        productos ( nombre, unidad_medida )
+                        presentacion_id,
+                        productos ( nombre, unidad_medida ),
+                        producto_presentaciones ( nombre )
                     ),
                     cuentas_cobrar ( monto )
                 `)
@@ -212,10 +212,10 @@ export class VentasService {
             cantidad: d.cantidad,
             precio_unitario: d.precio_unitario,
             subtotal: d.subtotal,
-            producto_stock_id: d.producto_stock_id ?? undefined,
-            cantidad_stock: d.cantidad_stock ?? undefined,
+            presentacion_id: d.presentacion_id ?? undefined,
             producto_nombre: d.productos?.nombre ?? '—',
             unidad_medida: d.productos?.unidad_medida ?? 'und',
+            presentacion_nombre: d.producto_presentaciones?.nombre ?? undefined,
         }));
 
         const totalAbonado = (raw.cuentas_cobrar ?? [])

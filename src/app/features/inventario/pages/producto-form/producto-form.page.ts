@@ -8,7 +8,7 @@ import { arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, ale
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
-import { Producto, TipoVenta } from '../../models/producto.model';
+import { Producto, ProductoPresentacion, TipoVenta } from '../../models/producto.model';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { InventarioService } from '../../services/inventario.service';
 
@@ -55,11 +55,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     categorias: CategoriaProducto[] = [];
     codigoBarrasInicial?: string;
 
-    // Granel + padre-hijo
-    esEmpaque = false;
-    productosHijoCandidatos: Pick<Producto, 'id' | 'nombre' | 'stock_actual'>[] = [];
-    productoHijoSeleccionado: Pick<Producto, 'id' | 'nombre' | 'stock_actual'> | null = null;
-    buscandoHijo = false;
+    // Presentaciones (solo en modo EDITAR)
+    presentaciones: ProductoPresentacion[] = [];
 
     // Imagen del producto
     fotoPreview: string | null = null;       // DataURL para preview local
@@ -93,6 +90,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                 this.imagenPathAnterior = producto.imagen_url;
                 this.imagenUrlExistente = this.storageService.getPublicUrl(producto.imagen_url, 'productos');
             }
+            // Cargar presentaciones del producto
+            this.presentaciones = await this.inventarioService.obtenerPresentaciones(producto.id);
         }
         this.cargando = false;
         this.inicializado = true;
@@ -112,9 +111,6 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     }
 
     private initForm() {
-        const isEmpaque = !!this.producto?.producto_hijo_id;
-        this.esEmpaque = isEmpaque;
-
         this.productoForm = this.fb.group({
             codigo_barras: [this.codigoBarrasInicial || this.producto?.codigo_barras || ''],
             nombre: [this.producto?.nombre || '', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
@@ -125,22 +121,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             stock_minimo: [this.producto?.stock_minimo || 5, [Validators.required, Validators.min(0)]],
             tiene_iva: [this.producto?.tiene_iva ?? true],
             tipo_venta: [this.producto?.tipo_venta || 'UNIDAD'],
-            unidad_medida: [this.producto?.unidad_medida || 'und'],
-            producto_hijo_id: [this.producto?.producto_hijo_id || null, isEmpaque ? [Validators.required] : []],
-            factor_conversion: [this.producto?.factor_conversion || 1, [Validators.required, Validators.min(1)]]
+            unidad_medida: [this.producto?.unidad_medida || 'und']
         }, { validators: this.ventaMayorCostoValidator.bind(this) });
-
-        // Si estamos editando un empaque, deshabilitar stock_actual y cargar datos del hijo
-        if (isEmpaque) {
-            this.productoForm.get('stock_actual')?.disable();
-            if (this.producto?.producto_hijo_id) {
-                this.inventarioService.obtenerProductoPorId(this.producto.producto_hijo_id).then(hijo => {
-                    if (hijo) {
-                        this.productoHijoSeleccionado = { id: hijo.id, nombre: hijo.nombre, stock_actual: hijo.stock_actual };
-                    }
-                });
-            }
-        }
 
         // En modo CREAR, marcar categoría como touched para que se vea el error de inmediato
         if (this.modo === 'CREAR') {
@@ -229,22 +211,17 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         const codigoBarras = value.codigo_barras?.trim() ? value.codigo_barras.trim() : null;
 
         const isPeso = value.tipo_venta === 'PESO';
-        const isEmpaque = this.esEmpaque && value.producto_hijo_id;
 
         const productoPayload: Partial<Producto> = {
             ...value,
             codigo_barras: codigoBarras,
             precio_costo: this.currencyService.parse(value.precio_costo),
             precio_venta: this.currencyService.parse(value.precio_venta),
-            stock_actual: isEmpaque ? 0 : (Number(value.stock_actual) || 0),
+            stock_actual: Number(value.stock_actual) || 0,
             stock_minimo: Number(value.stock_minimo) || 0,
             activo: this.producto?.activo ?? true,
-            // Granel
             tipo_venta: value.tipo_venta,
-            unidad_medida: isPeso ? value.unidad_medida : 'und',
-            // Empaque padre-hijo
-            producto_hijo_id: isEmpaque ? value.producto_hijo_id : null,
-            factor_conversion: isEmpaque ? (Number(value.factor_conversion) || 1) : 1
+            unidad_medida: isPeso ? value.unidad_medida : 'und'
         };
 
         try {
@@ -422,59 +399,108 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     }
 
     // ==========================================
-    // TIPO VENTA + EMPAQUE
+    // TIPO VENTA
     // ==========================================
 
     onTipoVentaChange(tipo: string) {
         if (tipo === 'PESO') {
-            // PESO no puede ser empaque
-            this.esEmpaque = false;
-            this.productoHijoSeleccionado = null;
-            this.productoForm.patchValue({
-                producto_hijo_id: null,
-                factor_conversion: 1,
-                unidad_medida: 'lb'
-            });
+            this.productoForm.patchValue({ unidad_medida: 'lb' });
         } else {
             this.productoForm.patchValue({ unidad_medida: 'und' });
         }
     }
 
-    toggleEmpaque(checked: boolean) {
-        this.esEmpaque = checked;
-        const hijoCtr = this.productoForm.get('producto_hijo_id');
-        if (checked) {
-            this.productoForm.get('stock_actual')?.disable();
-            hijoCtr?.setValidators([Validators.required]);
-        } else {
-            this.productoHijoSeleccionado = null;
-            this.productosHijoCandidatos = [];
-            this.productoForm.get('stock_actual')?.enable();
-            hijoCtr?.clearValidators();
-            this.productoForm.patchValue({ producto_hijo_id: null, factor_conversion: 1 });
-        }
-        hijoCtr?.updateValueAndValidity();
+    // ==========================================
+    // PRESENTACIONES (solo EDITAR)
+    // ==========================================
+
+    async agregarPresentacion() {
+        const alert = await this.alertCtrl.create({
+            header: 'Nueva presentacion',
+            inputs: [
+                { name: 'nombre', type: 'text', placeholder: 'Ej. Cajetilla x10' },
+                { name: 'factor_conversion', type: 'number', placeholder: 'Unidades por paquete (ej. 10)', min: 1 },
+                { name: 'precio_venta', type: 'number', placeholder: 'Precio de venta ($)', min: 0.01 },
+                { name: 'codigo_barras', type: 'text', placeholder: 'Codigo de barras (opcional)' }
+            ],
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                {
+                    text: 'Crear',
+                    handler: async (data) => {
+                        if (!data.nombre?.trim() || !data.factor_conversion || !data.precio_venta) {
+                            this.ui.showToast('Completa nombre, factor y precio', 'warning');
+                            return false;
+                        }
+                        const pres = await this.inventarioService.crearPresentacion({
+                            producto_id: this.producto!.id,
+                            nombre: data.nombre.trim(),
+                            factor_conversion: Math.round(Number(data.factor_conversion)),
+                            precio_venta: Number(data.precio_venta),
+                            codigo_barras: data.codigo_barras?.trim() || null
+                        });
+                        if (pres?.id) {
+                            this.presentaciones.push(pres);
+                        }
+                        return true;
+                    }
+                }
+            ]
+        });
+        await alert.present();
     }
 
-    async buscarHijo(texto: string) {
-        if (!texto || texto.length < 2) {
-            this.productosHijoCandidatos = [];
-            return;
-        }
-        this.buscandoHijo = true;
-        this.productosHijoCandidatos = await this.inventarioService.buscarProductosHijo(texto);
-        this.buscandoHijo = false;
+    async editarPresentacion(pres: ProductoPresentacion) {
+        const alert = await this.alertCtrl.create({
+            header: 'Editar presentacion',
+            inputs: [
+                { name: 'nombre', type: 'text', value: pres.nombre, placeholder: 'Nombre' },
+                { name: 'factor_conversion', type: 'number', value: pres.factor_conversion, placeholder: 'Unidades por paquete', min: 1 },
+                { name: 'precio_venta', type: 'number', value: pres.precio_venta, placeholder: 'Precio de venta ($)', min: 0.01 },
+                { name: 'codigo_barras', type: 'text', value: pres.codigo_barras || '', placeholder: 'Codigo de barras (opcional)' }
+            ],
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                {
+                    text: 'Guardar',
+                    handler: async (data) => {
+                        if (!data.nombre?.trim() || !data.factor_conversion || !data.precio_venta) {
+                            this.ui.showToast('Completa nombre, factor y precio', 'warning');
+                            return false;
+                        }
+                        await this.inventarioService.actualizarPresentacion(pres.id, {
+                            nombre: data.nombre.trim(),
+                            factor_conversion: Math.round(Number(data.factor_conversion)),
+                            precio_venta: Number(data.precio_venta),
+                            codigo_barras: data.codigo_barras?.trim() || null
+                        });
+                        // Refrescar lista
+                        this.presentaciones = await this.inventarioService.obtenerPresentaciones(this.producto!.id);
+                        return true;
+                    }
+                }
+            ]
+        });
+        await alert.present();
     }
 
-    seleccionarHijo(hijo: Pick<Producto, 'id' | 'nombre' | 'stock_actual'>) {
-        this.productoHijoSeleccionado = hijo;
-        this.productoForm.patchValue({ producto_hijo_id: hijo.id });
-        this.productosHijoCandidatos = [];
-    }
-
-    quitarHijo() {
-        this.productoHijoSeleccionado = null;
-        this.productoForm.patchValue({ producto_hijo_id: null, factor_conversion: 1 });
+    async eliminarPresentacion(pres: ProductoPresentacion) {
+        const alert = await this.alertCtrl.create({
+            header: 'Eliminar presentacion',
+            message: `¿Eliminar "${pres.nombre}"? Las ventas anteriores conservaran su historial.`,
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                {
+                    text: 'Eliminar',
+                    role: 'destructive',
+                    handler: async () => {
+                        await this.inventarioService.desactivarPresentacion(pres.id);
+                        this.presentaciones = this.presentaciones.filter(p => p.id !== pres.id);
+                    }
+                }
+            ]
+        });
+        await alert.present();
     }
 
     get unidadMedidaLabel(): string {

@@ -102,6 +102,12 @@
         @if (prod.tipo_venta === 'PESO') {
           <span class="tipo-tag peso">{{ prod.unidad_medida }}</span>
         }
+        @if (prod.presentaciones && prod.presentaciones.length > 0) {
+          <span class="tipo-tag presentaciones">
+            <ion-icon name="pricetag-outline"></ion-icon>
+            {{ prod.presentaciones.length }} present.
+          </span>
+        }
       </p>
 
       <div class="card-footer mt-md">
@@ -113,19 +119,6 @@
         </div>
       </div>
 
-      @if (prod.producto_padre) {
-      <div class="empaque-info-card" (click)="irAEditarEmpaque(prod.producto_padre.id); $event.stopPropagation()">
-        <div class="empaque-header">
-          <ion-icon name="layers-outline"></ion-icon>
-          <span>{{ prod.producto_padre.nombre }}</span>
-        </div>
-        <div class="empaque-detalle">
-          <span>x{{ prod.producto_padre.factor_conversion }} und</span>
-          <span class="empaque-separator">·</span>
-          <span>${{ currencyService.format(prod.producto_padre.precio_venta) }}</span>
-        </div>
-      </div>
-      }
     </ion-card-content>
     </ion-card>
     }
