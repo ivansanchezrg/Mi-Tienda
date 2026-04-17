@@ -1,0 +1,98 @@
+<div class="modal-wrapper">
+
+  <!-- Header -->
+  <div class="modal-header">
+    <div class="modal-header-icon cm-icon-wrapper">
+      @if (esPeso) {
+        <ion-icon name="scale-outline"></ion-icon>
+      } @else {
+        <ion-icon name="cube-outline"></ion-icon>
+      }
+    </div>
+    <span class="modal-header-title">{{ nombre }}</span>
+    <button class="modal-close-btn" (click)="cancelar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Info precio + stock -->
+  <div class="cm-meta">
+    <span class="cm-precio">{{ precioLabel }}</span>
+    <span class="cm-sep">·</span>
+    <span class="cm-stock">Disponible: {{ stockLabel }}</span>
+  </div>
+
+  <!-- Input de cantidad -->
+  <div class="cm-input-section">
+
+    @if (esPeso) {
+    <div class="cm-input-wrapper" [class.cm-input-wrapper--error]="!!error">
+      <input
+        #cantidadInput
+        appNumbersOnly
+        class="cm-input"
+        type="text"
+        inputmode="decimal"
+        placeholder="0.00"
+        [value]="cantidadStr"
+        (input)="onInput($event)" />
+      <span class="cm-input-suffix">{{ unidadMedida }}</span>
+      @if (cantidadStr) {
+      <button class="cm-clear-btn" (click)="limpiarInput()" type="button">
+        <ion-icon name="close-outline"></ion-icon>
+      </button>
+      }
+    </div>
+    } @else {
+    <div class="cm-stepper-row">
+      <button class="cm-step-btn" (click)="decrementar()"
+        [disabled]="!cantidad || cantidad <= 1">
+        <ion-icon name="remove-outline"></ion-icon>
+      </button>
+      <div class="cm-input-wrapper" [class.cm-input-wrapper--error]="!!error">
+        <input
+          #cantidadInput
+          appNumbersOnly
+          class="cm-input"
+          type="number"
+          inputmode="numeric"
+          min="1"
+          [max]="maxPermitido"
+          placeholder="0"
+          [value]="cantidadStr"
+          (input)="onInput($event)" />
+        @if (cantidadStr) {
+        <button class="cm-clear-btn" (click)="limpiarInput()" type="button">
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+        }
+      </div>
+      <button class="cm-step-btn" (click)="incrementar()"
+        [disabled]="cantidad !== null && cantidad >= maxPermitido">
+        <ion-icon name="add-outline"></ion-icon>
+      </button>
+    </div>
+    }
+
+    @if (error) {
+    <p class="cm-error">{{ error }}</p>
+    }
+  </div>
+
+  <!-- Subtotal preview -->
+  @if (subtotal > 0) {
+  <div class="cm-subtotal">
+    <span class="cm-subtotal-label">Subtotal</span>
+    <span class="cm-subtotal-value">${{ currencyService.format(subtotal) }}</span>
+  </div>
+  }
+
+  <!-- Botones -->
+  <div class="modal-actions">
+    <ion-button fill="solid" color="primary" (click)="confirmar()"
+      [disabled]="!cantidad || cantidad <= 0">
+      {{ esEdicion ? 'Confirmar' : 'Agregar' }}
+    </ion-button>
+  </div>
+
+</div>

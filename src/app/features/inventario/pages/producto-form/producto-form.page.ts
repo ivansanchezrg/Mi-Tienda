@@ -4,11 +4,11 @@ import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, Validators, 
 import { IonicModule, AlertController, NavController, ViewWillEnter } from '@ionic/angular';
 import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline } from 'ionicons/icons';
+import { arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline } from 'ionicons/icons';
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
-import { Producto } from '../../models/producto.model';
+import { Producto, ProductoPresentacion, TipoVenta } from '../../models/producto.model';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { InventarioService } from '../../services/inventario.service';
 
@@ -47,12 +47,16 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     modo: 'CREAR' | 'EDITAR' = 'CREAR';
     guardando = false;
     cargando = true;
+    formSubmitted = false;
     margenPorcentaje = 0;
     margenAbsoluto = 0;
 
     producto?: Producto;
     categorias: CategoriaProducto[] = [];
     codigoBarrasInicial?: string;
+
+    // Presentaciones (solo en modo EDITAR)
+    presentaciones: ProductoPresentacion[] = [];
 
     // Imagen del producto
     fotoPreview: string | null = null;       // DataURL para preview local
@@ -64,7 +68,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private audioCtx: AudioContext | null = null;
 
     constructor() {
-        addIcons({ arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline });
+        addIcons({ arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline });
     }
 
     async ngOnInit() {
@@ -86,6 +90,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                 this.imagenPathAnterior = producto.imagen_url;
                 this.imagenUrlExistente = this.storageService.getPublicUrl(producto.imagen_url, 'productos');
             }
+            // Cargar presentaciones del producto
+            this.presentaciones = await this.inventarioService.obtenerPresentaciones(producto.id);
         }
         this.cargando = false;
         this.inicializado = true;
@@ -113,8 +119,15 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             precio_venta: [this.producto?.precio_venta || '', [Validators.required, Validators.min(0.01)]],
             stock_actual: [this.producto?.stock_actual || '', [Validators.required, Validators.min(0)]],
             stock_minimo: [this.producto?.stock_minimo || 5, [Validators.required, Validators.min(0)]],
-            tiene_iva: [this.producto?.tiene_iva ?? true]
+            tiene_iva: [this.producto?.tiene_iva ?? true],
+            tipo_venta: [this.producto?.tipo_venta || 'UNIDAD'],
+            unidad_medida: [this.producto?.unidad_medida || 'und']
         }, { validators: this.ventaMayorCostoValidator.bind(this) });
+
+        // En modo CREAR, marcar categoría como touched para que se vea el error de inmediato
+        if (this.modo === 'CREAR') {
+            this.productoForm.get('categoria_id')?.markAsTouched();
+        }
 
         // Cálculo dinámico del margen de ganancia
         this.productoForm.valueChanges.subscribe(v => this.calcularMargen(v));
@@ -175,9 +188,9 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         await modal.present();
         const { data } = await modal.onDidDismiss();
 
+        this.productoForm.get('categoria_id')?.markAsTouched();
         if (data) {
             this.productoForm.patchValue({ categoria_id: Number(data) });
-            this.productoForm.get('categoria_id')?.markAsTouched();
         }
     }
 
@@ -186,6 +199,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     }
 
     async guardar() {
+        this.formSubmitted = true;
         if (this.productoForm.invalid || this.guardando) {
             this.productoForm.markAllAsTouched();
             return;
@@ -196,6 +210,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         const value = this.productoForm.value;
         const codigoBarras = value.codigo_barras?.trim() ? value.codigo_barras.trim() : null;
 
+        const isPeso = value.tipo_venta === 'PESO';
+
         const productoPayload: Partial<Producto> = {
             ...value,
             codigo_barras: codigoBarras,
@@ -203,7 +219,9 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             precio_venta: this.currencyService.parse(value.precio_venta),
             stock_actual: Number(value.stock_actual) || 0,
             stock_minimo: Number(value.stock_minimo) || 0,
-            activo: this.producto?.activo ?? true
+            activo: this.producto?.activo ?? true,
+            tipo_venta: value.tipo_venta,
+            unidad_medida: isPeso ? value.unidad_medida : 'und'
         };
 
         try {
@@ -378,6 +396,117 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar acentos
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-|-$/g, '');
+    }
+
+    // ==========================================
+    // TIPO VENTA
+    // ==========================================
+
+    onTipoVentaChange(tipo: string) {
+        if (tipo === 'PESO') {
+            this.productoForm.patchValue({ unidad_medida: 'lb' });
+        } else {
+            this.productoForm.patchValue({ unidad_medida: 'und' });
+        }
+    }
+
+    // ==========================================
+    // PRESENTACIONES (solo EDITAR)
+    // ==========================================
+
+    async agregarPresentacion() {
+        const alert = await this.alertCtrl.create({
+            header: 'Nueva presentacion',
+            inputs: [
+                { name: 'nombre', type: 'text', placeholder: 'Ej. Cajetilla x10' },
+                { name: 'factor_conversion', type: 'number', placeholder: 'Unidades por paquete (ej. 10)', min: 1 },
+                { name: 'precio_venta', type: 'number', placeholder: 'Precio de venta ($)', min: 0.01 },
+                { name: 'codigo_barras', type: 'text', placeholder: 'Codigo de barras (opcional)' }
+            ],
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                {
+                    text: 'Crear',
+                    handler: async (data) => {
+                        if (!data.nombre?.trim() || !data.factor_conversion || !data.precio_venta) {
+                            this.ui.showToast('Completa nombre, factor y precio', 'warning');
+                            return false;
+                        }
+                        const pres = await this.inventarioService.crearPresentacion({
+                            producto_id: this.producto!.id,
+                            nombre: data.nombre.trim(),
+                            factor_conversion: Math.round(Number(data.factor_conversion)),
+                            precio_venta: Number(data.precio_venta),
+                            codigo_barras: data.codigo_barras?.trim() || null
+                        });
+                        if (pres?.id) {
+                            this.presentaciones.push(pres);
+                        }
+                        return true;
+                    }
+                }
+            ]
+        });
+        await alert.present();
+    }
+
+    async editarPresentacion(pres: ProductoPresentacion) {
+        const alert = await this.alertCtrl.create({
+            header: 'Editar presentacion',
+            inputs: [
+                { name: 'nombre', type: 'text', value: pres.nombre, placeholder: 'Nombre' },
+                { name: 'factor_conversion', type: 'number', value: pres.factor_conversion, placeholder: 'Unidades por paquete', min: 1 },
+                { name: 'precio_venta', type: 'number', value: pres.precio_venta, placeholder: 'Precio de venta ($)', min: 0.01 },
+                { name: 'codigo_barras', type: 'text', value: pres.codigo_barras || '', placeholder: 'Codigo de barras (opcional)' }
+            ],
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                {
+                    text: 'Guardar',
+                    handler: async (data) => {
+                        if (!data.nombre?.trim() || !data.factor_conversion || !data.precio_venta) {
+                            this.ui.showToast('Completa nombre, factor y precio', 'warning');
+                            return false;
+                        }
+                        await this.inventarioService.actualizarPresentacion(pres.id, {
+                            nombre: data.nombre.trim(),
+                            factor_conversion: Math.round(Number(data.factor_conversion)),
+                            precio_venta: Number(data.precio_venta),
+                            codigo_barras: data.codigo_barras?.trim() || null
+                        });
+                        // Refrescar lista
+                        this.presentaciones = await this.inventarioService.obtenerPresentaciones(this.producto!.id);
+                        return true;
+                    }
+                }
+            ]
+        });
+        await alert.present();
+    }
+
+    async eliminarPresentacion(pres: ProductoPresentacion) {
+        const alert = await this.alertCtrl.create({
+            header: 'Eliminar presentacion',
+            message: `¿Eliminar "${pres.nombre}"? Las ventas anteriores conservaran su historial.`,
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                {
+                    text: 'Eliminar',
+                    role: 'destructive',
+                    handler: async () => {
+                        await this.inventarioService.desactivarPresentacion(pres.id);
+                        this.presentaciones = this.presentaciones.filter(p => p.id !== pres.id);
+                    }
+                }
+            ]
+        });
+        await alert.present();
+    }
+
+    get unidadMedidaLabel(): string {
+        const um = this.productoForm?.get('unidad_medida')?.value;
+        const labels: Record<string, string> = { kg: 'Kilogramo', lb: 'Libra', g: 'Gramo', ml: 'Mililitro', L: 'Litro' };
+        return labels[um] || um;
     }
 
     esCampoInvalido(campo: string): boolean {
