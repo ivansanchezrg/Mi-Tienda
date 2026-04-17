@@ -21,7 +21,7 @@
         <div class="stock-header mb-md">
             <div class="stock-info">
                 <span class="stock-label">Stock actual</span>
-                <span class="stock-value">{{ stockActual }}</span>
+                <span class="stock-value">{{ stockActual }}{{ esPeso ? ' ' + unidadMedida : '' }}</span>
             </div>
             <ion-button [fill]="mostrarFormAjuste ? 'solid' : 'outline'" size="small"
                 [color]="mostrarFormAjuste ? 'medium' : 'primary'" (click)="toggleFormAjuste()">
@@ -61,8 +61,9 @@
                 <div class="campo">
                     <label class="campo-label">Cantidad *</label>
                     <input class="campo-input" [(ngModel)]="cantidad"
-                        type="number" inputmode="numeric" min="1"
-                        placeholder="Ej. 10">
+                        type="number" [attr.inputmode]="esPeso ? 'decimal' : 'numeric'" [min]="esPeso ? 0.001 : 1"
+                        [step]="esPeso ? 0.001 : 1"
+                        [placeholder]="esPeso ? 'Ej. 2.5 ' + unidadMedida : 'Ej. 10'">
                 </div>
 
                 <!-- Observaciones -->
@@ -80,7 +81,7 @@
                     <span>{{ cantidad }}</span>
                     <span class="operador">=</span>
                     <span class="resultado" [class.text-success]="esIngreso" [class.text-warning]="!esIngreso">
-                        {{ esIngreso ? stockActual + cantidad : stockActual - cantidad }}
+                        {{ esIngreso ? stockActual + cantidad : stockActual - cantidad }}{{ esPeso ? ' ' + unidadMedida : '' }}
                     </span>
                 </div>
                 }
@@ -132,13 +133,13 @@
                     <div class="timeline-body mt-sm">
                         <div class="stock-change"
                             [ngClass]="'text-' + getColorMovimiento(mov.tipo_movimiento)">
-                            {{ (mov.tipo_movimiento === 'VENTA' || mov.tipo_movimiento === 'AJUSTE_NEGATIVO') ? '-' : '+' }}{{ mov.cantidad }}
+                            {{ (mov.tipo_movimiento === 'VENTA' || mov.tipo_movimiento === 'AJUSTE_NEGATIVO') ? '-' : '+' }}{{ mov.cantidad }}{{ esPeso ? ' ' + unidadMedida : '' }}
                         </div>
 
                         <div class="stock-details">
-                            <span class="pill">Anterior: {{ mov.stock_anterior }}</span>
+                            <span class="pill">Anterior: {{ mov.stock_anterior }}{{ esPeso ? ' ' + unidadMedida : '' }}</span>
                             <span class="arrow">→</span>
-                            <span class="pill pill-nuevo">Quedan: {{ mov.stock_nuevo }}</span>
+                            <span class="pill pill-nuevo">Quedan: {{ mov.stock_nuevo }}{{ esPeso ? ' ' + unidadMedida : '' }}</span>
                         </div>
                     </div>
 

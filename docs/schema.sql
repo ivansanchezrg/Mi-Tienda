@@ -1,5 +1,5 @@
 -- ==========================================
--- SCHEMA - MI TIENDA v6.0
+-- SCHEMA - MI TIENDA v8.0
 -- Sistema de Gestión de Cajas, Ventas POS, Recargas y Nómina
 -- ==========================================
 -- ⚠️  Ejecutar UNA SOLA VEZ. Incluye DROP de tablas → borra todos los datos.
@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS cuentas_cobrar CASCADE;
 DROP TABLE IF EXISTS ventas_detalles CASCADE;
 DROP TABLE IF EXISTS kardex_inventario CASCADE;
 DROP TABLE IF EXISTS ventas CASCADE;
+DROP TABLE IF EXISTS producto_presentaciones CASCADE;
 DROP TABLE IF EXISTS productos CASCADE;
 DROP TABLE IF EXISTS categorias_productos CASCADE;
 DROP TABLE IF EXISTS clientes CASCADE;
@@ -259,8 +260,34 @@ CREATE TABLE IF NOT EXISTS productos (
     tiene_iva       BOOLEAN DEFAULT TRUE,
     activo          BOOLEAN DEFAULT TRUE,
     imagen_url      TEXT,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    -- ── Granel (v7) ──
+    tipo_venta          VARCHAR(10) DEFAULT 'UNIDAD' CHECK (tipo_venta IN ('UNIDAD', 'PESO')),
+    unidad_medida       VARCHAR(10) DEFAULT 'und'    -- 'und', 'kg', 'lb', 'g', 'ml', 'L'
 );
+
+-- 12b. producto_presentaciones — Formas de venta de un producto (cajetilla, pack, cubeta, etc.)
+-- Un producto puede tener 0..N presentaciones. Si tiene 0, se vende directamente (precio_venta del producto).
+-- Si tiene N, cada presentacion define su propio precio de venta y factor de conversion.
+-- Stock siempre vive en productos.stock_actual (unidad base). Al vender una presentacion,
+-- el trigger descuenta cantidad * factor_conversion del stock del producto.
+CREATE TABLE IF NOT EXISTS producto_presentaciones (
+    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    producto_id       UUID NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    nombre            VARCHAR(100) NOT NULL,              -- "Cajetilla x10", "Cubeta x30"
+    factor_conversion INTEGER NOT NULL CHECK (factor_conversion > 0),  -- unidades base por presentacion
+    precio_venta      DECIMAL(12,2) NOT NULL,             -- precio de venta de esta presentacion
+    codigo_barras     VARCHAR(50) UNIQUE,                 -- codigo de barras propio (opcional)
+    es_principal      BOOLEAN DEFAULT FALSE,              -- la presentacion por defecto en POS (solo 1 por producto)
+    activo            BOOLEAN DEFAULT TRUE,
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+-- Solo puede existir una presentacion principal por producto
+CREATE UNIQUE INDEX IF NOT EXISTS uq_presentaciones_principal
+    ON producto_presentaciones(producto_id) WHERE es_principal = TRUE;
+-- Nombres normalizados unicos por producto (evita "Cajetilla x10" y "cajetilla x10" duplicados)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_presentaciones_nombre
+    ON producto_presentaciones(producto_id, LOWER(TRIM(nombre)));
 
 -- 13. clientes (Consumidor Final y otros)
 CREATE TABLE IF NOT EXISTS clientes (
@@ -323,7 +350,9 @@ CREATE TABLE IF NOT EXISTS ventas_detalles (
     cantidad        DECIMAL(12,2) NOT NULL,
     precio_unitario DECIMAL(12,2) NOT NULL,
     precio_costo    DECIMAL(12,2) NOT NULL DEFAULT 0, -- snapshot del costo al momento de la venta
-    subtotal        DECIMAL(12,2) NOT NULL
+    subtotal        DECIMAL(12,2) NOT NULL,
+    -- ── Presentaciones (v8): si se vendio via presentacion, referencia a ella ──
+    presentacion_id UUID REFERENCES producto_presentaciones(id) -- NULL = venta directa, UUID = venta via presentacion
 );
 
 -- 16. kardex_inventario (Auditoría Anti-Fraude Bodega)
@@ -383,6 +412,9 @@ CREATE INDEX IF NOT EXISTS idx_recargas_virtuales_fecha      ON recargas_virtual
 CREATE INDEX IF NOT EXISTS idx_recargas_virtuales_servicio   ON recargas_virtuales(tipo_servicio_id);
 CREATE INDEX IF NOT EXISTS idx_recargas_virtuales_pagado     ON recargas_virtuales(pagado);
 CREATE INDEX IF NOT EXISTS idx_productos_codigo_barras       ON productos(codigo_barras);
+CREATE INDEX IF NOT EXISTS idx_presentaciones_producto       ON producto_presentaciones(producto_id);
+CREATE INDEX IF NOT EXISTS idx_presentaciones_producto_activo ON producto_presentaciones(producto_id, activo);
+CREATE INDEX IF NOT EXISTS idx_presentaciones_barcode        ON producto_presentaciones(codigo_barras);
 CREATE INDEX IF NOT EXISTS idx_ventas_fecha                  ON ventas(fecha);
 CREATE INDEX IF NOT EXISTS idx_ventas_turno_id               ON ventas(turno_id);
 CREATE INDEX IF NOT EXISTS idx_ventas_cliente_id             ON ventas(cliente_id);
@@ -476,20 +508,47 @@ CREATE TRIGGER trg_set_codigo_categoria_operacion
 --    Trigger: trg_generar_codigo_interno → BEFORE INSERT ON productos
 
 -- A. Descontar Stock y grabar Kardex al vender
+-- v8: soporta presentaciones — si presentacion_id existe, multiplica cantidad * factor_conversion
+--     Stock siempre se descuenta de productos.stock_actual (unidad base).
 CREATE OR REPLACE FUNCTION fn_actualizar_stock_venta()
 RETURNS TRIGGER AS $$
 DECLARE
-    v_stock_actual DECIMAL(12,2);
+    v_factor        INTEGER;
+    v_cantidad_real DECIMAL(12,2);
+    v_stock_actual  DECIMAL(12,2);
 BEGIN
-    SELECT stock_actual INTO v_stock_actual FROM productos WHERE id = NEW.producto_id;
-    
-    UPDATE productos 
-    SET stock_actual = stock_actual - NEW.cantidad
+    -- Si tiene presentacion, obtener factor; sino, factor = 1 (venta directa)
+    IF NEW.presentacion_id IS NOT NULL THEN
+        SELECT factor_conversion INTO v_factor
+        FROM producto_presentaciones
+        WHERE id = NEW.presentacion_id;
+
+        IF v_factor IS NULL THEN
+            RAISE EXCEPTION 'Presentacion no valida o no encontrada: %', NEW.presentacion_id;
+        END IF;
+    ELSE
+        v_factor := 1;
+    END IF;
+
+    v_cantidad_real := NEW.cantidad * v_factor;
+
+    -- FOR UPDATE: bloquea la fila durante la transaccion (evita race condition en ventas concurrentes)
+    SELECT stock_actual INTO v_stock_actual
+    FROM productos WHERE id = NEW.producto_id
+    FOR UPDATE;
+
+    IF v_stock_actual < v_cantidad_real THEN
+        RAISE EXCEPTION 'Stock insuficiente para producto %. Stock actual: %, requerido: %',
+            NEW.producto_id, v_stock_actual, v_cantidad_real;
+    END IF;
+
+    UPDATE productos
+    SET stock_actual = stock_actual - v_cantidad_real
     WHERE id = NEW.producto_id;
-    
+
     INSERT INTO kardex_inventario (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_nuevo, referencia_id, observaciones)
-    VALUES (NEW.producto_id, 'VENTA', NEW.cantidad, v_stock_actual, v_stock_actual - NEW.cantidad, NEW.venta_id, 'Descuento automático por Venta POS');
-    
+    VALUES (NEW.producto_id, 'VENTA', v_cantidad_real, v_stock_actual, v_stock_actual - v_cantidad_real, NEW.venta_id, 'Descuento automatico por Venta POS');
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -513,7 +572,7 @@ BEGIN
     IF NEW.metodo_pago = 'EFECTIVO' AND NEW.estado = 'COMPLETADA' THEN
         -- v5: ingreso va a CAJA_CHICA (cajón diario), no a CAJA (bóveda)
         SELECT id INTO v_caja_id FROM cajas WHERE codigo = 'CAJA_CHICA';
-        SELECT id INTO v_categoria_id FROM categorias_operaciones WHERE tipo = 'INGRESO' AND nombre ILIKE '%Ventas%' LIMIT 1;
+        SELECT id INTO v_categoria_id FROM categorias_operaciones WHERE codigo = 'IN-001';
         SELECT id INTO v_tipo_referencia_id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1;
 
         IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN
@@ -626,31 +685,50 @@ INSERT INTO usuarios (nombre, usuario, rol, es_superadmin) VALUES
 
 -- Insertar 3 productos de prueba (Asumiendo IDs 1 a 6 que se generan secuencialmente arriba)
 -- 1 = Bebidas, 2 = Snacks, 4 = Lácteos
-INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva) VALUES
-(1, '786123456001', 'Coca-Cola 1L', 0.80, 1.25, 24, 5, TRUE),
-(2, '786123456002', 'Ruffles Natural 50g', 0.35, 0.50, 50, 10, TRUE),
-(4, '786123456003', 'Yogur Toni Fresa 200ml', 0.40, 0.60, 15, 5, FALSE);
+INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva, tipo_venta, unidad_medida) VALUES
+(1, '786123456001', 'Coca-Cola 1L', 0.80, 1.25, 24, 5, TRUE, 'UNIDAD', 'und'),
+(2, '786123456002', 'Ruffles Natural 50g', 0.35, 0.50, 50, 10, TRUE, 'UNIDAD', 'und'),
+(4, '786123456003', 'Yogur Toni Fresa 200ml', 0.40, 0.60, 15, 5, FALSE, 'UNIDAD', 'und'),
+-- Producto con presentaciones: cigarro + cajetillas
+(2, '786123456010', 'Cigarro Marlboro', 0.15, 0.25, 200, 20, TRUE, 'UNIDAD', 'und'),
+-- Producto granel
+(3, NULL, 'Arroz Blanco', 0.60, 1.00, 50, 10, FALSE, 'PESO', 'lb');
+
+-- Presentaciones para Cigarro Marlboro (producto debe existir primero)
+INSERT INTO producto_presentaciones (producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal)
+SELECT p.id, 'Cajetilla x10', 10, 2.30, '786123456011', TRUE
+FROM productos p WHERE p.codigo_barras = '786123456010'
+UNION ALL
+SELECT p.id, 'Cajetilla x20', 20, 4.50, '786123456012', FALSE
+FROM productos p WHERE p.codigo_barras = '786123456010';
 
 -- ==========================================
--- RESUMEN (v6.0)
+-- RESUMEN (v8.0)
 -- ==========================================
--- ✅ 18 Tablas | 3 Enums | 27 Índices | 1 Vista
+-- v8: Modelo de presentaciones reemplaza padre-hijo.
+--     Nueva tabla producto_presentaciones (factor_conversion, precio_venta, codigo_barras propio).
+--     Eliminados de productos: producto_hijo_id, factor_conversion, constraints padre-hijo.
+--     ventas_detalles: presentacion_id reemplaza producto_stock_id + cantidad_stock.
+--     Trigger fn_actualizar_stock_venta: usa factor de presentacion (si aplica) para descontar stock.
+--     Granel (tipo_venta PESO + unidad_medida) se mantiene sin cambios desde v7.
+-- ✅ 19 Tablas | 3 Enums | 29 Indices | 1 Vista
 -- ✅ 2 Tipos de servicio (BUS, CELULAR)
 -- ✅ 4 Tipos de referencia (eliminado caja_fisica_diaria)
--- ✅ 19 Categorías de operaciones (14 egresos + 5 ingresos)
+-- ✅ 19 Categorias de operaciones (14 egresos + 5 ingresos)
 --    → EG-007: Salarios (seleccionable=FALSE, via flujo de nomina)
 --    → EG-013 y IN-005: Ajuste Diferencia Conteo (seleccionable=FALSE)
 --    → EG-014: Adelanto Sueldo Empleado (seleccionable=FALSE, via flujo de nomina)
 -- ✅ 5 Cajas inicializadas en $0.00
---    → CAJA (bóveda), CAJA_CHICA (cajón diario), VARIOS (fondo emergencia), CAJA_CELULAR, CAJA_BUS
+--    → CAJA (boveda), CAJA_CHICA (cajon diario), VARIOS (fondo emergencia), CAJA_CELULAR, CAJA_BUS
 -- ✅ Vista v_saldos_empleados — saldo calculado por empleado
--- ✅ Configuración: fondo=$20 | varios=$20 | alerta_bus=$75 | dias_fact=3 | iva=15%
+-- ✅ Configuracion: fondo=$20 | varios=$20 | alerta_bus=$75 | dias_fact=3 | iva=15%
 -- ✅ Admin inicial: Ivan Sanchez
--- ✅ 3 Productos de prueba
+-- ✅ 5 Productos de prueba (3 simples + 1 con presentaciones + 1 granel)
 -- ❌ Tablas eliminadas en v5: caja_fisica_diaria, gastos_diarios, categorias_gastos
 -- ❌ Tablas eliminadas en v6: deudas_empleados (cuenta corriente ahora en movimientos_empleados)
+-- ❌ Eliminado en v8: producto_hijo_id, factor_conversion en productos (reemplazado por producto_presentaciones)
 --
--- ⚠️  FUNCIONES POSTGRESQL (archivos separados, ejecutar después del schema):
+-- ⚠️  FUNCIONES POSTGRESQL (archivos separados, ejecutar despues del schema):
 --   Dashboard:
 --   • fn_abrir_turno                            → docs/dashboard/sql/functions/fn_abrir_turno.sql
 --   • fn_ejecutar_cierre_diario v5.6           → docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
@@ -683,7 +761,7 @@ INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio
 --   • fn_registrar_adelanto_sueldo             → docs/movimientos-empleados/sql/functions/fn_registrar_adelanto_sueldo.sql
 --   • fn_pagar_nomina_empleado                 → docs/movimientos-empleados/sql/functions/fn_pagar_nomina_empleado.sql
 --
--- ✅ 18 Tablas | 26 Funciones SQL
+-- ✅ 19 Tablas | 26 Funciones SQL | Granel (v7) + Presentaciones (v8)
 -- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 2 inventario + 3 ventas + 2 nomina + 4 triggers/helpers)
 -- ==========================================
 

@@ -18,7 +18,9 @@ import {
   createOutline,
   trashOutline,
   addCircleOutline,
-  chevronDownOutline
+  chevronDownOutline,
+  layersOutline,
+  pricetagOutline
 } from 'ionicons/icons';
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
@@ -89,7 +91,9 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       createOutline,
       trashOutline,
       addCircleOutline,
-      chevronDownOutline
+      chevronDownOutline,
+      layersOutline,
+      pricetagOutline
     });
   }
 
@@ -106,9 +110,11 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       const producto = this.resolverImagenUrl(event.producto);
       if (event.tipo === 'CREADO') {
         this.items.unshift(producto);
-      } else {
+      } else if (event.tipo === 'ACTUALIZADO') {
         const idx = this.items.findIndex(p => p.id === producto.id);
-        if (idx >= 0) this.items[idx] = producto;
+        if (idx >= 0) {
+          this.items[idx] = producto;
+        }
       }
     });
   }

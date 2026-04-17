@@ -83,31 +83,42 @@
             <ion-icon name="alert-circle-outline"></ion-icon>
             Agotado
           </div>
-          } @else if (prod.stock_actual <= prod.stock_minimo) { <div class="stock-badge warning shadow-1">
+          } @else if (prod.stock_actual <= prod.stock_minimo) {
+          <div class="stock-badge warning shadow-1">
             <ion-icon name="alert-circle-outline"></ion-icon>
-            Bajo: {{ prod.stock_actual }}
-        </div>
-        } @else {
-        <div class="stock-badge success shadow-1">
-          {{ prod.stock_actual }}
-        </div>
-        }
+            Bajo: {{ prod.stock_actual }}{{ prod.tipo_venta === 'PESO' ? ' ' + prod.unidad_medida : '' }}
+          </div>
+          } @else {
+          <div class="stock-badge success shadow-1">
+            {{ prod.stock_actual }}{{ prod.tipo_venta === 'PESO' ? ' ' + prod.unidad_medida : '' }}
+          </div>
+          }
     </div>
 
     <ion-card-content>
       <h3 class="product-name truncate-2">{{ prod.nombre }}</h3>
       <p class="product-category text-muted">
         {{ prod.categoria?.nombre || 'Sin categoría' }}
+        @if (prod.tipo_venta === 'PESO') {
+          <span class="tipo-tag peso">{{ prod.unidad_medida }}</span>
+        }
+        @if (prod.presentaciones && prod.presentaciones.length > 0) {
+          <span class="tipo-tag presentaciones">
+            <ion-icon name="pricetag-outline"></ion-icon>
+            {{ prod.presentaciones.length }} present.
+          </span>
+        }
       </p>
 
       <div class="card-footer mt-md">
         <div class="price text-primary">
-          ${{ currencyService.format(prod.precio_venta) }}
+          ${{ currencyService.format(prod.precio_venta) }}{{ prod.tipo_venta === 'PESO' ? '/' + prod.unidad_medida : '' }}
         </div>
         <div class="cost-price text-muted text-sm">
           Costo: ${{ currencyService.format(prod.precio_costo) }}
         </div>
       </div>
+
     </ion-card-content>
     </ion-card>
     }
