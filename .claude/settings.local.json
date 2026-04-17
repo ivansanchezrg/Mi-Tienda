@@ -120,7 +120,8 @@
       "Bash(cp \"$SRC/$density/ic_launcher.png\" \"$DST/$density/ic_launcher.png\")",
       "Bash(find c:UsersivanDesktopProyectosmi-tiendaandroidappsrcmainjava -name *.java -o -name *.kt)",
       "Bash(grep -r \"granel\\\\|unidad\\\\|paquete\\\\|unit_type\\\\|bulk\" /c/Users/ivan/Desktop/Proyectos/mi-tienda/src --include=*.ts --include=*.model.ts)",
-      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs/inventario -name *.sql -type f)"
+      "Bash(find /c/Users/ivan/Desktop/Proyectos/mi-tienda/docs/inventario -name *.sql -type f)",
+      "Bash(grep -r productos /c/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/core/services/ --include=*.ts)"
     ]
   },
   "disableAllHooks": true

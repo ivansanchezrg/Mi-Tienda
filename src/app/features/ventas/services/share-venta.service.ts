@@ -151,7 +151,9 @@ export class ShareVentaService {
         y += 18;
 
         for (const item of detalles) {
-            const nombre   = item.producto_nombre ?? '—';
+            const nombre   = item.presentacion_nombre
+                ? `${item.producto_nombre ?? '—'} (${item.presentacion_nombre})`
+                : (item.producto_nombre ?? '—');
             const maxWidth = 160;
             const words    = nombre.split(' ');
             let line       = '';

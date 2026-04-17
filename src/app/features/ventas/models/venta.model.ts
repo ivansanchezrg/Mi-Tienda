@@ -14,12 +14,12 @@ export interface VentaDetalle {
     cantidad: number;
     precio_unitario: number;
     subtotal: number;
-    // Padre-hijo (auditoría)
-    producto_stock_id?: string;
-    cantidad_stock?: number;
-    // JOIN productos
+    // Presentacion (v8)
+    presentacion_id?: string;
+    // JOINs
     producto_nombre?: string;
     unidad_medida?: string;
+    presentacion_nombre?: string;
 }
 
 export interface VentasResumen {

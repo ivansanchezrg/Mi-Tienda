@@ -160,89 +160,37 @@
                 </div>
                 }
 
-                <!-- Empaque padre-hijo (solo UNIDAD) -->
-                @if (productoForm.get('tipo_venta')?.value === 'UNIDAD') {
-                <div class="empaque-section">
-                    <ion-item class="custom-input flat-item" lines="none">
-                        <ion-toggle [checked]="esEmpaque" (ionChange)="toggleEmpaque($any($event).detail.checked)" color="primary">
-                            Es empaque (vende N unidades de otro producto)
-                        </ion-toggle>
-                    </ion-item>
+                <!-- Presentaciones (solo en EDITAR y tipo UNIDAD) -->
+                @if (modo === 'EDITAR' && productoForm.get('tipo_venta')?.value === 'UNIDAD') {
+                <div class="presentaciones-section mt-md">
+                    <div class="presentaciones-header">
+                        <p class="field-label">Presentaciones</p>
+                        <button type="button" class="pres-add-btn" (click)="agregarPresentacion()">
+                            <ion-icon name="add-outline"></ion-icon> Agregar
+                        </button>
+                    </div>
 
-                    @if (esEmpaque) {
-                    <div class="empaque-config mt-md">
-
-                        <!-- Producto hijo seleccionado o buscador -->
-                        <div class="input-group">
-                            <p class="field-label mb-xs">Producto base *</p>
-                            @if (productoHijoSeleccionado) {
-
-                            <div class="hijo-selected">
-                                <div class="hijo-info">
-                                    <span class="hijo-nombre">{{ productoHijoSeleccionado.nombre }}</span>
-                                    <span class="hijo-stock">Stock: {{ productoHijoSeleccionado.stock_actual }} und</span>
-                                </div>
-                                <button type="button" class="hijo-remove" (click)="quitarHijo()">
-                                    <ion-icon name="close-outline"></ion-icon>
-                                </button>
-                            </div>
-                            } @else {
-                            <div class="hijo-search-wrapper"
-                                [class.hijo-search-wrapper--open]="productosHijoCandidatos.length > 0"
-                                [class.hijo-search-wrapper--error]="esCampoInvalido('producto_hijo_id')">
-                                <div class="hijo-search-input">
-                                    <ion-icon name="search-outline"></ion-icon>
-                                    <input type="text" placeholder="Ej. Cigarro suelto, Huevo..."
-                                        (input)="buscarHijo($any($event.target).value || '')"
-                                        (blur)="productoForm.get('producto_hijo_id')?.markAsTouched()" />
-                                    @if (buscandoHijo) {
-                                    <ion-spinner name="crescent" style="width:18px;height:18px;color:var(--ion-color-medium)"></ion-spinner>
-                                    }
-                                </div>
-                                @if (productosHijoCandidatos.length > 0) {
-                                <div class="hijo-results">
-                                    @for (h of productosHijoCandidatos; track h.id) {
-                                    <button type="button" class="hijo-result-item" (click)="seleccionarHijo(h)">
-                                        <span class="hijo-result-nombre">{{ h.nombre }}</span>
-                                        <span class="hijo-result-stock">{{ h.stock_actual }} und</span>
-                                    </button>
-                                    }
-                                </div>
+                    @if (presentaciones.length === 0) {
+                    <p class="help-text">
+                        <ion-icon name="information-circle-outline" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
+                        Sin presentaciones. Si este producto se vende en paquetes (ej. cajetilla x10), agrega una presentacion.
+                    </p>
+                    } @else {
+                    <div class="presentaciones-list">
+                        @for (pres of presentaciones; track pres.id) {
+                        <div class="pres-item">
+                            <div class="pres-info" (click)="editarPresentacion(pres)">
+                                <span class="pres-nombre">{{ pres.nombre }}</span>
+                                <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
+                                @if (pres.codigo_barras) {
+                                <span class="pres-codigo">{{ pres.codigo_barras }}</span>
                                 }
                             </div>
-                            @if (esCampoInvalido('producto_hijo_id')) {
-                            <span class="error-text">Selecciona el producto base</span>
-                            }
-                            }
+                            <button type="button" class="pres-delete-btn" (click)="eliminarPresentacion(pres)">
+                                <ion-icon name="trash-outline"></ion-icon>
+                            </button>
                         </div>
-
-                        <!-- Factor de conversión -->
-                        <div class="input-group">
-                            <p class="field-label mb-xs">Unidades por empaque *</p>
-                            <div class="empaque-factor-input" [class.empaque-factor-input--invalid]="esCampoInvalido('factor_conversion')">
-                                <input appNumbersOnly
-                                    type="text" inputmode="numeric"
-                                    placeholder="Ej. 20"
-                                    [value]="productoForm.get('factor_conversion')?.value"
-                                    (input)="productoForm.get('factor_conversion')?.setValue(+$any($event.target).value || null)"
-                                    (blur)="productoForm.get('factor_conversion')?.markAsTouched()" />
-                                @if (productoHijoSeleccionado) {
-                                <span class="empaque-factor-suffix">{{ productoHijoSeleccionado.nombre }}</span>
-                                }
-                            </div>
-                            @if (esCampoInvalido('factor_conversion')) {
-                            <span class="error-text">Ingresa las unidades por empaque</span>
-                            }
-                            @if (productoHijoSeleccionado && productoForm.get('factor_conversion')?.value) {
-                            <p class="help-text mt-xs">
-                                <ion-icon name="information-circle-outline" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
-                                Al vender 1 {{ productoForm.get('nombre')?.value || 'empaque' }}, se descontarán
-                                <strong>{{ productoForm.get('factor_conversion')?.value }}</strong>
-                                unidades de "{{ productoHijoSeleccionado.nombre }}"
-                            </p>
-                            }
-                        </div>
-
+                        }
                     </div>
                     }
                 </div>
@@ -326,28 +274,6 @@
                     }
                 </div>
 
-                @if (esEmpaque && productoForm.get('producto_hijo_id')?.value) {
-                <!-- Empaque: stock se calcula desde el hijo -->
-                <div class="empaque-stock-info">
-                    <ion-icon name="information-circle-outline" color="primary"></ion-icon>
-                    <span>El stock de este empaque se calcula automáticamente desde el producto base.
-                        @if (productoHijoSeleccionado) {
-                            Stock disponible de "{{ productoHijoSeleccionado.nombre }}": <strong>{{ productoHijoSeleccionado.stock_actual }}</strong> unidades.
-                        }
-                    </span>
-                </div>
-
-                <div class="input-group">
-                    <ion-item class="custom-input flat-item" lines="none"
-                        [class.ion-invalid]="esCampoInvalido('stock_minimo')">
-                        <ion-input appNumbersOnly formControlName="stock_minimo" label="Aviso Mínimo (del hijo) *"
-                            labelPlacement="floating" type="text" inputmode="numeric"></ion-input>
-                    </ion-item>
-                    @if (esCampoInvalido('stock_minimo')) {
-                    <span class="error-text">No puede ser negativo</span>
-                    }
-                </div>
-                } @else {
                 <div class="grid-2-cols">
                     <!-- Stock Actual -->
                     <div class="input-group">
@@ -360,7 +286,7 @@
                                 [readonly]="modo === 'EDITAR'"></ion-input>
                         </ion-item>
                         @if (modo === 'EDITAR') {
-                        <p class="help-text">El stock solo se ajusta en Ventas o Kárdex</p>
+                        <p class="help-text">El stock solo se ajusta en Ventas o Kardex</p>
                         } @else if (esCampoInvalido('stock_actual')) {
                         <span class="error-text">Stock no puede ser negativo</span>
                         }
@@ -370,7 +296,7 @@
                     <div class="input-group">
                         <ion-item class="custom-input flat-item" lines="none"
                             [class.ion-invalid]="esCampoInvalido('stock_minimo')">
-                            <ion-input appNumbersOnly formControlName="stock_minimo" label="Aviso Mínimo *"
+                            <ion-input appNumbersOnly formControlName="stock_minimo" label="Aviso Minimo *"
                                 labelPlacement="floating" type="text" inputmode="numeric"></ion-input>
                         </ion-item>
                         @if (esCampoInvalido('stock_minimo')) {
@@ -378,7 +304,6 @@
                         }
                     </div>
                 </div>
-                }
             </ion-card-content>
         </ion-card>
 
