@@ -67,23 +67,18 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'El sueldo base debe ser mayor a cero');
   END IF;
 
-  SELECT nombre INTO v_beneficiario_nombre
-  FROM usuarios WHERE id = p_beneficiario_id AND activo = TRUE;
-  IF NOT FOUND THEN
+  v_beneficiario_nombre := (SELECT nombre FROM usuarios WHERE id = p_beneficiario_id AND activo = TRUE);
+  IF v_beneficiario_nombre IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'El empleado no existe o no esta activo');
   END IF;
 
-  SELECT id INTO v_cat_salarios_id
-  FROM categorias_operaciones
-  WHERE tipo = 'EGRESO' AND nombre = 'Salarios'
-  LIMIT 1;
+  v_cat_salarios_id := (SELECT id FROM categorias_operaciones WHERE tipo = 'EGRESO' AND nombre = 'Salarios' LIMIT 1);
 
   IF v_cat_salarios_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'Categoria EG-007 (Salarios) no encontrada');
   END IF;
 
-  SELECT id INTO v_tipo_ref_id
-  FROM tipos_referencia WHERE tabla = 'movimientos_empleados';
+  v_tipo_ref_id := (SELECT id FROM tipos_referencia WHERE tabla = 'movimientos_empleados');
   IF v_tipo_ref_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'Tipo de referencia movimientos_empleados no encontrado en tipos_referencia');
   END IF;
@@ -92,34 +87,44 @@ BEGIN
   -- 1. INSERTAR SUELDO_BASE
   -- ==========================================
 
+  v_mov_sueldo_id := gen_random_uuid();
+
   INSERT INTO movimientos_empleados (
-    empleado_id, tipo_movimiento, monto, descripcion, creado_por
+    id, empleado_id, tipo_movimiento, monto, descripcion, creado_por
   ) VALUES (
-    p_beneficiario_id,
+    v_mov_sueldo_id, p_beneficiario_id,
     'SUELDO_BASE',
     p_sueldo_base,
     COALESCE(p_descripcion, 'Sueldo del periodo'),
     p_empleado_id
-  ) RETURNING id INTO v_mov_sueldo_id;
+  );
 
   -- ==========================================
   -- 2. CALCULAR DESCUENTOS PENDIENTES
   -- ==========================================
 
-  SELECT
-    COALESCE(SUM(monto), 0),
-    COALESCE(json_agg(json_build_object(
+  v_total_descuentos := (
+    SELECT COALESCE(SUM(monto), 0)
+    FROM movimientos_empleados
+    WHERE empleado_id = p_beneficiario_id
+      AND estado_liquidacion = 'PENDIENTE'
+      AND tipo_movimiento IN ('FALTANTE_CAJA', 'ADELANTO_SUELDO', 'AJUSTE_CARGO')
+      AND id != v_mov_sueldo_id
+  );
+
+  v_detalle_descuentos := (
+    SELECT COALESCE(json_agg(json_build_object(
       'tipo', tipo_movimiento::TEXT,
       'monto', monto,
       'fecha', TO_CHAR(fecha, 'YYYY-MM-DD'),
       'descripcion', COALESCE(descripcion, '')
     ) ORDER BY fecha), '[]'::JSON)
-  INTO v_total_descuentos, v_detalle_descuentos
-  FROM movimientos_empleados
-  WHERE empleado_id = p_beneficiario_id
-    AND estado_liquidacion = 'PENDIENTE'
-    AND tipo_movimiento IN ('FALTANTE_CAJA', 'ADELANTO_SUELDO', 'AJUSTE_CARGO')
-    AND id != v_mov_sueldo_id;
+    FROM movimientos_empleados
+    WHERE empleado_id = p_beneficiario_id
+      AND estado_liquidacion = 'PENDIENTE'
+      AND tipo_movimiento IN ('FALTANTE_CAJA', 'ADELANTO_SUELDO', 'AJUSTE_CARGO')
+      AND id != v_mov_sueldo_id
+  );
 
   -- ==========================================
   -- 3. CALCULAR LIQUIDO
@@ -132,15 +137,17 @@ BEGIN
   -- ==========================================
 
   IF v_liquido <= 0 THEN
+    v_mov_pago_id := gen_random_uuid();
+
     INSERT INTO movimientos_empleados (
-      empleado_id, tipo_movimiento, monto, descripcion, creado_por
+      id, empleado_id, tipo_movimiento, monto, descripcion, creado_por
     ) VALUES (
-      p_beneficiario_id,
+      v_mov_pago_id, p_beneficiario_id,
       'PAGO_NOMINA',
       p_sueldo_base,
       'Sueldo absorbido por descuentos pendientes — no sale efectivo de caja',
       p_empleado_id
-    ) RETURNING id INTO v_mov_pago_id;
+    );
 
     UPDATE movimientos_empleados
     SET estado_liquidacion = 'LIQUIDADO',
@@ -164,11 +171,12 @@ BEGIN
   -- 5. LIQUIDO > 0: DISTRIBUIR ENTRE CAJAS
   -- ==========================================
 
-  SELECT id INTO v_varios_id FROM cajas WHERE codigo = 'VARIOS';
-  SELECT id INTO v_caja_id   FROM cajas WHERE codigo = 'CAJA';
+  v_varios_id := (SELECT id FROM cajas WHERE codigo = 'VARIOS');
+  v_caja_id   := (SELECT id FROM cajas WHERE codigo = 'CAJA');
 
-  SELECT saldo_actual INTO v_saldo_varios FROM cajas WHERE id = v_varios_id FOR UPDATE;
-  SELECT saldo_actual INTO v_saldo_caja   FROM cajas WHERE id = v_caja_id   FOR UPDATE;
+  PERFORM id FROM cajas WHERE id IN (v_varios_id, v_caja_id) FOR UPDATE;
+  v_saldo_varios := (SELECT saldo_actual FROM cajas WHERE id = v_varios_id);
+  v_saldo_caja   := (SELECT saldo_actual FROM cajas WHERE id = v_caja_id);
 
   v_monto_de_varios := LEAST(v_liquido, v_saldo_varios);
   v_monto_de_caja   := v_liquido - v_monto_de_varios;
@@ -246,14 +254,16 @@ BEGIN
   -- 7. INSTRUCCIONES FISICAS
   -- ==========================================
 
-  SELECT json_agg(x) INTO v_instrucciones
-  FROM (
-    SELECT * FROM (VALUES
-      ('Varios', 'VARIOS', v_monto_de_varios),
-      ('Tienda', 'CAJA',   v_monto_de_caja)
-    ) AS t(caja, codigo, monto)
-    WHERE monto > 0
-  ) x;
+  v_instrucciones := (
+    SELECT json_agg(x)
+    FROM (
+      SELECT * FROM (VALUES
+        ('Varios', 'VARIOS', v_monto_de_varios),
+        ('Tienda', 'CAJA',   v_monto_de_caja)
+      ) AS t(caja, codigo, monto)
+      WHERE monto > 0
+    ) x
+  );
 
   -- ==========================================
   -- RESULTADO

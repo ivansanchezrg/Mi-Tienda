@@ -7,10 +7,19 @@ DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
 );
 
 -- ==========================================
--- FUNCIÓN: fn_registrar_venta_pos (v1.7)
+-- FUNCIÓN: fn_registrar_venta_pos (v1.9)
 -- ==========================================
 -- Procesa una venta del POS en una transacción atómica.
 -- Si CUALQUIER paso falla, PostgreSQL hace rollback automático completo.
+--
+-- v1.9 — Fix precio_costo snapshot: si hay presentacion_id lee precio_costo de
+--   producto_presentaciones (costo real del paquete); si es venta directa lee de
+--   productos (costo unitario base). Corrige ganancia bruta en reportes históricos
+--   para ventas por presentación.
+--
+-- v1.8 — Fix: inserta presentacion_id en ventas_detalles (antes se omitia).
+--   Sin este campo el trigger trg_descontar_stock_venta usaba factor=1 siempre,
+--   desccontando cantidad raw en vez de cantidad * factor_conversion.
 --
 -- v1.7 — Snapshot de costo: lee precio_costo de productos al momento de la venta
 --   y lo persiste en ventas_detalles. Garantiza que los reportes históricos no
@@ -90,10 +99,8 @@ BEGIN
   -- 0. Idempotencia: si la clave ya existe, retornar la venta previa sin tocar nada.
   --    Esto protege contra reintentos cuando la red falla después de que la BD ya procesó.
   IF p_idempotency_key IS NOT NULL THEN
-    SELECT id, numero_comprobante
-    INTO   v_existing_id, v_existing_numero
-    FROM   ventas
-    WHERE  idempotency_key = p_idempotency_key;
+    v_existing_id     := (SELECT id FROM ventas WHERE idempotency_key = p_idempotency_key);
+    v_existing_numero := (SELECT numero_comprobante FROM ventas WHERE idempotency_key = p_idempotency_key);
 
     IF v_existing_id IS NOT NULL THEN
       RETURN json_build_object(
@@ -106,12 +113,12 @@ BEGIN
   END IF;
 
   -- 1. Obtener el siguiente número de comprobante de forma atómica.
-  --    UPDATE ... RETURNING bloquea solo la fila del tipo correspondiente
-  --    por milisegundos → cero colisiones bajo concurrencia.
+  --    UPDATE bloquea solo la fila del tipo correspondiente → cero colisiones bajo concurrencia.
   UPDATE secuencias_comprobantes
   SET    ultimo_valor = ultimo_valor + 1
-  WHERE  tipo_documento = p_tipo_comprobante
-  RETURNING ultimo_valor INTO v_numero_comprobante;
+  WHERE  tipo_documento = p_tipo_comprobante;
+
+  v_numero_comprobante := (SELECT ultimo_valor FROM secuencias_comprobantes WHERE tipo_documento = p_tipo_comprobante);
 
   -- Si el tipo no existe en la tabla, abortar con mensaje claro
   IF v_numero_comprobante IS NULL THEN
@@ -154,15 +161,14 @@ BEGIN
       'COMPLETADA',
       CASE WHEN p_metodo_pago = 'FIADO' THEN 'PENDIENTE' ELSE 'NO_APLICA' END,
       p_idempotency_key
-    )
-    RETURNING id INTO v_venta_id;
+    );
+
+    v_venta_id := (SELECT id FROM ventas WHERE numero_comprobante = v_numero_comprobante AND turno_id = p_turno_id);
   EXCEPTION WHEN unique_violation THEN
     -- Race condition: otro request con la misma idempotency_key ganó entre el SELECT y el INSERT.
     -- Retornar la venta que ya se insertó.
-    SELECT id, numero_comprobante
-    INTO   v_existing_id, v_existing_numero
-    FROM   ventas
-    WHERE  idempotency_key = p_idempotency_key;
+    v_existing_id     := (SELECT id FROM ventas WHERE idempotency_key = p_idempotency_key);
+    v_existing_numero := (SELECT numero_comprobante FROM ventas WHERE idempotency_key = p_idempotency_key);
 
     RETURN json_build_object(
       'success',            true,
@@ -175,12 +181,16 @@ BEGIN
   -- 3. Insertar los detalles (líneas de ítems)
   --    El trigger trg_descontar_stock_venta se ejecuta automáticamente
   --    por cada INSERT en ventas_detalles → descuenta stock + graba kardex
-  --    precio_costo se lee de productos en este momento → snapshot histórico inmutable
+  --    precio_costo: si hay presentacion_id → costo de la presentacion (precio_costo del paquete)
+  --                  si venta directa        → costo del producto base
+  --    Garantiza snapshot histórico inmutable y costo correcto según la forma de venta.
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
-    SELECT precio_costo INTO v_precio_costo
-    FROM   productos
-    WHERE  id = (v_item->>'producto_id')::UUID;
+    IF (v_item->>'presentacion_id') IS NOT NULL THEN
+      v_precio_costo := (SELECT precio_costo FROM producto_presentaciones WHERE id = (v_item->>'presentacion_id')::UUID);
+    ELSE
+      v_precio_costo := (SELECT precio_costo FROM productos WHERE id = (v_item->>'producto_id')::UUID);
+    END IF;
 
     INSERT INTO ventas_detalles (
       venta_id,
@@ -188,14 +198,16 @@ BEGIN
       cantidad,
       precio_unitario,
       precio_costo,
-      subtotal
+      subtotal,
+      presentacion_id
     ) VALUES (
       v_venta_id,
       (v_item->>'producto_id')::UUID,
       (v_item->>'cantidad')::DECIMAL,
       (v_item->>'precio_unitario')::DECIMAL,
       COALESCE(v_precio_costo, 0),
-      (v_item->>'subtotal')::DECIMAL
+      (v_item->>'subtotal')::DECIMAL,
+      (v_item->>'presentacion_id')::UUID
     );
   END LOOP;
 
@@ -219,9 +231,13 @@ GRANT  EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, INTEGER, UUID, TE
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_registrar_venta_pos IS
+  'v1.9 — Fix precio_costo snapshot: venta por presentacion usa producto_presentaciones.precio_costo '
+  '(costo del paquete); venta directa usa productos.precio_costo (costo unitario). '
+  'Corrige calculo de ganancia bruta en fn_reporte_ventas_periodo para ventas por presentacion. '
+  'v1.8 — Fix: inserta presentacion_id en ventas_detalles. Sin este campo el trigger '
+  'trg_descontar_stock_venta usaba factor=1 siempre, causando descuento incorrecto de stock. '
   'v1.7 — Snapshot de costo: persiste precio_costo en ventas_detalles al momento de la venta. '
   'v1.6 — Descuentos: persiste monto (p_descuento) y porcentaje (p_descuento_pct). '
-  'Descuento no aplica para FIADO (validado en frontend). '
   'v1.4 — Idempotencia: p_idempotency_key UUID para evitar duplicados por reintento. '
   'Registra venta completa del POS en transacción atómica. '
   'Triggers automáticos: descuento de stock (kardex) y actualización de CAJA_CHICA.';

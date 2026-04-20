@@ -158,29 +158,27 @@ BEGIN
   -- 2. OBTENER IDs POR CÓDIGO / TABLA
   -- ==========================================
 
-  SELECT id INTO v_caja_id         FROM cajas WHERE codigo = 'CAJA';
-  SELECT id INTO v_caja_chica_id   FROM cajas WHERE codigo = 'CAJA_CHICA';
-  SELECT id INTO v_varios_id       FROM cajas WHERE codigo = 'VARIOS';
-  SELECT id INTO v_caja_celular_id FROM cajas WHERE codigo = 'CAJA_CELULAR';
-  SELECT id INTO v_caja_bus_id     FROM cajas WHERE codigo = 'CAJA_BUS';
+  v_caja_id         := (SELECT id FROM cajas WHERE codigo = 'CAJA');
+  v_caja_chica_id   := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA');
+  v_varios_id       := (SELECT id FROM cajas WHERE codigo = 'VARIOS');
+  v_caja_celular_id := (SELECT id FROM cajas WHERE codigo = 'CAJA_CELULAR');
+  v_caja_bus_id     := (SELECT id FROM cajas WHERE codigo = 'CAJA_BUS');
 
-  SELECT id INTO v_tipo_servicio_celular_id FROM tipos_servicio   WHERE codigo = 'CELULAR';
-  SELECT id INTO v_tipo_servicio_bus_id     FROM tipos_servicio   WHERE codigo = 'BUS';
-  SELECT id INTO v_tipo_ref_recargas_id     FROM tipos_referencia WHERE tabla = 'recargas';
-  SELECT id INTO v_tipo_ref_turnos_id       FROM tipos_referencia WHERE tabla = 'turnos_caja';
+  v_tipo_servicio_celular_id := (SELECT id FROM tipos_servicio   WHERE codigo = 'CELULAR');
+  v_tipo_servicio_bus_id     := (SELECT id FROM tipos_servicio   WHERE codigo = 'BUS');
+  v_tipo_ref_recargas_id     := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas');
+  v_tipo_ref_turnos_id       := (SELECT id FROM tipos_referencia WHERE tabla = 'turnos_caja');
 
-  SELECT id INTO v_cat_ajuste_ingreso_id FROM categorias_operaciones WHERE codigo = 'IN-005';
-  SELECT id INTO v_cat_ajuste_egreso_id  FROM categorias_operaciones WHERE codigo = 'EG-013';
+  v_cat_ajuste_ingreso_id := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-005');
+  v_cat_ajuste_egreso_id  := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-013');
 
   -- ==========================================
   -- 3. OBTENER CONFIGURACIÓN
   -- ==========================================
 
-  SELECT
-    (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_fondo_fijo_diario'),
-    (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_varios_transferencia_dia'),
-    (SELECT valor::BOOLEAN FROM configuraciones WHERE clave = 'pos_habilitado')
-  INTO v_fondo_fijo, v_transferencia_diaria, v_pos_habilitado;
+  v_fondo_fijo          := (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_fondo_fijo_diario');
+  v_transferencia_diaria := (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_varios_transferencia_dia');
+  v_pos_habilitado       := (SELECT valor::BOOLEAN FROM configuraciones WHERE clave = 'pos_habilitado');
 
   IF v_fondo_fijo IS NULL OR v_transferencia_diaria IS NULL THEN
     RAISE EXCEPTION 'No se encontró configuración del sistema';
@@ -194,10 +192,11 @@ BEGIN
   -- (para filtrar recargas virtuales no incorporadas en cierres previos)
   -- ==========================================
 
-  SELECT MAX(hora_fecha_cierre)
-  INTO v_ultimo_cierre_at
-  FROM turnos_caja
-  WHERE hora_fecha_cierre IS NOT NULL;
+  v_ultimo_cierre_at := (
+    SELECT MAX(hora_fecha_cierre)
+    FROM turnos_caja
+    WHERE hora_fecha_cierre IS NOT NULL
+  );
 
   -- ==========================================
   -- 5. RECARGAS VIRTUALES PENDIENTES
@@ -206,30 +205,30 @@ BEGIN
   -- incluso si tienen fecha anterior (ej: recarga del lunes en un cierre del martes).
   -- ==========================================
 
-  SELECT COALESCE(SUM(monto_virtual), 0)
-  INTO v_agregado_celular
-  FROM recargas_virtuales rv
-  WHERE rv.tipo_servicio_id = v_tipo_servicio_celular_id
-    AND (v_ultimo_cierre_at IS NULL OR rv.created_at > v_ultimo_cierre_at);
+  v_agregado_celular := (
+    SELECT COALESCE(SUM(monto_virtual), 0)
+    FROM recargas_virtuales rv
+    WHERE rv.tipo_servicio_id = v_tipo_servicio_celular_id
+      AND (v_ultimo_cierre_at IS NULL OR rv.created_at > v_ultimo_cierre_at)
+  );
 
-  SELECT COALESCE(SUM(monto_virtual), 0)
-  INTO v_agregado_bus
-  FROM recargas_virtuales rv
-  WHERE rv.tipo_servicio_id = v_tipo_servicio_bus_id
-    AND (v_ultimo_cierre_at IS NULL OR rv.created_at > v_ultimo_cierre_at);
+  v_agregado_bus := (
+    SELECT COALESCE(SUM(monto_virtual), 0)
+    FROM recargas_virtuales rv
+    WHERE rv.tipo_servicio_id = v_tipo_servicio_bus_id
+      AND (v_ultimo_cierre_at IS NULL OR rv.created_at > v_ultimo_cierre_at)
+  );
 
   -- ==========================================
   -- 6. LEER SALDOS ACTUALES DE CAJAS (con lock para consistencia)
   -- ==========================================
 
-  SELECT saldo_actual INTO v_saldo_caja_chica_digital
-    FROM cajas WHERE id = v_caja_chica_id FOR UPDATE;
+  -- Lock explícito en las 3 filas + lectura individual por código
+  PERFORM id FROM cajas WHERE codigo IN ('CAJA_CHICA', 'CAJA', 'VARIOS') FOR UPDATE;
 
-  SELECT saldo_actual INTO v_saldo_caja
-    FROM cajas WHERE id = v_caja_id FOR UPDATE;
-
-  SELECT saldo_actual INTO v_saldo_varios
-    FROM cajas WHERE id = v_varios_id FOR UPDATE;
+  v_saldo_caja_chica_digital := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA_CHICA');
+  v_saldo_caja               := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA');
+  v_saldo_varios             := (SELECT saldo_actual FROM cajas WHERE codigo = 'VARIOS');
 
   -- ==========================================
   -- 7. AJUSTE POR DIFERENCIA DE CONTEO FÍSICO
@@ -253,11 +252,11 @@ BEGIN
   -- ==========================================
 
   -- Verificar si hubo movimientos reales en CAJA_CHICA durante este turno
-  SELECT EXISTS (
+  v_hubo_movimientos_caja_chica := EXISTS (
     SELECT 1 FROM operaciones_cajas
     WHERE caja_id = v_caja_chica_id
       AND fecha >= (SELECT hora_fecha_apertura FROM turnos_caja WHERE id = p_turno_id)
-  ) INTO v_hubo_movimientos_caja_chica;
+  );
 
   IF v_pos_habilitado AND v_hubo_movimientos_caja_chica THEN
     v_efectivo_esperado := v_saldo_caja_chica_digital + v_fondo_fijo;
@@ -348,7 +347,7 @@ BEGIN
   -- Cubre dos casos:
   --   1. Cierre normal anterior del día   → TRANSFERENCIA_ENTRANTE en VARIOS
   --   2. Ajuste de apertura (reparar déficit) → INGRESO categoría IN-004 en VARIOS
-  SELECT EXISTS (
+  v_transferencia_ya_hecha := EXISTS (
     SELECT 1
     FROM operaciones_cajas oc
     WHERE oc.caja_id = v_varios_id
@@ -363,7 +362,7 @@ BEGIN
           )
         )
       )
-  ) INTO v_transferencia_ya_hecha;
+  );
 
   IF v_transferencia_ya_hecha THEN
     -- 2do turno del día: VARIOS ya recibió, no hay déficit
@@ -499,8 +498,9 @@ BEGIN
       v_venta_celular,
       p_saldo_anterior_celular,
       p_saldo_celular_final
-    )
-    RETURNING id INTO v_recarga_celular_id;
+    );
+
+    v_recarga_celular_id := (SELECT id FROM recargas WHERE turno_id = p_turno_id AND tipo_servicio_id = v_tipo_servicio_celular_id);
 
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, monto,
@@ -548,8 +548,9 @@ BEGIN
     )
     ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
       venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
-      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual
-    RETURNING id INTO v_recarga_bus_id;
+      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual;
+
+    v_recarga_bus_id := (SELECT id FROM recargas WHERE turno_id = p_turno_id AND tipo_servicio_id = v_tipo_servicio_bus_id);
 
     IF v_venta_bus > 0 THEN
       INSERT INTO operaciones_cajas (

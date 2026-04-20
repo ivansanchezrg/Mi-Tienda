@@ -1,10 +1,12 @@
 -- ==========================================
--- SCHEMA - MI TIENDA v8.0
+-- SCHEMA - MI TIENDA v9.0
 -- Sistema de Gestión de Cajas, Ventas POS, Recargas y Nómina
 -- ==========================================
 -- ⚠️  Ejecutar UNA SOLA VEZ. Incluye DROP de tablas → borra todos los datos.
 -- ⚠️  Para actualizar funciones PostgreSQL usar archivos en docs/*/sql/functions/
 --     NO ejecutar este schema para eso — el DROP CASCADE borra todo.
+-- ⚠️  Para aplicar solo variantes en BD existente usar:
+--     docs/inventario/sql/migrations/migration_v9_grupos_variantes.sql
 -- ==========================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -19,6 +21,7 @@ DROP TABLE IF EXISTS kardex_inventario CASCADE;
 DROP TABLE IF EXISTS ventas CASCADE;
 DROP TABLE IF EXISTS producto_presentaciones CASCADE;
 DROP TABLE IF EXISTS productos CASCADE;
+DROP TABLE IF EXISTS grupos_variantes CASCADE;
 DROP TABLE IF EXISTS categorias_productos CASCADE;
 DROP TABLE IF EXISTS clientes CASCADE;
 DROP TABLE IF EXISTS movimientos_empleados CASCADE;
@@ -239,7 +242,17 @@ CREATE TABLE IF NOT EXISTS recargas_virtuales (
 -- MÓDULO POS E INVENTARIO (v5.0)
 -- ==========================================
 
--- 11. categorias_productos
+-- 11. grupos_variantes — Agrupación de productos que son variantes entre sí (v9)
+-- Ej: "CIGARRILLOS LARK" agrupa Lark Azul, Lark Rojo, Lark Mentol.
+-- Un producto pertenece a 0 o 1 grupo. El nombre siempre en MAYÚSCULAS (constraint).
+CREATE TABLE IF NOT EXISTS grupos_variantes (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre      VARCHAR(100) NOT NULL UNIQUE,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT grupos_variantes_nombre_normalizado CHECK (nombre = UPPER(TRIM(nombre)))
+);
+
+-- 12. categorias_productos
 CREATE TABLE IF NOT EXISTS categorias_productos (
     id          SERIAL PRIMARY KEY,
     nombre      VARCHAR(100) NOT NULL UNIQUE,
@@ -247,26 +260,28 @@ CREATE TABLE IF NOT EXISTS categorias_productos (
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 12. productos
+-- 13. productos
 CREATE TABLE IF NOT EXISTS productos (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    categoria_id    INTEGER REFERENCES categorias_productos(id),
-    codigo_barras   VARCHAR(50) UNIQUE,
-    nombre          VARCHAR(150) NOT NULL,
-    precio_costo    DECIMAL(12,2) NOT NULL DEFAULT 0,
-    precio_venta    DECIMAL(12,2) NOT NULL,
-    stock_actual    DECIMAL(12,2) DEFAULT 0,
-    stock_minimo    INTEGER DEFAULT 5,
-    tiene_iva       BOOLEAN DEFAULT TRUE,
-    activo          BOOLEAN DEFAULT TRUE,
-    imagen_url      TEXT,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    categoria_id        INTEGER REFERENCES categorias_productos(id),
+    codigo_barras       VARCHAR(50) UNIQUE,
+    nombre              VARCHAR(150) NOT NULL,
+    precio_costo        DECIMAL(12,2) NOT NULL DEFAULT 0,
+    precio_venta        DECIMAL(12,2) NOT NULL,
+    stock_actual        DECIMAL(12,2) DEFAULT 0,
+    stock_minimo        INTEGER DEFAULT 5,
+    tiene_iva           BOOLEAN DEFAULT TRUE,
+    activo              BOOLEAN DEFAULT TRUE,
+    imagen_url          TEXT,
+    created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     -- ── Granel (v7) ──
     tipo_venta          VARCHAR(10) DEFAULT 'UNIDAD' CHECK (tipo_venta IN ('UNIDAD', 'PESO')),
-    unidad_medida       VARCHAR(10) DEFAULT 'und'    -- 'und', 'kg', 'lb', 'g', 'ml', 'L'
+    unidad_medida       VARCHAR(10) DEFAULT 'und',   -- 'und', 'kg', 'lb', 'g', 'ml', 'L'
+    -- ── Variantes (v9) ──
+    grupo_variante_id   UUID REFERENCES grupos_variantes(id) ON DELETE SET NULL  -- NULL = producto sin grupo
 );
 
--- 12b. producto_presentaciones — Formas de venta de un producto (cajetilla, pack, cubeta, etc.)
+-- 13b. producto_presentaciones — Formas de venta de un producto (cajetilla, pack, cubeta, etc.)
 -- Un producto puede tener 0..N presentaciones. Si tiene 0, se vende directamente (precio_venta del producto).
 -- Si tiene N, cada presentacion define su propio precio de venta y factor de conversion.
 -- Stock siempre vive en productos.stock_actual (unidad base). Al vender una presentacion,
@@ -277,6 +292,7 @@ CREATE TABLE IF NOT EXISTS producto_presentaciones (
     nombre            VARCHAR(100) NOT NULL,              -- "Cajetilla x10", "Cubeta x30"
     factor_conversion INTEGER NOT NULL CHECK (factor_conversion > 0),  -- unidades base por presentacion
     precio_venta      DECIMAL(12,2) NOT NULL,             -- precio de venta de esta presentacion
+    precio_costo      DECIMAL(12,2) NOT NULL,            -- costo real del paquete (obligatorio)
     codigo_barras     VARCHAR(50) UNIQUE,                 -- codigo de barras propio (opcional)
     es_principal      BOOLEAN DEFAULT FALSE,              -- la presentacion por defecto en POS (solo 1 por producto)
     activo            BOOLEAN DEFAULT TRUE,
@@ -289,7 +305,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_presentaciones_principal
 CREATE UNIQUE INDEX IF NOT EXISTS uq_presentaciones_nombre
     ON producto_presentaciones(producto_id, LOWER(TRIM(nombre)));
 
--- 13. clientes (Consumidor Final y otros)
+-- 14. clientes (Consumidor Final y otros)
 CREATE TABLE IF NOT EXISTS clientes (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     identificacion  VARCHAR(20) UNIQUE,
@@ -300,7 +316,7 @@ CREATE TABLE IF NOT EXISTS clientes (
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 14. secuencias_comprobantes — Contadores atómicos por tipo de comprobante
+-- 15. secuencias_comprobantes — Contadores atómicos por tipo de comprobante
 -- Usado por fn_registrar_venta_pos via UPDATE ... RETURNING para evitar race conditions.
 -- Ver: docs/pos/sql/tables/secuencias_comprobantes.sql
 CREATE TABLE IF NOT EXISTS secuencias_comprobantes (
@@ -312,7 +328,7 @@ INSERT INTO secuencias_comprobantes (tipo_documento, ultimo_valor)
 VALUES ('TICKET', 0), ('NOTA_VENTA', 0), ('FACTURA', 0)
 ON CONFLICT (tipo_documento) DO NOTHING;
 
--- 15. ventas (Cabecera Maestra)
+-- 16. ventas (Cabecera Maestra)
 CREATE TABLE IF NOT EXISTS ventas (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     turno_id        UUID NOT NULL REFERENCES turnos_caja(id),
@@ -342,7 +358,7 @@ CREATE TABLE IF NOT EXISTS ventas (
     idempotency_key UUID UNIQUE                              -- Evita ventas duplicadas por reintento (POS)
 );
 
--- 15. ventas_detalles (El Recibo Físico)
+-- 16b. ventas_detalles (El Recibo Físico)
 CREATE TABLE IF NOT EXISTS ventas_detalles (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     venta_id        UUID NOT NULL REFERENCES ventas(id) ON DELETE CASCADE,
@@ -355,7 +371,7 @@ CREATE TABLE IF NOT EXISTS ventas_detalles (
     presentacion_id UUID REFERENCES producto_presentaciones(id) -- NULL = venta directa, UUID = venta via presentacion
 );
 
--- 16. kardex_inventario (Auditoría Anti-Fraude Bodega)
+-- 17. kardex_inventario (Auditoría Anti-Fraude Bodega)
 CREATE TABLE IF NOT EXISTS kardex_inventario (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     producto_id     UUID NOT NULL REFERENCES productos(id),
@@ -368,7 +384,7 @@ CREATE TABLE IF NOT EXISTS kardex_inventario (
     observaciones   TEXT
 );
 
--- 17. cuentas_cobrar — Registro de pagos contra ventas fiadas
+-- 18. cuentas_cobrar — Registro de pagos contra ventas fiadas
 CREATE TABLE IF NOT EXISTS cuentas_cobrar (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     venta_id        UUID NOT NULL REFERENCES ventas(id),
@@ -381,7 +397,7 @@ CREATE TABLE IF NOT EXISTS cuentas_cobrar (
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 18. notas — Tablón de notas compartido visible por todos los empleados
+-- 19. notas — Tablón de notas compartido visible por todos los empleados
 CREATE TABLE IF NOT EXISTS notas (
     id             UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
     texto          TEXT        NOT NULL CHECK (char_length(texto) BETWEEN 1 AND 500),
@@ -426,6 +442,7 @@ CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_fecha          ON cuentas_cobrar(f
 CREATE INDEX IF NOT EXISTS idx_ventas_estado_pago            ON ventas(estado_pago);
 CREATE INDEX IF NOT EXISTS idx_ventas_metodo_pago            ON ventas(metodo_pago);
 CREATE INDEX IF NOT EXISTS idx_notas_completada              ON notas(completada, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_productos_grupo_variante      ON productos(grupo_variante_id) WHERE grupo_variante_id IS NOT NULL;
 
 -- ==========================================
 -- VISTAS
@@ -479,17 +496,18 @@ BEGIN
     ELSE UPPER(SUBSTRING(NEW.tipo FROM 1 FOR 2))
   END;
 
-  SELECT COALESCE(
-    MAX(
-      CASE WHEN codigo ~ ('^' || v_prefijo || '-\d+$')
-        THEN CAST(SUBSTRING(codigo FROM 4) AS INTEGER)
-        ELSE 0
-      END
-    ), 0
-  ) + 1
-  INTO v_numero
-  FROM categorias_operaciones
-  WHERE codigo LIKE v_prefijo || '-%';
+  v_numero := (
+    SELECT COALESCE(
+      MAX(
+        CASE WHEN codigo ~ ('^' || v_prefijo || '-\d+$')
+          THEN CAST(SUBSTRING(codigo FROM 4) AS INTEGER)
+          ELSE 0
+        END
+      ), 0
+    ) + 1
+    FROM categorias_operaciones
+    WHERE codigo LIKE v_prefijo || '-%'
+  );
 
   NEW.codigo := v_prefijo || '-' || LPAD(v_numero::TEXT, 3, '0');
   RETURN NEW;
@@ -519,9 +537,7 @@ DECLARE
 BEGIN
     -- Si tiene presentacion, obtener factor; sino, factor = 1 (venta directa)
     IF NEW.presentacion_id IS NOT NULL THEN
-        SELECT factor_conversion INTO v_factor
-        FROM producto_presentaciones
-        WHERE id = NEW.presentacion_id;
+        v_factor := (SELECT factor_conversion FROM producto_presentaciones WHERE id = NEW.presentacion_id);
 
         IF v_factor IS NULL THEN
             RAISE EXCEPTION 'Presentacion no valida o no encontrada: %', NEW.presentacion_id;
@@ -533,9 +549,8 @@ BEGIN
     v_cantidad_real := NEW.cantidad * v_factor;
 
     -- FOR UPDATE: bloquea la fila durante la transaccion (evita race condition en ventas concurrentes)
-    SELECT stock_actual INTO v_stock_actual
-    FROM productos WHERE id = NEW.producto_id
-    FOR UPDATE;
+    PERFORM id FROM productos WHERE id = NEW.producto_id FOR UPDATE;
+    v_stock_actual := (SELECT stock_actual FROM productos WHERE id = NEW.producto_id);
 
     IF v_stock_actual < v_cantidad_real THEN
         RAISE EXCEPTION 'Stock insuficiente para producto %. Stock actual: %, requerido: %',
@@ -571,12 +586,12 @@ DECLARE
 BEGIN
     IF NEW.metodo_pago = 'EFECTIVO' AND NEW.estado = 'COMPLETADA' THEN
         -- v5: ingreso va a CAJA_CHICA (cajón diario), no a CAJA (bóveda)
-        SELECT id INTO v_caja_id FROM cajas WHERE codigo = 'CAJA_CHICA';
-        SELECT id INTO v_categoria_id FROM categorias_operaciones WHERE codigo = 'IN-001';
-        SELECT id INTO v_tipo_referencia_id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1;
+        v_caja_id            := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA');
+        v_categoria_id       := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-001');
+        v_tipo_referencia_id := (SELECT id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1);
 
         IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN
-            SELECT saldo_actual INTO v_saldo_actual_caja FROM cajas WHERE id = v_caja_id;
+            v_saldo_actual_caja := (SELECT saldo_actual FROM cajas WHERE id = v_caja_id);
 
             INSERT INTO operaciones_cajas (
                 caja_id, empleado_id, tipo_operacion, monto, saldo_anterior, saldo_actual,
@@ -679,41 +694,24 @@ INSERT INTO configuraciones (clave, valor) VALUES
 INSERT INTO usuarios (nombre, usuario, rol, es_superadmin) VALUES
 ('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN', TRUE);
 
--- ==========================================
--- DATOS DE PRUEBA ADICIONALES
--- ==========================================
-
--- Insertar 3 productos de prueba (Asumiendo IDs 1 a 6 que se generan secuencialmente arriba)
--- 1 = Bebidas, 2 = Snacks, 4 = Lácteos
-INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva, tipo_venta, unidad_medida) VALUES
-(1, '786123456001', 'Coca-Cola 1L', 0.80, 1.25, 24, 5, TRUE, 'UNIDAD', 'und'),
-(2, '786123456002', 'Ruffles Natural 50g', 0.35, 0.50, 50, 10, TRUE, 'UNIDAD', 'und'),
-(4, '786123456003', 'Yogur Toni Fresa 200ml', 0.40, 0.60, 15, 5, FALSE, 'UNIDAD', 'und'),
--- Producto con presentaciones: cigarro + cajetillas
-(2, '786123456010', 'Cigarro Marlboro', 0.15, 0.25, 200, 20, TRUE, 'UNIDAD', 'und'),
--- Producto granel
-(3, NULL, 'Arroz Blanco', 0.60, 1.00, 50, 10, FALSE, 'PESO', 'lb');
-
--- Presentaciones para Cigarro Marlboro (producto debe existir primero)
-INSERT INTO producto_presentaciones (producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal)
-SELECT p.id, 'Cajetilla x10', 10, 2.30, '786123456011', TRUE
-FROM productos p WHERE p.codigo_barras = '786123456010'
-UNION ALL
-SELECT p.id, 'Cajetilla x20', 20, 4.50, '786123456012', FALSE
-FROM productos p WHERE p.codigo_barras = '786123456010';
+-- (sin datos de prueba de productos — crear manualmente desde la app)
 
 -- ==========================================
--- RESUMEN (v8.0)
+-- RESUMEN (v9.0)
 -- ==========================================
+-- v9: Grupos de variantes para productos relacionados (Lark Azul, Lark Rojo, etc.).
+--     Nueva tabla grupos_variantes (nombre UNIQUE, CHECK UPPER/TRIM).
+--     Nueva columna productos.grupo_variante_id (FK nullable, ON DELETE SET NULL).
+--     Índice parcial idx_productos_grupo_variante (solo filas con grupo asignado).
 -- v8: Modelo de presentaciones reemplaza padre-hijo.
 --     Nueva tabla producto_presentaciones (factor_conversion, precio_venta, codigo_barras propio).
 --     Eliminados de productos: producto_hijo_id, factor_conversion, constraints padre-hijo.
 --     ventas_detalles: presentacion_id reemplaza producto_stock_id + cantidad_stock.
 --     Trigger fn_actualizar_stock_venta: usa factor de presentacion (si aplica) para descontar stock.
 --     Granel (tipo_venta PESO + unidad_medida) se mantiene sin cambios desde v7.
--- ✅ 19 Tablas | 3 Enums | 29 Indices | 1 Vista
+-- ✅ 20 Tablas | 3 Enums | 31 Indices | 1 Vista
 -- ✅ 2 Tipos de servicio (BUS, CELULAR)
--- ✅ 4 Tipos de referencia (eliminado caja_fisica_diaria)
+-- ✅ 5 Tipos de referencia
 -- ✅ 19 Categorias de operaciones (14 egresos + 5 ingresos)
 --    → EG-007: Salarios (seleccionable=FALSE, via flujo de nomina)
 --    → EG-013 y IN-005: Ajuste Diferencia Conteo (seleccionable=FALSE)
@@ -723,7 +721,6 @@ FROM productos p WHERE p.codigo_barras = '786123456010';
 -- ✅ Vista v_saldos_empleados — saldo calculado por empleado
 -- ✅ Configuracion: fondo=$20 | varios=$20 | alerta_bus=$75 | dias_fact=3 | iva=15%
 -- ✅ Admin inicial: Ivan Sanchez
--- ✅ 5 Productos de prueba (3 simples + 1 con presentaciones + 1 granel)
 -- ❌ Tablas eliminadas en v5: caja_fisica_diaria, gastos_diarios, categorias_gastos
 -- ❌ Tablas eliminadas en v6: deudas_empleados (cuenta corriente ahora en movimientos_empleados)
 -- ❌ Eliminado en v8: producto_hijo_id, factor_conversion en productos (reemplazado por producto_presentaciones)
@@ -731,38 +728,39 @@ FROM productos p WHERE p.codigo_barras = '786123456010';
 -- ⚠️  FUNCIONES POSTGRESQL (archivos separados, ejecutar despues del schema):
 --   Dashboard:
 --   • fn_abrir_turno                            → docs/dashboard/sql/functions/fn_abrir_turno.sql
---   • fn_ejecutar_cierre_diario v5.6           → docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
---   • fn_reparar_deficit_turno                 → docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql
+--   • fn_ejecutar_cierre_diario v5.6            → docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
+--   • fn_reparar_deficit_turno                  → docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql
 --   • fn_verificar_transferencia_caja_chica_hoy → docs/dashboard/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql
---   • fn_registrar_operacion_manual            → docs/dashboard/sql/functions/fn_registrar_operacion_manual.sql
---   • fn_crear_transferencia                   → docs/dashboard/sql/functions/fn_crear_transferencia.sql
+--   • fn_registrar_operacion_manual             → docs/dashboard/sql/functions/fn_registrar_operacion_manual.sql
+--   • fn_crear_transferencia                    → docs/dashboard/sql/functions/fn_crear_transferencia.sql
 --   Recargas Virtuales:
---   • fn_registrar_recarga_proveedor_celular   → docs/recargas-virtuales/sql/functions/
---   • fn_registrar_pago_proveedor_celular      → docs/recargas-virtuales/sql/functions/
---   • fn_registrar_compra_saldo_bus            → docs/recargas-virtuales/sql/functions/
---   • fn_liquidar_ganancias_bus                → docs/recargas-virtuales/sql/functions/
+--   • fn_registrar_recarga_proveedor_celular    → docs/recargas-virtuales/sql/functions/fn_registrar_recarga_proveedor_celular.sql
+--   • fn_registrar_pago_proveedor_celular       → docs/recargas-virtuales/sql/functions/fn_registrar_pago_proveedor_celular.sql
+--   • fn_registrar_compra_saldo_bus             → docs/recargas-virtuales/sql/functions/fn_registrar_compra_saldo_bus.sql
+--   • fn_liquidar_ganancias_bus                 → docs/recargas-virtuales/sql/functions/fn_liquidar_ganancias_bus.sql
 --   POS:
---   • fn_registrar_venta_pos                   → docs/pos/sql/functions/fn_registrar_venta_pos.sql
+--   • fn_registrar_venta_pos v1.9               → docs/pos/sql/functions/fn_registrar_venta_pos.sql
+--   • fn_anular_venta v1.3                      → docs/pos/sql/functions/fn_anular_venta.sql
 --   Cuentas por Cobrar:
---   • fn_registrar_pago_fiado                  → docs/cuentas-cobrar/sql/functions/fn_registrar_pago_fiado.sql
---   • fn_listar_cuentas_cobrar                 → docs/cuentas-cobrar/sql/functions/fn_listar_cuentas_cobrar.sql
---   • fn_resumir_cuentas_cobrar                → docs/cuentas-cobrar/sql/functions/fn_resumir_cuentas_cobrar.sql
+--   • fn_registrar_pago_fiado                   → docs/cuentas-cobrar/sql/functions/fn_registrar_pago_fiado.sql
+--   • fn_listar_cuentas_cobrar                  → docs/cuentas-cobrar/sql/functions/fn_listar_cuentas_cobrar.sql
+--   • fn_resumir_cuentas_cobrar                 → docs/cuentas-cobrar/sql/functions/fn_resumir_cuentas_cobrar.sql
 --   Inventario:
---   • fn_ajustar_stock_inventario              → docs/inventario/sql/functions/fn_ajustar_stock_inventario.sql
---   • fn_generar_codigo_interno                → docs/inventario/sql/functions/fn_generar_codigo_interno.sql
+--   • fn_ajustar_stock_inventario               → docs/inventario/sql/functions/fn_ajustar_stock_inventario.sql
+--   • fn_generar_codigo_interno                 → docs/inventario/sql/functions/fn_generar_codigo_interno.sql
+--   • fn_generar_codigo_interno_presentacion    → docs/inventario/sql/functions/fn_generar_codigo_interno_presentacion.sql
 --   Ventas (historial):
---   • fn_listar_ventas                         → docs/ventas/sql/functions/fn_listar_ventas.sql
---   • fn_resumir_ventas                        → docs/ventas/sql/functions/fn_resumir_ventas.sql
---   POS — Anulación:
---   • fn_anular_venta                          → docs/pos/sql/functions/fn_anular_venta.sql
---   Ventas — Reporte período:
---   • fn_reporte_ventas_periodo                → docs/ventas/sql/functions/fn_reporte_ventas_periodo.sql
+--   • fn_listar_ventas                          → docs/ventas/sql/functions/fn_listar_ventas.sql
+--   • fn_resumir_ventas                         → docs/ventas/sql/functions/fn_resumir_ventas.sql
+--   • fn_reporte_ventas_periodo                 → docs/ventas/sql/functions/fn_reporte_ventas_periodo.sql
 --   Movimientos Empleados (nómina):
---   • fn_registrar_adelanto_sueldo             → docs/movimientos-empleados/sql/functions/fn_registrar_adelanto_sueldo.sql
---   • fn_pagar_nomina_empleado                 → docs/movimientos-empleados/sql/functions/fn_pagar_nomina_empleado.sql
+--   • fn_registrar_adelanto_sueldo              → docs/movimientos-empleados/sql/functions/fn_registrar_adelanto_sueldo.sql
+--   • fn_pagar_nomina_empleado                  → docs/movimientos-empleados/sql/functions/fn_pagar_nomina_empleado.sql
+--   Notas:
+--   • fn_eliminar_nota                          → docs/notas/sql/functions/fn_eliminar_nota.sql
 --
--- ✅ 19 Tablas | 26 Funciones SQL | Granel (v7) + Presentaciones (v8)
--- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 2 inventario + 3 ventas + 2 nomina + 4 triggers/helpers)
+-- ✅ 20 Tablas | 27 Funciones SQL | Granel (v7) + Presentaciones (v8) + Variantes (v9)
+-- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 3 inventario + 3 ventas + 2 nomina + 1 notas + 3 triggers/helpers)
 -- ==========================================
 
 -- Refresca el schema cache de PostgREST para que reconozca los cambios DDL

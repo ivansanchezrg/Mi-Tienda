@@ -74,12 +74,13 @@ BEGIN
   END IF;
 
   -- Obtener IDs de cajas por código
-  SELECT id INTO v_caja_id   FROM cajas WHERE codigo = 'CAJA';
-  SELECT id INTO v_varios_id FROM cajas WHERE codigo = 'VARIOS';
+  v_caja_id   := (SELECT id FROM cajas WHERE codigo = 'CAJA');
+  v_varios_id := (SELECT id FROM cajas WHERE codigo = 'VARIOS');
 
   -- Obtener saldo actual de Tienda (con lock)
-  SELECT saldo_actual INTO v_saldo_tienda FROM cajas WHERE id = v_caja_id FOR UPDATE;
-  IF NOT FOUND THEN
+  PERFORM id FROM cajas WHERE id = v_caja_id FOR UPDATE;
+  v_saldo_tienda := (SELECT saldo_actual FROM cajas WHERE id = v_caja_id);
+  IF v_saldo_tienda IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'No se encontró la caja Tienda');
   END IF;
 
@@ -98,11 +99,12 @@ BEGIN
   -- ==========================================
   -- 1. EGRESO de Tienda
   -- ==========================================
+  v_op_egreso_id := gen_random_uuid();
   INSERT INTO operaciones_cajas (
     id, caja_id, empleado_id, tipo_operacion, categoria_id,
     monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
   ) VALUES (
-    gen_random_uuid(), v_caja_id, p_empleado_id, 'EGRESO', p_cat_egreso_id,
+    v_op_egreso_id, v_caja_id, p_empleado_id, 'EGRESO', p_cat_egreso_id,
     v_total_a_reponer, v_saldo_tienda, v_saldo_tienda - v_total_a_reponer,
     FORMAT(
       'Ajuste déficit turno anterior — Varios: $%s, Fondo: $%s',
@@ -110,7 +112,7 @@ BEGIN
       TO_CHAR(p_fondo_faltante, 'FM999990.00')
     ),
     NULL
-  ) RETURNING id INTO v_op_egreso_id;
+  );
 
   UPDATE cajas SET saldo_actual = v_saldo_tienda - v_total_a_reponer WHERE id = v_caja_id;
 
@@ -118,20 +120,22 @@ BEGIN
   -- 2. INGRESO a VARIOS (solo si hay déficit de la transferencia diaria)
   -- ==========================================
   IF p_deficit_varios > 0 THEN
-    SELECT saldo_actual INTO v_saldo_varios FROM cajas WHERE id = v_varios_id FOR UPDATE;
-    IF NOT FOUND THEN
+    PERFORM id FROM cajas WHERE id = v_varios_id FOR UPDATE;
+    v_saldo_varios := (SELECT saldo_actual FROM cajas WHERE id = v_varios_id);
+    IF v_saldo_varios IS NULL THEN
       RETURN json_build_object('success', false, 'error', 'No se encontró la caja Varios');
     END IF;
 
+    v_op_ingreso_id := gen_random_uuid();
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, categoria_id,
       monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
     ) VALUES (
-      gen_random_uuid(), v_varios_id, p_empleado_id, 'INGRESO', p_cat_ingreso_id,
+      v_op_ingreso_id, v_varios_id, p_empleado_id, 'INGRESO', p_cat_ingreso_id,
       p_deficit_varios, v_saldo_varios, v_saldo_varios + p_deficit_varios,
       'Reposición déficit turno anterior — pendiente cobrado de Tienda',
       NULL
-    ) RETURNING id INTO v_op_ingreso_id;
+    );
 
     UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_varios WHERE id = v_varios_id;
   END IF;
@@ -156,14 +160,16 @@ BEGIN
   END IF;
 
   -- Número de turno: siguiente al último del día
-  SELECT COUNT(*) + 1 INTO v_numero_turno
-  FROM turnos_caja
-  WHERE hora_fecha_apertura >= v_inicio_dia
-    AND hora_fecha_apertura <  v_inicio_dia + INTERVAL '1 day';
+  v_numero_turno := (
+    SELECT COUNT(*) + 1
+    FROM turnos_caja
+    WHERE hora_fecha_apertura >= v_inicio_dia
+      AND hora_fecha_apertura <  v_inicio_dia + INTERVAL '1 day'
+  );
 
-  INSERT INTO turnos_caja (numero_turno, empleado_id, hora_fecha_apertura)
-  VALUES (v_numero_turno, p_empleado_id, NOW())
-  RETURNING id INTO v_turno_id;
+  v_turno_id := gen_random_uuid();
+  INSERT INTO turnos_caja (id, numero_turno, empleado_id, hora_fecha_apertura)
+  VALUES (v_turno_id, v_numero_turno, p_empleado_id, NOW());
 
   -- ==========================================
   -- RESULTADO

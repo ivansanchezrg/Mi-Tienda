@@ -41,7 +41,7 @@
   <div class="p-md">
     @if (loading) {
     <div class="products-grid">
-      @for (i of [1,2,3,4,5,6]; track i) {
+      @for (i of skeletonItems; track $index) {
       <ion-card class="product-card skeleton-card flat-item">
         <ion-skeleton-text animated
           style="height: 120px; width: 100%; border-radius: var(--radius-lg) var(--radius-lg) 0 0;"></ion-skeleton-text>
@@ -106,6 +106,12 @@
           <span class="tipo-tag presentaciones">
             <ion-icon name="pricetag-outline"></ion-icon>
             {{ prod.presentaciones.length }} present.
+          </span>
+        }
+        @if (prod.grupo_variante) {
+          <span class="tipo-tag variante">
+            <ion-icon name="color-palette-outline"></ion-icon>
+            {{ prod.grupo_variante.nombre }}
           </span>
         }
       </p>

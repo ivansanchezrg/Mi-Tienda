@@ -190,7 +190,7 @@
           <!-- Imagen producto -->
           <div slot="start" class="item-thumb">
             @if (item.imagen_url) {
-              <img [src]="storageService.getPublicUrl(item.imagen_url, 'productos')" [alt]="item.nombre" />
+              <img [src]="item.imagen_url" [alt]="item.nombre" />
             } @else {
               <ion-icon name="image-outline"></ion-icon>
             }

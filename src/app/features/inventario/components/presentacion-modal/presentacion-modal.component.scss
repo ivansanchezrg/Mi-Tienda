@@ -1,0 +1,214 @@
+// Color del ícono del header — primario (inventario)
+.modal-header-icon {
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    ion-icon { color: var(--ion-color-primary); }
+}
+
+// Apila título + subtítulo en columna dentro del header
+.modal-header-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.modal-header-producto-badge {
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+// ── Formulario ─────────────────────────────────
+.modal-form {
+    padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.fields-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+}
+
+.field-label {
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-step-600);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.optional-tag {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--ion-color-medium);
+    background: var(--ion-color-step-100);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+// Input nativo reutilizado — consistente con el resto del proyecto
+.text-input {
+    width: 100%;
+    height: 48px;
+    padding: 0 var(--spacing-md);
+    border: 1.5px solid var(--ion-color-step-200);
+    border-radius: var(--radius-sm, 8px);
+    background: var(--ion-item-background);
+    color: var(--ion-text-color);
+    font-size: 16px;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+
+    &:focus {
+        border-color: var(--ion-color-primary);
+    }
+
+    &::placeholder {
+        color: var(--ion-color-step-300);
+    }
+
+    &--invalid {
+        border-color: var(--ion-color-danger);
+    }
+
+    &--with-icon {
+        padding-left: 40px;
+    }
+
+    &--readonly {
+        background: var(--ion-color-step-50);
+        color: var(--ion-color-medium);
+        cursor: not-allowed;
+    }
+}
+
+.error-text {
+    font-size: 12px;
+    color: var(--ion-color-danger);
+}
+
+.hint-text {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+}
+
+// ── Código de barras con ícono ──────────────────
+.barcode-input-row {
+    position: relative;
+
+    .barcode-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 18px;
+        color: var(--ion-color-step-400);
+        pointer-events: none;
+    }
+}
+
+.text-input--with-scan {
+    padding-right: 48px;
+}
+
+.scan-btn-inline {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ion-color-primary);
+    font-size: 22px;
+    cursor: pointer;
+    margin-right: 0;
+
+    &:active { opacity: 0.6; }
+}
+
+.barcode-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--ion-color-medium);
+    font-size: 12px;
+    margin-top: 4px;
+
+    ion-icon {
+        font-size: 14px;
+        flex-shrink: 0;
+    }
+
+    &--ok {
+        color: #2e7d32;
+    }
+}
+
+// ── Margen de ganancia ─────────────────────────
+.margen-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--spacing-sm);
+    padding: 10px 0 2px;
+    border-top: 1px solid var(--ion-color-step-100);
+    margin-top: 2px;
+}
+
+.margen-row-label {
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-step-500);
+}
+
+.margen-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px 5px 8px;
+    border-radius: 20px;
+    font-weight: var(--font-weight-semibold, 600);
+    background: #2e7d32;
+    color: #fff;
+
+    ion-icon {
+        font-size: 15px;
+        flex-shrink: 0;
+    }
+}
+
+.margen-badge-pct {
+    font-size: 14px;
+    font-weight: var(--font-weight-bold, 700);
+}
+
+.margen-badge-abs {
+    font-size: 12px;
+    opacity: 0.8;
+    font-weight: var(--font-weight-medium, 500);
+}

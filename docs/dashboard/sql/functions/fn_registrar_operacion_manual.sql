@@ -58,7 +58,7 @@ BEGIN
   END;
 
   -- 0.5. Para CAJA_CHICA: validar que el empleado tenga turno activo hoy
-  SELECT codigo INTO v_caja_codigo FROM cajas WHERE id = p_caja_id;
+  v_caja_codigo := (SELECT codigo FROM cajas WHERE id = p_caja_id);
 
   IF v_caja_codigo = 'CAJA_CHICA' THEN
     IF NOT EXISTS (
@@ -73,12 +73,10 @@ BEGIN
   END IF;
 
   -- 1. Obtener saldo actual de la caja (con lock para evitar race conditions)
-  SELECT saldo_actual INTO v_saldo_anterior
-  FROM cajas
-  WHERE id = p_caja_id
-  FOR UPDATE;
+  PERFORM id FROM cajas WHERE id = p_caja_id FOR UPDATE;
+  v_saldo_anterior := (SELECT saldo_actual FROM cajas WHERE id = p_caja_id);
 
-  IF NOT FOUND THEN
+  IF v_saldo_anterior IS NULL THEN
     RAISE EXCEPTION 'Caja no encontrada con ID: %', p_caja_id;
   END IF;
 
@@ -99,13 +97,14 @@ BEGIN
   WHERE id = p_caja_id;
 
   -- 4. Insertar operación
+  v_operacion_id := gen_random_uuid();
   INSERT INTO operaciones_cajas (
     id, caja_id, empleado_id, tipo_operacion, categoria_id, monto,
     saldo_anterior, saldo_actual, descripcion, comprobante_url
   ) VALUES (
-    gen_random_uuid(), p_caja_id, p_empleado_id, v_tipo, p_categoria_id, p_monto,
+    v_operacion_id, p_caja_id, p_empleado_id, v_tipo, p_categoria_id, p_monto,
     v_saldo_anterior, v_saldo_nuevo, p_descripcion, p_comprobante_url
-  ) RETURNING id INTO v_operacion_id;
+  );
 
   -- 5. Retornar resultado
   RETURN json_build_object(

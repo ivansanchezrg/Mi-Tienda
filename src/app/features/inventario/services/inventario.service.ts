@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SupabaseService } from '../../../core/services/supabase.service';
-import { Producto, ProductoPOS, ProductoPresentacion } from '../models/producto.model';
+import { Producto, ProductoPOS, ProductoPresentacion, GrupoVariante } from '../models/producto.model';
 import { CategoriaProducto } from '../models/categoria-producto.model';
 import { KardexInventario } from '../models/kardex.model';
 
@@ -19,6 +19,10 @@ export class InventarioService {
     private productoChange$ = new Subject<ProductoChangeEvent>();
     readonly onProductoChange$ = this.productoChange$.asObservable();
 
+    emitirCambio(event: ProductoChangeEvent): void {
+        this.productoChange$.next(event);
+    }
+
     // ==========================================
     // PRODUCTOS
     // ==========================================
@@ -29,7 +33,7 @@ export class InventarioService {
 
         let query = this.supabase.client
             .from('productos')
-            .select('*, categoria:categorias_productos(*), presentaciones:producto_presentaciones(id)')
+            .select('*, categoria:categorias_productos(*), grupo_variante:grupos_variantes(*), presentaciones:producto_presentaciones(id)')
             .eq('activo', true)
             .eq('producto_presentaciones.activo', true)
             .order('nombre')
@@ -56,7 +60,7 @@ export class InventarioService {
             .from('productos')
             .select(`
                 id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo,
-                imagen_url, tiene_iva, tipo_venta, unidad_medida,
+                imagen_url, tiene_iva, tipo_venta, unidad_medida, grupo_variante_id,
                 presentaciones:producto_presentaciones(id, producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal, activo)
             `)
             .eq('activo', true)
@@ -91,7 +95,7 @@ export class InventarioService {
         // 1. Buscar en productos
         const { data: prod } = await this.supabase.client
             .from('productos')
-            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida')
+            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, grupo_variante_id')
             .eq('codigo_barras', codigo)
             .eq('activo', true)
             .maybeSingle();
@@ -101,7 +105,7 @@ export class InventarioService {
         // 2. Buscar en presentaciones
         const { data: pres } = await this.supabase.client
             .from('producto_presentaciones')
-            .select('id, producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida)')
+            .select('id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, grupo_variante_id)')
             .eq('codigo_barras', codigo)
             .eq('activo', true)
             .maybeSingle();
@@ -116,6 +120,7 @@ export class InventarioService {
                     nombre: pres.nombre,
                     factor_conversion: pres.factor_conversion,
                     precio_venta: pres.precio_venta,
+                    precio_costo: pres.precio_costo,
                     codigo_barras: pres.codigo_barras,
                     es_principal: pres.es_principal,
                     activo: pres.activo
@@ -180,8 +185,9 @@ export class InventarioService {
     async obtenerProductoPorId(id: string): Promise<Producto | null> {
         const { data } = await this.supabase.client
             .from('productos')
-            .select('*, categoria:categorias_productos(*)')
+            .select('*, categoria:categorias_productos(*), grupo_variante:grupos_variantes(*), presentaciones:producto_presentaciones(id)')
             .eq('id', id)
+            .eq('producto_presentaciones.activo', true)
             .maybeSingle();
         return data;
     }
@@ -301,28 +307,138 @@ export class InventarioService {
         return data || [];
     }
 
-    async crearPresentacion(presentacion: Partial<ProductoPresentacion>): Promise<ProductoPresentacion> {
+    async crearPresentacion(presentacion: Partial<ProductoPresentacion>, silencioso = false): Promise<ProductoPresentacion> {
         const res = await this.supabase.call<ProductoPresentacion[]>(
             this.supabase.client.from('producto_presentaciones').insert([presentacion]).select(),
-            'Presentación creada',
-            { showLoading: true }
+            silencioso ? undefined : 'Presentación creada',
+            silencioso ? undefined : { showLoading: true }
         );
-        return res ? res[0] : ({} as ProductoPresentacion);
+        const creada = res ? res[0] : ({} as ProductoPresentacion);
+        if (creada?.producto_id) await this.emitirCambioPorPresentacion(creada.producto_id);
+        return creada;
     }
 
     async actualizarPresentacion(id: string, presentacion: Partial<ProductoPresentacion>): Promise<void> {
-        await this.supabase.call(
-            this.supabase.client.from('producto_presentaciones').update(presentacion).eq('id', id),
+        const res = await this.supabase.call<ProductoPresentacion[]>(
+            this.supabase.client.from('producto_presentaciones').update(presentacion).eq('id', id).select(),
             'Presentación actualizada',
             { showLoading: true }
         );
+        const productoId = res?.[0]?.producto_id;
+        if (productoId) await this.emitirCambioPorPresentacion(productoId);
     }
 
     async desactivarPresentacion(id: string): Promise<void> {
-        await this.supabase.call(
-            this.supabase.client.from('producto_presentaciones').update({ activo: false }).eq('id', id),
-            'Presentación eliminada',
+        const res = await this.supabase.call<ProductoPresentacion[]>(
+            this.supabase.client.from('producto_presentaciones').update({ activo: false }).eq('id', id).select(),
+            'Presentación quitada',
             { showLoading: true }
         );
+        const productoId = res?.[0]?.producto_id;
+        if (productoId) await this.emitirCambioPorPresentacion(productoId);
+    }
+
+    async obtenerPresentacionesInactivas(productoId: string): Promise<ProductoPresentacion[]> {
+        const { data } = await this.supabase.client
+            .from('producto_presentaciones')
+            .select('*')
+            .eq('producto_id', productoId)
+            .eq('activo', false)
+            .order('factor_conversion');
+        return data || [];
+    }
+
+    async reactivarPresentacion(id: string): Promise<void> {
+        const res = await this.supabase.call<ProductoPresentacion[]>(
+            this.supabase.client.from('producto_presentaciones').update({ activo: true }).eq('id', id).select(),
+            'Presentación reactivada',
+            { showLoading: true }
+        );
+        const productoId = res?.[0]?.producto_id;
+        if (productoId) await this.emitirCambioPorPresentacion(productoId);
+    }
+
+    private async emitirCambioPorPresentacion(productoId: string): Promise<void> {
+        const producto = await this.obtenerProductoPorId(productoId);
+        if (producto) this.productoChange$.next({ tipo: 'ACTUALIZADO', producto });
+    }
+
+    // ==========================================
+    // GRUPOS DE VARIANTES
+    // ==========================================
+
+    async obtenerGruposVariantes(): Promise<GrupoVariante[]> {
+        const { data } = await this.supabase.client
+            .from('grupos_variantes')
+            .select('*')
+            .order('nombre');
+        return data || [];
+    }
+
+    async buscarGruposVariantes(texto: string): Promise<GrupoVariante[]> {
+        const data = await this.supabase.call<GrupoVariante[]>(
+            this.supabase.client
+                .from('grupos_variantes')
+                .select('*')
+                .ilike('nombre', `%${texto}%`)
+                .order('nombre')
+                .limit(5)
+        );
+        return data || [];
+    }
+
+    /**
+     * Crea el grupo si no existe, o devuelve el existente si ya habia uno con ese nombre.
+     * Patron: INSERT ON CONFLICT DO NOTHING + SELECT.
+     */
+    async crearOObtenerGrupoVariante(nombre: string): Promise<GrupoVariante | null> {
+        const nombreNorm = nombre.toUpperCase().trim();
+
+        await this.supabase.client
+            .from('grupos_variantes')
+            .upsert({ nombre: nombreNorm }, { onConflict: 'nombre', ignoreDuplicates: true });
+
+        const { data } = await this.supabase.client
+            .from('grupos_variantes')
+            .select('*')
+            .eq('nombre', nombreNorm)
+            .single();
+
+        return data;
+    }
+
+    async renombrarGrupoVariante(id: string, nombre: string): Promise<void> {
+        await this.supabase.call(
+            this.supabase.client.from('grupos_variantes').update({ nombre: nombre.toUpperCase().trim() }).eq('id', id),
+            'Grupo renombrado'
+        );
+    }
+
+    async eliminarGrupoVariante(id: string): Promise<void> {
+        await this.supabase.call(
+            this.supabase.client.from('grupos_variantes').delete().eq('id', id),
+            'Grupo eliminado'
+        );
+    }
+
+    async obtenerVariantesDelGrupo(grupoId: string, excluirProductoId?: string): Promise<Producto[]> {
+        let query = this.supabase.client
+            .from('productos')
+            .select('id, nombre, stock_actual, precio_venta, codigo_barras, imagen_url')
+            .eq('grupo_variante_id', grupoId)
+            .eq('activo', true)
+            .order('nombre');
+        if (excluirProductoId) query = query.neq('id', excluirProductoId);
+        const { data } = await query;
+        return (data || []) as Producto[];
+    }
+
+    async contarProductosPorGrupo(grupoId: string): Promise<number> {
+        const { count } = await this.supabase.client
+            .from('productos')
+            .select('*', { count: 'exact', head: true })
+            .eq('grupo_variante_id', grupoId)
+            .eq('activo', true);
+        return count || 0;
     }
 }

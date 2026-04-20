@@ -59,23 +59,18 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'El monto debe ser mayor a cero');
   END IF;
 
-  SELECT nombre INTO v_beneficiario_nombre
-  FROM usuarios WHERE id = p_beneficiario_id AND activo = TRUE;
-  IF NOT FOUND THEN
+  v_beneficiario_nombre := (SELECT nombre FROM usuarios WHERE id = p_beneficiario_id AND activo = TRUE);
+  IF v_beneficiario_nombre IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'El empleado no existe o no esta activo');
   END IF;
 
-  SELECT id INTO v_cat_adelanto_id
-  FROM categorias_operaciones
-  WHERE tipo = 'EGRESO' AND nombre = 'Adelanto Sueldo Empleado'
-  LIMIT 1;
+  v_cat_adelanto_id := (SELECT id FROM categorias_operaciones WHERE tipo = 'EGRESO' AND nombre = 'Adelanto Sueldo Empleado' LIMIT 1);
 
   IF v_cat_adelanto_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'Categoria EG-014 no encontrada');
   END IF;
 
-  SELECT id INTO v_tipo_ref_id
-  FROM tipos_referencia WHERE tabla = 'movimientos_empleados';
+  v_tipo_ref_id := (SELECT id FROM tipos_referencia WHERE tabla = 'movimientos_empleados');
   IF v_tipo_ref_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'Tipo de referencia movimientos_empleados no encontrado en tipos_referencia');
   END IF;
@@ -84,11 +79,12 @@ BEGIN
   -- DISTRIBUCION ENTRE CAJAS (VARIOS → CAJA)
   -- ==========================================
 
-  SELECT id INTO v_varios_id FROM cajas WHERE codigo = 'VARIOS';
-  SELECT id INTO v_caja_id   FROM cajas WHERE codigo = 'CAJA';
+  v_varios_id := (SELECT id FROM cajas WHERE codigo = 'VARIOS');
+  v_caja_id   := (SELECT id FROM cajas WHERE codigo = 'CAJA');
 
-  SELECT saldo_actual INTO v_saldo_varios FROM cajas WHERE id = v_varios_id FOR UPDATE;
-  SELECT saldo_actual INTO v_saldo_caja   FROM cajas WHERE id = v_caja_id   FOR UPDATE;
+  PERFORM id FROM cajas WHERE id IN (v_varios_id, v_caja_id) FOR UPDATE;
+  v_saldo_varios := (SELECT saldo_actual FROM cajas WHERE id = v_varios_id);
+  v_saldo_caja   := (SELECT saldo_actual FROM cajas WHERE id = v_caja_id);
 
   v_monto_de_varios := LEAST(p_monto, v_saldo_varios);
   v_monto_de_caja   := p_monto - v_monto_de_varios;
@@ -110,51 +106,57 @@ BEGIN
   -- MOVIMIENTO DEL EMPLEADO (primero para obtener el ID)
   -- ==========================================
 
+  v_mov_id := gen_random_uuid();
+
   INSERT INTO movimientos_empleados (
-    empleado_id, tipo_movimiento, monto,
+    id, empleado_id, tipo_movimiento, monto,
     descripcion, creado_por
   ) VALUES (
-    p_beneficiario_id,
+    v_mov_id, p_beneficiario_id,
     'ADELANTO_SUELDO',
     p_monto,
     COALESCE(p_descripcion, 'Adelanto de sueldo'),
     p_empleado_id
-  ) RETURNING id INTO v_mov_id;
+  );
 
   -- ==========================================
   -- EGRESOS DE CAJAS
   -- ==========================================
 
   IF v_monto_de_varios > 0 THEN
+    v_op_varios_id := gen_random_uuid();
+
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, categoria_id,
       tipo_referencia_id, referencia_id,
       monto, saldo_anterior, saldo_actual,
       descripcion, comprobante_url
     ) VALUES (
-      gen_random_uuid(), v_varios_id, p_empleado_id, 'EGRESO', v_cat_adelanto_id,
+      v_op_varios_id, v_varios_id, p_empleado_id, 'EGRESO', v_cat_adelanto_id,
       v_tipo_ref_id, v_mov_id,
       v_monto_de_varios, v_saldo_varios, v_saldo_varios - v_monto_de_varios,
       format('Adelanto de sueldo a %s', v_beneficiario_nombre),
       p_comprobante_url
-    ) RETURNING id INTO v_op_varios_id;
+    );
 
     UPDATE cajas SET saldo_actual = saldo_actual - v_monto_de_varios WHERE id = v_varios_id;
   END IF;
 
   IF v_monto_de_caja > 0 THEN
+    v_op_caja_id := gen_random_uuid();
+
     INSERT INTO operaciones_cajas (
       id, caja_id, empleado_id, tipo_operacion, categoria_id,
       tipo_referencia_id, referencia_id,
       monto, saldo_anterior, saldo_actual,
       descripcion, comprobante_url
     ) VALUES (
-      gen_random_uuid(), v_caja_id, p_empleado_id, 'EGRESO', v_cat_adelanto_id,
+      v_op_caja_id, v_caja_id, p_empleado_id, 'EGRESO', v_cat_adelanto_id,
       v_tipo_ref_id, v_mov_id,
       v_monto_de_caja, v_saldo_caja, v_saldo_caja - v_monto_de_caja,
       format('Adelanto de sueldo a %s', v_beneficiario_nombre),
       p_comprobante_url
-    ) RETURNING id INTO v_op_caja_id;
+    );
 
     UPDATE cajas SET saldo_actual = saldo_actual - v_monto_de_caja WHERE id = v_caja_id;
   END IF;
@@ -163,14 +165,16 @@ BEGIN
   -- INSTRUCCIONES FISICAS
   -- ==========================================
 
-  SELECT json_agg(x) INTO v_instrucciones
-  FROM (
-    SELECT * FROM (VALUES
-      ('Varios', 'VARIOS', v_monto_de_varios),
-      ('Tienda', 'CAJA',   v_monto_de_caja)
-    ) AS t(caja, codigo, monto)
-    WHERE monto > 0
-  ) x;
+  v_instrucciones := (
+    SELECT json_agg(x)
+    FROM (
+      SELECT * FROM (VALUES
+        ('Varios', 'VARIOS', v_monto_de_varios),
+        ('Tienda', 'CAJA',   v_monto_de_caja)
+      ) AS t(caja, codigo, monto)
+      WHERE monto > 0
+    ) x
+  );
 
   -- ==========================================
   -- RESULTADO

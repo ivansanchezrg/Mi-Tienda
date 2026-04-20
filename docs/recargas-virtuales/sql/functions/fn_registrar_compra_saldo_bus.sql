@@ -85,11 +85,11 @@ BEGIN
   -- INICIALIZACIÓN — obtener IDs y configuración
   -- ==========================================
 
-  SELECT id INTO v_caja_bus_id FROM cajas WHERE codigo = 'CAJA_BUS';
-  SELECT id INTO v_tipo_bus_id FROM tipos_servicio WHERE codigo = 'BUS';
-  SELECT id INTO v_tipo_ref_rv_id       FROM tipos_referencia WHERE tabla = 'recargas_virtuales';
-  SELECT id INTO v_tipo_ref_recargas_id FROM tipos_referencia WHERE tabla = 'recargas';
-  SELECT id INTO v_categoria_eg011_id   FROM categorias_operaciones WHERE codigo = 'EG-011';
+  v_caja_bus_id          := (SELECT id FROM cajas WHERE codigo = 'CAJA_BUS');
+  v_tipo_bus_id          := (SELECT id FROM tipos_servicio WHERE codigo = 'BUS');
+  v_tipo_ref_rv_id       := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas_virtuales');
+  v_tipo_ref_recargas_id := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas');
+  v_categoria_eg011_id   := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-011');
 
   IF v_caja_bus_id IS NULL THEN
     RAISE EXCEPTION 'Caja CAJA_BUS no encontrada';
@@ -107,7 +107,7 @@ BEGIN
     RAISE EXCEPTION 'El monto de compra debe ser mayor a cero';
   END IF;
 
-  SELECT saldo_actual INTO v_saldo_anterior FROM cajas WHERE id = v_caja_bus_id;
+  v_saldo_anterior := (SELECT saldo_actual FROM cajas WHERE id = v_caja_bus_id);
 
   -- ==========================================
   -- VALIDACIÓN Y CÁLCULO DE VENTAS
@@ -117,24 +117,35 @@ BEGIN
 
     -- Calcula saldo virtual del sistema (mismo algoritmo que getSaldoVirtualActual TypeScript)
     -- Usa el último registro de `recargas` como base (puede ser cierre completo o mini cierre)
-    SELECT COALESCE(r.saldo_virtual_actual, 0), r.created_at
-    INTO v_saldo_ultimo_cierre_bus, v_fecha_ultimo_cierre_bus
-    FROM recargas r
-    JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
-    WHERE ts.codigo = 'BUS'
-    ORDER BY r.created_at DESC
-    LIMIT 1;
+    v_saldo_ultimo_cierre_bus := (
+      SELECT COALESCE(r.saldo_virtual_actual, 0)
+      FROM recargas r
+      JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
+      WHERE ts.codigo = 'BUS'
+      ORDER BY r.created_at DESC
+      LIMIT 1
+    );
+
+    v_fecha_ultimo_cierre_bus := (
+      SELECT r.created_at
+      FROM recargas r
+      JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
+      WHERE ts.codigo = 'BUS'
+      ORDER BY r.created_at DESC
+      LIMIT 1
+    );
 
     IF v_saldo_ultimo_cierre_bus IS NULL THEN
       v_saldo_ultimo_cierre_bus  := 0;
       v_fecha_ultimo_cierre_bus  := '1900-01-01'::timestamp;
     END IF;
 
-    SELECT COALESCE(SUM(rv.monto_virtual), 0)
-    INTO v_suma_recargas_post_cierre
-    FROM recargas_virtuales rv
-    WHERE rv.tipo_servicio_id = v_tipo_bus_id
-      AND rv.created_at > v_fecha_ultimo_cierre_bus;
+    v_suma_recargas_post_cierre := (
+      SELECT COALESCE(SUM(rv.monto_virtual), 0)
+      FROM recargas_virtuales rv
+      WHERE rv.tipo_servicio_id = v_tipo_bus_id
+        AND rv.created_at > v_fecha_ultimo_cierre_bus
+    );
 
     v_saldo_virtual_sistema := v_saldo_ultimo_cierre_bus + v_suma_recargas_post_cierre;
     v_venta_bus_hoy         := GREATEST(v_saldo_virtual_sistema - p_saldo_virtual_maquina, 0);
@@ -162,12 +173,14 @@ BEGIN
   IF v_venta_bus_hoy > 0 THEN
 
     -- Requiere turno abierto para crear el snapshot en `recargas`
-    SELECT id INTO v_turno_id
-    FROM turnos_caja
-    WHERE (hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = p_fecha
-      AND hora_fecha_cierre IS NULL
-    ORDER BY hora_fecha_apertura DESC
-    LIMIT 1;
+    v_turno_id := (
+      SELECT id
+      FROM turnos_caja
+      WHERE (hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+        AND hora_fecha_cierre IS NULL
+      ORDER BY hora_fecha_apertura DESC
+      LIMIT 1
+    );
 
     IF v_turno_id IS NULL THEN
       RAISE EXCEPTION
@@ -190,8 +203,9 @@ BEGIN
     )
     ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
       venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
-      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual
-    RETURNING id INTO v_mini_cierre_id;
+      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual;
+
+    v_mini_cierre_id := (SELECT id FROM recargas WHERE turno_id = v_turno_id AND tipo_servicio_id = v_tipo_bus_id);
 
     -- INGRESO CAJA_BUS por ventas acumuladas
     -- Referencia al snapshot en `recargas` para trazabilidad (igual que el cierre diario)

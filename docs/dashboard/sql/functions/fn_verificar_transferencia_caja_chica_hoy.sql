@@ -42,9 +42,9 @@
     v_varios_id INTEGER;  -- v1.2: era v_caja_chica_id con codigo 'CAJA_CHICA'
     v_existe    BOOLEAN;
   BEGIN
-    SELECT id INTO v_varios_id FROM cajas WHERE codigo = 'VARIOS';  -- v1.2: era 'CAJA_CHICA'
+    v_varios_id := (SELECT id FROM cajas WHERE codigo = 'VARIOS');  -- v1.2: era 'CAJA_CHICA'
 
-    SELECT EXISTS (
+    v_existe := EXISTS (
       SELECT 1
       FROM operaciones_cajas oc
       WHERE oc.caja_id = v_varios_id
@@ -62,7 +62,7 @@
             )
           )
         )
-    ) INTO v_existe;
+    );
 
     RETURN v_existe;
   END;

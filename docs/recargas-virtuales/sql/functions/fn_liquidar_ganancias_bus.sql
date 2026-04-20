@@ -42,9 +42,8 @@ BEGIN
   -- INICIALIZACIÓN
   -- ==========================================
 
-  SELECT id, porcentaje_comision
-  INTO v_tipo_bus_id, v_comision_pct
-  FROM tipos_servicio WHERE codigo = 'BUS';
+  v_tipo_bus_id  := (SELECT id                 FROM tipos_servicio WHERE codigo = 'BUS');
+  v_comision_pct := (SELECT porcentaje_comision FROM tipos_servicio WHERE codigo = 'BUS');
 
   IF v_tipo_bus_id IS NULL THEN
     RAISE EXCEPTION 'Tipo de servicio BUS no encontrado';
@@ -60,13 +59,14 @@ BEGIN
 
   -- monto_a_pagar = monto completo de cada compra (mismo que monto_virtual)
   -- La ganancia es el porcentaje de comisión aplicado sobre el total del mes
-  SELECT COALESCE(SUM(monto_a_pagar), 0)
-  INTO v_total_compras
-  FROM recargas_virtuales
-  WHERE tipo_servicio_id = v_tipo_bus_id
-    AND pagado = false
-    AND fecha >= v_inicio_mes
-    AND fecha < v_fin_mes;
+  v_total_compras := (
+    SELECT COALESCE(SUM(monto_a_pagar), 0)
+    FROM recargas_virtuales
+    WHERE tipo_servicio_id = v_tipo_bus_id
+      AND pagado = false
+      AND fecha >= v_inicio_mes
+      AND fecha < v_fin_mes
+  );
 
   IF v_total_compras <= 0 THEN
     RAISE EXCEPTION 'No hay compras BUS pendientes de liquidar para el mes %', p_mes;
@@ -78,13 +78,13 @@ BEGIN
   -- TRANSFERENCIA CAJA_BUS → CAJA_CHICA
   -- ==========================================
 
-  SELECT public.fn_crear_transferencia(
+  v_transfer_result := public.fn_crear_transferencia(
     'CAJA_BUS',
     'CAJA_CHICA',
     v_total_ganancia,
     p_empleado_id,
     'Ganancia ' || v_comision_pct || '% BUS ' || p_mes
-  ) INTO v_transfer_result;
+  );
 
   IF NOT (v_transfer_result->>'success')::boolean THEN
     RAISE EXCEPTION '%', v_transfer_result->>'error';
