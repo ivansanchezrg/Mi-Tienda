@@ -74,6 +74,94 @@ const [usuarios, productos, ventas] = await Promise.all([
 ```
 
 
+### BarcodeScannerService (`core/services/barcode-scanner.service.ts`)
+
+Centraliza toda la lógica de escaneo de códigos de barras via `@capacitor-mlkit/barcode-scanning`. Elimina la duplicación que existía antes en `InventarioPage`, `ProductoFormPage` y `PosPage`.
+
+#### Formatos soportados (`FORMATOS_DEFAULT`)
+
+```typescript
+const FORMATOS_DEFAULT: BarcodeFormat[] = [
+    BarcodeFormat.Ean13,   // EAN-13 (productos estándar)
+    BarcodeFormat.Ean8,    // EAN-8
+    BarcodeFormat.Code128, // Code 128 (logística)
+    BarcodeFormat.UpcA,    // UPC-A
+    BarcodeFormat.UpcE,    // UPC-E
+    BarcodeFormat.Code39,  // Code 39
+    BarcodeFormat.QrCode,  // QR (proveedores, transferencias)
+];
+```
+
+#### API pública
+
+| Método | Descripción | Uso |
+|--------|-------------|-----|
+| `scan()` | Abre cámara, escanea 1 código y cierra. Retorna `string \| null` | Inventario, formulario de producto, modal de presentación |
+| `startContinuous(onScan)` | Abre cámara y llama `onScan(codigo)` por cada lectura. Retorna `boolean` (permiso concedido) | POS — queda abierto para múltiples productos |
+| `stop()` | Cierra la cámara si está abierta | Botón ✕ del escáner en POS; `ionViewDidLeave`; `ngOnDestroy` |
+| `feedback()` | Vibración (40ms) + beep (Web Audio API) | `scan()` lo llama internamente. En POS el caller lo llama explícitamente después de su lógica anti-duplicado |
+
+#### Flujo de `scan()` (one-shot)
+
+```typescript
+// En cualquier componente/página
+private barcodeScanner = inject(BarcodeScannerService);
+
+async escanearCodigo() {
+    const codigo = await this.barcodeScanner.scan();
+    if (!codigo) return;  // usuario canceló
+    this.form.patchValue({ codigo_barras: codigo });
+}
+```
+
+#### Flujo de `startContinuous()` (POS)
+
+```typescript
+async abrirEscanerCamara() {
+    this.escaneando = true;
+    const iniciado = await this.barcodeScanner.startContinuous((codigo) => {
+        // anti-duplicado: flag + debounce 1.5s por código
+        if (this.procesandoEscaneo) return;
+        this.barcodeScanner.feedback();  // startContinuous NO llama feedback internamente — el POS lo llama aquí
+        // ... procesar código
+    });
+    if (!iniciado) this.escaneando = false;  // permiso denegado
+}
+```
+
+#### Setup Android (obligatorio)
+
+MLKit renderiza la cámara debajo del WebView. Sin estos cambios, el WebView es opaco y la cámara no se ve.
+
+**CSS** (`src/global.scss`):
+```scss
+body.scanner-active {
+  visibility: hidden;
+  --background: transparent;
+  --ion-background-color: transparent;
+}
+body.scanner-active .scanner-overlay,
+body.scanner-active .scanner-overlay * {
+  visibility: visible;
+}
+```
+
+**Android** (`android/app/src/main/res/values/styles.xml`):
+```xml
+<item name="android:background">@android:color/transparent</item>
+<item name="android:windowIsTranslucent">true</item>
+```
+
+#### Cleanup
+
+| Recurso | Dónde limpiar |
+|---------|---------------|
+| Cámara continua (POS) | `ionViewDidLeave` + `ngOnDestroy` → `barcodeScanner.stop()` |
+| Cámara one-shot (inventario) | Se cierra automáticamente — no requiere cleanup manual |
+| AudioContext (beep) | Gestionado internamente por el servicio (singleton) |
+
+---
+
 ### LoggerService (`core/services/logger.service.ts`)
 
 Sistema de logs persistente para debugging en producción.

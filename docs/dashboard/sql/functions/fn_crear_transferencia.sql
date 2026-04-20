@@ -1,6 +1,6 @@
 -- =============================================================================
 -- FUNCIÓN: fn_crear_transferencia
--- Versión: 1.0
+-- Versión: 1.1
 -- Descripción: Crea una transferencia atómica entre dos cajas usando códigos.
 --              Busca las cajas por código, valida saldo suficiente en el origen,
 --              registra las dos operaciones y actualiza los saldos en una sola
@@ -31,22 +31,20 @@ DECLARE
   v_nuevo_saldo_destino NUMERIC;
 BEGIN
   -- 1. Obtener caja origen por código
-  SELECT id, nombre, saldo_actual
-    INTO v_caja_origen_id, v_nombre_origen, v_saldo_origen
-    FROM cajas
-   WHERE codigo = p_codigo_origen AND activo = true;
+  v_caja_origen_id := (SELECT id          FROM cajas WHERE codigo = p_codigo_origen  AND activo = true);
+  v_nombre_origen  := (SELECT nombre      FROM cajas WHERE codigo = p_codigo_origen  AND activo = true);
+  v_saldo_origen   := (SELECT saldo_actual FROM cajas WHERE codigo = p_codigo_origen AND activo = true);
 
-  IF NOT FOUND THEN
+  IF v_caja_origen_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'Caja origen no encontrada: ' || p_codigo_origen);
   END IF;
 
   -- 2. Obtener caja destino por código
-  SELECT id, nombre, saldo_actual
-    INTO v_caja_destino_id, v_nombre_destino, v_saldo_destino
-    FROM cajas
-   WHERE codigo = p_codigo_destino AND activo = true;
+  v_caja_destino_id := (SELECT id           FROM cajas WHERE codigo = p_codigo_destino  AND activo = true);
+  v_nombre_destino  := (SELECT nombre       FROM cajas WHERE codigo = p_codigo_destino  AND activo = true);
+  v_saldo_destino   := (SELECT saldo_actual  FROM cajas WHERE codigo = p_codigo_destino AND activo = true);
 
-  IF NOT FOUND THEN
+  IF v_caja_destino_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'Caja destino no encontrada: ' || p_codigo_destino);
   END IF;
 
@@ -103,4 +101,4 @@ GRANT EXECUTE ON FUNCTION fn_crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, T
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION fn_crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) IS
-  'Transfiere monto entre dos cajas por código. Operación atómica con validación de saldo. v1.0';
+  'Transfiere monto entre dos cajas por código. Operación atómica con validación de saldo. v1.1';

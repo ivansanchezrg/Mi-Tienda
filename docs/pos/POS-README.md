@@ -55,8 +55,10 @@ features/pos/
 ### 3. Escáner de cámara (MLKit)
 - Plugin: `@capacitor-mlkit/barcode-scanning`
 - La cámara se renderiza en capa nativa debajo del WebView
-- Anti-duplicados: `procesandoEscaneo` flag + debounce 1.5s por código
-- Feedback: vibración (40ms) + beep (Web Audio API) + preview efímero (2.5s)
+- Toda la lógica de scanner (permisos, overlay, listeners, beep, vibración) vive en `BarcodeScannerService` (`core/services/`)
+- El POS usa `barcodeScanner.startContinuous(onScan)` — queda abierto escaneando múltiples productos
+- Anti-duplicados: `procesandoEscaneo` flag + debounce 1.5s por código (propio del POS, no del servicio)
+- Feedback: `barcodeScanner.feedback()` → vibración (40ms) + beep (Web Audio API) + preview efímero (2.5s)
 
 ### 4. Pistola lectora USB/Bluetooth
 - `@HostListener('document:keypress')` captura teclas rápidas
@@ -191,11 +193,11 @@ Migración: `docs/pos/sql/migrations/001_add_idempotency_key.sql`
 
 | Recurso | Limpieza en `ionViewDidLeave` | Limpieza en `ngOnDestroy` |
 |---------|------------------------------|--------------------------|
-| Escáner cámara | `cerrarEscaner()` | `cerrarEscaner()` |
+| Escáner cámara | `cerrarEscaner()` → `barcodeScanner.stop()` | `cerrarEscaner()` |
 | Buffer pistola | `clearTimeout(barcodeTimeout)` | `clearTimeout(barcodeTimeout)` |
 | Debounce búsqueda | `clearTimeout(searchDebounce)` | `clearTimeout(searchDebounce)` |
 | Preview escáner | — | `clearTimeout(scanPreviewTimeout)` |
-| AudioContext | — | `audioCtx.close()` |
+| AudioContext | — | Gestionado internamente por `BarcodeScannerService` (singleton) |
 
 > Ionic cachea páginas: `ionViewDidLeave` se ejecuta al navegar, `ngOnDestroy` solo al destruir.
 
@@ -233,6 +235,7 @@ El POS aplica descuentos automáticos sobre el subtotal bruto si se cumplen las 
 
 - `InventarioService` — queries de productos (por nombre, por código). `ProductoPOS` incluye `stock_minimo` para badges visuales en carrito
 - `PosService` — RPC `fn_registrar_venta_pos`
+- `BarcodeScannerService` — escáner de cámara centralizado (permisos, overlay, beep, vibración, formatos QR + lineales)
 - `CobrarModalComponent` — modal unificado de cobro (reemplaza OptionsModal + VueltoModal)
 - `ClientesService` — consumidor final default + selector de cliente
 - `ConfigService` — configuración de descuentos automáticos y tarifa IVA (`pos_iva_porcentaje`) — cache en memoria

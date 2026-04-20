@@ -1,0 +1,275 @@
+-- ==========================================
+-- RLS — Políticas para todas las tablas del proyecto
+-- ==========================================
+-- Regla general: usuarios autenticados pueden leer y escribir todo.
+-- La lógica de negocio y restricciones viven en:
+--   - Funciones SQL (SECURITY DEFINER)
+--   - Constraints de BD (UNIQUE, NOT NULL, CHECK)
+--   - Frontend (validaciones de formulario)
+--
+-- La tabla `usuarios` tiene sus propias políticas en:
+--   docs/auth/sql/setup/rls_usuarios.sql  (NO tocar aquí)
+--
+-- Ejecutar UNA vez. Es idempotente (DROP IF EXISTS + CREATE).
+-- ==========================================
+
+-- ==========================================
+-- cajas
+-- ==========================================
+ALTER TABLE cajas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "cajas_select" ON cajas;
+DROP POLICY IF EXISTS "cajas_insert" ON cajas;
+DROP POLICY IF EXISTS "cajas_update" ON cajas;
+DROP POLICY IF EXISTS "cajas_delete" ON cajas;
+CREATE POLICY "cajas_select" ON cajas FOR SELECT TO authenticated USING (true);
+CREATE POLICY "cajas_insert" ON cajas FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "cajas_update" ON cajas FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "cajas_delete" ON cajas FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- configuraciones
+-- ==========================================
+ALTER TABLE configuraciones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "configuraciones_select" ON configuraciones;
+DROP POLICY IF EXISTS "configuraciones_insert" ON configuraciones;
+DROP POLICY IF EXISTS "configuraciones_update" ON configuraciones;
+DROP POLICY IF EXISTS "configuraciones_delete" ON configuraciones;
+CREATE POLICY "configuraciones_select" ON configuraciones FOR SELECT TO authenticated USING (true);
+CREATE POLICY "configuraciones_insert" ON configuraciones FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "configuraciones_update" ON configuraciones FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "configuraciones_delete" ON configuraciones FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- tipos_servicio
+-- ==========================================
+ALTER TABLE tipos_servicio ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tipos_servicio_select" ON tipos_servicio;
+CREATE POLICY "tipos_servicio_select" ON tipos_servicio FOR SELECT TO authenticated USING (true);
+
+-- ==========================================
+-- turnos_caja
+-- ==========================================
+ALTER TABLE turnos_caja ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "turnos_caja_select" ON turnos_caja;
+DROP POLICY IF EXISTS "turnos_caja_insert" ON turnos_caja;
+DROP POLICY IF EXISTS "turnos_caja_update" ON turnos_caja;
+DROP POLICY IF EXISTS "turnos_caja_delete" ON turnos_caja;
+CREATE POLICY "turnos_caja_select" ON turnos_caja FOR SELECT TO authenticated USING (true);
+CREATE POLICY "turnos_caja_insert" ON turnos_caja FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "turnos_caja_update" ON turnos_caja FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "turnos_caja_delete" ON turnos_caja FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- recargas
+-- ==========================================
+ALTER TABLE recargas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "recargas_select" ON recargas;
+DROP POLICY IF EXISTS "recargas_insert" ON recargas;
+DROP POLICY IF EXISTS "recargas_update" ON recargas;
+DROP POLICY IF EXISTS "recargas_delete" ON recargas;
+CREATE POLICY "recargas_select" ON recargas FOR SELECT TO authenticated USING (true);
+CREATE POLICY "recargas_insert" ON recargas FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "recargas_update" ON recargas FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "recargas_delete" ON recargas FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- tipos_referencia
+-- ==========================================
+ALTER TABLE tipos_referencia ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tipos_referencia_select" ON tipos_referencia;
+CREATE POLICY "tipos_referencia_select" ON tipos_referencia FOR SELECT TO authenticated USING (true);
+
+-- ==========================================
+-- categorias_operaciones
+-- ==========================================
+ALTER TABLE categorias_operaciones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "categorias_operaciones_select" ON categorias_operaciones;
+DROP POLICY IF EXISTS "categorias_operaciones_insert" ON categorias_operaciones;
+DROP POLICY IF EXISTS "categorias_operaciones_update" ON categorias_operaciones;
+DROP POLICY IF EXISTS "categorias_operaciones_delete" ON categorias_operaciones;
+CREATE POLICY "categorias_operaciones_select" ON categorias_operaciones FOR SELECT TO authenticated USING (true);
+CREATE POLICY "categorias_operaciones_insert" ON categorias_operaciones FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "categorias_operaciones_update" ON categorias_operaciones FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "categorias_operaciones_delete" ON categorias_operaciones FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- operaciones_cajas
+-- ==========================================
+ALTER TABLE operaciones_cajas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "operaciones_cajas_select" ON operaciones_cajas;
+DROP POLICY IF EXISTS "operaciones_cajas_insert" ON operaciones_cajas;
+DROP POLICY IF EXISTS "operaciones_cajas_update" ON operaciones_cajas;
+DROP POLICY IF EXISTS "operaciones_cajas_delete" ON operaciones_cajas;
+CREATE POLICY "operaciones_cajas_select" ON operaciones_cajas FOR SELECT TO authenticated USING (true);
+CREATE POLICY "operaciones_cajas_insert" ON operaciones_cajas FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "operaciones_cajas_update" ON operaciones_cajas FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "operaciones_cajas_delete" ON operaciones_cajas FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- movimientos_empleados
+-- ==========================================
+ALTER TABLE movimientos_empleados ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "movimientos_empleados_select" ON movimientos_empleados;
+DROP POLICY IF EXISTS "movimientos_empleados_insert" ON movimientos_empleados;
+DROP POLICY IF EXISTS "movimientos_empleados_update" ON movimientos_empleados;
+DROP POLICY IF EXISTS "movimientos_empleados_delete" ON movimientos_empleados;
+CREATE POLICY "movimientos_empleados_select" ON movimientos_empleados FOR SELECT TO authenticated USING (true);
+CREATE POLICY "movimientos_empleados_insert" ON movimientos_empleados FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "movimientos_empleados_update" ON movimientos_empleados FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "movimientos_empleados_delete" ON movimientos_empleados FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- recargas_virtuales
+-- ==========================================
+ALTER TABLE recargas_virtuales ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "recargas_virtuales_select" ON recargas_virtuales;
+DROP POLICY IF EXISTS "recargas_virtuales_insert" ON recargas_virtuales;
+DROP POLICY IF EXISTS "recargas_virtuales_update" ON recargas_virtuales;
+DROP POLICY IF EXISTS "recargas_virtuales_delete" ON recargas_virtuales;
+CREATE POLICY "recargas_virtuales_select" ON recargas_virtuales FOR SELECT TO authenticated USING (true);
+CREATE POLICY "recargas_virtuales_insert" ON recargas_virtuales FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "recargas_virtuales_update" ON recargas_virtuales FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "recargas_virtuales_delete" ON recargas_virtuales FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- grupos_variantes
+-- ==========================================
+ALTER TABLE grupos_variantes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "grupos_variantes_select" ON grupos_variantes;
+DROP POLICY IF EXISTS "grupos_variantes_insert" ON grupos_variantes;
+DROP POLICY IF EXISTS "grupos_variantes_update" ON grupos_variantes;
+DROP POLICY IF EXISTS "grupos_variantes_delete" ON grupos_variantes;
+CREATE POLICY "grupos_variantes_select" ON grupos_variantes FOR SELECT TO authenticated USING (true);
+CREATE POLICY "grupos_variantes_insert" ON grupos_variantes FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "grupos_variantes_update" ON grupos_variantes FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "grupos_variantes_delete" ON grupos_variantes FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- categorias_productos
+-- ==========================================
+ALTER TABLE categorias_productos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "categorias_productos_select" ON categorias_productos;
+DROP POLICY IF EXISTS "categorias_productos_insert" ON categorias_productos;
+DROP POLICY IF EXISTS "categorias_productos_update" ON categorias_productos;
+DROP POLICY IF EXISTS "categorias_productos_delete" ON categorias_productos;
+CREATE POLICY "categorias_productos_select" ON categorias_productos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "categorias_productos_insert" ON categorias_productos FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "categorias_productos_update" ON categorias_productos FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "categorias_productos_delete" ON categorias_productos FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- productos
+-- ==========================================
+ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "productos_select" ON productos;
+DROP POLICY IF EXISTS "productos_insert" ON productos;
+DROP POLICY IF EXISTS "productos_update" ON productos;
+DROP POLICY IF EXISTS "productos_delete" ON productos;
+CREATE POLICY "productos_select" ON productos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "productos_insert" ON productos FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "productos_update" ON productos FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "productos_delete" ON productos FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- producto_presentaciones
+-- ==========================================
+ALTER TABLE producto_presentaciones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "producto_presentaciones_select" ON producto_presentaciones;
+DROP POLICY IF EXISTS "producto_presentaciones_insert" ON producto_presentaciones;
+DROP POLICY IF EXISTS "producto_presentaciones_update" ON producto_presentaciones;
+DROP POLICY IF EXISTS "producto_presentaciones_delete" ON producto_presentaciones;
+CREATE POLICY "producto_presentaciones_select" ON producto_presentaciones FOR SELECT TO authenticated USING (true);
+CREATE POLICY "producto_presentaciones_insert" ON producto_presentaciones FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "producto_presentaciones_update" ON producto_presentaciones FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "producto_presentaciones_delete" ON producto_presentaciones FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- clientes
+-- ==========================================
+ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "clientes_select" ON clientes;
+DROP POLICY IF EXISTS "clientes_insert" ON clientes;
+DROP POLICY IF EXISTS "clientes_update" ON clientes;
+DROP POLICY IF EXISTS "clientes_delete" ON clientes;
+CREATE POLICY "clientes_select" ON clientes FOR SELECT TO authenticated USING (true);
+CREATE POLICY "clientes_insert" ON clientes FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "clientes_update" ON clientes FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "clientes_delete" ON clientes FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- secuencias_comprobantes
+-- ==========================================
+ALTER TABLE secuencias_comprobantes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "secuencias_comprobantes_select" ON secuencias_comprobantes;
+DROP POLICY IF EXISTS "secuencias_comprobantes_insert" ON secuencias_comprobantes;
+DROP POLICY IF EXISTS "secuencias_comprobantes_update" ON secuencias_comprobantes;
+DROP POLICY IF EXISTS "secuencias_comprobantes_delete" ON secuencias_comprobantes;
+CREATE POLICY "secuencias_comprobantes_select" ON secuencias_comprobantes FOR SELECT TO authenticated USING (true);
+CREATE POLICY "secuencias_comprobantes_insert" ON secuencias_comprobantes FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "secuencias_comprobantes_update" ON secuencias_comprobantes FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "secuencias_comprobantes_delete" ON secuencias_comprobantes FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- ventas
+-- ==========================================
+ALTER TABLE ventas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "ventas_select" ON ventas;
+DROP POLICY IF EXISTS "ventas_insert" ON ventas;
+DROP POLICY IF EXISTS "ventas_update" ON ventas;
+DROP POLICY IF EXISTS "ventas_delete" ON ventas;
+CREATE POLICY "ventas_select" ON ventas FOR SELECT TO authenticated USING (true);
+CREATE POLICY "ventas_insert" ON ventas FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "ventas_update" ON ventas FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "ventas_delete" ON ventas FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- ventas_detalles
+-- ==========================================
+ALTER TABLE ventas_detalles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "ventas_detalles_select" ON ventas_detalles;
+DROP POLICY IF EXISTS "ventas_detalles_insert" ON ventas_detalles;
+DROP POLICY IF EXISTS "ventas_detalles_update" ON ventas_detalles;
+DROP POLICY IF EXISTS "ventas_detalles_delete" ON ventas_detalles;
+CREATE POLICY "ventas_detalles_select" ON ventas_detalles FOR SELECT TO authenticated USING (true);
+CREATE POLICY "ventas_detalles_insert" ON ventas_detalles FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "ventas_detalles_update" ON ventas_detalles FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "ventas_detalles_delete" ON ventas_detalles FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- kardex_inventario
+-- ==========================================
+ALTER TABLE kardex_inventario ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "kardex_inventario_select" ON kardex_inventario;
+DROP POLICY IF EXISTS "kardex_inventario_insert" ON kardex_inventario;
+DROP POLICY IF EXISTS "kardex_inventario_update" ON kardex_inventario;
+DROP POLICY IF EXISTS "kardex_inventario_delete" ON kardex_inventario;
+CREATE POLICY "kardex_inventario_select" ON kardex_inventario FOR SELECT TO authenticated USING (true);
+CREATE POLICY "kardex_inventario_insert" ON kardex_inventario FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "kardex_inventario_update" ON kardex_inventario FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "kardex_inventario_delete" ON kardex_inventario FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- cuentas_cobrar
+-- ==========================================
+ALTER TABLE cuentas_cobrar ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "cuentas_cobrar_select" ON cuentas_cobrar;
+DROP POLICY IF EXISTS "cuentas_cobrar_insert" ON cuentas_cobrar;
+DROP POLICY IF EXISTS "cuentas_cobrar_update" ON cuentas_cobrar;
+DROP POLICY IF EXISTS "cuentas_cobrar_delete" ON cuentas_cobrar;
+CREATE POLICY "cuentas_cobrar_select" ON cuentas_cobrar FOR SELECT TO authenticated USING (true);
+CREATE POLICY "cuentas_cobrar_insert" ON cuentas_cobrar FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "cuentas_cobrar_update" ON cuentas_cobrar FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "cuentas_cobrar_delete" ON cuentas_cobrar FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- notas
+-- ==========================================
+ALTER TABLE notas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "notas_select" ON notas;
+DROP POLICY IF EXISTS "notas_insert" ON notas;
+DROP POLICY IF EXISTS "notas_update" ON notas;
+DROP POLICY IF EXISTS "notas_delete" ON notas;
+CREATE POLICY "notas_select" ON notas FOR SELECT TO authenticated USING (true);
+CREATE POLICY "notas_insert" ON notas FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "notas_update" ON notas FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "notas_delete" ON notas FOR DELETE TO authenticated USING (true);

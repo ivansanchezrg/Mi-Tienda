@@ -1,24 +1,38 @@
-import { Component, OnInit, OnDestroy, inject, NgZone } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { IonicModule, AlertController, NavController, ViewWillEnter } from '@ionic/angular';
 import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline } from 'ionicons/icons';
-import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
+import { arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, chevronUpOutline, layersOutline, checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline, addOutline, refreshOutline, warningOutline, trendingUpOutline, trendingDownOutline, removeOutline, sparklesOutline, colorPaletteOutline } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
 
-import { Producto, ProductoPresentacion, TipoVenta } from '../../models/producto.model';
+import { Producto, ProductoPresentacion, TipoVenta, GrupoVariante } from '../../models/producto.model';
+
+interface PresentacionForm {
+    nombre: string;
+    factor_conversion: number;
+    precio_venta: number;
+    precio_costo: number;
+    codigo_barras?: string;
+}
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { InventarioService } from '../../services/inventario.service';
 
 import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only.directive';
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
+import { UppercaseInputDirective } from '../../../../shared/directives/uppercase-input.directive';
 import { CurrencyService } from '../../../../core/services/currency.service';
+import { calcularPrecioDesdeMargen, calcularMargenDesdePrecio } from '../../../../core/utils/margen.util';
 import { UiService } from '../../../../core/services/ui.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
+import { PresentacionModalComponent, PresentacionModalResult } from '../../components/presentacion-modal/presentacion-modal.component';
 import { ModalController } from '@ionic/angular';
 
 @Component({
@@ -26,7 +40,7 @@ import { ModalController } from '@ionic/angular';
     templateUrl: './producto-form.page.html',
     styleUrls: ['./producto-form.page.scss'],
     standalone: true,
-    imports: [IonicModule, CommonModule, ReactiveFormsModule, NumbersOnlyDirective, CurrencyInputDirective]
+    imports: [IonicModule, CommonModule, ReactiveFormsModule, FormsModule, NumbersOnlyDirective, CurrencyInputDirective, UppercaseInputDirective]
 })
 export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private inicializado = false;
@@ -36,11 +50,11 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private inventarioService = inject(InventarioService);
     public currencyService = inject(CurrencyService);
     private ui = inject(UiService);
-    private ngZone = inject(NgZone);
     private storageService = inject(StorageService);
     private alertCtrl = inject(AlertController);
     private modalCtrl = inject(ModalController);
     private logger = inject(LoggerService);
+    private barcodeScanner = inject(BarcodeScannerService);
 
     productoForm!: FormGroup;
     escaneando = false;
@@ -48,15 +62,30 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     guardando = false;
     cargando = true;
     formSubmitted = false;
-    margenPorcentaje = 0;
+    margenPct: number = 20;
     margenAbsoluto = 0;
 
     producto?: Producto;
     categorias: CategoriaProducto[] = [];
     codigoBarrasInicial?: string;
 
-    // Presentaciones (solo en modo EDITAR)
+    // Presentaciones en modo EDITAR (desde BD)
     presentaciones: ProductoPresentacion[] = [];
+    presentacionesInactivas: ProductoPresentacion[] = [];
+    mostrarInactivas = false;
+    // Presentaciones en modo CREAR (en memoria, aún sin producto_id)
+    presentacionesNuevas: PresentacionForm[] = [];
+    // Nombre de la presentación recién agregada para disparar animación
+    presentacionRecienAgregada: string | null = null;
+
+    // Variantes
+    grupoVarianteSeleccionado: GrupoVariante | null = null;
+    variantesHermanas: Producto[] = [];
+    gruposSugeridos: GrupoVariante[] = [];
+    buscandoGrupos = false;
+    textoGrupo = '';
+    private grupoSearch$ = new Subject<string>();
+    private grupoSearchSub!: Subscription;
 
     // Imagen del producto
     fotoPreview: string | null = null;       // DataURL para preview local
@@ -65,10 +94,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private fotoNueva = false;               // true si el usuario seleccionó/cambió foto
     private fotoEliminada = false;           // true si el usuario quitó la foto existente
 
-    private audioCtx: AudioContext | null = null;
-
     constructor() {
-        addIcons({ arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, layersOutline, checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline });
+        addIcons({ arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, chevronUpOutline, layersOutline, checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline, addOutline, refreshOutline, warningOutline, trendingUpOutline, trendingDownOutline, removeOutline, sparklesOutline, colorPaletteOutline });
     }
 
     async ngOnInit() {
@@ -90,13 +117,28 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                 this.imagenPathAnterior = producto.imagen_url;
                 this.imagenUrlExistente = this.storageService.getPublicUrl(producto.imagen_url, 'productos');
             }
-            // Cargar presentaciones del producto
-            this.presentaciones = await this.inventarioService.obtenerPresentaciones(producto.id);
+            // Cargar presentaciones activas e inactivas del producto
+            [this.presentaciones, this.presentacionesInactivas] = await Promise.all([
+                this.inventarioService.obtenerPresentaciones(producto.id),
+                this.inventarioService.obtenerPresentacionesInactivas(producto.id)
+            ]);
+
+            // Si tiene grupo de variantes, cargar hermanas
+            if (producto.grupo_variante) {
+                this.grupoVarianteSeleccionado = producto.grupo_variante;
+                this.variantesHermanas = await this.inventarioService.obtenerVariantesDelGrupo(
+                    producto.grupo_variante.id, producto.id
+                );
+            }
         }
         this.cargando = false;
         this.inicializado = true;
 
         this.initForm();
+
+        this.grupoSearchSub = this.grupoSearch$
+            .pipe(debounceTime(300), distinctUntilChanged())
+            .subscribe(texto => this.ejecutarBusquedaGrupos(texto));
     }
 
     async ionViewWillEnter() {
@@ -121,39 +163,63 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             stock_minimo: [this.producto?.stock_minimo || 5, [Validators.required, Validators.min(0)]],
             tiene_iva: [this.producto?.tiene_iva ?? true],
             tipo_venta: [this.producto?.tipo_venta || 'UNIDAD'],
-            unidad_medida: [this.producto?.unidad_medida || 'und']
-        }, { validators: this.ventaMayorCostoValidator.bind(this) });
+            unidad_medida: [this.producto?.unidad_medida || 'und'],
+            grupo_variante_id: [this.producto?.grupo_variante_id || null]
+        });
 
         // En modo CREAR, marcar categoría como touched para que se vea el error de inmediato
         if (this.modo === 'CREAR') {
             this.productoForm.get('categoria_id')?.markAsTouched();
         }
 
-        // Cálculo dinámico del margen de ganancia
-        this.productoForm.valueChanges.subscribe(v => this.calcularMargen(v));
-        // Al editar, los valores ya están cargados — calcular margen inicial
-        this.calcularMargen(this.productoForm.value);
-    }
-
-    private calcularMargen(v: any) {
-        const costo = this.currencyService.parse(v.precio_costo);
-        const venta = this.currencyService.parse(v.precio_venta);
-        if (costo > 0 && venta > 0 && venta >= costo) {
-            this.margenAbsoluto = venta - costo;
-            this.margenPorcentaje = Math.round(((venta - costo) / costo) * 100);
-        } else {
-            this.margenAbsoluto = 0;
-            this.margenPorcentaje = 0;
+        // En modo EDITAR: calcular margenPct inicial desde los valores cargados
+        if (this.producto?.precio_costo && this.producto?.precio_venta) {
+            this.margenPct = calcularMargenDesdePrecio(this.producto.precio_costo, this.producto.precio_venta);
+            this.margenAbsoluto = this.producto.precio_venta - this.producto.precio_costo;
         }
     }
 
-    private ventaMayorCostoValidator(group: AbstractControl): ValidationErrors | null {
-        const costo = this.currencyService.parse(group.get('precio_costo')?.value);
-        const venta = this.currencyService.parse(group.get('precio_venta')?.value);
-        if (costo > 0 && venta > 0 && venta < costo) {
-            return { ventaMenorQueCosto: true };
-        }
-        return null;
+    get costoActual(): number {
+        const raw = this.currencyService.parse(this.productoForm?.get('precio_costo')?.value ?? 0);
+        return Math.round(raw * 100) / 100;
+    }
+
+    get margenColor(): string {
+        return 'success';
+    }
+
+    onCostoChange() {
+        setTimeout(() => {
+            const costo = this.costoActual;
+            if (costo <= 0) {
+                this.productoForm.get('precio_venta')?.setValue('', { emitEvent: false });
+                this.margenPct = 20;
+                this.margenAbsoluto = 0;
+                return;
+            }
+            this.recalcularPrecioDesdeSlider();
+        });
+    }
+
+    onPrecioVentaChange() {
+        setTimeout(() => {
+            const costo = this.costoActual;
+            const ventaRaw = this.currencyService.parse(this.productoForm?.get('precio_venta')?.value ?? 0);
+            const venta = Math.round(ventaRaw * 100) / 100;
+            this.margenPct = calcularMargenDesdePrecio(costo, venta);
+            this.margenAbsoluto = venta > costo ? Math.round((venta - costo) * 100) / 100 : 0;
+        });
+    }
+
+    private recalcularPrecioDesdeSlider() {
+        const costo = this.costoActual;
+        if (costo <= 0 || this.margenPct <= 0) return;
+        const precio = calcularPrecioDesdeMargen(costo, this.margenPct);
+        this.productoForm.get('precio_venta')?.setValue(
+            this.currencyService.format(precio),
+            { emitEvent: false }
+        );
+        this.margenAbsoluto = Math.round((precio - costo) * 100) / 100;
     }
 
     get categoriaLabel(): string {
@@ -221,7 +287,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             stock_minimo: Number(value.stock_minimo) || 0,
             activo: this.producto?.activo ?? true,
             tipo_venta: value.tipo_venta,
-            unidad_medida: isPeso ? value.unidad_medida : 'und'
+            unidad_medida: isPeso ? value.unidad_medida : 'und',
+            grupo_variante_id: value.grupo_variante_id || null
         };
 
         try {
@@ -252,9 +319,23 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             }
 
             if (this.modo === 'CREAR') {
-                await this.inventarioService.crearProducto(productoPayload);
+                const productoCreado = await this.inventarioService.crearProducto(productoPayload);
+                if (productoCreado.id && this.presentacionesNuevas.length > 0) {
+                    const presentaciones = await Promise.all(
+                        this.presentacionesNuevas.map(p =>
+                            this.inventarioService.crearPresentacion({ ...p, producto_id: productoCreado.id }, true)
+                        )
+                    );
+                    // Emitir ACTUALIZADO con las presentaciones ya incluidas
+                    // para que la lista de inventario reemplace el item sin presentaciones
+                    this.inventarioService.emitirCambio({
+                        tipo: 'ACTUALIZADO',
+                        producto: { ...productoCreado, presentaciones }
+                    });
+                }
             } else {
                 await this.inventarioService.actualizarProducto(this.producto!.id, productoPayload);
+                this.productoForm.markAsPristine();
             }
             // El servicio emite el evento → la lista se actualiza reactivamente
             this.navCtrl.back();
@@ -278,12 +359,12 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     async desactivarProducto() {
         if (!this.producto) return;
         const alert = await this.alertCtrl.create({
-            header: 'Desactivar producto',
-            message: `"${this.producto.nombre}" dejará de aparecer en el inventario y POS, pero se conservará su historial de ventas y kardex.`,
+            header: `¿Quitar "${this.producto.nombre}"?`,
+            message: 'Dejará de aparecer en el inventario y el POS. Puedes reactivarlo cuando quieras desde la lista de productos.',
             buttons: [
                 { text: 'Cancelar', role: 'cancel' },
                 {
-                    text: 'Desactivar',
+                    text: 'Quitar',
                     role: 'destructive',
                     handler: async () => {
                         await this.inventarioService.desactivarProducto(this.producto!.id);
@@ -295,44 +376,38 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         await alert.present();
     }
 
+    async reactivarProducto() {
+        if (!this.producto) return;
+        const alert = await this.alertCtrl.create({
+            header: 'Reactivar producto',
+            message: `"${this.producto.nombre}" volverá a aparecer en el inventario y el POS.`,
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                {
+                    text: 'Reactivar',
+                    handler: async () => {
+                        const actualizado = await this.inventarioService.reactivarProducto(this.producto!.id);
+                        if (actualizado?.id) {
+                            this.producto!.activo = true;
+                        }
+                    }
+                }
+            ]
+        });
+        await alert.present();
+    }
+
     async escanearCodigo() {
-        const { camera } = await BarcodeScanner.requestPermissions();
-        if (camera !== 'granted') {
-            this.ui.showToast('Permiso de cámara denegado', 'warning');
-            return;
-        }
-
         this.escaneando = true;
-        document.body.classList.add('scanner-active');
-
-        try {
-            await BarcodeScanner.addListener('barcodesScanned', (event) => {
-                this.ngZone.run(async () => {
-                    const codigo = event.barcodes[0]?.rawValue;
-                    if (!codigo) return;
-                    navigator.vibrate?.(40);
-                    this.playBeep();
-                    this.productoForm.patchValue({ codigo_barras: codigo });
-                    this.ui.showToast(`Código capturado: ${codigo}`, 'success');
-                    await this.cerrarEscaner();
-                });
-            });
-            await BarcodeScanner.startScan({
-                formats: [
-                    BarcodeFormat.Ean13, BarcodeFormat.Ean8,
-                    BarcodeFormat.Code128, BarcodeFormat.UpcA,
-                    BarcodeFormat.UpcE, BarcodeFormat.Code39,
-                ]
-            });
-        } catch {
-            await this.cerrarEscaner();
-        }
+        const codigo = await this.barcodeScanner.scan();
+        this.escaneando = false;
+        if (!codigo) return;
+        this.productoForm.patchValue({ codigo_barras: codigo });
+        this.ui.showToast(`Código capturado: ${codigo}`, 'success');
     }
 
     async cerrarEscaner() {
-        await BarcodeScanner.removeAllListeners();
-        await BarcodeScanner.stopScan();
-        document.body.classList.remove('scanner-active');
+        await this.barcodeScanner.stop();
         this.escaneando = false;
     }
 
@@ -411,87 +486,92 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     }
 
     // ==========================================
-    // PRESENTACIONES (solo EDITAR)
+    // PRESENTACIONES — modo CREAR (en memoria)
+    // ==========================================
+
+    async agregarPresentacionNueva() {
+        if (!this.productoForm.get('nombre')?.value?.trim()) {
+            this.ui.showToast('Ingresa el nombre del producto antes de agregar presentaciones', 'warning');
+            return;
+        }
+        const result = await this.abrirPresentacionModal(
+            this.presentacionesNuevas.map(p => p.nombre)
+        );
+        if (!result) return;
+        this.presentacionesNuevas = [...this.presentacionesNuevas, result];
+        this.animarPresentacion(result.nombre);
+    }
+
+    async editarPresentacionNueva(index: number) {
+        const pres = this.presentacionesNuevas[index];
+        const nombresOtros = this.presentacionesNuevas.filter((_, i) => i !== index).map(p => p.nombre);
+        const result = await this.abrirPresentacionModal(nombresOtros, pres);
+        if (!result) return;
+        this.presentacionesNuevas = this.presentacionesNuevas.map((p, i) => i === index ? result : p);
+    }
+
+    eliminarPresentacionNueva(index: number) {
+        this.presentacionesNuevas = this.presentacionesNuevas.filter((_, i) => i !== index);
+    }
+
+    // ==========================================
+    // PRESENTACIONES — modo EDITAR (desde BD)
     // ==========================================
 
     async agregarPresentacion() {
-        const alert = await this.alertCtrl.create({
-            header: 'Nueva presentacion',
-            inputs: [
-                { name: 'nombre', type: 'text', placeholder: 'Ej. Cajetilla x10' },
-                { name: 'factor_conversion', type: 'number', placeholder: 'Unidades por paquete (ej. 10)', min: 1 },
-                { name: 'precio_venta', type: 'number', placeholder: 'Precio de venta ($)', min: 0.01 },
-                { name: 'codigo_barras', type: 'text', placeholder: 'Codigo de barras (opcional)' }
-            ],
-            buttons: [
-                { text: 'Cancelar', role: 'cancel' },
-                {
-                    text: 'Crear',
-                    handler: async (data) => {
-                        if (!data.nombre?.trim() || !data.factor_conversion || !data.precio_venta) {
-                            this.ui.showToast('Completa nombre, factor y precio', 'warning');
-                            return false;
-                        }
-                        const pres = await this.inventarioService.crearPresentacion({
-                            producto_id: this.producto!.id,
-                            nombre: data.nombre.trim(),
-                            factor_conversion: Math.round(Number(data.factor_conversion)),
-                            precio_venta: Number(data.precio_venta),
-                            codigo_barras: data.codigo_barras?.trim() || null
-                        });
-                        if (pres?.id) {
-                            this.presentaciones.push(pres);
-                        }
-                        return true;
-                    }
+        await this.abrirPresentacionModal(
+            this.presentaciones.map(p => p.nombre),
+            undefined,
+            async (result) => {
+                const creada = await this.inventarioService.crearPresentacion({
+                    producto_id: this.producto!.id,
+                    ...result
+                });
+                if (creada?.id) {
+                    this.presentaciones = [...this.presentaciones, creada];
+                    this.animarPresentacion(creada.nombre);
+                    this.ui.showToast(`Presentación "${creada.nombre}" guardada`, 'success');
+                    return true;
                 }
-            ]
-        });
-        await alert.present();
+                return false;
+            }
+        );
+    }
+
+    private animarPresentacion(nombre: string) {
+        this.presentacionRecienAgregada = nombre;
+        setTimeout(() => { this.presentacionRecienAgregada = null; }, 400);
     }
 
     async editarPresentacion(pres: ProductoPresentacion) {
-        const alert = await this.alertCtrl.create({
-            header: 'Editar presentacion',
-            inputs: [
-                { name: 'nombre', type: 'text', value: pres.nombre, placeholder: 'Nombre' },
-                { name: 'factor_conversion', type: 'number', value: pres.factor_conversion, placeholder: 'Unidades por paquete', min: 1 },
-                { name: 'precio_venta', type: 'number', value: pres.precio_venta, placeholder: 'Precio de venta ($)', min: 0.01 },
-                { name: 'codigo_barras', type: 'text', value: pres.codigo_barras || '', placeholder: 'Codigo de barras (opcional)' }
-            ],
-            buttons: [
-                { text: 'Cancelar', role: 'cancel' },
-                {
-                    text: 'Guardar',
-                    handler: async (data) => {
-                        if (!data.nombre?.trim() || !data.factor_conversion || !data.precio_venta) {
-                            this.ui.showToast('Completa nombre, factor y precio', 'warning');
-                            return false;
-                        }
-                        await this.inventarioService.actualizarPresentacion(pres.id, {
-                            nombre: data.nombre.trim(),
-                            factor_conversion: Math.round(Number(data.factor_conversion)),
-                            precio_venta: Number(data.precio_venta),
-                            codigo_barras: data.codigo_barras?.trim() || null
-                        });
-                        // Refrescar lista
-                        this.presentaciones = await this.inventarioService.obtenerPresentaciones(this.producto!.id);
-                        return true;
-                    }
-                }
-            ]
-        });
-        await alert.present();
+        const nombresOtros = this.presentaciones.filter(p => p.id !== pres.id).map(p => p.nombre);
+        await this.abrirPresentacionModal(
+            nombresOtros,
+            pres,
+            async (result) => {
+                await this.inventarioService.actualizarPresentacion(pres.id, result);
+                this.presentaciones = await this.inventarioService.obtenerPresentaciones(this.producto!.id);
+                this.ui.showToast(`Presentación "${result.nombre}" actualizada`, 'success');
+                return true;
+            }
+        );
+    }
+
+    async reactivarPresentacion(pres: ProductoPresentacion) {
+        await this.inventarioService.reactivarPresentacion(pres.id);
+        this.presentacionesInactivas = this.presentacionesInactivas.filter(p => p.id !== pres.id);
+        this.presentaciones = [...this.presentaciones, pres];
+        this.animarPresentacion(pres.nombre);
     }
 
     async eliminarPresentacion(pres: ProductoPresentacion) {
         const alert = await this.alertCtrl.create({
-            header: 'Eliminar presentacion',
-            message: `¿Eliminar "${pres.nombre}"? Las ventas anteriores conservaran su historial.`,
+            header: `¿Quitar "${pres.nombre}"?`,
+            message: 'Dejará de aparecer en el POS. Las ventas realizadas con esta presentación no se verán afectadas.',
             buttons: [
                 { text: 'Cancelar', role: 'cancel' },
                 {
-                    text: 'Eliminar',
+                    text: 'Quitar',
                     role: 'destructive',
                     handler: async () => {
                         await this.inventarioService.desactivarPresentacion(pres.id);
@@ -503,10 +583,88 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         await alert.present();
     }
 
+    private async abrirPresentacionModal(
+        nombresExistentes: string[],
+        presentacionActual?: PresentacionModalResult,
+        onConfirmar?: (result: PresentacionModalResult) => Promise<boolean>
+    ): Promise<PresentacionModalResult | null> {
+        const nombreProducto = (this.productoForm.get('nombre')?.value ?? '').trim().toUpperCase()
+            || this.producto?.nombre?.toUpperCase()
+            || '';
+        const modal = await this.modalCtrl.create({
+            component: PresentacionModalComponent,
+            componentProps: {
+                nombresExistentes,
+                presentacionActual,
+                precioBase: this.currencyService.parse(this.productoForm.get('precio_costo')?.value ?? 0),
+                nombreProducto,
+                onConfirmar
+            },
+            cssClass: 'bottom-sheet-modal',
+            breakpoints: [0, 1],
+            initialBreakpoint: 1
+        });
+        await modal.present();
+        const { data, role } = await modal.onDidDismiss<PresentacionModalResult>();
+        return role === 'confirm' && data ? data : null;
+    }
+
     get unidadMedidaLabel(): string {
         const um = this.productoForm?.get('unidad_medida')?.value;
         const labels: Record<string, string> = { kg: 'Kilogramo', lb: 'Libra', g: 'Gramo', ml: 'Mililitro', L: 'Litro' };
         return labels[um] || um;
+    }
+
+    // ==========================================
+    // VARIANTES — grupo de variantes
+    // ==========================================
+
+    buscarGrupos(texto: string) {
+        this.textoGrupo = texto;
+        if (!texto || texto.length < 2) {
+            this.gruposSugeridos = [];
+            this.buscandoGrupos = false;
+            return;
+        }
+        this.buscandoGrupos = true;
+        this.grupoSearch$.next(texto);
+    }
+
+    private async ejecutarBusquedaGrupos(texto: string) {
+        this.gruposSugeridos = await this.inventarioService.buscarGruposVariantes(texto);
+        this.buscandoGrupos = false;
+    }
+
+    async seleccionarGrupo(grupo: GrupoVariante) {
+        this.grupoVarianteSeleccionado = grupo;
+        this.productoForm.patchValue({ grupo_variante_id: grupo.id });
+        this.productoForm.markAsDirty();
+        this.gruposSugeridos = [];
+        this.textoGrupo = '';
+        this.variantesHermanas = await this.inventarioService.obtenerVariantesDelGrupo(
+            grupo.id, this.producto?.id
+        );
+    }
+
+    async crearOSeleccionarGrupo(nombre: string) {
+        if (!nombre || nombre.trim().length < 2) return;
+        const grupo = await this.inventarioService.crearOObtenerGrupoVariante(nombre);
+        if (grupo) await this.seleccionarGrupo(grupo);
+    }
+
+    quitarDelGrupo() {
+        this.grupoVarianteSeleccionado = null;
+        this.variantesHermanas = [];
+        this.gruposSugeridos = [];
+        this.textoGrupo = '';
+        this.productoForm.patchValue({ grupo_variante_id: null });
+        this.productoForm.markAsDirty();
+    }
+
+    get grupoNoCoincideExacto(): boolean {
+        if (!this.textoGrupo || this.textoGrupo.trim().length < 2) return false;
+        const textoNorm = this.textoGrupo.toUpperCase().trim();
+        return !this.gruposSugeridos.some(g => g.nombre === textoNorm);
     }
 
     esCampoInvalido(campo: string): boolean {
@@ -514,25 +672,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         return !!(control && control.invalid && (control.dirty || control.touched));
     }
 
-    private playBeep() {
-        try {
-            if (!this.audioCtx || this.audioCtx.state === 'closed') {
-                this.audioCtx = new AudioContext();
-            }
-            const oscillator = this.audioCtx.createOscillator();
-            const gain = this.audioCtx.createGain();
-            oscillator.type = 'square';
-            oscillator.frequency.value = 1000;
-            gain.gain.value = 1.0;
-            oscillator.connect(gain);
-            gain.connect(this.audioCtx.destination);
-            oscillator.start();
-            oscillator.stop(this.audioCtx.currentTime + 0.12);
-        } catch { /* silencioso si falla */ }
-    }
-
     ngOnDestroy() {
         if (this.escaneando) this.cerrarEscaner();
-        this.audioCtx?.close().catch(() => {});
+        this.grupoSearchSub?.unsubscribe();
     }
 }

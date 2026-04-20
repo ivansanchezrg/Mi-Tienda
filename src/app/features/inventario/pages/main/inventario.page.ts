@@ -1,4 +1,4 @@
-import { Component, inject, NgZone, OnDestroy, OnInit } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AlertController, IonicModule, ModalController, NavController } from '@ionic/angular';
@@ -20,9 +20,10 @@ import {
   addCircleOutline,
   chevronDownOutline,
   layersOutline,
-  pricetagOutline
+  pricetagOutline,
+  colorPaletteOutline
 } from 'ionicons/icons';
-import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { InventarioService } from '../../services/inventario.service';
@@ -46,7 +47,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   private navCtrl = inject(NavController);
   private alertCtrl = inject(AlertController);
   private modalCtrl = inject(ModalController);
-  private ngZone = inject(NgZone);
+  private barcodeScanner = inject(BarcodeScannerService);
 
   protected readonly pageSize = PAGINATION_CONFIG.inventario.pageSize;
   readonly loadingMoreText = 'Cargando más productos...';
@@ -56,6 +57,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   categoriaSeleccionada?: number;
   escaneando = false;
   mostrarDesactivados = false;
+  readonly skeletonItems = Array(6);
 
   get filtroSeleccionado(): string {
     if (this.mostrarDesactivados) return 'desactivados';
@@ -72,7 +74,6 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     return 'Todas las categorías';
   }
 
-  private audioCtx: AudioContext | null = null;
   private searchDebounce: ReturnType<typeof setTimeout> | undefined;
   private productoChangeSub?: Subscription;
 
@@ -93,7 +94,8 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       addCircleOutline,
       chevronDownOutline,
       layersOutline,
-      pricetagOutline
+      pricetagOutline,
+      colorPaletteOutline
     });
   }
 
@@ -422,36 +424,11 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   // ==========================
 
   async escanearYCrear() {
-    const { camera } = await BarcodeScanner.requestPermissions();
-    if (camera !== 'granted') {
-      this.ui.showToast('Permiso de cámara denegado', 'warning');
-      return;
-    }
-
     this.escaneando = true;
-    document.body.classList.add('scanner-active');
-
-    try {
-      await BarcodeScanner.addListener('barcodesScanned', (event) => {
-        this.ngZone.run(async () => {
-          const codigo = event.barcodes[0]?.rawValue;
-          if (!codigo) return;
-          navigator.vibrate?.(40);
-          this.playBeep();
-          await this.cerrarEscaner();
-          await this.procesarCodigoEscaneado(codigo);
-        });
-      });
-      await BarcodeScanner.startScan({
-        formats: [
-          BarcodeFormat.Ean13, BarcodeFormat.Ean8,
-          BarcodeFormat.Code128, BarcodeFormat.UpcA,
-          BarcodeFormat.UpcE, BarcodeFormat.Code39,
-        ]
-      });
-    } catch {
-      await this.cerrarEscaner();
-    }
+    const codigo = await this.barcodeScanner.scan();
+    this.escaneando = false;
+    if (!codigo) return;
+    await this.procesarCodigoEscaneado(codigo);
   }
 
   private async procesarCodigoEscaneado(codigo: string) {
@@ -481,33 +458,13 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   }
 
   async cerrarEscaner() {
-    await BarcodeScanner.removeAllListeners();
-    await BarcodeScanner.stopScan();
-    document.body.classList.remove('scanner-active');
+    await this.barcodeScanner.stop();
     this.escaneando = false;
-  }
-
-  private playBeep() {
-    try {
-      if (!this.audioCtx || this.audioCtx.state === 'closed') {
-        this.audioCtx = new AudioContext();
-      }
-      const oscillator = this.audioCtx.createOscillator();
-      const gain = this.audioCtx.createGain();
-      oscillator.type = 'square';
-      oscillator.frequency.value = 1000;
-      gain.gain.value = 1.0;
-      oscillator.connect(gain);
-      gain.connect(this.audioCtx.destination);
-      oscillator.start();
-      oscillator.stop(this.audioCtx.currentTime + 0.12);
-    } catch { /* silencioso si falla */ }
   }
 
   ngOnDestroy() {
     if (this.escaneando) this.cerrarEscaner();
     clearTimeout(this.searchDebounce);
-    this.audioCtx?.close().catch(() => {});
     this.productoChangeSub?.unsubscribe();
   }
 }

@@ -17,7 +17,7 @@ RETURNS TRIGGER AS $$
 DECLARE
     v_stock_actual DECIMAL(12,2);
 BEGIN
-    SELECT stock_actual INTO v_stock_actual FROM productos WHERE id = NEW.producto_id;
+    v_stock_actual := (SELECT stock_actual FROM productos WHERE id = NEW.producto_id);
 
     UPDATE productos
     SET stock_actual = stock_actual - NEW.cantidad
@@ -39,6 +39,8 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_descontar_stock_venta ON ventas_detalles;
 
 CREATE TRIGGER trg_descontar_stock_venta
     AFTER INSERT ON ventas_detalles

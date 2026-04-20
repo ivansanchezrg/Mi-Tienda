@@ -566,6 +566,35 @@ Usar el mismo patrón si se necesita cache para otros datos de baja frecuencia d
 - Documentar las funciones en `docs/<modulo>/sql/functions/`
 - Templates completos y criterios de decisión en `docs/ESTRUCTURA-PROYECTO.md`
 
+### Asignación de variables en plpgsql — NUNCA `SELECT ... INTO`
+
+En Supabase, **cualquier** `SELECT ... INTO variable` causa el error `relation "variable" does not exist` porque el parser interpreta la variable como una tabla. Esto aplica a todos los casos: columna única, agregados, EXISTS, múltiples variables.
+
+```sql
+-- ❌ Rompe en Supabase — parser interpreta v_caja_id como tabla
+SELECT id INTO v_caja_id FROM cajas WHERE codigo = 'CAJA';
+
+-- ❌ También rompe — mismo bug con agregados
+SELECT COUNT(*) + 1 INTO v_numero_turno FROM turnos_caja WHERE ...;
+
+-- ❌ También rompe — mismo bug con EXISTS
+SELECT EXISTS (...) INTO v_existe;
+
+-- ❌ También rompe — mismo bug con múltiples variables
+SELECT id, nombre INTO v_id, v_nombre FROM cajas WHERE ...;
+
+-- ✅ Correcto — siempre usar := (SELECT ...)
+v_caja_id      := (SELECT id FROM cajas WHERE codigo = 'CAJA');
+v_numero_turno := (SELECT COUNT(*) + 1 FROM turnos_caja WHERE ...);
+v_existe       := EXISTS (SELECT 1 FROM tabla WHERE ...);
+
+-- ✅ Para FOR UPDATE (lock de fila): PERFORM + := separados
+PERFORM id FROM cajas WHERE id = v_id FOR UPDATE;
+v_saldo := (SELECT saldo_actual FROM cajas WHERE id = v_id);
+```
+
+**Regla absoluta:** Usar `:= (SELECT ...)` para toda asignación de variable en plpgsql. `SELECT ... INTO` no funciona en Supabase en ningún caso.
+
 ### Cuándo usar cada enfoque
 
 | Caso | Usar | Por qué |

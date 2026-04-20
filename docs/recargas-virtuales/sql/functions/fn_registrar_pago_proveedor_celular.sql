@@ -61,10 +61,10 @@ BEGIN
   -- ==========================================
   -- 1. OBTENER IDs NECESARIOS
   -- ==========================================
-  SELECT id INTO v_caja_celular_id FROM cajas WHERE codigo = 'CAJA_CELULAR';
-  SELECT id INTO v_caja_chica_id   FROM cajas WHERE codigo = 'CAJA_CHICA';
-  SELECT id INTO v_tipo_ref_id     FROM tipos_referencia WHERE tabla = 'recargas_virtuales';
-  SELECT id INTO v_categoria_eg010_id FROM categorias_operaciones WHERE codigo = 'EG-010';
+  v_caja_celular_id    := (SELECT id FROM cajas WHERE codigo = 'CAJA_CELULAR');
+  v_caja_chica_id      := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA');
+  v_tipo_ref_id        := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas_virtuales');
+  v_categoria_eg010_id := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-010');
   -- TRANSFERENCIA_SALIENTE/ENTRANTE no requieren categoria_id (NULL permitido en schema)
 
   IF v_caja_celular_id IS NULL THEN
@@ -78,11 +78,13 @@ BEGIN
   -- ==========================================
   -- 2. VALIDAR DEUDAS
   -- ==========================================
-  SELECT COUNT(*) INTO v_deudas_count
-  FROM recargas_virtuales
-  WHERE id = ANY(p_deuda_ids)
-    AND pagado = false
-    AND tipo_servicio_id = (SELECT id FROM tipos_servicio WHERE codigo = 'CELULAR');
+  v_deudas_count := (
+    SELECT COUNT(*)
+    FROM recargas_virtuales
+    WHERE id = ANY(p_deuda_ids)
+      AND pagado = false
+      AND tipo_servicio_id = (SELECT id FROM tipos_servicio WHERE codigo = 'CELULAR')
+  );
 
   IF v_deudas_count != array_length(p_deuda_ids, 1) THEN
     RAISE EXCEPTION 'Algunas deudas no existen, ya están pagadas o no son de tipo CELULAR';
@@ -92,12 +94,8 @@ BEGIN
   -- 3. CALCULAR TOTALES DESDE LAS DEUDAS
   -- Los valores vienen de recargas_virtuales — NO son hardcodeados
   -- ==========================================
-  SELECT
-    COALESCE(SUM(monto_a_pagar), 0),
-    COALESCE(SUM(ganancia), 0)
-  INTO v_total_a_pagar, v_total_ganancia
-  FROM recargas_virtuales
-  WHERE id = ANY(p_deuda_ids);
+  v_total_a_pagar  := (SELECT COALESCE(SUM(monto_a_pagar), 0) FROM recargas_virtuales WHERE id = ANY(p_deuda_ids));
+  v_total_ganancia := (SELECT COALESCE(SUM(ganancia), 0)      FROM recargas_virtuales WHERE id = ANY(p_deuda_ids));
 
   IF v_total_a_pagar <= 0 THEN
     RAISE EXCEPTION 'El total a pagar debe ser mayor a cero';
@@ -109,16 +107,14 @@ BEGIN
   -- ==========================================
   -- 4. VALIDAR SALDO CAJA_CELULAR
   -- ==========================================
-  SELECT saldo_actual INTO v_saldo_celular_ant
-  FROM cajas WHERE id = v_caja_celular_id;
+  v_saldo_celular_ant := (SELECT saldo_actual FROM cajas WHERE id = v_caja_celular_id);
 
   IF v_saldo_celular_ant < v_total_egreso THEN
     RAISE EXCEPTION 'Saldo insuficiente en CAJA_CELULAR. Disponible: $%, Requerido: $% (pago: $% + ganancia: $%)',
       v_saldo_celular_ant, v_total_egreso, v_total_a_pagar, v_total_ganancia;
   END IF;
 
-  SELECT saldo_actual INTO v_saldo_chica_ant
-  FROM cajas WHERE id = v_caja_chica_id;
+  v_saldo_chica_ant := (SELECT saldo_actual FROM cajas WHERE id = v_caja_chica_id);
 
   -- ==========================================
   -- 5. CALCULAR SALDOS NUEVOS

@@ -35,9 +35,7 @@ DECLARE
     v_saldo_caja         DECIMAL(12,2);
 BEGIN
     -- 0. Obtener empleado autenticado
-    SELECT id INTO v_empleado_id
-    FROM usuarios
-    WHERE usuario = auth.jwt() ->> 'email';
+    v_empleado_id := (SELECT id FROM usuarios WHERE usuario = auth.jwt() ->> 'email');
 
     IF v_empleado_id IS NULL THEN
         RAISE EXCEPTION 'Usuario no autenticado';
@@ -63,9 +61,11 @@ BEGIN
     END IF;
 
     -- 2. Calcular saldo pendiente
-    SELECT COALESCE(SUM(monto), 0) INTO v_total_pagado
-    FROM cuentas_cobrar
-    WHERE venta_id = p_venta_id;
+    v_total_pagado := (
+      SELECT COALESCE(SUM(monto), 0)
+      FROM cuentas_cobrar
+      WHERE venta_id = p_venta_id
+    );
 
     v_saldo_pendiente := v_venta.total - v_total_pagado;
 
@@ -93,15 +93,12 @@ BEGIN
 
     -- 5. Si es EFECTIVO → ingresar a CAJA_CHICA
     IF p_metodo_pago = 'EFECTIVO' THEN
-        SELECT id INTO v_caja_id FROM cajas WHERE codigo = 'CAJA_CHICA';
-        SELECT id INTO v_categoria_id
-        FROM categorias_operaciones
-        WHERE tipo = 'INGRESO' AND nombre ILIKE '%Ventas%' LIMIT 1;
-        SELECT id INTO v_tipo_referencia_id
-        FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1;
+        v_caja_id          := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA');
+        v_categoria_id     := (SELECT id FROM categorias_operaciones WHERE tipo = 'INGRESO' AND nombre ILIKE '%Ventas%' LIMIT 1);
+        v_tipo_referencia_id := (SELECT id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1);
 
         IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL AND v_tipo_referencia_id IS NOT NULL THEN
-            SELECT saldo_actual INTO v_saldo_caja FROM cajas WHERE id = v_caja_id;
+            v_saldo_caja := (SELECT saldo_actual FROM cajas WHERE id = v_caja_id);
 
             INSERT INTO operaciones_cajas (
                 caja_id, empleado_id, tipo_operacion, monto,

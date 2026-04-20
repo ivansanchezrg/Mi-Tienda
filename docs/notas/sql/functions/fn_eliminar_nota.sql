@@ -24,11 +24,9 @@ BEGIN
     END IF;
 
     -- Verificar rol desde la tabla usuarios usando el email del JWT
-    SELECT rol INTO v_rol
-    FROM usuarios
-    WHERE usuario = v_email AND activo = true;
+    v_rol := (SELECT rol FROM usuarios WHERE usuario = v_email AND activo = true);
 
-    IF NOT FOUND THEN
+    IF v_rol IS NULL THEN
         RAISE EXCEPTION 'Usuario no encontrado o inactivo';
     END IF;
 

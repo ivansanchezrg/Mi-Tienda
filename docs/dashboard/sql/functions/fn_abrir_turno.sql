@@ -1,7 +1,8 @@
 -- ==========================================
--- DROP — descomentar SOLO si cambia la firma (parámetros o tipo de retorno)
+-- DROP — limpia versiones anteriores con cualquier firma
 -- ==========================================
--- DROP FUNCTION IF EXISTS public.fn_abrir_turno(INTEGER);
+DROP FUNCTION IF EXISTS public.fn_abrir_turno(INTEGER);
+DROP FUNCTION IF EXISTS public.fn_abrir_turno();
 
 -- ==========================================
 -- FUNCIÓN: fn_abrir_turno (v1.0)
@@ -49,14 +50,16 @@ BEGIN
   END IF;
 
   -- Número de turno: siguiente al último del día
-  SELECT COUNT(*) + 1 INTO v_numero_turno
-  FROM turnos_caja
-  WHERE hora_fecha_apertura >= v_inicio_dia
-    AND hora_fecha_apertura <  v_inicio_dia + INTERVAL '1 day';
+  v_numero_turno := (
+    SELECT COUNT(*) + 1
+    FROM turnos_caja
+    WHERE hora_fecha_apertura >= v_inicio_dia
+      AND hora_fecha_apertura <  v_inicio_dia + INTERVAL '1 day'
+  );
 
-  INSERT INTO turnos_caja (numero_turno, empleado_id, hora_fecha_apertura)
-  VALUES (v_numero_turno, p_empleado_id, NOW())
-  RETURNING id INTO v_turno_id;
+  v_turno_id := gen_random_uuid();
+  INSERT INTO turnos_caja (id, numero_turno, empleado_id, hora_fecha_apertura)
+  VALUES (v_turno_id, v_numero_turno, p_empleado_id, NOW());
 
   RETURN json_build_object(
     'success',      true,

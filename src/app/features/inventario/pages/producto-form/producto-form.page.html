@@ -33,6 +33,14 @@
     } @else {
     <form [formGroup]="productoForm" class="p-lg form-container" (ngSubmit)="guardar()">
 
+        <!-- Banner producto inactivo -->
+        @if (modo === 'EDITAR' && producto && !producto.activo) {
+        <div class="inactive-banner mb-lg">
+            <ion-icon name="warning-outline"></ion-icon>
+            <span>Este producto está <strong>inactivo</strong>. No aparece en el inventario ni en el POS.</span>
+        </div>
+        }
+
         <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
             <ion-card-content class="p-lg">
                 <h3 class="section-title">Información Principal</h3>
@@ -51,10 +59,15 @@
                             <ion-icon slot="icon-only" name="barcode-outline" color="primary"></ion-icon>
                         </ion-button>
                     </ion-item>
-                    @if (!productoForm.get('codigo_barras')?.value?.trim()) {
+                    @if (productoForm.get('codigo_barras')?.value?.trim()) {
+                    <p class="auto-code-hint auto-code-hint--ok">
+                        <ion-icon name="checkmark-circle-outline"></ion-icon>
+                        Se usará este código para identificar el producto en el POS.
+                    </p>
+                    } @else {
                     <p class="auto-code-hint">
-                        <ion-icon name="information-circle-outline"></ion-icon>
-                        Si no tiene código de barras, déjalo vacío. Se asignará uno automáticamente.
+                        <ion-icon name="sparkles-outline"></ion-icon>
+                        Si lo dejas vacío, se generará un código automáticamente. También puedes escanear o ingresar uno manualmente.
                     </p>
                     }
                     }
@@ -64,7 +77,7 @@
                 <div class="input-group mb-md">
                     <ion-item class="custom-input flat-item" lines="none"
                         [class.ion-invalid]="esCampoInvalido('nombre')">
-                        <ion-input formControlName="nombre" label="Nombre del Producto *" labelPlacement="floating"
+                        <ion-input appUppercaseInput formControlName="nombre" label="Nombre del Producto *" labelPlacement="floating"
                             type="text" placeholder="Ej. Funda Grande"></ion-input>
                     </ion-item>
                     @if (esCampoInvalido('nombre')) {
@@ -103,7 +116,7 @@
         <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
             <ion-card-content class="p-lg">
                 <div class="section-header">
-                    <h3 class="section-title" style="border: none; margin: 0; padding: 0;">Imagen del Producto</h3>
+                    <h3 class="section-title section-title--inline">Imagen del Producto</h3>
                     <span class="optional-badge">Opcional</span>
                 </div>
 
@@ -160,38 +173,187 @@
                 </div>
                 }
 
-                <!-- Presentaciones (solo en EDITAR y tipo UNIDAD) -->
-                @if (modo === 'EDITAR' && productoForm.get('tipo_venta')?.value === 'UNIDAD') {
+                <!-- Presentaciones (CREAR y EDITAR, solo tipo UNIDAD) -->
+                @if (productoForm.get('tipo_venta')?.value === 'UNIDAD') {
                 <div class="presentaciones-section mt-md">
                     <div class="presentaciones-header">
-                        <p class="field-label">Presentaciones</p>
+                        <p class="field-label">
+                            Presentaciones
+                            @if (modo === 'CREAR') {
+                            <span class="optional-badge optional-badge--inline">Opcional</span>
+                            }
+                        </p>
+                        @if (modo === 'CREAR') {
+                        <button type="button" class="pres-add-btn" (click)="agregarPresentacionNueva()">
+                            <ion-icon name="add-outline"></ion-icon> Agregar
+                        </button>
+                        } @else {
                         <button type="button" class="pres-add-btn" (click)="agregarPresentacion()">
                             <ion-icon name="add-outline"></ion-icon> Agregar
                         </button>
+                        }
                     </div>
 
-                    @if (presentaciones.length === 0) {
-                    <p class="help-text">
-                        <ion-icon name="information-circle-outline" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
-                        Sin presentaciones. Si este producto se vende en paquetes (ej. cajetilla x10), agrega una presentacion.
-                    </p>
-                    } @else {
-                    <div class="presentaciones-list">
-                        @for (pres of presentaciones; track pres.id) {
-                        <div class="pres-item">
-                            <div class="pres-info" (click)="editarPresentacion(pres)">
-                                <span class="pres-nombre">{{ pres.nombre }}</span>
-                                <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
-                                @if (pres.codigo_barras) {
-                                <span class="pres-codigo">{{ pres.codigo_barras }}</span>
-                                }
+                    @if (modo === 'CREAR') {
+                        @if (presentacionesNuevas.length === 0) {
+                        <p class="help-text">
+                            <ion-icon name="information-circle-outline" class="icon-inline"></ion-icon>
+                            Si este producto se vende en paquetes (ej. cajetilla x10), agrégalos aquí. Opcional.
+                        </p>
+                        } @else {
+                        <div class="presentaciones-list">
+                            @for (pres of presentacionesNuevas; track pres.nombre; let i = $index) {
+                            <div class="pres-item" [class.pres-item-enter]="presentacionRecienAgregada === pres.nombre">
+                                <div class="pres-info" (click)="editarPresentacionNueva(i)">
+                                    <span class="pres-nombre">{{ pres.nombre }}</span>
+                                    <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
+                                    @if (pres.codigo_barras) {
+                                    <span class="pres-codigo">{{ pres.codigo_barras }}</span>
+                                    }
+                                </div>
+                                <button type="button" class="pres-delete-btn" (click)="eliminarPresentacionNueva(i)">
+                                    <ion-icon name="trash-outline"></ion-icon>
+                                </button>
                             </div>
-                            <button type="button" class="pres-delete-btn" (click)="eliminarPresentacion(pres)">
-                                <ion-icon name="trash-outline"></ion-icon>
+                            }
+                        </div>
+                        }
+                    } @else {
+                        @if (presentaciones.length === 0 && presentacionesInactivas.length === 0) {
+                        <p class="help-text">
+                            <ion-icon name="information-circle-outline" class="icon-inline"></ion-icon>
+                            Sin presentaciones. Si este producto se vende en paquetes (ej. cajetilla x10), agrega una presentación.
+                        </p>
+                        } @else {
+                        <div class="presentaciones-list">
+                            @for (pres of presentaciones; track pres.id) {
+                            <div class="pres-item" [class.pres-item-enter]="presentacionRecienAgregada === pres.nombre">
+                                <div class="pres-info" (click)="editarPresentacion(pres)">
+                                    <span class="pres-nombre">{{ pres.nombre }}</span>
+                                    <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
+                                    @if (pres.codigo_barras) {
+                                    <span class="pres-codigo">{{ pres.codigo_barras }}</span>
+                                    }
+                                </div>
+                                <button type="button" class="pres-quitar-btn" (click)="eliminarPresentacion(pres)">
+                                    <ion-icon name="close-outline"></ion-icon>
+                                    <span>Quitar</span>
+                                </button>
+                            </div>
+                            }
+                            @if (presentacionesInactivas.length > 0) {
+                            <button type="button" class="pres-inactivas-toggle" (click)="mostrarInactivas = !mostrarInactivas">
+                                <div class="pres-inactivas-toggle-line"></div>
+                                <span>Inactivas ({{ presentacionesInactivas.length }})</span>
+                                @if (mostrarInactivas) {
+                                <ion-icon name="chevron-up-outline"></ion-icon>
+                                } @else {
+                                <ion-icon name="chevron-down-outline"></ion-icon>
+                                }
+                                <div class="pres-inactivas-toggle-line"></div>
                             </button>
+                            @if (mostrarInactivas) {
+                            @for (pres of presentacionesInactivas; track pres.id) {
+                            <div class="pres-item pres-item--inactiva">
+                                <div class="pres-info">
+                                    <div class="pres-nombre-row">
+                                        <span class="pres-nombre">{{ pres.nombre }}</span>
+                                        <span class="pres-badge-inactiva">INACTIVA</span>
+                                    </div>
+                                    <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
+                                    @if (pres.codigo_barras) {
+                                    <span class="pres-codigo">{{ pres.codigo_barras }}</span>
+                                    }
+                                </div>
+                                <button type="button" class="pres-reactivar-btn" (click)="reactivarPresentacion(pres)">
+                                    <ion-icon name="refresh-outline"></ion-icon>
+                                    <span>Activar</span>
+                                </button>
+                            </div>
+                            }
+                            }
+                            }
+                        </div>
+                        }
+                    }
+                </div>
+                }
+            </ion-card-content>
+        </ion-card>
+
+        <!-- Grupo de Variantes -->
+        <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+            <ion-card-content class="p-lg">
+                <div class="section-header">
+                    <h3 class="section-title section-title--inline">Grupo de Variantes</h3>
+                    <span class="optional-badge">Opcional</span>
+                </div>
+
+                @if (!grupoVarianteSeleccionado) {
+                <p class="help-text mb-sm">
+                    <ion-icon name="color-palette-outline" class="icon-inline"></ion-icon>
+                    Agrupa sabores, colores o tallas del mismo producto (ej: TAPIOCA).
+                </p>
+                <div class="grupo-search">
+                    <ion-item class="custom-input flat-item" lines="none">
+                        <ion-input appUppercaseInput
+                            label="Buscar o crear grupo"
+                            labelPlacement="floating"
+                            type="text"
+                            placeholder="Ej: TAPIOCA"
+                            [value]="textoGrupo"
+                            (ionInput)="buscarGrupos($any($event).detail.value)">
+                        </ion-input>
+                        @if (buscandoGrupos) {
+                        <ion-spinner name="crescent" slot="end" class="grupo-spinner"></ion-spinner>
+                        }
+                    </ion-item>
+
+                    @if (gruposSugeridos.length > 0) {
+                    <div class="grupo-sugerencias">
+                        @for (grupo of gruposSugeridos; track grupo.id) {
+                        <button type="button" class="grupo-sugerencia" (click)="seleccionarGrupo(grupo)">
+                            <ion-icon name="color-palette-outline"></ion-icon>
+                            <span>{{ grupo.nombre }}</span>
+                        </button>
+                        }
+                    </div>
+                    }
+
+                    @if (grupoNoCoincideExacto) {
+                    <button type="button" class="grupo-crear-btn" (click)="crearOSeleccionarGrupo(textoGrupo)">
+                        <ion-icon name="add-outline"></ion-icon>
+                        Crear grupo "{{ textoGrupo.toUpperCase().trim() }}"
+                    </button>
+                    }
+                </div>
+                } @else {
+                <div class="grupo-seleccionado">
+                    <div class="grupo-header">
+                        <ion-icon name="color-palette-outline" class="grupo-header-icon"></ion-icon>
+                        <span class="grupo-nombre">{{ grupoVarianteSeleccionado.nombre }}</span>
+                        <button type="button" class="grupo-quitar-btn" (click)="quitarDelGrupo()">
+                            <ion-icon name="close-outline"></ion-icon>
+                        </button>
+                    </div>
+
+                    @if (variantesHermanas.length > 0) {
+                    <div class="variantes-hermanas">
+                        <span class="hermanas-label">Otras variantes del grupo:</span>
+                        @for (v of variantesHermanas; track v.id) {
+                        <div class="variante-item">
+                            <span class="variante-nombre">{{ v.nombre }}</span>
+                            <div class="variante-meta">
+                                <span class="variante-stock">{{ v.stock_actual }} uds</span>
+                                <span class="variante-precio">${{ currencyService.format(v.precio_venta) }}</span>
+                            </div>
                         </div>
                         }
                     </div>
+                    } @else if (modo === 'EDITAR') {
+                    <p class="hermanas-empty">Este es el único producto en el grupo</p>
+                    } @else {
+                    <p class="hermanas-empty">Al guardar, podrás agregar más variantes a este grupo</p>
                     }
                 </div>
                 }
@@ -209,7 +371,7 @@
                             [class.ion-invalid]="esCampoInvalido('precio_costo')">
                             <ion-input appNumbersOnly appCurrencyInput formControlName="precio_costo"
                                 label="Costo ($) *" labelPlacement="floating" type="text" inputmode="decimal"
-                                placeholder="0.00"></ion-input>
+                                placeholder="0.00" (ionInput)="onCostoChange()"></ion-input>
                         </ion-item>
                         @if (esCampoInvalido('precio_costo')) {
                         <span class="error-text">Ingresa un precio válido</span>
@@ -222,7 +384,7 @@
                             [class.ion-invalid]="esCampoInvalido('precio_venta')">
                             <ion-input appNumbersOnly appCurrencyInput formControlName="precio_venta"
                                 label="Precio Venta ($) *" labelPlacement="floating" type="text" inputmode="decimal"
-                                placeholder="0.00"></ion-input>
+                                placeholder="0.00" (ionInput)="onPrecioVentaChange()"></ion-input>
                         </ion-item>
                         @if (esCampoInvalido('precio_venta')) {
                         <span class="error-text">Ingresa un precio válido</span>
@@ -230,15 +392,18 @@
                     </div>
                 </div>
 
-                @if (productoForm.errors?.['ventaMenorQueCosto']) {
-                <span class="error-text mt-xs">
-                    <ion-icon name="alert-circle-outline" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
-                    El precio de venta no puede ser menor al costo
-                </span>
-                } @else if (margenPorcentaje > 0) {
-                <p class="margin-hint mt-xs">
-                    Margen de ganancia: <strong>{{ margenPorcentaje }}%</strong> (<strong>${{ currencyService.format(margenAbsoluto) }}</strong>)
-                </p>
+                <!-- Margen de ganancia -->
+                @if (costoActual > 0) {
+                <div class="margen-row">
+                    <span class="margen-row-label">Margen de ganancia</span>
+                    <div class="margen-badge">
+                        <ion-icon name="trending-up-outline"></ion-icon>
+                        <span class="margen-badge-pct">{{ margenPct }}%</span>
+                        @if (margenAbsoluto > 0) {
+                            <span class="margen-badge-abs">+${{ currencyService.format(margenAbsoluto) }}</span>
+                        }
+                    </div>
+                </div>
                 }
 
                 <div class="mt-md">
@@ -247,12 +412,12 @@
                     </ion-item>
                     @if (productoForm.get('tiene_iva')?.value) {
                     <p class="help-text mt-xs">
-                        <ion-icon name="checkmark-circle-outline" color="primary" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
+                        <ion-icon name="checkmark-circle-outline" color="primary" class="icon-inline"></ion-icon>
                         <strong>Tarifa 15%</strong> — aplica a la mayoría de productos (snacks, bebidas, electrodomésticos, ropa, etc.)
                     </p>
                     } @else {
                     <p class="help-text mt-xs">
-                        <ion-icon name="information-circle-outline" style="vertical-align: middle; margin-right: 4px;"></ion-icon>
+                        <ion-icon name="information-circle-outline" class="icon-inline"></ion-icon>
                         <strong>Tarifa 0%</strong> — solo para <strong>canasta básica exenta de IVA</strong>: verduras, frutas, leche, pan, arroz, medicamentos, etc.
                     </p>
                     }
@@ -263,9 +428,8 @@
         <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
             <ion-card-content class="p-lg">
 
-                <div
-                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--ion-color-step-100); padding-bottom: var(--spacing-xs); margin-bottom: var(--spacing-md);">
-                    <h3 class="section-title" style="border: none; margin: 0; padding: 0;">Inventario</h3>
+                <div class="section-header">
+                    <h3 class="section-title section-title--inline">Inventario</h3>
                     @if (modo === 'EDITAR') {
                     <ion-button fill="clear" size="small" (click)="abrirKardex()">
                         <ion-icon slot="start" name="document-text-outline"></ion-icon>
@@ -309,21 +473,31 @@
 
         <div class="p-xs">
             <ion-button expand="block" type="submit" class="main-button rounded-sm"
-                [disabled]="productoForm.invalid || guardando">
+                [disabled]="productoForm.invalid || guardando || (modo === 'EDITAR' && productoForm.pristine)">
                 @if (guardando) {
                 <ion-spinner name="crescent" slot="start"></ion-spinner>
                 Guardando...
+                } @else if (modo === 'EDITAR' && productoForm.pristine) {
+                <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+                Sin cambios
                 } @else {
                 <ion-icon slot="start" name="save-outline"></ion-icon>
-                Guardar Producto
+                {{ modo === 'CREAR' ? 'Crear Producto' : 'Guardar Cambios' }}
                 }
             </ion-button>
 
             @if (modo === 'EDITAR') {
-            <button type="button" class="delete-btn mt-md" (click)="desactivarProducto()">
-                <ion-icon name="trash-outline"></ion-icon>
-                Desactivar producto
-            </button>
+                @if (producto?.activo) {
+                <button type="button" class="delete-btn mt-md" (click)="desactivarProducto()">
+                    <ion-icon name="trash-outline"></ion-icon>
+                    Quitar del inventario
+                </button>
+                } @else {
+                <button type="button" class="reactivar-btn mt-md" (click)="reactivarProducto()">
+                    <ion-icon name="refresh-outline"></ion-icon>
+                    Reactivar producto
+                </button>
+                }
             }
         </div>
     </form>

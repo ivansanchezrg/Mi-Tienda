@@ -58,9 +58,8 @@ BEGIN
   -- 1. VALIDACIONES INICIALES
   -- ==========================================
 
-  SELECT id, porcentaje_comision
-  INTO v_tipo_celular_id, v_comision_pct
-  FROM tipos_servicio WHERE codigo = 'CELULAR';
+  v_tipo_celular_id := (SELECT id                FROM tipos_servicio WHERE codigo = 'CELULAR');
+  v_comision_pct    := (SELECT porcentaje_comision FROM tipos_servicio WHERE codigo = 'CELULAR');
 
   IF v_tipo_celular_id IS NULL THEN
     RAISE EXCEPTION 'Tipo de servicio CELULAR no encontrado';
@@ -83,39 +82,49 @@ BEGIN
   -- 3. INSERT EN recargas_virtuales (CREAR DEUDA)
   -- ==========================================
 
+  v_recarga_id := gen_random_uuid();
+
   INSERT INTO recargas_virtuales (
     id, fecha, tipo_servicio_id, empleado_id,
     monto_virtual, monto_a_pagar, ganancia,
     pagado, created_at
   ) VALUES (
-    gen_random_uuid(), p_fecha, v_tipo_celular_id, p_empleado_id,
+    v_recarga_id, p_fecha, v_tipo_celular_id, p_empleado_id,
     p_monto_virtual, v_monto_a_pagar, v_ganancia,
     false, NOW()
-  )
-  RETURNING id INTO v_recarga_id;
+  );
 
   -- ==========================================
   -- 4. CALCULAR SALDO VIRTUAL ACTUAL
   -- Fórmula: último_cierre + SUM(recargas_virtuales posteriores)
   -- ==========================================
 
-  SELECT COALESCE(saldo_virtual_actual, 0), created_at
-  INTO v_saldo_ultimo_cierre, v_fecha_ultimo_cierre
-  FROM recargas
-  WHERE tipo_servicio_id = v_tipo_celular_id
-  ORDER BY created_at DESC
-  LIMIT 1;
+  v_saldo_ultimo_cierre := (
+    SELECT COALESCE(saldo_virtual_actual, 0)
+    FROM recargas
+    WHERE tipo_servicio_id = v_tipo_celular_id
+    ORDER BY created_at DESC
+    LIMIT 1
+  );
+  v_fecha_ultimo_cierre := (
+    SELECT created_at
+    FROM recargas
+    WHERE tipo_servicio_id = v_tipo_celular_id
+    ORDER BY created_at DESC
+    LIMIT 1
+  );
 
   IF v_saldo_ultimo_cierre IS NULL THEN
     v_saldo_ultimo_cierre := 0;
     v_fecha_ultimo_cierre := '1900-01-01'::timestamp;
   END IF;
 
-  SELECT COALESCE(SUM(monto_virtual), 0)
-  INTO v_suma_recargas_post_cierre
-  FROM recargas_virtuales rv
-  WHERE rv.tipo_servicio_id = v_tipo_celular_id
-    AND rv.created_at > v_fecha_ultimo_cierre;
+  v_suma_recargas_post_cierre := (
+    SELECT COALESCE(SUM(monto_virtual), 0)
+    FROM recargas_virtuales rv
+    WHERE rv.tipo_servicio_id = v_tipo_celular_id
+      AND rv.created_at > v_fecha_ultimo_cierre
+  );
 
   v_saldo_virtual_actual := v_saldo_ultimo_cierre + v_suma_recargas_post_cierre;
 
@@ -123,26 +132,34 @@ BEGIN
   -- 5. OBTENER LISTA DE DEUDAS PENDIENTES
   -- ==========================================
 
-  SELECT json_agg(
-    json_build_object(
-      'id', rv.id,
-      'fecha', rv.fecha,
-      'monto_virtual', rv.monto_virtual,
-      'monto_a_pagar', rv.monto_a_pagar,
-      'ganancia', rv.ganancia,
-      'created_at', rv.created_at
-    ) ORDER BY rv.fecha ASC
-  )
-  INTO v_deudas_pendientes
-  FROM recargas_virtuales rv
-  WHERE rv.tipo_servicio_id = v_tipo_celular_id
-    AND rv.pagado = false;
+  v_deudas_pendientes := (
+    SELECT json_agg(
+      json_build_object(
+        'id', rv.id,
+        'fecha', rv.fecha,
+        'monto_virtual', rv.monto_virtual,
+        'monto_a_pagar', rv.monto_a_pagar,
+        'ganancia', rv.ganancia,
+        'created_at', rv.created_at
+      ) ORDER BY rv.fecha ASC
+    )
+    FROM recargas_virtuales rv
+    WHERE rv.tipo_servicio_id = v_tipo_celular_id
+      AND rv.pagado = false
+  );
 
-  SELECT COUNT(*), COALESCE(SUM(monto_a_pagar), 0)
-  INTO v_cantidad_deudas, v_total_deudas
-  FROM recargas_virtuales
-  WHERE tipo_servicio_id = v_tipo_celular_id
-    AND pagado = false;
+  v_cantidad_deudas := (
+    SELECT COUNT(*)
+    FROM recargas_virtuales
+    WHERE tipo_servicio_id = v_tipo_celular_id
+      AND pagado = false
+  );
+  v_total_deudas := (
+    SELECT COALESCE(SUM(monto_a_pagar), 0)
+    FROM recargas_virtuales
+    WHERE tipo_servicio_id = v_tipo_celular_id
+      AND pagado = false
+  );
 
   -- ==========================================
   -- 6. RETORNAR JSON COMPLETO

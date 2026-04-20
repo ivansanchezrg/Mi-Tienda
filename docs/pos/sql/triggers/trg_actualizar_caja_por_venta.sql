@@ -30,21 +30,12 @@ DECLARE
 BEGIN
     IF NEW.metodo_pago = 'EFECTIVO' AND NEW.estado = 'COMPLETADA' THEN
 
-        SELECT id INTO v_caja_id
-        FROM cajas WHERE codigo = 'CAJA';
-
-        SELECT id INTO v_categoria_id
-        FROM categorias_operaciones
-        WHERE tipo = 'INGRESO' AND nombre ILIKE '%Ventas%'
-        LIMIT 1;
-
-        SELECT id INTO v_tipo_referencia_id
-        FROM tipos_referencia WHERE tabla = 'ventas'
-        LIMIT 1;
+        v_caja_id            := (SELECT id FROM cajas WHERE codigo = 'CAJA');
+        v_categoria_id       := (SELECT id FROM categorias_operaciones WHERE tipo = 'INGRESO' AND nombre ILIKE '%Ventas%' LIMIT 1);
+        v_tipo_referencia_id := (SELECT id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1);
 
         IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN
-            SELECT saldo_actual INTO v_saldo_actual_caja
-            FROM cajas WHERE id = v_caja_id;
+            v_saldo_actual_caja := (SELECT saldo_actual FROM cajas WHERE id = v_caja_id);
 
             INSERT INTO operaciones_cajas (
                 caja_id, empleado_id, tipo_operacion, monto,
@@ -72,6 +63,8 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_actualizar_caja_por_venta ON ventas;
 
 CREATE TRIGGER trg_actualizar_caja_por_venta
     AFTER INSERT ON ventas

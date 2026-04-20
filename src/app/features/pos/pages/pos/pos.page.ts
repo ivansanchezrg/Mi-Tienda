@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, HostListener, NgZone, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, HostListener, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -8,13 +8,14 @@ import {
   IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
   IonItemSliding, IonItemOptions, IonItemOption,
   IonRefresher, IonRefresherContent,
-  ActionSheetController, AlertController, ModalController, ViewDidLeave, ViewWillEnter
+  AlertController, ModalController, ViewDidLeave, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
 import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline } from 'ionicons/icons';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
+import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
 import { ProductoPOS, ProductoPresentacion } from '../../../inventario/models/producto.model';
@@ -57,13 +58,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private ui = inject(UiService);
   private posService = inject(PosService);
   private alertCtrl = inject(AlertController);
-  private actionSheetCtrl = inject(ActionSheetController);
   private modalCtrl = inject(ModalController);
   private clientesService = inject(ClientesService);
-  private ngZone = inject(NgZone);
+  private barcodeScanner = inject(BarcodeScannerService);
   private network = inject(NetworkService);
   private logger = inject(LoggerService);
-  public storageService = inject(StorageService);
+  private storageService = inject(StorageService);
   private configService = inject(ConfigService);
   private router = inject(Router);
 
@@ -141,9 +141,6 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private ultimoCodigoEscaneado = '';
   private ultimoTiempoEscaneado = 0;
   private procesandoEscaneo = false;
-
-  // AudioContext reutilizable para beep
-  private audioCtx: AudioContext | null = null;
 
   // Configuración de descuentos (cargada una vez al init)
   private appConfig: Configuracion | null = null;
@@ -356,8 +353,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       }
     } else {
       if (maxUnidades > 0) {
+        const prod = this.resolverImagen(producto);
         const item: CartItem = {
-          ...producto,
+          ...prod,
           precio_venta: precioVenta,
           cantidad: 1,
           subtotal: precioVenta,
@@ -377,6 +375,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         this.ui.showToast('Producto sin stock', 'danger');
       }
     }
+  }
+
+  /** Resuelve la URL pública de la imagen del producto (si el path es relativo) */
+  private resolverImagen(producto: ProductoPOS): ProductoPOS {
+    if (producto.imagen_url && !producto.imagen_url.startsWith('http')) {
+      return { ...producto, imagen_url: this.storageService.getPublicUrl(producto.imagen_url, 'productos') ?? undefined };
+    }
+    return producto;
   }
 
   /** Calcula cuantas unidades base de un producto estan comprometidas en el carrito */
@@ -421,8 +427,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       itemExistente.cantidad += cantRedondeada;
       itemExistente.subtotal = Math.round(itemExistente.cantidad * itemExistente.precio_venta * 100) / 100;
     } else {
+      const prod = this.resolverImagen(producto);
       this.carrito.push({
-        ...producto,
+        ...prod,
         cantidad: cantRedondeada,
         subtotal: Math.round(cantRedondeada * producto.precio_venta * 100) / 100,
         stock_disponible: producto.stock_actual
@@ -478,8 +485,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       existe.cantidad += cantidadReal;
       existe.subtotal = Math.round(existe.cantidad * existe.precio_venta * 100) / 100;
     } else {
+      const prod = this.resolverImagen(producto);
       const item: CartItem = {
-        ...producto,
+        ...prod,
         precio_venta: precioVenta,
         cantidad: cantidadReal,
         subtotal: Math.round(cantidadReal * precioVenta * 100) / 100,
@@ -506,8 +514,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   /** Vibración + beep + preview efímero al agregar producto (feedback para escáner) */
   private feedbackEscaneo(productoId: string) {
     if (this.escaneando) {
-      navigator.vibrate?.(40);
-      this.playBeep();
+      this.barcodeScanner.feedback();
 
       // Mostrar preview del producto escaneado (2.5s)
       const item = this.carrito.find(i => i.id === productoId);
@@ -517,27 +524,6 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         this.scanPreviewTimeout = setTimeout(() => this.scanPreview = null, 2500);
       }
     }
-  }
-
-  /** Genera un beep corto con Web Audio API (reutiliza un solo AudioContext) */
-  private playBeep() {
-    try {
-      if (!this.audioCtx || this.audioCtx.state === 'closed') {
-        this.audioCtx = new AudioContext();
-      }
-      const oscillator = this.audioCtx.createOscillator();
-      const gain = this.audioCtx.createGain();
-
-      oscillator.type = 'square';
-      oscillator.frequency.value = 1000;
-      gain.gain.value = 1.0;
-
-      oscillator.connect(gain);
-      gain.connect(this.audioCtx.destination);
-
-      oscillator.start();
-      oscillator.stop(this.audioCtx.currentTime + 0.12);
-    } catch { /* silencioso si falla */ }
   }
 
   incrementar(item: CartItem) {
@@ -744,26 +730,41 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.sugerenciaActiva = -1;
   }
 
-  /** ActionSheet: unidad suelta + una opcion por presentacion */
+  /** OptionsModal: unidad suelta + una opción por presentación */
   private async mostrarSelectorPresentacion(producto: ProductoPOS, presentaciones: ProductoPresentacion[]) {
-    const sheet = await this.actionSheetCtrl.create({
-      header: producto.nombre,
-      subHeader: 'Selecciona como venderlo',
-      buttons: [
+    const groups: ModalOptionGroup[] = [{
+      options: [
         {
-          text: `Unidad suelta  ·  $${this.currencyService.format(producto.precio_venta)}`,
+          label: `Unidad suelta  ·  $${this.currencyService.format(producto.precio_venta)}`,
           icon: 'cube-outline',
-          handler: () => { void this.agregarAlCarrito(producto); }
+          value: '__unidad__'
         },
         ...presentaciones.map(pres => ({
-          text: `${pres.nombre}  ·  $${this.currencyService.format(pres.precio_venta)}`,
+          label: `${pres.nombre}  ·  $${this.currencyService.format(pres.precio_venta)}`,
           icon: 'pricetag-outline',
-          handler: () => { void this.agregarAlCarrito(producto, pres); }
-        })),
-        { text: 'Cancelar', role: 'cancel', icon: 'close-outline' }
+          value: pres.id
+        }))
       ]
+    }];
+
+    const modal = await this.modalCtrl.create({
+      component: OptionsModalComponent,
+      componentProps: { title: producto.nombre, subtitle: 'Selecciona cómo venderlo', groups },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
     });
-    await sheet.present();
+
+    await modal.present();
+    const { data } = await modal.onDidDismiss<string>();
+    if (!data) return;
+
+    if (data === '__unidad__') {
+      await this.agregarAlCarrito(producto);
+    } else {
+      const pres = presentaciones.find(p => p.id === data);
+      if (pres) await this.agregarAlCarrito(producto, pres);
+    }
   }
 
   // ==========================
@@ -819,46 +820,32 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   async abrirEscanerCamara() {
-    const { camera } = await BarcodeScanner.requestPermissions();
-    if (camera !== 'granted') {
-      this.ui.showToast('Permiso de cámara denegado', 'warning');
-      return;
-    }
-
     this.escaneando = true;
-    document.body.classList.add('scanner-active');
+    const iniciado = await this.barcodeScanner.startContinuous((codigo) => {
+      if (this.procesandoEscaneo) return;
 
-    try {
-      await BarcodeScanner.addListener('barcodesScanned', (event) => {
-        const codigo = event.barcodes[0]?.rawValue;
-        if (!codigo || this.procesandoEscaneo) return;
+      // Anti-duplicados: ignora el mismo código dentro de 1.5s
+      const ahora = Date.now();
+      if (codigo === this.ultimoCodigoEscaneado && ahora - this.ultimoTiempoEscaneado < 1500) return;
 
-        // Anti-duplicados: ignora el mismo código dentro de 1.5 s
-        const ahora = Date.now();
-        if (codigo === this.ultimoCodigoEscaneado && ahora - this.ultimoTiempoEscaneado < 1500) return;
+      this.procesandoEscaneo = true;
+      this.ultimoCodigoEscaneado = codigo;
+      this.ultimoTiempoEscaneado = ahora;
 
-        this.procesandoEscaneo = true;
-        this.ultimoCodigoEscaneado = codigo;
-        this.ultimoTiempoEscaneado = ahora;
+      (async () => {
+        try {
+          await this.procesarCodigoRapido(codigo);
+        } finally {
+          this.procesandoEscaneo = false;
+        }
+      })();
+    });
 
-        this.ngZone.run(async () => {
-          try {
-            await this.procesarCodigoRapido(codigo);
-          } finally {
-            this.procesandoEscaneo = false;
-          }
-        });
-      });
-      await BarcodeScanner.startScan();
-    } catch {
-      await this.cerrarEscaner();
-    }
+    if (!iniciado) this.escaneando = false;
   }
 
   async cerrarEscaner() {
-    await BarcodeScanner.removeAllListeners();
-    await BarcodeScanner.stopScan();
-    document.body.classList.remove('scanner-active');
+    await this.barcodeScanner.stop();
     this.escaneando = false;
     this.scanPreview = null;
     clearTimeout(this.scanPreviewTimeout);
@@ -1105,7 +1092,6 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     clearTimeout(this.barcodeTimeout);
     clearTimeout(this.searchDebounce);
     clearTimeout(this.scanPreviewTimeout);
-    this.audioCtx?.close().catch(() => {});
   }
 
 }

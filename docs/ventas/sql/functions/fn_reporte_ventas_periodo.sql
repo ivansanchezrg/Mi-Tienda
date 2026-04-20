@@ -61,36 +61,61 @@ BEGIN
     v_fin    := ((p_fecha_fin::DATE + 1)::TIMESTAMP AT TIME ZONE 'America/Guayaquil');
 
     -- ── Totales de ventas completadas ──
-    SELECT COALESCE(COUNT(*), 0),
-           COALESCE(SUM(total), 0)
-    INTO   v_total_ventas, v_total_monto
-    FROM   ventas
-    WHERE  estado = 'COMPLETADA'
-      AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
-      AND  fecha >= v_inicio
-      AND  fecha <  v_fin;
+    v_total_ventas := (
+        SELECT COALESCE(COUNT(*), 0)
+        FROM   ventas
+        WHERE  estado = 'COMPLETADA'
+          AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
+          AND  fecha >= v_inicio
+          AND  fecha <  v_fin
+    );
+    v_total_monto := (
+        SELECT COALESCE(SUM(total), 0)
+        FROM   ventas
+        WHERE  estado = 'COMPLETADA'
+          AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
+          AND  fecha >= v_inicio
+          AND  fecha <  v_fin
+    );
 
     -- ── Totales de ventas anuladas ──
-    SELECT COALESCE(COUNT(*), 0),
-           COALESCE(SUM(total), 0)
-    INTO   v_total_anuladas, v_monto_anulado
-    FROM   ventas
-    WHERE  estado = 'ANULADA'
-      AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
-      AND  fecha >= v_inicio
-      AND  fecha <  v_fin;
+    v_total_anuladas := (
+        SELECT COALESCE(COUNT(*), 0)
+        FROM   ventas
+        WHERE  estado = 'ANULADA'
+          AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
+          AND  fecha >= v_inicio
+          AND  fecha <  v_fin
+    );
+    v_monto_anulado := (
+        SELECT COALESCE(SUM(total), 0)
+        FROM   ventas
+        WHERE  estado = 'ANULADA'
+          AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
+          AND  fecha >= v_inicio
+          AND  fecha <  v_fin
+    );
 
     -- ── Ganancia bruta: (precio_venta - precio_costo) * unidades ──
     -- precio_costo es el snapshot guardado al momento de la venta → históricamente exacto
-    SELECT COALESCE(SUM(vd.precio_costo * vd.cantidad), 0),
-           COALESCE(SUM((vd.precio_unitario - vd.precio_costo) * vd.cantidad), 0)
-    INTO   v_costo_total, v_ganancia_bruta
-    FROM   ventas_detalles vd
-    JOIN   ventas v ON v.id = vd.venta_id
-    WHERE  v.estado = 'COMPLETADA'
-      AND  (p_turno_id IS NULL OR v.turno_id = p_turno_id)
-      AND  v.fecha  >= v_inicio
-      AND  v.fecha  <  v_fin;
+    v_costo_total := (
+        SELECT COALESCE(SUM(vd.precio_costo * vd.cantidad), 0)
+        FROM   ventas_detalles vd
+        JOIN   ventas v ON v.id = vd.venta_id
+        WHERE  v.estado = 'COMPLETADA'
+          AND  (p_turno_id IS NULL OR v.turno_id = p_turno_id)
+          AND  v.fecha  >= v_inicio
+          AND  v.fecha  <  v_fin
+    );
+    v_ganancia_bruta := (
+        SELECT COALESCE(SUM((vd.precio_unitario - vd.precio_costo) * vd.cantidad), 0)
+        FROM   ventas_detalles vd
+        JOIN   ventas v ON v.id = vd.venta_id
+        WHERE  v.estado = 'COMPLETADA'
+          AND  (p_turno_id IS NULL OR v.turno_id = p_turno_id)
+          AND  v.fecha  >= v_inicio
+          AND  v.fecha  <  v_fin
+    );
 
     -- ── Margen % (0 si no hay ventas) ──
     v_margen_pct := CASE
@@ -100,57 +125,60 @@ BEGIN
     END;
 
     -- ── Desglose por método de pago (solo completadas) ──
-    SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
-    INTO   v_por_metodo
-    FROM (
-        SELECT metodo_pago AS metodo,
-               COUNT(*)    AS cantidad,
-               SUM(total)  AS monto
-        FROM   ventas
-        WHERE  estado = 'COMPLETADA'
-          AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
-          AND  fecha >= v_inicio
-          AND  fecha <  v_fin
-        GROUP BY metodo_pago
-        ORDER BY SUM(total) DESC
-    ) t;
+    v_por_metodo := (
+        SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
+        FROM (
+            SELECT metodo_pago AS metodo,
+                   COUNT(*)    AS cantidad,
+                   SUM(total)  AS monto
+            FROM   ventas
+            WHERE  estado = 'COMPLETADA'
+              AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
+              AND  fecha >= v_inicio
+              AND  fecha <  v_fin
+            GROUP BY metodo_pago
+            ORDER BY SUM(total) DESC
+        ) t
+    );
 
     -- ── Desglose por tipo de comprobante (solo completadas) ──
-    SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
-    INTO   v_por_comprobante
-    FROM (
-        SELECT tipo_comprobante::TEXT AS tipo,
-               COUNT(*)              AS cantidad,
-               SUM(total)            AS monto
-        FROM   ventas
-        WHERE  estado = 'COMPLETADA'
-          AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
-          AND  fecha >= v_inicio
-          AND  fecha <  v_fin
-        GROUP BY tipo_comprobante
-        ORDER BY SUM(total) DESC
-    ) t;
+    v_por_comprobante := (
+        SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
+        FROM (
+            SELECT tipo_comprobante::TEXT AS tipo,
+                   COUNT(*)              AS cantidad,
+                   SUM(total)            AS monto
+            FROM   ventas
+            WHERE  estado = 'COMPLETADA'
+              AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
+              AND  fecha >= v_inicio
+              AND  fecha <  v_fin
+            GROUP BY tipo_comprobante
+            ORDER BY SUM(total) DESC
+        ) t
+    );
 
     -- ── Top 5 productos más vendidos (solo ventas completadas) ──
-    SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
-    INTO   v_top_productos
-    FROM (
-        SELECT p.id               AS producto_id,
-               p.nombre           AS nombre,
-               SUM(vd.cantidad)   AS total_unidades,
-               SUM(vd.subtotal)   AS total_monto,
-               COUNT(DISTINCT v.id) AS total_ventas
-        FROM   ventas_detalles vd
-        JOIN   ventas   v ON v.id = vd.venta_id
-        JOIN   productos p ON p.id = vd.producto_id
-        WHERE  v.estado = 'COMPLETADA'
-          AND  (p_turno_id IS NULL OR v.turno_id = p_turno_id)
-          AND  v.fecha  >= v_inicio
-          AND  v.fecha  <  v_fin
-        GROUP BY p.id, p.nombre
-        ORDER BY SUM(vd.cantidad) DESC
-        LIMIT 5
-    ) t;
+    v_top_productos := (
+        SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
+        FROM (
+            SELECT p.id               AS producto_id,
+                   p.nombre           AS nombre,
+                   SUM(vd.cantidad)   AS total_unidades,
+                   SUM(vd.subtotal)   AS total_monto,
+                   COUNT(DISTINCT v.id) AS total_ventas
+            FROM   ventas_detalles vd
+            JOIN   ventas   v ON v.id = vd.venta_id
+            JOIN   productos p ON p.id = vd.producto_id
+            WHERE  v.estado = 'COMPLETADA'
+              AND  (p_turno_id IS NULL OR v.turno_id = p_turno_id)
+              AND  v.fecha  >= v_inicio
+              AND  v.fecha  <  v_fin
+            GROUP BY p.id, p.nombre
+            ORDER BY SUM(vd.cantidad) DESC
+            LIMIT 5
+        ) t
+    );
 
     -- ── Resultado ──
     RETURN json_build_object(

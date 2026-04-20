@@ -413,7 +413,7 @@ Protege rutas que requieren un rol específico. Lee el rol desde `getUsuarioActu
 
 A diferencia de `configuraciones` (política permisiva para todos), `usuarios` usa una política restrictiva: **cada usuario solo recibe eventos de su propio registro**, usando `auth.jwt() ->> 'email'` para comparar con la columna `usuario`.
 
-Script completo: [`sql/setup/realtime_usuarios.sql`](./sql/setup/realtime_usuarios.sql)
+Script completo: [`sql/setup/rls_usuarios.sql`](./sql/setup/rls_usuarios.sql)
 
 ```sql
 -- Publicar tabla
@@ -501,7 +501,7 @@ Marca a un usuario como el administrador principal del sistema. Solo puede haber
 | `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (auto-registro + inicia Realtime), `logout()`, `logoutSilent()`, `iniciarRealtimeUsuario()`, `cerrarRealtimeUsuario()`, `handleUsuarioDesactivado()`, `getUsuarioActual()` (Preferences), `usuarioActual$` (BehaviorSubject reactivo) |
 | `features/auth/auth.routes.ts` | Rutas `/auth/login` (con `publicGuard`), `/auth/callback` (sin guard), `/auth/pending` (lazy loaded, sin guard) |
 | `shared/components/sidebar/sidebar.component.ts` | Muestra datos del usuario, filtra items por rol, suscripción reactiva a `usuarioActual$`, logout |
-| `docs/auth/sql/setup/realtime_usuarios.sql` | Script SQL para habilitar Realtime en tabla `usuarios` + política RLS (ejecutar 1 vez en Supabase) |
+| `docs/auth/sql/setup/rls_usuarios.sql` | Script SQL idempotente: RLS (SELECT/INSERT/UPDATE) + Realtime para tabla `usuarios`. Ejecutar tras cada `schema.sql` |
 
 ---
 

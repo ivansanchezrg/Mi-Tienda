@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { IonButton, IonIcon, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline, calculatorOutline } from 'ionicons/icons';
+import { calcularPrecioDesdeMargen, calcularMargenDesdePrecio } from '../../../core/utils/margen.util';
 
 @Component({
     selector: 'app-calculadora-margen',
@@ -19,7 +20,7 @@ export class CalculadoraMargenComponent {
 
     costo: number | null = null;
     precioVenta: number | null = null;
-    margenPct = 20; // default razonable para retail
+    margenPct: number = 20;
 
     constructor() {
         addIcons({ closeOutline, calculatorOutline });
@@ -45,30 +46,15 @@ export class CalculadoraMargenComponent {
     onCostoChange() {
         if (!this.costo || this.costo <= 0) {
             this.precioVenta = null;
+            this.margenPct = 20;
             return;
         }
-        this.precioVenta = this.calcularPrecioVenta(this.costo, this.margenPct);
-    }
-
-    onSliderChange() {
-        if (!this.costo || this.costo <= 0) return;
-        this.precioVenta = this.calcularPrecioVenta(this.costo, this.margenPct);
+        this.precioVenta = calcularPrecioDesdeMargen(this.costo, this.margenPct);
     }
 
     onPrecioVentaChange() {
         if (!this.costo || this.costo <= 0 || !this.precioVenta || this.precioVenta <= 0) return;
-        if (this.precioVenta <= this.costo) {
-            this.margenPct = 0;
-            return;
-        }
-        // markup sobre costo: (venta - costo) / costo * 100
-        this.margenPct = Math.round(((this.precioVenta - this.costo) / this.costo) * 100);
-    }
-
-    private calcularPrecioVenta(costo: number, margenPct: number): number {
-        // precio = costo * (1 + margen/100)  → markup sobre costo
-        const precio = costo * (1 + margenPct / 100);
-        return Math.round(precio * 100) / 100;
+        this.margenPct = calcularMargenDesdePrecio(this.costo, this.precioVenta);
     }
 
     limpiar() {
