@@ -36,6 +36,7 @@ import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive'
 import { getFechaLocal } from '@core/utils/date.util';
 import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive';
 import { TurnoCajaConEmpleado } from '../../models/turno-caja.model';
+import { ROUTES } from '@core/config/routes.config';
 
 @Component({
   selector: 'app-cierre-diario',
@@ -382,7 +383,7 @@ export class CierreDiarioPage implements HasPendingChanges {
     if (this.pasoActual > 1) {
       this.pasoActual--;
     } else {
-      this.router.navigate(['/home']);
+      this.router.navigate([ROUTES.home]);
     }
   }
 
@@ -488,7 +489,7 @@ export class CierreDiarioPage implements HasPendingChanges {
       this.resetState();
 
       await new Promise(resolve => setTimeout(resolve, 100));
-      await this.router.navigate(['/home'], { queryParams: { refresh: Date.now() } });
+      await this.router.navigate([ROUTES.home], { queryParams: { refresh: Date.now() } });
     } catch (error: any) {
       await this.ui.hideLoading();
       await this.ui.showError(error?.message || 'Error al guardar el cierre');

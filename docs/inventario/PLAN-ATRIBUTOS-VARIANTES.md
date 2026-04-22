@@ -1,451 +1,246 @@
-# Plan de Implementacion — Atributos de Variantes (v10)
+# Plan de Implementacion — Variantes con Generacion Automatica de SKUs (v10.1)
 
 > **Estado:** Pendiente de aprobacion
 > **Fecha:** 2026-04-20
-> **Reemplaza:** modelo `grupo_variante_opciones` (descartado) y plan anterior `PLAN-VARIANTES.md`
-> **Complejidad:** Media-Alta (BD + frontend inventario, POS sin cambios de logica)
+> **Reemplaza:** v10 (implementacion parcial incorrecta — atributos por SKU en vez de por template)
+> **Prerequisito:** No hay datos en produccion — refactor es seguro
 
 ---
 
-## Contexto y decision de arquitectura
+## El problema con la implementacion actual (v10)
 
-### Por que el modelo actual es insuficiente
+Lo que se implemento: cada producto (SKU) tiene sus propios atributos asignados uno a uno.
 
-El schema v9 tiene:
-
-```
-grupos_variantes (id, nombre)
-    └── productos.grupo_variante_id FK
-```
-
-El grupo TAPIOCA agrupa productos, pero no hay forma de saber que "Tapioca Fresa" es de sabor Fresa.
-La etiqueta esta embebida en el nombre del producto — no estructurada, no filtrable, no reutilizable.
-
-### Por que NO usamos `grupo_variante_opciones`
-
-Una tabla `grupo_variante_opciones (id, grupo_id, nombre)` seria un paso intermedio:
-- Solo soporta un tipo de atributo por grupo (el sabor o el color, no ambos)
-- Luego necesitarias migrarlo al modelo de atributos igual
-- Mas trabajo total
-
-### El modelo correcto: Atributos dinamicos
+Lo que debe ser: el **template** define los tipos de atributo con **todas sus opciones**, y el sistema **genera los SKUs automaticamente** por combinacion.
 
 ```
-atributos (id, nombre)              -- SABOR, COLOR, TAMAÑO
-    └── atributo_opciones (id, atributo_id, valor)  -- Fresa, Rojo, XL
-            └── producto_atributos (producto_id, atributo_opcion_id)  -- relacion
+❌ Actual (incorrecto)
+  producto-form → asignar SABOR=FRESA a este producto
+
+✅ Correcto
+  template TAPIOCA → SABOR: [FRESA, CHOCOLATE, VAINILLA]
+                   → genera 3 SKUs automaticamente
 ```
-
-**Ventajas reales:**
-- Un producto puede tener multiples atributos (SABOR=Fresa, TAMAÑO=500g)
-- Las opciones son reutilizables entre productos del mismo grupo
-- Filtros por atributo en inventario y POS en el futuro
-- Escalable sin ALTER TABLE
-
-### Frontera clara: Atributos vs Presentaciones
-
-| | Atributos | Presentaciones |
-|---|---|---|
-| Ejemplo | Sabor=Fresa, Color=Rojo | Unidad, Pack x6, Caja x12 |
-| Que describen | Lo que ES el producto | Como se VENDE/EMPACA |
-| Afecta stock | No (stock independiente por producto) | Si (factor_conversion) |
-| Afecta precio | No directamente | Si (precio propio por presentacion) |
-| Afecta barcode | No (el producto tiene el suyo) | Si (codigo propio por presentacion) |
-| Tabla | `producto_atributos` (nueva) | `producto_presentaciones` (sin cambios) |
-
-**`producto_presentaciones` NO cambia.** Una variante "Tapioca Fresa" puede seguir teniendo sus presentaciones (Unidad, Pack x6).
 
 ---
 
-## Modelo de datos final (v10)
+## Modelo mental correcto
 
 ```
-grupos_variantes:               -- sin cambios de estructura
-  id: uuid-A | nombre: "TAPIOCA"
+TAPIOCA (template)
+  ├── SABOR: FRESA, CHOCOLATE, VAINILLA      ← atributos del TEMPLATE
+  └── TAMAÑO: 500G, 1KG
 
-atributos:
-  id: uuid-S | nombre: "SABOR"
-  id: uuid-T | nombre: "TAMAÑO"
+  Sistema genera:
+  ┌─────────────────────────┬────────┬────────┐
+  │ SKU                     │ Precio │ Stock  │
+  ├─────────────────────────┼────────┼────────┤
+  │ TAPIOCA FRESA 500G      │ 1.50   │ 24     │
+  │ TAPIOCA FRESA 1KG       │ 2.80   │ 10     │
+  │ TAPIOCA CHOCOLATE 500G  │ 1.75   │ 18     │
+  │ TAPIOCA CHOCOLATE 1KG   │ 3.00   │  8     │
+  │ TAPIOCA VAINILLA 500G   │ 1.50   │  0     │
+  │ TAPIOCA VAINILLA 1KG    │ 2.80   │  5     │
+  └─────────────────────────┴────────┴────────┘
 
-atributo_opciones:
-  id: uuid-F | atributo_id: uuid-S | valor: "FRESA"
-  id: uuid-C | atributo_id: uuid-S | valor: "CHOCOLATE"
-  id: uuid-5 | atributo_id: uuid-T | valor: "500G"
+CAMISETA (template)
+  ├── TALLA: XS, SM, MD, LG, XL
+  └── COLOR: ROJO, AZUL, NEGRO
 
-productos:
-  id: uuid-001 | nombre: "Tapioca Fresa 500g" | grupo_variante_id: uuid-A
-  id: uuid-002 | nombre: "Tapioca Chocolate"   | grupo_variante_id: uuid-A
-
-producto_atributos:
-  producto_id: uuid-001 | atributo_opcion_id: uuid-F  (SABOR=FRESA)
-  producto_id: uuid-001 | atributo_opcion_id: uuid-5  (TAMAÑO=500G)
-  producto_id: uuid-002 | atributo_opcion_id: uuid-C  (SABOR=CHOCOLATE)
+  Sistema genera 15 SKUs automaticamente.
 ```
-
-**El nombre del producto lo sigue poniendo el usuario** — los atributos son metadata adicional, no reemplazan el nombre.
 
 ---
 
-## Cambios requeridos
+## Arquitectura de BD (sin cambios al schema)
 
-### 1. Base de datos — `docs/schema.sql`
+El schema de tablas v10 es correcto. Lo que cambia es **donde viven los atributos**:
 
-#### 1a. Nueva tabla `atributos`
+```
+producto_templates
+  └── atributos del TEMPLATE (nuevo: template_atributos)
+       └── con sus opciones
+
+productos (SKU)
+  └── producto_atributos → que combinacion tiene este SKU
+```
+
+### Nueva tabla requerida: `template_atributos`
+
+Esta tabla define **qué atributos y opciones tiene un template**. Es la fuente de verdad para generar SKUs.
 
 ```sql
--- Tipos de atributo: SABOR, COLOR, TAMAÑO, MARCA, etc.
--- Siempre en MAYUSCULAS (constraint)
-CREATE TABLE IF NOT EXISTS atributos (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nombre      VARCHAR(100) NOT NULL UNIQUE,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT atributos_nombre_normalizado CHECK (nombre = UPPER(TRIM(nombre)))
+CREATE TABLE IF NOT EXISTS template_atributos (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    template_id     UUID NOT NULL REFERENCES producto_templates(id) ON DELETE CASCADE,
+    atributo_id     UUID NOT NULL REFERENCES atributos(id) ON DELETE CASCADE,
+    UNIQUE (template_id, atributo_id)
+);
+
+CREATE TABLE IF NOT EXISTS template_atributo_opciones (
+    id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    template_atributo_id  UUID NOT NULL REFERENCES template_atributos(id) ON DELETE CASCADE,
+    atributo_opcion_id    UUID NOT NULL REFERENCES atributo_opciones(id) ON DELETE CASCADE,
+    UNIQUE (template_atributo_id, atributo_opcion_id)
 );
 ```
 
-#### 1b. Nueva tabla `atributo_opciones`
-
-```sql
--- Valores de cada atributo: FRESA, ROJO, XL, 500G, etc.
--- Valor siempre en MAYUSCULAS. Unico por atributo.
-CREATE TABLE IF NOT EXISTS atributo_opciones (
-    id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    atributo_id  UUID NOT NULL REFERENCES atributos(id) ON DELETE CASCADE,
-    valor        VARCHAR(100) NOT NULL,
-    created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT atributo_opciones_valor_normalizado CHECK (valor = UPPER(TRIM(valor))),
-    CONSTRAINT atributo_opciones_unique UNIQUE (atributo_id, valor)
-);
-```
-
-#### 1c. Nueva tabla `producto_atributos`
-
-```sql
--- Relacion producto <-> opcion de atributo
--- Un producto puede tener multiples atributos
--- Un atributo no se repite por producto (ej: no puede tener SABOR=Fresa y SABOR=Chocolate al mismo tiempo)
-CREATE TABLE IF NOT EXISTS producto_atributos (
-    producto_id         UUID NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
-    atributo_opcion_id  UUID NOT NULL REFERENCES atributo_opciones(id) ON DELETE CASCADE,
-    PRIMARY KEY (producto_id, atributo_opcion_id)
-);
-```
-
-#### 1d. Indice para lookup por producto
-
-```sql
-CREATE INDEX IF NOT EXISTS idx_producto_atributos_producto
-    ON producto_atributos(producto_id);
-
-CREATE INDEX IF NOT EXISTS idx_atributo_opciones_atributo
-    ON atributo_opciones(atributo_id);
-```
-
-#### 1e. DROP al inicio del schema (en orden correcto)
-
-```sql
--- Agregar antes de DROP grupos_variantes:
-DROP TABLE IF EXISTS producto_atributos CASCADE;
-DROP TABLE IF EXISTS atributo_opciones CASCADE;
-DROP TABLE IF EXISTS atributos CASCADE;
-```
-
-#### 1f. `grupos_variantes` — sin cambios de estructura
-
-La tabla existe y funciona. Solo se le suma el contexto de atributos.
+Estas 2 tablas son las que definen la "paleta" de opciones de cada template. La tabla `producto_atributos` existente sigue siendo la que registra qué combinacion tiene cada SKU generado.
 
 ---
 
-### 2. Modelo TypeScript — `producto.model.ts`
+## Flujo UX correcto — wizard en pagina separada
 
-#### 2a. Nuevos interfaces
+El formulario actual `producto-form` es para **productos simples**. Las variantes necesitan su propio wizard. Razon: el proceso es diferente, mas largo, y mezclarlos confunde al usuario.
 
+### Ruta nueva: `/inventario/nuevo-template`
+
+**Paso 1 — Datos base del template**
+- Nombre (ej: TAPIOCA)
+- Categoria, IVA, tipo de venta
+- Imagen (opcional)
+- Precio base (se copia a todos los SKUs como punto de partida)
+
+**Paso 2 — Definir atributos y opciones**
+
+```
+┌────────────────────────────────┐
+│ SABOR                      [×] │
+│ [FRESA ×] [CHOCOLATE ×] [+]    │
+├────────────────────────────────┤
+│ TAMAÑO                     [×] │
+│ [500G ×] [1KG ×] [+]           │
+├────────────────────────────────┤
+│ + Agregar tipo de atributo     │
+└────────────────────────────────┘
+```
+
+- Cada tipo tiene sus chips de opciones (eliminables con ×)
+- Botón [+] para agregar más opciones al tipo
+- Botón [+ Agregar tipo] para agregar TALLA, COLOR, etc.
+
+**Paso 3 — Previsualizar y ajustar SKUs generados**
+
+Sistema muestra la matriz de combinaciones:
+
+```
+¿Generamos 4 variantes?
+
+[✓] TAPIOCA FRESA 500G      Precio: [1.50]  Stock: [24]
+[✓] TAPIOCA FRESA 1KG       Precio: [2.80]  Stock: [10]
+[✓] TAPIOCA CHOCOLATE 500G  Precio: [1.75]  Stock: [18]
+[✓] TAPIOCA CHOCOLATE 1KG   Precio: [3.00]  Stock: [ 8]
+```
+
+- Nombre auto-generado: `{template} {opcion1} {opcion2}...` (editable)
+- Precio pre-rellenado con el precio base (ajustable por fila)
+- Stock inicial por SKU
+- Checkbox para excluir combinaciones que no existen
+
+**Paso 4 — Confirmar**
+
+Botón "Generar variantes y guardar". Crea:
+1. El template
+2. Los atributos/opciones (upsert)
+3. Los registros en `template_atributos` y `template_atributo_opciones`
+4. Los SKUs seleccionados en `productos`
+5. Los registros en `producto_atributos` por SKU
+
+---
+
+## Flujo UX — agregar variantes a template existente
+
+Desde la lista de inventario, en la tarjeta de cualquier SKU que tenga template:
+- Botón "Ver variantes del template" → abre pagina `/inventario/template/:id`
+- En esa pagina: ver todos los SKUs, agregar nuevos (se abre el mismo wizard desde paso 2)
+
+---
+
+## Impacto en codigo — que cambia vs. lo actual
+
+### BD (schema.sql)
+- Agregar tablas: `template_atributos`, `template_atributo_opciones`
+- Las tablas `atributos`, `atributo_opciones`, `producto_atributos`, `producto_templates` ya existen y se mantienen
+
+### Servicio (`inventario.service.ts`)
+Agregar metodos:
+- `obtenerAtributosTemplate(templateId)` → devuelve los tipos + opciones del template
+- `guardarAtributosTemplate(templateId, atributos[])` → upsert completo
+- `generarSKUs(templateId, combinaciones[])` → crea los productos + producto_atributos
+
+Mantener sin cambios:
+- `buscarTemplates`, `crearOObtenerTemplate`, `obtenerSKUsDelTemplate`
+- Todos los metodos de `atributos` y `atributo_opciones`
+
+### Componentes nuevos
+- `pages/nuevo-template/nuevo-template.page.ts/.html/.scss` — wizard 3 pasos
+- `components/template-atributos-editor/` — editor reutilizable de atributos+opciones (Paso 2)
+- `components/skus-preview/` — tabla editable de SKUs a generar (Paso 3)
+
+### `producto-form` — simplificar
+Eliminar toda la seccion de "Variantes" del formulario actual. Reemplazar por:
+```
+┌─────────────────────────────────┐
+│ Este producto tiene variantes?  │
+│ [Crear con variantes →]         │
+└─────────────────────────────────┘
+```
+El boton navega a `/inventario/nuevo-template`.
+
+Si el producto YA tiene template (edicion), mostrar:
+```
+┌──────────────────────────────────┐
+│ 🎨 TAPIOCA · 6 variantes         │
+│ [Ver y gestionar variantes →]    │
+└──────────────────────────────────┘
+```
+
+### Rutas nuevas
 ```typescript
-export interface Atributo {
-    id: string;
-    nombre: string;              // "SABOR", "COLOR", "TAMAÑO"
-    created_at?: string;
-}
-
-export interface AtributoOpcion {
-    id: string;
-    atributo_id: string;
-    valor: string;               // "FRESA", "ROJO", "XL"
-    atributo?: Atributo;         // JOIN opcional
-    created_at?: string;
-}
-
-export interface ProductoAtributo {
-    producto_id: string;
-    atributo_opcion_id: string;
-    atributo_opcion?: AtributoOpcion;  // JOIN opcional
-}
-```
-
-#### 2b. Agregar a `Producto`
-
-```typescript
-// En interface Producto, dentro de seccion Variantes:
-grupo_variante_id?: string;
-grupo_variante?: GrupoVariante;
-atributos?: ProductoAtributo[];  // cargados on-demand
+{ path: 'nuevo-template', loadComponent: ... },
+{ path: 'template/:id',   loadComponent: ... },  // gestionar variantes existentes
 ```
 
 ---
 
-### 3. Servicio — `inventario.service.ts`
+## Lo que NO cambia
 
-#### 3a. Nuevos metodos para atributos
-
-```typescript
-// ==========================================
-// ATRIBUTOS DE VARIANTES
-// ==========================================
-
-/** Busca atributos por nombre (para autocompletado al escribir "SABOR", "COLOR", etc.) */
-async buscarAtributos(texto: string): Promise<Atributo[]> {
-    const data = await this.supabase.call<Atributo[]>(
-        this.supabase.client
-            .from('atributos')
-            .select('*')
-            .ilike('nombre', `%${texto}%`)
-            .order('nombre')
-            .limit(5)
-    );
-    return data || [];
-}
-
-/** Crea el atributo si no existe, o devuelve el existente. Patron upsert silencioso. */
-async crearOObtenerAtributo(nombre: string): Promise<Atributo | null> {
-    const nombreNorm = nombre.toUpperCase().trim();
-    await this.supabase.client
-        .from('atributos')
-        .upsert({ nombre: nombreNorm }, { onConflict: 'nombre', ignoreDuplicates: true });
-    const data = await this.supabase.call<Atributo>(
-        this.supabase.client.from('atributos').select('*').eq('nombre', nombreNorm).single()
-    );
-    return data;
-}
-
-/** Busca opciones de un atributo especifico (para autocompletado de valores) */
-async buscarOpcionesAtributo(atributoId: string, texto?: string): Promise<AtributoOpcion[]> {
-    let query = this.supabase.client
-        .from('atributo_opciones')
-        .select('*, atributo:atributos(*)')
-        .eq('atributo_id', atributoId)
-        .order('valor')
-        .limit(10);
-    if (texto) query = query.ilike('valor', `%${texto}%`);
-    const data = await this.supabase.call<AtributoOpcion[]>(query);
-    return data || [];
-}
-
-/** Crea la opcion si no existe, o devuelve la existente. */
-async crearOObtenerOpcionAtributo(atributoId: string, valor: string): Promise<AtributoOpcion | null> {
-    const valorNorm = valor.toUpperCase().trim();
-    await this.supabase.client
-        .from('atributo_opciones')
-        .upsert({ atributo_id: atributoId, valor: valorNorm }, { onConflict: 'atributo_id,valor', ignoreDuplicates: true });
-    const data = await this.supabase.call<AtributoOpcion>(
-        this.supabase.client
-            .from('atributo_opciones')
-            .select('*, atributo:atributos(*)')
-            .eq('atributo_id', atributoId)
-            .eq('valor', valorNorm)
-            .single()
-    );
-    return data;
-}
-
-/** Obtiene todos los atributos de un producto (para mostrar en el form y en la tarjeta) */
-async obtenerAtributosProducto(productoId: string): Promise<ProductoAtributo[]> {
-    const data = await this.supabase.call<ProductoAtributo[]>(
-        this.supabase.client
-            .from('producto_atributos')
-            .select('*, atributo_opcion:atributo_opciones(*, atributo:atributos(*))')
-            .eq('producto_id', productoId)
-    );
-    return data || [];
-}
-
-/** Reemplaza TODOS los atributos de un producto (delete + insert — atomico via funcion si se necesita) */
-async guardarAtributosProducto(productoId: string, opcionIds: string[]): Promise<void> {
-    // Borrar los existentes
-    await this.supabase.client
-        .from('producto_atributos')
-        .delete()
-        .eq('producto_id', productoId);
-    // Insertar los nuevos (si hay)
-    if (opcionIds.length === 0) return;
-    const rows = opcionIds.map(id => ({ producto_id: productoId, atributo_opcion_id: id }));
-    await this.supabase.call(
-        this.supabase.client.from('producto_atributos').insert(rows)
-    );
-}
-```
-
----
-
-### 4. Formulario de producto — UI de atributos
-
-#### 4a. Estado del componente (`producto-form.page.ts`)
-
-```typescript
-// Atributos seleccionados para este producto
-atributosSeleccionados: { atributo: Atributo; opcion: AtributoOpcion }[] = [];
-atributosSugeridos: Atributo[] = [];
-opcionesSugeridas: AtributoOpcion[] = [];
-textoAtributo = '';
-textoOpcion = '';
-atributoEnCurso: Atributo | null = null;  // atributo en edicion (paso 1 de 2)
-```
-
-#### 4b. Flujo UX — 2 pasos
-
-El usuario define un atributo en 2 pasos dentro de la misma seccion:
-
-**Paso 1:** Escribe el tipo → "SABOR" (busca en BD, o crea nuevo)
-**Paso 2:** Escribe el valor → "FRESA" (busca opciones del atributo, o crea nueva)
-
-Al confirmar el paso 2, se agrega la combinacion `SABOR=FRESA` a la lista local.
-Al guardar el producto, se persisten todos los atributos en `producto_atributos`.
-
-#### 4c. UI (seccion dentro de la card de Tipo de Venta, SOLO para tipo UNIDAD)
-
-La seccion de atributos se muestra debajo de la seccion de grupo de variantes, o integrada en ella.
-
-Comportamiento:
-- Si el producto tiene grupo: mostrar seccion de atributos
-- Si no tiene grupo: no mostrar (los atributos solo tienen sentido en el contexto de un grupo)
-
-```html
-<!-- Dentro del bloque @if (grupoVarianteSeleccionado) -->
-<div class="atributos-section">
-    <p class="field-label">Atributos de esta variante</p>
-
-    <!-- Lista de atributos ya agregados -->
-    @for (item of atributosSeleccionados; track item.opcion.id) {
-    <div class="atributo-chip">
-        <span class="atributo-tipo">{{ item.atributo.nombre }}</span>
-        <span class="atributo-sep">=</span>
-        <span class="atributo-valor">{{ item.opcion.valor }}</span>
-        <button type="button" (click)="quitarAtributo(item.opcion.id)">
-            <ion-icon name="close-outline"></ion-icon>
-        </button>
-    </div>
-    }
-
-    <!-- Agregar nuevo atributo -->
-    @if (!atributoEnCurso) {
-    <button type="button" class="pres-add-btn" (click)="iniciarAtributo()">
-        <ion-icon name="add-outline"></ion-icon> Agregar atributo
-    </button>
-    } @else {
-    <!-- Paso 1: tipo de atributo -->
-    <!-- Paso 2: valor del atributo -->
-    <!-- (inputs con autocompletado, botones Confirmar/Cancelar) -->
-    }
-</div>
-```
-
-#### 4d. Guardar — en `guardar()` modo CREAR
-
-```typescript
-// Despues de crear el producto:
-if (this.atributosSeleccionados.length > 0) {
-    await this.inventarioService.guardarAtributosProducto(
-        productoCreado.id,
-        this.atributosSeleccionados.map(a => a.opcion.id)
-    );
-}
-```
-
-#### 4e. Cargar en modo EDITAR
-
-```typescript
-// En ngOnInit, junto con las presentaciones:
-if (producto) {
-    this.atributosSeleccionados = (await this.inventarioService.obtenerAtributosProducto(producto.id))
-        .map(pa => ({
-            atributo: pa.atributo_opcion!.atributo!,
-            opcion: pa.atributo_opcion!
-        }));
-}
-```
-
----
-
-### 5. Grid de inventario — `inventario.page.html`
-
-Badge de atributos en la tarjeta de producto (solo si tiene grupo):
-
-```html
-@if (prod.grupo_variante) {
-<span class="variante-badge">
-    <ion-icon name="color-palette-outline"></ion-icon>
-    {{ prod.grupo_variante.nombre }}
-</span>
-}
-```
-
-Los atributos individuales no se cargan en el listado (evitar N+1 queries).
-Se ven al abrir el detalle del producto.
-
----
-
-### 6. POS — sin cambios
-
-El POS opera por `producto_id`. Los atributos son metadata visual — no afectan precio, stock ni logica de venta.
-
-**Unica mejora futura (fase 2):** si en el POS el usuario busca "TAPIOCA", mostrar un selector de variantes con sus atributos antes de agregar al carrito. Esta mejora es independiente y no bloquea la fase 1.
-
----
-
-### 7. Funciones SQL — sin cambios
-
-Ninguna funcion existente necesita modificacion.
-
----
-
-## Archivos a modificar
-
-| Archivo | Cambio |
-|---------|--------|
-| `docs/schema.sql` | 3 tablas nuevas (`atributos`, `atributo_opciones`, `producto_atributos`) + 3 DROPs + 2 indices |
-| `src/.../models/producto.model.ts` | 3 interfaces nuevos (`Atributo`, `AtributoOpcion`, `ProductoAtributo`) + campo en `Producto` |
-| `src/.../services/inventario.service.ts` | 6 metodos nuevos para CRUD de atributos |
-| `src/.../producto-form/producto-form.page.ts` | Estado + logica del flujo de 2 pasos |
-| `src/.../producto-form/producto-form.page.html` | Seccion UI de atributos (dentro del bloque de grupo) |
-| `src/.../producto-form/producto-form.page.scss` | Estilos chips de atributos |
-
-**Total: 6 archivos, 3 tablas nuevas, 0 funciones SQL modificadas.**
-
-`grupos_variantes`, `productos`, `producto_presentaciones`, POS y funciones SQL: **sin cambios**.
+| Modulo | Razon |
+|--------|-------|
+| POS | Opera por `productos.id` — cada SKU se vende igual |
+| `producto_presentaciones` | Cuelga de `productos.id`, sin cambios |
+| Ventas, kardex, cuentas_cobrar | FK a `productos.id` — sin cambios |
+| Triggers y funciones SQL | Reciben `producto_id` (el SKU) |
+| Productos simples | `producto_template_id = NULL`, flujo identico al actual |
 
 ---
 
 ## Orden de implementacion
 
-1. **BD:** Agregar 3 tablas nuevas a `schema.sql` + DROPs + indices
-2. **Modelo:** 3 interfaces nuevos + campo `atributos?` en `Producto`
-3. **Servicio:** 6 metodos de atributos
-4. **Formulario:** Seccion UI (estado + logica + template + estilos)
-5. **Grid:** Badge de grupo en tarjeta (ya existe, sin cambios adicionales)
+### Fase 1 — BD
+1. Agregar `template_atributos` y `template_atributo_opciones` a `schema.sql`
+2. Agregar RLS para las 2 tablas nuevas
+3. Agregar metodos al servicio
+
+### Fase 2 — Wizard nuevo template
+4. Crear `nuevo-template.page` con wizard 3 pasos
+5. Crear `template-atributos-editor` component (Paso 2)
+6. Crear `skus-preview` component (Paso 3)
+7. Agregar rutas
+
+### Fase 3 — Simplificar producto-form
+8. Reemplazar seccion "Variantes" por el boton de navegacion
+9. Limpiar estados/metodos de atributos inline que ya no se usan
+
+### Fase 4 — Pagina de gestion de template
+10. Crear `template-detail.page` para ver/agregar SKUs a un template existente
 
 ---
 
-## Fuera de alcance (fase 2)
+## Fuera de alcance (fase 2+)
 
-- Filtro por atributo en el grid de inventario
-- Selector de variantes en POS al buscar por grupo
-- Gestion dedicada de atributos (admin separado)
-- Reporte de ventas por atributo
-
----
-
-## Notas
-
-- `grupos_variantes` se mantiene como entidad de agrupacion. Los atributos son metadata adicional.
-- El nombre del producto lo define el usuario libremente — los atributos no lo generan automaticamente.
-- Si un producto no tiene grupo, no tiene atributos (no tiene sentido semantico).
-- Los atributos se guardan en bloque al guardar el producto (no one-by-one).
+- Selector visual de variantes en POS (buscar "TAPIOCA" y elegir sabor)
+- Stock agregado del template (suma de todos sus SKUs)
+- Imagen por variante (override de imagen del template)
+- Reporte de ventas agrupado por template
+- Filtros por atributo en lista de inventario

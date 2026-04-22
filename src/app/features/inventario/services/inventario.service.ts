@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SupabaseService } from '../../../core/services/supabase.service';
-import { Producto, ProductoPOS, ProductoPresentacion, GrupoVariante } from '../models/producto.model';
+import { Producto, ProductoPOS, ProductoPresentacion, ProductoTemplate, Atributo, AtributoOpcion, ProductoAtributo } from '../models/producto.model';
 import { CategoriaProducto } from '../models/categoria-producto.model';
 import { KardexInventario } from '../models/kardex.model';
 
@@ -33,7 +33,7 @@ export class InventarioService {
 
         let query = this.supabase.client
             .from('productos')
-            .select('*, categoria:categorias_productos(*), grupo_variante:grupos_variantes(*), presentaciones:producto_presentaciones(id)')
+            .select('*, categoria:categorias_productos(*), producto_template:producto_templates(*), presentaciones:producto_presentaciones(id)')
             .eq('activo', true)
             .eq('producto_presentaciones.activo', true)
             .order('nombre')
@@ -60,7 +60,7 @@ export class InventarioService {
             .from('productos')
             .select(`
                 id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo,
-                imagen_url, tiene_iva, tipo_venta, unidad_medida, grupo_variante_id,
+                imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id,
                 presentaciones:producto_presentaciones(id, producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal, activo)
             `)
             .eq('activo', true)
@@ -95,7 +95,7 @@ export class InventarioService {
         // 1. Buscar en productos
         const { data: prod } = await this.supabase.client
             .from('productos')
-            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, grupo_variante_id')
+            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id')
             .eq('codigo_barras', codigo)
             .eq('activo', true)
             .maybeSingle();
@@ -105,7 +105,7 @@ export class InventarioService {
         // 2. Buscar en presentaciones
         const { data: pres } = await this.supabase.client
             .from('producto_presentaciones')
-            .select('id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, grupo_variante_id)')
+            .select('id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id)')
             .eq('codigo_barras', codigo)
             .eq('activo', true)
             .maybeSingle();
@@ -185,7 +185,7 @@ export class InventarioService {
     async obtenerProductoPorId(id: string): Promise<Producto | null> {
         const { data } = await this.supabase.client
             .from('productos')
-            .select('*, categoria:categorias_productos(*), grupo_variante:grupos_variantes(*), presentaciones:producto_presentaciones(id)')
+            .select('*, categoria:categorias_productos(*), producto_template:producto_templates(*), presentaciones:producto_presentaciones(id)')
             .eq('id', id)
             .eq('producto_presentaciones.activo', true)
             .maybeSingle();
@@ -251,13 +251,14 @@ export class InventarioService {
     // KARDEX
     // ==========================================
 
-    async obtenerKardexProducto(productoId: string): Promise<KardexInventario[]> {
+    async obtenerKardexProducto(productoId: string, limit = 100): Promise<KardexInventario[]> {
         const res = await this.supabase.call<KardexInventario[]>(
             this.supabase.client
                 .from('kardex_inventario')
-                .select('*')
+                .select('*, presentacion:producto_presentaciones(nombre, factor_conversion)')
                 .eq('producto_id', productoId)
                 .order('fecha', { ascending: false })
+                .limit(limit)
         );
         return res || [];
     }
@@ -364,21 +365,41 @@ export class InventarioService {
     }
 
     // ==========================================
-    // GRUPOS DE VARIANTES
+    // TEMPLATES DE PRODUCTO (v10)
     // ==========================================
 
-    async obtenerGruposVariantes(): Promise<GrupoVariante[]> {
-        const { data } = await this.supabase.client
-            .from('grupos_variantes')
-            .select('*')
-            .order('nombre');
-        return data || [];
+    async obtenerTemplatePorId(id: string): Promise<ProductoTemplate | null> {
+        const data = await this.supabase.call<ProductoTemplate>(
+            this.supabase.client
+                .from('producto_templates')
+                .select('*, categoria:categorias_productos(*)')
+                .eq('id', id)
+                .single()
+        );
+        return data;
     }
 
-    async buscarGruposVariantes(texto: string): Promise<GrupoVariante[]> {
-        const data = await this.supabase.call<GrupoVariante[]>(
+    async obtenerSKUsDelTemplate(templateId: string, excluirProductoId?: string): Promise<Producto[]> {
+        let query = this.supabase.client
+            .from('productos')
+            .select('id, nombre, stock_actual, precio_venta, codigo_barras, imagen_url')
+            .eq('producto_template_id', templateId)
+            .eq('activo', true)
+            .order('nombre');
+        if (excluirProductoId) query = query.neq('id', excluirProductoId);
+        const { data } = await query;
+        return (data || []) as Producto[];
+    }
+
+    // ==========================================
+    // ATRIBUTOS (v10)
+    // ==========================================
+
+    /** Busca atributos por nombre (autocompletado: "SABOR", "COLOR", etc.) */
+    async buscarAtributos(texto: string): Promise<Atributo[]> {
+        const data = await this.supabase.call<Atributo[]>(
             this.supabase.client
-                .from('grupos_variantes')
+                .from('atributos')
                 .select('*')
                 .ilike('nombre', `%${texto}%`)
                 .order('nombre')
@@ -387,58 +408,196 @@ export class InventarioService {
         return data || [];
     }
 
-    /**
-     * Crea el grupo si no existe, o devuelve el existente si ya habia uno con ese nombre.
-     * Patron: INSERT ON CONFLICT DO NOTHING + SELECT.
-     */
-    async crearOObtenerGrupoVariante(nombre: string): Promise<GrupoVariante | null> {
+    /** Crea el atributo si no existe, o devuelve el existente. Upsert silencioso. */
+    async crearOObtenerAtributo(nombre: string): Promise<Atributo | null> {
         const nombreNorm = nombre.toUpperCase().trim();
-
         await this.supabase.client
-            .from('grupos_variantes')
+            .from('atributos')
             .upsert({ nombre: nombreNorm }, { onConflict: 'nombre', ignoreDuplicates: true });
-
-        const { data } = await this.supabase.client
-            .from('grupos_variantes')
-            .select('*')
-            .eq('nombre', nombreNorm)
-            .single();
-
+        const data = await this.supabase.call<Atributo>(
+            this.supabase.client.from('atributos').select('*').eq('nombre', nombreNorm).single()
+        );
         return data;
     }
 
-    async renombrarGrupoVariante(id: string, nombre: string): Promise<void> {
-        await this.supabase.call(
-            this.supabase.client.from('grupos_variantes').update({ nombre: nombre.toUpperCase().trim() }).eq('id', id),
-            'Grupo renombrado'
-        );
-    }
-
-    async eliminarGrupoVariante(id: string): Promise<void> {
-        await this.supabase.call(
-            this.supabase.client.from('grupos_variantes').delete().eq('id', id),
-            'Grupo eliminado'
-        );
-    }
-
-    async obtenerVariantesDelGrupo(grupoId: string, excluirProductoId?: string): Promise<Producto[]> {
+    /** Busca opciones de un atributo (autocompletado de valores) */
+    async buscarOpcionesAtributo(atributoId: string, texto?: string): Promise<AtributoOpcion[]> {
         let query = this.supabase.client
-            .from('productos')
-            .select('id, nombre, stock_actual, precio_venta, codigo_barras, imagen_url')
-            .eq('grupo_variante_id', grupoId)
-            .eq('activo', true)
-            .order('nombre');
-        if (excluirProductoId) query = query.neq('id', excluirProductoId);
-        const { data } = await query;
-        return (data || []) as Producto[];
+            .from('atributo_opciones')
+            .select('*, atributo:atributos(*)')
+            .eq('atributo_id', atributoId)
+            .order('valor')
+            .limit(10);
+        if (texto) query = query.ilike('valor', `%${texto}%`);
+        const data = await this.supabase.call<AtributoOpcion[]>(query);
+        return data || [];
     }
 
-    async contarProductosPorGrupo(grupoId: string): Promise<number> {
-        const { count } = await this.supabase.client
+    /** Obtiene TODAS las opciones de un atributo (para mostrar chips seleccionables) */
+    async obtenerOpcionesAtributo(atributoId: string): Promise<AtributoOpcion[]> {
+        const data = await this.supabase.call<AtributoOpcion[]>(
+            this.supabase.client
+                .from('atributo_opciones')
+                .select('*, atributo:atributos(*)')
+                .eq('atributo_id', atributoId)
+                .order('valor')
+        );
+        return data || [];
+    }
+
+    /** Crea la opcion si no existe, o devuelve la existente. */
+    async crearOObtenerOpcionAtributo(atributoId: string, valor: string): Promise<AtributoOpcion | null> {
+        const valorNorm = valor.toUpperCase().trim();
+        await this.supabase.client
+            .from('atributo_opciones')
+            .upsert(
+                { atributo_id: atributoId, valor: valorNorm },
+                { onConflict: 'atributo_id,valor', ignoreDuplicates: true }
+            );
+        const data = await this.supabase.call<AtributoOpcion>(
+            this.supabase.client
+                .from('atributo_opciones')
+                .select('*, atributo:atributos(*)')
+                .eq('atributo_id', atributoId)
+                .eq('valor', valorNorm)
+                .single()
+        );
+        return data;
+    }
+
+    /** Obtiene todos los atributos de un producto (para mostrar en form y tarjeta) */
+    async obtenerAtributosProducto(productoId: string): Promise<ProductoAtributo[]> {
+        const data = await this.supabase.call<ProductoAtributo[]>(
+            this.supabase.client
+                .from('producto_atributos')
+                .select('*, atributo_opcion:atributo_opciones(*, atributo:atributos(*))')
+                .eq('producto_id', productoId)
+        );
+        return data || [];
+    }
+
+    /** Reemplaza TODOS los atributos de un producto (delete + insert) */
+    async guardarAtributosProducto(productoId: string, opcionIds: string[]): Promise<void> {
+        // Borrar los existentes
+        await this.supabase.client
+            .from('producto_atributos')
+            .delete()
+            .eq('producto_id', productoId);
+        // Insertar los nuevos (si hay)
+        if (opcionIds.length === 0) return;
+        const rows = opcionIds.map(id => ({ producto_id: productoId, atributo_opcion_id: id }));
+        await this.supabase.call(
+            this.supabase.client.from('producto_atributos').insert(rows)
+        );
+    }
+
+    // ==========================================
+    // CREACION ATOMICA DE PRODUCTO (RPC)
+    // ==========================================
+
+    /**
+     * Crea un producto simple (sin variantes) via RPC atomica.
+     * Incluye presentaciones opcionales.
+     */
+    async crearProductoSimple(params: {
+        nombre: string;
+        categoria_id: number;
+        tiene_iva: boolean;
+        tipo_venta: string;
+        unidad_medida: string;
+        codigo_barras?: string;
+        imagen_url?: string;
+        precio_costo: number;
+        precio_venta: number;
+        stock_actual: number;
+        stock_minimo: number;
+        presentaciones?: { nombre: string; factor_conversion: number; precio_venta: number; precio_costo: number; codigo_barras?: string }[];
+    }): Promise<{ ok: boolean; producto_id?: string }> {
+        const res = await this.supabase.call<{ ok: boolean; producto_id?: string }>(
+            this.supabase.client.rpc('fn_crear_producto_simple', {
+                p_nombre: params.nombre,
+                p_categoria_id: params.categoria_id,
+                p_tiene_iva: params.tiene_iva,
+                p_tipo_venta: params.tipo_venta,
+                p_unidad_medida: params.unidad_medida,
+                p_codigo_barras: params.codigo_barras || null,
+                p_imagen_url: params.imagen_url || null,
+                p_precio_costo: params.precio_costo,
+                p_precio_venta: params.precio_venta,
+                p_stock_actual: params.stock_actual,
+                p_stock_minimo: params.stock_minimo,
+                p_presentaciones: params.presentaciones || []
+            }),
+            'Producto creado exitosamente',
+            { showLoading: true }
+        );
+        return res || { ok: false };
+    }
+
+    /**
+     * Crea un producto con variantes via RPC atomica.
+     * Crea template + atributos + SKUs + presentaciones por SKU.
+     */
+    async crearProductoConVariantes(params: {
+        nombre: string;
+        categoria_id: number;
+        tiene_iva: boolean;
+        tipo_venta: string;
+        unidad_medida: string;
+        imagen_url?: string;
+        atributos_template: { atributo_nombre: string; opcion_ids: string[] }[];
+        variantes: { nombre: string; precio_costo: number; precio_venta: number; stock_actual: number; stock_minimo: number; opcion_ids: string[]; codigo_barras?: string | null; presentaciones?: { nombre: string; factor_conversion: number; precio_venta: number; precio_costo: number; codigo_barras?: string }[] }[];
+    }): Promise<{ ok: boolean; template_id?: string; skus_creados?: number }> {
+        const res = await this.supabase.call<{ ok: boolean; template_id?: string; skus_creados?: number }>(
+            this.supabase.client.rpc('fn_crear_producto_con_variantes', {
+                p_nombre: params.nombre,
+                p_categoria_id: params.categoria_id,
+                p_tiene_iva: params.tiene_iva,
+                p_tipo_venta: params.tipo_venta,
+                p_unidad_medida: params.unidad_medida,
+                p_imagen_url: params.imagen_url || null,
+                p_atributos_template: params.atributos_template,
+                p_variantes: params.variantes
+            }),
+            `${params.variantes.length} variantes creadas`,
+            { showLoading: true }
+        );
+        return res || { ok: false };
+    }
+
+    /**
+     * Verifica si ya existe un SKU con la misma combinacion de atributos en un template.
+     * Retorna true si ya existe (duplicado).
+     */
+    async existeCombinacionAtributos(templateId: string, opcionIds: string[], excluirProductoId?: string): Promise<boolean> {
+        // Obtener todos los productos del template
+        const { data: skus } = await this.supabase.client
             .from('productos')
-            .select('*', { count: 'exact', head: true })
-            .eq('grupo_variante_id', grupoId)
+            .select('id')
+            .eq('producto_template_id', templateId)
             .eq('activo', true);
-        return count || 0;
+
+        if (!skus || skus.length === 0) return false;
+
+        // Para cada SKU, obtener sus atributos y comparar
+        for (const sku of skus) {
+            if (excluirProductoId && sku.id === excluirProductoId) continue;
+
+            const { data: attrs } = await this.supabase.client
+                .from('producto_atributos')
+                .select('atributo_opcion_id')
+                .eq('producto_id', sku.id);
+
+            if (!attrs) continue;
+
+            const existingIds = attrs.map(a => a.atributo_opcion_id).sort();
+            const newIds = [...opcionIds].sort();
+
+            if (existingIds.length === newIds.length && existingIds.every((id, i) => id === newIds[i])) {
+                return true; // Combinacion duplicada
+            }
+        }
+
+        return false;
     }
 }

@@ -5,6 +5,7 @@ import { SupabaseService } from 'src/app/core/services/supabase.service';
 import { LoggerService } from 'src/app/core/services/logger.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { Capacitor } from '@capacitor/core';
+import { ROUTES } from 'src/app/core/config/routes.config';
 
 @Component({
   selector: 'app-callback',
@@ -148,10 +149,10 @@ export class CallbackPage implements OnInit, OnDestroy {
   }
 
   private goHome() {
-    this.router.navigate(['/home'], { replaceUrl: true });
+    this.router.navigate([ROUTES.home], { replaceUrl: true });
   }
 
   private goToLogin() {
-    this.router.navigate(['/auth/login'], { replaceUrl: true });
+    this.router.navigate([ROUTES.auth.login], { replaceUrl: true });
   }
 }

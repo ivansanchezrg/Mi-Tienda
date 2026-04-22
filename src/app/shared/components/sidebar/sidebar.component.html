@@ -67,7 +67,7 @@
     </div>
     <div class="footer-actions">
       @if (empleadoRol === 'ADMIN') {
-        <ion-button fill="clear" color="medium" class="btn-settings" [routerLink]="'/configuracion'" (click)="closeMenu()">
+        <ion-button fill="clear" color="medium" class="btn-settings" [routerLink]="configuracionRoute" (click)="closeMenu()">
           <ion-icon [icon]="settingsIcon" slot="icon-only"></ion-icon>
         </ion-button>
       }

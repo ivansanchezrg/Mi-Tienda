@@ -2,16 +2,24 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
-import { Subject, Subscription } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { IonicModule, AlertController, NavController, ViewWillEnter } from '@ionic/angular';
 import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, chevronUpOutline, layersOutline, checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline, addOutline, refreshOutline, warningOutline, trendingUpOutline, trendingDownOutline, removeOutline, sparklesOutline, colorPaletteOutline } from 'ionicons/icons';
+import {
+    arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline,
+    alertCircleOutline, cameraOutline, closeCircle, closeOutline,
+    imagesOutline, informationCircleOutline, trashOutline,
+    chevronDownOutline, chevronUpOutline, layersOutline,
+    checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline,
+    addOutline, refreshOutline, warningOutline, trendingUpOutline,
+    trendingDownOutline, removeOutline, sparklesOutline,
+    colorPaletteOutline, pricetagOutline
+} from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
+import { ROUTES } from '../../../../core/config/routes.config';
 
-import { Producto, ProductoPresentacion, TipoVenta, GrupoVariante } from '../../models/producto.model';
+import { Producto, ProductoPresentacion, ProductoTemplate, Atributo, AtributoOpcion } from '../../models/producto.model';
 
 interface PresentacionForm {
     nombre: string;
@@ -20,6 +28,13 @@ interface PresentacionForm {
     precio_costo: number;
     codigo_barras?: string;
 }
+
+// AtributoSeleccionado se usa para mostrar los atributos del producto en modo EDITAR (readonly)
+interface AtributoSeleccionado {
+    atributo: Atributo;
+    opcion: AtributoOpcion;
+}
+
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { InventarioService } from '../../services/inventario.service';
 
@@ -33,6 +48,7 @@ import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { PresentacionModalComponent, PresentacionModalResult } from '../../components/presentacion-modal/presentacion-modal.component';
+import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
 import { ModalController } from '@ionic/angular';
 
 @Component({
@@ -40,7 +56,7 @@ import { ModalController } from '@ionic/angular';
     templateUrl: './producto-form.page.html',
     styleUrls: ['./producto-form.page.scss'],
     standalone: true,
-    imports: [IonicModule, CommonModule, ReactiveFormsModule, FormsModule, NumbersOnlyDirective, CurrencyInputDirective, UppercaseInputDirective]
+    imports: [IonicModule, CommonModule, ReactiveFormsModule, FormsModule, NumbersOnlyDirective, CurrencyInputDirective, UppercaseInputDirective, ScannerOverlayComponent]
 })
 export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private inicializado = false;
@@ -73,29 +89,34 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     presentaciones: ProductoPresentacion[] = [];
     presentacionesInactivas: ProductoPresentacion[] = [];
     mostrarInactivas = false;
-    // Presentaciones en modo CREAR (en memoria, aún sin producto_id)
+    // Presentaciones en modo CREAR (en memoria, aun sin producto_id)
     presentacionesNuevas: PresentacionForm[] = [];
-    // Nombre de la presentación recién agregada para disparar animación
+    // Nombre de la presentacion recien agregada para disparar animacion
     presentacionRecienAgregada: string | null = null;
 
-    // Variantes
-    grupoVarianteSeleccionado: GrupoVariante | null = null;
+    // Template + atributos — solo lectura en modo EDITAR
+    templateSeleccionado: ProductoTemplate | null = null;
     variantesHermanas: Producto[] = [];
-    gruposSugeridos: GrupoVariante[] = [];
-    buscandoGrupos = false;
-    textoGrupo = '';
-    private grupoSearch$ = new Subject<string>();
-    private grupoSearchSub!: Subscription;
+    atributosSeleccionados: AtributoSeleccionado[] = [];
 
     // Imagen del producto
-    fotoPreview: string | null = null;       // DataURL para preview local
-    imagenUrlExistente: string | null = null; // URL pública si ya tenía imagen
-    private imagenPathAnterior: string | null = null; // Path en storage para eliminar si se cambia
-    private fotoNueva = false;               // true si el usuario seleccionó/cambió foto
-    private fotoEliminada = false;           // true si el usuario quitó la foto existente
+    fotoPreview: string | null = null;
+    imagenUrlExistente: string | null = null;
+    private imagenPathAnterior: string | null = null;
+    private fotoNueva = false;
+    private fotoEliminada = false;
 
     constructor() {
-        addIcons({ arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline, alertCircleOutline, cameraOutline, closeCircle, closeOutline, imagesOutline, informationCircleOutline, trashOutline, chevronDownOutline, chevronUpOutline, layersOutline, checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline, addOutline, refreshOutline, warningOutline, trendingUpOutline, trendingDownOutline, removeOutline, sparklesOutline, colorPaletteOutline });
+        addIcons({
+            arrowBackOutline, barcodeOutline, saveOutline, documentTextOutline,
+            alertCircleOutline, cameraOutline, closeCircle, closeOutline,
+            imagesOutline, informationCircleOutline, trashOutline,
+            chevronDownOutline, chevronUpOutline, layersOutline,
+            checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline,
+            addOutline, refreshOutline, warningOutline, trendingUpOutline,
+            trendingDownOutline, removeOutline, sparklesOutline,
+            colorPaletteOutline, pricetagOutline
+        });
     }
 
     async ngOnInit() {
@@ -103,7 +124,6 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         this.codigoBarrasInicial = this.route.snapshot.queryParamMap.get('codigo') || undefined;
         this.modo = productoId ? 'EDITAR' : 'CREAR';
 
-        // Cargar categorías + producto (si editar) en paralelo
         const [categorias, producto] = await Promise.all([
             this.inventarioService.obtenerCategorias(),
             productoId ? this.inventarioService.obtenerProductoPorId(productoId) : Promise.resolve(null)
@@ -112,37 +132,37 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         this.categorias = categorias;
         if (producto) {
             this.producto = producto;
-            // Si el producto ya tiene imagen, obtener URL pública
             if (producto.imagen_url) {
                 this.imagenPathAnterior = producto.imagen_url;
                 this.imagenUrlExistente = this.storageService.getPublicUrl(producto.imagen_url, 'productos');
             }
-            // Cargar presentaciones activas e inactivas del producto
             [this.presentaciones, this.presentacionesInactivas] = await Promise.all([
                 this.inventarioService.obtenerPresentaciones(producto.id),
                 this.inventarioService.obtenerPresentacionesInactivas(producto.id)
             ]);
 
-            // Si tiene grupo de variantes, cargar hermanas
-            if (producto.grupo_variante) {
-                this.grupoVarianteSeleccionado = producto.grupo_variante;
-                this.variantesHermanas = await this.inventarioService.obtenerVariantesDelGrupo(
-                    producto.grupo_variante.id, producto.id
+            // Si tiene template, cargar datos readonly
+            if (producto.producto_template) {
+                this.templateSeleccionado = producto.producto_template;
+                this.variantesHermanas = await this.inventarioService.obtenerSKUsDelTemplate(
+                    producto.producto_template.id, producto.id
                 );
+                const atributosRaw = await this.inventarioService.obtenerAtributosProducto(producto.id);
+                this.atributosSeleccionados = atributosRaw
+                    .filter(pa => pa.atributo_opcion?.atributo)
+                    .map(pa => ({
+                        atributo: pa.atributo_opcion!.atributo!,
+                        opcion: pa.atributo_opcion!
+                    }));
             }
         }
         this.cargando = false;
         this.inicializado = true;
 
         this.initForm();
-
-        this.grupoSearchSub = this.grupoSearch$
-            .pipe(debounceTime(300), distinctUntilChanged())
-            .subscribe(texto => this.ejecutarBusquedaGrupos(texto));
     }
 
     async ionViewWillEnter() {
-        // Al volver del Kárdex, refrescar el stock actual del producto
         if (this.inicializado && this.producto) {
             const productoActualizado = await this.inventarioService.obtenerProductoPorId(this.producto.id);
             if (productoActualizado) {
@@ -164,15 +184,13 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             tiene_iva: [this.producto?.tiene_iva ?? true],
             tipo_venta: [this.producto?.tipo_venta || 'UNIDAD'],
             unidad_medida: [this.producto?.unidad_medida || 'und'],
-            grupo_variante_id: [this.producto?.grupo_variante_id || null]
+            producto_template_id: [this.producto?.producto_template_id || null]
         });
 
-        // En modo CREAR, marcar categoría como touched para que se vea el error de inmediato
         if (this.modo === 'CREAR') {
             this.productoForm.get('categoria_id')?.markAsTouched();
         }
 
-        // En modo EDITAR: calcular margenPct inicial desde los valores cargados
         if (this.producto?.precio_costo && this.producto?.precio_venta) {
             this.margenPct = calcularMargenDesdePrecio(this.producto.precio_costo, this.producto.precio_venta);
             this.margenAbsoluto = this.producto.precio_venta - this.producto.precio_costo;
@@ -182,10 +200,6 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     get costoActual(): number {
         const raw = this.currencyService.parse(this.productoForm?.get('precio_costo')?.value ?? 0);
         return Math.round(raw * 100) / 100;
-    }
-
-    get margenColor(): string {
-        return 'success';
     }
 
     onCostoChange() {
@@ -224,13 +238,13 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
 
     get categoriaLabel(): string {
         const id = this.productoForm?.get('categoria_id')?.value;
-        if (!id) return 'Seleccionar categoría *';
-        return this.categorias.find(c => c.id === Number(id))?.nombre || 'Seleccionar categoría *';
+        if (!id) return 'Seleccionar categoria *';
+        return this.categorias.find(c => c.id === Number(id))?.nombre || 'Seleccionar categoria *';
     }
 
     async abrirSelectorCategoria() {
         const groups: ModalOptionGroup[] = [{
-            title: 'Categorías',
+            title: 'Categorias',
             options: this.categorias.map(cat => ({
                 label: cat.nombre,
                 value: String(cat.id)
@@ -242,7 +256,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         const modal = await this.modalCtrl.create({
             component: OptionsModalComponent,
             componentProps: {
-                title: 'Categoría del producto',
+                title: 'Categoria del producto',
                 groups,
                 selectedValue: currentId ? String(currentId) : undefined
             },
@@ -261,7 +275,11 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     }
 
     volver() {
-        this.navCtrl.back();
+        if (this.modo === 'CREAR') {
+            this.navCtrl.navigateBack(ROUTES.inventario.nuevo);
+        } else {
+            this.navCtrl.navigateBack(ROUTES.inventario.root);
+        }
     }
 
     async guardar() {
@@ -274,71 +292,76 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         this.guardando = true;
 
         const value = this.productoForm.value;
-        const codigoBarras = value.codigo_barras?.trim() ? value.codigo_barras.trim() : null;
-
         const isPeso = value.tipo_venta === 'PESO';
 
-        const productoPayload: Partial<Producto> = {
-            ...value,
-            codigo_barras: codigoBarras,
-            precio_costo: this.currencyService.parse(value.precio_costo),
-            precio_venta: this.currencyService.parse(value.precio_venta),
-            stock_actual: Number(value.stock_actual) || 0,
-            stock_minimo: Number(value.stock_minimo) || 0,
-            activo: this.producto?.activo ?? true,
-            tipo_venta: value.tipo_venta,
-            unidad_medida: isPeso ? value.unidad_medida : 'und',
-            grupo_variante_id: value.grupo_variante_id || null
-        };
-
         try {
-            // Subir imagen nueva si el usuario seleccionó una
+            // Subir imagen si hay una nueva
+            let imagenUrl: string | null = null;
             if (this.fotoNueva && this.fotoPreview) {
                 const categoriaNombre = this.obtenerNombreCategoria(value.categoria_id);
                 const subfolder = this.sanitizarSubfolder(categoriaNombre);
-                const imagenPath = await this.storageService.uploadImage(this.fotoPreview, 'productos', subfolder, false);
-
-                if (!imagenPath) {
-                    // StorageService ya muestra toast descriptivo del error
+                imagenUrl = await this.storageService.uploadImage(this.fotoPreview, 'productos', subfolder, false);
+                if (!imagenUrl) {
                     this.guardando = false;
                     return;
                 }
-
-                // Si había imagen anterior, eliminarla
-                if (this.imagenPathAnterior) {
-                    await this.storageService.deleteFile(this.imagenPathAnterior, 'productos');
-                }
-
-                productoPayload.imagen_url = imagenPath;
-            } else if (this.fotoEliminada) {
-                // El usuario quitó la foto existente
-                if (this.imagenPathAnterior) {
-                    await this.storageService.deleteFile(this.imagenPathAnterior, 'productos');
-                }
-                productoPayload.imagen_url = null as any;
             }
 
             if (this.modo === 'CREAR') {
-                const productoCreado = await this.inventarioService.crearProducto(productoPayload);
-                if (productoCreado.id && this.presentacionesNuevas.length > 0) {
-                    const presentaciones = await Promise.all(
-                        this.presentacionesNuevas.map(p =>
-                            this.inventarioService.crearPresentacion({ ...p, producto_id: productoCreado.id }, true)
-                        )
-                    );
-                    // Emitir ACTUALIZADO con las presentaciones ya incluidas
-                    // para que la lista de inventario reemplace el item sin presentaciones
-                    this.inventarioService.emitirCambio({
-                        tipo: 'ACTUALIZADO',
-                        producto: { ...productoCreado, presentaciones }
-                    });
+                const resultado = await this.inventarioService.crearProductoSimple({
+                    nombre: value.nombre,
+                    categoria_id: Number(value.categoria_id),
+                    tiene_iva: value.tiene_iva,
+                    tipo_venta: value.tipo_venta,
+                    unidad_medida: isPeso ? value.unidad_medida : 'und',
+                    codigo_barras: value.codigo_barras?.trim() || undefined,
+                    imagen_url: imagenUrl || undefined,
+                    precio_costo: this.currencyService.parse(value.precio_costo),
+                    precio_venta: this.currencyService.parse(value.precio_venta),
+                    stock_actual: Number(value.stock_actual) || 0,
+                    stock_minimo: Number(value.stock_minimo) || 0,
+                    presentaciones: this.presentacionesNuevas.map(p => ({
+                        nombre: p.nombre,
+                        factor_conversion: p.factor_conversion,
+                        precio_venta: p.precio_venta,
+                        precio_costo: p.precio_costo,
+                        codigo_barras: p.codigo_barras
+                    }))
+                });
+
+                if (resultado.ok) {
+                    this.navCtrl.navigateBack(ROUTES.inventario.root);
                 }
             } else {
+                // ── Modo EDITAR: solo actualizar datos del producto ──
+                const productoPayload: Partial<Producto> = {
+                    ...value,
+                    codigo_barras: value.codigo_barras?.trim() || null,
+                    precio_costo: this.currencyService.parse(value.precio_costo),
+                    precio_venta: this.currencyService.parse(value.precio_venta),
+                    stock_actual: Number(value.stock_actual) || 0,
+                    stock_minimo: Number(value.stock_minimo) || 0,
+                    tipo_venta: value.tipo_venta,
+                    unidad_medida: isPeso ? value.unidad_medida : 'und',
+                    producto_template_id: value.producto_template_id || null
+                };
+
+                if (imagenUrl) {
+                    if (this.imagenPathAnterior) {
+                        await this.storageService.deleteFile(this.imagenPathAnterior, 'productos');
+                    }
+                    productoPayload.imagen_url = imagenUrl;
+                } else if (this.fotoEliminada) {
+                    if (this.imagenPathAnterior) {
+                        await this.storageService.deleteFile(this.imagenPathAnterior, 'productos');
+                    }
+                    productoPayload.imagen_url = null as any;
+                }
+
                 await this.inventarioService.actualizarProducto(this.producto!.id, productoPayload);
                 this.productoForm.markAsPristine();
+                this.navCtrl.navigateBack(ROUTES.inventario.root);
             }
-            // El servicio emite el evento → la lista se actualiza reactivamente
-            this.navCtrl.back();
         } catch (error) {
             this.logger.error('ProductoFormPage', 'Error guardando producto', error);
         } finally {
@@ -348,7 +371,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
 
     abrirKardex() {
         if (!this.producto) return;
-        this.navCtrl.navigateForward(`/inventario/kardex/${this.producto.id}`, {
+        this.navCtrl.navigateForward(ROUTES.inventario.kardex(this.producto.id), {
             queryParams: {
                 nombre: this.producto.nombre,
                 stock: this.producto.stock_actual
@@ -359,8 +382,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     async desactivarProducto() {
         if (!this.producto) return;
         const alert = await this.alertCtrl.create({
-            header: `¿Quitar "${this.producto.nombre}"?`,
-            message: 'Dejará de aparecer en el inventario y el POS. Puedes reactivarlo cuando quieras desde la lista de productos.',
+            header: `\u00bfQuitar "${this.producto.nombre}"?`,
+            message: 'Dejara de aparecer en el inventario y el POS. Puedes reactivarlo cuando quieras desde la lista de productos.',
             buttons: [
                 { text: 'Cancelar', role: 'cancel' },
                 {
@@ -368,7 +391,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                     role: 'destructive',
                     handler: async () => {
                         await this.inventarioService.desactivarProducto(this.producto!.id);
-                        this.navCtrl.back();
+                        this.navCtrl.navigateBack(ROUTES.inventario.root);
                     }
                 }
             ]
@@ -380,7 +403,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         if (!this.producto) return;
         const alert = await this.alertCtrl.create({
             header: 'Reactivar producto',
-            message: `"${this.producto.nombre}" volverá a aparecer en el inventario y el POS.`,
+            message: `"${this.producto.nombre}" volvera a aparecer en el inventario y el POS.`,
             buttons: [
                 { text: 'Cancelar', role: 'cancel' },
                 {
@@ -403,7 +426,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         this.escaneando = false;
         if (!codigo) return;
         this.productoForm.patchValue({ codigo_barras: codigo });
-        this.ui.showToast(`Código capturado: ${codigo}`, 'success');
+        this.ui.showToast(`Codigo capturado: ${codigo}`, 'success');
     }
 
     async cerrarEscaner() {
@@ -420,7 +443,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                     handler: () => this.tomarFoto(CameraSource.Camera)
                 },
                 {
-                    text: 'Galería',
+                    text: 'Galeria',
                     handler: () => this.tomarFoto(CameraSource.Photos)
                 },
                 { text: 'Cancelar', role: 'cancel' }
@@ -446,13 +469,12 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             this.fotoNueva = true;
             this.fotoEliminada = false;
         } catch {
-            // El usuario canceló — no mostrar error
+            // El usuario cancelo
         }
     }
 
     removerFoto() {
         if (this.imagenPathAnterior && !this.fotoNueva) {
-            // Estaba mostrando la imagen existente → marcar para eliminar
             this.fotoEliminada = true;
         }
         this.fotoPreview = null;
@@ -468,7 +490,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private sanitizarSubfolder(nombre: string): string {
         return nombre
             .toLowerCase()
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar acentos
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-|-$/g, '');
     }
@@ -530,7 +552,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                 if (creada?.id) {
                     this.presentaciones = [...this.presentaciones, creada];
                     this.animarPresentacion(creada.nombre);
-                    this.ui.showToast(`Presentación "${creada.nombre}" guardada`, 'success');
+                    this.ui.showToast(`Presentacion "${creada.nombre}" guardada`, 'success');
                     return true;
                 }
                 return false;
@@ -551,7 +573,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             async (result) => {
                 await this.inventarioService.actualizarPresentacion(pres.id, result);
                 this.presentaciones = await this.inventarioService.obtenerPresentaciones(this.producto!.id);
-                this.ui.showToast(`Presentación "${result.nombre}" actualizada`, 'success');
+                this.ui.showToast(`Presentacion "${result.nombre}" actualizada`, 'success');
                 return true;
             }
         );
@@ -566,8 +588,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
 
     async eliminarPresentacion(pres: ProductoPresentacion) {
         const alert = await this.alertCtrl.create({
-            header: `¿Quitar "${pres.nombre}"?`,
-            message: 'Dejará de aparecer en el POS. Las ventas realizadas con esta presentación no se verán afectadas.',
+            header: `\u00bfQuitar "${pres.nombre}"?`,
+            message: 'Dejara de aparecer en el POS. Las ventas realizadas con esta presentacion no se veran afectadas.',
             buttons: [
                 { text: 'Cancelar', role: 'cancel' },
                 {
@@ -615,58 +637,6 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         return labels[um] || um;
     }
 
-    // ==========================================
-    // VARIANTES — grupo de variantes
-    // ==========================================
-
-    buscarGrupos(texto: string) {
-        this.textoGrupo = texto;
-        if (!texto || texto.length < 2) {
-            this.gruposSugeridos = [];
-            this.buscandoGrupos = false;
-            return;
-        }
-        this.buscandoGrupos = true;
-        this.grupoSearch$.next(texto);
-    }
-
-    private async ejecutarBusquedaGrupos(texto: string) {
-        this.gruposSugeridos = await this.inventarioService.buscarGruposVariantes(texto);
-        this.buscandoGrupos = false;
-    }
-
-    async seleccionarGrupo(grupo: GrupoVariante) {
-        this.grupoVarianteSeleccionado = grupo;
-        this.productoForm.patchValue({ grupo_variante_id: grupo.id });
-        this.productoForm.markAsDirty();
-        this.gruposSugeridos = [];
-        this.textoGrupo = '';
-        this.variantesHermanas = await this.inventarioService.obtenerVariantesDelGrupo(
-            grupo.id, this.producto?.id
-        );
-    }
-
-    async crearOSeleccionarGrupo(nombre: string) {
-        if (!nombre || nombre.trim().length < 2) return;
-        const grupo = await this.inventarioService.crearOObtenerGrupoVariante(nombre);
-        if (grupo) await this.seleccionarGrupo(grupo);
-    }
-
-    quitarDelGrupo() {
-        this.grupoVarianteSeleccionado = null;
-        this.variantesHermanas = [];
-        this.gruposSugeridos = [];
-        this.textoGrupo = '';
-        this.productoForm.patchValue({ grupo_variante_id: null });
-        this.productoForm.markAsDirty();
-    }
-
-    get grupoNoCoincideExacto(): boolean {
-        if (!this.textoGrupo || this.textoGrupo.trim().length < 2) return false;
-        const textoNorm = this.textoGrupo.toUpperCase().trim();
-        return !this.gruposSugeridos.some(g => g.nombre === textoNorm);
-    }
-
     esCampoInvalido(campo: string): boolean {
         const control = this.productoForm.get(campo);
         return !!(control && control.invalid && (control.dirty || control.touched));
@@ -674,6 +644,5 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
 
     ngOnDestroy() {
         if (this.escaneando) this.cerrarEscaner();
-        this.grupoSearchSub?.unsubscribe();
     }
 }

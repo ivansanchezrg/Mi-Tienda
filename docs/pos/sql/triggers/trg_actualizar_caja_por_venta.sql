@@ -1,15 +1,17 @@
 -- ==========================================
--- TRIGGER FUNCTION: fn_actualizar_saldo_caja_venta
+-- TRIGGER FUNCTION: fn_actualizar_saldo_caja_venta (v5)
 -- ==========================================
 -- Se dispara automáticamente AFTER INSERT en ventas.
 -- Solo actúa si metodo_pago = 'EFECTIVO' y estado = 'COMPLETADA'.
 --
--- Flujo:
---   1. Busca la caja principal (codigo = 'CAJA').
---   2. Busca la categoría contable INGRESO cuyo nombre contenga 'Ventas'.
+-- Flujo (v5 — arquitectura 5 cajas):
+--   1. Busca CAJA_CHICA (cajón diario), NO CAJA (bóveda).
+--      Las ventas EFECTIVO entran al cajón diario. Al cierre, fn_ejecutar_cierre_diario
+--      distribuye CAJA_CHICA → VARIOS (fondo fijo) + CAJA (bóveda excedente).
+--   2. Busca la categoría contable INGRESO por código 'IN-001'.
 --   3. Busca el tipo_referencia de la tabla 'ventas'.
 --   4. Inserta un registro en operaciones_cajas (trazabilidad contable).
---   5. Actualiza saldo_actual de la caja.
+--   5. Actualiza saldo_actual de CAJA_CHICA.
 --
 -- Métodos de pago alternativos (DEUNA, TRANSFERENCIA, FIADO):
 --   No disparan esta función — se concilian fuera del sistema o de forma manual.
@@ -29,9 +31,9 @@ DECLARE
     v_saldo_actual_caja  DECIMAL(12,2);
 BEGIN
     IF NEW.metodo_pago = 'EFECTIVO' AND NEW.estado = 'COMPLETADA' THEN
-
-        v_caja_id            := (SELECT id FROM cajas WHERE codigo = 'CAJA');
-        v_categoria_id       := (SELECT id FROM categorias_operaciones WHERE tipo = 'INGRESO' AND nombre ILIKE '%Ventas%' LIMIT 1);
+        -- v5: ingreso va a CAJA_CHICA (cajón diario), no a CAJA (bóveda)
+        v_caja_id            := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA');
+        v_categoria_id       := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-001');
         v_tipo_referencia_id := (SELECT id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1);
 
         IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN

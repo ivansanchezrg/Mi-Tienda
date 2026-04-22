@@ -9,6 +9,7 @@ import { UiService } from '@core/services/ui.service';
 import { LoggerService } from '@core/services/logger.service';
 import { environment } from '../../../../environments/environment';
 import { UsuarioActual } from '../models/usuario_actual.model';
+import { ROUTES } from '@core/config/routes.config';
 
 @Injectable({
   providedIn: 'root'
@@ -143,7 +144,7 @@ export class AuthService {
         return false;
       }
 
-      this.router.navigate(['/auth/pending'], { queryParams: { estado: 'nuevo' }, replaceUrl: true });
+      this.router.navigate([ROUTES.auth.pending], { queryParams: { estado: 'nuevo' }, replaceUrl: true });
       return false;
     }
 
@@ -151,7 +152,7 @@ export class AuthService {
     if (!data.activo) {
       this.logger.warn('AuthService', 'validarUsuario: cuenta inactiva');
       await this.saveUsuarioActual(data);
-      this.router.navigate(['/auth/pending'], { replaceUrl: true });
+      this.router.navigate([ROUTES.auth.pending], { replaceUrl: true });
       return false;
     }
 
@@ -319,7 +320,7 @@ export class AuthService {
 
     // Notificar al usuario y redirigir
     await this.ui.showToast('Tu cuenta fue desactivada por un administrador', 'warning');
-    this.router.navigate(['/auth/pending'], { replaceUrl: true });
+    this.router.navigate([ROUTES.auth.pending], { replaceUrl: true });
   }
 
   /** Cierra sesión sin mostrar loading (uso interno) */

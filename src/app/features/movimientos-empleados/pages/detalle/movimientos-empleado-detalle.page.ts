@@ -29,6 +29,7 @@ import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { AdelantoModalComponent } from '../../components/adelanto-modal/adelanto-modal.component';
+import { ROUTES } from '../../../../core/config/routes.config';
 import { PagarNominaModalComponent } from '../../components/pagar-nomina-modal/pagar-nomina-modal.component';
 
 @Component({
@@ -111,7 +112,7 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
 
       if (!empleado) {
         await this.ui.showError('Empleado no encontrado');
-        this.navCtrl.back();
+        this.navCtrl.navigateBack(ROUTES.movimientosEmpleados.root);
         return;
       }
 

@@ -132,17 +132,82 @@ CREATE POLICY "recargas_virtuales_update" ON recargas_virtuales FOR UPDATE TO au
 CREATE POLICY "recargas_virtuales_delete" ON recargas_virtuales FOR DELETE TO authenticated USING (true);
 
 -- ==========================================
--- grupos_variantes
+-- producto_templates
 -- ==========================================
-ALTER TABLE grupos_variantes ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "grupos_variantes_select" ON grupos_variantes;
-DROP POLICY IF EXISTS "grupos_variantes_insert" ON grupos_variantes;
-DROP POLICY IF EXISTS "grupos_variantes_update" ON grupos_variantes;
-DROP POLICY IF EXISTS "grupos_variantes_delete" ON grupos_variantes;
-CREATE POLICY "grupos_variantes_select" ON grupos_variantes FOR SELECT TO authenticated USING (true);
-CREATE POLICY "grupos_variantes_insert" ON grupos_variantes FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "grupos_variantes_update" ON grupos_variantes FOR UPDATE TO authenticated USING (true);
-CREATE POLICY "grupos_variantes_delete" ON grupos_variantes FOR DELETE TO authenticated USING (true);
+ALTER TABLE producto_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "producto_templates_select" ON producto_templates;
+DROP POLICY IF EXISTS "producto_templates_insert" ON producto_templates;
+DROP POLICY IF EXISTS "producto_templates_update" ON producto_templates;
+DROP POLICY IF EXISTS "producto_templates_delete" ON producto_templates;
+CREATE POLICY "producto_templates_select" ON producto_templates FOR SELECT TO authenticated USING (true);
+CREATE POLICY "producto_templates_insert" ON producto_templates FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "producto_templates_update" ON producto_templates FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "producto_templates_delete" ON producto_templates FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- atributos
+-- ==========================================
+ALTER TABLE atributos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "atributos_select" ON atributos;
+DROP POLICY IF EXISTS "atributos_insert" ON atributos;
+DROP POLICY IF EXISTS "atributos_update" ON atributos;
+DROP POLICY IF EXISTS "atributos_delete" ON atributos;
+CREATE POLICY "atributos_select" ON atributos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "atributos_insert" ON atributos FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "atributos_update" ON atributos FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "atributos_delete" ON atributos FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- template_atributos
+-- ==========================================
+ALTER TABLE template_atributos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "template_atributos_select" ON template_atributos;
+DROP POLICY IF EXISTS "template_atributos_insert" ON template_atributos;
+DROP POLICY IF EXISTS "template_atributos_update" ON template_atributos;
+DROP POLICY IF EXISTS "template_atributos_delete" ON template_atributos;
+CREATE POLICY "template_atributos_select" ON template_atributos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "template_atributos_insert" ON template_atributos FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "template_atributos_update" ON template_atributos FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "template_atributos_delete" ON template_atributos FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- template_atributo_opciones
+-- ==========================================
+ALTER TABLE template_atributo_opciones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "template_atributo_opciones_select" ON template_atributo_opciones;
+DROP POLICY IF EXISTS "template_atributo_opciones_insert" ON template_atributo_opciones;
+DROP POLICY IF EXISTS "template_atributo_opciones_update" ON template_atributo_opciones;
+DROP POLICY IF EXISTS "template_atributo_opciones_delete" ON template_atributo_opciones;
+CREATE POLICY "template_atributo_opciones_select" ON template_atributo_opciones FOR SELECT TO authenticated USING (true);
+CREATE POLICY "template_atributo_opciones_insert" ON template_atributo_opciones FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "template_atributo_opciones_update" ON template_atributo_opciones FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "template_atributo_opciones_delete" ON template_atributo_opciones FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- atributo_opciones
+-- ==========================================
+ALTER TABLE atributo_opciones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "atributo_opciones_select" ON atributo_opciones;
+DROP POLICY IF EXISTS "atributo_opciones_insert" ON atributo_opciones;
+DROP POLICY IF EXISTS "atributo_opciones_update" ON atributo_opciones;
+DROP POLICY IF EXISTS "atributo_opciones_delete" ON atributo_opciones;
+CREATE POLICY "atributo_opciones_select" ON atributo_opciones FOR SELECT TO authenticated USING (true);
+CREATE POLICY "atributo_opciones_insert" ON atributo_opciones FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "atributo_opciones_update" ON atributo_opciones FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "atributo_opciones_delete" ON atributo_opciones FOR DELETE TO authenticated USING (true);
+
+-- ==========================================
+-- producto_atributos
+-- ==========================================
+ALTER TABLE producto_atributos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "producto_atributos_select" ON producto_atributos;
+DROP POLICY IF EXISTS "producto_atributos_insert" ON producto_atributos;
+DROP POLICY IF EXISTS "producto_atributos_update" ON producto_atributos;
+DROP POLICY IF EXISTS "producto_atributos_delete" ON producto_atributos;
+CREATE POLICY "producto_atributos_select" ON producto_atributos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "producto_atributos_insert" ON producto_atributos FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "producto_atributos_update" ON producto_atributos FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "producto_atributos_delete" ON producto_atributos FOR DELETE TO authenticated USING (true);
 
 -- ==========================================
 -- categorias_productos

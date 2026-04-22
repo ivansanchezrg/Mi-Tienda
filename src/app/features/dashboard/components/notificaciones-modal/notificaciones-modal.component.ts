@@ -12,6 +12,7 @@ import {
   notificationsOffOutline, chevronForwardOutline, cubeOutline, chevronDownOutline
 } from 'ionicons/icons';
 import { Notificacion, ProductoStockBajo } from '@core/services/notificaciones.service';
+import { ROUTES } from '@core/config/routes.config';
 
 @Component({
   selector: 'app-notificaciones-modal',
@@ -51,7 +52,7 @@ export class NotificacionesModalComponent {
 
   async navegarProducto(producto: ProductoStockBajo) {
     await this.modalCtrl.dismiss({ reload: false });
-    await this.router.navigate(['/inventario/kardex', producto.id], {
+    await this.router.navigate([ROUTES.inventario.kardex(producto.id)], {
       queryParams: { nombre: producto.nombre, stock: producto.stock_actual }
     });
   }
@@ -71,6 +72,6 @@ export class NotificacionesModalComponent {
     }
     await this.modalCtrl.dismiss({ reload: false });
     const tab = notif.tipo === 'SALDO_BAJO_BUS' ? 'BUS' : 'CELULAR';
-    await this.router.navigate(['/home/recargas-virtuales'], { queryParams: { tab } });
+    await this.router.navigate([ROUTES.recargasVirtuales], { queryParams: { tab } });
   }
 }

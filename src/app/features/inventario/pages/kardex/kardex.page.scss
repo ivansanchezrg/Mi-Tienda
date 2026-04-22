@@ -115,7 +115,7 @@
     width: 100%;
     padding: 12px var(--spacing-md);
     background: var(--ion-item-background);
-    border: 2px solid #aaa;
+    border: 1.5px solid var(--ion-color-step-200);
     border-radius: var(--radius-md);
     font-size: 15px;
     color: var(--ion-text-color);
@@ -132,12 +132,26 @@
         border-color: var(--ion-color-primary);
         box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.15);
     }
+}
 
-    &::-webkit-outer-spin-button,
-    &::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
+// ion-item para el campo cantidad (consistente con el resto del proyecto)
+.campo-ion-input {
+    --background: var(--ion-item-background);
+    --border-radius: var(--radius-md);
+    --padding-start: var(--spacing-md);
+    --min-height: 48px;
+    border: 1.5px solid var(--ion-color-step-200);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: border-color 0.15s ease;
+
+    &.item-has-focus { border-color: var(--ion-color-primary); }
+}
+
+.campo-unidad {
+    font-size: 13px;
+    color: var(--ion-color-step-500);
+    padding-right: var(--spacing-sm);
 }
 
 .campo-textarea {
@@ -288,6 +302,21 @@
             font-size: 12px;
         }
     }
+}
+
+.timeline-presentacion {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: rgba(var(--ion-color-primary-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.2);
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-primary-shade);
+
+    ion-icon { font-size: 12px; }
 }
 
 .timeline-footer {

@@ -12,6 +12,7 @@ import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only
 import { UppercaseInputDirective } from '../../../../shared/directives/uppercase-input.directive';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { calcularPrecioDesdeMargen, calcularMargenDesdePrecio } from '../../../../core/utils/margen.util';
+import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
 
 export interface PresentacionModalResult {
     nombre: string;
@@ -35,6 +36,7 @@ export interface PresentacionModalResult {
         CurrencyInputDirective,
         NumbersOnlyDirective,
         UppercaseInputDirective,
+        ScannerOverlayComponent,
     ]
 })
 export class PresentacionModalComponent implements OnInit {
@@ -66,6 +68,7 @@ export class PresentacionModalComponent implements OnInit {
 
     form!: FormGroup;
     guardando = false;
+    escaneando = false;
     margenPct: number = 20;
 
     get modo(): 'CREAR' | 'EDITAR' {
@@ -105,7 +108,9 @@ export class PresentacionModalComponent implements OnInit {
     }
 
     async escanearCodigo() {
+        this.escaneando = true;
         const codigo = await this.barcodeScanner.scan();
+        this.escaneando = false;
         if (!codigo) return;
         this.form.patchValue({ codigo_barras: codigo });
         this.ui.showToast(`Código capturado: ${codigo}`, 'success');

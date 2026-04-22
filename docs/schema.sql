@@ -1,27 +1,46 @@
 -- ==========================================
--- SCHEMA - MI TIENDA v9.0
+-- SCHEMA - MI TIENDA v10.1
 -- Sistema de Gestión de Cajas, Ventas POS, Recargas y Nómina
 -- ==========================================
--- ⚠️  Ejecutar UNA SOLA VEZ. Incluye DROP de tablas → borra todos los datos.
+-- ⚠️  Re-ejecutable desde cero: borra tablas de datos transaccionales e inventario.
+-- ⚠️  PRESERVA (no hace DROP): usuarios, cajas, configuraciones, tipos_servicio,
+--     categorias_operaciones, tipos_referencia, enums — para no perder configuración
+--     base del negocio al resetear solo los datos operativos.
 -- ⚠️  Para actualizar funciones PostgreSQL usar archivos en docs/*/sql/functions/
---     NO ejecutar este schema para eso — el DROP CASCADE borra todo.
--- ⚠️  Para aplicar solo variantes en BD existente usar:
---     docs/inventario/sql/migrations/migration_v9_grupos_variantes.sql
+--     NO ejecutar este schema solo para eso — borra datos transaccionales.
 -- ==========================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ==========================================
--- LIMPIEZA (orden: más dependiente → menos)
+-- LIMPIEZA — Tablas de datos (orden: más dependiente → menos)
+-- NO se borran: usuarios, cajas, configuraciones, tipos_servicio,
+--               categorias_operaciones, tipos_referencia, enums
 -- ==========================================
+
+-- Funciones de trigger inline (recreadas más abajo)
+DROP FUNCTION IF EXISTS fn_set_codigo_categoria_operacion() CASCADE;
+DROP FUNCTION IF EXISTS fn_actualizar_stock_venta() CASCADE;
+DROP FUNCTION IF EXISTS fn_actualizar_saldo_caja_venta() CASCADE;
+
+-- Vista calculada (recreada más abajo)
+DROP VIEW IF EXISTS v_saldos_empleados CASCADE;
+
+-- Tablas transaccionales y de inventario
 DROP TABLE IF EXISTS notas CASCADE;
 DROP TABLE IF EXISTS cuentas_cobrar CASCADE;
 DROP TABLE IF EXISTS ventas_detalles CASCADE;
 DROP TABLE IF EXISTS kardex_inventario CASCADE;
 DROP TABLE IF EXISTS ventas CASCADE;
+DROP TABLE IF EXISTS secuencias_comprobantes CASCADE;
 DROP TABLE IF EXISTS producto_presentaciones CASCADE;
+DROP TABLE IF EXISTS producto_atributos CASCADE;
 DROP TABLE IF EXISTS productos CASCADE;
-DROP TABLE IF EXISTS grupos_variantes CASCADE;
+DROP TABLE IF EXISTS template_atributo_opciones CASCADE;
+DROP TABLE IF EXISTS template_atributos CASCADE;
+DROP TABLE IF EXISTS producto_templates CASCADE;
+DROP TABLE IF EXISTS atributo_opciones CASCADE;
+DROP TABLE IF EXISTS atributos CASCADE;
 DROP TABLE IF EXISTS categorias_productos CASCADE;
 DROP TABLE IF EXISTS clientes CASCADE;
 DROP TABLE IF EXISTS movimientos_empleados CASCADE;
@@ -29,43 +48,37 @@ DROP TABLE IF EXISTS operaciones_cajas CASCADE;
 DROP TABLE IF EXISTS turnos_caja CASCADE;
 DROP TABLE IF EXISTS recargas CASCADE;
 DROP TABLE IF EXISTS recargas_virtuales CASCADE;
-DROP TABLE IF EXISTS categorias_operaciones CASCADE;
-DROP TABLE IF EXISTS tipos_referencia CASCADE;
 DROP TABLE IF EXISTS cierres_diarios CASCADE;
-DROP TABLE IF EXISTS cajas CASCADE;
-DROP TABLE IF EXISTS configuraciones CASCADE;
-DROP TABLE IF EXISTS tipos_servicio CASCADE;
-DROP TABLE IF EXISTS usuarios CASCADE;
-DROP TYPE IF EXISTS tipo_comprobante_enum CASCADE;
-DROP TYPE IF EXISTS tipo_operacion_caja_enum CASCADE;
-DROP TYPE IF EXISTS tipo_movimiento_empleado_enum CASCADE;
-DROP TYPE IF EXISTS rol_usuario_enum CASCADE;
 
 -- ==========================================
--- TIPOS ENUMERADOS
+-- TIPOS ENUMERADOS (idempotentes — no se borran, se crean solo si no existen)
 -- ==========================================
-CREATE TYPE tipo_operacion_caja_enum AS ENUM (
-    'APERTURA', 'CIERRE', 'INGRESO', 'EGRESO',
-    'AJUSTE', 'TRANSFERENCIA_ENTRANTE', 'TRANSFERENCIA_SALIENTE'
-);
+DO $$ BEGIN
+    CREATE TYPE tipo_operacion_caja_enum AS ENUM (
+        'APERTURA', 'CIERRE', 'INGRESO', 'EGRESO',
+        'AJUSTE', 'TRANSFERENCIA_ENTRANTE', 'TRANSFERENCIA_SALIENTE'
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE rol_usuario_enum AS ENUM (
-    'ADMIN', 'EMPLEADO'
-);
+DO $$ BEGIN
+    CREATE TYPE rol_usuario_enum AS ENUM ('ADMIN', 'EMPLEADO');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE tipo_comprobante_enum AS ENUM (
-    'TICKET', 'NOTA_VENTA', 'FACTURA'
-);
+DO $$ BEGIN
+    CREATE TYPE tipo_comprobante_enum AS ENUM ('TICKET', 'NOTA_VENTA', 'FACTURA');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE tipo_movimiento_empleado_enum AS ENUM (
-    'SUELDO_BASE',       -- (+) Sueldo devengado del periodo
-    'BONO_COMISION',     -- (+) Extras a favor del empleado
-    'FALTANTE_CAJA',     -- (-) Faltante de conteo fisico al cierre
-    'ADELANTO_SUELDO',   -- (-) Anticipo/prestamo en efectivo
-    'PAGO_NOMINA',       -- (-) Pago final del periodo (liquida todo)
-    'AJUSTE_ABONO',      -- (+) Correccion manual a favor del empleado
-    'AJUSTE_CARGO'       -- (-) Correccion manual en contra del empleado
-);
+DO $$ BEGIN
+    CREATE TYPE tipo_movimiento_empleado_enum AS ENUM (
+        'SUELDO_BASE',       -- (+) Sueldo devengado del periodo
+        'BONO_COMISION',     -- (+) Extras a favor del empleado
+        'FALTANTE_CAJA',     -- (-) Faltante de conteo fisico al cierre
+        'ADELANTO_SUELDO',   -- (-) Anticipo/prestamo en efectivo
+        'PAGO_NOMINA',       -- (-) Pago final del periodo (liquida todo)
+        'AJUSTE_ABONO',      -- (+) Correccion manual a favor del empleado
+        'AJUSTE_CARGO'       -- (-) Correccion manual en contra del empleado
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ==========================================
 -- TABLAS
@@ -242,14 +255,24 @@ CREATE TABLE IF NOT EXISTS recargas_virtuales (
 -- MÓDULO POS E INVENTARIO (v5.0)
 -- ==========================================
 
--- 11. grupos_variantes — Agrupación de productos que son variantes entre sí (v9)
--- Ej: "CIGARRILLOS LARK" agrupa Lark Azul, Lark Rojo, Lark Mentol.
--- Un producto pertenece a 0 o 1 grupo. El nombre siempre en MAYÚSCULAS (constraint).
-CREATE TABLE IF NOT EXISTS grupos_variantes (
+-- 11. atributos — Tipos de atributo dinamico (SABOR, COLOR, TAMAÑO, MARCA, etc.)
+-- Globales al sistema. Reutilizables entre templates. Siempre MAYUSCULAS.
+CREATE TABLE IF NOT EXISTS atributos (
     id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     nombre      VARCHAR(100) NOT NULL UNIQUE,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT grupos_variantes_nombre_normalizado CHECK (nombre = UPPER(TRIM(nombre)))
+    CONSTRAINT atributos_nombre_normalizado CHECK (nombre = UPPER(TRIM(nombre)))
+);
+
+-- 11b. atributo_opciones — Valores posibles de cada atributo (FRESA, ROJO, XL, 500G, etc.)
+-- Valor unico por atributo. Siempre MAYUSCULAS.
+CREATE TABLE IF NOT EXISTS atributo_opciones (
+    id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    atributo_id  UUID NOT NULL REFERENCES atributos(id) ON DELETE CASCADE,
+    valor        VARCHAR(100) NOT NULL,
+    created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT atributo_opciones_valor_normalizado CHECK (valor = UPPER(TRIM(valor))),
+    CONSTRAINT atributo_opciones_unique UNIQUE (atributo_id, valor)
 );
 
 -- 12. categorias_productos
@@ -260,9 +283,30 @@ CREATE TABLE IF NOT EXISTS categorias_productos (
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 13. productos
+-- 12b. producto_templates — Producto base / identidad (v10)
+-- Ej: "TAPIOCA" es el template; "Tapioca Fresa 500g" es un SKU (producto).
+-- Un template agrupa variantes que comparten categoria, IVA y tipo de venta.
+-- Productos simples (95% del inventario) NO necesitan template (producto_template_id = NULL).
+CREATE TABLE IF NOT EXISTS producto_templates (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre          VARCHAR(150) NOT NULL,
+    categoria_id    INTEGER REFERENCES categorias_productos(id),
+    tiene_iva       BOOLEAN DEFAULT TRUE,
+    tipo_venta      VARCHAR(10) DEFAULT 'UNIDAD' CHECK (tipo_venta IN ('UNIDAD', 'PESO')),
+    unidad_medida   VARCHAR(10) DEFAULT 'und',
+    imagen_url      TEXT,
+    activo          BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 13. productos — SKU real (unidad de venta con stock y precio propio)
+-- Si producto_template_id IS NOT NULL: es una variante de un template.
+--   → categoria_id, tiene_iva, tipo_venta, unidad_medida se HEREDAN del template (ignorar los locales).
+-- Si producto_template_id IS NULL: es un producto simple.
+--   → usa sus propios campos directamente (comportamiento clasico).
 CREATE TABLE IF NOT EXISTS productos (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    producto_template_id UUID REFERENCES producto_templates(id) ON DELETE CASCADE,  -- NULL = producto simple
     categoria_id        INTEGER REFERENCES categorias_productos(id),
     codigo_barras       VARCHAR(50) UNIQUE,
     nombre              VARCHAR(150) NOT NULL,
@@ -276,16 +320,44 @@ CREATE TABLE IF NOT EXISTS productos (
     created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     -- ── Granel (v7) ──
     tipo_venta          VARCHAR(10) DEFAULT 'UNIDAD' CHECK (tipo_venta IN ('UNIDAD', 'PESO')),
-    unidad_medida       VARCHAR(10) DEFAULT 'und',   -- 'und', 'kg', 'lb', 'g', 'ml', 'L'
-    -- ── Variantes (v9) ──
-    grupo_variante_id   UUID REFERENCES grupos_variantes(id) ON DELETE SET NULL  -- NULL = producto sin grupo
+    unidad_medida       VARCHAR(10) DEFAULT 'und'   -- 'und', 'kg', 'lb', 'g', 'ml', 'L'
 );
 
--- 13b. producto_presentaciones — Formas de venta de un producto (cajetilla, pack, cubeta, etc.)
+-- 13b. template_atributos — Tipos de atributo que define un template (v10.1)
+-- Ej: template TAPIOCA define el tipo SABOR y el tipo TAMAÑO.
+-- Es la "paleta" del template: de aqui se generan los SKUs.
+CREATE TABLE IF NOT EXISTS template_atributos (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    template_id UUID NOT NULL REFERENCES producto_templates(id) ON DELETE CASCADE,
+    atributo_id UUID NOT NULL REFERENCES atributos(id) ON DELETE CASCADE,
+    UNIQUE (template_id, atributo_id)
+);
+
+-- 13c. template_atributo_opciones — Opciones seleccionadas por tipo en el template (v10.1)
+-- Ej: template TAPIOCA, tipo SABOR → opciones: FRESA, CHOCOLATE, VAINILLA.
+-- El producto cartesiano de todas las opciones = combinaciones posibles de SKUs.
+CREATE TABLE IF NOT EXISTS template_atributo_opciones (
+    id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    template_atributo_id UUID NOT NULL REFERENCES template_atributos(id) ON DELETE CASCADE,
+    atributo_opcion_id   UUID NOT NULL REFERENCES atributo_opciones(id) ON DELETE CASCADE,
+    UNIQUE (template_atributo_id, atributo_opcion_id)
+);
+
+-- 13d. producto_atributos — Relacion SKU <-> opcion de atributo (v10)
+-- Registra que combinacion tiene cada SKU generado (SABOR=Fresa, TAMAÑO=500g).
+-- Solo aplica a productos con template. Productos simples no tienen atributos.
+CREATE TABLE IF NOT EXISTS producto_atributos (
+    producto_id         UUID NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    atributo_opcion_id  UUID NOT NULL REFERENCES atributo_opciones(id) ON DELETE CASCADE,
+    PRIMARY KEY (producto_id, atributo_opcion_id)
+);
+
+-- 13c. producto_presentaciones — Formas de venta de un producto (cajetilla, pack, cubeta, etc.)
 -- Un producto puede tener 0..N presentaciones. Si tiene 0, se vende directamente (precio_venta del producto).
 -- Si tiene N, cada presentacion define su propio precio de venta y factor de conversion.
 -- Stock siempre vive en productos.stock_actual (unidad base). Al vender una presentacion,
 -- el trigger descuenta cantidad * factor_conversion del stock del producto.
+-- Aplica tanto a productos simples como a variantes (cada SKU puede tener sus propias presentaciones).
 CREATE TABLE IF NOT EXISTS producto_presentaciones (
     id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     producto_id       UUID NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
@@ -377,10 +449,11 @@ CREATE TABLE IF NOT EXISTS kardex_inventario (
     producto_id     UUID NOT NULL REFERENCES productos(id),
     fecha           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     tipo_movimiento VARCHAR(20) CHECK (tipo_movimiento IN ('VENTA', 'COMPRA', 'AJUSTE_POSITIVO', 'AJUSTE_NEGATIVO', 'ANULACION_VENTA')),
-    cantidad        DECIMAL(12,2) NOT NULL,
+    cantidad        DECIMAL(12,2) NOT NULL,   -- unidades base descontadas (ya incluye factor_conversion)
     stock_anterior  DECIMAL(12,2) NOT NULL,
     stock_nuevo     DECIMAL(12,2) NOT NULL,
-    referencia_id   UUID,
+    referencia_id   UUID,                     -- venta_id para VENTA/ANULACION, NULL para ajustes manuales
+    presentacion_id UUID REFERENCES producto_presentaciones(id) ON DELETE SET NULL,  -- NULL = venta directa o ajuste manual
     observaciones   TEXT
 );
 
@@ -442,7 +515,11 @@ CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_fecha          ON cuentas_cobrar(f
 CREATE INDEX IF NOT EXISTS idx_ventas_estado_pago            ON ventas(estado_pago);
 CREATE INDEX IF NOT EXISTS idx_ventas_metodo_pago            ON ventas(metodo_pago);
 CREATE INDEX IF NOT EXISTS idx_notas_completada              ON notas(completada, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_productos_grupo_variante      ON productos(grupo_variante_id) WHERE grupo_variante_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_productos_template               ON productos(producto_template_id) WHERE producto_template_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_producto_atributos_producto      ON producto_atributos(producto_id);
+CREATE INDEX IF NOT EXISTS idx_atributo_opciones_atributo       ON atributo_opciones(atributo_id);
+CREATE INDEX IF NOT EXISTS idx_template_atributos_template      ON template_atributos(template_id);
+CREATE INDEX IF NOT EXISTS idx_template_atrib_opciones_ta       ON template_atributo_opciones(template_atributo_id);
 
 -- ==========================================
 -- VISTAS
@@ -561,8 +638,8 @@ BEGIN
     SET stock_actual = stock_actual - v_cantidad_real
     WHERE id = NEW.producto_id;
 
-    INSERT INTO kardex_inventario (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_nuevo, referencia_id, observaciones)
-    VALUES (NEW.producto_id, 'VENTA', v_cantidad_real, v_stock_actual, v_stock_actual - v_cantidad_real, NEW.venta_id, 'Descuento automatico por Venta POS');
+    INSERT INTO kardex_inventario (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_nuevo, referencia_id, presentacion_id, observaciones)
+    VALUES (NEW.producto_id, 'VENTA', v_cantidad_real, v_stock_actual, v_stock_actual - v_cantidad_real, NEW.venta_id, NEW.presentacion_id, 'Descuento automatico por Venta POS');
 
     RETURN NEW;
 END;
@@ -620,29 +697,33 @@ CREATE TRIGGER trg_actualizar_caja_por_venta
 -- DATOS INICIALES
 -- ==========================================
 
+-- Tablas preservadas → INSERT idempotente (ON CONFLICT DO NOTHING)
 INSERT INTO tipos_servicio (codigo, nombre, porcentaje_comision, periodo_comision) VALUES
 ('BUS',     'Recargas Bus',     1.00, 'MENSUAL'),
-('CELULAR', 'Recargas Celular', 5.00, 'SEMANAL');
+('CELULAR', 'Recargas Celular', 5.00, 'SEMANAL')
+ON CONFLICT (codigo) DO NOTHING;
 
 INSERT INTO cajas (codigo, nombre, descripcion, saldo_actual) VALUES
 ('CAJA',         'Tienda',     'Bóveda principal — recibe el depósito del cajón en cada cierre',              0.00),
 ('CAJA_CHICA',   'Caja Chica', 'Cajón físico diario — ventas efectivo y egresos del día. Se resetea a $0 en cada cierre.', 0.00),
 ('VARIOS',       'Varios',     'Fondo de emergencia — recibe $20 diarios de transferencia en cada cierre',    0.00),
 ('CAJA_CELULAR', 'Celular',    'Saldo digital de recargas celular',                                           0.00),
-('CAJA_BUS',     'Bus',        'Saldo digital de recargas bus',                                               0.00);
+('CAJA_BUS',     'Bus',        'Saldo digital de recargas bus',                                               0.00)
+ON CONFLICT (codigo) DO NOTHING;
 
 INSERT INTO tipos_referencia (tabla, descripcion) VALUES
 ('recargas',               'Operaciones originadas desde recargas diarias'),
 ('turnos_caja',            'Operaciones originadas desde el cierre de turno (depósito, transferencia a Varios)'),
 ('recargas_virtuales',     'Pagos al proveedor celular y compras de saldo bus'),
 ('ventas',                 'Operaciones originadas desde ventas POS'),
-('movimientos_empleados',  'Egresos de caja originados desde adelantos de sueldo o pago de nómina');
+('movimientos_empleados',  'Egresos de caja originados desde adelantos de sueldo o pago de nómina')
+ON CONFLICT (tabla) DO NOTHING;
 
--- Agregar Consumidor Final Básico
-INSERT INTO clientes (identificacion, nombre, es_consumidor_final) 
+-- Consumidor Final — tabla clientes sí se borra y recrea, por eso no necesita ON CONFLICT
+INSERT INTO clientes (identificacion, nombre, es_consumidor_final)
 VALUES ('9999999999999', 'CONSUMIDOR FINAL', TRUE);
 
--- Categorías de Productos Iniciales (Semilla)
+-- Categorías de Productos Iniciales
 INSERT INTO categorias_productos (nombre) VALUES
 ('Bebidas'),
 ('Snacks'),
@@ -656,6 +737,7 @@ ON CONFLICT (nombre) DO NOTHING;
 -- codigo se omite: el trigger fn_set_codigo_categoria_operacion() lo genera automáticamente
 -- EGRESO → EG-001, EG-002... / INGRESO → IN-001, IN-002...
 -- seleccionable = FALSE → creada por funciones SQL, no aparece en dropdowns del usuario
+-- ON CONFLICT (codigo) DO NOTHING — tabla preservada, no se borra
 INSERT INTO categorias_operaciones (tipo, nombre, descripcion, seleccionable) VALUES
 -- EGRESOS (EG-001 a EG-014)
 ('EGRESO',  'Compras/Mercadería',               'Compra de productos para reventa o uso en el negocio',                              TRUE),
@@ -677,7 +759,8 @@ INSERT INTO categorias_operaciones (tipo, nombre, descripcion, seleccionable) VA
 ('INGRESO', 'Devoluciones de Proveedores',      'Devolución de dinero por parte de proveedores',                                     TRUE),
 ('INGRESO', 'Otros Ingresos',                   'Otros ingresos no clasificados',                                                    TRUE),
 ('INGRESO', 'Reposición Déficit Turno Anterior','Ingreso a Varios por reposición del déficit pendiente del turno anterior',          FALSE),
-('INGRESO', 'Ajuste Diferencia Conteo',         'Ajuste al cierre cuando el conteo físico supera al saldo digital del cajón',       FALSE);
+('INGRESO', 'Ajuste Diferencia Conteo',         'Ajuste al cierre cuando el conteo físico supera al saldo digital del cajón',       FALSE)
+ON CONFLICT (codigo) DO NOTHING;
 
 INSERT INTO configuraciones (clave, valor) VALUES
 ('negocio_nombre',                'Panaderia Don Viche'),
@@ -689,27 +772,30 @@ INSERT INTO configuraciones (clave, valor) VALUES
 ('pos_descuento_maximo_pct',      '10'),
 ('pos_umbral_monto_descuento',    '50.00'),
 ('pos_iva_porcentaje',            '15'),
-('nomina_sueldo_base',            '450');
+('nomina_sueldo_base',            '450')
+ON CONFLICT (clave) DO NOTHING;
 
 INSERT INTO usuarios (nombre, usuario, rol, es_superadmin) VALUES
-('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN', TRUE);
+('Ivan Sanchez', 'ivansan2192@gmail.com', 'ADMIN', TRUE)
+ON CONFLICT (usuario) DO NOTHING;
 
 -- (sin datos de prueba de productos — crear manualmente desde la app)
 
 -- ==========================================
--- RESUMEN (v9.0)
+-- RESUMEN (v10.1)
 -- ==========================================
--- v9: Grupos de variantes para productos relacionados (Lark Azul, Lark Rojo, etc.).
---     Nueva tabla grupos_variantes (nombre UNIQUE, CHECK UPPER/TRIM).
---     Nueva columna productos.grupo_variante_id (FK nullable, ON DELETE SET NULL).
---     Índice parcial idx_productos_grupo_variante (solo filas con grupo asignado).
+-- v10: Modelo de atributos dinamicos para variantes de producto.
+--      Nuevas tablas: atributos, atributo_opciones, producto_templates, producto_atributos.
+--      Eliminada: grupos_variantes (reemplazada por producto_templates).
+--      Eliminada: productos.grupo_variante_id (reemplazada por producto_template_id).
+--      Regla de herencia: si producto_template_id IS NOT NULL, categoria/IVA/tipo_venta
+--        se leen del template. Los campos locales del producto se ignoran en logica.
 -- v8: Modelo de presentaciones reemplaza padre-hijo.
 --     Nueva tabla producto_presentaciones (factor_conversion, precio_venta, codigo_barras propio).
---     Eliminados de productos: producto_hijo_id, factor_conversion, constraints padre-hijo.
---     ventas_detalles: presentacion_id reemplaza producto_stock_id + cantidad_stock.
+--     ventas_detalles: presentacion_id para ventas via presentacion.
 --     Trigger fn_actualizar_stock_venta: usa factor de presentacion (si aplica) para descontar stock.
 --     Granel (tipo_venta PESO + unidad_medida) se mantiene sin cambios desde v7.
--- ✅ 20 Tablas | 3 Enums | 31 Indices | 1 Vista
+-- ✅ 23 Tablas | 3 Enums | 33 Indices | 1 Vista
 -- ✅ 2 Tipos de servicio (BUS, CELULAR)
 -- ✅ 5 Tipos de referencia
 -- ✅ 19 Categorias de operaciones (14 egresos + 5 ingresos)
@@ -724,6 +810,7 @@ INSERT INTO usuarios (nombre, usuario, rol, es_superadmin) VALUES
 -- ❌ Tablas eliminadas en v5: caja_fisica_diaria, gastos_diarios, categorias_gastos
 -- ❌ Tablas eliminadas en v6: deudas_empleados (cuenta corriente ahora en movimientos_empleados)
 -- ❌ Eliminado en v8: producto_hijo_id, factor_conversion en productos (reemplazado por producto_presentaciones)
+-- ❌ Eliminado en v10: grupos_variantes (reemplazado por producto_templates + atributos)
 --
 -- ⚠️  FUNCIONES POSTGRESQL (archivos separados, ejecutar despues del schema):
 --   Dashboard:
@@ -759,7 +846,7 @@ INSERT INTO usuarios (nombre, usuario, rol, es_superadmin) VALUES
 --   Notas:
 --   • fn_eliminar_nota                          → docs/notas/sql/functions/fn_eliminar_nota.sql
 --
--- ✅ 20 Tablas | 27 Funciones SQL | Granel (v7) + Presentaciones (v8) + Variantes (v9)
+-- ✅ 23 Tablas | 27 Funciones SQL | Granel (v7) + Presentaciones (v8) + Templates/Atributos (v10)
 -- (6 dashboard + 4 recargas + 2 POS + 3 cuentas-cobrar + 3 inventario + 3 ventas + 2 nomina + 1 notas + 3 triggers/helpers)
 -- ==========================================
 

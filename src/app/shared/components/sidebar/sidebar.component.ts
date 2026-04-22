@@ -20,6 +20,7 @@ import { TurnosCajaService } from '../../../features/dashboard/services/turnos-c
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
 import { addIcons } from 'ionicons';
+import { ROUTES } from '@core/config/routes.config';
 
 interface MenuItem {
   title: string;
@@ -56,6 +57,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
   @Output() accionRapida = new EventEmitter<'nueva-nota' | 'cuadre' | 'calculadora'>();
 
+  // Ruta de configuracion (usada en template)
+  readonly configuracionRoute = ROUTES.configuracion.root;
+
   // Iconos
   userIcon = personCircleOutline;
   logoutIcon = logOutOutline;
@@ -76,32 +80,32 @@ export class SidebarComponent implements OnInit, OnDestroy {
     {
       label: 'Principal',
       items: [
-        { title: 'Inicio', url: '/home', icon: homeOutline, exact: true },
-        { title: 'POS', url: '/pos', icon: barcodeOutline, soloPos: true },
-        { title: 'Inventario', url: '/inventario', icon: cubeOutline },
-        { title: 'Ventas', url: '/ventas', icon: receiptOutline },
+        { title: 'Inicio', url: ROUTES.home, icon: homeOutline, exact: true },
+        { title: 'POS', url: ROUTES.pos, icon: barcodeOutline, soloPos: true },
+        { title: 'Inventario', url: ROUTES.inventario.root, icon: cubeOutline },
+        { title: 'Ventas', url: ROUTES.ventas.root, icon: receiptOutline },
       ]
     },
     {
       label: 'Gestión',
       items: [
-        { title: 'Notas', url: '/notas', icon: readerOutline },
-        { title: 'Cuentas por Cobrar', url: '/cuentas-cobrar', icon: handRightOutline },
-        { title: 'Clientes', url: '/clientes', icon: personOutline },
+        { title: 'Notas', url: ROUTES.notas, icon: readerOutline },
+        { title: 'Cuentas por Cobrar', url: ROUTES.cuentasCobrar.root, icon: handRightOutline },
+        { title: 'Clientes', url: ROUTES.clientes, icon: personOutline },
       ]
     },
     {
       label: 'Recargas',
       items: [
-        { title: 'Historial de Recargas', url: '/historial-recargas', icon: listOutline },
-        { title: 'Saldo Virtual', url: '/home/recargas-virtuales', icon: swapHorizontalOutline },
+        { title: 'Historial de Recargas', url: ROUTES.historialRecargas, icon: listOutline },
+        { title: 'Saldo Virtual', url: ROUTES.recargasVirtuales, icon: swapHorizontalOutline },
       ]
     },
     {
       label: 'Admin',
       items: [
-        { title: 'Cuentas Empleados', url: '/movimientos-empleados', icon: walletOutline, soloAdmin: true },
-        { title: 'Usuarios', url: '/usuarios', icon: peopleOutline, soloAdmin: true }
+        { title: 'Cuentas Empleados', url: ROUTES.movimientosEmpleados.root, icon: walletOutline, soloAdmin: true },
+        { title: 'Usuarios', url: ROUTES.usuarios, icon: peopleOutline, soloAdmin: true }
       ]
     }
   ];

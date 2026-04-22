@@ -33,6 +33,7 @@ import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { ConfigService } from '../../../../core/services/config.service';
 import { Configuracion } from '../../../configuracion/models/configuracion.model';
+import { ROUTES } from '../../../../core/config/routes.config';
 
 @Component({
   selector: 'app-pos',
@@ -948,7 +949,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         { text: 'Cancelar', role: 'cancel' },
         {
           text: 'Ir a Inicio',
-          handler: () => this.router.navigate(['/home'])
+          handler: () => this.router.navigate([ROUTES.home])
         }
       ]
     });

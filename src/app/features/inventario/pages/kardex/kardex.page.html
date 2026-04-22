@@ -8,13 +8,22 @@
         <ion-title>
             <div class="kardex-title">
                 Kárdex de Inventario
-                <span class="product-name text-muted">{{ productoNombre }}</span>
+                <span class="product-name text-muted">
+                    @if (templateNombre) {
+                        {{ templateNombre }} ·
+                    }
+                    {{ productoNombre }}
+                </span>
             </div>
         </ion-title>
     </ion-toolbar>
 </ion-header>
 
 <ion-content color="light">
+    <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+        <ion-refresher-content></ion-refresher-content>
+    </ion-refresher>
+
     <div class="p-md">
 
         <!-- Stock actual + botón ajustar -->
@@ -60,10 +69,19 @@
                 <!-- Cantidad -->
                 <div class="campo">
                     <label class="campo-label">Cantidad *</label>
-                    <input class="campo-input" [(ngModel)]="cantidad"
-                        type="number" [attr.inputmode]="esPeso ? 'decimal' : 'numeric'" [min]="esPeso ? 0.001 : 1"
-                        [step]="esPeso ? 0.001 : 1"
-                        [placeholder]="esPeso ? 'Ej. 2.5 ' + unidadMedida : 'Ej. 10'">
+                    <ion-item class="campo-ion-input flat-item" lines="none">
+                        <ion-input
+                            [(ngModel)]="cantidad"
+                            type="number"
+                            [inputmode]="esPeso ? 'decimal' : 'numeric'"
+                            [min]="esPeso ? 0.001 : 1"
+                            [step]="esPeso ? 0.001 : 1"
+                            [placeholder]="esPeso ? 'Ej. 2.5 ' + unidadMedida : 'Ej. 10'">
+                        </ion-input>
+                        @if (unidadMedida !== 'und') {
+                        <span slot="end" class="campo-unidad">{{ unidadMedida }}</span>
+                        }
+                    </ion-item>
                 </div>
 
                 <!-- Observaciones -->
@@ -142,6 +160,13 @@
                             <span class="pill pill-nuevo">Quedan: {{ mov.stock_nuevo }}{{ esPeso ? ' ' + unidadMedida : '' }}</span>
                         </div>
                     </div>
+
+                    @if (mov.presentacion) {
+                    <div class="timeline-presentacion mt-xs">
+                        <ion-icon name="pricetag-outline"></ion-icon>
+                        {{ mov.presentacion.nombre }} (x{{ mov.presentacion.factor_conversion }})
+                    </div>
+                    }
 
                     @if (mov.observaciones) {
                     <div class="timeline-footer mt-xs text-xs text-medium">

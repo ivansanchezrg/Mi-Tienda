@@ -1,7 +1,8 @@
 # Inventario — Documentacion del modulo
 
 Gestion completa de productos: CRUD, categorias, stock, kardex (auditoria),
-y el sistema de presentaciones para multiples formatos de venta (cajetilla, cubeta, etc.).
+sistema de presentaciones para multiples formatos de venta, y creacion de
+productos con variantes (atributos + opciones combinables).
 
 ---
 
@@ -10,28 +11,51 @@ y el sistema de presentaciones para multiples formatos de venta (cajetilla, cube
 ```
 features/inventario/
 ├── pages/
-│   ├── main/                    # Grid de productos con filtros y categorias
+│   ├── main/                    # Grid de productos con chips de categorias scrollables
 │   │   ├── inventario.page.ts
 │   │   ├── inventario.page.html
 │   │   └── inventario.page.scss
-│   ├── producto-form/           # Crear / Editar producto (incluye presentaciones)
+│   ├── selector-tipo/           # Paso previo a crear: elige Producto Simple vs Con Variantes
+│   │   ├── selector-tipo.page.ts
+│   │   ├── selector-tipo.page.html
+│   │   └── selector-tipo.page.scss
+│   ├── producto-form/           # Crear (modo simple) / Editar producto (incluye presentaciones)
 │   │   ├── producto-form.page.ts
 │   │   ├── producto-form.page.html
 │   │   └── producto-form.page.scss
+│   ├── producto-variantes/      # Wizard 3 pasos para crear productos con variantes
+│   │   ├── producto-variantes.page.ts
+│   │   ├── producto-variantes.page.html
+│   │   └── producto-variantes.page.scss
 │   └── kardex/                  # Historial de movimientos + ajustes manuales
 │       ├── kardex.page.ts
 │       ├── kardex.page.html
 │       └── kardex.page.scss
 ├── services/
-│   └── inventario.service.ts    # Queries, CRUD, presentaciones, ajustes de stock
+│   └── inventario.service.ts    # Queries, CRUD, presentaciones, variantes, ajustes de stock
 ├── components/
-│   └── presentacion-modal/      # Modal bottom-sheet para crear/editar presentaciones
+│   ├── presentacion-modal/      # Modal bottom-sheet para crear/editar presentaciones
+│   └── atributo-modal/          # Modal para gestionar atributos (no usado directamente, inline en producto-variantes)
 ├── models/
-│   ├── producto.model.ts        # Producto, ProductoPOS, ProductoPresentacion, GrupoVariante, TipoVenta
+│   ├── producto.model.ts        # Producto, ProductoPOS, ProductoPresentacion, Atributo, AtributoOpcion, TipoVenta
 │   ├── categoria-producto.model.ts
 │   └── kardex.model.ts          # KardexInventario, TipoMovimientoKardex
-└── inventario.routes.ts         # Lazy-load: '' | 'nuevo' | 'editar/:id' | 'kardex/:id'
+└── inventario.routes.ts         # Lazy-load: '' | 'nuevo' | 'nuevo-simple' | 'nuevo-variantes' | 'editar/:id' | 'kardex/:id'
 ```
+
+---
+
+## Flujo de creacion de producto
+
+```
+Boton "Nuevo" (o scan codigo)
+  ↓
+/inventario/nuevo  →  SelectorTipoPage
+  ├─ "Producto Simple"   →  /inventario/nuevo-simple  (ProductoFormPage en modo CREAR)
+  └─ "Con Variantes"     →  /inventario/nuevo-variantes  (ProductoVariantesPage — wizard 3 pasos)
+```
+
+`SelectorTipoPage` pasa `?codigo=EAN` como queryParam cuando el usuario llego desde el scanner, para prellenar el codigo en el formulario simple.
 
 ---
 
@@ -81,17 +105,24 @@ muestra la seccion de presentaciones cuando `tipo_venta === 'UNIDAD'`.
 
 ---
 
-## Concepto clave: Grupos de Variantes
+## Concepto clave: Productos con Variantes (atributos + opciones)
 
-Los **grupos de variantes** agrupan productos que son fisicamente distintos pero pertenecen
-a la misma familia (ej: sabores de Tapioca, colores de camiseta). Cada variante es un
-producto completo con stock, precio y codigo de barras independientes.
+Los **productos con variantes** son grupos de productos fisicamente distintos que comparten
+una familia comun, definida por combinaciones de atributos (ej: Sabor, Color, Talla).
+
+Cada variante generada es un **producto completo e independiente** en la tabla `productos`,
+con su propio stock, precio y codigo de barras. No existe una tabla padre — la agrupacion
+se hace via la tabla `atributos_producto_variante` que mapea cada variante a sus opciones.
 
 ```
-Grupo: TAPIOCA
-  ├─ Tapioca Fresa       → stock: 24, precio: $1.50, EAN: 123456
-  ├─ Tapioca Chocolate   → stock: 18, precio: $1.50, EAN: 123457
-  └─ Tapioca Maracuya    → stock: 30, precio: $1.75, EAN: 123458
+Atributo: SABOR  →  Opciones: [FRESA, CHOCOLATE, MARACUYA]
+Atributo: TAMANIO → Opciones: [CHICO, GRANDE]
+
+Combinaciones generadas:
+  Tapioca FRESA CHICO     → producto_id: A, stock: 0, precio: $1.50
+  Tapioca FRESA GRANDE    → producto_id: B, stock: 0, precio: $2.00
+  Tapioca CHOCOLATE CHICO → producto_id: C, stock: 0, precio: $1.50
+  ...
 ```
 
 ### Variantes vs Presentaciones
@@ -102,56 +133,118 @@ Grupo: TAPIOCA
 | Stock | **Compartido** (unidad base) | **Independiente** por variante |
 | Codigo de barras | Uno por presentacion | Uno por variante |
 | Relacion fisica | Es el mismo producto | Son productos fisicamente distintos |
-| Tabla | `producto_presentaciones` | `grupos_variantes` + FK en `productos` |
+| Tabla | `producto_presentaciones` | `atributos` + `atributo_opciones` + `atributos_producto_variante` |
 
-Una variante PUEDE tener sus propias presentaciones (ej: Tapioca Fresa en pack x6).
+Una variante PUEDE tener sus propias presentaciones.
 
-### Tabla `grupos_variantes`
+### Tablas de variantes
 
 ```sql
-CREATE TABLE grupos_variantes (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nombre      VARCHAR(100) NOT NULL UNIQUE,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT grupos_variantes_nombre_normalizado CHECK (nombre = UPPER(TRIM(nombre)))
+-- Tipos de atributo reutilizables: SABOR, COLOR, TALLA...
+CREATE TABLE atributos (
+    id     UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre VARCHAR(100) NOT NULL UNIQUE  -- normalizado UPPER(TRIM()) en BD
+);
+
+-- Opciones de cada atributo: FRESA, CHOCOLATE, ROJO, AZUL...
+CREATE TABLE atributo_opciones (
+    id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    atributo_id  UUID NOT NULL REFERENCES atributos(id) ON DELETE CASCADE,
+    valor        VARCHAR(100) NOT NULL  -- normalizado UPPER(TRIM()) en BD
+);
+
+-- Relacion variante ↔ opciones (qué combinacion define a cada producto)
+CREATE TABLE atributos_producto_variante (
+    producto_id UUID REFERENCES productos(id) ON DELETE CASCADE,
+    opcion_id   UUID REFERENCES atributo_opciones(id) ON DELETE CASCADE,
+    PRIMARY KEY (producto_id, opcion_id)
 );
 ```
 
-FK en `productos`:
-```sql
-grupo_variante_id UUID REFERENCES grupos_variantes(id) ON DELETE SET NULL
+---
+
+## Wizard de creacion con variantes (`ProductoVariantesPage`)
+
+Flujo en 3 pasos dentro de la misma pagina (sin routing entre ellos):
+
+### Paso 1 — Datos base del template
+
+Campos compartidos por todas las variantes:
+- Nombre base (ej: "Tapioca") — las variantes se nombran `TAPIOCA FRESA`, `TAPIOCA CHOCOLATE`, etc.
+- Categoria, IVA, tipo de venta
+- Precio costo y venta base (cada variante hereda estos valores; editables en el paso 3)
+- Stock minimo (compartido)
+- Margen de ganancia calculado en tiempo real (mismo patron que `ProductoFormPage`)
+
+### Paso 2 — Definicion de atributos y opciones
+
+- Agregar atributos con autocompletado (`buscarAtributos` ILIKE, debounce 300ms)
+- Si el texto no coincide con ninguno existente: boton "Crear tipo" llama a `crearOObtenerAtributo()`
+- Por cada atributo: agregar opciones con autocompletado (`buscarOpcionesAtributo`)
+- Si la opcion no existe: boton "Crear opcion" llama a `crearOObtenerOpcionAtributo()`
+- Un atributo puede estar en edicion a la vez (`tipoEnEdicion`), el panel muestra sugerencias
+- Resumen en tiempo real: "X combinaciones se generaran"
+
+### Paso 3 — Revision y ajuste de SKUs
+
+- Se generan todas las combinaciones cartesianas de los atributos seleccionados
+- Cada SKU muestra nombre, precio costo, precio venta, stock inicial, margen y campo de codigo de barras
+- El usuario puede deseleccionar SKUs que no quiere crear (toggle)
+- Los precios de cada SKU son editables individualmente
+- Boton escaner por SKU (one-shot via `BarcodeScannerService`)
+- Boton "Crear X variantes" → llama a `inventarioService.crearProductoConVariantes()` via RPC atomica
+
+### Guardado atomico
+
+```typescript
+// Llama fn_crear_producto_con_variantes (RPC SQL) — todo en una transaccion
+await this.inventarioService.crearProductoConVariantes({
+    nombre, categoria_id, tiene_iva, tipo_venta, unidad_medida,
+    atributos_template: [{ atributo_nombre, opcion_ids }],
+    variantes: [{ nombre, precio_costo, precio_venta, stock_actual, stock_minimo, opcion_ids, codigo_barras }]
+});
 ```
 
-`ON DELETE SET NULL`: si se elimina un grupo, los productos quedan sueltos (no se pierden datos).
+---
 
-### Gestion desde el formulario de producto
+## Grid de inventario (`InventarioPage`)
 
-Los grupos se crean y asignan directamente desde el formulario del producto (no hay pagina dedicada):
+### Filtro por categorias — chips scrollables horizontales
 
-- **Buscar grupo existente**: input con autocompletado (`buscarGruposVariantes`)
-- **Crear grupo nuevo**: boton "Crear grupo" aparece si el texto no coincide con ningun grupo existente
-- **Ver hermanas**: al seleccionar un grupo, se muestran las demas variantes del grupo (nombre, stock, precio)
-- **Quitar del grupo**: boton X que desvincula el producto sin eliminar el grupo
+El filtro cambio de un boton dropdown (modal) a una barra de chips horizontales estilo
+Google Play / supermercado:
 
-El patron de creacion usa `INSERT ON CONFLICT DO NOTHING` + `SELECT` separado — nunca falla por duplicado.
+- Chips: "Todas" + una por categoria + "Desactivados" (al final, color neutro)
+- El chip activo se destaca con fondo primario
+- Al tocar un chip, **se centra automaticamente** en el contenedor con `scrollTo({ behavior: 'smooth' })`
+  usando la formula: `chipLeft - containerWidth/2 + chipWidth/2`
+- La barra oculta el scrollbar nativo en todas las plataformas (`scrollbar-width: none`)
+- El `@ViewChild('categoriaScroll')` apunta al contenedor `div.categories-scroll`
 
-### Visualizacion en el grid de inventario
+```typescript
+// inventario.page.ts
+seleccionarCategoria(value: string, event: MouseEvent) {
+    this.onFiltroChange(value);
+    this.centrarChip(event.currentTarget as HTMLElement);
+}
 
-Cada producto que pertenece a un grupo muestra un badge con el nombre del grupo:
-
-```html
-@if (prod.grupo_variante) {
-    <span class="tipo-tag variante">
-        <ion-icon name="color-palette-outline"></ion-icon>
-        {{ prod.grupo_variante.nombre }}
-    </span>
+private centrarChip(chip: HTMLElement) {
+    const container = this.categoriaScrollRef.nativeElement;
+    const scrollTarget = chip.offsetLeft - container.offsetWidth / 2 + chip.offsetWidth / 2;
+    container.scrollTo({ left: scrollTarget, behavior: 'smooth' });
 }
 ```
 
-### Impacto en POS y funciones SQL
+### Badges en las tarjetas de producto
 
-**Ninguno.** Cada variante es un producto completo — el POS, triggers, kardex y funciones SQL
-no necesitan cambios. La agrupacion es puramente visual/organizacional.
+| Badge | Condicion | Estilo |
+|-------|-----------|--------|
+| `Agotado` | `stock_actual === 0` | Rojo, animacion pulse |
+| `Bajo: N` | `stock_actual <= stock_minimo` | Amarillo |
+| `N` (stock) | Normal | Negro semi-transparente |
+| `kg` / `lb` (tipo_tag) | `tipo_venta === 'PESO'` | Azul terciario |
+| `N present.` (tipo_tag) | Tiene presentaciones activas | Verde secundario |
+| `INACTIVO` (overlay) | Producto desactivado | Gris (pseudo-elemento `::after`) |
 
 ---
 
@@ -222,21 +315,22 @@ Emitido desde el servicio en CRUD, ajustes de stock **y operaciones sobre presen
 
 ### Presentaciones y reactividad
 
-Cuando se crea, edita o desactiva una presentación, el servicio llama a `emitirCambioPorPresentacion(productoId)`:
+Cuando se crea, edita o desactiva una presentacion, el servicio llama a `emitirCambioPorPresentacion(productoId)`:
 
 1. Hace `obtenerProductoPorId(id)` — que incluye `presentaciones:producto_presentaciones(id)` con filtro `activo = true`
 2. Emite evento `ACTUALIZADO` con el producto ya refrescado
 3. El grid actualiza la tarjeta (badge de presentaciones, etc.) sin necesidad de navegar
 
 ```typescript
-// inventario.service.ts — método privado
+// inventario.service.ts — metodo privado
 private async emitirCambioPorPresentacion(productoId: string): Promise<void> {
     const producto = await this.obtenerProductoPorId(productoId);
     if (producto) this.productoChange$.next({ tipo: 'ACTUALIZADO', producto });
 }
 ```
 
-> **Importante:** `obtenerProductoPorId` incluye el join a `producto_presentaciones` con filtro de activo. Sin este join, `presentaciones` llega como `undefined` y el badge de conteo desaparece al navegar de vuelta al grid. El join trae solo el campo `id` — suficiente para `presentaciones.length` en la UI.
+> `obtenerProductoPorId` incluye el join a `producto_presentaciones` con filtro de activo.
+> El join trae solo el campo `id` — suficiente para `presentaciones.length` en la UI.
 
 ---
 
@@ -244,33 +338,32 @@ private async emitirCambioPorPresentacion(productoId: string): Promise<void> {
 
 ### Modos
 
-- **CREAR**: todos los campos editables, stock inicial obligatorio
-- **EDITAR**: codigo de barras readonly, stock readonly, + seccion presentaciones
+- **CREAR** (`/inventario/nuevo-simple`): todos los campos editables, stock inicial obligatorio
+- **EDITAR** (`/inventario/editar/:id`): codigo de barras readonly, stock readonly, + seccion presentaciones
 
-### Campo de codigo de barras — comportamiento dinámico
+### Campo de codigo de barras — comportamiento dinamico
 
-Solo editable en modo **CREAR**. En modo EDITAR el codigo es readonly (no se puede cambiar después de creado).
+Solo editable en modo **CREAR**. En modo EDITAR el codigo es readonly.
 
 El input en modo CREAR tiene dos estados con mensaje de ayuda contextual:
+- **Vacio**: mensaje gris con icono `sparkles-outline` — informa que se generara un codigo automaticamente via trigger (`fn_generar_codigo_interno`)
+- **Con valor**: mensaje verde con icono `checkmark-circle-outline` — confirma que ese codigo se usara en el POS
 
-- **Vacío**: mensaje gris con icono `sparkles-outline` — informa que se generará un codigo automáticamente via trigger (`fn_generar_codigo_interno`)
-- **Con valor**: mensaje verde con icono `checkmark-circle-outline` — confirma que ese codigo se usará en el POS
-
-El botón de escáner llama a `BarcodeScannerService.scan()` — one-shot, cierra solo al detectar un código.
+El boton de escaner llama a `BarcodeScannerService.scan()` — one-shot, cierra solo al detectar un codigo.
 
 ### Margen de ganancia — badge visual
 
-Badge siempre verde (`#2e7d32`) junto al título del campo. Muestra porcentaje y monto absoluto. Sin variantes de color — la pantalla de calculadora de margen es el lugar para analizar umbrales.
+Badge siempre verde (`#2e7d32`) junto al titulo del campo. Muestra porcentaje y monto absoluto.
 
-### Sección Presentaciones
+### Seccion Presentaciones
 
 Disponible en modo **CREAR** y **EDITAR**, solo cuando `tipo_venta === 'UNIDAD'`.
 
 #### Modo EDITAR (desde BD)
 
-Lista de presentaciones activas + opción de ver inactivas (toggle). Cada presentacion se gestiona via `PresentacionModalComponent` (bottom sheet):
-- **Agregar**: modal con callback `onConfirmar` que persiste directamente en BD. Emite `emitirCambioPorPresentacion()` automáticamente desde el servicio.
-- **Editar**: modal con callback `onConfirmar` que actualiza en BD. Luego recarga la lista local via `obtenerPresentaciones()`.
+Lista de presentaciones activas + opcion de ver inactivas (toggle). Cada presentacion se gestiona via `PresentacionModalComponent` (bottom sheet):
+- **Agregar**: modal con callback `onConfirmar` que persiste directamente en BD. Emite `emitirCambioPorPresentacion()` automaticamente desde el servicio.
+- **Editar**: modal con callback `onConfirmar` que actualiza en BD.
 - **Eliminar**: confirm dialog → soft delete (`activo = false`). Las ventas anteriores conservan historial.
 - **Reactivar**: visible en el panel de inactivas, restaura `activo = true`.
 
@@ -278,11 +371,10 @@ Lista de presentaciones activas + opción de ver inactivas (toggle). Cada presen
 
 Las presentaciones se acumulan en `presentacionesNuevas[]` sin tocar la BD. Al guardar el producto:
 1. `crearProducto()` → obtiene el ID del producto nuevo
-2. `crearPresentacion()` en paralelo para cada presentación (modo silencioso, sin toast/loading individual)
-3. Se emite un evento `ACTUALIZADO` manual con el producto + presentaciones ya combinados, para que el grid de inventario lo muestre correctamente desde el primer momento
+2. `crearPresentacion()` en paralelo para cada presentacion (modo silencioso)
+3. Se emite un evento `ACTUALIZADO` manual para que el grid lo muestre correctamente
 
 ```typescript
-// producto-form.page.ts — flujo CREAR con presentaciones
 const productoCreado = await this.inventarioService.crearProducto(payload);
 if (productoCreado.id && this.presentacionesNuevas.length > 0) {
     const presentaciones = await Promise.all(
@@ -298,8 +390,8 @@ if (productoCreado.id && this.presentacionesNuevas.length > 0) {
 
 Se abre como `bottom-sheet-modal` (breakpoints `[0, 1]`, sin scroll largo). Muestra:
 - Nombre del producto padre como badge pill (color primario, alineado izquierda)
-- Badge de margen siempre verde junto al título (`#2e7d32`, igual que el form del producto)
-- Input de codigo de barras con botón escáner y hint dinámico (mismo patrón que el form del producto)
+- Badge de margen siempre verde junto al titulo
+- Input de codigo de barras con boton escaner y hint dinamico
 - `precio_costo` propio del paquete — no se deriva del precio base del producto
 
 ### Validaciones del formulario
@@ -339,10 +431,8 @@ porque con el modelo de presentaciones, el stock siempre vive en el producto.
 Se dispara `AFTER INSERT ON ventas_detalles`. Logica:
 
 ```sql
--- Si tiene presentacion_id, buscar factor_conversion
 IF NEW.presentacion_id IS NOT NULL THEN
-    SELECT factor_conversion INTO v_factor
-    FROM producto_presentaciones WHERE id = NEW.presentacion_id;
+    v_factor := (SELECT factor_conversion FROM producto_presentaciones WHERE id = NEW.presentacion_id);
 ELSE
     v_factor := 1;
 END IF;
@@ -355,21 +445,6 @@ v_cantidad_real := NEW.cantidad * v_factor;
 |------|----------------|-------------|----------|
 | Producto directo | NULL | producto_id | cantidad |
 | Presentacion (cajetilla x20) | UUID de la presentacion | producto_id (base) | cantidad * 20 |
-
-### Flujo completo de una venta con presentacion
-
-```
-POS: vender 2 cajetillas x20 (factor=20) de Cigarro Marlboro
-  ↓
-CartItem: { id: cigarro, cantidad: 2, presentacion_id: UUID-cajetilla20, factor_conversion: 20 }
-  ↓
-fn_registrar_venta_pos → INSERT ventas_detalles(producto_id=cigarro, cantidad=2, presentacion_id=UUID-cajetilla20)
-  ↓
-Trigger → factor=20, cantidad_real=2*20=40
-  ↓
-UPDATE productos SET stock_actual = stock_actual - 40 WHERE id = cigarro
-INSERT kardex_inventario (producto_id=cigarro, cantidad=40, tipo='VENTA')
-```
 
 ### Anulacion (flujo inverso)
 
@@ -392,13 +467,18 @@ END LOOP;
 
 ## Modelos
 
-### `GrupoVariante`
+### `Atributo` / `AtributoOpcion`
 
 ```typescript
-interface GrupoVariante {
+interface Atributo {
     id: string;
-    nombre: string;           // UPPER(TRIM()) — normalizado en BD
-    created_at?: string;
+    nombre: string;      // UPPER(TRIM()) — normalizado en BD
+}
+
+interface AtributoOpcion {
+    id: string;
+    atributo_id: string;
+    valor: string;       // UPPER(TRIM()) — normalizado en BD
 }
 ```
 
@@ -419,9 +499,7 @@ interface Producto {
     imagen_url?: string;
     tipo_venta: 'UNIDAD' | 'PESO';
     unidad_medida: string;           // 'und', 'kg', 'lb', etc.
-    grupo_variante_id?: string;      // FK a grupos_variantes
     categoria?: CategoriaProducto;
-    grupo_variante?: GrupoVariante;  // JOIN opcional
     presentaciones?: ProductoPresentacion[];
 }
 ```
@@ -435,7 +513,7 @@ interface ProductoPresentacion {
     nombre: string;
     factor_conversion: number;   // INTEGER: unidades base por presentacion
     precio_venta: number;
-    precio_costo: number;        // costo real del paquete (obligatorio, no derivado del base)
+    precio_costo: number;
     codigo_barras?: string;
     es_principal: boolean;
     activo: boolean;
@@ -453,37 +531,38 @@ interface CartItem extends ProductoPOS {
     cantidad: number;
     subtotal: number;
     stock_disponible: number;
-    presentacion_id?: string;         // UUID de la presentacion (null si venta directa)
-    presentacion_nombre?: string;     // Para mostrar en UI: "Cajetilla x10"
-    factor_conversion?: number;       // Para calcular stock: cantidad * factor
+    presentacion_id?: string;
+    presentacion_nombre?: string;
+    factor_conversion?: number;
 }
 ```
 
 ---
 
-## Escáner de códigos de barras
+## Escaner de codigos de barras
 
 El inventario usa `BarcodeScannerService` (`core/services/`) para todas las operaciones de escaneo. **No llama directamente a `@capacitor-mlkit/barcode-scanning`.**
 
-| Punto de escaneo | Método usado | Comportamiento |
+| Punto de escaneo | Metodo usado | Comportamiento |
 |-----------------|-------------|----------------|
-| Grid inventario — botón escáner | `scan()` | One-shot: escanea 1 código y cierra. Si el producto ya existe: ofrece editar o ver kardex. Si no existe: navega a crear con el código prellenado. La página gestiona el flag `escaneando` para mostrar un spinner mientras la cámara está activa |
-| Formulario producto — campo código | `scan()` | One-shot: parchea `codigo_barras` en el form con el código capturado. Solo disponible en modo CREAR (en EDITAR el campo es readonly) |
-| Modal presentación — campo código | `scan()` | One-shot: parchea `codigo_barras` en el form del modal |
+| Grid inventario — boton escaner | `scan()` | One-shot: si el producto ya existe ofrece editar o ver kardex; si no existe navega a `/inventario/nuevo?codigo=EAN` |
+| Formulario simple — campo codigo | `scan()` | One-shot: parchea `codigo_barras` en el form. Solo en modo CREAR |
+| Modal presentacion — campo codigo | `scan()` | One-shot: parchea `codigo_barras` en el form del modal |
+| Wizard variantes (paso 3) | `scan()` | One-shot por SKU: parchea `codigo_barras` del SKU correspondiente |
 
 ### Formatos soportados
 
-`FORMATOS_DEFAULT` en `BarcodeScannerService` incluye QR desde la refactorización de abril 2026:
+`FORMATOS_DEFAULT` en `BarcodeScannerService`:
 
 ```typescript
 const FORMATOS_DEFAULT = [
     BarcodeFormat.Ean13, BarcodeFormat.Ean8, BarcodeFormat.Code128,
     BarcodeFormat.UpcA, BarcodeFormat.UpcE, BarcodeFormat.Code39,
-    BarcodeFormat.QrCode,  // ← agregado para soportar códigos QR de proveedores
+    BarcodeFormat.QrCode,  // agregado para codigos QR de proveedores
 ];
 ```
 
-> Para más detalles del servicio, ver `docs/core/CORE-README.md` → sección `BarcodeScannerService`.
+> Para mas detalles del servicio, ver `docs/core/CORE-README.md` → seccion `BarcodeScannerService`.
 
 ---
 
@@ -497,25 +576,25 @@ const FORMATOS_DEFAULT = [
 | `buscarProductosPOS(texto)` | Liviana, limit 10, para POS |
 | `buscarPorCodigoBarras(codigo)` | Busqueda dual: producto + presentaciones. Retorna `{ producto, presentacion? }` |
 | `obtenerProductoPorCodigo(codigo)` | Por EAN exacto solo en productos. Usa `maybeSingle()` |
-| `obtenerProductoPorId(id)` | Con join categoria y `presentaciones:producto_presentaciones(id)` filtrado por `activo=true`. Solo trae el `id` de cada presentacion (suficiente para el badge de conteo en el grid) |
+| `obtenerProductoPorId(id)` | Con join categoria y `presentaciones:producto_presentaciones(id)` filtrado por `activo=true` |
 | `crearProducto(producto)` | INSERT + emite evento CREADO |
 | `actualizarProducto(id, producto)` | UPDATE + emite evento ACTUALIZADO |
 | `desactivarProducto(id)` | Soft delete + emite DESACTIVADO |
 | `reactivarProducto(id)` | `activo=true` + emite ACTUALIZADO |
 | `obtenerPresentaciones(productoId)` | Lista activas, ordenadas por `factor_conversion` |
-| `obtenerPresentacionesInactivas(productoId)` | Lista inactivas. Usada en el form de edición para el panel "ver desactivadas" |
-| `crearPresentacion(presentacion, silencioso?)` | INSERT + llama `emitirCambioPorPresentacion()`. `silencioso=true` suprime toast y spinner (modo CREAR en memoria) |
+| `obtenerPresentacionesInactivas(productoId)` | Lista inactivas |
+| `crearPresentacion(presentacion, silencioso?)` | INSERT + llama `emitirCambioPorPresentacion()` |
 | `actualizarPresentacion(id, data)` | UPDATE + llama `emitirCambioPorPresentacion()` |
 | `desactivarPresentacion(id)` | Soft delete + llama `emitirCambioPorPresentacion()` |
 | `reactivarPresentacion(id)` | `activo=true` + llama `emitirCambioPorPresentacion()` |
 | `ajustarStock(productoId, tipo, cantidad, obs)` | Via `fn_ajustar_stock_inventario`. Emite ACTUALIZADO |
-| `obtenerGruposVariantes()` | Lista todos los grupos, ordenados por nombre |
-| `buscarGruposVariantes(texto)` | Busqueda ILIKE, limit 5 — para autocompletado en el form |
-| `crearOObtenerGrupoVariante(nombre)` | INSERT ON CONFLICT DO NOTHING + SELECT. Nunca falla por duplicado |
-| `renombrarGrupoVariante(id, nombre)` | UPDATE con normalizacion UPPER(TRIM()) |
-| `eliminarGrupoVariante(id)` | DELETE (ON DELETE SET NULL deja productos sueltos) |
-| `obtenerVariantesDelGrupo(grupoId, excluirId?)` | Productos activos del mismo grupo (hermanas). Excluye el producto actual |
-| `contarProductosPorGrupo(grupoId)` | COUNT exacto de productos activos en el grupo |
+| `obtenerCategorias()` | Lista todas las categorias activas |
+| `buscarAtributos(texto)` | ILIKE, limit 10 — autocompletado en wizard variantes |
+| `obtenerOpcionesAtributo(atributoId)` | Lista todas las opciones de un atributo |
+| `buscarOpcionesAtributo(atributoId, texto)` | ILIKE, limit 10 — autocompletado en wizard |
+| `crearOObtenerAtributo(nombre)` | INSERT ON CONFLICT DO NOTHING + SELECT. Nunca falla por duplicado |
+| `crearOObtenerOpcionAtributo(atributoId, valor)` | INSERT ON CONFLICT DO NOTHING + SELECT |
+| `crearProductoConVariantes(payload)` | RPC atomica `fn_crear_producto_con_variantes` |
 
 ---
 
@@ -524,6 +603,8 @@ const FORMATOS_DEFAULT = [
 | Funcion | Ubicacion | Descripcion |
 |---------|-----------|-------------|
 | `fn_ajustar_stock_inventario` | `docs/inventario/sql/functions/` | Ajuste manual + kardex |
+| `fn_crear_producto_simple` | `docs/inventario/sql/functions/` | Crear producto simple (alternativa RPC) |
+| `fn_crear_producto_con_variantes` | `docs/inventario/sql/functions/` | Crear todas las variantes en una sola transaccion |
 | `fn_actualizar_stock_venta` | `docs/pos/sql/triggers/` | Trigger: descuenta stock al vender (factor desde presentacion) |
 | `fn_registrar_venta_pos` | `docs/pos/sql/functions/` | RPC atomica. Inserta en ventas_detalles con presentacion_id |
 | `fn_anular_venta` | `docs/pos/sql/functions/` | Revierte stock con JOIN a presentaciones |

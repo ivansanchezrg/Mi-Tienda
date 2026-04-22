@@ -1,7 +1,7 @@
 # Configuracion — Documentacion del modulo
 
-Modulo de administracion para parametros del negocio y categorias de operaciones de caja.
-Solo accesible para el rol ADMIN.
+Modulo de administracion para parametros del negocio, categorias de operaciones de caja
+y categorias de productos. Solo accesible para el rol ADMIN.
 
 ---
 
@@ -12,16 +12,18 @@ features/configuracion/
 ├── pages/
 │   ├── main/                       # Menu principal de configuracion
 │   ├── parametros/                 # Formulario de parametros del negocio
-│   └── categorias-operaciones/     # CRUD de categorias de operaciones
+│   ├── categorias-operaciones/     # CRUD de categorias de operaciones de caja
+│   └── categorias-productos/       # CRUD de categorias de productos del inventario
 ├── components/
-│   ├── categoria-operacion-modal/  # Modal crear/editar categoria
+│   ├── categoria-operacion-modal/  # Modal crear/editar categoria de operacion
+│   ├── categoria-producto-modal/   # Modal crear/editar categoria de producto
 │   └── logs-modal/                 # Modal visor de logs del dispositivo
 ├── services/
 │   └── configuracion.service.ts    # CRUD tabla configuraciones (sin cache)
 ├── models/
 │   └── configuracion.model.ts      # ConfiguracionRow, Configuracion, ConfiguracionKey
 │                                   # + CONFIGURACION_DEFAULTS, mapRowsToConfig() (funcion compartida)
-└── configuracion.routes.ts         # Rutas: '' → main, 'parametros', 'categorias-operaciones'
+└── configuracion.routes.ts         # Rutas: '' | 'parametros' | 'categorias-operaciones' | 'categorias-productos'
 
 docs/configuracion/
 ├── CONFIGURACION-README.md
@@ -39,16 +41,17 @@ docs/configuracion/
 
 Tabla clave/valor simple. Cada fila tiene `clave` (PK, TEXT) y `valor` (TEXT).
 
-### Convención de claves
+### Convencion de claves
 
-Prefijo por módulo seguido de guion bajo:
+Prefijo por modulo seguido de guion bajo:
 
-| Prefijo | Módulo | Ejemplo |
+| Prefijo | Modulo | Ejemplo |
 |---------|--------|---------|
 | `negocio_` | General | `negocio_nombre` |
 | `caja_` | Dashboard/Cajas | `caja_fondo_fijo_diario` |
 | `bus_` | Recargas Bus | `bus_alerta_saldo_bajo` |
 | `pos_` | POS | `pos_descuentos_habilitados` |
+| `nomina_` | Movimientos Empleados | `nomina_sueldo_base` |
 
 ### Claves actuales
 
@@ -64,7 +67,7 @@ Prefijo por módulo seguido de guion bajo:
 | `pos_umbral_monto_descuento` | number | `50` | Monto minimo del subtotal para aplicar descuento ($) |
 | `pos_iva_porcentaje` | number | `15` | Tarifa IVA vigente en %. Usado en POS/Factura para extraer base gravada |
 
-> **Nota (2026-04-11):** `pos_habilitado` fue **eliminado** de la tabla. El estado del POS ahora se deriva automaticamente de si hay un turno de caja abierto (`turnos_caja.hora_fecha_cierre IS NULL`) via `TurnosCajaService.cajaAbierta$`. Esto elimina la duplicacion de estado entre `configuraciones` y `turnos_caja` (Single Source of Truth). Migracion: [`sql/migrations/eliminar_pos_habilitado.sql`](./sql/migrations/eliminar_pos_habilitado.sql).
+> **Nota (2026-04-11):** `pos_habilitado` fue **eliminado** de la tabla. El estado del POS ahora se deriva automaticamente de si hay un turno de caja abierto (`turnos_caja.hora_fecha_cierre IS NULL`) via `TurnosCajaService.cajaAbierta$`. Single Source of Truth — elimina la duplicacion entre `configuraciones` y `turnos_caja`.
 
 ---
 
@@ -88,7 +91,7 @@ const nombre = config.negocio_nombre;
 this.configService.invalidar(); // limpia cache → proxima lectura va a BD
 ```
 
-> El estado reactivo del POS vive en `TurnosCajaService.cajaAbierta$` — no en `ConfigService`. Ver [DASHBOARD-README.md](../dashboard/DASHBOARD-README.md#estado-reactivo-de-turno--single-source-of-truth).
+> El estado reactivo del POS vive en `TurnosCajaService.cajaAbierta$` — no en `ConfigService`.
 
 ### `ConfiguracionService` (feature — CRUD admin)
 
@@ -117,14 +120,22 @@ await this.configuracionService.update({
 
 ### Menu principal (`pages/main/`)
 
-Lista de opciones de configuracion:
+Lista de opciones agrupadas en secciones:
+
+**Seccion General:**
 
 | Opcion | Ruta | Descripcion |
 |--------|------|-------------|
-| Parametros del Negocio | `/configuracion/parametros` | Formulario de valores de negocio |
-| Categorias de Operaciones | `/configuracion/categorias-operaciones` | CRUD de categorias para operaciones de caja |
+| Parametros del Negocio | `/configuracion/parametros` | Formulario de valores del negocio |
+| Categorias de Operacion | `/configuracion/categorias-operaciones` | CRUD para clasificar operaciones de caja |
+| Categorias de Producto | `/configuracion/categorias-productos` | CRUD para clasificar el catalogo de inventario |
+
+**Seccion Sistema:**
+
+| Opcion | Accion | Descripcion |
+|--------|--------|-------------|
 | Ver Logs | Modal | Visor de logs del dispositivo (LoggerService) |
-| Limpiar Logs | Alert | Elimina todos los logs con confirmacion |
+| Limpiar Logs | Alert de confirmacion | Elimina todos los logs |
 
 ### Parametros del Negocio (`pages/parametros/`)
 
@@ -155,9 +166,56 @@ CRUD de categorias para clasificar operaciones manuales de caja (INGRESO/EGRESO)
 
 - Segmento: INGRESO / EGRESO (filtra la lista)
 - FAB: crear nueva categoria
-- Modal: nombre + tipo (INGRESO/EGRESO)
+- Modal `categoria-operacion-modal`: nombre + tipo (INGRESO/EGRESO)
 - Categorias del sistema (`es_sistema = true`): no se pueden eliminar ni editar
 - Pull-to-refresh
+
+### Categorias de Productos (`pages/categorias-productos/`)
+
+CRUD de categorias para clasificar el catalogo de inventario. Estas categorias son
+las que aparecen en los chips de filtro del grid de inventario.
+
+- Lista flat (sin segmentos): todas las categorias activas
+- FAB: crear nueva categoria
+- Modal `categoria-producto-modal` (bottom-sheet): nombre + toggle activo/inactivo
+  - **Modo crear**: solo campo nombre
+  - **Modo editar**: nombre + toggle para desactivar
+  - No se puede desactivar una categoria que tenga productos activos o desactivados asignados (validacion en el servicio antes de llamar a BD)
+- Pull-to-refresh
+- Al tocar una categoria: abre modal en modo editar
+
+#### `CategoriaProductoModalComponent`
+
+Ubicacion: `features/configuracion/components/categoria-producto-modal/`
+
+```typescript
+// API
+@Input() categoria?: CategoriaProducto;  // undefined = modo crear
+
+// Retorna via modalCtrl.dismiss(data, 'confirm')
+// data: { nombre: string; activo: boolean }
+```
+
+- Se abre como modal estandar (no bottom-sheet) por tener boton de activo/inactivo
+- El toggle de `activo` solo aparece cuando `categoria` esta presente (modo editar)
+- La pagina padre valida si se puede desactivar antes de llamar a `desactivarCategoria()`
+
+---
+
+## Routing
+
+```typescript
+// configuracion.routes.ts
+{ path: '',                        component: ConfiguracionPage }
+{ path: 'parametros',              component: ParametrosPage }
+{ path: 'categorias-operaciones',  component: CategoriasOperacionesPage }
+{ path: 'categorias-productos',    component: CategoriasProductosPage }  // ← nuevo
+
+// layout.routes.ts
+{ path: 'configuracion', loadChildren: () => CONFIGURACION_ROUTES }
+```
+
+Menu sidebar: "Configuracion" con icono `settings-outline`.
 
 ---
 
@@ -171,28 +229,9 @@ Cuando el admin guarda parametros:
 
 El POS implementa `ion-refresher` para que el empleado recargue la configuracion de descuentos sin perder el carrito tras un cambio del admin.
 
-> **Estado del POS (habilitado/deshabilitado)** no vive aqui. Se deriva reactivamente de `turnos_caja` via `TurnosCajaService.cajaAbierta$` — ver [DASHBOARD-README.md](../dashboard/DASHBOARD-README.md#estado-reactivo-de-turno--single-source-of-truth).
-
 ### Realtime — tabla `configuraciones`
 
-La tabla sigue publicada en Realtime para propagar cambios entre dispositivos (util si en el futuro se agregan mas campos reactivos). Setup ejecutado una sola vez:
-
-Script completo con verificacion: [`sql/setup/realtime_configuraciones.sql`](./sql/setup/realtime_configuraciones.sql)
+La tabla sigue publicada en Realtime para propagar cambios entre dispositivos.
+Setup ejecutado una sola vez: [`sql/setup/realtime_configuraciones.sql`](./sql/setup/realtime_configuraciones.sql)
 
 **`DisabledTabComponent`** (`shared/components/disabled-tab/`): componente reutilizable para tabs deshabilitadas por estado del sistema (ej: POS sin caja abierta). Recibe `[icon]` (objeto ionicon, NO string — evita tree-shaking en Android), `label` y `disabledMessage` opcional. Muestra el icono con un badge candado en la esquina superior derecha. Al hacer click muestra un toast explicativo en lugar de navegar.
-
----
-
-## Routing
-
-```typescript
-// configuracion.routes.ts
-{ path: '',                        component: ConfiguracionPage }
-{ path: 'parametros',              component: ParametrosPage }
-{ path: 'categorias-operaciones',  component: CategoriasOperacionesPage }
-
-// layout.routes.ts
-{ path: 'configuracion', loadChildren: () => CONFIGURACION_ROUTES }
-```
-
-Menu sidebar: "Configuracion" con icono `settings-outline`.
