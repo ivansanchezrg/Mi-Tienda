@@ -32,6 +32,7 @@ import { VerificarFondoModalComponent } from '../../components/verificar-fondo-m
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
+import { ROUTES } from '@core/config/routes.config';
 
 @Component({
   selector: 'app-home',
@@ -266,7 +267,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     const esCajaChica = this.TIPO_CODIGO[tipo] === 'CAJA_CHICA';
     const turnoAjeno = esCajaChica && this.cajaAbierta && !this.esMiTurno;
     const esMiTurnoCajaChica = esCajaChica && this.esMiTurno;
-    this.router.navigate(['/home/operaciones-caja'], {
+    this.router.navigate([ROUTES.dashboard.operacionesCaja], {
       queryParams: {
         cajaId: caja.id,
         cajaNombre: caja.nombre,
@@ -436,7 +437,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     if (!this.esAdmin) {
       this.ui.showToast('¡Listo! Ya puedes registrar ventas', 'success');
       await new Promise(resolve => setTimeout(resolve, 600));
-      this.router.navigate(['/pos']);
+      this.router.navigate([ROUTES.pos]);
     } else {
       this.ui.showToast('Caja abierta', 'success');
     }
@@ -469,7 +470,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       return;
     }
 
-    await this.router.navigate(['/home/cierre-diario']);
+    await this.router.navigate([ROUTES.dashboard.cierreDiario]);
   }
 
   async abrirNotificaciones() {

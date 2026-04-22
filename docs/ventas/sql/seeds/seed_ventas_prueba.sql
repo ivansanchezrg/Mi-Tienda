@@ -29,14 +29,14 @@ DECLARE
 
 BEGIN
     -- Obtener IDs reales del schema
-    SELECT id INTO v_empleado_id FROM usuarios WHERE rol = 'ADMIN' LIMIT 1;
-    SELECT id INTO v_cliente_id  FROM clientes WHERE es_consumidor_final = TRUE LIMIT 1;
-    SELECT id INTO v_prod_cola   FROM productos WHERE codigo_barras = '786123456001';
-    SELECT id INTO v_prod_ruffles FROM productos WHERE codigo_barras = '786123456002';
-    SELECT id INTO v_prod_yogur  FROM productos WHERE codigo_barras = '786123456003';
+    v_empleado_id := (SELECT id FROM usuarios WHERE rol = 'ADMIN' LIMIT 1);
+    v_cliente_id  := (SELECT id FROM clientes WHERE es_consumidor_final = TRUE LIMIT 1);
+    v_prod_cola   := (SELECT id FROM productos WHERE codigo_barras = '786123456001');
+    v_prod_ruffles := (SELECT id FROM productos WHERE codigo_barras = '786123456002');
+    v_prod_yogur  := (SELECT id FROM productos WHERE codigo_barras = '786123456003');
 
     -- Usar turno activo o crear uno temporal para el seed
-    SELECT id INTO v_turno_id FROM turnos_caja WHERE hora_fecha_cierre IS NULL LIMIT 1;
+    v_turno_id := (SELECT id FROM turnos_caja WHERE hora_fecha_cierre IS NULL LIMIT 1);
 
     IF v_turno_id IS NULL THEN
         INSERT INTO turnos_caja (numero_turno, empleado_id, hora_fecha_apertura)

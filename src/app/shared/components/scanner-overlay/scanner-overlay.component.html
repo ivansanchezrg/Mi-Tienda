@@ -1,0 +1,13 @@
+@if (visible) {
+<div class="scanner-overlay">
+    <div class="scanner-frame">
+        <div class="scan-line"></div>
+    </div>
+
+    <p class="scanner-hint">Apunta al codigo de barras</p>
+
+    <button class="scanner-close-btn" (click)="cerrar.emit()">
+        <ion-icon name="close-outline"></ion-icon>
+    </button>
+</div>
+}

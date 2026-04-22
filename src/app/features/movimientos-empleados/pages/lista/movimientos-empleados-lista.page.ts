@@ -19,6 +19,7 @@ import { SaldoEmpleado } from '../../models/movimiento-empleado.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { ROUTES } from '../../../../core/config/routes.config';
 
 @Component({
   selector: 'app-movimientos-empleados-lista',
@@ -80,7 +81,7 @@ export class MovimientosEmpleadosListaPage implements OnInit, ViewWillEnter, Vie
   }
 
   abrirDetalle(empleado: SaldoEmpleado) {
-    this.router.navigate(['/movimientos-empleados', empleado.empleado_id]);
+    this.router.navigate([ROUTES.movimientosEmpleados.detalle(String(empleado.empleado_id))]);
   }
 
   /** Iniciales del nombre para el avatar */

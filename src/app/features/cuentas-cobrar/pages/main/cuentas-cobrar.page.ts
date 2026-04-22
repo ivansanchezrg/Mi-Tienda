@@ -26,6 +26,7 @@ import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { formatFechaEC } from '../../../../core/utils/date.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { ROUTES } from '../../../../core/config/routes.config';
 
 @Component({
     selector: 'app-cuentas-cobrar',
@@ -115,7 +116,7 @@ export class CuentasCobrarPage extends PaginatedListPage<CuentaCliente> implemen
     }
 
     abrirDetalle(cuenta: CuentaCliente) {
-        this.router.navigate(['/cuentas-cobrar', cuenta.cliente_id]);
+        this.router.navigate([ROUTES.cuentasCobrar.detalle(String(cuenta.cliente_id))]);
     }
 
     // ── Helpers template ──

@@ -26,6 +26,7 @@ import { OperacionModalComponent, OperacionModalResult } from '../../components/
 import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 import { AuthService } from '../../../auth/services/auth.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { ROUTES } from '@core/config/routes.config';
 
 interface OperacionAgrupada {
   fecha: string;
@@ -126,7 +127,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     this.esMiTurno = params['esMiTurno'] === 'true';
 
     if (!this.cajaId) {
-      this.router.navigate(['/home']);
+      this.router.navigate([ROUTES.home]);
       return;
     }
   }
@@ -277,9 +278,9 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
 
   volver() {
     if (this.hayCambios) {
-      this.router.navigate(['/home'], { queryParams: { refresh: true } });
+      this.router.navigate([ROUTES.home], { queryParams: { refresh: true } });
     } else {
-      this.router.navigate(['/home']);
+      this.router.navigate([ROUTES.home]);
     }
   }
 

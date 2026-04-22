@@ -7,6 +7,7 @@ import { UiService } from './ui.service';
 import { LoggerService } from './logger.service';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
+import { ROUTES } from '@core/config/routes.config';
 
 
 @Injectable({ providedIn: 'root' })
@@ -228,7 +229,7 @@ export class SupabaseService {
     // ya estamos en /auth/login después del navigate() abajo.
     this.client.auth.signOut().catch(() => {});
 
-    await this.router.navigate(['/auth/login'], { replaceUrl: true });
+    await this.router.navigate([ROUTES.auth.login], { replaceUrl: true });
 
     // Resetear flag con delay mínimo para que el SIGNED_OUT del signOut()
     // (que llega async) encuentre redirectingToLogin=true y no re-entre.

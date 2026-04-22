@@ -99,6 +99,7 @@ BEGIN
     FOR v_detalle IN
         SELECT vd.producto_id,
                vd.cantidad,
+               vd.presentacion_id,
                COALESCE(pp.factor_conversion, 1) AS factor
         FROM   ventas_detalles vd
         LEFT JOIN producto_presentaciones pp ON pp.id = vd.presentacion_id
@@ -115,7 +116,7 @@ BEGIN
         INSERT INTO kardex_inventario (
             producto_id, tipo_movimiento, cantidad,
             stock_anterior, stock_nuevo,
-            referencia_id, observaciones
+            referencia_id, presentacion_id, observaciones
         ) VALUES (
             v_detalle.producto_id,
             'ANULACION_VENTA',
@@ -123,6 +124,7 @@ BEGIN
             v_stock_actual,
             v_stock_actual + v_cantidad_real,
             p_venta_id,
+            v_detalle.presentacion_id,
             'Anulación Venta POS #' || v_venta_numero || ': ' || TRIM(p_motivo)
         );
     END LOOP;

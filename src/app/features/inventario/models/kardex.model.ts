@@ -10,9 +10,11 @@ export interface KardexInventario {
     cantidad: number;
     stock_anterior: number;
     stock_nuevo: number;
-    referencia_id?: string; // UUID
+    referencia_id?: string;    // venta_id para VENTA/ANULACION_VENTA; NULL para ajustes manuales
+    presentacion_id?: string;  // UUID de la presentacion usada; NULL = venta directa o ajuste manual
     observaciones?: string;
 
-    // Relacional
+    // Relacional (JOIN opcional)
     producto?: Producto;
+    presentacion?: { nombre: string; factor_conversion: number };
 }

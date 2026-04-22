@@ -20,17 +20,30 @@
       placeholder="Buscar por nombre o EAN..." [animated]="false" mode="md" [debounce]="0"></ion-searchbar>
   </ion-toolbar>
 
-  <ion-toolbar class="categories-toolbar">
-    <div class="filter-row">
-      <button class="filter-selector" (click)="abrirSelectorCategoria()">
-        <span class="filter-selector-label">{{ filtroLabel }}</span>
-        <ion-icon name="chevron-down-outline" class="filter-selector-arrow"></ion-icon>
+  <div class="categories-bar">
+    <div class="categories-scroll" #categoriaScroll>
+      <button
+        class="category-chip"
+        [class.active]="filtroSeleccionado === 'todas'"
+        (click)="seleccionarCategoria('todas', $event)">
+        Todas
       </button>
-      <button class="filter-btn options-btn" (click)="abrirOpcionesCategorias()" title="Opciones de categorías">
-        <ion-icon name="ellipsis-vertical-outline"></ion-icon>
+      @for (cat of categorias; track cat.id) {
+        <button
+          class="category-chip"
+          [class.active]="filtroSeleccionado === 'cat-' + cat.id"
+          (click)="seleccionarCategoria('cat-' + cat.id, $event)">
+          {{ cat.nombre }}
+        </button>
+      }
+      <button
+        class="category-chip desactivados"
+        [class.active]="filtroSeleccionado === 'desactivados'"
+        (click)="seleccionarCategoria('desactivados', $event)">
+        Desactivados
       </button>
     </div>
-  </ion-toolbar>
+  </div>
 </ion-header>
 
 <ion-content #content color="light" [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
@@ -108,10 +121,10 @@
             {{ prod.presentaciones.length }} present.
           </span>
         }
-        @if (prod.grupo_variante) {
+        @if (prod.producto_template) {
           <span class="tipo-tag variante">
             <ion-icon name="color-palette-outline"></ion-icon>
-            {{ prod.grupo_variante.nombre }}
+            {{ prod.producto_template.nombre }}
           </span>
         }
       </p>
@@ -147,14 +160,4 @@
   }
 </ion-content>
 
-@if (escaneando) {
-<div class="scanner-overlay">
-  <div class="scanner-frame">
-    <div class="scan-line"></div>
-  </div>
-  <p class="scanner-hint">Escanea el código del nuevo producto</p>
-  <button class="scanner-close-btn" (click)="cerrarEscaner()">
-    <ion-icon name="close-outline"></ion-icon>
-  </button>
-</div>
-}
+<app-scanner-overlay [visible]="escaneando" (cerrar)="cerrarEscaner()"></app-scanner-overlay>

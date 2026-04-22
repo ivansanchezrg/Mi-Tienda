@@ -9,6 +9,7 @@ import { addIcons } from 'ionicons';
 import { timeOutline, refreshOutline, logOutOutline } from 'ionicons/icons';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '@core/services/ui.service';
+import { ROUTES } from '@core/config/routes.config';
 
 @Component({
   selector: 'app-pending',
@@ -40,7 +41,7 @@ export class PendingPage {
     try {
       const isValid = await this.authService.validarUsuario();
       if (isValid) {
-        this.router.navigate(['/home'], { replaceUrl: true });
+        this.router.navigate([ROUTES.home], { replaceUrl: true });
       } else {
         this.ui.showToast('Tu cuenta aún no ha sido aprobada', 'warning');
       }

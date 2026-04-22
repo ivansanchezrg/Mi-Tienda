@@ -9,6 +9,7 @@ import { SupabaseService } from './core/services/supabase.service';
 import { TurnosCajaService } from './features/dashboard/services/turnos-caja.service';
 import { Capacitor } from '@capacitor/core';
 import { OfflineBannerComponent } from './core/components/offline-banner/offline-banner.component';
+import { ROUTES } from './core/config/routes.config';
 
 @Component({
   selector: 'app-root',
@@ -61,7 +62,7 @@ export class AppComponent {
 
       this.zone.run(() => {
         if (event.url.includes('auth/callback')) {
-          this.router.navigateByUrl('/auth/callback');
+          this.router.navigateByUrl(ROUTES.auth.callback);
         }
       });
     });

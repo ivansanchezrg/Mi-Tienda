@@ -1,0 +1,57 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>{{ titulo }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cancelar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <form [formGroup]="form">
+    <div class="form-content">
+
+      <!-- Nombre -->
+      <div class="input-group">
+        <label class="input-label">
+          Nombre
+          <span class="required-badge">Obligatorio</span>
+        </label>
+        <input
+          type="text"
+          placeholder="Ej: Lácteos, Snacks, Limpieza..."
+          formControlName="nombre"
+          autocomplete="off"
+          maxlength="100">
+        @if (form.get('nombre')?.invalid && form.get('nombre')?.touched) {
+          <span class="input-error">El nombre es requerido.</span>
+        }
+      </div>
+
+      <!-- Estado activo/inactivo (solo en edición) -->
+      @if (!esNuevo) {
+        <div class="input-group">
+          <div class="toggle-row">
+            <div>
+              <span class="input-label">Estado</span>
+              <p class="toggle-desc">{{ form.value['activo'] ? 'Activa — aparece en el formulario de producto' : 'Inactiva — oculta en el formulario de producto' }}</p>
+            </div>
+            <ion-toggle formControlName="activo" mode="ios"></ion-toggle>
+          </div>
+        </div>
+      }
+
+      <!-- Botón Confirmar -->
+      <button
+        type="button"
+        class="submit-btn"
+        [disabled]="form.invalid"
+        (click)="confirmar()">
+        {{ esNuevo ? 'Crear Categoría' : 'Guardar Cambios' }}
+      </button>
+
+    </div>
+  </form>
+</ion-content>

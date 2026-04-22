@@ -14,6 +14,7 @@ import { UiService } from '@core/services/ui.service';
 import { LoggerService } from '@core/services/logger.service';
 import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
+import { ROUTES } from '@core/config/routes.config';
 
 @Component({
   selector: 'app-pagar-deudas',
@@ -152,7 +153,7 @@ export class PagarDeudasPage implements OnInit {
       if (!resultado) return;
 
       await this.ui.showSuccess(`Pago registrado: $${this.totalSeleccionado.toFixed(2)}`);
-      this.router.navigate(['/home/recargas-virtuales'], { queryParams: { refresh: true } });
+      this.router.navigate([ROUTES.recargasVirtuales], { queryParams: { refresh: true } });
     } finally {
       this.procesando = false;
     }
@@ -164,7 +165,7 @@ export class PagarDeudasPage implements OnInit {
   }
 
   volver() {
-    this.router.navigate(['/home/recargas-virtuales']);
+    this.router.navigate([ROUTES.recargasVirtuales]);
   }
 }
 

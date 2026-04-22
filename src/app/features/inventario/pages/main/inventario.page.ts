@@ -1,24 +1,18 @@
-import { Component, inject, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AlertController, IonicModule, ModalController, NavController } from '@ionic/angular';
+import { AlertController, IonicModule, NavController } from '@ionic/angular';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Subscription } from 'rxjs';
 import { addIcons } from 'ionicons';
 import {
   addOutline,
-  searchOutline,
   barcodeOutline,
   imageOutline,
   alertCircleOutline,
   cubeOutline,
   scanOutline,
   closeOutline,
-  ellipsisVerticalOutline,
-  createOutline,
-  trashOutline,
-  addCircleOutline,
-  chevronDownOutline,
   layersOutline,
   pricetagOutline,
   colorPaletteOutline
@@ -31,14 +25,15 @@ import { Producto } from '../../models/producto.model';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { StorageService } from '../../../../core/services/storage.service';
-import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
+import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
+import { ROUTES } from '../../../../core/config/routes.config';
 
 @Component({
   selector: 'app-inventario',
   templateUrl: './inventario.page.html',
   styleUrls: ['./inventario.page.scss'],
   standalone: true,
-  imports: [IonicModule, CommonModule, FormsModule, EmptyStateComponent]
+  imports: [IonicModule, CommonModule, FormsModule, EmptyStateComponent, ScannerOverlayComponent]
 })
 export class InventarioPage extends PaginatedListPage<Producto> implements OnInit, OnDestroy {
   private inventarioService = inject(InventarioService);
@@ -46,8 +41,9 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   private storageService = inject(StorageService);
   private navCtrl = inject(NavController);
   private alertCtrl = inject(AlertController);
-  private modalCtrl = inject(ModalController);
   private barcodeScanner = inject(BarcodeScannerService);
+
+  @ViewChild('categoriaScroll') categoriaScrollRef!: ElementRef<HTMLDivElement>;
 
   protected readonly pageSize = PAGINATION_CONFIG.inventario.pageSize;
   readonly loadingMoreText = 'Cargando más productos...';
@@ -81,18 +77,12 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     super();
     addIcons({
       addOutline,
-      searchOutline,
       barcodeOutline,
       imageOutline,
       alertCircleOutline,
       cubeOutline,
       scanOutline,
       closeOutline,
-      ellipsisVerticalOutline,
-      createOutline,
-      trashOutline,
-      addCircleOutline,
-      chevronDownOutline,
       layersOutline,
       pricetagOutline,
       colorPaletteOutline
@@ -188,9 +178,12 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   }
 
 
-  irACrear(codigoBarras?: string) {
-    const extras = codigoBarras ? { queryParams: { codigo: codigoBarras } } : {};
-    this.navCtrl.navigateForward('/inventario/nuevo', extras);
+  irACrear() {
+    this.navCtrl.navigateForward(ROUTES.inventario.nuevo);
+  }
+
+  private irACrearSimple(codigoBarras: string) {
+    this.navCtrl.navigateForward(ROUTES.inventario.nuevoSimple, { queryParams: { codigo: codigoBarras } });
   }
 
   private resolverImagenUrl(producto: Producto): Producto {
@@ -201,200 +194,26 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   }
 
   irAEditar(producto: Producto) {
-    this.navCtrl.navigateForward(`/inventario/editar/${producto.id}`);
+    this.navCtrl.navigateForward(ROUTES.inventario.editar(producto.id));
   }
 
   // ==========================
-  // SELECTOR DE CATEGORÍA (OptionsModalComponent)
+  // SELECTOR DE CATEGORÍA (chips scrollables)
   // ==========================
 
-  async abrirSelectorCategoria() {
-    const groups: ModalOptionGroup[] = [];
-
-    // Grupo principal: todas
-    groups.push({
-      options: [
-        { label: 'Todas las categorías', value: 'todas' }
-      ]
-    });
-
-    // Grupo: categorías
-    if (this.categorias.length > 0) {
-      groups.push({
-        title: 'Categorías',
-        options: this.categorias.map(cat => ({
-          label: cat.nombre,
-          value: `cat-${cat.id}`
-        }))
-      });
-    }
-
-    // Grupo: otros
-    groups.push({
-      title: 'Otros',
-      options: [
-        { label: 'Productos desactivados', value: 'desactivados', color: 'danger' }
-      ]
-    });
-
-    const modal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
-      componentProps: {
-        title: 'Filtrar por categoría',
-        groups,
-        selectedValue: this.filtroSeleccionado
-      },
-      cssClass: 'options-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-
-    await modal.present();
-    const { data } = await modal.onDidDismiss();
-
-    if (data) {
-      this.onFiltroChange(data);
-    }
+  seleccionarCategoria(value: string, event: MouseEvent) {
+    this.onFiltroChange(value);
+    this.centrarChip(event.currentTarget as HTMLElement);
   }
 
-  // ==========================
-  // MENÚ OPCIONES CATEGORÍAS (...)
-  // ==========================
-
-  async abrirOpcionesCategorias() {
-    const cat = this.categorias.find(c => c.id === this.categoriaSeleccionada);
-    const groups: ModalOptionGroup[] = [];
-
-    // Grupo: acciones generales
-    const generales: ModalOptionGroup = {
-      options: [
-        { label: 'Nueva categoría', icon: 'add-circle-outline', value: 'crear' }
-      ]
-    };
-    groups.push(generales);
-
-    // Grupo: acciones sobre la categoría seleccionada
-    if (cat) {
-      groups.push({
-        title: `Categoría: ${cat.nombre}`,
-        options: [
-          { label: 'Renombrar', icon: 'create-outline', value: 'renombrar', subtitle: `Cambiar nombre de "${cat.nombre}"` },
-          { label: 'Eliminar', icon: 'trash-outline', value: 'eliminar', color: 'danger', subtitle: 'Solo si no tiene productos' }
-        ]
-      });
-    }
-
-    const modal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
-      componentProps: {
-        title: 'Categorías',
-        subtitle: cat ? `Seleccionada: ${cat.nombre}` : 'Gestionar categorías de productos',
-        groups
-      },
-      cssClass: 'options-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-
-    await modal.present();
-    const { data } = await modal.onDidDismiss();
-
-    if (!data) return;
-    switch (data) {
-      case 'crear': this.crearCategoria(); break;
-      case 'renombrar': if (cat) this.renombrarCategoria(cat); break;
-      case 'eliminar': if (cat) this.confirmarDesactivarCategoria(cat); break;
-    }
-  }
-
-  // ==========================
-  // CATEGORÍAS
-  // ==========================
-
-  async crearCategoria() {
-    const alert = await this.alertCtrl.create({
-      header: 'Nueva categoría',
-      inputs: [{ name: 'nombre', type: 'text', placeholder: 'Nombre de la categoría' }],
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Crear',
-          handler: async (data) => {
-            const nombre = data.nombre?.trim();
-            if (!nombre) {
-              this.ui.showToast('El nombre es requerido', 'warning');
-              return false;
-            }
-            await this.inventarioService.crearCategoria(nombre);
-            this.categorias = await this.inventarioService.obtenerCategorias();
-            return true;
-          }
-        }
-      ]
-    });
-    await alert.present();
-  }
-
-  private async renombrarCategoria(cat: CategoriaProducto) {
-    const alert = await this.alertCtrl.create({
-      header: 'Renombrar categoría',
-      inputs: [{ name: 'nombre', type: 'text', value: cat.nombre, placeholder: 'Nuevo nombre' }],
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Guardar',
-          handler: async (data) => {
-            const nombre = data.nombre?.trim();
-            if (!nombre) {
-              this.ui.showToast('El nombre es requerido', 'warning');
-              return false;
-            }
-            await this.inventarioService.renombrarCategoria(cat.id, nombre);
-            this.categorias = await this.inventarioService.obtenerCategorias();
-            return true;
-          }
-        }
-      ]
-    });
-    await alert.present();
-  }
-
-  private async confirmarDesactivarCategoria(cat: CategoriaProducto) {
-    const { activos, inactivos } = await this.inventarioService.contarProductosPorCategoria(cat.id);
-
-    if (activos > 0) {
-      this.ui.showToast(`No se puede eliminar: tiene ${activos} producto(s) activo(s)`, 'warning');
-      return;
-    }
-
-    if (inactivos > 0) {
-      this.ui.showToast(
-        `No se puede eliminar: tiene ${inactivos} producto(s) desactivado(s) que aún pertenecen a esta categoría.`,
-        'warning'
-      );
-      return;
-    }
-
-    const alert = await this.alertCtrl.create({
-      header: 'Eliminar categoría',
-      message: `¿Eliminar "${cat.nombre}"? Esta acción no se puede deshacer.`,
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Eliminar',
-          role: 'destructive',
-          handler: async () => {
-            await this.inventarioService.desactivarCategoria(cat.id);
-            if (this.categoriaSeleccionada === cat.id) {
-              this.categoriaSeleccionada = undefined;
-            }
-            this.categorias = await this.inventarioService.obtenerCategorias();
-            await this.cargar();
-          }
-        }
-      ]
-    });
-    await alert.present();
+  private centrarChip(chip: HTMLElement) {
+    const container = this.categoriaScrollRef?.nativeElement;
+    if (!container) return;
+    const chipLeft = chip.offsetLeft;
+    const chipWidth = chip.offsetWidth;
+    const containerWidth = container.offsetWidth;
+    const scrollTarget = chipLeft - containerWidth / 2 + chipWidth / 2;
+    container.scrollTo({ left: scrollTarget, behavior: 'smooth' });
   }
 
   // ==========================
@@ -435,7 +254,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     const productoExistente = await this.inventarioService.obtenerProductoPorCodigo(codigo);
 
     if (!productoExistente) {
-      this.irACrear(codigo);
+      this.irACrearSimple(codigo);
       return;
     }
 
@@ -449,7 +268,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
         },
         {
           text: 'Ver kardex',
-          handler: () => this.navCtrl.navigateForward(`/inventario/kardex/${productoExistente.id}`)
+          handler: () => this.navCtrl.navigateForward(ROUTES.inventario.kardex(productoExistente.id))
         },
         { text: 'Cancelar', role: 'cancel' }
       ]

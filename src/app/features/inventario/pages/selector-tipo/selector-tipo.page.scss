@@ -1,0 +1,87 @@
+.selector-container {
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.selector-subtitle {
+    margin: 0;
+    font-size: 15px;
+    color: var(--ion-color-step-600);
+    text-align: center;
+    padding: var(--spacing-md) 0;
+}
+
+// ── Tarjeta de tipo ──
+.tipo-card {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    width: 100%;
+    padding: var(--spacing-lg);
+    background: #ffffff;
+    border: 1.5px solid #e0e2e8;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s, transform 0.1s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+
+    &:active {
+        transform: scale(0.98);
+        border-color: var(--ion-color-primary);
+        background: rgba(var(--ion-color-primary-rgb), 0.02);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+}
+
+.tipo-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    ion-icon {
+        font-size: 24px;
+    }
+
+    &--simple {
+        background: rgba(var(--ion-color-primary-rgb), 0.1);
+        ion-icon { color: var(--ion-color-primary); }
+    }
+
+    &--variantes {
+        background: rgba(var(--ion-color-tertiary-rgb), 0.1);
+        ion-icon { color: var(--ion-color-tertiary); }
+    }
+}
+
+.tipo-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.tipo-card-title {
+    font-size: 16px;
+    font-weight: var(--font-weight-bold, 700);
+    color: var(--ion-text-color);
+}
+
+.tipo-card-desc {
+    font-size: 13px;
+    color: var(--ion-color-step-500);
+    line-height: 1.4;
+}
+
+.tipo-card-arrow {
+    font-size: 20px;
+    color: var(--ion-color-step-400);
+    flex-shrink: 0;
+}

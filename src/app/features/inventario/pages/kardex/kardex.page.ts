@@ -6,8 +6,8 @@ import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
 import {
     arrowBackOutline, timeOutline, trendingUpOutline, trendingDownOutline,
-    documentTextOutline, swapHorizontalOutline, addOutline, checkmarkOutline,
-    closeOutline, arrowUpOutline, removeOutline
+    documentTextOutline, arrowUndoOutline, addOutline, checkmarkOutline,
+    closeOutline, arrowUpOutline, removeOutline, pricetagOutline
 } from 'ionicons/icons';
 
 import { KardexInventario } from '../../models/kardex.model';
@@ -15,6 +15,7 @@ import { InventarioService } from '../../services/inventario.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { ROUTES } from '../../../../core/config/routes.config';
 
 type TipoAjuste = 'COMPRA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
 
@@ -34,6 +35,7 @@ export class KardexPage implements OnInit {
 
     productoId!: string;
     productoNombre = 'Producto';
+    templateNombre: string | null = null;
     stockActual = 0;
     unidadMedida = 'und';
     esPeso = false;
@@ -51,8 +53,8 @@ export class KardexPage implements OnInit {
     constructor() {
         addIcons({
             arrowBackOutline, timeOutline, trendingUpOutline, trendingDownOutline,
-            documentTextOutline, swapHorizontalOutline, addOutline, checkmarkOutline,
-            closeOutline, arrowUpOutline, removeOutline
+            documentTextOutline, arrowUndoOutline, addOutline, checkmarkOutline,
+            closeOutline, arrowUpOutline, removeOutline, pricetagOutline
         });
     }
 
@@ -67,13 +69,15 @@ export class KardexPage implements OnInit {
             this.esPeso = producto.tipo_venta === 'PESO';
             this.unidadMedida = producto.unidad_medida || 'und';
             this.stockActual = producto.stock_actual;
+            this.productoNombre = producto.nombre;
+            this.templateNombre = producto.producto_template?.nombre ?? null;
         }
 
         await this.cargarKardex();
     }
 
-    async cargarKardex() {
-        this.cargando = true;
+    async cargarKardex(silencioso = false) {
+        if (!silencioso) this.cargando = true;
         try {
             this.kardex = await this.inventarioService.obtenerKardexProducto(this.productoId);
         } catch (e) {
@@ -83,8 +87,13 @@ export class KardexPage implements OnInit {
         }
     }
 
+    async handleRefresh(event: CustomEvent) {
+        await this.cargarKardex(true);
+        (event.target as HTMLIonRefresherElement).complete();
+    }
+
     volver() {
-        this.navCtrl.back();
+        this.navCtrl.navigateBack(ROUTES.inventario.root);
     }
 
     toggleFormAjuste() {
@@ -141,7 +150,7 @@ export class KardexPage implements OnInit {
             case 'COMPRA': return 'trending-up-outline';
             case 'AJUSTE_POSITIVO': return 'trending-up-outline';
             case 'AJUSTE_NEGATIVO': return 'trending-down-outline';
-            case 'ANULACION_VENTA': return 'swap-horizontal-outline';
+            case 'ANULACION_VENTA': return 'arrow-undo-outline';
             default: return 'document-text-outline';
         }
     }

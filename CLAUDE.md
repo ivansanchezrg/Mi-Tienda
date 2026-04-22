@@ -50,6 +50,7 @@ src/app/
 ├── core/
 │   ├── services/          # Servicios globales (ver abajo)
 │   ├── config/            # pagination.config.ts — PAGINATION_CONFIG (pageSize por módulo)
+│   │                      # routes.config.ts — ROUTES (todas las rutas de la app)
 │   ├── guards/            # auth, public, role, pending-changes
 │   └── utils/             # date.util.ts, cedula.util.ts
 ├── features/              # Módulos (cada uno tiene pages/, services/, models/, components/)
@@ -133,6 +134,42 @@ export class MiComponent {
 3. **Ser explícito con el sufijo** (`-outline`, `-sharp`) — en Android Ionic usa modo `md` y busca el SVG exacto registrado. Si registraste `closeOutline`, usar siempre `name="close-outline"`, nunca `name="close"`.
 
 > **Importante:** antes de borrar un icono de `addIcons()`, buscar su nombre string en los `.html` del componente. Los bindings `[name]="variable"` no aparecen en análisis estático.
+
+### Rutas — SIEMPRE usar `ROUTES` de `core/config/routes.config.ts`
+
+Todas las rutas de la app están centralizadas en `src/app/core/config/routes.config.ts`.
+**Nunca escribir strings de ruta directamente** en `navigate()`, `navigateForward()`, `navigateBack()` ni `routerLink`.
+
+```typescript
+// ❌ Incorrecto — string hardcodeado
+this.navCtrl.navigateBack('/inventario');
+this.router.navigate(['/home']);
+[routerLink]="'/configuracion'"
+
+// ✅ Correcto — siempre via ROUTES
+import { ROUTES } from '@core/config/routes.config';
+this.navCtrl.navigateBack(ROUTES.inventario.root);
+this.router.navigate([ROUTES.home]);
+[routerLink]="configuracionRoute"  // propiedad del componente = ROUTES.configuracion.root
+```
+
+**Al agregar una ruta nueva** (nueva página, nueva feature, nueva subruta):
+1. Agregar la constante en `routes.config.ts` bajo la clave del módulo correspondiente
+2. Si es una función con parámetro (detalle con `:id`), usar la forma `(id: string) => \`/ruta/${id}\``
+3. Usar `ROUTES` en todos los archivos que naveguen a esa ruta
+
+```typescript
+// routes.config.ts — estructura para un módulo nuevo
+miFeature: {
+  root:    '/mi-feature',
+  detalle: (id: string) => `/mi-feature/${id}`,
+  nuevo:   '/mi-feature/nuevo',
+},
+```
+
+**Módulo `@core/config`** — el alias `@core` apunta a `src/app/core/`. Usar siempre el alias en features y shared, ruta relativa solo en core mismo.
+
+---
 
 ### Modales — NUNCA usar sheet modals (`breakpoints`)
 Los sheet modals (`breakpoints + initialBreakpoint`) bloquean el scroll interno en Android: Ionic interpreta el swipe como gesto de cierre hasta llegar al tope. Sin `breakpoints`, el modal es full-height por defecto en Android (md mode) y el scroll funciona nativamente.
@@ -719,6 +756,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 
 ## No hacer
 
+- No hardcodear strings de rutas en `navigate()`, `navigateForward()`, `navigateBack()` ni `routerLink` — usar siempre `ROUTES` de `core/config/routes.config.ts`
 - No usar `new Date().toISOString()` para fechas locales
 - No subir fotos a resolución completa
 - No hardcodear valores de negocio en código

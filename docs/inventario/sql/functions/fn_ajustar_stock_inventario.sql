@@ -48,11 +48,10 @@ BEGIN
     END IF;
 
     -- 2. Leer stock actual y bloquear la fila (FOR UPDATE evita race conditions)
-    SELECT stock_actual
-    INTO   v_stock_anterior
-    FROM   productos
-    WHERE  id = p_producto_id
-    FOR UPDATE;
+    -- ⚠️  Supabase no soporta SELECT ... INTO — usar := (SELECT ...)
+    PERFORM id FROM productos WHERE id = p_producto_id FOR UPDATE;
+
+    v_stock_anterior := (SELECT stock_actual FROM productos WHERE id = p_producto_id);
 
     IF v_stock_anterior IS NULL THEN
         RAISE EXCEPTION 'Producto no encontrado: %', p_producto_id;

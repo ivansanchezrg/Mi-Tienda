@@ -1,0 +1,199 @@
+// Color del ícono del header — palette (variantes)
+.modal-header-icon {
+    background: rgba(var(--ion-color-tertiary-rgb), 0.12);
+    ion-icon { color: var(--ion-color-tertiary); }
+}
+
+// Apila título + badge en columna
+.modal-header-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.modal-header-producto-badge {
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-tertiary);
+    background: rgba(var(--ion-color-tertiary-rgb), 0.12);
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+// ── Cuerpo ───────────────────────────────────────
+.modal-body {
+    padding: var(--spacing-md) var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.step-hint {
+    font-size: 13px;
+    color: var(--ion-color-step-500);
+    margin-bottom: 4px;
+}
+
+// ── Paso 2: breadcrumb ───────────────────────────
+.step-back {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: 4px;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--ion-color-step-100);
+    border: none;
+    color: var(--ion-color-step-600);
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+
+    &:active { opacity: 0.6; }
+}
+
+.step-back-label {
+    font-size: 14px;
+    color: var(--ion-color-step-700);
+
+    strong {
+        color: var(--ion-color-tertiary);
+        font-weight: var(--font-weight-bold);
+    }
+}
+
+// ── Campo de búsqueda ─────────────────────────────
+.search-field {
+    position: relative;
+}
+
+.text-input {
+    width: 100%;
+    height: 48px;
+    padding: 0 var(--spacing-md);
+    border: 1.5px solid var(--ion-color-step-200);
+    border-radius: var(--radius-sm, 8px);
+    background: var(--ion-item-background);
+    color: var(--ion-text-color);
+    font-size: 16px;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+
+    &:focus {
+        border-color: var(--ion-color-tertiary);
+    }
+
+    &::placeholder {
+        color: var(--ion-color-step-300);
+    }
+}
+
+.field-spinner {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: var(--ion-color-tertiary);
+}
+
+// ── Lista de opciones ─────────────────────────────
+.opciones-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.opcion-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 10px var(--spacing-md);
+    border-radius: var(--radius-sm);
+    background: var(--ion-color-step-50);
+    border: 1.5px solid transparent;
+    font-size: 14px;
+    font-weight: var(--font-weight-medium);
+    color: var(--ion-text-color);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+
+    &:active {
+        background: rgba(var(--ion-color-tertiary-rgb), 0.08);
+        border-color: var(--ion-color-tertiary);
+    }
+}
+
+.opcion-icon {
+    font-size: 16px;
+    color: var(--ion-color-tertiary);
+    flex-shrink: 0;
+}
+
+.opcion-label {
+    flex: 1;
+}
+
+.opcion-check {
+    font-size: 16px;
+    color: var(--ion-color-tertiary);
+    opacity: 0;
+
+    .opcion-item:active & {
+        opacity: 1;
+    }
+}
+
+// ── Botón crear ───────────────────────────────────
+.crear-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px var(--spacing-md);
+    border-radius: var(--radius-sm);
+    background: rgba(var(--ion-color-tertiary-rgb), 0.08);
+    border: 1.5px dashed var(--ion-color-tertiary);
+    color: var(--ion-color-tertiary);
+    font-size: 14px;
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: background 0.15s;
+
+    &:active { background: rgba(var(--ion-color-tertiary-rgb), 0.15); }
+    &:disabled { opacity: 0.6; cursor: default; }
+
+    ion-icon { font-size: 16px; flex-shrink: 0; }
+}
+
+.btn-spinner {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+// ── Acciones ──────────────────────────────────────
+.modal-actions {
+    padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-lg);
+}
