@@ -1,3 +1,5 @@
+<app-scanner-overlay [visible]="escaneandoPrecio" (cerrar)="cerrarEscaner()"></app-scanner-overlay>
+
 <ion-split-pane contentId="main-content" when="lg">
 
   <!-- Sidebar (overlay en móvil, fijo en desktop — ion-split-pane maneja el tipo automáticamente) -->
@@ -17,6 +19,12 @@
     <!-- Opciones del FAB -->
     @if (showTabs && fabAbierto) {
     <div class="fab-options">
+      <div class="fab-option" (click)="consultarPrecio()">
+        <div class="fab-option-icon warning">
+          <ion-icon [icon]="priceIcon"></ion-icon>
+        </div>
+        <span class="fab-option-label">Consulta Precio</span>
+      </div>
       <div class="fab-option" (click)="abrirCalculadora()">
         <div class="fab-option-icon success">
           <ion-icon [icon]="calculatorIcon"></ion-icon>

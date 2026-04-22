@@ -110,7 +110,7 @@
 .quick-actions {
   flex-shrink: 0;
   display: none;
-  padding: var(--spacing-xs) var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
   gap: var(--spacing-sm);
   border-bottom: 1px solid var(--ion-color-step-150);
 }
@@ -121,47 +121,63 @@
   }
 }
 
-.quick-action-btn {
+.qa-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
+  gap: 6px;
   flex: 1;
-  padding: var(--spacing-sm) var(--spacing-xs);
+}
+
+.quick-action-btn {
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
-  border-radius: var(--radius-xs);
+  border-radius: 14px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  outline: none;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
 
-  background: transparent;
-
-  .qa-icon-wrap {
-    width: 35px;
-    height: 35px;
-    border-radius: var(--radius-xs);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-&.success  { ion-icon { color: var(--ion-color-success-shade); } }
-    &.secondary { ion-icon { color: var(--ion-color-secondary); } }
-    &.tertiary { ion-icon { color: var(--ion-color-tertiary); } }
-
-    ion-icon { font-size: 26px; }
+  &.success {
+    background: var(--ion-color-success);
+    ion-icon { color: var(--ion-color-success-contrast); }
+  }
+  &.secondary {
+    background: var(--ion-color-secondary);
+    ion-icon { color: var(--ion-color-secondary-contrast); }
+  }
+  &.tertiary {
+    background: var(--ion-color-tertiary);
+    ion-icon { color: var(--ion-color-tertiary-contrast); }
+  }
+  &.warning {
+    background: var(--ion-color-warning);
+    ion-icon { color: var(--ion-color-warning-contrast); }
   }
 
-  .qa-label {
-    font-size: 10px;
-    font-weight: var(--font-weight-semibold);
-    color: var(--ion-color-medium);
-    text-align: center;
-    line-height: 1.2;
-    white-space: nowrap;
+  ion-icon {
+    font-size: 26px;
+    pointer-events: none;
   }
 
-  &:hover { filter: brightness(0.95); }
-  &:active { transform: scale(0.97); }
+  // Efecto press físico
+  &:active {
+    transform: translateY(3px);
+    box-shadow: none;
+  }
+}
+
+.qa-label {
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-step-600);
+  text-align: center;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 // Grupos de navegación

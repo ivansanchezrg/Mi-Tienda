@@ -93,27 +93,41 @@ export class InventarioService {
         presentacion?: ProductoPresentacion;
     } | null> {
         // 1. Buscar en productos
-        const { data: prod } = await this.supabase.client
-            .from('productos')
-            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id')
-            .eq('codigo_barras', codigo)
-            .eq('activo', true)
-            .maybeSingle();
+        const prod = await this.supabase.call<ProductoPOS>(
+            this.supabase.client
+                .from('productos')
+                .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id')
+                .eq('codigo_barras', codigo)
+                .eq('activo', true)
+                .maybeSingle()
+        );
 
-        if (prod) return { producto: prod as ProductoPOS };
+        if (prod) return { producto: prod };
 
         // 2. Buscar en presentaciones
-        const { data: pres } = await this.supabase.client
-            .from('producto_presentaciones')
-            .select('id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id)')
-            .eq('codigo_barras', codigo)
-            .eq('activo', true)
-            .maybeSingle();
+        const pres = await this.supabase.call<{
+            id: string;
+            producto_id: string;
+            nombre: string;
+            factor_conversion: number;
+            precio_venta: number;
+            precio_costo: number;
+            codigo_barras: string | null;
+            es_principal: boolean;
+            activo: boolean;
+            producto: ProductoPOS;
+        }>(
+            this.supabase.client
+                .from('producto_presentaciones')
+                .select('id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id)')
+                .eq('codigo_barras', codigo)
+                .eq('activo', true)
+                .maybeSingle()
+        );
 
         if (pres?.producto) {
-            const productoData = pres.producto as any;
             return {
-                producto: productoData as ProductoPOS,
+                producto: pres.producto,
                 presentacion: {
                     id: pres.id,
                     producto_id: pres.producto_id,
@@ -121,7 +135,7 @@ export class InventarioService {
                     factor_conversion: pres.factor_conversion,
                     precio_venta: pres.precio_venta,
                     precio_costo: pres.precio_costo,
-                    codigo_barras: pres.codigo_barras,
+                    codigo_barras: pres.codigo_barras ?? undefined,
                     es_principal: pres.es_principal,
                     activo: pres.activo
                 }

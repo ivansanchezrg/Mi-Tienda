@@ -124,27 +124,30 @@ ion-fab-button {
   z-index: 1000;
 }
 
-// Cada opción tipo card grande
+// Card — ancho natural por contenido, efecto pirámide invertida
 .fab-option {
+  width: fit-content;
   background: var(--ion-item-background);
   border-radius: var(--radius-xl);
-  padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-sm) var(--spacing-sm);
+  padding: 10px 16px 10px 10px;
   display: flex;
   align-items: center;
-  gap: var(--spacing-lg);
+  gap: 12px;
   box-shadow: var(--shadow-level-3);
   cursor: pointer;
   animation: slideUpItem 0.2s ease forwards;
   opacity: 0;
 
-  &:nth-child(1) { animation-delay: 0.12s; }
-  &:nth-child(2) { animation-delay: 0.04s; }
+  &:nth-child(1) { animation-delay: 0.16s; }
+  &:nth-child(2) { animation-delay: 0.12s; }
+  &:nth-child(3) { animation-delay: 0.08s; }
+  &:nth-child(4) { animation-delay: 0.04s; }
 
   &:active { transform: scale(0.97); }
 
   .fab-option-icon {
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
     border-radius: var(--radius-full);
     display: flex;
     align-items: center;
@@ -152,7 +155,7 @@ ion-fab-button {
     flex-shrink: 0;
 
     ion-icon {
-      font-size: 18px;
+      font-size: 17px;
       color: white;
     }
 
@@ -163,8 +166,8 @@ ion-fab-button {
   }
 
   .fab-option-label {
-    font-size: 17px;
-    font-weight: var(--font-weight-bold);
+    font-size: 15px;
+    font-weight: var(--font-weight-semibold);
     color: var(--ion-text-color);
   }
 }

@@ -140,15 +140,212 @@ features = [
 
 ---
 
+### `app-options-modal` — Selector/Action sheet personalizado
+
+**Archivo:** `components/options-modal/`
+
+Reemplaza `ion-select`, `ActionSheetController` y `PopoverController` (todos con bugs en Android + Ionic 8 standalone). Se abre como bottom sheet con swipe-to-dismiss.
+
+Soporta dos modos según los `@Input()` que reciba:
+- **Modo acción** — opciones con iconos, sin selección previa (reemplaza `ActionSheet`)
+- **Modo selección** — sin iconos, con checkmark en la opción activa (reemplaza `ion-select`)
+
+#### API
+
+| `@Input()` | Tipo | Descripción |
+|---|---|---|
+| `title` | `string` | Título del modal |
+| `subtitle` | `string?` | Subtítulo opcional |
+| `groups` | `ModalOptionGroup[]` | Grupos de opciones |
+| `selectedValue` | `string?` | Activa modo selección con checkmark |
+
+```typescript
+export interface ModalOptionGroup {
+  title?: string;       // Encabezado del grupo (opcional)
+  options: ModalOption[];
+}
+
+export interface ModalOption {
+  label: string;        // Texto visible
+  value: string;        // Valor retornado al seleccionar
+  icon?: string;        // Icono (modo acción)
+  subtitle?: string;    // Texto secundario debajo del label
+  color?: string;       // 'danger' para opciones destructivas
+}
+```
+
+#### Ejemplo modo acción
+
+```typescript
+const groups: ModalOptionGroup[] = [{
+  options: [
+    { label: 'Efectivo', icon: 'cash-outline', value: 'EFECTIVO' },
+    { label: 'Transferencia', icon: 'phone-portrait-outline', value: 'TRANSFERENCIA' },
+    { label: 'Eliminar', icon: 'trash-outline', value: 'delete', color: 'danger' },
+  ]
+}];
+
+const modal = await this.modalCtrl.create({
+  component: OptionsModalComponent,
+  componentProps: { title: 'Método de pago', groups },
+  cssClass: 'options-modal',
+  breakpoints: [0, 1],
+  initialBreakpoint: 1
+});
+await modal.present();
+const { data } = await modal.onDidDismiss();
+if (data) { /* data = valor seleccionado */ }
+```
+
+#### Ejemplo modo selección
+
+```typescript
+const groups: ModalOptionGroup[] = [
+  { options: [{ label: 'Todas', value: 'todas' }] },
+  { title: 'Categorías', options: categorias.map(c => ({ label: c.nombre, value: c.id })) }
+];
+
+const modal = await this.modalCtrl.create({
+  component: OptionsModalComponent,
+  componentProps: { title: 'Filtrar por', groups, selectedValue: this.filtroActual },
+  cssClass: 'options-modal',
+  breakpoints: [0, 1],
+  initialBreakpoint: 1
+});
+```
+
+> **Excepción:** `<select>` nativo de HTML sigue siendo válido dentro de formularios con `formControlName` donde no justifica abrir un modal.
+
+---
+
+### `app-disabled-tab` — Tab deshabilitada
+
+**Archivo:** `components/disabled-tab/`
+
+Reemplaza un `<ion-tab-button>` cuando la feature está deshabilitada por estado del sistema. Muestra el icono con un candado superpuesto y al hacer click muestra un toast explicativo en lugar de navegar.
+
+#### API
+
+| `@Input()` | Tipo | Descripción |
+|---|---|---|
+| `icon` | `unknown` | Objeto ionicon (**no string** — por tree-shaking en Android) |
+| `label` | `string` | Texto del tab |
+| `disabledMessage` | `string` | Toast al hacer click. Default: mensaje del POS |
+
+```html
+<!-- En lugar de ion-tab-button cuando la feature está OFF -->
+<app-disabled-tab [icon]="posIcon" label="POS"></app-disabled-tab>
+<app-disabled-tab [icon]="posIcon" label="POS" disabledMessage="Abre la caja primero"></app-disabled-tab>
+```
+
+> Actualmente usado solo para el tab POS cuando no hay turno de caja abierto.
+
+---
+
+### `app-scanner-overlay` — Overlay visual del escáner
+
+**Archivo:** `components/scanner-overlay/`
+
+Overlay de cámara con marco animado, línea verde de escaneo y botón de cerrar. **Siempre se usa junto a `BarcodeScannerService`** — el servicio activa la cámara, este componente provee el diseño visual encima.
+
+#### API
+
+| `@Input()` | Tipo | Descripción |
+|---|---|---|
+| `visible` | `boolean` | Muestra/oculta el overlay |
+
+| `@Output()` | Tipo | Descripción |
+|---|---|---|
+| `cerrar` | `EventEmitter<void>` | El usuario pulsó el botón ✕ |
+
+#### Patrón de uso (con `BarcodeScannerService.scan()`)
+
+```typescript
+escaneando = false;
+
+async escanear() {
+  this.escaneando = true;
+  try {
+    const codigo = await this.scanner.scan();
+    if (codigo) { /* procesar */ }
+  } finally {
+    this.escaneando = false;
+  }
+}
+
+cerrarEscaner() {
+  this.scanner.stop();
+  this.escaneando = false;
+}
+```
+
+```html
+<!-- Al inicio del template, antes del ion-header -->
+<app-scanner-overlay [visible]="escaneando" (cerrar)="cerrarEscaner()"></app-scanner-overlay>
+```
+
+> Ejemplos actuales: `inventario.page`, `producto-form.page`, `presentacion-modal`, `producto-variantes.page`, `consulta-precio-modal`.
+
+---
+
+### `app-calculadora-margen` — Calculadora de margen
+
+**Archivo:** `components/calculadora-margen/`
+
+Modal de utilidad para calcular el margen de ganancia en tiempo real. El usuario ingresa costo y precio de venta (o viceversa) y ve el margen resultante con indicador de color (rojo < 15%, amarillo < 30%, verde ≥ 30%).
+
+Se abre exclusivamente desde el FAB central del `main-layout` como `bottom-sheet-modal`. No recibe `@Input()`.
+
+```typescript
+const modal = await this.modalCtrl.create({
+  component: CalculadoraMargenComponent,
+  cssClass: 'bottom-sheet-modal',
+  breakpoints: [0, 1],
+  initialBreakpoint: 1,
+  keyboardClose: false
+});
+await modal.present();
+```
+
+---
+
+### `app-consulta-precio-modal` — Consulta de precio por escáner
+
+**Archivo:** `components/consulta-precio-modal/`
+
+Modal que permite consultar el precio y stock de un producto escaneando su código de barras. Resuelve tanto productos simples como presentaciones (`producto_presentaciones`). Activa el escáner automáticamente al abrirse.
+
+Se abre exclusivamente desde el FAB central del `main-layout`. No recibe `@Input()`.
+
+```typescript
+const modal = await this.modalCtrl.create({
+  component: ConsultaPrecioModalComponent,
+});
+await modal.present();
+```
+
+**Muestra:**
+- Nombre del producto e imagen (si tiene)
+- Badge azul "Presentación: X" si el código corresponde a una presentación
+- Precio de venta (de la presentación si aplica, del producto base si no)
+- Stock actual con alerta roja si `stock_actual <= stock_minimo`
+- Botón "Consultar otro" para reactivar el escáner sin cerrar el modal
+
+---
+
 ### `app-sidebar` — Menú lateral
 
 **Archivo:** `components/sidebar/`
 
-Menú de navegación lateral de la app. Se gestiona automáticamente con `IonMenu`. No recibe `@Input` propios — consume la configuración de rutas interna.
+Menú de navegación lateral de la app. Se gestiona automáticamente con `IonMenu`. Incluye accesos rápidos a las acciones del FAB para desktop (donde el FAB no se muestra).
+
+| `@Output()` | Tipo | Descripción |
+|---|---|---|
+| `accionRapida` | `EventEmitter<'nueva-nota' \| 'cuadre' \| 'calculadora'>` | Acción rápida seleccionada desde el sidebar |
 
 ```html
-<!-- Ya incluido en app.component.html, no requiere uso adicional -->
-<app-sidebar></app-sidebar>
+<!-- Incluido en main-layout.page.html -->
+<app-sidebar (accionRapida)="onAccionRapida($event)"></app-sidebar>
 ```
 
 ---
