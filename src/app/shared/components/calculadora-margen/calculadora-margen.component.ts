@@ -5,6 +5,7 @@ import { IonButton, IonIcon, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline, calculatorOutline } from 'ionicons/icons';
 import { calcularPrecioDesdeMargen, calcularMargenDesdePrecio } from '../../../core/utils/margen.util';
+import { CurrencyService } from '@core/services/currency.service';
 
 @Component({
     selector: 'app-calculadora-margen',
@@ -15,6 +16,7 @@ import { calcularPrecioDesdeMargen, calcularMargenDesdePrecio } from '../../../c
 })
 export class CalculadoraMargenComponent {
     private modalCtrl = inject(ModalController);
+    private currencyService = inject(CurrencyService);
 
     @ViewChild('costoInput') costoInputRef!: ElementRef<HTMLInputElement>;
 
@@ -38,9 +40,10 @@ export class CalculadoraMargenComponent {
         return 'Buen margen';
     }
 
-    get ganancia(): number {
-        if (!this.costo || !this.precioVenta) return 0;
-        return Math.round((this.precioVenta - this.costo) * 100) / 100;
+    get ganancia(): string {
+        if (!this.costo || !this.precioVenta) return this.currencyService.format(0);
+        const valor = Math.round((this.precioVenta - this.costo) * 100) / 100;
+        return this.currencyService.format(valor);
     }
 
     onCostoChange() {
@@ -61,7 +64,7 @@ export class CalculadoraMargenComponent {
         this.costo = null;
         this.precioVenta = null;
         this.margenPct = 20;
-        setTimeout(() => this.costoInputRef?.nativeElement?.focus(), 50);
+        Promise.resolve().then(() => this.costoInputRef?.nativeElement?.focus());
     }
 
     cerrar() {

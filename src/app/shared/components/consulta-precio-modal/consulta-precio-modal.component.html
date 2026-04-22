@@ -1,0 +1,81 @@
+<div class="modal-wrapper">
+
+  <div class="modal-header">
+    <div class="modal-header-icon">
+      <ion-icon name="pricetag-outline"></ion-icon>
+    </div>
+    <span class="modal-header-title">Consulta de Precio</span>
+    <button class="modal-close-btn" (click)="cerrar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Buscando -->
+  @if (buscando) {
+    <div class="estado-container">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p class="estado-texto">Buscando producto...</p>
+    </div>
+  }
+
+  <!-- Producto encontrado -->
+  @if (productoEncontrado && !buscando) {
+    <div class="resultado">
+
+      <div class="producto-fila">
+        @if (productoEncontrado.imagen_url) {
+          <img [src]="productoEncontrado.imagen_url" class="producto-imagen" />
+        } @else {
+          <div class="producto-imagen-placeholder">
+            <ion-icon name="cube-outline"></ion-icon>
+          </div>
+        }
+        <div class="producto-info">
+          <span class="producto-nombre">{{ productoEncontrado.nombre }}</span>
+          @if (presentacionEncontrada) {
+            <span class="presentacion-badge">
+              <ion-icon name="layers-outline"></ion-icon>
+              {{ presentacionEncontrada.nombre }}
+            </span>
+          }
+        </div>
+      </div>
+
+      <div class="precio-bloque">
+        <span class="precio-label">Precio de venta</span>
+        <span class="precio-valor">
+          {{ formatearPrecio(presentacionEncontrada ? presentacionEncontrada.precio_venta : productoEncontrado.precio_venta) }}
+        </span>
+      </div>
+
+      <div class="stock-fila" [class.stock-bajo]="productoEncontrado.stock_actual <= productoEncontrado.stock_minimo">
+        <span class="stock-label">Stock actual</span>
+        <div class="stock-derecha">
+          @if (productoEncontrado.stock_actual <= productoEncontrado.stock_minimo) {
+            <span class="stock-alerta">Stock bajo</span>
+          }
+          <span class="stock-valor">
+            {{ productoEncontrado.stock_actual }} <small>{{ productoEncontrado.unidad_medida || 'und' }}</small>
+          </span>
+        </div>
+      </div>
+
+    </div>
+  }
+
+  <!-- Error -->
+  @if (error && !buscando) {
+    <div class="estado-container">
+      <ion-icon name="alert-circle-outline" class="estado-icono estado-icono--error"></ion-icon>
+      <p class="estado-texto">{{ error }}</p>
+    </div>
+  }
+
+  <div class="modal-actions modal-actions--compact">
+    <ion-button expand="block" color="warning" (click)="consultarOtro()">
+      <ion-icon name="barcode-outline" slot="start"></ion-icon>
+      Consultar otro
+    </ion-button>
+  </div>
+
+</div>

@@ -92,6 +92,16 @@ ion-searchbar {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: var(--spacing-md);
+
+    // Tablet — 3 columnas fijas
+    @media (min-width: 600px) and (max-width: 991px) {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    // Desktop — 4 columnas fijas
+    @media (min-width: 992px) {
+        grid-template-columns: repeat(4, 1fr);
+    }
 }
 
 .product-card {
@@ -118,6 +128,10 @@ ion-searchbar {
 
 .product-image-container {
     height: 120px;
+
+    @media (min-width: 600px) {
+        height: 160px;
+    }
     background: var(--ion-color-step-100);
     position: relative;
     display: flex;
