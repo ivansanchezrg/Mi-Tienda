@@ -10,7 +10,7 @@ CREATE OR REPLACE FUNCTION public.fn_crear_producto_con_variantes(
     -- Datos del template
     p_nombre            TEXT,
     p_categoria_id      INTEGER,
-    p_tiene_iva         BOOLEAN,
+    p_tiene_iva         BOOLEAN,   -- aplica a los SKUs; el template ya no tiene este campo
     p_tipo_venta        TEXT,
     p_unidad_medida     TEXT,
     p_imagen_url        TEXT DEFAULT NULL,
@@ -77,11 +77,11 @@ BEGIN
         RAISE EXCEPTION 'Debe incluir al menos un tipo de atributo para el template.';
     END IF;
 
-    -- 1. Crear template
+    -- 1. Crear template (sin tiene_iva — la fuente de verdad es cada SKU en productos)
     INSERT INTO producto_templates (
-        nombre, categoria_id, tiene_iva, tipo_venta, unidad_medida, imagen_url, activo
+        nombre, categoria_id, tipo_venta, unidad_medida, imagen_url, activo
     ) VALUES (
-        UPPER(TRIM(p_nombre)), p_categoria_id, p_tiene_iva, p_tipo_venta, p_unidad_medida, p_imagen_url, TRUE
+        UPPER(TRIM(p_nombre)), p_categoria_id, p_tipo_venta, p_unidad_medida, p_imagen_url, TRUE
     )
     RETURNING id INTO v_template_id;
 

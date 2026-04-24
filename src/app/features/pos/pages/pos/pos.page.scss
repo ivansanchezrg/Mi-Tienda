@@ -345,6 +345,16 @@ ion-toolbar {
     }
 }
 
+.qty-bump {
+    animation: qtyBump 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes qtyBump {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.45); background: rgba(var(--ion-color-primary-rgb), 0.22); }
+    100% { transform: scale(1);   background: rgba(var(--ion-color-primary-rgb), 0.08); }
+}
+
 .cart-sliding ion-item-options {
     border-bottom-right-radius: var(--radius-md);
     border-top-right-radius: var(--radius-md);

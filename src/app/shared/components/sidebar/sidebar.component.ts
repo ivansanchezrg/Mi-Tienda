@@ -1,10 +1,9 @@
 import { Component, inject, OnInit, OnDestroy, Output, EventEmitter } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import {
   IonList, IonItem, IonIcon, IonLabel,
-  IonMenuToggle, IonAvatar, IonButton
+  IonMenuToggle, IonButton
 } from '@ionic/angular/standalone';
 import { MenuController } from '@ionic/angular/standalone';
 import {
@@ -42,7 +41,6 @@ interface MenuGroup {
   styleUrls: ['./sidebar.component.scss'],
   standalone: true,
   imports: [
-    CommonModule,
     RouterModule,
     IonList, IonItem, IonIcon, IonLabel,
     IonMenuToggle, IonButton

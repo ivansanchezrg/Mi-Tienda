@@ -139,32 +139,55 @@
   </ion-refresher>
 
   <!-- SUGERENCIAS: slot="fixed" → fijo debajo del input, no scrollea con el carrito -->
-  @if (buscarTexto && productosBusqueda.length > 0) {
+  @if (buscarTexto && resultadosBusqueda.length > 0) {
   <div class="search-results-wrapper" slot="fixed">
     <ion-list class="search-results-list" lines="none">
-      @for (prod of productosBusqueda; track prod.id; let i = $index) {
-      <ion-item button (click)="seleccionarProductoBusqueda(prod)"
-        class="suggestion-item" [class.suggestion-active]="i === sugerenciaActiva">
-        <ion-label>
-          <h2>{{ prod.nombre }}</h2>
-          <p>
-            @if (prod.tipo_venta === 'PESO') {
-              Stock: {{ prod.stock_actual }} {{ prod.unidad_medida }}
-            } @else {
-              Stock: {{ prod.stock_actual }}
-            }
-            @if (prod.presentaciones && prod.presentaciones.length > 0) {
-              <span class="pres-hint">· {{ prod.presentaciones.length + 1 }} opciones</span>
-            }
-          </p>
-        </ion-label>
-        <div slot="end" class="suggestion-end">
-          <span class="suggestion-price">${{ currencyService.format(prod.precio_venta) }}</span>
-          <div class="suggestion-add-btn" [class.suggestion-add-btn--multi]="prod.presentaciones && prod.presentaciones.length > 0">
-            <ion-icon [name]="prod.presentaciones && prod.presentaciones.length > 0 ? 'chevron-down-circle-outline' : 'add-outline'"></ion-icon>
-          </div>
-        </div>
-      </ion-item>
+      @for (res of resultadosBusqueda; track (res.tipo === 'simple' ? res.producto.id : res.templateId); let i = $index) {
+
+        @if (res.tipo === 'template') {
+          <!-- Grupo de variantes -->
+          <ion-item button (click)="seleccionarResultadoBusqueda(res)"
+            class="suggestion-item" [class.suggestion-active]="i === sugerenciaActiva">
+            <ion-label>
+              <h2>{{ res.templateNombre }}</h2>
+              <p>{{ res.variantes.length }} variantes disponibles</p>
+            </ion-label>
+            <div slot="end" class="suggestion-end">
+              <div class="suggestion-add-btn suggestion-add-btn--multi">
+                <ion-icon name="chevron-down-circle-outline"></ion-icon>
+              </div>
+            </div>
+          </ion-item>
+        } @else {
+          <!-- Producto simple -->
+          <ion-item button (click)="seleccionarResultadoBusqueda(res)"
+            class="suggestion-item" [class.suggestion-active]="i === sugerenciaActiva">
+            <ion-label>
+              <h2>{{ res.producto.nombre }}</h2>
+              <p>
+                @if (res.producto.tipo_venta === 'PESO') {
+                  Stock: {{ res.producto.stock_actual }} {{ res.producto.unidad_medida }}
+                } @else {
+                  Stock: {{ res.producto.stock_actual }}
+                }
+                @if (res.producto.presentaciones && res.producto.presentaciones.length > 0) {
+                  <span class="pres-hint">· {{ res.producto.presentaciones.length + 1 }} opciones</span>
+                }
+              </p>
+            </ion-label>
+            <div slot="end" class="suggestion-end">
+              <span class="suggestion-price">${{ currencyService.format(res.producto.precio_venta) }}</span>
+              <div class="suggestion-add-btn" [class.suggestion-add-btn--multi]="res.producto.presentaciones && res.producto.presentaciones.length > 0">
+                @if (res.producto.presentaciones && res.producto.presentaciones.length > 0) {
+                  <ion-icon name="chevron-down-circle-outline"></ion-icon>
+                } @else {
+                  <ion-icon name="add-outline"></ion-icon>
+                }
+              </div>
+            </div>
+          </ion-item>
+        }
+
       }
     </ion-list>
   </div>
@@ -182,8 +205,8 @@
     } @else {
     <!-- Lista del Carrito -->
     <ion-list class="cart-list" lines="none">
-      @for (item of carrito; track item.id) {
-      <ion-item-sliding class="cart-sliding" [class.cart-item-enter]="lastAddedId === item.id">
+      @for (item of carrito; track (item.id + (item.presentacion_id ?? ''))) {
+      <ion-item-sliding class="cart-sliding" [class.cart-item-enter]="lastAddedKey === (item.id + (item.presentacion_id ?? ''))">
 
         <ion-item class="cart-item" lines="none">
 
@@ -230,7 +253,9 @@
               <button class="stepper-btn" (click)="decrementar(item)" [disabled]="item.cantidad <= 1">
                 <ion-icon name="remove-outline"></ion-icon>
               </button>
-              <span class="stepper-val" (click)="editarCantidad(item)">{{ item.cantidad }}</span>
+              <span class="stepper-val"
+                [class.qty-bump]="lastIncrementedKey === (item.id + (item.presentacion_id ?? ''))"
+                (click)="editarCantidad(item)">{{ item.cantidad }}</span>
               <button class="stepper-btn" (click)="incrementar(item)">
                 <ion-icon name="add-outline"></ion-icon>
               </button>

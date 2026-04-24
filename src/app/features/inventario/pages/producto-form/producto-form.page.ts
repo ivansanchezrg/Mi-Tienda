@@ -374,7 +374,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         this.navCtrl.navigateForward(ROUTES.inventario.kardex(this.producto.id), {
             queryParams: {
                 nombre: this.producto.nombre,
-                stock: this.producto.stock_actual
+                stock: this.producto.stock_actual,
             }
         });
     }

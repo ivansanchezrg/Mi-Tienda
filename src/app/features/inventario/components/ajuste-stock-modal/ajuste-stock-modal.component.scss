@@ -1,0 +1,156 @@
+// Color del icono del header según tipo (ingreso/egreso)
+// Todo lo demás viene de theme/custom/modals.scss (bottom-sheet-modal)
+
+.modal-header-icon {
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    ion-icon { color: var(--ion-color-primary); }
+}
+
+// ── Selector de tipo ──
+.tipo-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--spacing-sm);
+    padding: 0 var(--spacing-md) var(--spacing-xs);
+}
+
+.tipo-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: var(--spacing-sm) var(--spacing-xs);
+    border: 1.5px solid var(--ion-color-step-150);
+    border-radius: var(--radius-md);
+    background: var(--ion-item-background);
+    color: var(--ion-color-step-500);
+    font-size: 12px;
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+
+    ion-icon { font-size: 18px; }
+
+    &.active.ingreso {
+        border-color: var(--ion-color-success);
+        background: rgba(var(--ion-color-success-rgb), 0.08);
+        color: var(--ion-color-success-shade);
+
+        ion-icon { color: var(--ion-color-success); }
+    }
+
+    &.active.egreso {
+        border-color: var(--ion-color-danger);
+        background: rgba(var(--ion-color-danger-rgb), 0.08);
+        color: var(--ion-color-danger-shade);
+
+        ion-icon { color: var(--ion-color-danger); }
+    }
+}
+
+// ── Campos ──
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 var(--spacing-md);
+}
+
+.campo-label {
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.campo-ion-input {
+    --background: var(--ion-item-background);
+    --border-radius: var(--radius-md);
+    --padding-start: var(--spacing-md);
+    --min-height: 48px;
+    border: 1.5px solid var(--ion-color-step-200);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: border-color 0.15s ease;
+
+    &.item-has-focus { border-color: var(--ion-color-primary); }
+}
+
+.campo-unidad {
+    font-size: 13px;
+    color: var(--ion-color-step-500);
+    padding-right: var(--spacing-sm);
+}
+
+.campo-textarea {
+    width: 100%;
+    padding: 12px var(--spacing-md);
+    background: var(--ion-item-background);
+    border: 1.5px solid var(--ion-color-step-200);
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--ion-text-color);
+    outline: none;
+    box-sizing: border-box;
+    resize: none;
+    line-height: 1.5;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &::placeholder {
+        color: var(--ion-color-medium);
+        opacity: 0.6;
+    }
+
+    &:focus {
+        border-color: var(--ion-color-primary);
+        box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.12);
+    }
+}
+
+// ── Preview resultado ──
+.preview-resultado {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    margin: 0 var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: 16px;
+    font-weight: var(--font-weight-bold);
+
+    &.ingreso {
+        background: rgba(var(--ion-color-success-rgb), 0.08);
+        .preview-resultado-valor { color: var(--ion-color-success-shade); }
+        .preview-op { color: var(--ion-color-success); }
+    }
+
+    &.egreso {
+        background: rgba(var(--ion-color-danger-rgb), 0.08);
+        .preview-resultado-valor { color: var(--ion-color-danger-shade); }
+        .preview-op { color: var(--ion-color-danger); }
+    }
+}
+
+.preview-antes,
+.preview-delta {
+    color: var(--ion-color-step-600);
+    font-size: 14px;
+    font-weight: var(--font-weight-medium);
+}
+
+.preview-op {
+    font-size: 16px;
+}
+
+.preview-sep {
+    color: var(--ion-color-step-400);
+    font-size: 13px;
+}
+
+.preview-resultado-valor {
+    font-size: 20px;
+    font-weight: var(--font-weight-bold);
+}

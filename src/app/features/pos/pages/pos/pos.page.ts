@@ -22,7 +22,7 @@ import { ProductoPOS, ProductoPresentacion } from '../../../inventario/models/pr
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { PosService, VentaPayload } from '../../services/pos.service';
-import { CartItem } from '../../models/cart-item.model';
+import { CartItem, ResultadoBusquedaPOS } from '../../models/cart-item.model';
 import { ClientesService } from '../../../clientes/services/clientes.service';
 import { Cliente } from '../../../clientes/models/cliente.model';
 import { SeleccionarClienteModalComponent } from '../../../clientes/components/seleccionar-cliente-modal/seleccionar-cliente-modal.component';
@@ -71,10 +71,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   // Exponer enum al template (para el @if de mostrarDesglose)
   readonly TipoComprobante = TipoComprobante;
 
-  lastAddedId: string | null = null;
+  lastAddedKey: string | null = null;
+  lastIncrementedKey: string | null = null;
   carrito: CartItem[] = [];
   buscarTexto = '';
   productosBusqueda: ProductoPOS[] = [];
+  resultadosBusqueda: ResultadoBusquedaPOS[] = [];
   sugerenciaActiva = -1;
   buscando = false;
   modoBusqueda: 'codigo' | 'nombre' = 'codigo';
@@ -347,6 +349,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       const maxParaEste = Math.floor(stockLibreSinEste / factor);
       if (existe.cantidad < maxParaEste) {
         this.incrementar(existe);
+        this.triggerIncrementAnimation(existe);
         this.feedbackEscaneo(existe.id);
         this.scrollToBottom();
       } else {
@@ -368,8 +371,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
           } : {})
         };
         this.carrito.push(item);
-        this.lastAddedId = producto.id;
-        setTimeout(() => { this.lastAddedId = null; }, 600);
+        this.lastAddedKey = producto.id + (presentacion?.id ?? '');
+        setTimeout(() => { this.lastAddedKey = null; }, 600);
         this.feedbackEscaneo(producto.id);
         this.scrollToBottom();
       } else {
@@ -435,8 +438,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         subtotal: Math.round(cantRedondeada * producto.precio_venta * 100) / 100,
         stock_disponible: producto.stock_actual
       });
-      this.lastAddedId = producto.id;
-      setTimeout(() => { this.lastAddedId = null; }, 600);
+      this.lastAddedKey = producto.id;
+      setTimeout(() => { this.lastAddedKey = null; }, 600);
     }
     this.feedbackEscaneo(producto.id);
     this.scrollToBottom();
@@ -500,8 +503,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         } : {})
       };
       this.carrito.push(item);
-      this.lastAddedId = producto.id;
-      setTimeout(() => { this.lastAddedId = null; }, 600);
+      this.lastAddedKey = producto.id + (presentacion?.id ?? '');
+      setTimeout(() => { this.lastAddedKey = null; }, 600);
     }
 
     if (cantidadReal < cantidad) {
@@ -510,6 +513,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     this.feedbackEscaneo(producto.id);
     this.scrollToBottom();
+  }
+
+  private triggerIncrementAnimation(item: CartItem) {
+    const key = item.id + (item.presentacion_id ?? '');
+    this.lastIncrementedKey = key;
+    setTimeout(() => { this.lastIncrementedKey = null; }, 350);
   }
 
   /** Vibración + beep + preview efímero al agregar producto (feedback para escáner) */
@@ -539,6 +548,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (item.cantidad < maxParaEste) {
       item.cantidad++;
       item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
+      this.triggerIncrementAnimation(item);
     } else {
       this.ui.showToast('Máximo stock alcanzado', 'warning');
     }
@@ -610,6 +620,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   limpiarBusqueda() {
     this.buscarTexto = '';
     this.productosBusqueda = [];
+    this.resultadosBusqueda = [];
   }
 
   // Dispatcher: según el modo activo llama a la lógica correspondiente
@@ -645,7 +656,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
 
     // Modo nombre — navegación por teclado
-    const total = this.productosBusqueda.length;
+    const total = this.resultadosBusqueda.length;
     if (total === 0) return;
 
     if (event.key === 'ArrowDown') {
@@ -656,7 +667,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       this.sugerenciaActiva = Math.max(this.sugerenciaActiva - 1, 0);
     } else if (event.key === 'Enter') {
       const idx = this.sugerenciaActiva >= 0 ? this.sugerenciaActiva : 0;
-      void this.seleccionarProductoBusqueda(this.productosBusqueda[idx]);
+      void this.seleccionarResultadoBusqueda(this.resultadosBusqueda[idx]);
     }
   }
 
@@ -670,12 +681,41 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.buscando = true;
     try {
       const resultados = await this.inventarioService.buscarProductosPOS(texto);
-      // Descartar si llegó una búsqueda más reciente mientras esperábamos
       if (version !== this.searchVersion) return;
       this.productosBusqueda = resultados;
+      this.resultadosBusqueda = this.agruparResultados(resultados);
     } finally {
       if (version === this.searchVersion) this.buscando = false;
     }
+  }
+
+  /** Agrupa productos por template. Productos sin template = 'simple'. */
+  private agruparResultados(productos: ProductoPOS[]): ResultadoBusquedaPOS[] {
+    const resultado: ResultadoBusquedaPOS[] = [];
+    const templatesVistos = new Map<string, number>(); // templateId → índice en resultado
+
+    for (const prod of productos) {
+      if (!prod.producto_template_id) {
+        resultado.push({ tipo: 'simple', producto: prod });
+        continue;
+      }
+
+      const idx = templatesVistos.get(prod.producto_template_id);
+      if (idx !== undefined) {
+        (resultado[idx] as { tipo: 'template'; variantes: ProductoPOS[] }).variantes.push(prod);
+      } else {
+        const templateNombre = prod.producto_template?.nombre ?? prod.nombre;
+        templatesVistos.set(prod.producto_template_id, resultado.length);
+        resultado.push({
+          tipo: 'template',
+          templateId: prod.producto_template_id,
+          templateNombre,
+          variantes: [prod]
+        });
+      }
+    }
+
+    return resultado;
   }
 
   private async buscarPorCodigo(texto: string) {
@@ -716,7 +756,17 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  // Clic en la lista de sugerencias — las presentaciones ya vienen en el objeto
+  // Clic en la lista de sugerencias — despacha según tipo de resultado
+  async seleccionarResultadoBusqueda(resultado: ResultadoBusquedaPOS) {
+    if (resultado.tipo === 'template') {
+      await this.mostrarSelectorVariantes(resultado.templateNombre, resultado.variantes);
+    } else {
+      await this.seleccionarProductoBusqueda(resultado.producto);
+    }
+    this.limpiarBusqueda();
+    this.sugerenciaActiva = -1;
+  }
+
   async seleccionarProductoBusqueda(producto: ProductoPOS) {
     const presentaciones = producto.presentaciones ?? [];
 
@@ -729,6 +779,68 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.buscarTexto = '';
     this.productosBusqueda = [];
     this.sugerenciaActiva = -1;
+  }
+
+  /**
+   * Sheet único con lista plana: variante · unidad + variante · presentaciones.
+   * Cero queries extra — todo calculado en memoria desde los datos ya cargados.
+   * value codificado como "productoId" o "productoId::presentacionId".
+   */
+  private async mostrarSelectorVariantes(templateNombre: string, variantes: ProductoPOS[]) {
+    const prefijo = templateNombre.trim() + ' ';
+
+    // Construir lista plana en memoria — O(n*m) donde n=variantes, m=presentaciones por variante
+    // En un POS real: máximo ~30 opciones totales → prácticamente instantáneo
+    const options: { label: string; subtitle: string; icon: string; value: string }[] = [];
+
+    for (const v of variantes) {
+      const labelBase = v.nombre.startsWith(prefijo) ? v.nombre.slice(prefijo.length) : v.nombre;
+      const stockStr = `Stock: ${v.stock_actual}${v.tipo_venta === 'PESO' ? ' ' + v.unidad_medida : ''}`;
+      const presentaciones: ProductoPresentacion[] = v.presentaciones ?? [];
+
+      if (presentaciones.length === 0) {
+        options.push({ label: labelBase, subtitle: stockStr, icon: 'cube-outline', value: v.id });
+      } else {
+        options.push({
+          label: `${labelBase}  ·  Unidad`,
+          subtitle: `${stockStr}  ·  $${this.currencyService.format(v.precio_venta)}`,
+          icon: 'cube-outline',
+          value: v.id
+        });
+        for (const pres of presentaciones) {
+          options.push({
+            label: `${labelBase}  ·  ${pres.nombre}`,
+            subtitle: `$${this.currencyService.format(pres.precio_venta)}`,
+            icon: 'pricetag-outline',
+            value: `${v.id}::${pres.id}`
+          });
+        }
+      }
+    }
+
+    const modal = await this.modalCtrl.create({
+      component: OptionsModalComponent,
+      componentProps: { title: templateNombre, subtitle: 'Selecciona la variante', groups: [{ options }] },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
+    });
+
+    await modal.present();
+    const { data } = await modal.onDidDismiss<string>();
+    if (!data) return;
+
+    // Decodificar value: "productoId" o "productoId::presentacionId"
+    const [productoId, presentacionId] = data.split('::');
+    const variante = variantes.find(v => v.id === productoId);
+    if (!variante) return;
+
+    if (presentacionId) {
+      const pres = variante.presentaciones?.find(p => p.id === presentacionId);
+      if (pres) await this.agregarAlCarrito(variante, pres);
+    } else {
+      await this.agregarAlCarrito(variante);
+    }
   }
 
   /** OptionsModal: unidad suelta + una opción por presentación */

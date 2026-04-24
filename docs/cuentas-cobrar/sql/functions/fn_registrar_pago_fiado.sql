@@ -24,7 +24,9 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    v_venta              RECORD;
+    v_venta_total        DECIMAL(12,2);
+    v_venta_metodo_pago  VARCHAR(20);
+    v_venta_estado_pago  VARCHAR(20);
     v_total_pagado       DECIMAL(12,2);
     v_saldo_pendiente    DECIMAL(12,2);
     v_nuevo_estado       VARCHAR(20);
@@ -41,22 +43,22 @@ BEGIN
         RAISE EXCEPTION 'Usuario no autenticado';
     END IF;
 
-    -- 1. Validar venta
-    SELECT id, total, metodo_pago, estado, estado_pago
-    INTO v_venta
-    FROM ventas
-    WHERE id = p_venta_id
-    FOR UPDATE;  -- lock para evitar pagos concurrentes
+    -- 1. Validar venta — PERFORM para lock + := para leer campos
+    PERFORM id FROM ventas WHERE id = p_venta_id FOR UPDATE;
 
-    IF v_venta IS NULL THEN
+    IF NOT FOUND THEN
         RAISE EXCEPTION 'Venta no encontrada';
     END IF;
 
-    IF v_venta.metodo_pago != 'FIADO' THEN
+    v_venta_total       := (SELECT total        FROM ventas WHERE id = p_venta_id);
+    v_venta_metodo_pago := (SELECT metodo_pago  FROM ventas WHERE id = p_venta_id);
+    v_venta_estado_pago := (SELECT estado_pago  FROM ventas WHERE id = p_venta_id);
+
+    IF v_venta_metodo_pago != 'FIADO' THEN
         RAISE EXCEPTION 'La venta no es de tipo FIADO';
     END IF;
 
-    IF v_venta.estado_pago = 'PAGADO' THEN
+    IF v_venta_estado_pago = 'PAGADO' THEN
         RAISE EXCEPTION 'Esta venta ya esta completamente pagada';
     END IF;
 
@@ -67,14 +69,14 @@ BEGIN
       WHERE venta_id = p_venta_id
     );
 
-    v_saldo_pendiente := v_venta.total - v_total_pagado;
-
-    IF p_monto > v_saldo_pendiente THEN
-        RAISE EXCEPTION 'El monto ($%) supera el saldo pendiente ($%)', p_monto, v_saldo_pendiente;
-    END IF;
+    v_saldo_pendiente := v_venta_total - v_total_pagado;
 
     IF p_monto <= 0 THEN
         RAISE EXCEPTION 'El monto debe ser mayor a 0';
+    END IF;
+
+    IF p_monto > v_saldo_pendiente THEN
+        RAISE EXCEPTION 'El monto ($%) supera el saldo pendiente ($%)', p_monto, v_saldo_pendiente;
     END IF;
 
     -- 3. Insertar pago
@@ -83,7 +85,7 @@ BEGIN
 
     -- 4. Actualizar estado_pago de la venta
     v_nuevo_estado := CASE
-        WHEN (v_total_pagado + p_monto) >= v_venta.total THEN 'PAGADO'
+        WHEN (v_total_pagado + p_monto) >= v_venta_total THEN 'PAGADO'
         ELSE 'PAGADO_PARCIAL'
     END;
 

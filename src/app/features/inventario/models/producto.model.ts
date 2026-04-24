@@ -39,7 +39,6 @@ export interface ProductoTemplate {
     id: string;
     nombre: string;
     categoria_id?: number;
-    tiene_iva: boolean;
     tipo_venta: TipoVenta;
     unidad_medida: string;
     imagen_url?: string;
@@ -99,5 +98,6 @@ export type ProductoPOS = Pick<Producto,
     'stock_actual' | 'stock_minimo' | 'imagen_url' | 'tiene_iva' |
     'tipo_venta' | 'unidad_medida' | 'producto_template_id'
 > & {
+    producto_template?: Pick<ProductoTemplate, 'id' | 'nombre'> | null;
     presentaciones?: ProductoPresentacion[];   // cargadas en la busqueda POS (JOIN)
 };

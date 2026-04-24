@@ -338,3 +338,5 @@ CREATE POLICY "notas_select" ON notas FOR SELECT TO authenticated USING (true);
 CREATE POLICY "notas_insert" ON notas FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "notas_update" ON notas FOR UPDATE TO authenticated USING (true);
 CREATE POLICY "notas_delete" ON notas FOR DELETE TO authenticated USING (true);
+
+NOTIFY pgrst, 'reload schema';

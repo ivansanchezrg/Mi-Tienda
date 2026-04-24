@@ -285,13 +285,14 @@ CREATE TABLE IF NOT EXISTS categorias_productos (
 
 -- 12b. producto_templates — Producto base / identidad (v10)
 -- Ej: "TAPIOCA" es el template; "Tapioca Fresa 500g" es un SKU (producto).
--- Un template agrupa variantes que comparten categoria, IVA y tipo de venta.
+-- Un template agrupa variantes que comparten categoria y tipo de venta.
 -- Productos simples (95% del inventario) NO necesitan template (producto_template_id = NULL).
+-- NOTA: tiene_iva NO vive en el template — cada SKU tiene su propio campo en productos.tiene_iva
+-- (fuente de verdad única para el cálculo fiscal del POS).
 CREATE TABLE IF NOT EXISTS producto_templates (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     nombre          VARCHAR(150) NOT NULL,
     categoria_id    INTEGER REFERENCES categorias_productos(id),
-    tiene_iva       BOOLEAN DEFAULT TRUE,
     tipo_venta      VARCHAR(10) DEFAULT 'UNIDAD' CHECK (tipo_venta IN ('UNIDAD', 'PESO')),
     unidad_medida   VARCHAR(10) DEFAULT 'und',
     imagen_url      TEXT,
@@ -301,9 +302,10 @@ CREATE TABLE IF NOT EXISTS producto_templates (
 
 -- 13. productos — SKU real (unidad de venta con stock y precio propio)
 -- Si producto_template_id IS NOT NULL: es una variante de un template.
---   → categoria_id, tiene_iva, tipo_venta, unidad_medida se HEREDAN del template (ignorar los locales).
+--   → categoria_id, tipo_venta, unidad_medida se heredan del template (ignorar los locales).
+--   → tiene_iva vive en este registro (no en el template) — es la fuente de verdad fiscal.
 -- Si producto_template_id IS NULL: es un producto simple.
---   → usa sus propios campos directamente (comportamiento clasico).
+--   → usa todos sus campos directamente (comportamiento clasico).
 CREATE TABLE IF NOT EXISTS productos (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     producto_template_id UUID REFERENCES producto_templates(id) ON DELETE CASCADE,  -- NULL = producto simple
