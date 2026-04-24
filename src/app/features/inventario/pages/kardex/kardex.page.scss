@@ -39,157 +39,6 @@
     }
 }
 
-// ── Formulario de ajuste ──
-.ajuste-card {
-    border: 2px solid var(--ion-color-primary);
-
-    ion-card-content {
-        display: flex;
-        flex-direction: column;
-        gap: var(--spacing-md);
-    }
-}
-
-.ajuste-title {
-    font-size: 14px;
-    font-weight: var(--font-weight-bold);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--ion-color-step-600);
-}
-
-.tipo-selector {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: var(--spacing-sm);
-}
-
-.tipo-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: var(--spacing-sm) var(--spacing-xs);
-    border: 2px solid var(--ion-color-step-150);
-    border-radius: var(--radius-md);
-    background: var(--ion-item-background);
-    color: var(--ion-color-step-500);
-    font-size: 12px;
-    font-weight: var(--font-weight-medium, 500);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-
-    ion-icon {
-        font-size: 20px;
-    }
-
-    &.active.ingreso {
-        border-color: var(--ion-color-success);
-        background: rgba(var(--ion-color-success-rgb), 0.1);
-        color: var(--ion-color-success-shade);
-    }
-
-    &.active.egreso {
-        border-color: var(--ion-color-danger);
-        background: rgba(var(--ion-color-danger-rgb), 0.1);
-        color: var(--ion-color-danger-shade);
-    }
-}
-
-// ── Campos nativos (reemplazo de ion-item/ion-input) ──
-.campo {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.campo-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--ion-color-medium);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-
-.campo-input {
-    width: 100%;
-    padding: 12px var(--spacing-md);
-    background: var(--ion-item-background);
-    border: 1.5px solid var(--ion-color-step-200);
-    border-radius: var(--radius-md);
-    font-size: 15px;
-    color: var(--ion-text-color);
-    outline: none;
-    box-sizing: border-box;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-
-    &::placeholder {
-        color: var(--ion-color-medium);
-        opacity: 0.6;
-    }
-
-    &:focus {
-        border-color: var(--ion-color-primary);
-        box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.15);
-    }
-}
-
-// ion-item para el campo cantidad (consistente con el resto del proyecto)
-.campo-ion-input {
-    --background: var(--ion-item-background);
-    --border-radius: var(--radius-md);
-    --padding-start: var(--spacing-md);
-    --min-height: 48px;
-    border: 1.5px solid var(--ion-color-step-200);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    transition: border-color 0.15s ease;
-
-    &.item-has-focus { border-color: var(--ion-color-primary); }
-}
-
-.campo-unidad {
-    font-size: 13px;
-    color: var(--ion-color-step-500);
-    padding-right: var(--spacing-sm);
-}
-
-.campo-textarea {
-    resize: none;
-    font-family: inherit;
-    line-height: 1.5;
-}
-
-.preview-resultado {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-sm);
-    background: var(--ion-color-step-50);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-sm) var(--spacing-md);
-    font-size: 18px;
-    font-weight: var(--font-weight-bold);
-
-    .operador {
-        color: var(--ion-color-step-400);
-        font-size: 14px;
-    }
-
-    .resultado {
-        font-size: 22px;
-    }
-}
-
-// ── Botón confirmar ──
-.confirmar-btn {
-    --border-radius: var(--radius-md);
-    font-weight: 700;
-    font-size: 15px;
-    height: 48px;
-    margin-top: var(--spacing-xs);
-}
-
 // ── Timeline ──
 .timeline {
     position: relative;
@@ -200,7 +49,7 @@
         position: absolute;
         top: 8px;
         bottom: 8px;
-        left: calc(var(--spacing-sm) + 13px); // centra en el ícono de 28px
+        left: calc(var(--spacing-sm) + 13px);
         width: 2px;
         background: linear-gradient(
             to bottom,
@@ -232,9 +81,7 @@
         box-shadow: 0 0 0 3px var(--ion-background-color);
         z-index: 1;
 
-        ion-icon {
-            font-size: 14px;
-        }
+        ion-icon { font-size: 14px; }
 
         &.danger   { background: var(--ion-color-danger); }
         &.success  { background: var(--ion-color-success); }
@@ -329,8 +176,7 @@
 }
 
 // Helper colors
-.text-danger { color: var(--ion-color-danger); }
+.text-danger  { color: var(--ion-color-danger); }
 .text-success { color: var(--ion-color-success); }
-.text-warning { color: var(--ion-color-warning); }
 .text-tertiary { color: var(--ion-color-tertiary); }
-.text-medium { color: var(--ion-color-medium); }
+.text-medium  { color: var(--ion-color-medium); }

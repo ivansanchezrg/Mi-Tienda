@@ -61,14 +61,15 @@ export class InventarioService {
             .select(`
                 id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo,
                 imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id,
+                producto_template:producto_templates(id, nombre),
                 presentaciones:producto_presentaciones(id, producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal, activo)
             `)
             .eq('activo', true)
             .eq('producto_presentaciones.activo', true)
             .or(`nombre.ilike.%${texto}%,codigo_barras.ilike.%${texto}%`)
             .order('nombre')
-            .limit(10);
-        return (data || []) as ProductoPOS[];
+            .limit(20);
+        return (data || []) as unknown as ProductoPOS[];
     }
 
     async obtenerProductoPorCodigo(codigoBarras: string): Promise<Producto | null> {
