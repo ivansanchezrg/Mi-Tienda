@@ -11,6 +11,13 @@ import { environment } from '../../../../environments/environment';
 import { UsuarioActual } from '../models/usuario_actual.model';
 import { ROUTES } from '@core/config/routes.config';
 
+/** Negocio disponible para el selector de negocio activo */
+export interface NegocioDisponible {
+  negocio_id: string;
+  negocio_nombre: string;
+  rol: 'ADMIN' | 'EMPLEADO';
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -28,13 +35,20 @@ export class AuthService {
 
   /**
    * Canal de Realtime del usuario actual.
-   * Abierto tras validarUsuario() exitoso, cerrado en handleExpiredSession()
+   * Abierto tras activarNegocio() exitoso, cerrado en handleExpiredSession()
    * via el hook registerBeforeCleanup. Solo debe existir un canal activo a la vez.
    */
   private canalUsuario: RealtimeChannel | null = null;
 
-  /** ID del usuario cuyo canal está actualmente abierto. Usado para idempotencia. */
-  private canalUsuarioId: number | null = null;
+  /** ID (UUID) del usuario cuyo canal está actualmente abierto. */
+  private canalUsuarioId: string | null = null;
+
+  /**
+   * Lista de negocios disponibles para el usuario tras login exitoso.
+   * Se usa en SelectorNegocioPage cuando el usuario tiene 2+ negocios.
+   * Se limpia tras activar un negocio.
+   */
+  negociosDisponibles: NegocioDisponible[] = [];
 
   /**
    * Observable reactivo del usuario actual.
@@ -48,11 +62,16 @@ export class AuthService {
    * Flag que indica si validarUsuario() ya se ejecutó exitosamente en esta sesión.
    * Se resetea a false en handleExpiredSession() (via cleanup) y handleUsuarioDesactivado().
    *
-   * Permite que authGuard llame validarUsuario() en la primera navegación (para detectar
-   * desactivaciones que ocurrieron mientras la app estaba cerrada) y use cache + Realtime
-   * en las navegaciones siguientes (sin query HTTP adicional).
+   * Permite que authGuard llame validarUsuario() en la primera navegación y use
+   * cache + Realtime en las siguientes (sin query HTTP adicional).
    */
   private validadoEnEstaSesion = false;
+
+  /**
+   * Base del usuario validado (sin negocio) — guardado temporalmente para
+   * que activarNegocio() pueda construir el UsuarioActual completo.
+   */
+  private usuarioBase: { id: string; nombre: string; email: string; es_superadmin: boolean } | null = null;
 
   constructor() {
     const projectRef = environment.supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || '';
@@ -65,9 +84,7 @@ export class AuthService {
 
   /**
    * Verifica si el usuario ya fue validado contra la BD en esta sesión.
-   * Usado por authGuard para evitar consultas HTTP en cada navegación:
-   * - Primera navegación: validarUsuario() (consulta BD, inicia Realtime)
-   * - Navegaciones siguientes: cache + Realtime (cero queries adicionales)
+   * Usado por authGuard para evitar consultas HTTP en cada navegación.
    */
   get yaValidadoEnEstaSesion(): boolean {
     return this.validadoEnEstaSesion;
@@ -81,7 +98,6 @@ export class AuthService {
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY);
       if (!stored) return false;
-
       const parsed = JSON.parse(stored);
       return !!parsed?.access_token;
     } catch {
@@ -101,11 +117,18 @@ export class AuthService {
     return session?.user ?? null;
   }
 
+  // ==========================================
+  // VALIDACIÓN DE USUARIO — flujo multi-tenant
+  // ==========================================
+
   /**
-   * Valida que el email del usuario logueado exista en la tabla usuarios y esté activo.
-   * - Si no existe → auto-registra con activo: false y redirige a /auth/pending.
-   * - Si existe pero activo: false → redirige a /auth/pending.
-   * - Si existe y activo: true → guarda en Preferences y retorna true.
+   * Valida que el email exista en la tabla `usuarios` y esté activo.
+   *
+   * Flujo v11 (multi-tenant):
+   *  1. No existe → auto-registro (solo email + nombre) → /auth/pending
+   *  2. Existe, 0 negocios activos → /auth/crear-negocio
+   *  3. Existe, 1 negocio  → activarNegocio() directamente → /home
+   *  4. Existe, N negocios → guardar lista → /auth/seleccionar-negocio
    */
   async validarUsuario(): Promise<boolean> {
     const user = await this.getUser();
@@ -117,8 +140,8 @@ export class AuthService {
 
     const { data, error } = await this.supabase.client
       .from('usuarios')
-      .select('id, nombre, usuario, activo, rol, es_superadmin')
-      .eq('usuario', user.email)
+      .select('id, nombre, email, es_superadmin')
+      .eq('email', user.email)
       .maybeSingle();
 
     if (error) {
@@ -128,14 +151,17 @@ export class AuthService {
       return false;
     }
 
-    // Usuario no existe → auto-registro con activo: false
+    // Usuario no existe → auto-registro mínimo
+    // En v11: sin activo/rol → viven en usuario_negocios
     if (!data) {
       this.logger.info('AuthService', 'Auto-registro de nuevo usuario');
-      const nombre = user.user_metadata?.['full_name'] || user.user_metadata?.['name'] || user.email.split('@')[0];
+      const nombre = user.user_metadata?.['full_name']
+        || user.user_metadata?.['name']
+        || user.email.split('@')[0];
 
       const { error: insertError } = await this.supabase.client
         .from('usuarios')
-        .insert({ nombre, usuario: user.email, rol: 'EMPLEADO', activo: false });
+        .insert({ nombre, email: user.email });
 
       if (insertError) {
         this.logger.error('AuthService', 'Error al auto-registrar usuario', insertError);
@@ -144,23 +170,182 @@ export class AuthService {
         return false;
       }
 
-      this.router.navigate([ROUTES.auth.pending], { queryParams: { estado: 'nuevo' }, replaceUrl: true });
+      this.router.navigate([ROUTES.auth.crearNegocio], { replaceUrl: true });
       return false;
     }
 
-    // Usuario existe pero inactivo → pantalla de pendiente
-    if (!data.activo) {
-      this.logger.warn('AuthService', 'validarUsuario: cuenta inactiva');
-      await this.saveUsuarioActual(data);
-      this.router.navigate([ROUTES.auth.pending], { replaceUrl: true });
+    // Guardar base del usuario para uso en activarNegocio()
+    this.usuarioBase = {
+      id: data.id,
+      nombre: data.nombre,
+      email: data.email,
+      es_superadmin: data.es_superadmin ?? false
+    };
+
+    // Obtener membresías activas del usuario
+    // Obtener TODAS las membresías (activas e inactivas) para distinguir
+    // "usuario nuevo sin negocios" de "usuario desactivado en todos sus negocios"
+    const { data: membresias, error: errNegocios } = await this.supabase.client
+      .from('usuario_negocios')
+      .select('negocio_id, rol, activo, negocio:negocios(nombre)')
+      .eq('usuario_id', data.id);
+
+    if (errNegocios) {
+      this.logger.error('AuthService', 'Error al obtener negocios del usuario', errNegocios);
+      await this.ui.showError('Error al cargar tus negocios. Intentá de nuevo.');
+      await this.forceLogout();
       return false;
     }
 
-    this.logger.info('AuthService', `Usuario validado (rol: ${data.rol})`);
-    await this.saveUsuarioActual(data);
-    this.iniciarRealtimeUsuario(data.id);
+    const todasMembresias = membresias || [];
+    const negocios: NegocioDisponible[] = todasMembresias
+      .filter((m: any) => m.activo)
+      .map((m: any) => ({
+        negocio_id: m.negocio_id,
+        negocio_nombre: m.negocio?.nombre ?? 'Sin nombre',
+        rol: m.rol as 'ADMIN' | 'EMPLEADO'
+      }));
+
+    // Recarga de página / app resume: si hay un UsuarioActual guardado en
+    // Preferences con un negocio que sigue siendo válido, re-activar directo
+    // sin mostrar el selector. En login fresco, Preferences está vacío (se
+    // limpió en handleExpiredSession) → siempre pasa por el flujo normal.
+    const cached = await this.getUsuarioActual();
+    if (cached?.negocio_id) {
+      const yaActivo = negocios.find(n => n.negocio_id === cached.negocio_id);
+      if (yaActivo) {
+        this.logger.info('AuthService', `Sesión previa detectada: ${yaActivo.negocio_nombre}. Re-activando directo.`);
+        await this.activarNegocio(yaActivo);
+        return true;
+      }
+    }
+
+    // Superadmin sin negocio cacheado → SIEMPRE al panel admin,
+    // independientemente de cuántas membresías propias tenga.
+    // Desde /admin elige a qué negocio entrar.
+    if (this.usuarioBase?.es_superadmin) {
+      this.logger.info('AuthService', 'Superadmin en login fresco → panel admin');
+
+      // Guardar en Preferences para que superadminGuard pueda verificar es_superadmin
+      // (sin esto, getUsuarioActual() devuelve null y el guard bloquea el acceso)
+      const usuarioAdmin: UsuarioActual = {
+        id: this.usuarioBase.id,
+        nombre: this.usuarioBase.nombre,
+        email: this.usuarioBase.email,
+        activo: true,
+        rol: 'ADMIN',
+        es_superadmin: true,
+        negocio_id: '',
+        negocio_nombre: ''
+      };
+      await this.saveUsuarioActual(usuarioAdmin);
+
+      this.validadoEnEstaSesion = true;
+      this.router.navigate([ROUTES.admin], { replaceUrl: true });
+      return true;
+    }
+
+    if (negocios.length === 0) {
+      if (todasMembresias.length > 0) {
+        // Tiene membresías pero todas inactivas → fue desactivado manualmente o transferido
+        this.logger.info('AuthService', 'Usuario con membresías todas inactivas → /auth/pending');
+        this.router.navigate([ROUTES.auth.pending], { replaceUrl: true });
+      } else {
+        // Nunca tuvo membresías → usuario nuevo sin negocio asignado
+        this.logger.info('AuthService', 'Usuario sin negocios — redirigiendo a crear-negocio');
+        this.router.navigate([ROUTES.auth.crearNegocio], { replaceUrl: true });
+      }
+      return false;
+    }
+
+    if (negocios.length === 1) {
+      this.logger.info('AuthService', `1 negocio encontrado. Activando: ${negocios[0].negocio_id}`);
+      await this.activarNegocio(negocios[0]);
+      return true;
+    }
+
+    // Múltiples negocios → mostrar selector
+    this.logger.info('AuthService', `${negocios.length} negocios encontrados. Redirigiendo a selector.`);
+    this.negociosDisponibles = negocios;
+    this.router.navigate([ROUTES.auth.seleccionarNegocio], { replaceUrl: true });
+    return false;
+  }
+
+  /**
+   * Activa un negocio para el usuario actual.
+   *  1. RPC fn_set_negocio_activo → escribe negocio_id + rol en JWT app_metadata
+   *  2. refreshSession() → el cliente recibe el JWT actualizado con RLS aplicadas
+   *  3. Guarda UsuarioActual completo en Preferences y emite en usuarioActual$
+   *  4. Inicia Realtime
+   *  5. Redirige a /home
+   *
+   * Llamado por: validarUsuario() (1 negocio) y SelectorNegocioPage (N negocios).
+   */
+  async activarNegocio(negocio: NegocioDisponible): Promise<void> {
+    // Recuperar usuarioBase si se perdió (recarga de página)
+    if (!this.usuarioBase) {
+      const user = await this.getUser();
+      if (!user?.email) {
+        this.logger.error('AuthService', 'activarNegocio: no hay sesión');
+        await this.forceLogout();
+        return;
+      }
+      const { data } = await this.supabase.client
+        .from('usuarios')
+        .select('id, nombre, email, es_superadmin')
+        .eq('email', user.email)
+        .maybeSingle();
+
+      if (!data) {
+        this.logger.error('AuthService', 'activarNegocio: usuario no encontrado en BD');
+        await this.forceLogout();
+        return;
+      }
+      this.usuarioBase = {
+        id: data.id,
+        nombre: data.nombre,
+        email: data.email,
+        es_superadmin: data.es_superadmin ?? false
+      };
+    }
+
+    const { error: rpcError } = await this.supabase.client
+      .rpc('fn_set_negocio_activo', { p_negocio_id: negocio.negocio_id });
+
+    if (rpcError) {
+      this.logger.error('AuthService', 'Error en fn_set_negocio_activo', rpcError);
+      await this.ui.showError('Error al activar el negocio. Intentá de nuevo.');
+      return;
+    }
+
+    // Refrescar sesión para que el JWT incluya el nuevo negocio_id + rol
+    // Las RLS de todas las tablas dependen de get_negocio_id() que lee el JWT.
+    const { error: refreshError } = await this.supabase.client.auth.refreshSession();
+    if (refreshError) {
+      this.logger.error('AuthService', 'Error al refrescar sesión', refreshError);
+      await this.ui.showError('Error al actualizar tu sesión. Intentá de nuevo.');
+      return;
+    }
+
+    const usuarioCompleto: UsuarioActual = {
+      id: this.usuarioBase.id,
+      nombre: this.usuarioBase.nombre,
+      email: this.usuarioBase.email,
+      activo: true,
+      rol: negocio.rol,
+      es_superadmin: this.usuarioBase.es_superadmin,
+      negocio_id: negocio.negocio_id,
+      negocio_nombre: negocio.negocio_nombre
+    };
+
+    await this.saveUsuarioActual(usuarioCompleto);
+    this.iniciarRealtimeUsuario(this.usuarioBase.id);
     this.validadoEnEstaSesion = true;
-    return true;
+    this.negociosDisponibles = [];
+    this.usuarioBase = null;
+
+    this.logger.info('AuthService', `Negocio activado: ${negocio.negocio_nombre} (${negocio.rol})`);
+    this.router.navigate([ROUTES.home], { replaceUrl: true });
   }
 
   // ==========================================
@@ -169,80 +354,54 @@ export class AuthService {
 
   /**
    * Abre un canal de Realtime que escucha cambios en el registro del usuario
-   * actual en la tabla `usuarios`. Si el admin desactiva o elimina al usuario
-   * mientras está logueado, la app reacciona en segundos en lugar de esperar
-   * al próximo login.
+   * actual en la tabla `usuarios`.
+   * - UPDATE activo=false → handleUsuarioDesactivado() → /auth/pending (sesión OAuth intacta)
+   * - DELETE → handleExpiredSession() → /auth/login
+   * - UPDATE otros campos (nombre, etc.) → actualiza cache + emite en usuarioActual$
    *
-   * Comportamiento:
-   * - UPDATE con activo=false → handleUsuarioDesactivado() → redirige a /auth/pending
-   *   (NO cierra sesión de Supabase: el usuario puede tocar "Reintentar" si lo reactivan)
-   * - DELETE → handleExpiredSession() → redirige a /auth/login
-   *   (sí cierra sesión completa porque ya no hay usuario que validar)
-   *
-   * Es idempotente: si ya hay un canal abierto para el mismo usuario, no hace
-   * nada. Si hay un canal para otro usuario (cambio de cuenta), lo cierra primero.
-   *
-   * Requiere que la política RLS de la tabla usuarios permita SELECT al propio
-   * registro (ver docs/auth/sql/setup/realtime_usuarios.sql).
+   * Es idempotente: si ya hay un canal abierto para el mismo usuario, no hace nada.
    */
-  iniciarRealtimeUsuario(id: number): void {
-    // Idempotencia: mismo usuario, canal ya abierto → nada que hacer
-    if (this.canalUsuario && this.canalUsuarioId === id) {
-      return;
-    }
-
-    // Cambio de usuario: cerrar canal anterior antes de abrir el nuevo
-    if (this.canalUsuario) {
-      this.cerrarRealtimeUsuario();
-    }
+  iniciarRealtimeUsuario(id: string): void {
+    if (this.canalUsuario && this.canalUsuarioId === id) return;
+    if (this.canalUsuario) this.cerrarRealtimeUsuario();
 
     try {
       const canal = this.supabase.client
         .channel(`usuario-activo-${id}`)
         .on(
           'postgres_changes' as any,
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'usuarios',
-            filter: `id=eq.${id}`
-          },
+          { event: 'UPDATE', schema: 'public', table: 'usuarios', filter: `id=eq.${id}` },
           (payload: any) => {
-            // Los eventos de Realtime llegan fuera del zone de Angular.
-            // Sin NgZone.run(), la UI no se actualiza hasta el próximo tick.
             this.zone.run(async () => {
               const nuevo = payload.new as Partial<UsuarioActual> | null;
               if (!nuevo) return;
 
-              // Caso 1: usuario desactivado → sacar de la app
+              // Caso 1: usuario desactivado → sacar de la app (conservar sesión OAuth)
               if (nuevo.activo === false) {
                 this.logger.warn('AuthService', 'Usuario desactivado en tiempo real');
                 await this.handleUsuarioDesactivado();
                 return;
               }
 
-              // Caso 2: cualquier otro cambio (rol, nombre, etc.) → actualizar cache y UI
+              // Caso 2: cambio de nombre u otros campos → actualizar cache + UI
               this.logger.info('AuthService', 'Datos del usuario actualizados en tiempo real');
-              const usuarioActualizado: UsuarioActual = {
-                id: nuevo.id ?? id,
-                nombre: nuevo.nombre ?? '',
-                usuario: nuevo.usuario ?? '',
-                activo: nuevo.activo ?? true,
-                rol: nuevo.rol ?? 'EMPLEADO',
-                es_superadmin: (nuevo as any).es_superadmin ?? false
-              };
-              await this.saveUsuarioActual(usuarioActualizado);
+              const actual = await this.getUsuarioActual();
+              if (actual) {
+                const actualizado: UsuarioActual = {
+                  ...actual,
+                  id: nuevo.id ?? actual.id,
+                  nombre: nuevo.nombre ?? actual.nombre,
+                  activo: nuevo.activo ?? actual.activo,
+                  es_superadmin: (nuevo as any).es_superadmin ?? actual.es_superadmin
+                };
+                await this.saveUsuarioActual(actualizado);
+              }
             });
           }
         )
         .on(
           'postgres_changes' as any,
-          {
-            event: 'DELETE',
-            schema: 'public',
-            table: 'usuarios',
-            filter: `id=eq.${id}`
-          },
+          { event: 'DELETE', schema: 'public', table: 'usuarios', filter: `id=eq.${id}` },
           () => {
             this.zone.run(async () => {
               this.logger.warn('AuthService', 'Usuario eliminado en tiempo real');
@@ -262,8 +421,7 @@ export class AuthService {
       this.canalUsuario = canal;
       this.canalUsuarioId = id;
     } catch (err) {
-      // No bloquear el flujo de login si Realtime falla — las otras capas
-      // de protección (JWT, SIGNED_OUT, call()) siguen activas como red de seguridad.
+      // No bloquear el flujo de login si Realtime falla — las otras capas siguen activas.
       this.logger.error('AuthService', 'Error al iniciar Realtime del usuario', err);
       this.canalUsuario = null;
       this.canalUsuarioId = null;
@@ -272,13 +430,10 @@ export class AuthService {
 
   /**
    * Cierra el canal de Realtime del usuario actual (si existe).
-   * Se llama automáticamente desde el hook registerBeforeCleanup cada vez
-   * que handleExpiredSession() limpia la sesión — garantiza que no queden
-   * websockets huérfanos sin importar la causa del logout.
+   * Se llama automáticamente via registerBeforeCleanup en handleExpiredSession().
    */
   async cerrarRealtimeUsuario(): Promise<void> {
     if (!this.canalUsuario) return;
-
     try {
       await this.supabase.client.removeChannel(this.canalUsuario);
       this.logger.info('AuthService', 'Realtime usuario cerrado');
@@ -293,32 +448,14 @@ export class AuthService {
   }
 
   /**
-   * Maneja el caso específico de usuario desactivado via Realtime (UPDATE activo=false).
-   *
-   * A diferencia de handleExpiredSession() (que cierra la sesión de Supabase completa),
-   * este método CONSERVA la sesión OAuth porque:
-   * - El registro del usuario sigue existiendo en BD (solo fue desactivado)
-   * - En /auth/pending, el botón "Reintentar" llama validarUsuario() que necesita
-   *   una sesión activa para consultar la tabla usuarios
-   * - Si el admin reactiva la cuenta, el usuario puede reingresar sin hacer OAuth de nuevo
-   *
-   * Lo que sí limpia:
-   * - Canal de Realtime (ya no tiene sentido escuchar más cambios)
-   * - Cache de usuario en Preferences (el cache dice activo=true, ya no es válido)
+   * Maneja desactivación via Realtime (UPDATE activo=false).
+   * NO cierra la sesión OAuth — el usuario puede tocar "Reintentar" si lo reactivan.
    */
   private async handleUsuarioDesactivado(): Promise<void> {
     this.logger.warn('AuthService', 'Procesando desactivación de usuario');
-
-    // Resetear flag de validación (la próxima apertura debe re-validar contra BD)
     this.validadoEnEstaSesion = false;
-
-    // Cerrar canal de Realtime (evitar escuchar más eventos con un usuario ya inactivo)
     await this.cerrarRealtimeUsuario();
-
-    // Limpiar cache del usuario (ya no es válido con activo=true)
     await Preferences.remove({ key: this.USUARIO_KEY }).catch(() => {});
-
-    // Notificar al usuario y redirigir
     await this.ui.showToast('Tu cuenta fue desactivada por un administrador', 'warning');
     this.router.navigate([ROUTES.auth.pending], { replaceUrl: true });
   }
@@ -326,6 +463,93 @@ export class AuthService {
   /** Cierra sesión sin mostrar loading (uso interno) */
   private async forceLogout() {
     await this.supabase.handleExpiredSession();
+  }
+
+  /**
+   * Cambia el negocio activo desde dentro de la app (usuario ya autenticado).
+   * A diferencia de activarNegocio(), no depende de usuarioBase — lee el
+   * UsuarioActual desde Preferences directamente.
+   * Lee el rol real de la membresía desde BD antes de actualizar el JWT.
+   * Actualiza JWT, cache local y navega a /home.
+   */
+  async cambiarNegocio(negocioId: string, negocioNombre: string): Promise<void> {
+    const actual = await this.getUsuarioActual();
+    if (!actual) {
+      await this.forceLogout();
+      return;
+    }
+
+    // Superadmin opera con rol ADMIN en cualquier negocio sin necesitar membresía.
+    // Para usuarios normales, leer el rol real de usuario_negocios.
+    let rolEfectivo: 'ADMIN' | 'EMPLEADO' = 'ADMIN';
+
+    if (!actual.es_superadmin) {
+      const { data: membresia, error: membresiaError } = await this.supabase.client
+        .from('usuario_negocios')
+        .select('rol')
+        .eq('usuario_id', actual.id)
+        .eq('negocio_id', negocioId)
+        .eq('activo', true)
+        .maybeSingle();
+
+      if (membresiaError || !membresia) {
+        this.logger.error('AuthService', 'Error al leer membresía para cambio de negocio', membresiaError);
+        await this.ui.showError('No se pudo cambiar de negocio. Intenta de nuevo.');
+        return;
+      }
+
+      rolEfectivo = membresia.rol as 'ADMIN' | 'EMPLEADO';
+    }
+
+    const { error: rpcError } = await this.supabase.client
+      .rpc('fn_set_negocio_activo', { p_negocio_id: negocioId });
+
+    if (rpcError) {
+      this.logger.error('AuthService', 'Error en fn_set_negocio_activo', rpcError);
+      await this.ui.showError('No se pudo cambiar de negocio. Intenta de nuevo.');
+      return;
+    }
+
+    const { error: refreshError } = await this.supabase.client.auth.refreshSession();
+    if (refreshError) {
+      this.logger.error('AuthService', 'Error al refrescar sesión', refreshError);
+      await this.ui.showError('Error al actualizar tu sesión.');
+      return;
+    }
+
+    const actualizado: UsuarioActual = {
+      ...actual,
+      negocio_id:     negocioId,
+      negocio_nombre: negocioNombre,
+      rol:            rolEfectivo
+    };
+
+    await this.saveUsuarioActual(actualizado);
+    this.validadoEnEstaSesion = true;
+    this.logger.info('AuthService', `Negocio cambiado a: ${negocioNombre} (${rolEfectivo})`);
+    this.router.navigate([ROUTES.home], { replaceUrl: true });
+  }
+
+  /**
+   * Navega al panel de superadmin (/admin).
+   * Limpia el negocio activo del cache para que el panel opere sin tenant.
+   * Solo debe llamarse si el usuario tiene es_superadmin = true.
+   */
+  async irAlPanelAdmin(): Promise<void> {
+    const actual = await this.getUsuarioActual();
+    if (!actual?.es_superadmin) return;
+
+    // Limpiar negocio activo del cache — el panel admin opera sin tenant
+    const sinNegocio: UsuarioActual = {
+      ...actual,
+      negocio_id: '',
+      negocio_nombre: '',
+      rol: 'ADMIN'
+    };
+    await this.saveUsuarioActual(sinNegocio);
+
+    this.logger.info('AuthService', 'Superadmin → panel admin');
+    this.router.navigate([ROUTES.admin], { replaceUrl: true });
   }
 
   /** Cierra sesión directo, sin confirmación (para pantallas pre-app como pending) */
@@ -343,16 +567,11 @@ export class AuthService {
         { text: 'Cerrar Sesión', role: 'confirm' }
       ]
     });
-
     await alert.present();
     const { role } = await alert.onDidDismiss();
-
-    if (role === 'confirm') {
-      await this.executeLogout();
-    }
+    if (role === 'confirm') await this.executeLogout();
   }
 
-  /** Ejecuta el cierre de sesión */
   private async executeLogout() {
     this.logger.info('AuthService', 'Logout manual confirmado por el usuario');
     await this.ui.showLoading();
@@ -361,13 +580,12 @@ export class AuthService {
   }
 
   // ==========================================
-  // MÉTODOS DE USUARIO ACTUAL (Preferences)
+  // MÉTODOS DE USUARIO ACTUAL (Capacitor Preferences)
   // ==========================================
 
   /**
    * Obtiene el usuario actual desde Preferences (lectura local, muy rápida).
    * No hace consultas a la BD.
-   * Retorna null si no hay usuario guardado.
    */
   async getUsuarioActual(): Promise<UsuarioActual | null> {
     try {
@@ -380,15 +598,11 @@ export class AuthService {
   }
 
   /**
-   * Guarda los datos del usuario en Preferences.
-   * Se llama automáticamente después de validar el login.
+   * Guarda los datos del usuario en Preferences y emite en usuarioActual$.
+   * Se llama desde activarNegocio() y desde el handler de Realtime UPDATE.
    */
   private async saveUsuarioActual(usuario: UsuarioActual): Promise<void> {
-    await Preferences.set({
-      key: this.USUARIO_KEY,
-      value: JSON.stringify(usuario)
-    });
+    await Preferences.set({ key: this.USUARIO_KEY, value: JSON.stringify(usuario) });
     this._usuarioActual$.next(usuario);
   }
-
 }

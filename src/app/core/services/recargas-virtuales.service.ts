@@ -165,7 +165,7 @@ export class RecargasVirtualesService {
    */
   async registrarRecargaProveedorCelular(params: {
     fecha: string;
-    empleado_id: number;
+    empleado_id: string;
     monto_virtual: number;
   }): Promise<RegistroRecargaCompletoResult> {
     const result = await this.supabase.call<RegistroRecargaCompletoResult>(
@@ -189,7 +189,7 @@ export class RecargasVirtualesService {
    * Registra el pago al proveedor CELULAR (EGRESO de CAJA_CELULAR)
    */
   async registrarPagoProveedorCelular(params: {
-    empleado_id: number;
+    empleado_id: string;
     deuda_ids: string[];
     observaciones?: string;
   }): Promise<any> {
@@ -213,7 +213,7 @@ export class RecargasVirtualesService {
    */
   async liquidarGananciasBus(params: {
     mes: string;
-    empleado_id: number;
+    empleado_id: string;
   }): Promise<{ success: boolean; mes: string; total_ganancia: number; filas_afectadas: number; message: string }> {
     const result = await this.supabase.call<{ success: boolean; mes: string; total_ganancia: number; filas_afectadas: number; message: string }>(
       this.supabase.client.rpc('fn_liquidar_ganancias_bus', {
@@ -242,7 +242,7 @@ export class RecargasVirtualesService {
    */
   async registrarCompraSaldoBus(params: {
     fecha: string;
-    empleado_id: number;
+    empleado_id: string;
     monto: number;
     observaciones?: string;
     saldo_virtual_maquina?: number;

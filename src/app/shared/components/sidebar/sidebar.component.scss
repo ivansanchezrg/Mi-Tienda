@@ -78,6 +78,50 @@
   text-align: center;
 }
 
+// Variante clickeable — el admin puede cambiar de negocio
+.sidebar-header--clickable {
+  cursor: pointer;
+  transition: filter var(--transition-fast);
+
+  &:active {
+    filter: brightness(0.9);
+  }
+}
+
+.sidebar-header-chevron {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+}
+
+// Variante superadmin — fondo naranja/warning para distinguir visualmente
+.sidebar-header--superadmin {
+  background: linear-gradient(135deg, var(--ion-color-warning-shade) 0%, #b35f00 100%);
+
+  :host-context(body.dark) & {
+    background: linear-gradient(135deg, var(--ion-color-warning-shade) 0%, #7a4200 100%);
+  }
+}
+
+.superadmin-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  color: white;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+
+  ion-icon {
+    font-size: 12px;
+  }
+}
+
 // ============================================================================
 // BODY — Scrolleable (acciones rápidas + grupos de nav)
 // ============================================================================
@@ -298,6 +342,32 @@
   font-size: 11px;
   color: var(--ion-color-medium);
   font-weight: var(--font-weight-medium);
+
+  &--superadmin {
+    color: var(--ion-color-warning);
+    font-weight: var(--font-weight-semibold);
+  }
+}
+
+.footer-avatar--superadmin {
+  background: rgba(var(--ion-color-warning-rgb), 0.15);
+
+  span {
+    color: var(--ion-color-warning-shade);
+  }
+}
+
+.btn-panel-admin {
+  --padding-start: 6px;
+  --padding-end: 6px;
+  --border-radius: var(--radius-xs);
+  margin: 0;
+  height: 34px;
+
+  ion-icon {
+    font-size: 19px;
+    transition: color var(--transition-fast);
+  }
 }
 
 .footer-actions {

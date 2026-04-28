@@ -42,6 +42,23 @@ export const authGuard: CanActivateFn = async () => {
         return false;
       }
     }
+
+    // Superadmin sin negocio activo no debe navegar por la app de negocio.
+    // Si llega aquí directamente (ej: escribe /home en la URL), mandarlo al panel admin.
+    const usuario = await auth.getUsuarioActual();
+
+    // Preferences vacío con sesión activa → reconstruir estado via validarUsuario()
+    if (!usuario) {
+      logger.warn('authGuard', 'Sin UsuarioActual en cache — reconstruyendo estado');
+      await auth.validarUsuario();
+      return false; // validarUsuario() ya navegó al destino correcto
+    }
+
+    if (usuario.es_superadmin && !usuario.negocio_id) {
+      logger.warn('authGuard', 'Superadmin sin negocio activo → panel admin');
+      return router.createUrlTree(['/admin']);
+    }
+
     return true;
   }
 

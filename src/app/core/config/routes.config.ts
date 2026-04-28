@@ -6,10 +6,14 @@
 export const ROUTES = {
   home: '/home',
 
+  admin: '/admin',
+
   auth: {
-    login:    '/auth/login',
-    callback: '/auth/callback',
-    pending:  '/auth/pending',
+    login:              '/auth/login',
+    callback:           '/auth/callback',
+    pending:            '/auth/pending',
+    seleccionarNegocio: '/auth/seleccionar-negocio',
+    crearNegocio:       '/auth/crear-negocio',
   },
 
   pos: '/pos',
@@ -47,6 +51,8 @@ export const ROUTES = {
   historialRecargas: '/historial-recargas',
 
   recargasVirtuales: '/home/recargas-virtuales',
+
+  cuentasCorrientes: '/cuentas-corrientes',
 
   movimientosEmpleados: {
     root:    '/movimientos-empleados',

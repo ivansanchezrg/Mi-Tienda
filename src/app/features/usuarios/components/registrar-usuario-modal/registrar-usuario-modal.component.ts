@@ -34,8 +34,8 @@ export class RegistrarUsuarioModalComponent {
 
   form: FormGroup = this.fb.group({
     nombre: ['', [Validators.required, Validators.minLength(2)]],
-    usuario: ['', [Validators.required, Validators.email]],
-    rol: ['EMPLEADO', Validators.required]
+    email:  ['', [Validators.required, Validators.email]],
+    rol:    ['EMPLEADO', Validators.required]
   });
 
   constructor() {
@@ -56,8 +56,8 @@ export class RegistrarUsuarioModalComponent {
     try {
       const dto: CreateUsuarioDto = {
         nombre: this.form.value.nombre.trim(),
-        usuario: this.form.value.usuario.trim(),
-        rol: this.form.value.rol
+        email:  this.form.value.email.trim(),
+        rol:    this.form.value.rol
       };
 
       const created = await this.usuarioService.create(dto);

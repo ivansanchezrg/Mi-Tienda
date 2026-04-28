@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonContent, IonHeader, IonTitle, IonToolbar,
-  IonButtons, IonMenuButton, IonIcon,
+  IonButtons, IonBackButton, IonIcon,
   IonRefresher, IonRefresherContent,
   IonList, IonItem, IonLabel,
   IonSkeletonText,
@@ -29,7 +29,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
   imports: [
     CommonModule,
     IonContent, IonHeader, IonTitle, IonToolbar,
-    IonButtons, IonMenuButton, IonIcon,
+    IonButtons, IonBackButton, IonIcon,
     IonRefresher, IonRefresherContent,
     IonList, IonItem, IonLabel,
     IonSkeletonText,

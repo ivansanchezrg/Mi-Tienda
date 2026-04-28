@@ -42,6 +42,13 @@ ion-toolbar {
 // LISTA
 // ─────────────────────────────────────────
 
+.lista-hint {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  margin: 0 0 var(--spacing-sm);
+  text-align: center;
+}
+
 .empleados-list {
   background: transparent;
   padding: 0;
@@ -49,6 +56,9 @@ ion-toolbar {
 
 .empleado-card {
   --background: var(--ion-item-background);
+  --background-activated: var(--ion-color-step-100);
+  --background-focused: var(--ion-color-step-100);
+  --background-hover: var(--ion-color-step-100);
   --border-radius: var(--radius-md, 10px);
   --padding-start: var(--spacing-sm, 8px);
   --inner-padding-end: var(--spacing-sm, 8px);

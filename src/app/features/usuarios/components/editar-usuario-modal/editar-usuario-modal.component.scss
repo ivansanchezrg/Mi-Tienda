@@ -1,123 +1,142 @@
-ion-header {
-  &::after { display: none; }
-}
+ion-header { &::after { display: none; } }
+ion-toolbar { --border-width: 0 !important; }
+ion-content { --background: var(--ion-background-color); }
 
-ion-toolbar {
-  --border-width: 0 !important;
-}
-
-ion-content {
-  --background: var(--ion-background-color);
-}
-
-// ── Contenido ─────────────────────────────────────────────────────────────────
+// ── Layout ────────────────────────────────────────────────────────────────────
 
 .form-content {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 // ── Avisos ────────────────────────────────────────────────────────────────────
 
-.aviso-superadmin {
+.aviso {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 12px 14px;
-  background: rgba(var(--ion-color-primary-rgb), 0.08);
-  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.35);
-  border-radius: 12px;
-  color: var(--ion-color-primary-shade);
+  padding: 11px 13px;
+  border-radius: 10px;
   font-size: 13px;
   line-height: 1.4;
 
   ion-icon {
-    font-size: 18px;
+    font-size: 17px;
     flex-shrink: 0;
     margin-top: 1px;
   }
+
+  &--info {
+    background: rgba(var(--ion-color-primary-rgb), 0.07);
+    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.25);
+    color: var(--ion-color-primary-shade);
+  }
+
+  &--warning {
+    background: rgba(var(--ion-color-warning-rgb), 0.07);
+    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.25);
+    color: var(--ion-color-warning-shade);
+  }
+
+  &--inactivo {
+    align-items: flex-start;
+    background: rgba(var(--ion-color-medium-rgb), 0.07);
+    border: 1px solid rgba(var(--ion-color-medium-rgb), 0.25);
+    color: var(--ion-color-medium-shade);
+
+    ion-icon { margin-top: 2px; }
+
+    // Variante: bloqueado porque está activo en otro negocio
+    &.aviso--bloqueado {
+      background: rgba(var(--ion-color-warning-rgb), 0.07);
+      border-color: rgba(var(--ion-color-warning-rgb), 0.3);
+      color: var(--ion-color-warning-shade);
+    }
+  }
 }
 
-.aviso-propio {
+.aviso-body {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  background: rgba(var(--ion-color-warning-rgb), 0.08);
-  border: 1px solid rgba(var(--ion-color-warning-rgb), 0.35);
-  border-radius: 12px;
-  color: var(--ion-color-warning-shade);
-  font-size: 13px;
-  line-height: 1.4;
-
-  ion-icon {
-    font-size: 18px;
-    flex-shrink: 0;
-    margin-top: 1px;
-  }
+  flex-direction: column;
+  gap: 2px;
 }
 
-// ── Header del usuario ────────────────────────────────────────────────────────
+.aviso-title {
+  font-weight: 600;
+  font-size: 13px;
+}
 
-.employee-header {
+.aviso-hint {
+  font-size: 12px;
+  opacity: 0.85;
+  line-height: 1.4;
+}
+
+// ── Header compacto ───────────────────────────────────────────────────────────
+
+.user-header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 16px;
-  background: var(--ion-item-background, #fff);
-  border-radius: 16px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  gap: 12px;
 }
 
-.employee-avatar {
-  width: 52px;
-  height: 52px;
+.user-avatar {
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: var(--ion-color-primary);
   color: white;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 3px 8px rgba(var(--ion-color-primary-rgb), 0.3);
 }
 
-.employee-meta { flex: 1; }
+.user-nombre {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ion-text-color);
+}
 
-.employee-usuario {
-  font-size: 13px;
+.user-email {
+  font-size: 12px;
   color: var(--ion-color-medium);
-  font-weight: 500;
+  margin-top: 2px;
 }
 
-// ── Inputs ────────────────────────────────────────────────────────────────────
+// ── Campos ────────────────────────────────────────────────────────────────────
 
-.input-group {
+form {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-
-  &.disabled {
-    opacity: 0.45;
-    pointer-events: none;
-  }
+  gap: 14px;
 }
 
-.input-label {
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
   font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  font-weight: 600;
   color: var(--ion-color-medium);
+  letter-spacing: 0.2px;
+}
+
+.field-error {
+  font-size: 12px;
+  color: var(--ion-color-danger);
 }
 
 input {
   width: 100%;
-  padding: 13px 14px;
+  padding: 11px 13px;
   border: 1.5px solid var(--ion-color-step-200);
   border-radius: 10px;
   font-size: 15px;
@@ -131,141 +150,189 @@ input {
   &::placeholder { color: var(--ion-color-medium); opacity: 0.6; }
 }
 
-.input-error {
-  font-size: 12px;
-  color: var(--ion-color-danger);
-}
+// ── Fila Rol + Estado ─────────────────────────────────────────────────────────
 
-// ── Rol selector ──────────────────────────────────────────────────────────────
-
-.rol-selector {
+.row-fields {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+  gap: 12px;
 
-.rol-option {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px;
-  border-radius: 12px;
-  border: 2px solid var(--ion-color-step-150);
-  cursor: pointer;
-  background: var(--ion-item-background, #fff);
-  transition: border-color 0.15s, background 0.15s;
+  .field { flex: 1; }
 
-  &.selected {
-    border-color: var(--ion-color-primary);
-    background: rgba(var(--ion-color-primary-rgb), 0.05);
+  &.disabled {
+    opacity: 0.45;
+    pointer-events: none;
   }
 }
 
-.rol-icon {
-  width: 42px;
-  height: 42px;
+// ── Chips (rol y estado) ──────────────────────────────────────────────────────
+
+.chip-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--ion-color-step-150);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ion-color-medium);
+  background: var(--ion-item-background, #fff);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  text-align: center;
+
+  &.selected {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.06);
+    color: var(--ion-color-primary);
+  }
+
+  // variantes de color para estado
+  &--success.selected {
+    border-color: var(--ion-color-success);
+    background: rgba(var(--ion-color-success-rgb), 0.07);
+    color: var(--ion-color-success-shade);
+  }
+
+  &--danger.selected {
+    border-color: var(--ion-color-danger);
+    background: rgba(var(--ion-color-danger-rgb), 0.07);
+    color: var(--ion-color-danger-shade);
+  }
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  font-size: 16px;
+  flex-shrink: 0;
+
+  &--activo  { background: var(--ion-color-success); }
+  &--inactivo { background: var(--ion-color-danger); }
+}
+
+// ── Botón guardar ─────────────────────────────────────────────────────────────
+
+.save-btn {
+  width: 100%;
+  padding: 13px;
+  border-radius: 10px;
+  border: none;
+  background: var(--ion-color-primary);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 0.15s;
+  margin-top: 2px;
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  ion-spinner {
+    width: 16px;
+    height: 16px;
+    --color: white;
+  }
+}
+
+// ── Transferir a sucursal ─────────────────────────────────────────────────────
+
+.transferir-section {
+  border-top: 1px solid var(--ion-color-step-100);
+  padding-top: 14px;
+}
+
+.transferir-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ion-color-medium);
+  letter-spacing: 0.2px;
+
+  ion-icon {
+    font-size: 15px;
+  }
+}
+
+.sucursales-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sucursal-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--ion-color-step-100);
+  background: var(--ion-item-background, #fff);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+
+  &:active {
+    background: rgba(var(--ion-color-tertiary-rgb), 0.06);
+    border-color: var(--ion-color-tertiary);
+  }
+
+  ion-icon {
+    font-size: 16px;
+    color: var(--ion-color-medium);
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+}
+
+.sucursal-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(var(--ion-color-tertiary-rgb), 0.12);
+  color: var(--ion-color-tertiary);
+  font-size: 13px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-
-  &.empleado {
-    background: rgba(var(--ion-color-medium-rgb), 0.12);
-    color: var(--ion-color-medium-shade);
-  }
-
-  &.admin {
-    background: rgba(var(--ion-color-primary-rgb), 0.12);
-    color: var(--ion-color-primary);
-  }
 }
 
-.rol-name {
+.sucursal-nombre {
+  flex: 1;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ion-text-color);
 }
 
-.rol-desc {
-  font-size: 12px;
-  color: var(--ion-color-medium);
-  margin-top: 2px;
+.sucursal-row--skeleton {
+  cursor: default;
+  pointer-events: none;
+  border-color: transparent;
+  gap: 11px;
 }
 
-// ── Estado selector ───────────────────────────────────────────────────────────
-
-.estado-selector {
-  display: flex;
-  gap: 10px;
-}
-
-.estado-option {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 13px;
-  border-radius: 12px;
-  border: 2px solid var(--ion-color-step-150);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ion-color-medium);
-  background: var(--ion-item-background, #fff);
-  transition: border-color 0.15s, background 0.15s;
-
-  &.selected {
-    border-color: var(--ion-color-primary);
-    background: rgba(var(--ion-color-primary-rgb), 0.05);
-    color: var(--ion-text-color);
-  }
-}
-
-.estado-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-
-  &.activo  { background: var(--ion-color-success); }
-  &.inactivo { background: var(--ion-color-danger); }
-}
-
-// ── Botón guardar ─────────────────────────────────────────────────────────────
-
-.submit-btn {
-  width: 100%;
-  padding: 15px;
-  border-radius: 14px;
-  border: none;
-  background: var(--ion-color-primary);
-  color: white;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  box-shadow: 0 3px 10px rgba(var(--ion-color-primary-rgb), 0.3);
-  transition: transform 0.15s, opacity 0.15s;
-  margin-top: 4px;
-
-  &:active { transform: scale(0.97); }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-  }
-
-  ion-spinner {
-    width: 18px;
-    height: 18px;
-    --color: white;
-  }
+.sucursal-spinner {
+  width: 16px;
+  height: 16px;
+  --color: var(--ion-color-medium);
+  flex-shrink: 0;
+  margin-left: auto;
 }

@@ -139,7 +139,9 @@
       "Bash(sed -i \"s|this.router.navigate\\(\\\\['/movimientos-empleados', empleado.empleado_id\\\\]\\)|this.router.navigate\\([ROUTES.movimientosEmpleados.detalle\\(String\\(empleado.empleado_id\\)\\)]\\)|g\" src/app/features/movimientos-empleados/pages/lista/movimientos-empleados-lista.page.ts)",
       "Bash(sed -i \"s|this.navCtrl.back\\(\\)|this.navCtrl.navigateBack\\(ROUTES.movimientosEmpleados.root\\)|g\" src/app/features/movimientos-empleados/pages/detalle/movimientos-empleado-detalle.page.ts)",
       "Bash(sed -i \"s|this.router.navigate\\(\\\\['/home/recargas-virtuales'\\\\], { queryParams: { refresh: true } }\\)|this.router.navigate\\([ROUTES.recargasVirtuales], { queryParams: { refresh: true } }\\)|g; s|this.router.navigate\\(\\\\['/home/recargas-virtuales'\\\\]\\)|this.router.navigate\\([ROUTES.recargasVirtuales]\\)|g\" src/app/features/recargas-virtuales/pages/pagar-deudas/pagar-deudas.page.ts)",
-      "Bash(sed -i \"s|handler: \\(\\) => this.router.navigate\\(\\\\['/home'\\\\]\\)|handler: \\(\\) => this.router.navigate\\([ROUTES.home]\\)|g\" src/app/features/pos/pages/pos/pos.page.ts)"
+      "Bash(sed -i \"s|handler: \\(\\) => this.router.navigate\\(\\\\['/home'\\\\]\\)|handler: \\(\\) => this.router.navigate\\([ROUTES.home]\\)|g\" src/app/features/pos/pages/pos/pos.page.ts)",
+      "Bash(sed -i 's/IonMenuButton/IonBackButton/g' src/app/features/cuentas-cobrar/pages/main/cuentas-cobrar.page.ts)",
+      "Bash(sed -i 's/IonMenuButton/IonBackButton/g' src/app/features/movimientos-empleados/pages/lista/movimientos-empleados-lista.page.ts)"
     ]
   },
   "disableAllHooks": true

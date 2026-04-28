@@ -52,6 +52,10 @@ export const LAYOUT_ROUTES: Routes = [
         loadChildren: () => import('../notas/notas.routes').then(m => m.NOTAS_ROUTES)
       },
       {
+        path: 'cuentas-corrientes',
+        loadChildren: () => import('../cuentas-corrientes/cuentas-corrientes.routes').then(m => m.CUENTAS_CORRIENTES_ROUTES)
+      },
+      {
         path: 'movimientos-empleados',
         canActivate: [roleGuard(['ADMIN'])],
         loadChildren: () => import('../movimientos-empleados/movimientos-empleados.routes').then(m => m.MOVIMIENTOS_EMPLEADOS_ROUTES)

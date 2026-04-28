@@ -46,7 +46,7 @@ export class NotasService {
         return (raw ?? []).map(mapNota);
     }
 
-    async crear(texto: string, creadaPor: number): Promise<Nota | null> {
+    async crear(texto: string, creadaPor: string): Promise<Nota | null> {
         const raw = await this.supabase.call<any>(
             this.supabase.client.from('notas')
                 .insert({ texto, creada_por: creadaPor })
@@ -59,7 +59,7 @@ export class NotasService {
         return nota;
     }
 
-    async marcarCompletada(id: string, completadaPor: number): Promise<Nota | null> {
+    async marcarCompletada(id: string, completadaPor: string): Promise<Nota | null> {
         const raw = await this.supabase.call<any>(
             this.supabase.client.from('notas')
                 .update({

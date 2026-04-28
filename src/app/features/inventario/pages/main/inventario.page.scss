@@ -128,15 +128,15 @@ ion-searchbar {
 
 .product-image-container {
     height: 120px;
-
-    @media (min-width: 600px) {
-        height: 160px;
-    }
     background: var(--ion-color-step-100);
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
+
+    @media (min-width: 600px) {
+        height: 160px;
+    }
 
     .placeholder-image {
         ion-icon {

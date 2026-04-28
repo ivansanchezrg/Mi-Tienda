@@ -1,24 +1,28 @@
 -- =============================================================================
 -- TRIGGER: proteger_superadmin
--- Versión: 1.0
+-- Versión: 2.0 (schema v11)
 --
 -- Protege al superadmin a nivel de BD contra:
---   - Cambios en activo, rol o es_superadmin (UPDATE)
---   - Eliminación física del registro (DELETE)
+--   - Cambio de es_superadmin (UPDATE en tabla usuarios)
+--   - Eliminación física del registro (DELETE en tabla usuarios)
+--
+-- CAMBIOS v2.0 (schema v11):
+--   - Eliminadas verificaciones de NEW.activo y NEW.rol
+--     Estas columnas YA NO existen en usuarios (fueron movidas a usuario_negocios).
+--     El trigger solo verifica el cambio de es_superadmin en sí mismo.
+--   - La protección de rol y activo del superadmin se hace a nivel de RLS en usuario_negocios.
 --
 -- La UI ya bloquea esto visualmente (editar-usuario-modal.component.ts),
 -- pero este trigger es la capa definitiva: protege ante queries directas,
 -- bugs en el frontend o cualquier otra vía de escritura.
 --
--- Ejecutar tras cada schema.sql (DROP TABLE CASCADE elimina triggers).
+-- Ejecutar tras cada schema.sql (DROP TABLE ... CASCADE elimina triggers).
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
 -- Función del trigger — BEFORE UPDATE
--- Compara OLD vs NEW para detectar si cambiaron campos protegidos.
--- Si el registro tiene es_superadmin = true y alguno de los campos protegidos
--- cambia → RAISE EXCEPTION (aborta la transacción).
--- Si solo cambia el nombre → permite el UPDATE normalmente.
+-- Si el registro tiene es_superadmin = true y ese campo cambia → RAISE EXCEPTION.
+-- Si solo cambia el nombre u otros campos → permite el UPDATE normalmente.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_proteger_superadmin()
 RETURNS TRIGGER
@@ -28,11 +32,8 @@ SET search_path = public
 AS $$
 BEGIN
   IF OLD.es_superadmin = true THEN
-    IF NEW.activo      IS DISTINCT FROM OLD.activo      OR
-       NEW.rol         IS DISTINCT FROM OLD.rol         OR
-       NEW.es_superadmin IS DISTINCT FROM OLD.es_superadmin
-    THEN
-      RAISE EXCEPTION 'No se puede modificar el rol, estado ni permisos del administrador principal del sistema.';
+    IF NEW.es_superadmin IS DISTINCT FROM OLD.es_superadmin THEN
+      RAISE EXCEPTION 'No se puede modificar los permisos del administrador principal del sistema.';
     END IF;
   END IF;
 

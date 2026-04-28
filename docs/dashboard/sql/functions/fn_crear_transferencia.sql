@@ -1,18 +1,31 @@
 -- =============================================================================
--- FUNCIÓN: fn_crear_transferencia
--- Versión: 1.1
--- Descripción: Crea una transferencia atómica entre dos cajas usando códigos.
---              Busca las cajas por código, valida saldo suficiente en el origen,
---              registra las dos operaciones y actualiza los saldos en una sola
---              transacción (todo o nada).
+-- DROP — firma cambia en v2.0 (p_empleado_id INTEGER → UUID)
+-- =============================================================================
+DROP FUNCTION IF EXISTS public.fn_crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT);
+DROP FUNCTION IF EXISTS public.fn_crear_transferencia(TEXT, TEXT, NUMERIC, UUID, TEXT);
+
+-- =============================================================================
+-- FUNCIÓN: fn_crear_transferencia (v2.0 — multi-tenant UUID)
+-- =============================================================================
+-- Crea una transferencia atómica entre dos cajas usando códigos.
+-- Busca las cajas por código, valida saldo suficiente en el origen,
+-- registra las dos operaciones y actualiza los saldos en una sola
+-- transacción (todo o nada).
+--
+-- CAMBIOS v2.0:
+--   - p_empleado_id: INTEGER → UUID
+--   - v_caja_origen_id, v_caja_destino_id: INTEGER → UUID
+--   - Negocio leído del JWT (get_negocio_id()); cajas filtran por negocio_id
+--   - operaciones_cajas INSERT incluye negocio_id
 --
 -- Llamada desde: CajasService.crearTransferencia()
 -- =============================================================================
-CREATE OR REPLACE FUNCTION fn_crear_transferencia(
+
+CREATE OR REPLACE FUNCTION public.fn_crear_transferencia(
   p_codigo_origen    TEXT,
   p_codigo_destino   TEXT,
   p_monto            NUMERIC,
-  p_empleado_id      INTEGER,
+  p_empleado_id      UUID,
   p_descripcion      TEXT
 )
 RETURNS JSON
@@ -21,28 +34,35 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_caja_origen_id   INTEGER;
-  v_caja_destino_id  INTEGER;
-  v_nombre_origen    TEXT;
-  v_nombre_destino   TEXT;
-  v_saldo_origen     NUMERIC;
-  v_saldo_destino    NUMERIC;
+  v_negocio_id          UUID;
+  v_caja_origen_id      UUID;
+  v_caja_destino_id     UUID;
+  v_nombre_origen       TEXT;
+  v_nombre_destino      TEXT;
+  v_saldo_origen        NUMERIC;
+  v_saldo_destino       NUMERIC;
   v_nuevo_saldo_origen  NUMERIC;
   v_nuevo_saldo_destino NUMERIC;
 BEGIN
+  -- Obtener negocio del JWT
+  v_negocio_id := public.get_negocio_id();
+  IF v_negocio_id IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'No hay negocio activo en el JWT');
+  END IF;
+
   -- 1. Obtener caja origen por código
-  v_caja_origen_id := (SELECT id          FROM cajas WHERE codigo = p_codigo_origen  AND activo = true);
-  v_nombre_origen  := (SELECT nombre      FROM cajas WHERE codigo = p_codigo_origen  AND activo = true);
-  v_saldo_origen   := (SELECT saldo_actual FROM cajas WHERE codigo = p_codigo_origen AND activo = true);
+  v_caja_origen_id := (SELECT id           FROM cajas WHERE codigo = p_codigo_origen  AND negocio_id = v_negocio_id AND activo = true);
+  v_nombre_origen  := (SELECT nombre       FROM cajas WHERE codigo = p_codigo_origen  AND negocio_id = v_negocio_id AND activo = true);
+  v_saldo_origen   := (SELECT saldo_actual FROM cajas WHERE codigo = p_codigo_origen  AND negocio_id = v_negocio_id AND activo = true);
 
   IF v_caja_origen_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'Caja origen no encontrada: ' || p_codigo_origen);
   END IF;
 
   -- 2. Obtener caja destino por código
-  v_caja_destino_id := (SELECT id           FROM cajas WHERE codigo = p_codigo_destino  AND activo = true);
-  v_nombre_destino  := (SELECT nombre       FROM cajas WHERE codigo = p_codigo_destino  AND activo = true);
-  v_saldo_destino   := (SELECT saldo_actual  FROM cajas WHERE codigo = p_codigo_destino AND activo = true);
+  v_caja_destino_id := (SELECT id           FROM cajas WHERE codigo = p_codigo_destino AND negocio_id = v_negocio_id AND activo = true);
+  v_nombre_destino  := (SELECT nombre       FROM cajas WHERE codigo = p_codigo_destino AND negocio_id = v_negocio_id AND activo = true);
+  v_saldo_destino   := (SELECT saldo_actual FROM cajas WHERE codigo = p_codigo_destino AND negocio_id = v_negocio_id AND activo = true);
 
   IF v_caja_destino_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'Caja destino no encontrada: ' || p_codigo_destino);
@@ -65,28 +85,28 @@ BEGIN
 
   -- 5. Insertar operación SALIENTE en caja origen
   INSERT INTO operaciones_cajas (
-    caja_id, empleado_id, tipo_operacion,
+    negocio_id, caja_id, empleado_id, tipo_operacion,
     monto, saldo_anterior, saldo_actual, descripcion
   ) VALUES (
-    v_caja_origen_id, p_empleado_id, 'TRANSFERENCIA_SALIENTE',
+    v_negocio_id, v_caja_origen_id, p_empleado_id, 'TRANSFERENCIA_SALIENTE',
     p_monto, v_saldo_origen, v_nuevo_saldo_origen, p_descripcion
   );
 
   -- 6. Insertar operación ENTRANTE en caja destino
   INSERT INTO operaciones_cajas (
-    caja_id, empleado_id, tipo_operacion,
+    negocio_id, caja_id, empleado_id, tipo_operacion,
     monto, saldo_anterior, saldo_actual, descripcion
   ) VALUES (
-    v_caja_destino_id, p_empleado_id, 'TRANSFERENCIA_ENTRANTE',
+    v_negocio_id, v_caja_destino_id, p_empleado_id, 'TRANSFERENCIA_ENTRANTE',
     p_monto, v_saldo_destino, v_nuevo_saldo_destino,
     p_descripcion || ' desde ' || v_nombre_origen
   );
 
   -- 7. Actualizar saldo origen
-  UPDATE cajas SET saldo_actual = v_nuevo_saldo_origen WHERE id = v_caja_origen_id;
+  UPDATE cajas SET saldo_actual = v_nuevo_saldo_origen WHERE id = v_caja_origen_id AND negocio_id = v_negocio_id;
 
   -- 8. Actualizar saldo destino
-  UPDATE cajas SET saldo_actual = v_nuevo_saldo_destino WHERE id = v_caja_destino_id;
+  UPDATE cajas SET saldo_actual = v_nuevo_saldo_destino WHERE id = v_caja_destino_id AND negocio_id = v_negocio_id;
 
   RETURN json_build_object('success', true);
 
@@ -95,10 +115,11 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION fn_crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) FROM anon;
-GRANT EXECUTE ON FUNCTION fn_crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_crear_transferencia(TEXT, TEXT, NUMERIC, UUID, TEXT) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_crear_transferencia(TEXT, TEXT, NUMERIC, UUID, TEXT) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
 
-COMMENT ON FUNCTION fn_crear_transferencia(TEXT, TEXT, NUMERIC, INTEGER, TEXT) IS
-  'Transfiere monto entre dos cajas por código. Operación atómica con validación de saldo. v1.1';
+COMMENT ON FUNCTION public.fn_crear_transferencia(TEXT, TEXT, NUMERIC, UUID, TEXT) IS
+  'v2.0 (multi-tenant UUID) — Transfiere monto entre dos cajas por código. '
+  'Operación atómica con validación de saldo. Negocio leído del JWT.';

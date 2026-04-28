@@ -1,9 +1,9 @@
 <ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-menu-button></ion-menu-button>
+      <ion-back-button defaultHref="/cuentas-corrientes" text=""></ion-back-button>
     </ion-buttons>
-    <ion-title>Cuentas por Cobrar</ion-title>
+    <ion-title>Clientes</ion-title>
   </ion-toolbar>
 
   <!-- Buscador por nombre o telefono -->
@@ -66,6 +66,7 @@
   <!-- Lista de clientes con deuda -->
   @else {
   <div class="p-sm">
+    <p class="lista-hint">Clientes con ventas pendientes de cobro</p>
     <ion-list class="cuentas-list" lines="none">
       @for (cuenta of cuentas; track cuenta.cliente_id) {
       <ion-item class="cuenta-card" detail="false" button (click)="abrirDetalle(cuenta)">

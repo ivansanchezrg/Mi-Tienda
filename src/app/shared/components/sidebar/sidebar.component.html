@@ -2,14 +2,28 @@
 <div class="sidebar-container">
 
   <!-- HEADER -->
-  <div class="sidebar-header">
+  <div class="sidebar-header" [class.sidebar-header--superadmin]="esSuperadmin"
+    [class.sidebar-header--clickable]="empleadoRol === 'ADMIN' && !esSuperadmin"
+    (click)="abrirSelectorNegocios()">
     <div class="sidebar-logo">
-      <ion-icon name="storefront-outline"></ion-icon>
+      @if (esSuperadmin) {
+        <ion-icon name="shield-checkmark-outline"></ion-icon>
+      } @else {
+        <ion-icon name="storefront-outline"></ion-icon>
+      }
     </div>
     <div class="sidebar-header-text">
       <h2 class="sidebar-negocio">{{ nombreNegocio }}</h2>
       <span class="sidebar-subtitle">Panel de gestión</span>
     </div>
+    @if (esSuperadmin) {
+      <div class="superadmin-badge">
+        <ion-icon name="shield-checkmark-outline"></ion-icon>
+        Superadmin
+      </div>
+    } @else if (empleadoRol === 'ADMIN') {
+      <ion-icon name="chevron-down-outline" class="sidebar-header-chevron"></ion-icon>
+    }
   </div>
 
   <!-- ACCIONES RÁPIDAS — solo desktop -->
@@ -59,16 +73,25 @@
   <!-- FOOTER -->
   <div class="sidebar-footer">
     <div class="footer-user">
-      <div class="footer-avatar">
+      <div class="footer-avatar" [class.footer-avatar--superadmin]="esSuperadmin">
         <span>{{ empleadoNombre.charAt(0) }}</span>
       </div>
       <div class="footer-user-info">
         <span class="footer-nombre">{{ empleadoNombre }}</span>
-        <span class="footer-rol">{{ empleadoRol === 'ADMIN' ? 'Administrador' : 'Empleado' }}</span>
+        @if (esSuperadmin) {
+          <span class="footer-rol footer-rol--superadmin">Superadmin</span>
+        } @else {
+          <span class="footer-rol">{{ empleadoRol === 'ADMIN' ? 'Administrador' : 'Empleado' }}</span>
+        }
       </div>
     </div>
     <div class="footer-actions">
-      @if (empleadoRol === 'ADMIN') {
+      @if (esSuperadmin) {
+        <ion-button fill="clear" color="warning" class="btn-panel-admin" title="Volver al panel admin" (click)="volverAlPanelAdmin()">
+          <ion-icon name="arrow-back-outline" slot="icon-only"></ion-icon>
+        </ion-button>
+      }
+      @if (empleadoRol === 'ADMIN' && !esSuperadmin) {
         <ion-button fill="clear" color="medium" class="btn-settings" [routerLink]="configuracionRoute" (click)="closeMenu()">
           <ion-icon [icon]="settingsIcon" slot="icon-only"></ion-icon>
         </ion-button>

@@ -30,8 +30,8 @@ import { UiService } from '@core/services/ui.service';
 })
 export class ListPage implements OnInit {
   private usuarioService = inject(UsuarioService);
-  private modalCtrl = inject(ModalController);
-  private ui = inject(UiService);
+  private modalCtrl      = inject(ModalController);
+  private ui             = inject(UiService);
 
   usuarios: Usuario[] = [];
   loading = false;
@@ -40,7 +40,7 @@ export class ListPage implements OnInit {
     addIcons({ addOutline, personOutline, shieldCheckmarkOutline });
   }
 
-  ngOnInit() {
+  async ngOnInit() {
     this.loadUsuarios();
   }
 
@@ -68,9 +68,6 @@ export class ListPage implements OnInit {
     (event.target as HTMLIonRefresherElement).complete();
   }
 
-  /**
-   * Abre el modal para registrar un nuevo usuario
-   */
   async abrirRegistrar() {
     const { RegistrarUsuarioModalComponent } = await import(
       '../../components/registrar-usuario-modal/registrar-usuario-modal.component'
@@ -81,17 +78,12 @@ export class ListPage implements OnInit {
     });
 
     modal.onDidDismiss().then(({ data, role }) => {
-      if (role === 'confirm' && data) {
-        this.loadUsuarios();
-      }
+      if (role === 'confirm' && data) this.loadUsuarios();
     });
 
     await modal.present();
   }
 
-  /**
-   * Abre el modal para editar un usuario existente
-   */
   async abrirEditar(usuario: Usuario) {
     const { EditarUsuarioModalComponent } = await import(
       '../../components/editar-usuario-modal/editar-usuario-modal.component'
@@ -102,12 +94,18 @@ export class ListPage implements OnInit {
       componentProps: { usuario }
     });
 
-    modal.onDidDismiss().then(({ data, role }) => {
+    modal.onDidDismiss().then(async ({ data, role }) => {
       if (role === 'confirm' && data) {
-        const idx = this.usuarios.findIndex(u => u.id === data.id);
-        if (idx !== -1) {
-          this.usuarios[idx] = data;
-          this.usuarios = [...this.usuarios];
+        if (data?.transferido === true) {
+          const destino = data.negocioNombre ?? 'otra sucursal';
+          await this.ui.showToast(`${data.empleadoNombre ?? 'El empleado'} fue transferido a ${destino}. Su membresía aquí quedó inactiva.`, 'success');
+          this.loadUsuarios();
+        } else {
+          const idx = this.usuarios.findIndex(u => u.id === data.id);
+          if (idx !== -1) {
+            this.usuarios[idx] = data;
+            this.usuarios = [...this.usuarios];
+          }
         }
       }
     });

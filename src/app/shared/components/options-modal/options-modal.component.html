@@ -8,7 +8,7 @@
 </div>
 
 <div class="modal-body">
-    @for (group of groups; track group.title) {
+    @for (group of groups; track $index) {
     @if (group.title) {
     <div class="group-title">{{ group.title }}</div>
     }

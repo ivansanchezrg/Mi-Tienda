@@ -52,7 +52,7 @@ export class NotasListPage extends PaginatedListPage<Nota> implements OnInit, On
     protected readonly pageSize = PAGINATION_CONFIG.notas.pageSize;
     readonly loadingMoreText = 'Cargando más notas...';
 
-    private usuarioId: number | null = null;
+    private usuarioId: string | null = null;
     esAdmin = false;
     creando = false;
     procesando = new Set<string>();  // ids de notas con operación en curso

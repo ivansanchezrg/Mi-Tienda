@@ -1,165 +1,174 @@
-// ==========================================
-// Adelanto Modal
-// ==========================================
+// El .modal-wrapper, .modal-header, .modal-close-btn, .modal-actions y variantes
+// vienen de src/theme/custom/modals.scss — no redefinir aquí.
 
-ion-toolbar {
-  --background: var(--ion-background-color, #f8f9fa);
+.modal-header-icon {
+  background: rgba(var(--ion-color-warning-rgb), 0.12);
+  ion-icon { color: var(--ion-color-warning); }
 }
 
-.form-section {
-  max-width: 420px;
-  margin: 0 auto;
-}
+// ── Detalle ──
 
-.beneficiario-chip {
+.detalle-section {
+  padding: var(--spacing-md) var(--spacing-md) 0;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: rgba(var(--ion-color-warning-rgb), 0.08);
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--spacing-xl);
-  font-size: 14px;
-  color: var(--ion-color-warning-shade);
-
-  ion-icon {
-    font-size: 18px;
-  }
-
-  strong {
-    color: var(--ion-text-color);
-  }
 }
 
-.field {
-  margin-bottom: var(--spacing-md);
-
-  .field-label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--ion-color-medium);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-bottom: var(--spacing-xs);
-  }
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.monto-input {
-  --background: var(--ion-color-step-50);
-  --border-radius: var(--radius-sm);
-  --padding-start: var(--spacing-md);
-  --padding-end: var(--spacing-md);
-  font-size: 24px;
+.field-label {
+  font-size: 11px;
   font-weight: 700;
-  text-align: center;
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
-.text-input {
+.field-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.field-input {
   width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: 1px solid var(--ion-color-step-200);
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  font-family: inherit;
+  box-sizing: border-box;
   background: var(--ion-item-background);
+  border: 1.5px solid var(--ion-color-step-150);
+  border-radius: var(--radius-sm);
+  padding: 10px var(--spacing-md);
+  font-size: 15px;
   color: var(--ion-text-color);
   outline: none;
+  transition: border-color 0.15s;
 
   &:focus { border-color: var(--ion-color-primary); }
-  &::placeholder { color: var(--ion-color-medium); }
+}
+
+// Input de moneda
+.input-currency-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  background: var(--ion-item-background);
+  border: 1.5px solid var(--ion-color-step-150);
+  border-radius: var(--radius-sm);
+  padding: 10px var(--spacing-md);
+  transition: border-color 0.15s;
+
+  &.destacado {
+    border-color: var(--ion-color-warning);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-warning-rgb), 0.1);
+  }
+}
+
+.currency-prefix {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ion-color-medium);
+  flex-shrink: 0;
+}
+
+.currency-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ion-text-color);
+  text-align: right;
+
+  &::placeholder { color: var(--ion-color-step-300); font-weight: 400; }
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  &[type='number'] { -moz-appearance: textfield; }
 }
 
 .nota-info {
   font-size: 12px;
   color: var(--ion-color-medium);
-  text-align: center;
-  margin: var(--spacing-lg) 0;
   line-height: 1.5;
+  margin: var(--spacing-xs) 0 0;
 }
 
-.btn-confirmar {
-  margin-top: var(--spacing-lg);
-  --border-radius: var(--radius-md);
-  font-weight: 700;
+// Error
+.error-msg {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin: var(--spacing-sm) var(--spacing-md) 0;
+  font-size: 13px;
+  color: var(--ion-color-danger);
+
+  ion-icon { font-size: 16px; flex-shrink: 0; }
 }
 
-// ─────────────────────────────────────────
-// RESULTADO
-// ─────────────────────────────────────────
+// ── Resultado exitoso ──
 
-.resultado-section {
+.resultado-ok {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--spacing-xl) 0;
-  max-width: 420px;
-  margin: 0 auto;
+  padding: var(--spacing-xl) var(--spacing-md) var(--spacing-md);
+  text-align: center;
 }
 
-.resultado-icon {
-  width: 72px;
-  height: 72px;
+.resultado-ok-icon {
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
+  background: rgba(var(--ion-color-success-rgb), 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
 
-  ion-icon { font-size: 40px; }
-
-  &.success {
-    background: rgba(var(--ion-color-success-rgb), 0.1);
-    ion-icon { color: var(--ion-color-success); }
-  }
-
-  &.error {
-    background: rgba(var(--ion-color-danger-rgb), 0.1);
-    ion-icon { color: var(--ion-color-danger); }
+  ion-icon {
+    font-size: 30px;
+    color: var(--ion-color-success);
   }
 }
 
-.resultado-titulo {
-  font-size: 20px;
-  font-weight: var(--font-weight-extrabold);
+.resultado-ok-titulo {
+  font-size: 18px;
+  font-weight: 800;
   color: var(--ion-text-color);
   margin: 0 0 var(--spacing-xs);
 }
 
-.resultado-monto {
-  font-size: 28px;
-  font-weight: var(--font-weight-extrabold);
-  color: var(--ion-color-success);
-  margin: 0 0 var(--spacing-xl);
-  letter-spacing: -1px;
-}
-
-.resultado-error {
+.resultado-ok-sub {
   font-size: 14px;
-  color: var(--ion-color-danger);
-  text-align: center;
-  margin: 0 0 var(--spacing-xl);
+  color: var(--ion-color-medium);
+  margin: 0 0 var(--spacing-md);
   line-height: 1.5;
+
+  strong { color: var(--ion-text-color); }
 }
 
-// ─────────────────────────────────────────
-// INSTRUCCIONES FISICAS
-// ─────────────────────────────────────────
-
+// Instrucciones físicas
 .instrucciones-card {
   width: 100%;
   background: rgba(var(--ion-color-primary-rgb), 0.04);
   border: 1px solid rgba(var(--ion-color-primary-rgb), 0.15);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-lg);
-  margin-bottom: var(--spacing-xl);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  text-align: left;
 }
 
 .instrucciones-titulo {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--ion-text-color);
-  margin: 0 0 var(--spacing-md);
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 0 0 var(--spacing-sm);
 }
 
 .instrucciones-lista {
@@ -172,14 +181,6 @@ ion-toolbar {
     color: var(--ion-text-color);
     line-height: 1.8;
 
-    strong {
-      color: var(--ion-color-primary);
-    }
+    strong { color: var(--ion-color-primary); }
   }
-}
-
-.btn-cerrar {
-  width: 100%;
-  --border-radius: var(--radius-md);
-  font-weight: 700;
 }
