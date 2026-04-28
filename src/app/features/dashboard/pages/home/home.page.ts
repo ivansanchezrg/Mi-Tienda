@@ -12,7 +12,7 @@ import {
   chevronForward, notificationsOutline, cloudOfflineOutline,
   alertCircleOutline, eyeOutline, eyeOffOutline,
   arrowUpOutline, arrowDownOutline,
-  lockClosedOutline, lockOpenOutline
+  lockClosedOutline, lockOpenOutline, warningOutline
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
@@ -30,6 +30,7 @@ import { NotificacionesService, Notificacion } from '@core/services/notificacion
 import { NotificacionesModalComponent } from '../../components/notificaciones-modal/notificaciones-modal.component';
 import { VerificarFondoModalComponent } from '../../components/verificar-fondo-modal/verificar-fondo-modal.component';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
+import { CierreEmergenciaModalComponent } from '../../components/cierre-emergencia-modal/cierre-emergencia-modal.component';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { ROUTES } from '@core/config/routes.config';
@@ -116,7 +117,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   // Usuario
   nombreUsuario = '';
-  empleadoActualId: number | null = null;
+  empleadoActualId: string | null = null;
   esAdmin = false;
 
   // Fechas
@@ -144,7 +145,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       chevronForward, notificationsOutline, cloudOfflineOutline,
       alertCircleOutline, eyeOutline, eyeOffOutline,
       arrowUpOutline, arrowDownOutline,
-      lockClosedOutline, lockOpenOutline
+      lockClosedOutline, lockOpenOutline, warningOutline
     });
   }
 
@@ -341,21 +342,26 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       if (data === 'cerrar') await this.onCerrarCaja();
 
     } else if (this.cajaAbierta) {
-      // Turno ajeno — solo informativo, sin opciones
+      // Turno ajeno — informativo; admins pueden hacer cierre de emergencia
       const nombre = this.estadoCaja.empleadoNombre || 'otro empleado';
       const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
+      const groups: ModalOptionGroup[] = this.esAdmin
+        ? [{ options: [{ label: 'Cierre de Emergencia', icon: 'warning-outline', value: 'emergencia', color: 'danger' }] }]
+        : [];
       const modal = await this.modalCtrl.create({
         component: OptionsModalComponent,
         componentProps: {
           title: 'Turno en Progreso',
           subtitle: `${cajaNombre} abierto por ${nombre} · Solo ese empleado puede registrar movimientos`,
-          groups: []
+          groups
         },
         cssClass: 'options-modal',
         breakpoints: [0, 1],
         initialBreakpoint: 1
       });
       await modal.present();
+      const { data } = await modal.onDidDismiss();
+      if (data === 'emergencia') await this.onCierreEmergencia();
 
     } else {
       // Sin turno — mostrar info + opción de abrir
@@ -379,6 +385,33 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       await modal.present();
       const { data } = await modal.onDidDismiss();
       if (data === 'abrir') await this.onAbrirCaja();
+    }
+  }
+
+  async onCierreEmergencia() {
+    if (!this.esAdmin) return;
+    const turno = this.estadoCaja.turnoActivo;
+    if (!turno) return;
+    if (!this.empleadoActualId) return;
+
+    const modal = await this.modalCtrl.create({
+      component: CierreEmergenciaModalComponent,
+      componentProps: {
+        turnoId:         turno.id,
+        adminId:         this.empleadoActualId,
+        empleadoNombre:  this.estadoCaja.empleadoNombre || 'Empleado',
+        horaApertura:    this.estadoCaja.horaApertura
+      },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
+    });
+
+    await modal.present();
+    const { role } = await modal.onDidDismiss();
+    if (role === 'confirm') {
+      await this.cargarDatos();
+      this.cdr.detectChanges();
     }
   }
 

@@ -88,7 +88,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
 
     // Rol y usuario actual
     rolUsuario: RolUsuario | null = null;
-    usuarioId: number | null = null;
+    usuarioId: string | null = null;
 
     // Filtro por turno (solo ADMIN)
     turnosDelDia: TurnoCajaConEmpleado[] = [];

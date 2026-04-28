@@ -1,0 +1,191 @@
+<div class="modal-wrapper">
+
+  <!-- Header -->
+  <div class="modal-header">
+    <div class="modal-header-icon">
+      <ion-icon name="create-outline"></ion-icon>
+    </div>
+    <span class="modal-header-title">Ajuste de cuenta</span>
+    <button class="modal-close-btn" (click)="cerrar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <!-- ── RESULTADO EXITOSO ── -->
+  @if (exito) {
+  <div class="resultado-ok">
+    <div class="resultado-ok-icon">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+    </div>
+    <p class="resultado-ok-titulo">Ajuste registrado</p>
+    <p class="resultado-ok-sub">
+      @if (tipo === 'FALTA') {
+        Se registró una falta laboral de <strong>{{ currency.format(montoFinal) }}</strong>
+        en la cuenta de {{ empleadoNombre }}.
+      } @else if (tipo === 'AJUSTE_ABONO') {
+        Se registró una corrección de <strong>{{ currency.format(montoFinal) }}</strong>
+        a favor de {{ empleadoNombre }}.
+      } @else {
+        Se registró un cargo de <strong>{{ currency.format(montoFinal) }}</strong>
+        en la cuenta de {{ empleadoNombre }}.
+      }
+    </p>
+    <div class="modal-actions">
+      <ion-button expand="block" color="primary" (click)="cerrar()">Entendido</ion-button>
+    </div>
+  </div>
+  }
+
+  <!-- ── FORMULARIO ── -->
+  @if (!exito) {
+
+  <!-- Paso 1: Selección de tipo -->
+  <div class="tipo-section">
+    <p class="tipo-label">¿Qué vas a registrar?</p>
+    <div class="tipo-grid">
+
+      <!-- Falta laboral -->
+      <button
+        class="tipo-card"
+        [class.selected]="tipo === 'FALTA'"
+        [class.cargo]="tipo === 'FALTA'"
+        (click)="seleccionar('FALTA')"
+        type="button">
+        <ion-icon name="calendar-outline"></ion-icon>
+        <span class="tipo-card-label">Falta laboral</span>
+        <span class="tipo-card-hint">Descuenta un día</span>
+      </button>
+
+      <!-- Cargo general -->
+      <button
+        class="tipo-card"
+        [class.selected]="tipo === 'AJUSTE_CARGO'"
+        [class.cargo]="tipo === 'AJUSTE_CARGO'"
+        (click)="seleccionar('AJUSTE_CARGO')"
+        type="button">
+        <ion-icon name="arrow-up-outline"></ion-icon>
+        <span class="tipo-card-label">Cargo</span>
+        <span class="tipo-card-hint">El empleado debe</span>
+      </button>
+
+      <!-- Corrección (abono contable, sin movimiento de caja) -->
+      <button
+        class="tipo-card"
+        [class.selected]="tipo === 'AJUSTE_ABONO'"
+        [class.abono]="tipo === 'AJUSTE_ABONO'"
+        (click)="seleccionar('AJUSTE_ABONO')"
+        type="button">
+        <ion-icon name="create-outline"></ion-icon>
+        <span class="tipo-card-label">Corrección</span>
+        <span class="tipo-card-hint">Anular un cargo</span>
+      </button>
+
+    </div>
+  </div>
+
+  <!-- Paso 2: Detalle según tipo -->
+  @if (tipo === 'FALTA') {
+  <div class="detalle-section">
+
+    <!-- Monto calculado (solo informativo) -->
+    <div class="monto-calculado">
+      <span class="monto-calculado-label">Se descontará</span>
+      <span class="monto-calculado-valor">{{ currency.format(valorDia) }}</span>
+      <span class="monto-calculado-formula">equivalente a 1 día de trabajo</span>
+    </div>
+
+    <!-- Fecha de la falta -->
+    <div class="field-group">
+      <label class="field-label" for="fecha-falta">Fecha de la falta</label>
+      <input
+        id="fecha-falta"
+        class="field-input"
+        type="date"
+        [(ngModel)]="fechaFalta"
+        [max]="fechaFalta">
+    </div>
+
+    <!-- Descripcion opcional -->
+    <div class="field-group">
+      <label class="field-label" for="desc-falta">
+        Nota interna
+        <span class="field-hint">(opcional)</span>
+      </label>
+      <input
+        id="desc-falta"
+        class="field-input"
+        type="text"
+        [(ngModel)]="descripcion"
+        placeholder="Falta laboral — se completa automático"
+        maxlength="200"
+        autocomplete="off">
+    </div>
+
+  </div>
+  }
+
+  @if (tipo === 'AJUSTE_CARGO' || tipo === 'AJUSTE_ABONO') {
+  <div class="detalle-section">
+
+    <!-- Monto manual -->
+    <div class="field-group">
+      <label class="field-label" for="monto-ajuste">Monto *</label>
+      <div class="input-currency-wrapper destacado">
+        <span class="currency-prefix">$</span>
+        <input
+          id="monto-ajuste"
+          class="currency-input"
+          type="number"
+          inputmode="decimal"
+          min="0.01"
+          step="0.01"
+          placeholder="0.00"
+          [(ngModel)]="montoRaw"
+          autocomplete="off">
+      </div>
+    </div>
+
+    <!-- Descripcion requerida -->
+    <div class="field-group">
+      <label class="field-label" for="desc-ajuste">Descripcion *</label>
+      <input
+        id="desc-ajuste"
+        class="field-input"
+        type="text"
+        [(ngModel)]="descripcion"
+        placeholder="Motivo del ajuste"
+        maxlength="200"
+        autocomplete="off">
+    </div>
+
+  </div>
+  }
+
+  <!-- Error -->
+  @if (errorMsg) {
+  <div class="error-msg">
+    <ion-icon name="alert-circle-outline"></ion-icon>
+    {{ errorMsg }}
+  </div>
+  }
+
+  <!-- Botones -->
+  @if (tipo) {
+  <div class="modal-actions modal-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()" [disabled]="guardando">
+      Cancelar
+    </ion-button>
+    <ion-button
+      expand="block"
+      [color]="tipo === 'AJUSTE_ABONO' ? 'success' : 'danger'"
+      (click)="confirmar()"
+      [disabled]="!valido || guardando">
+      @if (guardando) { Guardando... }
+      @else { Registrar }
+    </ion-button>
+  </div>
+  }
+
+  }
+
+</div>

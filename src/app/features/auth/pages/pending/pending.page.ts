@@ -1,5 +1,4 @@
 import { Component, inject } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
 import {
   IonContent,
   IonButton,
@@ -9,7 +8,6 @@ import { addIcons } from 'ionicons';
 import { timeOutline, refreshOutline, logOutOutline } from 'ionicons/icons';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '@core/services/ui.service';
-import { ROUTES } from '@core/config/routes.config';
 
 @Component({
   selector: 'app-pending',
@@ -21,14 +19,9 @@ import { ROUTES } from '@core/config/routes.config';
 export class PendingPage {
 
   private authService = inject(AuthService);
-  private router = inject(Router);
-  private route = inject(ActivatedRoute);
   private ui = inject(UiService);
 
   verificando = false;
-
-  /** true = recién registrado por primera vez */
-  readonly esNuevo = this.route.snapshot.queryParamMap.get('estado') === 'nuevo';
 
   constructor() {
     addIcons({ timeOutline, refreshOutline, logOutOutline });
@@ -39,11 +32,12 @@ export class PendingPage {
     this.verificando = true;
 
     try {
-      const isValid = await this.authService.validarUsuario();
-      if (isValid) {
-        this.router.navigate([ROUTES.home], { replaceUrl: true });
-      } else {
-        this.ui.showToast('Tu cuenta aún no ha sido aprobada', 'warning');
+      const acceso = await this.authService.validarUsuario();
+      // validarUsuario() navega sola si hay acceso (retorna true).
+      // Si retorna false y no hubo error (ya mostrado internamente), el usuario
+      // sigue sin acceso → mostrar feedback para que sepa que se verificó.
+      if (!acceso) {
+        await this.ui.showToast('Tu cuenta sigue inactiva. Contactá al administrador.', 'warning');
       }
     } finally {
       this.verificando = false;

@@ -97,7 +97,11 @@ Ambas categorias son de sistema — no aparecen en el dropdown del modal de oper
 ```
 Admin abre detalle del empleado
   → Menu ⋮ → "Pagar nomina"
-    → Paso 1: Sueldo bruto (precargado de config.nomina_sueldo_base, editable)
+    → Paso 1: Sueldo bruto
+        - Precargado de config.nomina_sueldo_base
+        - Si el empleado fue transferido desde este negocio (activo=FALSE),
+          se calcula el proporcional automaticamente (ver seccion 5.1)
+        - El admin puede editar el monto sugerido antes de continuar
     → Paso 2: Preview automatico:
         Sueldo bruto:       +$500
         Faltante caja:       -$5
@@ -118,6 +122,51 @@ Admin abre detalle del empleado
 ```
 
 **Orden de cajas:** VARIOS primero, luego CAJA (Tienda). CAJA_CHICA excluida (se resetea diariamente).
+
+### 5.1 Calculo proporcional para empleados transferidos
+
+Cuando un empleado se transfiere a otro negocio a mitad de mes, cada negocio paga solo los dias que el empleado trabajo ahi.
+
+**Como funciona el calculo:**
+
+`usuario_negocios` tiene `created_at` (cuando entro al negocio) y `updated_at` (ultima modificacion — se actualiza via trigger en cada cambio de `activo` o `rol`).
+
+Cuando el admin de Tienda A abre "Pagar nomina" para Maria (ya transferida, `activo=FALSE`):
+1. El servicio lee `created_at` y `updated_at` de la membresia de Maria en Tienda A
+2. Calcula `dias_trabajados = DATE_PART('day', updated_at - created_at)`
+3. Sugiere `sueldo_proporcional = ROUND((sueldo_base / 30.0) * dias_trabajados, 2)`
+4. Muestra el calculo al admin con el periodo cubierto: "15 dias (01/04 — 15/04)"
+5. El admin puede ajustar el monto si lo considera necesario
+
+**Ejemplo:**
+```
+Maria — sueldo base $400/mes
+Tienda A: created_at=01/04, updated_at=15/04 (transferida ese dia)
+  dias_trabajados = 14
+  sueldo_proporcional = ROUND((400 / 30.0) * 14, 2) = $186.67
+  → El admin ve: "Sueldo sugerido: $186.67 (14 dias, 01/04 — 15/04)"
+
+Tienda B: created_at=15/04, activo=TRUE (sigue aca)
+  → El admin ve el sueldo_base completo de config ($400) para ajustar manualmente
+    segun los dias restantes del mes
+```
+
+**Query del servicio para obtener el proporcional:**
+```typescript
+// En calcularPreviewNomina() — solo si el empleado esta inactivo en este negocio
+const { data: membresia } = await this.supabase.client
+  .from('usuario_negocios')
+  .select('created_at, updated_at, activo')
+  .eq('usuario_id', empleadoId)
+  .eq('negocio_id', negocioId)  // negocio actual del JWT
+  .maybeSingle();
+
+if (membresia && !membresia.activo) {
+  const dias = differenceInDays(new Date(membresia.updated_at), new Date(membresia.created_at));
+  const proporcional = Math.round((sueldoBase / 30) * dias * 100) / 100;
+  // mostrar sugerencia en el wizard
+}
+```
 
 ---
 

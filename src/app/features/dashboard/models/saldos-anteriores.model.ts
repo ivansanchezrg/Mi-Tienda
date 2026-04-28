@@ -38,7 +38,7 @@ export interface DatosCierreDiario {
 export interface ParamsCierreDiario {
   turno_id: string; // UUID del turno que se está cerrando
   fecha: string;
-  empleado_id: number;
+  empleado_id: string;
   // Conteo físico del empleado (reemplaza efectivo_recaudado de v4)
   efectivo_fisico: number;
   // Recargas

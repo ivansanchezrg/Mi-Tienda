@@ -73,7 +73,7 @@ export interface ProductoMasVendido {
 export interface Venta {
     id: string;
     turno_id: string;
-    empleado_id: number;
+    empleado_id: string;
     cliente_id: string | null;
     tipo_comprobante: TipoComprobanteType;
     numero_comprobante: number | null;  // Correlativo interno (ej: 42 → "#42")

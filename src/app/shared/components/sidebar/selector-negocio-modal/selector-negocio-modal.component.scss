@@ -1,0 +1,130 @@
+// ── Lista de negocios ──
+.negocios-list {
+  padding: 0 var(--spacing-md);
+}
+
+.negocio-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  padding: var(--spacing-md);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+
+  &:active {
+    background: var(--ion-color-step-100);
+  }
+
+  &--activo {
+    background: rgba(var(--ion-color-primary-rgb), 0.05);
+  }
+}
+
+.negocio-avatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: rgba(var(--ion-color-primary-rgb), 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ion-color-primary);
+}
+
+.negocio-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.negocio-nombre {
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.negocio-rol {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  font-weight: var(--font-weight-medium);
+}
+
+.negocio-activo-icon {
+  font-size: 22px;
+  color: var(--ion-color-primary);
+  flex-shrink: 0;
+}
+
+// ── Skeletons ──
+.negocio-item--skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
+.skeleton-box {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--ion-color-step-150);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: var(--radius-xs);
+  background: var(--ion-color-step-150);
+  animation: pulse 1.2s ease-in-out infinite;
+
+  &--lg { width: 65%; }
+  &--sm { width: 35%; margin-top: 4px; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+// ── Botón crear sucursal ──
+.modal-actions {
+  padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg);
+  border-top: 1px solid var(--ion-color-step-100);
+  margin-top: var(--spacing-sm);
+}
+
+.btn-crear-sucursal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-md);
+  border: 1.5px dashed var(--ion-color-primary);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--ion-color-primary-rgb), 0.04);
+  color: var(--ion-color-primary);
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+
+  ion-icon {
+    font-size: 20px;
+  }
+
+  &:active {
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+  }
+}

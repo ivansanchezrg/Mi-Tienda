@@ -1,0 +1,64 @@
+<ion-content class="crear-content">
+
+  <div class="crear-wrap">
+
+    <!-- Ilustración + cabecera -->
+    <div class="crear-header">
+      <div class="crear-icon-wrap">
+        <ion-icon name="storefront"></ion-icon>
+      </div>
+      <h1 class="crear-title">Crea tu negocio</h1>
+      <p class="crear-subtitle">
+        Configura tu espacio de trabajo. Podrás agregar empleados
+        y sucursales desde el panel de administración.
+      </p>
+    </div>
+
+    <!-- Formulario -->
+    <form [formGroup]="form" (ngSubmit)="crear()" class="crear-form" novalidate>
+
+      <div class="field-wrap">
+        <label class="field-label" for="nombre-negocio">Nombre del negocio</label>
+        <input
+          id="nombre-negocio"
+          type="text"
+          class="field-input"
+          [class.field-input--error]="errorNombre"
+          formControlName="nombre"
+          placeholder="Ej: Tienda Don Pedro"
+          autocomplete="organization"
+          maxlength="80"
+          enterkeyhint="go"
+          (keydown.enter)="crear()"
+        />
+        @if (errorNombre) {
+          <p class="field-error">{{ errorNombre }}</p>
+        }
+      </div>
+
+      <ion-button
+        expand="block"
+        class="crear-btn"
+        type="submit"
+        [disabled]="creando"
+        (click)="crear()">
+        @if (creando) {
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+          Creando...
+        } @else {
+          Crear y entrar
+          <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
+        }
+      </ion-button>
+
+    </form>
+
+    <!-- Salir -->
+    <button class="salir-btn" (click)="salir()" [disabled]="creando">
+      <ion-icon name="log-out-outline"></ion-icon>
+      Cerrar sesión
+    </button>
+
+  </div>
+
+</ion-content>

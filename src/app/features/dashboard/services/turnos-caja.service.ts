@@ -6,7 +6,7 @@ import { UiService } from '@core/services/ui.service';
 import { LoggerService } from '@core/services/logger.service';
 import { ConfigService } from '@core/services/config.service';
 import { AuthService } from '../../auth/services/auth.service';
-import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
+import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo, ResultadoCierreEmergencia } from '../models/turno-caja.model';
 import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
 
 @Injectable({
@@ -484,6 +484,37 @@ export class TurnosCajaService {
     );
 
     return turnos ?? [];
+  }
+
+  /**
+   * Ejecuta el cierre de emergencia de un turno abierto por un empleado ausente.
+   * Solo disponible para administradores.
+   *
+   * Delega toda la lógica a fn_cierre_emergencia_turno que:
+   *   - Valida rol ADMIN del caller
+   *   - Aplica la distribución en cascada igual que el cierre normal
+   *   - Registra FALTANTE_CAJA si hay diferencia negativa de conteo
+   *   - Cierra el turno con observaciones "CIERRE DE EMERGENCIA"
+   *   - NO procesa recargas virtuales (el admin las gestiona manualmente)
+   */
+  async cerrarEmergencia(params: {
+    adminId: string;
+    turnoId: string;
+    efectivoFisico: number;
+    motivo?: string;
+  }): Promise<ResultadoCierreEmergencia | null> {
+    const response = await this.supabase.call<ResultadoCierreEmergencia>(
+      this.supabase.client.rpc('fn_cierre_emergencia_turno', {
+        p_admin_id:        params.adminId,
+        p_turno_id:        params.turnoId,
+        p_efectivo_fisico: params.efectivoFisico,
+        p_motivo:          params.motivo ?? null
+      }),
+      undefined,
+      { showLoading: true }
+    );
+
+    return response;
   }
 
   /**

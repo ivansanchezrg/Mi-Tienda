@@ -1,65 +1,40 @@
 -- ==========================================
--- DROP — firma cambia en v5 (parámetros distintos a v4.9)
+-- DROP — firma cambia en v6.0 (p_empleado_id INTEGER → UUID, multi-tenant)
 -- ==========================================
--- ⚠️  Descomentar y ejecutar PRIMERO si ya existe la función en la BD:
--- DROP FUNCTION IF EXISTS public.fn_ejecutar_cierre_diario(
---   UUID, DATE, INTEGER, DECIMAL, DECIMAL, DECIMAL,
---   DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
--- );
+DROP FUNCTION IF EXISTS public.fn_ejecutar_cierre_diario(
+  UUID, DATE, INTEGER, DECIMAL, DECIMAL, DECIMAL,
+  DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
+);
+DROP FUNCTION IF EXISTS public.fn_ejecutar_cierre_diario(
+  UUID, DATE, UUID, DECIMAL, DECIMAL, DECIMAL,
+  DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
+);
 
 -- ==========================================
--- FUNCIÓN: fn_ejecutar_cierre_diario (v5.6)
+-- FUNCIÓN: fn_ejecutar_cierre_diario (v6.0 — multi-tenant UUID)
 -- ==========================================
--- CAMBIOS v5.6 respecto a v5.5:
---   - Paso 7: reemplaza INSERT en deudas_empleados por INSERT en movimientos_empleados
---     con tipo_movimiento = 'FALTANTE_CAJA'. La tabla deudas_empleados fue eliminada
---     en v6.0 del schema y reemplazada por movimientos_empleados (cuenta corriente).
---     El faltante se descuenta automaticamente al pagar nomina (fn_pagar_nomina_empleado).
+-- CAMBIOS v6.0 respecto a v5.6:
+--   - p_empleado_id: INTEGER → UUID (schema v11 migró PKs a UUID)
+--   - v_negocio_id UUID: leído de public.get_negocio_id() (JWT)
+--   - Todas las queries filtran por negocio_id (SECURITY DEFINER no aplica RLS)
+--   - Eliminado: lectura de pos_habilitado desde configuraciones
+--     (la clave fue eliminada; el POS se habilita automáticamente por turno abierto)
+--   - Variables locales de IDs: INTEGER → UUID
+--   - DROP/GRANT usan firma UUID
 --
--- CAMBIOS v5.5 respecto a v5.4:
---   - Paso 13 (CELULAR): INSERT en recargas ahora condicional a v_venta_celular > 0.
---     Antes: siempre insertaba aunque venta_dia = 0 y saldo no se moviera.
---     Ahora: si no hubo venta celular, no se crea snapshot ni operación de caja.
---   - Paso 14 (BUS): INSERT en recargas ahora condicional a v_venta_bus > 0
---     OR EXISTS registro previo del mini cierre para el turno.
---     El mini cierre (fn_registrar_compra_saldo_bus) puede haber creado el registro
---     antes del cierre — en ese caso igual se actualiza saldo_virtual_actual final.
---     Si no hubo venta BUS y no hubo mini cierre, no se crea ningún registro.
---
--- CAMBIOS v5.4 respecto a v5.3:
---   - Lee pos_habilitado de configuraciones en el paso 3
---   - Paso 7: ajuste solo si v_pos_habilitado AND v_hubo_movimientos_caja_chica
---     Antes: solo verificaba movimientos → un ingreso/egreso manual con POS OFF
---     podía disparar un ajuste incorrecto. Ahora la intención es explícita.
---   - COALESCE(v_pos_habilitado, TRUE): si la clave no existe en BD, default TRUE
---
--- CAMBIOS v5.3 respecto a v5.0:
---   - Paso 7: verifica v_hubo_movimientos_caja_chica antes de calcular ajuste
---     (evita ajuste falso cuando no se usa POS)
---
--- CAMBIOS v5.0 respecto a v4.9:
---   - Eliminado: p_efectivo_recaudado, p_saldo_anterior_caja, p_saldo_anterior_caja_chica
---   - Agregado:  p_efectivo_fisico (conteo físico del empleado en el cajón)
---   - Nueva caja CAJA_CHICA (cajón diario): acumula ventas POS y egresos del día
---   - Nueva caja VARIOS (ex CAJA_CHICA):   recibe transferencia diaria al cierre
---   - Saldos de CAJA y VARIOS se leen de BD (no se pasan como parámetro)
---   - Eliminada dependencia de caja_fisica_diaria (tabla eliminada en v5)
---   - Nuevo paso: ajuste por diferencia de conteo (INGRESO o EGRESO en CAJA_CHICA)
---   - CAJA_CHICA queda en saldo_actual = 0 al finalizar el cierre
---   - Último cierre detectado desde turnos_caja.hora_fecha_cierre (no caja_fisica_diaria)
---   - Referencia documental de operaciones: turnos_caja (no caja_fisica_diaria)
--- HEREDA DE v4.9:
---   - Lógica "todo o nada" para transferencia a VARIOS (ex-Caja Chica)
---   - 1 sola transferencia a VARIOS por día (v_transferencia_ya_hecha)
---   - ON CONFLICT en INSERT BUS (mini cierre registrar_compra_saldo_bus)
---   - Recargas filtradas por created_at > último cierre (no por fecha)
---   - Ventas negativas lanzan excepción con mensaje descriptivo
+-- HEREDA DE v5.6:
+--   - Distribución en cascada "todo o nada" por nivel
+--   - Ajuste de conteo físico (solo si hubo movimientos en CAJA_CHICA)
+--   - Recargas virtuales por created_at > último cierre
+--   - ON CONFLICT en BUS para mini cierre
+--   - faltante de conteo → movimientos_empleados (FALTANTE_CAJA)
+--   - 1 sola transferencia a VARIOS por día
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v5.6
+CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v6.0
   p_turno_id               UUID,
   p_fecha                  DATE,
-  p_empleado_id            INTEGER,
+  p_empleado_id            UUID,
   p_efectivo_fisico        DECIMAL(12,2),        -- Conteo físico del empleado en el cajón
   p_saldo_celular_final    DECIMAL(12,2),
   p_saldo_bus_final        DECIMAL(12,2),
@@ -75,27 +50,29 @@ SECURITY DEFINER
 SET search_path = public
 AS $function$
 DECLARE
+  -- Tenant
+  v_negocio_id UUID;
+
   -- IDs de cajas (por código)
-  v_caja_id         INTEGER;  -- CAJA (bóveda/Tienda)
-  v_caja_chica_id   INTEGER;  -- CAJA_CHICA (cajón físico diario)
-  v_varios_id       INTEGER;  -- VARIOS (fondo emergencia, ex-CAJA_CHICA)
-  v_caja_celular_id INTEGER;
-  v_caja_bus_id     INTEGER;
+  v_caja_id         UUID;  -- CAJA (bóveda/Tienda)
+  v_caja_chica_id   UUID;  -- CAJA_CHICA (cajón físico diario)
+  v_varios_id       UUID;  -- VARIOS (fondo emergencia, ex-CAJA_CHICA)
+  v_caja_celular_id UUID;
+  v_caja_bus_id     UUID;
 
   -- IDs de categorías de ajuste
-  v_cat_ajuste_ingreso_id INTEGER;  -- IN-005: Ajuste Diferencia Conteo
-  v_cat_ajuste_egreso_id  INTEGER;  -- EG-013: Ajuste Diferencia Conteo
+  v_cat_ajuste_ingreso_id UUID;  -- IN-005: Ajuste Diferencia Conteo
+  v_cat_ajuste_egreso_id  UUID;  -- EG-013: Ajuste Diferencia Conteo
 
   -- IDs de servicios y referencias
-  v_tipo_servicio_celular_id INTEGER;
-  v_tipo_servicio_bus_id     INTEGER;
-  v_tipo_ref_recargas_id     INTEGER;
-  v_tipo_ref_turnos_id       INTEGER;
+  v_tipo_servicio_celular_id UUID;
+  v_tipo_servicio_bus_id     UUID;
+  v_tipo_ref_recargas_id     UUID;
+  v_tipo_ref_turnos_id       UUID;
 
   -- Configuración
   v_fondo_fijo           DECIMAL(12,2);
   v_transferencia_diaria DECIMAL(12,2);
-  v_pos_habilitado       BOOLEAN;
 
   -- Recargas virtuales pendientes
   v_agregado_celular DECIMAL(12,2);
@@ -126,7 +103,7 @@ DECLARE
   v_saldo_final_caja_celular DECIMAL(12,2);
   v_saldo_final_caja_bus     DECIMAL(12,2);
 
-  -- Sin POS ni movimientos manuales en CAJA_CHICA
+  -- Sin movimientos manuales en CAJA_CHICA
   v_hubo_movimientos_caja_chica BOOLEAN := FALSE;
 
   -- IDs generados
@@ -135,18 +112,33 @@ DECLARE
   v_turno_cerrado      BOOLEAN := FALSE;
 BEGIN
   -- ==========================================
+  -- 0. OBTENER NEGOCIO DEL JWT
+  -- ==========================================
+
+  v_negocio_id := public.get_negocio_id();
+  IF v_negocio_id IS NULL THEN
+    RAISE EXCEPTION 'No hay negocio activo en el JWT';
+  END IF;
+
+  -- ==========================================
   -- 1. VALIDACIONES DE TURNO
   -- ==========================================
 
-  IF NOT EXISTS (SELECT 1 FROM turnos_caja WHERE id = p_turno_id) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND negocio_id = v_negocio_id
+  ) THEN
     RAISE EXCEPTION 'El turno especificado no existe';
   END IF;
 
-  IF EXISTS (SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND hora_fecha_cierre IS NOT NULL) THEN
+  IF EXISTS (
+    SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND negocio_id = v_negocio_id AND hora_fecha_cierre IS NOT NULL
+  ) THEN
     RAISE EXCEPTION 'El turno ya está cerrado';
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND empleado_id = p_empleado_id) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND negocio_id = v_negocio_id AND empleado_id = p_empleado_id
+  ) THEN
     RAISE EXCEPTION 'Solo el empleado que abrió el turno puede realizar el cierre';
   END IF;
 
@@ -158,34 +150,30 @@ BEGIN
   -- 2. OBTENER IDs POR CÓDIGO / TABLA
   -- ==========================================
 
-  v_caja_id         := (SELECT id FROM cajas WHERE codigo = 'CAJA');
-  v_caja_chica_id   := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA');
-  v_varios_id       := (SELECT id FROM cajas WHERE codigo = 'VARIOS');
-  v_caja_celular_id := (SELECT id FROM cajas WHERE codigo = 'CAJA_CELULAR');
-  v_caja_bus_id     := (SELECT id FROM cajas WHERE codigo = 'CAJA_BUS');
+  v_caja_id         := (SELECT id FROM cajas WHERE codigo = 'CAJA'         AND negocio_id = v_negocio_id);
+  v_caja_chica_id   := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA'   AND negocio_id = v_negocio_id);
+  v_varios_id       := (SELECT id FROM cajas WHERE codigo = 'VARIOS'       AND negocio_id = v_negocio_id);
+  v_caja_celular_id := (SELECT id FROM cajas WHERE codigo = 'CAJA_CELULAR' AND negocio_id = v_negocio_id);
+  v_caja_bus_id     := (SELECT id FROM cajas WHERE codigo = 'CAJA_BUS'     AND negocio_id = v_negocio_id);
 
   v_tipo_servicio_celular_id := (SELECT id FROM tipos_servicio   WHERE codigo = 'CELULAR');
   v_tipo_servicio_bus_id     := (SELECT id FROM tipos_servicio   WHERE codigo = 'BUS');
   v_tipo_ref_recargas_id     := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas');
   v_tipo_ref_turnos_id       := (SELECT id FROM tipos_referencia WHERE tabla = 'turnos_caja');
 
-  v_cat_ajuste_ingreso_id := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-005');
-  v_cat_ajuste_egreso_id  := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-013');
+  v_cat_ajuste_ingreso_id := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-005' AND negocio_id = v_negocio_id);
+  v_cat_ajuste_egreso_id  := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-013' AND negocio_id = v_negocio_id);
 
   -- ==========================================
   -- 3. OBTENER CONFIGURACIÓN
   -- ==========================================
 
-  v_fondo_fijo          := (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_fondo_fijo_diario');
-  v_transferencia_diaria := (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_varios_transferencia_dia');
-  v_pos_habilitado       := (SELECT valor::BOOLEAN FROM configuraciones WHERE clave = 'pos_habilitado');
+  v_fondo_fijo           := (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_fondo_fijo_diario'          AND negocio_id = v_negocio_id);
+  v_transferencia_diaria := (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_varios_transferencia_dia'   AND negocio_id = v_negocio_id);
 
   IF v_fondo_fijo IS NULL OR v_transferencia_diaria IS NULL THEN
     RAISE EXCEPTION 'No se encontró configuración del sistema';
   END IF;
-
-  -- pos_habilitado default TRUE si no existe la clave
-  v_pos_habilitado := COALESCE(v_pos_habilitado, TRUE);
 
   -- ==========================================
   -- 4. OBTENER TIMESTAMP DEL ÚLTIMO CIERRE
@@ -196,6 +184,7 @@ BEGIN
     SELECT MAX(hora_fecha_cierre)
     FROM turnos_caja
     WHERE hora_fecha_cierre IS NOT NULL
+      AND negocio_id = v_negocio_id
   );
 
   -- ==========================================
@@ -209,6 +198,7 @@ BEGIN
     SELECT COALESCE(SUM(monto_virtual), 0)
     FROM recargas_virtuales rv
     WHERE rv.tipo_servicio_id = v_tipo_servicio_celular_id
+      AND rv.negocio_id = v_negocio_id
       AND (v_ultimo_cierre_at IS NULL OR rv.created_at > v_ultimo_cierre_at)
   );
 
@@ -216,6 +206,7 @@ BEGIN
     SELECT COALESCE(SUM(monto_virtual), 0)
     FROM recargas_virtuales rv
     WHERE rv.tipo_servicio_id = v_tipo_servicio_bus_id
+      AND rv.negocio_id = v_negocio_id
       AND (v_ultimo_cierre_at IS NULL OR rv.created_at > v_ultimo_cierre_at)
   );
 
@@ -224,45 +215,38 @@ BEGIN
   -- ==========================================
 
   -- Lock explícito en las 3 filas + lectura individual por código
-  PERFORM id FROM cajas WHERE codigo IN ('CAJA_CHICA', 'CAJA', 'VARIOS') FOR UPDATE;
+  PERFORM id FROM cajas WHERE codigo IN ('CAJA_CHICA', 'CAJA', 'VARIOS') AND negocio_id = v_negocio_id FOR UPDATE;
 
-  v_saldo_caja_chica_digital := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA_CHICA');
-  v_saldo_caja               := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA');
-  v_saldo_varios             := (SELECT saldo_actual FROM cajas WHERE codigo = 'VARIOS');
+  v_saldo_caja_chica_digital := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA_CHICA' AND negocio_id = v_negocio_id);
+  v_saldo_caja               := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA'       AND negocio_id = v_negocio_id);
+  v_saldo_varios             := (SELECT saldo_actual FROM cajas WHERE codigo = 'VARIOS'     AND negocio_id = v_negocio_id);
 
   -- ==========================================
   -- 7. AJUSTE POR DIFERENCIA DE CONTEO FÍSICO
   --
-  -- Solo aplica si el módulo POS está habilitado Y hubo movimientos reales
-  -- en CAJA_CHICA durante el turno (ventas POS, ingresos o egresos manuales).
+  -- Solo aplica si hubo movimientos reales en CAJA_CHICA durante el turno
+  -- (ventas POS, ingresos o egresos manuales).
   --
-  -- Dos condiciones independientes:
-  --   a) v_pos_habilitado = FALSE → el cajón no se usó como cajón POS,
-  --      no tiene sentido calcular diferencia ni registrar ajuste.
-  --   b) v_hubo_movimientos_caja_chica = FALSE → aunque POS esté activo,
-  --      si no hubo ningún movimiento el saldo_digital = 0 no es un error,
-  --      el efectivo va directo a distribución sin ajuste.
-  --
-  -- Cuando ambas condiciones se cumplen:
-  --   efectivo_esperado = saldo_digital + fondo_fijo
-  --   diferencia = p_efectivo_fisico - efectivo_esperado
-  --     > 0 → encontró más de lo esperado  → INGRESO de ajuste
-  --     < 0 → encontró menos de lo esperado → EGRESO de ajuste + deuda empleado
-  --     = 0 → conteo exacto, no se necesita ajuste
+  -- efectivo_esperado = saldo_digital + fondo_fijo
+  -- diferencia = p_efectivo_fisico - efectivo_esperado
+  --   > 0 → encontró más de lo esperado  → INGRESO de ajuste
+  --   < 0 → encontró menos de lo esperado → EGRESO de ajuste + deuda empleado
+  --   = 0 → conteo exacto, no se necesita ajuste
   -- ==========================================
 
   -- Verificar si hubo movimientos reales en CAJA_CHICA durante este turno
   v_hubo_movimientos_caja_chica := EXISTS (
     SELECT 1 FROM operaciones_cajas
     WHERE caja_id = v_caja_chica_id
-      AND fecha >= (SELECT hora_fecha_apertura FROM turnos_caja WHERE id = p_turno_id)
+      AND negocio_id = v_negocio_id
+      AND fecha >= (SELECT hora_fecha_apertura FROM turnos_caja WHERE id = p_turno_id AND negocio_id = v_negocio_id)
   );
 
-  IF v_pos_habilitado AND v_hubo_movimientos_caja_chica THEN
+  IF v_hubo_movimientos_caja_chica THEN
     v_efectivo_esperado := v_saldo_caja_chica_digital + v_fondo_fijo;
     v_diferencia        := p_efectivo_fisico - v_efectivo_esperado;
   ELSE
-    -- POS desactivado o sin movimientos: no hay ajuste, el efectivo va directo a distribución
+    -- Sin movimientos: no hay ajuste, el efectivo va directo a distribución
     v_efectivo_esperado := p_efectivo_fisico;
     v_diferencia        := 0;
   END IF;
@@ -270,10 +254,11 @@ BEGIN
   IF v_diferencia > 0 THEN
     -- Más físico del esperado → INGRESO de ajuste a CAJA_CHICA
     INSERT INTO operaciones_cajas (
-      id, caja_id, empleado_id, tipo_operacion, monto, categoria_id,
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, monto, categoria_id,
       saldo_anterior, saldo_actual, descripcion
     ) VALUES (
       gen_random_uuid(),
+      v_negocio_id,
       v_caja_chica_id,
       p_empleado_id,
       'INGRESO',
@@ -292,10 +277,11 @@ BEGIN
   ELSIF v_diferencia < 0 THEN
     -- Menos físico del esperado → EGRESO de ajuste desde CAJA_CHICA
     INSERT INTO operaciones_cajas (
-      id, caja_id, empleado_id, tipo_operacion, monto, categoria_id,
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, monto, categoria_id,
       saldo_anterior, saldo_actual, descripcion
     ) VALUES (
       gen_random_uuid(),
+      v_negocio_id,
       v_caja_chica_id,
       p_empleado_id,
       'EGRESO',
@@ -312,12 +298,10 @@ BEGIN
     );
 
     -- Registrar faltante en cuenta corriente del empleado (movimientos_empleados).
-    -- Causas posibles: dinero tomado sin registrar, error de conteo, billete falso, etc.
-    -- El déficit de VARIOS y del fondo NO son responsabilidad del empleado (son costos operacionales).
-    -- Este faltante se descuenta automaticamente al pagar nomina (fn_pagar_nomina_empleado).
     INSERT INTO movimientos_empleados (
-      empleado_id, turno_id, tipo_movimiento, monto, descripcion, creado_por
+      negocio_id, empleado_id, turno_id, tipo_movimiento, monto, descripcion, creado_por
     ) VALUES (
+      v_negocio_id,
       p_empleado_id,
       p_turno_id,
       'FALTANTE_CAJA',
@@ -339,18 +323,15 @@ BEGIN
   --   3° CAJA       → recibe el resto (siempre >= 0)
   --
   -- Si el efectivo no alcanza para un nivel, ese monto va a CAJA.
-  -- La reposición siempre se hace en montos fijos desde configuraciones.
   -- Regla adicional: solo 1 transferencia a VARIOS por día.
   -- ==========================================
 
   -- ¿VARIOS ya recibió su transferencia diaria hoy?
-  -- Cubre dos casos:
-  --   1. Cierre normal anterior del día   → TRANSFERENCIA_ENTRANTE en VARIOS
-  --   2. Ajuste de apertura (reparar déficit) → INGRESO categoría IN-004 en VARIOS
   v_transferencia_ya_hecha := EXISTS (
     SELECT 1
     FROM operaciones_cajas oc
     WHERE oc.caja_id = v_varios_id
+      AND oc.negocio_id = v_negocio_id
       AND (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
       AND (
         oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
@@ -369,7 +350,6 @@ BEGIN
     v_transferencia_efectiva    := 0;
     v_deficit_varios            := 0;
     v_fondo_en_cajon            := (p_efectivo_fisico >= v_fondo_fijo);
-    -- Fondo queda si alcanza; si no, todo va a CAJA
     v_dinero_a_depositar        := p_efectivo_fisico - CASE WHEN v_fondo_en_cajon THEN v_fondo_fijo ELSE 0 END;
     v_monto_reposicion_apertura := 0;
 
@@ -399,7 +379,7 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 9. CALCULAR VENTAS VIRTUALES (lógica idéntica a v4.5)
+  -- 9. CALCULAR VENTAS VIRTUALES
   -- ==========================================
 
   v_venta_celular := (p_saldo_anterior_celular + v_agregado_celular) - p_saldo_celular_final;
@@ -419,18 +399,16 @@ BEGIN
 
   -- ==========================================
   -- 10. OPERACIÓN EN CAJA (bóveda) — depósito del cajón físico
-  -- NOTA: tipo_operacion = 'CIERRE' (no 'INGRESO') porque es un
-  --       movimiento contable interno del cierre de turno, no un
-  --       ingreso real de dinero nuevo al negocio.
   -- ==========================================
 
   IF v_dinero_a_depositar > 0 THEN
     INSERT INTO operaciones_cajas (
-      id, caja_id, empleado_id, tipo_operacion, monto,
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, monto,
       saldo_anterior, saldo_actual, descripcion,
       tipo_referencia_id, referencia_id
     ) VALUES (
       gen_random_uuid(),
+      v_negocio_id,
       v_caja_id,
       p_empleado_id,
       'CIERRE',
@@ -449,11 +427,12 @@ BEGIN
 
   IF v_transferencia_efectiva > 0 THEN
     INSERT INTO operaciones_cajas (
-      id, caja_id, empleado_id, tipo_operacion, monto,
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, monto,
       saldo_anterior, saldo_actual, descripcion,
       tipo_referencia_id, referencia_id
     ) VALUES (
       gen_random_uuid(),
+      v_negocio_id,
       v_varios_id,
       p_empleado_id,
       'TRANSFERENCIA_ENTRANTE',
@@ -471,26 +450,26 @@ BEGIN
   -- ==========================================
 
   -- CAJA (bóveda): recibe el depósito
-  UPDATE cajas SET saldo_actual = v_saldo_caja + v_dinero_a_depositar WHERE id = v_caja_id;
+  UPDATE cajas SET saldo_actual = v_saldo_caja + v_dinero_a_depositar WHERE id = v_caja_id AND negocio_id = v_negocio_id;
 
   -- VARIOS (fondo emergencia): recibe la transferencia
-  UPDATE cajas SET saldo_actual = v_saldo_varios + v_transferencia_efectiva WHERE id = v_varios_id;
+  UPDATE cajas SET saldo_actual = v_saldo_varios + v_transferencia_efectiva WHERE id = v_varios_id AND negocio_id = v_negocio_id;
 
   -- CAJA_CHICA (cajón): queda en $0 digital (el fondo_fijo queda físicamente pero no digitalmente)
-  UPDATE cajas SET saldo_actual = 0 WHERE id = v_caja_chica_id;
+  UPDATE cajas SET saldo_actual = 0 WHERE id = v_caja_chica_id AND negocio_id = v_negocio_id;
 
   -- ==========================================
   -- 13. RECARGAS CELULAR
   -- Solo se registra si hubo venta real (saldo virtual se movió).
-  -- Si venta_dia = 0, no hay snapshot que guardar ni operación de caja.
   -- ==========================================
 
   IF v_venta_celular > 0 THEN
     INSERT INTO recargas (
-      id, fecha, turno_id, empleado_id, tipo_servicio_id,
+      id, negocio_id, fecha, turno_id, empleado_id, tipo_servicio_id,
       venta_dia, saldo_virtual_anterior, saldo_virtual_actual
     ) VALUES (
       gen_random_uuid(),
+      v_negocio_id,
       p_fecha,
       p_turno_id,
       p_empleado_id,
@@ -500,14 +479,15 @@ BEGIN
       p_saldo_celular_final
     );
 
-    v_recarga_celular_id := (SELECT id FROM recargas WHERE turno_id = p_turno_id AND tipo_servicio_id = v_tipo_servicio_celular_id);
+    v_recarga_celular_id := (SELECT id FROM recargas WHERE turno_id = p_turno_id AND tipo_servicio_id = v_tipo_servicio_celular_id AND negocio_id = v_negocio_id);
 
     INSERT INTO operaciones_cajas (
-      id, caja_id, empleado_id, tipo_operacion, monto,
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, monto,
       saldo_anterior, saldo_actual, descripcion,
       tipo_referencia_id, referencia_id
     ) VALUES (
       gen_random_uuid(),
+      v_negocio_id,
       v_caja_celular_id,
       p_empleado_id,
       'INGRESO',
@@ -518,26 +498,25 @@ BEGIN
       v_tipo_ref_recargas_id,
       v_recarga_celular_id
     );
-    UPDATE cajas SET saldo_actual = v_saldo_final_caja_celular WHERE id = v_caja_celular_id;
+    UPDATE cajas SET saldo_actual = v_saldo_final_caja_celular WHERE id = v_caja_celular_id AND negocio_id = v_negocio_id;
   END IF;
 
   -- ==========================================
   -- 14. RECARGAS BUS (ON CONFLICT para mini cierre)
-  -- ON CONFLICT: si hubo mini cierre durante el día (registrar_compra_saldo_bus v3.0),
-  -- ya existe un registro BUS para este turno. Acumula venta_dia y actualiza saldo final.
-  -- Se omite el INSERT si venta_bus = 0 Y no hubo mini cierre previo para este turno.
   -- ==========================================
 
   IF v_venta_bus > 0 OR EXISTS (
     SELECT 1 FROM recargas
     WHERE turno_id = p_turno_id
       AND tipo_servicio_id = v_tipo_servicio_bus_id
+      AND negocio_id = v_negocio_id
   ) THEN
     INSERT INTO recargas (
-      id, fecha, turno_id, empleado_id, tipo_servicio_id,
+      id, negocio_id, fecha, turno_id, empleado_id, tipo_servicio_id,
       venta_dia, saldo_virtual_anterior, saldo_virtual_actual
     ) VALUES (
       gen_random_uuid(),
+      v_negocio_id,
       p_fecha,
       p_turno_id,
       p_empleado_id,
@@ -550,15 +529,16 @@ BEGIN
       venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
       saldo_virtual_actual = EXCLUDED.saldo_virtual_actual;
 
-    v_recarga_bus_id := (SELECT id FROM recargas WHERE turno_id = p_turno_id AND tipo_servicio_id = v_tipo_servicio_bus_id);
+    v_recarga_bus_id := (SELECT id FROM recargas WHERE turno_id = p_turno_id AND tipo_servicio_id = v_tipo_servicio_bus_id AND negocio_id = v_negocio_id);
 
     IF v_venta_bus > 0 THEN
       INSERT INTO operaciones_cajas (
-        id, caja_id, empleado_id, tipo_operacion, monto,
+        id, negocio_id, caja_id, empleado_id, tipo_operacion, monto,
         saldo_anterior, saldo_actual, descripcion,
         tipo_referencia_id, referencia_id
       ) VALUES (
         gen_random_uuid(),
+        v_negocio_id,
         v_caja_bus_id,
         p_empleado_id,
         'INGRESO',
@@ -569,7 +549,7 @@ BEGIN
         v_tipo_ref_recargas_id,
         v_recarga_bus_id
       );
-      UPDATE cajas SET saldo_actual = v_saldo_final_caja_bus WHERE id = v_caja_bus_id;
+      UPDATE cajas SET saldo_actual = v_saldo_final_caja_bus WHERE id = v_caja_bus_id AND negocio_id = v_negocio_id;
     END IF;
   END IF;
 
@@ -580,7 +560,8 @@ BEGIN
   UPDATE turnos_caja
      SET hora_fecha_cierre = NOW(),
          fondo_cubierto    = v_fondo_en_cajon
-   WHERE id = p_turno_id;
+   WHERE id = p_turno_id
+     AND negocio_id = v_negocio_id;
   v_turno_cerrado := TRUE;
 
   -- ==========================================
@@ -592,7 +573,7 @@ BEGIN
     'turno_id',      p_turno_id,
     'fecha',         p_fecha,
     'turno_cerrado', v_turno_cerrado,
-    'version',       '5.0',
+    'version',       '6.0',
     'configuracion', json_build_object(
       'fondo_fijo',           v_fondo_fijo,
       'transferencia_diaria', v_transferencia_diaria
@@ -631,7 +612,7 @@ BEGIN
 
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error en cierre diario v5.0: %', SQLERRM;
+    RAISE EXCEPTION 'Error en cierre diario v6.0: %', SQLERRM;
 END;
 $function$;
 
@@ -640,11 +621,11 @@ $function$;
 -- ==========================================
 
 REVOKE EXECUTE ON FUNCTION public.fn_ejecutar_cierre_diario(
-  UUID, DATE, INTEGER, DECIMAL, DECIMAL, DECIMAL,
+  UUID, DATE, UUID, DECIMAL, DECIMAL, DECIMAL,
   DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
 ) FROM anon;
 GRANT EXECUTE ON FUNCTION public.fn_ejecutar_cierre_diario(
-  UUID, DATE, INTEGER, DECIMAL, DECIMAL, DECIMAL,
+  UUID, DATE, UUID, DECIMAL, DECIMAL, DECIMAL,
   DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT
 ) TO authenticated;
 
@@ -652,15 +633,10 @@ GRANT EXECUTE ON FUNCTION public.fn_ejecutar_cierre_diario(
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_ejecutar_cierre_diario IS
-'Cierre diario v5.6 — Distribución en cascada "todo o nada" por nivel. '
-'Ajuste de conteo solo si pos_habilitado=true (config) Y hubo movimientos reales en CAJA_CHICA. '
-'Doble condición explícita: módulo activo + uso real. Evita ajuste falso tanto cuando POS está '
-'desactivado como cuando está activo pero no se usó en el turno. '
+'Cierre diario v6.0 (multi-tenant UUID) — Distribución en cascada "todo o nada" por nivel. '
+'Ajuste de conteo solo si hubo movimientos reales en CAJA_CHICA durante el turno. '
+'Negocio leído del JWT (get_negocio_id()); todas las queries filtran por negocio_id. '
 'Inserta en movimientos_empleados (FALTANTE_CAJA) cuando efectivo_fisico < efectivo_esperado. '
 'El déficit de VARIOS y del fondo son costos operacionales — NO se registran como faltante del empleado. '
-'1° VARIOS recibe si efectivo >= transferencia_diaria completa. '
-'2° Fondo fijo queda en cajón solo si efectivo >= transferencia_diaria + fondo_fijo. '
-'3° CAJA recibe el resto. Si un nivel no alcanza, ese monto va a CAJA. '
-'Sin montos parciales → reposición siempre en valores fijos desde configuraciones. '
 'CAJA_CHICA.saldo_actual queda en $0 digital al finalizar. '
 'Retorna monto_reposicion_apertura para informar al siguiente turno cuánto reponer.';

@@ -5,7 +5,7 @@ import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import {
     IonContent, IonHeader, IonTitle, IonToolbar,
-    IonButtons, IonMenuButton, IonIcon,
+    IonButtons, IonBackButton, IonIcon,
     IonRefresher, IonRefresherContent,
     IonList, IonItem, IonLabel, IonSearchbar,
     IonSkeletonText, IonFooter, IonAvatar,
@@ -36,7 +36,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
     imports: [
         CommonModule,
         IonContent, IonHeader, IonTitle, IonToolbar,
-        IonButtons, IonMenuButton, IonIcon,
+        IonButtons, IonBackButton, IonIcon,
         IonRefresher, IonRefresherContent,
         IonList, IonItem, IonLabel, IonSearchbar,
         IonSkeletonText, IonFooter,

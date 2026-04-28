@@ -50,7 +50,7 @@
   </app-empty-state>
   } @else {
   <div class="employees-list">
-    @for (usuario of usuarios; track usuario.id) {
+    @for (usuario of usuarios; track usuario.membresia_id) {
     <div class="employee-card" (click)="abrirEditar(usuario)">
 
       <!-- Avatar -->
@@ -61,7 +61,7 @@
       <!-- Info -->
       <div class="employee-info">
         <div class="employee-nombre">{{ usuario.nombre }}</div>
-        <div class="employee-usuario">{{ usuario.usuario }}</div>
+        <div class="employee-usuario">{{ usuario.email }}</div>
       </div>
 
       <!-- Badges -->

@@ -5,13 +5,13 @@ import {
   IonList, IonItem, IonIcon, IonLabel,
   IonMenuToggle, IonButton
 } from '@ionic/angular/standalone';
-import { MenuController } from '@ionic/angular/standalone';
+import { MenuController, ModalController } from '@ionic/angular/standalone';
 import {
   peopleOutline, settingsOutline, logOutOutline, personCircleOutline,
   listOutline, swapHorizontalOutline, homeOutline, cubeOutline, handRightOutline,
   personOutline, readerOutline, barcodeOutline, receiptOutline,
   storefrontOutline, calculatorOutline, createOutline, scaleOutline,
-  walletOutline
+  walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 import { RolUsuario } from '../../../features/auth/models/usuario_actual.model';
@@ -47,10 +47,11 @@ interface MenuGroup {
   ]
 })
 export class SidebarComponent implements OnInit, OnDestroy {
-  private menuCtrl = inject(MenuController);
-  private authService = inject(AuthService);
+  private menuCtrl      = inject(MenuController);
+  private modalCtrl     = inject(ModalController);
+  private authService   = inject(AuthService);
   private turnosCajaService = inject(TurnosCajaService);
-  private ui = inject(UiService);
+  private ui            = inject(UiService);
   private configService = inject(ConfigService);
 
   @Output() accionRapida = new EventEmitter<'nueva-nota' | 'cuadre' | 'calculadora'>();
@@ -71,7 +72,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
   empleadoNombre = '';
   empleadoEmail = '';
   empleadoRol: RolUsuario = 'EMPLEADO';
-  private empleadoId: number | null = null;
+  esSuperadmin = false;
+  private empleadoId: string | null = null;
 
   // Grupos de navegación del sidebar
   private readonly todosLosGrupos: MenuGroup[] = [
@@ -88,7 +90,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       label: 'Gestión',
       items: [
         { title: 'Notas', url: ROUTES.notas, icon: readerOutline },
-        { title: 'Cuentas por Cobrar', url: ROUTES.cuentasCobrar.root, icon: handRightOutline },
+        { title: 'Cobros y Pagos', url: ROUTES.cuentasCorrientes, icon: handRightOutline },
         { title: 'Clientes', url: ROUTES.clientes, icon: personOutline },
       ]
     },
@@ -102,7 +104,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
     {
       label: 'Admin',
       items: [
-        { title: 'Cuentas Empleados', url: ROUTES.movimientosEmpleados.root, icon: walletOutline, soloAdmin: true },
         { title: 'Usuarios', url: ROUTES.usuarios, icon: peopleOutline, soloAdmin: true }
       ]
     }
@@ -115,7 +116,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private posHabilitado = false;
 
   constructor() {
-    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline, walletOutline });
+    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline, walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline, handRightOutline });
   }
 
   async ngOnInit() {
@@ -128,6 +129,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
     if (usuario) {
       this.aplicarDatosUsuario(usuario);
+      // Priorizar negocio_nombre del UsuarioActual (multi-tenant)
+      // Si no está disponible (cache antiguo), usar configService como fallback
+      if (usuario.negocio_nombre) {
+        this.nombreNegocio = usuario.negocio_nombre;
+      }
     }
 
     // El estado del POS depende de si hay un turno de caja abierto.
@@ -151,11 +157,15 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.usuarioSub?.unsubscribe();
   }
 
-  private aplicarDatosUsuario(usuario: { id?: number; nombre: string; usuario: string; rol: RolUsuario }) {
+  private aplicarDatosUsuario(usuario: { id?: string; nombre: string; email: string; rol: RolUsuario; es_superadmin?: boolean; negocio_nombre?: string }) {
     this.empleadoNombre = usuario.nombre;
-    this.empleadoEmail = usuario.usuario;
+    this.empleadoEmail = usuario.email;
     this.empleadoRol = usuario.rol;
+    this.esSuperadmin = usuario.es_superadmin ?? false;
     this.empleadoId = usuario.id ?? null;
+    if (usuario.negocio_nombre) {
+      this.nombreNegocio = usuario.negocio_nombre;
+    }
   }
 
   private recalcularMenu() {
@@ -170,6 +180,69 @@ export class SidebarComponent implements OnInit, OnDestroy {
       .filter(group => group.items.length > 0);
   }
 
+  /**
+   * Abre el selector de negocios (solo ADMIN, no superadmin).
+   * - Seleccionar un negocio → cambiarNegocio()
+   * - Elegir "Nueva sucursal" → abre CrearSucursalModalComponent → crea y cambia automáticamente
+   */
+  async abrirSelectorNegocios() {
+    if (this.empleadoRol !== 'ADMIN' || this.esSuperadmin) return;
+    await this.closeMenu();
+
+    const { SelectorNegocioModalComponent } = await import('./selector-negocio-modal/selector-negocio-modal.component');
+
+    const selector = await this.modalCtrl.create({
+      component: SelectorNegocioModalComponent,
+      componentProps: { negocioActivoId: this.empleadoId ? await this.getNegocioActivoId() : '' },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
+    });
+    await selector.present();
+    const { data, role } = await selector.onDidDismiss();
+
+    if (role === 'seleccionar' && data) {
+      await this.ui.showLoading(`Cambiando a ${data.negocio_nombre}...`);
+      try {
+        await this.authService.cambiarNegocio(data.negocio_id, data.negocio_nombre);
+      } finally {
+        await this.ui.hideLoading();
+      }
+      return;
+    }
+
+    if (role === 'crear') {
+      await this.abrirCrearSucursal();
+    }
+  }
+
+  private async getNegocioActivoId(): Promise<string> {
+    const usuario = await this.authService.getUsuarioActual();
+    return usuario?.negocio_id ?? '';
+  }
+
+  private async abrirCrearSucursal() {
+    const { CrearSucursalModalComponent } = await import('./crear-sucursal-modal/crear-sucursal-modal.component');
+
+    const modal = await this.modalCtrl.create({
+      component: CrearSucursalModalComponent,
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
+    });
+    await modal.present();
+    const { data, role } = await modal.onDidDismiss();
+
+    if (role === 'confirm' && data) {
+      await this.ui.showLoading(`Cambiando a ${data.negocio_nombre}...`);
+      try {
+        await this.authService.cambiarNegocio(data.negocio_id, data.negocio_nombre);
+      } finally {
+        await this.ui.hideLoading();
+      }
+    }
+  }
+
   async onAccionRapida(accion: 'nueva-nota' | 'cuadre' | 'calculadora') {
     await this.closeMenu();
     this.accionRapida.emit(accion);
@@ -179,6 +252,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
     // En desktop el split pane muestra el sidebar fijo — no cerrar
     const isVisible = await this.menuCtrl.isOpen();
     if (isVisible) await this.menuCtrl.close();
+  }
+
+  async volverAlPanelAdmin() {
+    await this.closeMenu();
+    await this.authService.irAlPanelAdmin();
   }
 
   async logout() {

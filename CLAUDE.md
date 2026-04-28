@@ -29,9 +29,10 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 | Módulo              | Estado           |
 | ------------------- | ---------------- |
 | `auth`              | ✅ Completo                                  |
+| `admin`             | ✅ Panel superadmin (lista negocios, crear negocio). Ruta: `/admin`. Guard: `superadminGuard` |
 | `dashboard`         | ✅ Completo (v5 — 5 cajas, cierre wizard 2p) |
 | `recargas-virtuales`| ✅ Completo                                  |
-| `usuarios`          | ✅ Completo                                  |
+| `usuarios`          | ✅ Completo (solo Equipo — gestión de empleados del negocio activo) |
 | `inventario`        | ✅ Completo                                  |
 | `pos`               | ✅ Completo (descuentos, idempotencia, escáner) |
 | `cuentas-cobrar`    | ✅ Completo                                  |
@@ -43,6 +44,37 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 
 ---
 
+## Arquitectura de roles y rutas
+
+La app tiene **3 niveles de acceso** con rutas separadas:
+
+| Nivel | Flag | Ruta | Guard |
+|-------|------|------|-------|
+| `es_superadmin = true` | Campo en `usuarios` | `/admin` | `superadminGuard` |
+| `rol = 'ADMIN'` en `usuario_negocios` | JWT claim | `/home` + rutas protegidas con `roleGuard(['ADMIN'])` | `authGuard` |
+| `rol = 'EMPLEADO'` en `usuario_negocios` | JWT claim | `/home` + rutas de empleado | `authGuard` |
+
+**Flujo de login post-validación:**
+```
+validarUsuario()
+    ├── es_superadmin + sin negocio cacheado → /admin
+    ├── sin negocios → /auth/crear-negocio (onboarding)
+    ├── 1 negocio   → activar directo → /home
+    └── N negocios  → /auth/seleccionar-negocio → /home
+```
+
+**`/admin`** — Panel del superadmin (sin `negocio_id` en JWT):
+- Lista todos los negocios de la plataforma
+- Puede crear nuevos negocios
+- Toca un negocio → `cambiarNegocio()` → JWT actualizado con ese `negocio_id` → `/home` para operar dentro del negocio como ADMIN
+- `irAlPanelAdmin()` en `AuthService` para volver a `/admin` desde dentro de un negocio
+
+**`/home` y resto** — App del negocio activo (con `negocio_id` en JWT, RLS filtra automáticamente):
+- El módulo `usuarios/` solo gestiona el Equipo del negocio activo
+- El módulo `admin/` NO aparece en el sidebar ni en las rutas de layout
+
+---
+
 ## Estructura de carpetas
 
 ```
@@ -51,7 +83,7 @@ src/app/
 │   ├── services/          # Servicios globales (ver abajo)
 │   ├── config/            # pagination.config.ts — PAGINATION_CONFIG (pageSize por módulo)
 │   │                      # routes.config.ts — ROUTES (todas las rutas de la app)
-│   ├── guards/            # auth, public, role, pending-changes
+│   ├── guards/            # auth, public, role, pending-changes, superadmin
 │   └── utils/             # date.util.ts, cedula.util.ts
 ├── features/              # Módulos (cada uno tiene pages/, services/, models/, components/)
 ├── shared/
@@ -244,7 +276,35 @@ const modal = await this.modalCtrl.create({
 ```
 
 > **NO usar** en modales con scroll largo — bloquea el swipe en Android (misma regla de `breakpoints`).
-> Ejemplos actuales: `NuevaNotaModalComponent`, `CuadreCajaPage`.
+> Ejemplos actuales: `NuevaNotaModalComponent`, `CuadreCajaPage`, `CrearNegocioModalComponent`.
+
+### `modal-actions` — variantes de layout de botones
+
+La clase `.modal-actions` tiene 3 variantes según el contexto del modal:
+
+| Variante | Clase | Layout | Uso |
+|----------|-------|--------|-----|
+| Default | `modal-actions` | Columna (apilados) | Modales con botones de texto largo o 3+ botones |
+| Fila | `modal-actions modal-actions--row` | Fila (lado a lado) | **Default para 2 botones cortos** (Cancelar/Confirmar) |
+| Compacto | `modal-actions modal-actions--compact` | Fila centrada, botones chicos | Modales de herramienta/info (calculadora, cuadre) |
+
+**Regla:** Si el modal tiene exactamente 2 botones (Cancelar + Accion), usar `modal-actions--row`. Los botones apilados verticalmente solo se justifican cuando hay 3+ acciones o textos largos que no caben en una fila.
+
+```html
+<!-- ✅ 2 botones cortos — fila horizontal -->
+<div class="modal-actions modal-actions--row">
+  <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
+  <ion-button expand="block" color="primary" (click)="confirmar()">Confirmar</ion-button>
+</div>
+
+<!-- ❌ 2 botones cortos apilados — desperdicia espacio vertical -->
+<div class="modal-actions">
+  <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
+  <ion-button expand="block" color="primary" (click)="confirmar()">Confirmar</ion-button>
+</div>
+```
+
+Definido en `src/theme/custom/modals.scss`. Ejemplos: `CrearNegocioModalComponent` (row), `CuadreCajaPage` (compact).
 
 ### `OptionsModalComponent` — componente estándar para selects y action sheets
 
@@ -540,6 +600,25 @@ if (result !== null) { /* éxito — result puede ser [] o null */ }
 // O mejor: agregar .select() al final para obtener el registro creado
 ```
 
+### RLS OR clause en `usuario_negocios` — multiplicación de filas (multi-tenant)
+
+La política RLS de `usuario_negocios` tiene una cláusula OR:
+```sql
+negocio_id = get_negocio_id()
+OR usuario_id = (SELECT id FROM usuarios WHERE email = get_email())
+```
+
+La segunda rama devuelve **todas las membresías propias del usuario autenticado** (no solo la del negocio activo).
+Cualquier vista o query que haga JOIN con `usuario_negocios` sin filtrar explícitamente por `negocio_id` recibirá una fila por cada negocio donde el usuario tenga membresía — multiplicando los resultados.
+
+**Síntoma**: un admin con 3 negocios ve sus propios datos repetidos 3 veces en una vista.
+
+**Regla**: toda vista o query que haga JOIN con `usuario_negocios` DEBE incluir:
+```sql
+WHERE un.negocio_id = public.get_negocio_id()
+```
+Ejemplo: `v_saldos_empleados` lo requiere aunque la RLS ya filtre — sin ese WHERE, retorna una fila por negocio del admin.
+
 ---
 
 ## Eficiencia de API — evitar abuso de requests
@@ -602,6 +681,20 @@ Usar el mismo patrón si se necesita cache para otros datos de baja frecuencia d
 - Finalizar con `NOTIFY pgrst, 'reload schema';`
 - Documentar las funciones en `docs/<modulo>/sql/functions/`
 - Templates completos y criterios de decisión en `docs/ESTRUCTURA-PROYECTO.md`
+
+### Dónde vive cada función SQL
+
+| Archivo | Qué contiene |
+|---------|-------------|
+| `docs/setup/03_functions.sql` | **Solo funciones de setup inicial** — las que deben existir para que la app funcione desde cero (auth, negocios, cajas). Se ejecutan junto con el schema al hacer un reset completo de Supabase. |
+| `docs/<modulo>/sql/functions/fn_nombre.sql` | **Funciones de feature** — una función por archivo, en la carpeta del módulo al que pertenece. Ejemplos: `docs/usuarios/sql/functions/fn_transferir_empleado.sql`, `docs/dashboard/sql/functions/fn_ejecutar_cierre_diario.sql`. |
+
+**Regla:** si la función se necesita antes de que exista cualquier dato de negocio → `03_functions.sql`. Si es lógica de negocio de un módulo específico → carpeta del módulo.
+
+**Al crear una función nueva de feature:**
+1. Crear el archivo en `docs/<modulo>/sql/functions/fn_nombre.sql`
+2. Ejecutarlo directamente en Supabase SQL Editor (no agregarlo a `03_functions.sql`)
+3. El archivo queda como fuente de verdad — si se necesita re-ejecutar, se hace desde ahí
 
 ### Asignación de variables en plpgsql — NUNCA `SELECT ... INTO`
 
@@ -779,6 +872,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | ------------------- | ---------------------------------------------------------- |
 | Dashboard           | `docs/dashboard/DASHBOARD-README.md`                       |
 | Auth                | `docs/auth/AUTH-README.md`                                 |
+| Usuarios            | `docs/usuarios/USUARIOS-README.md`                         |
 | Recargas Virtuales  | `docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md`     |
 | Inventario          | `docs/inventario/INVENTARIO-README.md`                     |
 | POS                 | `docs/pos/POS-README.md`                                   |
@@ -789,7 +883,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Sistema de diseño   | `docs/DESIGN.md`                                           |
 | Shared              | `docs/shared/SHARED-README.md`                             |
 | Estructura/Patrones | `docs/ESTRUCTURA-PROYECTO.md`                              |
-| Schema BD           | `docs/schema.sql`                                          |
+| Schema BD           | `docs/setup/schema.sql`                                    |
 | Configuracion       | `docs/configuracion/CONFIGURACION-README.md`               |
 | Arquitectura cajas  | `docs/ARQUITECTURA.md`                                     |
 | Mov. Empleados      | `docs/movimientos-empleados/PLAN-IMPLEMENTACION.md`        |

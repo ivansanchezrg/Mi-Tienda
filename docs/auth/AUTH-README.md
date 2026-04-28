@@ -1,6 +1,8 @@
-# Auth - Autenticación con Google OAuth
+# Auth - Autenticación con Google OAuth (Multi-Tenant v11)
 
 Módulo de autenticación usando Supabase Auth con Google como proveedor OAuth.
+Desde v11, la app es **multi-tenant**: un usuario puede pertenecer a múltiples negocios,
+y el negocio activo se controla via JWT claims (`negocio_id`, `rol`).
 
 ---
 
@@ -50,10 +52,7 @@ Supabase OAuth en web usa **flujo implícito**: redirige a `/auth/callback#acces
   3. **SDK ya procesó la sesión** (fallback): verifica con `getSession()`
   - Si ningún caso tiene tokens → redirige a login directamente (sin esperar `SIGNED_IN`)
 - **Android** (`handleAndroidCallback`): Lee `pendingDeepLinkUrl`, parsea el hash para extraer `access_token` y `refresh_token`, llama a `setSession()` para establecer la sesión manualmente.
-- Después de establecer sesión (ambas plataformas), llama a `validateAndRedirect()` que ejecuta `AuthService.validarUsuario()` para verificar el estado del usuario en la tabla `usuarios`:
-  - **No existe** → auto-registro con `activo: false` + redirige a `/auth/pending?estado=nuevo`
-  - **Existe, `activo: false`** → redirige a `/auth/pending` (sin query param)
-  - **Existe, `activo: true`** → guarda en Preferences, inicia Realtime y redirige a `/home`
+- Después de establecer sesión (ambas plataformas), llama a `validateAndRedirect()` que ejecuta `AuthService.validarUsuario()`.
 
 > **⚠️ Gotcha crítico — `detectSessionInUrl: false` + flujo implícito web:**
 > La implementación de refresh automático de JWT (sección 7) requiere `detectSessionInUrl: false` para que el SDK no interfiera con el callback. Pero esto tiene un efecto secundario: el SDK tampoco procesa el `#hash` con los tokens OAuth al redirigir. Si el callback solo espera el evento `SIGNED_IN` via `onAuthStateChange`, ese evento nunca llega porque el SDK no sabe que hay tokens en la URL — el spinner queda infinito. **Solución: parsear el hash manualmente con `setSession()`**, igual que se hace en Android.
@@ -63,31 +62,75 @@ Supabase OAuth en web usa **flujo implícito**: redirige a `/auth/callback#acces
 **Archivo:** `features/auth/auth.routes.ts`
 
 ```
-/auth/login     → LoginPage       (publicGuard — redirige a /home si ya hay sesión)
-/auth/callback  → CallbackPage    (sin guard — siempre debe ejecutarse)
-/auth/pending   → PendingPage     (sin guard — lazy loaded)
+/auth/login                → LoginPage              (publicGuard — redirige a /home si ya hay sesión)
+/auth/callback             → CallbackPage           (sin guard — siempre debe ejecutarse)
+/auth/pending              → PendingPage            (sin guard — lazy loaded)
+/auth/seleccionar-negocio  → SelectorNegocioPage    (sin guard — lazy loaded)
+/auth/crear-negocio        → CrearNegocioPage       (sin guard — lazy loaded)
 ```
 
 Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 
-### 6. Servicio de Auth
+### 6. Servicio de Auth — Multi-Tenant
 
 **Archivo:** `features/auth/services/auth.service.ts`
 
 #### Estado reactivo
 
 - `usuarioActual$: Observable<UsuarioActual | null>` — emite cada vez que el usuario cambia (login, cambio de rol/nombre via Realtime, logout). El sidebar y otros componentes se suscriben para actualizar la UI sin refrescar.
-- `yaValidadoEnEstaSesion: boolean` — flag que indica si `validarUsuario()` ya se ejecutó en esta sesión. Permite que `authGuard` solo valide contra BD en la primera navegación.
+- `negociosDisponibles: NegocioDisponible[]` — propiedad pública que persiste la lista de negocios para `SelectorNegocioPage` cuando el usuario tiene 2+ negocios. Se limpia tras activar un negocio.
+- `validadoEnEstaSesion: boolean` (getter) — flag que indica si `validarUsuario()` ya se ejecutó en esta sesión. Permite que `authGuard` solo valide contra BD en la primera navegación.
+
+#### `validarUsuario()` — flujo v11 multi-tenant
+
+```
+1. getUser() → email del JWT
+2. FROM usuarios SELECT id, nombre, email, es_superadmin WHERE email = $email
+3. No existe → auto-registro (INSERT email + nombre, sin rol) → /auth/crear-negocio
+4. Existe → obtener membresías activas (usuario_negocios JOIN negocios)
+5. Cache hit (negocio_id en Preferences sigue activo) → re-activar directo sin selector
+6. es_superadmin sin cache → guardar UsuarioActual mínimo → /admin
+7. 0 negocios → /auth/crear-negocio
+8. 1 negocio  → activarNegocio() directo → /home
+9. N negocios → guardar en negociosDisponibles → /auth/seleccionar-negocio
+```
+
+**Auto-registro v11:** solo inserta `{ nombre, email }` en `usuarios`. No inserta `rol` ni `activo` — el rol vive en `usuario_negocios` y la activación vive en el flujo de membresía.
+
+#### `activarNegocio(negocio: NegocioDisponible)` — nuevo en v11
+
+Activa un negocio para el usuario (usado tanto en login como en cambio de negocio):
+
+```
+1. RPC fn_set_negocio_activo(p_negocio_id) → escribe negocio_id + rol en JWT app_metadata
+2. supabase.auth.refreshSession() → cliente recibe JWT actualizado (RLS activas)
+3. saveUsuarioActual({ ...usuarioBase, negocio_id, negocio_nombre, rol })
+4. iniciarRealtimeUsuario(usuarioBase.id)
+5. validadoEnEstaSesion = true, negociosDisponibles = [], usuarioBase = null
+6. router.navigate([ROUTES.home])
+```
+
+**`usuarioBase`:** propiedad privada que almacena temporalmente `{ id, nombre, email, es_superadmin }` entre `validarUsuario()` y `activarNegocio()`. Se reconstruye si es null (recarga de página durante el flujo).
+
+#### `cambiarNegocio(negocioId, negocioNombre)` — cambio en-sesión
+
+Para cambiar de negocio sin necesidad de re-login (desde el panel admin o selector):
+- No depende de `usuarioBase` — lee `UsuarioActual` desde Preferences
+- Para usuarios normales, lee el `rol` real de `usuario_negocios` antes de actualizar JWT
+- Superadmin siempre opera como `ADMIN` en cualquier negocio
+- Llama `fn_set_negocio_activo` + `refreshSession` + `saveUsuarioActual` + navega a `/home`
+
+#### `irAlPanelAdmin()` — superadmin vuelve al panel
+
+- Solo válido si `es_superadmin = true`
+- Limpia `negocio_id` y `negocio_nombre` del cache (panel admin opera sin tenant)
+- Navega a `/admin`
 
 #### Métodos de Sesión
 
 - `hasLocalSession()` → verifica si hay sesión guardada en localStorage (sin llamada de red). Útil para soporte offline
 - `getSession()` → retorna la sesión actual de Supabase o null
 - `getUser()` → retorna el usuario actual o null
-- `validarUsuario()` → consulta tabla `usuarios` por email con `.maybeSingle()` (incluye `es_superadmin`). Tres caminos:
-  1. **No existe** → auto-inserta `{ nombre, usuario: email, rol: 'EMPLEADO', activo: false }` y navega a `/auth/pending?estado=nuevo`
-  2. **Existe, `activo: false`** → guarda en Preferences y navega a `/auth/pending`
-  3. **Existe, `activo: true`** → guarda en Preferences, inicia Realtime (`iniciarRealtimeUsuario(id)`) y retorna `true`
 - `logout()` → muestra `AlertController` de confirmación, cierra sesión y redirige a `/auth/login`. Para usar **dentro de la app** (sidebar)
 - `logoutSilent()` → cierra sesión directo, sin confirmación. Para usar en pantallas pre-app como `PendingPage`
 - `forceLogout()` → **privado**, uso interno. Delega a `SupabaseService.handleExpiredSession()` que centraliza toda la limpieza (sesión, storage, canal Realtime via hook, redirect)
@@ -95,7 +138,7 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 
 #### Métodos de Realtime
 
-- `iniciarRealtimeUsuario(id)` → abre canal websocket para escuchar cambios del usuario actual (ver sección 9)
+- `iniciarRealtimeUsuario(id: string)` → abre canal websocket para escuchar cambios del usuario actual (ver sección 9)
 - `cerrarRealtimeUsuario()` → cierra el canal y resetea flags. Se llama automáticamente via hook `registerBeforeCleanup`
 
 #### Métodos de Usuario Actual (Capacitor Preferences)
@@ -103,7 +146,7 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 **Sistema de caché local para evitar consultas repetidas a la base de datos:**
 
 - `getUsuarioActual()` → Obtiene el usuario actual desde **Capacitor Preferences** (lectura local, instantánea). No hace consultas a la BD. Retorna `null` si no hay usuario guardado.
-- `saveUsuarioActual()` → **privado**. Guarda en Preferences y emite en `_usuarioActual$` (BehaviorSubject). Se llama desde `validarUsuario()` y desde el handler de Realtime UPDATE.
+- `saveUsuarioActual()` → **privado**. Guarda en Preferences y emite en `_usuarioActual$` (BehaviorSubject). Se llama desde `activarNegocio()` y desde el handler de Realtime UPDATE.
 
 **Modelo `UsuarioActual`:**
 
@@ -113,19 +156,22 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 export type RolUsuario = 'ADMIN' | 'EMPLEADO';
 
 export interface UsuarioActual {
-  id: number;
+  id: string;              // UUID (antes era number)
   nombre: string;
-  usuario: string;       // Email (coincide con Google account)
+  email: string;           // antes: usuario (columna renombrada en BD)
   activo: boolean;
-  rol: RolUsuario;       // 'ADMIN' o 'EMPLEADO'
-  es_superadmin: boolean; // true = administrador principal, no editable
+  rol: RolUsuario;         // ADMIN | EMPLEADO (viene de usuario_negocios via JWT)
+  es_superadmin: boolean;
+  negocio_id: string;      // UUID del negocio activo ('' en superadmin sin negocio)
+  negocio_nombre: string;  // nombre para mostrar en sidebar ('' en superadmin sin negocio)
 }
 ```
 
 **¿Cuándo se guarda automáticamente?**
 
-- Al iniciar sesión exitosamente (`validarUsuario()` consulta la tabla `usuarios` y guarda)
-- Al recibir un UPDATE via Realtime (rol, nombre, etc.)
+- Al activar un negocio (`activarNegocio()`) — incluye `negocio_id` + `negocio_nombre` + `rol`
+- Al recibir un UPDATE via Realtime (nombre, `es_superadmin`)
+- Al superadmin navegar a `/admin` (con `negocio_id: ''`)
 
 **¿Cuándo se limpia automáticamente?**
 
@@ -141,21 +187,43 @@ export class MiPage {
   private authService = inject(AuthService);
 
   async cargarDatos() {
-    // Lectura instantánea, sin consulta a BD
     const usuario = await this.authService.getUsuarioActual();
-
     if (usuario) {
-      console.log('ID:', usuario.id);
-      console.log('Nombre:', usuario.nombre);
-      console.log('Email:', usuario.usuario);
-      console.log('Rol:', usuario.rol);
-      console.log('Superadmin:', usuario.es_superadmin);
+      console.log('ID:',           usuario.id);
+      console.log('Nombre:',       usuario.nombre);
+      console.log('Email:',        usuario.email);
+      console.log('Rol:',          usuario.rol);
+      console.log('Negocio:',      usuario.negocio_nombre);
+      console.log('Superadmin:',   usuario.es_superadmin);
     }
   }
 }
 ```
 
-### 7. Gestión de JWT y Refresh de Sesión
+### 7. `NegocioDisponible` — tipo para selector de negocio
+
+```typescript
+// Exportado desde features/auth/services/auth.service.ts
+export interface NegocioDisponible {
+  negocio_id: string;
+  negocio_nombre: string;
+  rol: 'ADMIN' | 'EMPLEADO';
+}
+```
+
+Usado en `SelectorNegocioPage`, `EditarUsuarioModalComponent` (transferencia de empleados) y `NegocioService`.
+
+### 8. Pantalla selector de negocio (`/auth/seleccionar-negocio`)
+
+**Archivo:** `features/auth/pages/seleccionar-negocio/`
+
+- Se muestra cuando el usuario tiene 2+ negocios activos tras login
+- Lee `authService.negociosDisponibles` (array en memoria, sin nueva query)
+- Muestra cards por negocio con nombre + badge de rol (Admin / Empleado)
+- Al tocar → llama `authService.activarNegocio(negocio)` con spinner durante activación
+- Si `negociosDisponibles` está vacío (recarga de página) → redirige a `/auth/login`
+
+### 9. Gestión de JWT y Refresh de Sesión
 
 **Archivos:** `core/services/supabase.service.ts`, `app.component.ts`
 
@@ -279,9 +347,11 @@ async handleExpiredSession(): Promise<void> {
 | Query falla con JWT expired | `call()` detecta y limpia | Toast "Sesión expirada" + redirect a login |
 | Sin internet + sesión local | `authGuard` permite acceso offline | Toast "Sin conexión a internet" |
 | Sin internet + sin sesión | `authGuard` redirige | Pantalla de login |
-| Email no existe en `usuarios` | Auto-registro con `activo: false` | Pantalla pending "Registro exitoso" |
-| Email existe pero `activo: false` | Guard o validación redirige | Pantalla pending "Aprobación pendiente" |
-| Admin activa la cuenta | `validarUsuario()` retorna true | Acceso normal al home |
+| Email no existe en `usuarios` | Auto-registro (email + nombre) → crear negocio | Pantalla onboarding |
+| Sin negocios activos | Redirige a `/auth/crear-negocio` | Onboarding crear negocio |
+| 1 negocio | `activarNegocio()` directo | Acceso a `/home` sin selector |
+| N negocios | Selector de negocio | Pantalla de elección |
+| Superadmin sin negocio cacheado | Siempre va a `/admin` | Panel de administración |
 
 #### Diagrama de flujo
 
@@ -306,7 +376,7 @@ App vuelve del background
   │    └─ handleUsuarioDesactivado() → cerrar canal + limpiar Preferences → /auth/pending
   │       (sesión OAuth intacta — usuario puede tocar "Reintentar")
   │
-  ├─ Realtime: admin cambia rol/nombre del usuario (UPDATE otros campos)
+  ├─ Realtime: admin cambia nombre del usuario (UPDATE otros campos)
   │    └─ saveUsuarioActual() → emite en usuarioActual$ → sidebar se actualiza en vivo
   │
   ├─ Realtime: admin elimina al usuario (DELETE)
@@ -316,9 +386,9 @@ App vuelve del background
        └─ AuthService.logout() → handleExpiredSession() → hook cierra canal → login
 ```
 
-### 8. Guards (protección de rutas)
+### 10. Guards (protección de rutas)
 
-**Archivos:** `core/guards/auth.guard.ts`, `core/guards/public.guard.ts`, `core/guards/role.guard.ts`
+**Archivos:** `core/guards/auth.guard.ts`, `core/guards/public.guard.ts`, `core/guards/role.guard.ts`, `core/guards/superadmin.guard.ts`
 
 #### authGuard (rutas privadas)
 
@@ -328,7 +398,7 @@ Protege el layout principal. Aplicado en `app.routes.ts`.
 
 | Escenario | Comportamiento |
 |---|---|
-| Online + sesión + primera navegación | `validarUsuario()` consulta BD, inicia Realtime, guarda en Preferences |
+| Online + sesión + primera navegación | `validarUsuario()` consulta BD, activa negocio, inicia Realtime, guarda en Preferences |
 | Online + sesión + navegaciones siguientes | Skip — confía en cache + Realtime (cero queries extra) |
 | Online + sesión + usuario inactivo en BD | `validarUsuario()` redirige a `/auth/pending` |
 | Offline + sesión local + usuario activo | Permite acceso + toast "Sin conexión" |
@@ -341,7 +411,7 @@ Usa `AuthService.hasLocalSession()` para verificar sesión guardada en localStor
 
 Protege el login. Con sesión activa → redirige a `/home`. Aplicado en `auth.routes.ts`.
 
-- **Importante:** `publicGuard` NO se aplica a `/auth/callback` ni `/auth/pending` para que siempre se ejecuten correctamente
+- **Importante:** `publicGuard` NO se aplica a `/auth/callback`, `/auth/pending`, `/auth/seleccionar-negocio` ni `/auth/crear-negocio` para que siempre se ejecuten correctamente
 
 #### roleGuard (rutas por rol)
 
@@ -361,11 +431,6 @@ Protege rutas que requieren un rol específico. Lee el rol desde `getUsuarioActu
   canActivate: [roleGuard(['ADMIN'])],
   loadChildren: () => import('../usuarios/usuarios.routes').then(...)
 },
-{
-  path: 'configuracion',
-  canActivate: [roleGuard(['ADMIN'])],
-  loadChildren: () => import('../configuracion/configuracion.routes').then(...)
-}
 ```
 
 **Acceso por rol:**
@@ -381,7 +446,11 @@ Protege rutas que requieren un rol específico. Lee el rol desde `getUsuarioActu
 | Usuarios | ❌ | ✅ |
 | Configuración | ❌ | ✅ |
 
-### 9. Realtime — detección de usuario desactivado/eliminado/modificado en vivo
+#### superadminGuard (panel admin)
+
+Protege `/admin`. Verifica `es_superadmin = true` en `getUsuarioActual()`. Si no es superadmin → redirige a `/home`.
+
+### 11. Realtime — detección de usuario desactivado/eliminado/modificado en vivo
 
 **Problema que resuelve:** un usuario logueado puede seguir operando indefinidamente si el admin lo desactiva o elimina directamente en BD. El JWT sigue siendo válido hasta expirar (1h), y `validarUsuario()` solo se llama al hacer login. Sin Realtime, la única protección es esperar a que el JWT expire o a que el usuario cierre y vuelva a abrir la app.
 
@@ -393,25 +462,17 @@ Protege rutas que requieren un rol específico. Lee el rol desde `getUsuarioActu
 - Filtra solo el registro del usuario actual: `filter: 'id=eq.{id}'`
 - Escucha dos eventos con **comportamiento diferente** según el caso:
   - **`UPDATE`** con `activo=false` → `handleUsuarioDesactivado()` → cierra canal + limpia Preferences + redirige a `/auth/pending`. **NO cierra la sesión OAuth** (el usuario puede tocar "Reintentar" si lo reactivan sin necesidad de hacer login de nuevo)
-  - **`UPDATE`** con otros cambios (rol, nombre, `es_superadmin`) → `saveUsuarioActual()` → emite en `usuarioActual$` → sidebar y UI se actualizan en vivo. Usa `NgZone.run()` para que Angular detecte el cambio.
+  - **`UPDATE`** con otros cambios (nombre, `es_superadmin`) → `saveUsuarioActual()` → emite en `usuarioActual$` → sidebar y UI se actualizan en vivo. Usa `NgZone.run()` para que Angular detecte el cambio.
   - **`DELETE`** → `handleExpiredSession()` → cierra sesión completa + redirige a `/auth/login` (no hay usuario que validar, el registro ya no existe)
 - El canal se **cierra automáticamente** ante cualquier tipo de logout/expiración via el hook `registerBeforeCleanup` de `SupabaseService`. Esto garantiza cero websockets huérfanos sin importar la causa del cierre de sesión.
-- Se inicia en `iniciarRealtimeUsuario(id)` — llamado desde `validarUsuario()` justo después de guardar el usuario en Preferences
+- Se inicia en `iniciarRealtimeUsuario(id)` — llamado desde `activarNegocio()` justo después de guardar el usuario en Preferences
 - Es **idempotente**: si ya hay un canal abierto para el mismo usuario, no abre otro. Si hay un canal para otro usuario (cambio de cuenta), lo cierra primero.
 
-#### Diferencia clave vs `configuraciones`
-
-| | `configuraciones` | `usuarios` |
-|---|---|---|
-| Canal | `config-changes` (global) | `usuario-activo-{id}` (por usuario) |
-| Filtro | `clave=eq.pos_habilitado` | `id=eq.{id}` |
-| Eventos | `UPDATE` | `UPDATE` + `DELETE` |
-| Al recibir UPDATE | Emite en `posHabilitado$` | Desactivado → pending / Otros → actualiza cache + UI |
-| Se cierra | Nunca (singleton) | Al hacer logout |
+> **Nota:** El Realtime de usuarios escucha la tabla `usuarios` (datos globales: nombre, activo, es_superadmin). El `rol` del usuario en un negocio específico vive en `usuario_negocios` y no está cubierto por este canal — cambia vía `cambiarNegocio()` con JWT refresh.
 
 #### Política RLS requerida en BD
 
-A diferencia de `configuraciones` (política permisiva para todos), `usuarios` usa una política restrictiva: **cada usuario solo recibe eventos de su propio registro**, usando `auth.jwt() ->> 'email'` para comparar con la columna `usuario`.
+A diferencia de `configuraciones` (política permisiva para todos), `usuarios` usa una política restrictiva: **cada usuario solo recibe eventos de su propio registro**, usando `auth.jwt() ->> 'email'` para comparar con la columna `email`.
 
 Script completo: [`sql/setup/rls_usuarios.sql`](./sql/setup/rls_usuarios.sql)
 
@@ -422,7 +483,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE usuarios;
 -- Política: solo el propio registro
 CREATE POLICY "usuario puede leer su propio registro"
 ON usuarios FOR SELECT TO authenticated
-USING (usuario = (auth.jwt() ->> 'email'));
+USING (email = (auth.jwt() ->> 'email'));
 ```
 
 #### Hook `registerBeforeCleanup` — cómo se cierra el canal sin dependencias circulares
@@ -442,7 +503,6 @@ this.supabase.registerBeforeCleanup(() => this.cerrarRealtimeUsuario());
 |---|---|---|
 | Admin desactiva usuario logueado | Sigue operando hasta cerrar app | Redirige a `/auth/pending` en segundos (conserva sesión para "Reintentar") |
 | Admin elimina usuario logueado | Sigue operando hasta que JWT expire (1h) | Redirige a `/auth/login` en segundos (sesión cerrada completa) |
-| Admin cambia rol del usuario | No se entera hasta cerrar app | Sidebar y menú se actualizan en vivo |
 | Admin cambia nombre del usuario | No se entera hasta cerrar app | Sidebar muestra el nombre nuevo en vivo |
 | Admin reactiva usuario tras desactivarlo | Debe cerrar y abrir la app | Puede tocar "Reintentar" en `/auth/pending` sin re-autenticarse |
 | App sin internet al momento del evento | — | Evento se entrega al reconectarse (Supabase encola) |
@@ -451,36 +511,51 @@ this.supabase.registerBeforeCleanup(() => this.cerrarRealtimeUsuario());
 | Doble llamada a `iniciarRealtimeUsuario()` | — | Idempotente: si el canal ya existe para ese ID, no abre otro |
 | Realtime falla al suscribirse | — | Log de error, el usuario entra normal — las capas JWT siguen como red de seguridad |
 
-### 10. Sidebar con datos reactivos del usuario
+### 12. Sidebar con datos reactivos del usuario y negocio
 
 **Archivo:** `shared/components/sidebar/sidebar.component.ts`
 
 - En `ngOnInit()` obtiene el usuario via `AuthService.getUsuarioActual()` (Preferences, sin consulta a BD)
 - Se suscribe a `AuthService.usuarioActual$` (BehaviorSubject) para recibir cambios en tiempo real
-- Cuando Realtime envía un UPDATE (cambio de rol, nombre, etc.), el sidebar se actualiza automáticamente sin refrescar
-- Muestra `nombre`, `usuario` (email) y `rol` del usuario logueado
+- Cuando Realtime envía un UPDATE (cambio de nombre), el sidebar se actualiza automáticamente sin refrescar
+- Muestra `nombre`, `email` y `rol` del usuario logueado
+- Muestra `negocio_nombre` del negocio activo (nuevo en v11)
 - El rol se muestra como "Administrador" o "Empleado" (legible)
-- **Filtra los items del menú según el rol:** ADMIN ve "Usuarios" y "Configuración"; EMPLEADO no los ve. El menú se recalcula cada vez que el rol cambia via Realtime.
+- **Filtra los items del menú según el rol:** ADMIN ve "Usuarios" y "Configuración"; EMPLEADO no los ve. El menú se recalcula cada vez que el rol cambia.
 - Logout llama a `AuthService.logout()`
 - La suscripción se limpia en `ngOnDestroy()` para evitar memory leaks
 
-### 11. Superadmin (`es_superadmin`)
+### 13. Superadmin (`es_superadmin`)
 
 **Columna en BD:** `es_superadmin BOOLEAN DEFAULT FALSE` en tabla `usuarios`
 
 Marca a un usuario como el administrador principal del sistema. Solo puede haber uno (el primer usuario insertado en `schema.sql`).
 
+**Flujo del superadmin:**
+1. Login → `validarUsuario()` detecta `es_superadmin = true` sin negocio cacheado → guarda `UsuarioActual` con `negocio_id: ''` → navega a `/admin`
+2. Desde `/admin`, toca un negocio → `cambiarNegocio()` → JWT actualizado con ese `negocio_id` → `/home` para operar dentro del negocio como ADMIN
+3. Desde `/home`, puede volver a `/admin` via `irAlPanelAdmin()` (botón en sidebar)
+
 **Protecciones implementadas:**
 
 | Capa | Protección |
 |---|---|
+| Guard | `superadminGuard` protege `/admin` — verifica `es_superadmin` en Preferences |
 | UI — editar-usuario-modal | Banner "Administrador principal". Campos de rol y estado deshabilitados visualmente + click guards |
 | Lógica — editar-usuario-modal | El DTO solo envía `nombre` para superadmin (nunca `rol` ni `activo`) |
 | UI — listado usuarios | Badge "Super" con icono escudo (reemplaza badge de rol normal) |
-| Realtime | El handler de UPDATE incluye `es_superadmin` en el modelo actualizado |
 | Cache | `UsuarioActual` y `Usuario` incluyen `es_superadmin: boolean` |
 
 **Misma protección se aplica cuando un usuario edita su propio perfil** (`esMismoUsuario`): no puede cambiar su rol ni desactivarse.
+
+### 14. Módulo Usuarios
+
+La gestión del equipo (listado, alta, edición, transferencia entre sucursales) está documentada en [`docs/usuarios/USUARIOS-README.md`](../usuarios/USUARIOS-README.md).
+
+Lo que conecta auth con usuarios:
+- `NegocioDisponible` (exportado desde `auth.service.ts`) es el tipo que usa `EditarUsuarioModalComponent` para listar las sucursales destino en la transferencia
+- `comparten_negocio()` (definida en `schema.sql`) es el helper de RLS que determina qué usuarios ve el admin — incluye inactivos intencionalmente para que puedan ser gestionados
+- El `negocio_id` del JWT (seteado por `fn_set_negocio_activo`) es lo que filtra el equipo visible en el listado
 
 ---
 
@@ -492,16 +567,22 @@ Marca a un usuario como el administrador principal del sistema. Solo puede haber
 | `core/guards/auth.guard.ts` | Guard para rutas privadas (autenticación + offline fallback + validación por sesión con `yaValidadoEnEstaSesion`) |
 | `core/guards/public.guard.ts` | Guard para rutas públicas (evita login si ya hay sesión) |
 | `core/guards/role.guard.ts` | Guard para rutas por rol (`roleGuard(['ADMIN'])`) |
+| `core/guards/superadmin.guard.ts` | Guard para `/admin` — verifica `es_superadmin` |
 | `app.component.ts` | `setupDeepLinkListener()` (deep links Android) + `setupResumeListener()` (refresh on resume) |
 | `app.routes.ts` | `authGuard` aplicado a layout |
-| `features/auth/models/usuario_actual.model.ts` | `UsuarioActual` (con `es_superadmin`), `RolUsuario` |
+| `features/auth/models/usuario_actual.model.ts` | `UsuarioActual` (con `negocio_id`, `negocio_nombre`, `es_superadmin`, `id: string`), `RolUsuario` |
 | `features/auth/pages/login/login.page.ts` | UI de login + botón Google con spinner inline + `ChangeDetectorRef` para forzar render antes del OAuth |
 | `features/auth/pages/callback/callback.page.ts` | Procesa tokens web y Android, llama `validarUsuario()` |
 | `features/auth/pages/pending/pending.page.ts` | Pantalla de cuenta pendiente — dos estados: `?estado=nuevo` (primer registro) vs sin param (ya registrado, sin aprobación). Botón "Reintentar" llama `validarUsuario()`, botón "Salir" llama `logoutSilent()` |
-| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (auto-registro + inicia Realtime), `logout()`, `logoutSilent()`, `iniciarRealtimeUsuario()`, `cerrarRealtimeUsuario()`, `handleUsuarioDesactivado()`, `getUsuarioActual()` (Preferences), `usuarioActual$` (BehaviorSubject reactivo) |
-| `features/auth/auth.routes.ts` | Rutas `/auth/login` (con `publicGuard`), `/auth/callback` (sin guard), `/auth/pending` (lazy loaded, sin guard) |
-| `shared/components/sidebar/sidebar.component.ts` | Muestra datos del usuario, filtra items por rol, suscripción reactiva a `usuarioActual$`, logout |
-| `docs/auth/sql/setup/rls_usuarios.sql` | Script SQL idempotente: RLS (SELECT/INSERT/UPDATE) + Realtime para tabla `usuarios`. Ejecutar tras cada `schema.sql` |
+| `features/auth/pages/seleccionar-negocio/` | Selector de negocio activo (aparece cuando el usuario tiene 2+ negocios) |
+| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (multi-tenant), `activarNegocio()`, `cambiarNegocio()`, `irAlPanelAdmin()`, `logout()`, `logoutSilent()`, `iniciarRealtimeUsuario()`, `cerrarRealtimeUsuario()`, `handleUsuarioDesactivado()`, `getUsuarioActual()` (Preferences), `usuarioActual$` (BehaviorSubject reactivo), `negociosDisponibles` |
+| `features/auth/services/negocio.service.ts` | `getMisNegocios()` — lista de negocios del usuario autenticado (para transferencias y cambio de negocio) |
+| `features/auth/auth.routes.ts` | Rutas `/auth/login` (publicGuard), `/auth/callback`, `/auth/pending`, `/auth/seleccionar-negocio`, `/auth/crear-negocio` |
+| `shared/components/sidebar/sidebar.component.ts` | Muestra datos del usuario + nombre del negocio activo, filtra items por rol, suscripción reactiva a `usuarioActual$`, logout |
+| `docs/auth/sql/setup/rls_usuarios.sql` | Script SQL idempotente: RLS (SELECT/INSERT/UPDATE) + Realtime para tablas `usuarios`, `usuario_negocios`, `negocios`. Ejecutar tras cada `schema.sql` |
+| `docs/setup/03_functions.sql` | Incluye `fn_registrar_usuario_negocio`, `fn_set_negocio_activo` (setup inicial) |
+| `docs/setup/schema.sql` | `comparten_negocio()` — helper RLS que determina visibilidad de usuarios entre negocios |
+| `docs/usuarios/USUARIOS-README.md` | Documentación completa del módulo de gestión de equipo |
 
 ---
 
@@ -524,3 +605,10 @@ Se agregó manualmente el siguiente `intent-filter` dentro del `<activity>` prin
 ```
 
 **IMPORTANTE:** El valor de `android:scheme` debe coincidir con el `appId` en `capacitor.config.ts` y con el `redirectUrl` en `supabase.service.ts` (`ec.mitienda.app://auth/callback`).
+
+---
+
+## Tareas pendientes
+
+- [ ] Verificar que `trg_updated_at_usuario_negocios` no rompa otras operaciones tras el DROP (o agregar columna `updated_at` a `usuario_negocios` si se necesita)
+- [ ] Probar `fn_transferir_empleado` con el trigger eliminado

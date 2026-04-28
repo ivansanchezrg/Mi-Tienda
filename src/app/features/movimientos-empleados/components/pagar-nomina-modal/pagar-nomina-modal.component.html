@@ -15,61 +15,64 @@
 <ion-content class="ion-padding">
 
   <!-- ══════════════════════════════════════
-       PASO 1: Ingresar sueldo bruto
+       PASO 1: Resumen de descuentos
        ══════════════════════════════════════ -->
   @if (resultado === 'pendiente' && paso === 1) {
-  <div class="step-section">
-    <div class="step-indicator">Paso 1 de {{ totalPasos }}</div>
 
-    <div class="beneficiario-chip">
-      <ion-icon name="wallet-outline"></ion-icon>
-      <span>Nomina de <strong>{{ empleadoNombre }}</strong></span>
-    </div>
-
-    <div class="field">
-      <label class="field-label">Sueldo bruto del periodo</label>
-      <ion-input
-        type="text"
-        inputmode="numeric"
-        appCurrencyInput
-        [(ngModel)]="sueldoStr"
-        placeholder="0.00"
-        class="monto-input destacado">
-      </ion-input>
-    </div>
-
-    <ion-button
-      expand="block"
-      color="primary"
-      (click)="avanzarAPaso2()"
-      [disabled]="sueldoNumerico <= 0 || cargandoPreview"
-      class="btn-step">
-      Calcular descuentos
-      <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
-    </ion-button>
+  <!-- Cargando -->
+  @if (cargandoPreview) {
+  <div class="loading-section">
+    <p class="loading-text">Calculando...</p>
   </div>
   }
 
-  <!-- ══════════════════════════════════════
-       PASO 2: Resumen de descuentos
-       ══════════════════════════════════════ -->
-  @if (resultado === 'pendiente' && paso === 2 && preview) {
+  @if (!cargandoPreview && preview) {
   <div class="step-section">
-    <div class="step-indicator">Paso 2 de {{ totalPasos }}</div>
+    <div class="step-indicator">Paso 1 de {{ totalPasos }}</div>
+    <h3 class="paso-titulo">Resumen del pago</h3>
 
-    <h3 class="resumen-titulo">Resumen de la nomina</h3>
+    <!-- Aviso proporcional -->
+    @if (proporcionalInfo) {
+    <div class="proporcional-aviso">
+      <ion-icon name="information-circle-outline"></ion-icon>
+      <div class="proporcional-body">
+        @if (proporcionalInfo.esTransferido) {
+        <span class="proporcional-title">Pago de liquidacion</span>
+        <span class="proporcional-hint">
+          {{ empleadoNombre }} estuvo <strong>{{ proporcionalInfo.diasTrabajados }} día{{ proporcionalInfo.diasTrabajados !== 1 ? 's' : '' }}</strong>
+          en este negocio ({{ proporcionalInfo.fechaDesde | date:'d/M' }} — {{ proporcionalInfo.fechaHasta | date:'d/M' }}).
+          Proporcional sobre el sueldo base.
+        </span>
+        } @else if (proporcionalInfo.tienePagosPrevios) {
+        <span class="proporcional-title">Periodo desde el ultimo pago</span>
+        <span class="proporcional-hint">
+          Han pasado <strong>{{ proporcionalInfo.diasTrabajados }} día{{ proporcionalInfo.diasTrabajados !== 1 ? 's' : '' }}</strong>
+          desde el último pago ({{ proporcionalInfo.fechaDesde | date:'d/M' }} — {{ proporcionalInfo.fechaHasta | date:'d/M' }}).
+          Proporcional sobre el sueldo base.
+        </span>
+        } @else {
+        <span class="proporcional-title">Empleado nuevo</span>
+        <span class="proporcional-hint">
+          Lleva <strong>{{ proporcionalInfo.diasTrabajados }} día{{ proporcionalInfo.diasTrabajados !== 1 ? 's' : '' }}</strong>
+          en el negocio (desde el {{ proporcionalInfo.fechaDesde | date:"d 'de' MMMM" }}).
+          Proporcional sobre el sueldo base.
+        </span>
+        }
+      </div>
+    </div>
+    }
 
     <div class="resumen-card">
       <!-- Sueldo bruto -->
       <div class="resumen-row">
-        <span class="resumen-label">Sueldo bruto</span>
-        <span class="resumen-valor positivo">${{ currencyService.format(preview.sueldoBase) }}</span>
+        <span class="resumen-label">Sueldo del periodo</span>
+        <span class="resumen-valor positivo">{{ currencyService.format(preview.sueldoBase) }}</span>
       </div>
 
       <!-- Descuentos -->
       @if (preview.descuentos.length > 0) {
       <div class="resumen-separator"></div>
-      <div class="resumen-subtitulo">Descuentos</div>
+      <div class="resumen-subtitulo">Descuentos pendientes</div>
       @for (desc of preview.descuentos; track $index) {
       <div class="resumen-row descuento">
         <span class="resumen-label">
@@ -78,117 +81,160 @@
           <span class="resumen-desc">{{ desc.descripcion }}</span>
           }
         </span>
-        <span class="resumen-valor negativo">-${{ currencyService.format(desc.monto) }}</span>
+        <span class="resumen-valor negativo">-{{ currencyService.format(desc.monto) }}</span>
       </div>
       }
+      } @else {
+      <div class="resumen-separator"></div>
+      <div class="resumen-sin-descuentos">Sin descuentos pendientes</div>
       }
 
       <!-- Total -->
       <div class="resumen-separator total"></div>
+      @if (preview.liquido > 0) {
       <div class="resumen-row total">
-        <span class="resumen-label">Liquido a pagar</span>
-        <span class="resumen-valor" [class]="preview.liquido > 0 ? 'positivo' : 'cero'">
-          ${{ currencyService.format(preview.liquido > 0 ? preview.liquido : 0) }}
+        <span class="resumen-label">
+          Total a entregar
+          <span class="resumen-desc">Lo que recibe en mano</span>
         </span>
+        <span class="resumen-valor positivo">{{ currencyService.format(preview.liquido) }}</span>
       </div>
+      } @else if (preview.liquido === 0) {
+      <div class="resumen-row total">
+        <span class="resumen-label">
+          Sueldo absorbido
+          <span class="resumen-desc">No sale efectivo de caja</span>
+        </span>
+        <span class="resumen-valor cero">{{ currencyService.format(0) }}</span>
+      </div>
+      } @else {
+      <div class="resumen-row total arrastre">
+        <span class="resumen-label">
+          Deuda al próximo mes
+          <span class="resumen-desc">No sale efectivo de caja</span>
+        </span>
+        <span class="resumen-valor arrastre">-{{ currencyService.format(preview.arrastre) }}</span>
+      </div>
+      }
     </div>
 
-    <!-- Alerta fondos insuficientes -->
-    @if (preview.liquido > 0 && !preview.fondosSuficientes) {
-    <div class="alerta-fondos">
-      <ion-icon name="alert-circle-outline"></ion-icon>
-      <span>
-        Fondos insuficientes. Varios: ${{ currencyService.format(preview.saldoVarios) }},
-        Tienda: ${{ currencyService.format(preview.saldoCaja) }}.
-        Total disponible: ${{ currencyService.format(preview.saldoVarios + preview.saldoCaja) }},
-        necesario: ${{ currencyService.format(preview.liquido) }}.
-      </span>
+    <!-- Nota: sueldo absorbido exacto -->
+    @if (preview.liquido === 0) {
+    <div class="nota-absorbido">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+      <span>Los descuentos cubren el sueldo exacto. No hay efectivo que entregar.</span>
     </div>
     }
 
-    <!-- Nota: sueldo absorbido -->
-    @if (preview.liquido <= 0) {
-    <div class="nota-absorbido">
-      Los descuentos absorben el sueldo completo. No sale efectivo de caja.
+    <!-- Nota: arrastre — caso profesional, deuda queda registrada -->
+    @if (preview.liquido < 0) {
+    <div class="nota-arrastre">
+      <ion-icon name="arrow-forward-circle-outline"></ion-icon>
+      <div class="nota-arrastre-body">
+        <span class="nota-arrastre-titulo">Los descuentos superan el sueldo</span>
+        <span>Se cerrará el periodo y se registrará una deuda de <strong>{{ currencyService.format(preview.arrastre) }}</strong> para el próximo mes. No sale efectivo de caja.</span>
+      </div>
     </div>
     }
 
     <!-- Distribucion de cajas (preview) -->
     @if (preview.liquido > 0 && preview.fondosSuficientes) {
     <div class="distribucion-preview">
-      <div class="distribucion-titulo">Se sacara de:</div>
+      <div class="distribucion-titulo">De dónde sale el dinero:</div>
       @if (preview.montoDeVarios > 0) {
       <div class="distribucion-row">
-        <span>Varios</span>
-        <strong>${{ currencyService.format(preview.montoDeVarios) }}</strong>
+        <span>Funda Varios</span>
+        <strong>{{ currencyService.format(preview.montoDeVarios) }}</strong>
       </div>
       }
       @if (preview.montoDeCaja > 0) {
       <div class="distribucion-row">
-        <span>Tienda</span>
-        <strong>${{ currencyService.format(preview.montoDeCaja) }}</strong>
+        <span>Funda Tienda</span>
+        <strong>{{ currencyService.format(preview.montoDeCaja) }}</strong>
       </div>
       }
     </div>
     }
 
+    <!-- Alerta fondos insuficientes -->
+    @if (preview.liquido > 0 && !preview.fondosSuficientes) {
+    <div class="alerta-fondos">
+      <ion-icon name="alert-circle-outline"></ion-icon>
+      <div>
+        <strong>No hay suficiente dinero en caja.</strong><br>
+        Disponible: {{ currencyService.format(preview.saldoVarios + preview.saldoCaja) }}
+        (Varios: {{ currencyService.format(preview.saldoVarios) }} +
+        Tienda: {{ currencyService.format(preview.saldoCaja) }}).<br>
+        Necesario: {{ currencyService.format(preview.liquido) }}.
+      </div>
+    </div>
+    }
+
     <div class="step-actions">
-      <ion-button fill="outline" color="medium" (click)="retrocederAPaso1()">
-        <ion-icon name="arrow-back-outline" slot="start"></ion-icon>
-        Volver
+      <ion-button fill="outline" color="medium" (click)="cerrar()">
+        Cancelar
       </ion-button>
       <ion-button
         color="primary"
-        (click)="avanzarAPaso3()"
-        [disabled]="preview.liquido > 0 && !preview.fondosSuficientes">
-        @if (preview.liquido <= 0) {
-        Confirmar
+        (click)="avanzarAPaso2()"
+        [disabled]="cargandoPreview || (preview.liquido > 0 && !preview.fondosSuficientes)">
+        @if (cargandoPreview) {
+          Actualizando...
+        } @else if (preview.liquido > 0) {
+          Continuar
+          <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
+        } @else if (preview.liquido === 0) {
+          <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
+          Cerrar periodo
         } @else {
-        Continuar
-        <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
+          <ion-icon name="arrow-forward-circle-outline" slot="start"></ion-icon>
+          Cerrar y registrar deuda
         }
       </ion-button>
     </div>
   </div>
   }
+  }
 
   <!-- ══════════════════════════════════════
-       PASO 3: Instrucciones fisicas
+       PASO 2: Instrucciones fisicas
        ══════════════════════════════════════ -->
-  @if (resultado === 'pendiente' && paso === 3 && preview) {
+  @if (resultado === 'pendiente' && paso === 2 && preview) {
   <div class="step-section">
-    <div class="step-indicator">Paso 3 de {{ totalPasos }}</div>
+    <div class="step-indicator">Paso 2 de {{ totalPasos }}</div>
+
+    <h3 class="paso-titulo">Antes de confirmar</h3>
+    <p class="paso-subtitulo">Haz esto con el dinero físico:</p>
 
     <div class="instrucciones-card">
-      <h3 class="instrucciones-titulo">Haz esto ahora fisicamente:</h3>
       <ol class="instrucciones-lista">
         @if (preview.montoDeVarios > 0) {
         <li>
-          Toma <strong>${{ currencyService.format(preview.montoDeVarios) }}</strong>
+          Saca <strong>{{ currencyService.format(preview.montoDeVarios) }}</strong>
           de la funda <strong>Varios</strong>
         </li>
         }
         @if (preview.montoDeCaja > 0) {
         <li>
-          Toma <strong>${{ currencyService.format(preview.montoDeCaja) }}</strong>
+          Saca <strong>{{ currencyService.format(preview.montoDeCaja) }}</strong>
           de la funda <strong>Tienda</strong>
         </li>
         }
         <li>
-          Entrega <strong>${{ currencyService.format(preview.liquido) }}</strong>
+          Entrega <strong>{{ currencyService.format(preview.liquido) }}</strong>
           a <strong>{{ empleadoNombre }}</strong>
         </li>
       </ol>
     </div>
 
     <div class="step-actions">
-      <ion-button fill="outline" color="medium" (click)="retrocederAPaso2()">
+      <ion-button fill="outline" color="medium" (click)="retrocederAPaso1()">
         <ion-icon name="arrow-back-outline" slot="start"></ion-icon>
         Volver
       </ion-button>
       <ion-button color="primary" (click)="confirmarPago()" [disabled]="guardando">
         <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
-        Ya lo hice — Confirmar
+        @if (guardando) { Procesando... } @else { Listo, confirmar }
       </ion-button>
     </div>
   </div>
@@ -199,19 +245,38 @@
        ══════════════════════════════════════ -->
   @if (resultado === 'exito') {
   <div class="resultado-section">
+
+    @if (casoPago === 'PAGO_NORMAL') {
     <div class="resultado-icon success">
       <ion-icon name="checkmark-circle-outline"></ion-icon>
     </div>
-    <h2 class="resultado-titulo">Nomina pagada</h2>
-
-    @if (liquidoPagado > 0) {
-    <p class="resultado-monto">${{ currencyService.format(liquidoPagado) }}</p>
+    <h2 class="resultado-titulo">Nómina pagada</h2>
+    <p class="resultado-monto">{{ currencyService.format(liquidoPagado) }}</p>
     <p class="resultado-sub">entregados a {{ empleadoNombre }}</p>
-    } @else {
-    <p class="resultado-mensaje">{{ mensajeResultado }}</p>
+    <p class="resultado-nota">Los descuentos pendientes quedaron liquidados.</p>
     }
 
-    <p class="resultado-nota">Todos los movimientos pendientes fueron liquidados.</p>
+    @if (casoPago === 'ABSORBIDO') {
+    <div class="resultado-icon success">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+    </div>
+    <h2 class="resultado-titulo">Periodo cerrado</h2>
+    <p class="resultado-mensaje">Los descuentos cubrieron el sueldo exacto. No salió efectivo de caja.</p>
+    <p class="resultado-nota">Todos los movimientos pendientes quedaron liquidados.</p>
+    }
+
+    @if (casoPago === 'ARRASTRE') {
+    <div class="resultado-icon warning">
+      <ion-icon name="arrow-forward-circle-outline"></ion-icon>
+    </div>
+    <h2 class="resultado-titulo">Periodo cerrado</h2>
+    <p class="resultado-mensaje">Los descuentos superaron el sueldo. No salió efectivo de caja.</p>
+    <div class="resultado-arrastre">
+      <span class="resultado-arrastre-label">Deuda registrada para el próximo mes</span>
+      <span class="resultado-arrastre-monto">{{ currencyService.format(arrastreMonto) }}</span>
+    </div>
+    <p class="resultado-nota">El saldo de {{ empleadoNombre }} ya refleja la deuda pendiente.</p>
+    }
 
     <ion-button expand="block" color="primary" (click)="cerrar()" class="btn-cerrar">
       Entendido
@@ -230,8 +295,8 @@
     <h2 class="resultado-titulo">No se pudo procesar</h2>
     <p class="resultado-error">{{ mensajeError }}</p>
 
-    <ion-button expand="block" fill="outline" color="medium" (click)="resultado = 'pendiente'; paso = 2">
-      Reintentar
+    <ion-button expand="block" fill="outline" color="medium" (click)="reintentar()">
+      Intentar de nuevo
     </ion-button>
     <ion-button expand="block" fill="clear" color="medium" (click)="cerrar()">
       Cerrar

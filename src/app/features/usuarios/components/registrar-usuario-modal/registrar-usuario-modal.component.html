@@ -39,10 +39,10 @@
         <input
           type="text"
           placeholder="Ej: maria@tienda.com"
-          formControlName="usuario"
+          formControlName="email"
           autocomplete="off"
           autocapitalize="none">
-        @if (form.get('usuario')?.invalid && form.get('usuario')?.touched) {
+        @if (form.get('email')?.invalid && form.get('email')?.touched) {
           <span class="input-error">Ingresá un email válido (ej: maria@gmail.com)</span>
         }
       </div>

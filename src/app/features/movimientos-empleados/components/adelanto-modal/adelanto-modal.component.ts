@@ -1,17 +1,14 @@
 import { Component, Input, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import {
-  IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonInput,
-  ModalController
-} from '@ionic/angular/standalone';
+import { IonButton, IonIcon, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, cashOutline, checkmarkCircleOutline } from 'ionicons/icons';
-import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
+import {
+  closeOutline, cashOutline, checkmarkCircleOutline,
+  alertCircleOutline, arrowForwardOutline
+} from 'ionicons/icons';
 import { MovimientosEmpleadosService } from '../../services/movimientos-empleados.service';
 import { AuthService } from '../../../auth/services/auth.service';
-import { UiService } from '../../../../core/services/ui.service';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { InstruccionFisica } from '../../models/movimiento-empleado.model';
 
@@ -20,39 +17,34 @@ import { InstruccionFisica } from '../../models/movimiento-empleado.model';
   templateUrl: './adelanto-modal.component.html',
   styleUrls: ['./adelanto-modal.component.scss'],
   standalone: true,
-  imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonInput,
-    CurrencyInputDirective
-  ]
+  imports: [CommonModule, FormsModule, IonButton, IonIcon]
 })
 export class AdelantoModalComponent {
 
-  @Input() empleadoId!: number;
+  @Input() empleadoId!: string;
   @Input() empleadoNombre = '';
 
   private modalCtrl = inject(ModalController);
   private service = inject(MovimientosEmpleadosService);
   private authService = inject(AuthService);
-  private ui = inject(UiService);
-  public currencyService = inject(CurrencyService);
+  public currency = inject(CurrencyService);
 
-  monto = '';
+  montoRaw: number | null = null;
   descripcion = '';
   guardando = false;
+  errorMsg = '';
 
-  // Resultado post-confirmacion
-  resultado: 'pendiente' | 'exito' | 'error' = 'pendiente';
+  // Post-confirmacion
+  exito = false;
   instrucciones: InstruccionFisica[] = [];
-  mensajeError = '';
+  montoFinal = 0;
 
   constructor() {
-    addIcons({ closeOutline, cashOutline, checkmarkCircleOutline });
+    addIcons({ closeOutline, cashOutline, checkmarkCircleOutline, alertCircleOutline, arrowForwardOutline });
   }
 
   get montoNumerico(): number {
-    return this.currencyService.parse(this.monto);
+    return this.montoRaw && this.montoRaw > 0 ? this.montoRaw : 0;
   }
 
   get valido(): boolean {
@@ -62,6 +54,7 @@ export class AdelantoModalComponent {
   async confirmar() {
     if (!this.valido || this.guardando) return;
     this.guardando = true;
+    this.errorMsg = '';
 
     try {
       const usuario = await this.authService.getUsuarioActual();
@@ -75,11 +68,11 @@ export class AdelantoModalComponent {
       });
 
       if (res.success) {
+        this.montoFinal = this.montoNumerico;
         this.instrucciones = res.instrucciones_fisicas ?? [];
-        this.resultado = 'exito';
+        this.exito = true;
       } else {
-        this.mensajeError = res.error ?? 'Error desconocido';
-        this.resultado = 'error';
+        this.errorMsg = res.error ?? 'Error desconocido';
       }
     } finally {
       this.guardando = false;
@@ -87,8 +80,6 @@ export class AdelantoModalComponent {
   }
 
   cerrar() {
-    this.modalCtrl.dismiss(
-      this.resultado === 'exito' ? { registrado: true } : undefined
-    );
+    this.modalCtrl.dismiss(this.exito ? { registrado: true } : undefined);
   }
 }
