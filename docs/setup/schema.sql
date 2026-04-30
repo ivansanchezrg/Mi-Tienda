@@ -1130,82 +1130,353 @@ INSERT INTO tipos_referencia (tabla, descripcion) VALUES
 ON CONFLICT (tabla) DO NOTHING;
 
 -- ==========================================
+-- TRIGGER: PROTEGER SUPERADMIN
+-- Impide cambiar es_superadmin via UPDATE directo en la tabla usuarios.
+-- ==========================================
+
+CREATE OR REPLACE FUNCTION fn_proteger_superadmin()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    IF OLD.es_superadmin = true THEN
+        IF NEW.es_superadmin IS DISTINCT FROM OLD.es_superadmin THEN
+            RAISE EXCEPTION 'No se puede modificar los permisos del administrador principal del sistema.';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_proteger_superadmin_update ON usuarios;
+CREATE TRIGGER trg_proteger_superadmin_update
+    BEFORE UPDATE ON usuarios
+    FOR EACH ROW EXECUTE FUNCTION fn_proteger_superadmin();
+
+-- ==========================================
+-- FUNCIONES DE SETUP: fn_crear_negocio + fn_set_negocio_activo
+-- ==========================================
+
+-- fn_crear_negocio — Crea un nuevo tenant con todos sus datos semilla:
+--   1. negocios  2. usuarios + usuario_negocios  3. 5 cajas
+--   4. categorias_operaciones  5. categorias_productos  6. configuraciones
+--   7. secuencias_comprobantes  8. cliente Consumidor Final
+CREATE OR REPLACE FUNCTION public.fn_crear_negocio(
+    p_nombre_negocio VARCHAR,
+    p_admin_email    VARCHAR,
+    p_admin_nombre   VARCHAR DEFAULT NULL
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_negocio_id  UUID;
+    v_usuario_id  UUID;
+BEGIN
+    IF TRIM(p_nombre_negocio) = '' OR p_nombre_negocio IS NULL THEN
+        RAISE EXCEPTION 'El nombre del negocio no puede estar vacio';
+    END IF;
+    IF TRIM(p_admin_email) = '' OR p_admin_email IS NULL THEN
+        RAISE EXCEPTION 'El email del admin no puede estar vacio';
+    END IF;
+
+    IF NOT COALESCE((SELECT es_superadmin FROM usuarios WHERE email = (auth.jwt() ->> 'email')), FALSE) THEN
+        IF LOWER(TRIM(p_admin_email)) != LOWER(TRIM(auth.jwt() ->> 'email')) THEN
+            RAISE EXCEPTION 'No puedes crear un negocio para otro usuario.';
+        END IF;
+    END IF;
+
+    -- 1. Negocio
+    v_negocio_id := gen_random_uuid();
+    INSERT INTO negocios (id, nombre, slug)
+    VALUES (
+        v_negocio_id,
+        TRIM(p_nombre_negocio),
+        TRIM(BOTH '-' FROM REGEXP_REPLACE(LOWER(TRIM(p_nombre_negocio)), '[^a-z0-9]+', '-', 'g'))
+    );
+
+    -- 2. Usuario ADMIN
+    v_usuario_id := (SELECT id FROM usuarios WHERE email = LOWER(TRIM(p_admin_email)));
+    IF v_usuario_id IS NULL THEN
+        v_usuario_id := gen_random_uuid();
+        INSERT INTO usuarios (id, nombre, email, es_superadmin)
+        VALUES (
+            v_usuario_id,
+            COALESCE(NULLIF(TRIM(p_admin_nombre), ''), SPLIT_PART(p_admin_email, '@', 1)),
+            LOWER(TRIM(p_admin_email)),
+            FALSE
+        );
+    END IF;
+    INSERT INTO usuario_negocios (usuario_id, negocio_id, rol, activo)
+    VALUES (v_usuario_id, v_negocio_id, 'ADMIN', TRUE)
+    ON CONFLICT (usuario_id, negocio_id) DO UPDATE SET rol = 'ADMIN', activo = TRUE;
+
+    -- 3. Las 5 cajas
+    INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual) VALUES
+    (v_negocio_id, 'CAJA',         'Tienda',  'Vault de depositos acumulados',   0),
+    (v_negocio_id, 'CAJA_CHICA',   'Cajon',   'Efectivo del dia (ventas + rec)', 0),
+    (v_negocio_id, 'VARIOS',       'Varios',  'Fondo fijo de emergencia',        0),
+    (v_negocio_id, 'CAJA_CELULAR', 'Celular', 'Efectivo recargas celular',       0),
+    (v_negocio_id, 'CAJA_BUS',     'Bus',     'Efectivo recargas bus',           0);
+
+    -- 4. Categorias de operaciones (codigos asignados por trigger fn_set_codigo_categoria_operacion)
+    INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion) VALUES
+    (v_negocio_id, 'Venta POS',          'INGRESO', 'Ingreso automatico por venta en efectivo'),
+    (v_negocio_id, 'Gasto operacional',  'EGRESO',  'Gastos del dia a dia del negocio'),
+    (v_negocio_id, 'Retiro propietario', 'EGRESO',  'Retiro de efectivo por el propietario'),
+    (v_negocio_id, 'Fondo inicial',      'INGRESO', 'Fondo de apertura de caja');
+
+    -- 5. Categorias de productos iniciales
+    INSERT INTO categorias_productos (negocio_id, nombre) VALUES
+    (v_negocio_id, 'Sin categoria'),
+    (v_negocio_id, 'Bebidas'),
+    (v_negocio_id, 'Snacks'),
+    (v_negocio_id, 'Abarrotes'),
+    (v_negocio_id, 'Lacteos'),
+    (v_negocio_id, 'Limpieza'),
+    (v_negocio_id, 'Aseo Personal'),
+    (v_negocio_id, 'Panaderia')
+    ON CONFLICT (negocio_id, nombre) DO NOTHING;
+
+    -- 6. Configuraciones iniciales
+    INSERT INTO configuraciones (negocio_id, clave, valor) VALUES
+    (v_negocio_id, 'negocio_nombre',                p_nombre_negocio),
+    (v_negocio_id, 'negocio_telefono',              ''),
+    (v_negocio_id, 'negocio_direccion',             ''),
+    (v_negocio_id, 'caja_fondo_fijo_diario',        '0'),
+    (v_negocio_id, 'caja_varios_transferencia_dia', '0'),
+    (v_negocio_id, 'bus_alerta_saldo_bajo',         '10'),
+    (v_negocio_id, 'bus_comision_porcentaje',       '1'),
+    (v_negocio_id, 'pos_descuentos_habilitados',    'false'),
+    (v_negocio_id, 'pos_descuento_maximo',          '0'),
+    (v_negocio_id, 'nomina_sueldo_base',            '0'),
+    (v_negocio_id, 'nomina_dia_pago',               '1')
+    ON CONFLICT (negocio_id, clave) DO NOTHING;
+
+    -- 7. Secuencias de comprobantes
+    INSERT INTO secuencias_comprobantes (negocio_id, tipo_documento, ultimo_valor) VALUES
+    (v_negocio_id, 'TICKET',     0),
+    (v_negocio_id, 'NOTA_VENTA', 0),
+    (v_negocio_id, 'FACTURA',    0),
+    (v_negocio_id, 'RECARGA',    0)
+    ON CONFLICT (negocio_id, tipo_documento) DO NOTHING;
+
+    -- 8. Cliente Consumidor Final (requerido por el POS)
+    INSERT INTO clientes (negocio_id, nombre, es_consumidor_final)
+    VALUES (v_negocio_id, 'Consumidor Final', TRUE)
+    ON CONFLICT DO NOTHING;
+
+    RETURN json_build_object(
+        'success',    TRUE,
+        'negocio_id', v_negocio_id,
+        'usuario_id', v_usuario_id,
+        'mensaje',    'Negocio creado exitosamente. Llamar fn_set_negocio_activo para activar el JWT.'
+    );
+
+EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'Error al crear negocio: % (SQLSTATE: %)', SQLERRM, SQLSTATE;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.fn_crear_negocio(VARCHAR, VARCHAR, VARCHAR) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.fn_crear_negocio(VARCHAR, VARCHAR, VARCHAR) FROM authenticated;
+GRANT  EXECUTE ON FUNCTION public.fn_crear_negocio(VARCHAR, VARCHAR, VARCHAR) TO authenticated;
+
+-- fn_set_negocio_activo — Escribe negocio_id + rol en app_metadata del JWT.
+-- El frontend llama supabase.auth.refreshSession() despues para aplicarlo.
+CREATE OR REPLACE FUNCTION public.fn_set_negocio_activo(
+    p_negocio_id UUID
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_email         TEXT;
+    v_usuario_id    UUID;
+    v_rol           TEXT;
+    v_es_superadmin BOOLEAN;
+    v_negocio_nombre VARCHAR;
+    v_activo        BOOLEAN;
+BEGIN
+    v_email := (auth.jwt() ->> 'email');
+    IF v_email IS NULL THEN
+        RAISE EXCEPTION 'No hay sesion activa. El JWT no contiene email.';
+    END IF;
+
+    v_usuario_id    := (SELECT id            FROM usuarios WHERE email = v_email);
+    v_es_superadmin := (SELECT es_superadmin FROM usuarios WHERE email = v_email);
+
+    IF v_usuario_id IS NULL THEN
+        RAISE EXCEPTION 'Usuario % no encontrado en la tabla de usuarios.', v_email;
+    END IF;
+
+    v_negocio_nombre := (SELECT nombre FROM negocios WHERE id = p_negocio_id AND activo = TRUE);
+    IF v_negocio_nombre IS NULL THEN
+        RAISE EXCEPTION 'El negocio % no existe o no esta activo.', p_negocio_id;
+    END IF;
+
+    IF NOT COALESCE(v_es_superadmin, FALSE) THEN
+        v_rol    := (SELECT rol    FROM usuario_negocios WHERE usuario_id = v_usuario_id AND negocio_id = p_negocio_id);
+        v_activo := (SELECT activo FROM usuario_negocios WHERE usuario_id = v_usuario_id AND negocio_id = p_negocio_id);
+        IF v_rol IS NULL THEN
+            RAISE EXCEPTION 'El usuario % no tiene membresia en el negocio %.', v_email, p_negocio_id;
+        END IF;
+        IF NOT v_activo THEN
+            RAISE EXCEPTION 'La membresia del usuario % en el negocio % esta inactiva.', v_email, p_negocio_id;
+        END IF;
+    ELSE
+        v_rol := COALESCE(
+            (SELECT rol FROM usuario_negocios WHERE usuario_id = v_usuario_id AND negocio_id = p_negocio_id AND activo = TRUE),
+            'ADMIN'
+        );
+    END IF;
+
+    UPDATE auth.users
+    SET raw_app_meta_data = raw_app_meta_data
+        || jsonb_build_object(
+            'negocio_id',    p_negocio_id::TEXT,
+            'rol',           v_rol,
+            'es_superadmin', COALESCE(v_es_superadmin, FALSE)
+        )
+    WHERE email = v_email;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'No se pudo actualizar el JWT del usuario %.', v_email;
+    END IF;
+
+    RETURN json_build_object(
+        'success',        TRUE,
+        'negocio_id',     p_negocio_id,
+        'rol',            v_rol,
+        'negocio_nombre', v_negocio_nombre,
+        'mensaje',        'Negocio activado. Llamar supabase.auth.refreshSession() para aplicar el nuevo JWT.'
+    );
+
+EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'Error al activar negocio: % (SQLSTATE: %)', SQLERRM, SQLSTATE;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.fn_set_negocio_activo(UUID) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_set_negocio_activo(UUID) TO authenticated;
+
+-- ==========================================
+-- REALTIME — Publicaciones + REPLICA IDENTITY
+-- DROP TABLE CASCADE en schema.sql elimina publicaciones existentes.
+-- ==========================================
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'usuarios') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE usuarios;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'configuraciones') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE configuraciones;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'turnos_caja') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE turnos_caja;
+    END IF;
+END $$;
+
+-- REPLICA IDENTITY FULL: los UPDATE de turnos_caja entregan la fila completa al cliente
+ALTER TABLE turnos_caja REPLICA IDENTITY FULL;
+
+-- ==========================================
+-- SEED DEV — Superadmin para desarrollo
+-- ⚠️  Cambiar email/nombre/password antes de ejecutar en produccion.
+-- ⚠️  En produccion: comentar o eliminar este bloque.
+-- ==========================================
+
+DO $$
+DECLARE
+    v_superadmin_email  TEXT := 'ivansan2192@gmail.com';
+    v_superadmin_nombre TEXT := 'Ivan Sanchez';
+    v_superadmin_pass   TEXT := 'Dev1234!';
+    v_auth_uid          UUID;
+    v_usuario_id        UUID;
+BEGIN
+    v_auth_uid := (SELECT id FROM auth.users WHERE email = v_superadmin_email);
+
+    IF v_auth_uid IS NULL THEN
+        v_auth_uid := gen_random_uuid();
+        INSERT INTO auth.users (
+            id, instance_id, email, encrypted_password, email_confirmed_at,
+            raw_app_meta_data, raw_user_meta_data, role, aud, created_at, updated_at
+        ) VALUES (
+            v_auth_uid,
+            '00000000-0000-0000-0000-000000000000',
+            v_superadmin_email,
+            crypt(v_superadmin_pass, gen_salt('bf')),
+            NOW(),
+            jsonb_build_object('provider', 'email', 'providers', ARRAY['email']::text[], 'es_superadmin', TRUE),
+            jsonb_build_object('nombre', v_superadmin_nombre),
+            'authenticated', 'authenticated', NOW(), NOW()
+        );
+        RAISE NOTICE 'auth.users creado: %', v_auth_uid;
+    ELSE
+        UPDATE auth.users
+        SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('es_superadmin', TRUE)
+        WHERE id = v_auth_uid;
+        RAISE NOTICE 'auth.users actualizado (ya existia): %', v_auth_uid;
+    END IF;
+
+    v_usuario_id := (SELECT id FROM public.usuarios WHERE email = v_superadmin_email);
+    IF v_usuario_id IS NULL THEN
+        v_usuario_id := gen_random_uuid();
+        INSERT INTO public.usuarios (id, nombre, email, es_superadmin)
+        VALUES (v_usuario_id, v_superadmin_nombre, v_superadmin_email, TRUE);
+        RAISE NOTICE 'public.usuarios creado: %', v_usuario_id;
+    ELSE
+        UPDATE public.usuarios SET es_superadmin = TRUE WHERE id = v_usuario_id;
+        RAISE NOTICE 'public.usuarios actualizado (ya existia): %', v_usuario_id;
+    END IF;
+
+    RAISE NOTICE '=== SEED DEV COMPLETADO ===';
+    RAISE NOTICE 'Email: %  |  Password: % (solo si fue creado ahora)', v_superadmin_email, v_superadmin_pass;
+END $$;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ==========================================
 -- RESUMEN (v11.0 — Multi-Tenant)
 -- ==========================================
--- CAMBIOS DESDE v10.1:
---   + tabla negocios (tenant root)
---   + tabla usuario_negocios (membresia N:M usuario-negocio)
---   + tabla codigos_barras (unicidad cross-table con UNIQUE constraint atomico)
---   + negocio_id en las 21 tablas del Grupo A (ON DELETE CASCADE)
---   + PKs migradas a UUID: usuarios, cajas, categorias_operaciones, categorias_productos
---   + usuarios.usuario renombrado a usuarios.email
---   + usuarios.rol y usuarios.activo movidos a usuario_negocios
---   + configuraciones: PK ahora es (negocio_id, clave)
---   + secuencias_comprobantes: PK ahora es (negocio_id, tipo_documento)
---   + productos.codigo_barras y presentaciones.codigo_barras: sin UNIQUE (unicidad en codigos_barras)
---   + productos: CHECK chk_herencia_template + CHECK chk_stock_no_negativo
---   + updated_at en: cajas, configuraciones, productos, clientes, usuario_negocios
---   + Triggers nuevos: fn_limpiar_herencia_template, fn_sync_codigo_barras,
---     fn_proteger_movimiento_empleado, fn_bloquear_delete_movimiento,
---     fn_proteger_operacion_caja, fn_sync_superadmin_to_jwt, fn_sync_rol_to_jwt,
---     fn_set_updated_at, pg_advisory_xact_lock en fn_set_codigo_categoria_operacion
---   + Helpers JWT: auth.negocio_id(), auth.es_superadmin(), auth.rol(), auth.email(),
---     auth.comparten_negocio()
---   + Vistas con security_barrier=true: v_saldos_empleados, v_productos_completos
---   + Indices compuestos por tenant (negocio_id primero) + INCLUDE en codigos_barras
---   + Datos iniciales globales solo: tipos_servicio, tipos_referencia
---     (cajas, configuraciones, categorias, etc. → via fn_crear_negocio)
---
 -- INVENTARIO FINAL:
 -- ✅ 29 Tablas (21 Grupo A + 4 Grupo B + 2 Grupo C + 1 Grupo D + 1 negocios)
 -- ✅ 4 Enums
 -- ✅ 5 Helpers JWT en schema auth
--- ✅ 10 Triggers / funciones de trigger
+-- ✅ 12 Triggers / funciones de trigger (incluye fn_proteger_superadmin)
 -- ✅ 2 Vistas con security_barrier
 -- ✅ ~55 Indices (simples + compuestos por tenant + parciales)
 -- ✅ 2 Seeds globales (tipos_servicio, tipos_referencia)
--- ✅ Datos por tenant → fn_crear_negocio (docs/setup/fn_crear_negocio.sql)
+-- ✅ fn_crear_negocio + fn_set_negocio_activo (setup de tenants)
+-- ✅ Realtime: usuarios, configuraciones, turnos_caja
+-- ✅ Seed dev: superadmin (⚠️  comentar en produccion)
 --
--- FUNCIONES POSTGRESQL (archivos separados — ejecutar despues del schema):
---   Setup:
---   • fn_crear_negocio          → docs/setup/fn_crear_negocio.sql
---   • fn_set_negocio_activo     → docs/setup/fn_set_negocio_activo.sql
---   Dashboard:
---   • fn_abrir_turno            → docs/dashboard/sql/functions/fn_abrir_turno.sql
---   • fn_ejecutar_cierre_diario → docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
---   • fn_reparar_deficit_turno  → docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql
---   • fn_verificar_transferencia_caja_chica_hoy → docs/dashboard/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql
---   • fn_registrar_operacion_manual → docs/dashboard/sql/functions/fn_registrar_operacion_manual.sql
---   • fn_crear_transferencia    → docs/dashboard/sql/functions/fn_crear_transferencia.sql
---   • fn_cierre_emergencia_turno → docs/dashboard/sql/functions/fn_cierre_emergencia_turno.sql
---   Recargas Virtuales:
---   • fn_registrar_recarga_proveedor_celular → docs/recargas-virtuales/sql/functions/
---   • fn_registrar_pago_proveedor_celular    → docs/recargas-virtuales/sql/functions/
---   • fn_registrar_compra_saldo_bus          → docs/recargas-virtuales/sql/functions/
---   • fn_liquidar_ganancias_bus              → docs/recargas-virtuales/sql/functions/
---   POS:
---   • fn_registrar_venta_pos    → docs/pos/sql/functions/fn_registrar_venta_pos.sql
---   • fn_anular_venta           → docs/pos/sql/functions/fn_anular_venta.sql
---   Cuentas por Cobrar:
---   • fn_registrar_pago_fiado   → docs/cuentas-cobrar/sql/functions/fn_registrar_pago_fiado.sql
---   • fn_listar_cuentas_cobrar  → docs/cuentas-cobrar/sql/functions/fn_listar_cuentas_cobrar.sql
---   • fn_resumir_cuentas_cobrar → docs/cuentas-cobrar/sql/functions/fn_resumir_cuentas_cobrar.sql
---   Inventario:
---   • fn_ajustar_stock_inventario    → docs/inventario/sql/functions/fn_ajustar_stock_inventario.sql
---   • fn_generar_codigo_interno      → docs/inventario/sql/functions/fn_generar_codigo_interno.sql
---   • fn_generar_codigo_interno_presentacion → docs/inventario/sql/functions/fn_generar_codigo_interno_presentacion.sql
---   Ventas:
---   • fn_listar_ventas          → docs/ventas/sql/functions/fn_listar_ventas.sql
---   • fn_resumir_ventas         → docs/ventas/sql/functions/fn_resumir_ventas.sql
---   • fn_reporte_ventas_periodo → docs/ventas/sql/functions/fn_reporte_ventas_periodo.sql
---   Movimientos Empleados:
---   • fn_registrar_adelanto_sueldo → docs/movimientos-empleados/sql/functions/
---   • fn_pagar_nomina_empleado     → docs/movimientos-empleados/sql/functions/
---   Notas:
---   • fn_eliminar_nota          → docs/notas/sql/functions/fn_eliminar_nota.sql
---   RLS:
---   • docs/auth/sql/setup/rls_usuarios.sql
---   • docs/dashboard/sql/setup/rls_tablas.sql
+-- ORDEN DE EJECUCION (2 pasos):
+--   1. schema.sql    — tablas + triggers + funciones setup + realtime + seed dev
+--   2. 01_rls.sql    — Row Level Security (separado: depende de permisos Supabase)
+--   3. 03_functions.sql — todas las RPCs de modulos (separado: ~5000 lineas)
+--
+-- FUNCIONES RPC por modulo (en 03_functions.sql, fuente de verdad en docs/*/sql/functions/):
+--   Dashboard:   fn_abrir_turno, fn_registrar_operacion_manual, fn_crear_transferencia,
+--                fn_verificar_transferencia_caja_chica_hoy, fn_ejecutar_cierre_diario,
+--                fn_reparar_deficit_turno, fn_cierre_emergencia_turno
+--   Inventario:  fn_generar_codigo_interno, fn_generar_codigo_interno_presentacion,
+--                fn_crear_producto_simple, fn_crear_producto_con_variantes, fn_ajustar_stock_inventario
+--   POS:         fn_registrar_venta_pos, fn_anular_venta
+--   Recargas:    fn_registrar_recarga_proveedor_celular, fn_registrar_pago_proveedor_celular,
+--                fn_registrar_compra_saldo_bus, fn_liquidar_ganancias_bus
+--   Cuentas:     fn_registrar_pago_fiado, fn_listar_cuentas_cobrar, fn_resumir_cuentas_cobrar
+--   Ventas:      fn_listar_ventas, fn_resumir_ventas, fn_reporte_ventas_periodo
+--   Empleados:   fn_registrar_adelanto_sueldo, fn_pagar_nomina_empleado
+--   Notas:       fn_eliminar_nota
 -- ==========================================
 
 NOTIFY pgrst, 'reload schema';

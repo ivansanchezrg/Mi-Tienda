@@ -51,7 +51,7 @@ export class OperacionesCajaService {
    * Obtiene operaciones de una caja con paginación
    */
   async obtenerOperacionesCaja(
-    cajaId: number,
+    cajaId: string,
     filtro: FiltroFecha = 'hoy',
     page: number = 0
   ): Promise<OperacionesPaginadas> {
@@ -126,9 +126,9 @@ export class OperacionesCajaService {
    * @returns true si se guardó correctamente, false si hubo error
    */
   async registrarOperacion(
-    cajaId: number,
+    cajaId: string,
     tipo: 'INGRESO' | 'EGRESO',
-    categoriaId: number,
+    categoriaId: string,
     monto: number,
     descripcion: string,
     fotoComprobante: string | null

@@ -8,7 +8,7 @@ DROP FUNCTION IF EXISTS public.fn_crear_producto_simple CASCADE;
 
 CREATE OR REPLACE FUNCTION public.fn_crear_producto_simple(
     p_nombre            TEXT,
-    p_categoria_id      INTEGER,
+    p_categoria_id      UUID,
     p_tiene_iva         BOOLEAN,
     p_tipo_venta        TEXT,
     p_unidad_medida     TEXT,
@@ -27,15 +27,20 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_negocio_id     UUID;
     v_producto_id    UUID;
     v_pres           JSON;
     v_presentaciones JSON;
 BEGIN
+    v_negocio_id := public.get_negocio_id();
+
+    IF v_negocio_id IS NULL THEN
+        RAISE EXCEPTION 'Sin negocio activo en el JWT';
+    END IF;
+
     -- Normalizar presentaciones: asegurar que sea un JSON array
-    -- Supabase puede enviar el parametro como text, como JSON escalar o como array
     BEGIN
         v_presentaciones := p_presentaciones::TEXT::JSON;
-        -- Si no es un array, reemplazar por array vacio
         IF json_typeof(v_presentaciones) <> 'array' THEN
             v_presentaciones := '[]'::JSON;
         END IF;
@@ -53,18 +58,21 @@ BEGIN
     END IF;
 
     -- Crear producto
+    v_producto_id := gen_random_uuid();
+
     INSERT INTO productos (
+        id, negocio_id,
         nombre, categoria_id, tiene_iva, tipo_venta, unidad_medida,
         codigo_barras, imagen_url,
         precio_costo, precio_venta, stock_actual, stock_minimo,
         activo
     ) VALUES (
+        v_producto_id, v_negocio_id,
         UPPER(TRIM(p_nombre)), p_categoria_id, p_tiene_iva, p_tipo_venta, p_unidad_medida,
         NULLIF(TRIM(COALESCE(p_codigo_barras, '')), ''), p_imagen_url,
         p_precio_costo, p_precio_venta, p_stock_actual, p_stock_minimo,
         TRUE
-    )
-    RETURNING id INTO v_producto_id;
+    );
 
     -- Presentaciones (opcional)
     IF json_array_length(v_presentaciones) > 0 THEN
@@ -72,9 +80,10 @@ BEGIN
             SELECT value FROM json_array_elements(v_presentaciones)
         LOOP
             INSERT INTO producto_presentaciones (
-                producto_id, nombre, factor_conversion,
+                negocio_id, producto_id, nombre, factor_conversion,
                 precio_venta, precio_costo, codigo_barras, activo
             ) VALUES (
+                v_negocio_id,
                 v_producto_id,
                 UPPER(TRIM(v_pres->>'nombre')),
                 (v_pres->>'factor_conversion')::INTEGER,

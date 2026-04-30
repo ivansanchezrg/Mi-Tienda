@@ -39,7 +39,7 @@
   SET search_path = public
   AS $$
   DECLARE
-    v_varios_id INTEGER;  -- v1.2: era v_caja_chica_id con codigo 'CAJA_CHICA'
+    v_varios_id UUID;     -- v1.2: era v_caja_chica_id con codigo 'CAJA_CHICA'
     v_existe    BOOLEAN;
   BEGIN
     v_varios_id := (SELECT id FROM cajas WHERE codigo = 'VARIOS');  -- v1.2: era 'CAJA_CHICA'

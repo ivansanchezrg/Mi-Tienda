@@ -38,10 +38,10 @@ export interface TemplateAtributo {
 export interface ProductoTemplate {
     id: string;
     nombre: string;
-    categoria_id?: number;
+    categoria_id?: string;
     tipo_venta: TipoVenta;
     unidad_medida: string;
-    imagen_url?: string;
+    imagen_url?: string | null;
     activo: boolean;
     created_at?: string;
 
@@ -69,7 +69,7 @@ export interface ProductoPresentacion {
 export interface Producto {
     id: string; // UUID
     producto_template_id?: string;
-    categoria_id?: number;
+    categoria_id?: string;
     codigo_barras?: string;
     nombre: string;
     precio_costo: number;
@@ -78,7 +78,7 @@ export interface Producto {
     stock_minimo: number;
     tiene_iva: boolean;
     activo: boolean;
-    imagen_url?: string;
+    imagen_url?: string | null;
     created_at?: string;
 
     // Granel

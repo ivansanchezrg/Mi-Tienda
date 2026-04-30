@@ -29,10 +29,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_negocio_id     UUID;
     v_stock_anterior DECIMAL(12,2);
     v_stock_nuevo    DECIMAL(12,2);
     v_delta          DECIMAL(12,2);
 BEGIN
+    v_negocio_id := public.get_negocio_id();
 
     -- 1. Validaciones básicas
     IF p_cantidad IS NULL OR p_cantidad <= 0 THEN
@@ -77,6 +79,7 @@ BEGIN
 
     -- 5. Registrar en kardex
     INSERT INTO kardex_inventario (
+        negocio_id,
         producto_id,
         tipo_movimiento,
         cantidad,
@@ -84,6 +87,7 @@ BEGIN
         stock_nuevo,
         observaciones
     ) VALUES (
+        v_negocio_id,
         p_producto_id,
         p_tipo_movimiento,
         p_cantidad,

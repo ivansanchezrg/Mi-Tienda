@@ -61,7 +61,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private alertCtrl = inject(AlertController);
   private modalCtrl = inject(ModalController);
   private clientesService = inject(ClientesService);
-  private barcodeScanner = inject(BarcodeScannerService);
+  protected barcodeScanner = inject(BarcodeScannerService);
   private network = inject(NetworkService);
   private logger = inject(LoggerService);
   private storageService = inject(StorageService);
@@ -88,7 +88,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   clienteSeleccionado: Cliente | null = null;
   cargandoCliente = false;
-  errorCliente = false;
+  errorCliente = false;       // fallo de red / error inesperado
+  sinConsumidorFinal = false; // la BD no tiene ningún consumidor final creado
 
   /** Tipo de comprobante activo — controla desglose fiscal en el footer */
   tipoComprobante: TipoComprobante = TipoComprobante.TICKET;
@@ -176,9 +177,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   async cargarCliente() {
     this.cargandoCliente = true;
     this.errorCliente = false;
+    this.sinConsumidorFinal = false;
     try {
       this.clienteSeleccionado = await this.clientesService.obtenerConsumidorFinal();
-      if (!this.clienteSeleccionado?.id) this.errorCliente = true;
+      if (!this.clienteSeleccionado) {
+        this.sinConsumidorFinal = true;
+      }
     } catch {
       this.errorCliente = true;
     } finally {
@@ -294,10 +298,28 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
 
   async abrirSelectorCliente() {
-    if (this.errorCliente || !this.clienteSeleccionado?.id) {
+    if (this.errorCliente) {
       await this.cargarCliente();
       if (this.errorCliente) {
         this.ui.showToast('No se pudo cargar el cliente. Verifica tu conexión.', 'danger');
+      }
+      return;
+    }
+
+    if (this.sinConsumidorFinal) {
+      // No hay consumidor final en BD — abrir modal para seleccionar o crear un cliente
+      const modal = await this.modalCtrl.create({
+        component: SeleccionarClienteModalComponent,
+        componentProps: {
+          tipoComprobante: this.tipoComprobante,
+          clienteActual: null
+        }
+      });
+      await modal.present();
+      const { data } = await modal.onDidDismiss();
+      if (data?.cliente) {
+        this.clienteSeleccionado = data.cliente;
+        this.sinConsumidorFinal = false;
       }
       return;
     }

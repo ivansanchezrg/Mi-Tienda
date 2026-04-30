@@ -1,18 +1,21 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
+import { AuthService } from '../../auth/services/auth.service';
 import { Cliente } from '../models/cliente.model';
 import { PAGINATION_CONFIG } from '../../../core/config/pagination.config';
 
 @Injectable({ providedIn: 'root' })
 export class ClientesService {
     private supabase = inject(SupabaseService);
+    private auth = inject(AuthService);
 
     async obtenerConsumidorFinal(): Promise<Cliente | null> {
         return this.supabase.call<Cliente>(
             this.supabase.client.from('clientes')
                 .select('*')
                 .eq('es_consumidor_final', true)
-                .single()
+                .limit(1)
+                .maybeSingle()
         );
     }
 
@@ -65,9 +68,10 @@ export class ClientesService {
     }
 
     async crearCliente(data: { nombre: string; identificacion?: string; telefono?: string; email?: string }): Promise<Cliente | null> {
+        const usuario = await this.auth.getUsuarioActual();
         return this.supabase.call<Cliente>(
             this.supabase.client.from('clientes')
-                .insert(data)
+                .insert({ ...data, negocio_id: usuario?.negocio_id })
                 .select()
                 .single(),
             'Cliente creado correctamente'

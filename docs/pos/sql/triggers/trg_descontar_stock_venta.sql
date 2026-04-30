@@ -1,10 +1,13 @@
 -- ==========================================
--- TRIGGER FUNCTION: fn_actualizar_stock_venta (v8)
+-- TRIGGER FUNCTION: fn_actualizar_stock_venta (v9)
 -- ==========================================
 -- Se dispara automáticamente AFTER INSERT en ventas_detalles.
 -- Por cada línea de venta:
 --   1. Descuenta el stock del producto vendido (respetando factor de presentacion si aplica).
 --   2. Graba el movimiento en kardex_inventario (auditoría anti-fraude), con presentacion_id.
+--
+-- CAMBIOS v9:
+--   - SECURITY DEFINER + SET search_path = public (requerido para acceso a tablas con RLS)
 --
 -- v8 — Soporta presentaciones:
 --   Si presentacion_id existe, multiplica cantidad * factor_conversion antes de descontar.
@@ -18,7 +21,11 @@
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION fn_actualizar_stock_venta()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
     v_stock_actual  DECIMAL(12,2);
     v_factor        DECIMAL(10,4);
@@ -59,7 +66,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS trg_descontar_stock_venta ON ventas_detalles;
 

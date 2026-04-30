@@ -85,6 +85,18 @@ ion-searchbar {
             border-color: var(--ion-color-medium);
         }
     }
+
+    &.template-chip {
+        gap: 5px;
+
+        ion-icon:first-child {
+            font-size: 13px;
+        }
+        ion-icon:last-child {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+    }
 }
 
 
@@ -242,6 +254,12 @@ ion-searchbar {
             display: inline-flex;
             align-items: center;
             gap: 2px;
+            cursor: pointer;
+            transition: background var(--transition-fast);
+
+            &:active {
+                background: rgba(var(--ion-color-primary-rgb), 0.22);
+            }
 
             ion-icon {
                 font-size: 8px;

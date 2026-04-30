@@ -6,7 +6,7 @@ import { getFechaLocal, getInicioDiaSiguienteISO } from '@core/utils/date.util';
  * Interfaz para la tabla cajas
  */
 export interface Caja {
-  id: number;
+  id: string;
   codigo: string;
   nombre: string;
   saldo_actual: number;
@@ -144,7 +144,7 @@ export class CajasService {
   /**
    * Obtiene una caja por su ID
    */
-  async obtenerCajaPorId(id: number): Promise<Caja | null> {
+  async obtenerCajaPorId(id: string): Promise<Caja | null> {
     const caja = await this.supabase.call<Caja>(
       this.supabase.client
         .from('cajas')
@@ -222,7 +222,7 @@ export class CajasService {
     codigoOrigen: string;
     codigoDestino: string;
     monto: number;
-    empleadoId: number;
+    empleadoId: string;
     descripcion: string;
   }): Promise<void> {
     const { codigoOrigen, codigoDestino, monto, empleadoId, descripcion } = params;

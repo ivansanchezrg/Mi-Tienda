@@ -7,12 +7,16 @@
       <div class="title-with-chip">
         <span>POS</span>
         <div class="comprobante-chip">
-          <ion-icon [name]="tipoComprobante === TipoComprobante.TICKET ? 'receipt-outline' : 'document-text-outline'">
-          </ion-icon>
-          <span>{{
-            tipoComprobante === TipoComprobante.TICKET ? 'Ticket' :
-            tipoComprobante === TipoComprobante.NOTA_VENTA ? 'Nota de Venta' : 'Factura'
-            }}</span>
+          @if (tipoComprobante === TipoComprobante.TICKET) {
+            <ion-icon name="receipt-outline"></ion-icon>
+            <span>Ticket</span>
+          } @else if (tipoComprobante === TipoComprobante.NOTA_VENTA) {
+            <ion-icon name="document-text-outline"></ion-icon>
+            <span>Nota de Venta</span>
+          } @else {
+            <ion-icon name="document-text-outline"></ion-icon>
+            <span>Factura</span>
+          }
         </div>
         @if (descuentoActivo) {
         <div class="descuento-chip">
@@ -74,6 +78,12 @@
             <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
             <span>Error — reintentar</span>
             <ion-icon name="refresh-outline" color="danger"></ion-icon>
+          </button>
+        } @else if (sinConsumidorFinal) {
+          <button class="chr-action-btn" (click)="abrirSelectorCliente()">
+            <ion-icon name="alert-circle-outline" color="warning"></ion-icon>
+            <span style="color: var(--ion-color-warning)">Sin cliente — seleccionar</span>
+            <ion-icon name="chevron-forward-outline" color="warning"></ion-icon>
           </button>
         } @else {
           <span class="chr-nombre">{{ clienteSeleccionado?.nombre || 'Consumidor Final' }}</span>
@@ -279,10 +289,11 @@
 
   </div>
 
-  <!-- Botón escáner — esquina inferior derecha, anclado sobre el footer -->
-  <button class="scanner-corner-btn" slot="fixed" (click)="abrirEscanerCamara()">
-    <ion-icon name="barcode-outline"></ion-icon>
-  </button>
+  @if (barcodeScanner.isAvailable) {
+    <button class="scanner-corner-btn" slot="fixed" (click)="abrirEscanerCamara()">
+      <ion-icon name="barcode-outline"></ion-icon>
+    </button>
+  }
 
 </ion-content>
 

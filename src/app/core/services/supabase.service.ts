@@ -28,7 +28,6 @@ export class SupabaseService {
   /** URL de deep-link pendiente de procesar (OAuth callback en Android) */
   public pendingDeepLinkUrl: string | null = null;
 
-  /** Key de localStorage donde Supabase guarda los tokens */
   private readonly STORAGE_KEY: string;
   private readonly USUARIO_KEY = 'usuario_actual';
 

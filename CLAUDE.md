@@ -6,9 +6,26 @@ Contexto rápido del proyecto para IAs. Lee esto antes de cualquier tarea.
 
 ## Qué es este proyecto
 
-App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sistema de **5 cajas** físicas/virtuales: CAJA, CAJA_CHICA, VARIOS, CAJA_CELULAR, CAJA_BUS), ventas POS, recargas de saldo celular/bus e inventario.
+App de gestión para tiendas minoristas. Maneja caja (sistema de **5 cajas** físicas/virtuales: CAJA, CAJA_CHICA, VARIOS, CAJA_CELULAR, CAJA_BUS), ventas POS, recargas de saldo celular/bus e inventario.
 
-**No es un e-commerce ni una web app.** Es una herramienta interna de administración para una sola tienda.
+**Es una SaaS multi-tenant y multiplataforma** — no es un e-commerce. Es una herramienta interna de administración que puede servir a múltiples negocios independientes desde una sola instancia.
+
+### Multi-tenant
+- Cada negocio es un tenant aislado identificado por `negocio_id` en el JWT
+- La BD usa RLS (Row Level Security) en todas las tablas para aislar datos entre negocios
+- Supabase expone `get_negocio_id()` y `get_email()` como funciones helper que leen el JWT
+- Toda query filtra automáticamente por `negocio_id` vía RLS — **nunca hardcodear** un `negocio_id` en código
+- El superadmin puede operar dentro de cualquier negocio cambiando el `negocio_id` del JWT (`cambiarNegocio()`)
+- **Al agregar una tabla nueva:** siempre crear la política RLS correspondiente con `negocio_id = get_negocio_id()`
+- **Al agregar una función SQL nueva:** usar `SECURITY DEFINER` + `SET search_path = public` y filtrar por `get_negocio_id()` internamente
+
+### Multiplataforma
+- **Android**: APK vía Capacitor — plataforma principal, toda decisión UI/UX debe funcionar aquí primero
+- **Web**: funciona en browser (PWA-like), usado en desktop y tablet
+- **iOS**: compatible pero no es el foco actual
+- Ionic 8 en modo `md` (Material Design) en todas las plataformas — no depender de comportamientos específicos de `ios` mode
+- En desktop/tablet (≥992px) el split pane está activo y el sidebar es fijo — no asumir que el menú siempre es un drawer
+- Safe area (`env(safe-area-inset-bottom)`) aplica en Android y iOS — ver sección "Safe area en Android"
 
 ---
 
@@ -17,7 +34,7 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 | Componente   | Versión | Notas                          |
 | ------------ | ------- | ------------------------------ |
 | Angular      | 20.x    | Standalone components SIEMPRE  |
-| Ionic        | 8.x     | Componentes nativos Android    |
+| Ionic        | 8.x     | Multiplataforma — modo `md` en todas las plataformas |
 | Capacitor    | 8.x     | Empaquetado APK                |
 | Supabase JS  | 2.x     | Auth + DB + Storage            |
 | Node.js      | 22.x    |                                |
@@ -737,6 +754,39 @@ v_saldo := (SELECT saldo_actual FROM cajas WHERE id = v_id);
 ---
 
 ## Reglas críticas
+
+### IDs — SIEMPRE `string` (UUID), nunca `number`
+
+El schema usa UUIDs en todas las PKs y FKs desde la migración v11. Toda entidad de BD tiene `id: string`, nunca `id: number`.
+
+**Al revisar o crear cualquier módulo, verificar:**
+- Modelos (`*.model.ts`): todos los campos `id`, `*_id` que mapeen a columnas de BD → `string`
+- Servicios: parámetros como `cajaId`, `empleadoId`, `categoriaId`, etc. → `string`
+- Páginas/componentes: propiedades que reciben IDs de route params o `@Input()` → `string`
+- Route params: nunca usar `Number(params['id']) || 0` — mantener como `string` directamente
+- Funciones SQL (`p_*_id`): los parámetros que reciben UUIDs → `UUID` en plpgsql
+
+```typescript
+// ❌ Incorrecto — rompe con UUID: "invalid input syntax for type uuid: '0'"
+cajaId: number = 0;
+this.cajaId = Number(params['cajaId']) || 0;
+async registrar(cajaId: number, categoriaId: number): Promise<void>
+
+// ✅ Correcto
+cajaId: string = '';
+this.cajaId = params['cajaId'] || '';
+async registrar(cajaId: string, categoriaId: string): Promise<void>
+```
+
+**Excepción legítima:** campos que son cantidades o contadores reales (`monto: number`, `saldo_actual: number`, `numero_turno: number`) siguen siendo `number`.
+
+```sql
+-- ❌ Incorrecto en función SQL
+p_caja_id INTEGER
+
+-- ✅ Correcto
+p_caja_id UUID
+```
 
 ### Fechas — NUNCA `toISOString()`
 ```typescript

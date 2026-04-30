@@ -1,5 +1,5 @@
 import { Component, NgZone, inject } from '@angular/core';
-import { NavigationEnd, Router } from '@angular/router';
+import { NavigationEnd, NavigationStart, Router } from '@angular/router';
 import { filter, take } from 'rxjs/operators';
 import { App, URLOpenListenerEvent } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
@@ -32,6 +32,7 @@ export class AppComponent {
     this.setupDeepLinkListener();
     this.setupResumeListener();
     this.setupSplashScreenHide();
+    this.setupBlurOnNavigation();
   }
 
   /**
@@ -51,6 +52,12 @@ export class AppComponent {
       .subscribe(async () => {
         await SplashScreen.hide();
       });
+  }
+
+  private setupBlurOnNavigation() {
+    this.router.events
+      .pipe(filter((e): e is NavigationStart => e instanceof NavigationStart))
+      .subscribe(() => (document.activeElement as HTMLElement)?.blur());
   }
 
   private setupDeepLinkListener() {

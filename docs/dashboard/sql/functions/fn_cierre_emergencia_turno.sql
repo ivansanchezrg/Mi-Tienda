@@ -58,7 +58,7 @@ DECLARE
   v_cat_ajuste_egreso_id  UUID;  -- EG-013: Ajuste Diferencia Conteo
 
   -- IDs de referencias
-  v_tipo_ref_turnos_id INTEGER;
+  v_tipo_ref_turnos_id UUID;
 
   -- Configuración
   v_fondo_fijo           DECIMAL(12,2);

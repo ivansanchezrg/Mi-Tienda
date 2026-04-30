@@ -1,5 +1,6 @@
 import { Injectable, inject, NgZone } from '@angular/core';
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
+import { Capacitor } from '@capacitor/core';
 import { UiService } from './ui.service';
 
 /** Formatos estándar usados en toda la app (productos, presentaciones, QR de bus) */
@@ -15,6 +16,8 @@ const FORMATOS_DEFAULT: BarcodeFormat[] = [
 
 @Injectable({ providedIn: 'root' })
 export class BarcodeScannerService {
+
+    readonly isAvailable = Capacitor.isNativePlatform();
 
     private ngZone = inject(NgZone);
     private ui = inject(UiService);

@@ -49,19 +49,18 @@ export class CuentasCobrarService {
 
     /** Ventas fiadas pendientes (total o parcialmente) de un cliente */
     async obtenerVentasFiadas(clienteId: string): Promise<VentaFiada[]> {
-        const query = this.supabase.client
-            .from('ventas')
-            .select('id, numero_comprobante, tipo_comprobante, fecha, subtotal, descuento, descuento_pct, total, base_iva_0, base_iva_15, iva_valor, empleado:empleado_id(nombre), cuentas_cobrar(monto)')
-            .eq('cliente_id', clienteId)
-            .eq('metodo_pago', 'FIADO')
-            .eq('estado', 'COMPLETADA')
-            .in('estado_pago', ['PENDIENTE', 'PAGADO_PARCIAL'])
-            .order('fecha', { ascending: true });
+        const data = await this.supabase.call<any[]>(
+            this.supabase.client
+                .from('ventas')
+                .select('id, numero_comprobante, tipo_comprobante, fecha, subtotal, descuento, descuento_pct, total, base_iva_0, base_iva_15, iva_valor, empleado:empleado_id(nombre), cuentas_cobrar(monto)')
+                .eq('cliente_id', clienteId)
+                .eq('metodo_pago', 'FIADO')
+                .eq('estado', 'COMPLETADA')
+                .in('estado_pago', ['PENDIENTE', 'PAGADO_PARCIAL'])
+                .order('fecha', { ascending: true })
+        ) ?? [];
 
-        const { data, error } = await query;
-        if (error) return [];
-
-        return (data ?? []).map((v: any) => {
+        return data.map((v: any) => {
             const montoPagado = (v.cuentas_cobrar as { monto: number }[] ?? [])
                 .reduce((sum, p) => sum + p.monto, 0);
             return {

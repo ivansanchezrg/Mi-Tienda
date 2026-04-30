@@ -24,8 +24,8 @@ export interface OperacionModalData {
 }
 
 export interface OperacionModalResult {
-  cajaId: number;
-  categoriaId: number;
+  cajaId: string;
+  categoriaId: string;
   monto: number;
   descripcion: string;
   fotoComprobante: string | null;
@@ -54,7 +54,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
 
   @Input() tipo!: 'INGRESO' | 'EGRESO';
   @Input() cajas: Caja[] = [];
-  @Input() cajaIdPreseleccionada?: number; // Nueva prop para pre-seleccionar caja
+  @Input() cajaIdPreseleccionada?: string;
 
   form!: FormGroup;
   cajasFiltradas: Caja[] = [];
@@ -147,7 +147,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   get categoriaLabel(): string {
     const id = this.form?.get('categoriaId')?.value;
     if (!id) return 'Seleccionar categoría';
-    return this.categorias.find(c => c.id === Number(id))?.nombre || 'Seleccionar categoría';
+    return this.categorias.find(c => c.id === id)?.nombre || 'Seleccionar categoría';
   }
 
   async abrirSelectorCategoria() {
@@ -176,7 +176,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
     const { data } = await modal.onDidDismiss();
 
     if (data) {
-      this.form.patchValue({ categoriaId: Number(data) });
+      this.form.patchValue({ categoriaId: data });
       this.form.get('categoriaId')?.markAsTouched();
     }
   }

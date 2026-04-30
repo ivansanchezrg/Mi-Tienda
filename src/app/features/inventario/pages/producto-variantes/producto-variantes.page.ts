@@ -68,7 +68,7 @@ export class ProductoVariantesPage implements OnInit {
     private ui = inject(UiService);
     private logger = inject(LoggerService);
     private modalCtrl = inject(ModalController);
-    private barcodeScanner = inject(BarcodeScannerService);
+    protected barcodeScanner = inject(BarcodeScannerService);
 
     paso = 1;
     guardando = false;
@@ -168,7 +168,7 @@ export class ProductoVariantesPage implements OnInit {
     get categoriaLabel(): string {
         const id = this.templateForm?.get('categoria_id')?.value;
         if (!id) return 'Seleccionar categoria *';
-        return this.categorias.find(c => c.id === Number(id))?.nombre || 'Seleccionar categoria *';
+        return this.categorias.find(c => c.id === id)?.nombre || 'Seleccionar categoria *';
     }
 
     esCampoInvalido(campo: string): boolean {
@@ -210,7 +210,7 @@ export class ProductoVariantesPage implements OnInit {
         await modal.present();
         const { data } = await modal.onDidDismiss();
         this.templateForm.get('categoria_id')?.markAsTouched();
-        if (data) this.templateForm.patchValue({ categoria_id: Number(data) });
+        if (data) this.templateForm.patchValue({ categoria_id: data });
     }
 
     avanzarAlPaso2() {

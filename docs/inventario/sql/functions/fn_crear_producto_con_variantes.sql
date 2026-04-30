@@ -9,7 +9,7 @@ DROP FUNCTION IF EXISTS public.fn_crear_producto_con_variantes CASCADE;
 CREATE OR REPLACE FUNCTION public.fn_crear_producto_con_variantes(
     -- Datos del template
     p_nombre            TEXT,
-    p_categoria_id      INTEGER,
+    p_categoria_id      UUID,
     p_tiene_iva         BOOLEAN,   -- aplica a los SKUs; el template ya no tiene este campo
     p_tipo_venta        TEXT,
     p_unidad_medida     TEXT,
@@ -29,6 +29,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_negocio_id        UUID;
     v_template_id       UUID;
     v_producto_id       UUID;
     v_atributo_nombre   TEXT;
@@ -44,8 +45,13 @@ DECLARE
     v_variantes         JSON;
     v_atributos_tmpl    JSON;
 BEGIN
+    v_negocio_id := public.get_negocio_id();
+
+    IF v_negocio_id IS NULL THEN
+        RAISE EXCEPTION 'Sin negocio activo en el JWT';
+    END IF;
+
     -- Normalizar JSON: asegurar que sean arrays
-    -- Supabase puede enviar los parametros como text, como JSON escalar o como array
     BEGIN
         v_variantes := p_variantes::TEXT::JSON;
         IF json_typeof(v_variantes) <> 'array' THEN
@@ -78,12 +84,14 @@ BEGIN
     END IF;
 
     -- 1. Crear template (sin tiene_iva — la fuente de verdad es cada SKU en productos)
+    v_template_id := gen_random_uuid();
+
     INSERT INTO producto_templates (
-        nombre, categoria_id, tipo_venta, unidad_medida, imagen_url, activo
+        id, negocio_id, nombre, categoria_id, tipo_venta, unidad_medida, imagen_url, activo
     ) VALUES (
+        v_template_id, v_negocio_id,
         UPPER(TRIM(p_nombre)), p_categoria_id, p_tipo_venta, p_unidad_medida, p_imagen_url, TRUE
-    )
-    RETURNING id INTO v_template_id;
+    );
 
     -- 2. Procesar atributos del template
     FOR v_atributo_entry IN
@@ -91,18 +99,18 @@ BEGIN
     LOOP
         v_atributo_nombre := UPPER(TRIM(v_atributo_entry->>'atributo_nombre'));
 
-        -- Buscar o crear el atributo global
-        v_atributo_id := (SELECT id FROM atributos WHERE nombre = v_atributo_nombre);
+        -- Buscar o crear el atributo del negocio
+        v_atributo_id := (SELECT id FROM atributos WHERE negocio_id = v_negocio_id AND nombre = v_atributo_nombre);
         IF v_atributo_id IS NULL THEN
-            INSERT INTO atributos (nombre)
-            VALUES (v_atributo_nombre)
-            RETURNING id INTO v_atributo_id;
+            v_atributo_id := gen_random_uuid();
+            INSERT INTO atributos (id, negocio_id, nombre)
+            VALUES (v_atributo_id, v_negocio_id, v_atributo_nombre);
         END IF;
 
         -- Crear template_atributo
-        INSERT INTO template_atributos (template_id, atributo_id)
-        VALUES (v_template_id, v_atributo_id)
-        RETURNING id INTO v_ta_id;
+        v_ta_id := gen_random_uuid();
+        INSERT INTO template_atributos (id, template_id, atributo_id)
+        VALUES (v_ta_id, v_template_id, v_atributo_id);
 
         -- Vincular opciones al template_atributo
         FOR v_opcion_id_val IN
@@ -119,14 +127,18 @@ BEGIN
     FOR v_variante IN
         SELECT value FROM json_array_elements(v_variantes)
     LOOP
+        v_producto_id := gen_random_uuid();
+
         INSERT INTO productos (
+            id, negocio_id,
             producto_template_id,
-            categoria_id, tiene_iva, tipo_venta, unidad_medida,
+            tiene_iva,
             nombre, precio_costo, precio_venta, stock_actual, stock_minimo,
             codigo_barras, activo
         ) VALUES (
+            v_producto_id, v_negocio_id,
             v_template_id,
-            p_categoria_id, p_tiene_iva, p_tipo_venta, p_unidad_medida,
+            p_tiene_iva,
             UPPER(TRIM(v_variante->>'nombre')),
             (v_variante->>'precio_costo')::NUMERIC,
             (v_variante->>'precio_venta')::NUMERIC,
@@ -134,8 +146,7 @@ BEGIN
             COALESCE((v_variante->>'stock_minimo')::INTEGER, 5),
             NULLIF(TRIM(COALESCE(v_variante->>'codigo_barras', '')), ''),
             TRUE
-        )
-        RETURNING id INTO v_producto_id;
+        );
 
         -- Vincular atributos al SKU (producto_atributos)
         IF v_variante->'opcion_ids' IS NOT NULL AND json_array_length(v_variante->'opcion_ids') > 0 THEN
@@ -155,9 +166,10 @@ BEGIN
                 SELECT value FROM json_array_elements(v_variante->'presentaciones')
             LOOP
                 INSERT INTO producto_presentaciones (
-                    producto_id, nombre, factor_conversion,
+                    negocio_id, producto_id, nombre, factor_conversion,
                     precio_venta, precio_costo, codigo_barras, activo
                 ) VALUES (
+                    v_negocio_id,
                     v_producto_id,
                     UPPER(TRIM(v_pres->>'nombre')),
                     (v_pres->>'factor_conversion')::INTEGER,
