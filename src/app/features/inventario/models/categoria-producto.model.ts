@@ -1,5 +1,5 @@
 export interface CategoriaProducto {
-    id: number;
+    id: string;
     nombre: string;
     activo: boolean;
     created_at?: string;

@@ -408,7 +408,7 @@ export class RecargasService {
    * @param {number} cajaId ID de la caja
    * @param {number} nuevoSaldo Nuevo saldo actual
    */
-  async actualizarSaldoCaja(cajaId: number, nuevoSaldo: number): Promise<void> {
+  async actualizarSaldoCaja(cajaId: string, nuevoSaldo: number): Promise<void> {
     await this.supabase.call(
       this.supabase.client
         .from('cajas')

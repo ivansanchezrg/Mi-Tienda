@@ -40,7 +40,7 @@ export class CategoriasOperacionesService {
   /**
    * Actualiza nombre, código, tipo o descripción de una categoría.
    */
-  async actualizar(id: number, cambios: Partial<CategoriaOperacionInsert>): Promise<CategoriaOperacion> {
+  async actualizar(id: string, cambios: Partial<CategoriaOperacionInsert>): Promise<CategoriaOperacion> {
     const { data, error } = await this.supabase.client
       .from('categorias_operaciones')
       .update(cambios)
@@ -56,7 +56,7 @@ export class CategoriasOperacionesService {
    * Activa o desactiva una categoría.
    * Las categorías del sistema (seleccionable = false) también pueden desactivarse.
    */
-  async toggleActivo(id: number, activo: boolean): Promise<void> {
+  async toggleActivo(id: string, activo: boolean): Promise<void> {
     const { error } = await this.supabase.client
       .from('categorias_operaciones')
       .update({ activo })

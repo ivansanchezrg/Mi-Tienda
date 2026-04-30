@@ -1,5 +1,5 @@
 -- ==========================================
--- TRIGGER FUNCTION: fn_actualizar_saldo_caja_venta (v5)
+-- TRIGGER FUNCTION: fn_actualizar_saldo_caja_venta (v6)
 -- ==========================================
 -- Se dispara automáticamente AFTER INSERT en ventas.
 -- Solo actúa si metodo_pago = 'EFECTIVO' y estado = 'COMPLETADA'.
@@ -13,6 +13,12 @@
 --   4. Inserta un registro en operaciones_cajas (trazabilidad contable).
 --   5. Actualiza saldo_actual de CAJA_CHICA.
 --
+-- CAMBIOS v6:
+--   - SECURITY DEFINER + SET search_path = public (requerido para acceso a tablas con RLS)
+--   - v_caja_id, v_categoria_id, v_tipo_referencia_id: INTEGER → UUID (schema v11)
+--   - Filtra cajas y categorias_operaciones por negocio_id (NEW.negocio_id)
+--   - operaciones_cajas INSERT incluye negocio_id
+--
 -- Métodos de pago alternativos (DEUNA, TRANSFERENCIA, FIADO):
 --   No disparan esta función — se concilian fuera del sistema o de forma manual.
 --
@@ -23,17 +29,21 @@
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION fn_actualizar_saldo_caja_venta()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
-    v_caja_id            INTEGER;
-    v_categoria_id       INTEGER;
-    v_tipo_referencia_id INTEGER;
+    v_caja_id            UUID;
+    v_categoria_id       UUID;
+    v_tipo_referencia_id UUID;
     v_saldo_actual_caja  DECIMAL(12,2);
 BEGIN
     IF NEW.metodo_pago = 'EFECTIVO' AND NEW.estado = 'COMPLETADA' THEN
         -- v5: ingreso va a CAJA_CHICA (cajón diario), no a CAJA (bóveda)
-        v_caja_id            := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA');
-        v_categoria_id       := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-001');
+        v_caja_id            := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA' AND negocio_id = NEW.negocio_id);
+        v_categoria_id       := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-001' AND negocio_id = NEW.negocio_id);
         v_tipo_referencia_id := (SELECT id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1);
 
         IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN
@@ -42,7 +52,8 @@ BEGIN
             INSERT INTO operaciones_cajas (
                 caja_id, empleado_id, tipo_operacion, monto,
                 saldo_anterior, saldo_actual,
-                categoria_id, tipo_referencia_id, referencia_id, descripcion
+                categoria_id, tipo_referencia_id, referencia_id, descripcion,
+                negocio_id
             ) VALUES (
                 v_caja_id,
                 NEW.empleado_id,
@@ -53,7 +64,8 @@ BEGIN
                 v_categoria_id,
                 v_tipo_referencia_id,
                 NEW.id,
-                'Venta POS Efectivo'
+                'Venta POS Efectivo',
+                NEW.negocio_id
             );
 
             UPDATE cajas
@@ -64,7 +76,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS trg_actualizar_caja_por_venta ON ventas;
 

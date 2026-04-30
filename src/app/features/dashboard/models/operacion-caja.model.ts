@@ -17,30 +17,30 @@ export enum TipoOperacionCaja {
 export interface OperacionCaja {
   id: string;
   fecha: string;
-  caja_id: number;
-  empleado_id: number | null;
+  caja_id: string;
+  empleado_id: string | null;
   tipo_operacion: TipoOperacionCaja;
   monto: number;
   saldo_anterior: number | null;
   saldo_actual: number | null;
-  categoria_id: number | null;
-  tipo_referencia_id: number | null;
+  categoria_id: string | null;
+  tipo_referencia_id: string | null;
   referencia_id: string | null;
   descripcion: string | null;
   comprobante_url: string | null;
 
   // Relations (joins)
   caja?: {
-    id: number;
+    id: string;
     nombre: string;
     codigo: string;
   };
   empleado?: {
-    id: number;
+    id: string;
     nombre: string;
   } | null;
   categoria?: {
-    id: number;
+    id: string;
     nombre: string;
     codigo: string;
     tipo: 'INGRESO' | 'EGRESO';

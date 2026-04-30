@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
@@ -70,7 +70,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private alertCtrl = inject(AlertController);
     private modalCtrl = inject(ModalController);
     private logger = inject(LoggerService);
-    private barcodeScanner = inject(BarcodeScannerService);
+    protected barcodeScanner = inject(BarcodeScannerService);
+    private cdr = inject(ChangeDetectorRef);
 
     productoForm!: FormGroup;
     escaneando = false;
@@ -160,6 +161,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         this.inicializado = true;
 
         this.initForm();
+        this.cdr.detectChanges();
     }
 
     async ionViewWillEnter() {
@@ -173,10 +175,15 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     }
 
     private initForm() {
+        // SKUs de variante no tienen categoria_id propio — la heredan del template
+        const categoriaId = this.producto?.categoria_id
+            ?? this.producto?.producto_template?.categoria_id
+            ?? null;
+
         this.productoForm = this.fb.group({
             codigo_barras: [this.codigoBarrasInicial || this.producto?.codigo_barras || ''],
             nombre: [this.producto?.nombre || '', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
-            categoria_id: [this.producto?.categoria_id || null, [Validators.required]],
+            categoria_id: [categoriaId, [Validators.required]],
             precio_costo: [this.producto?.precio_costo || '', [Validators.required, Validators.min(0.01)]],
             precio_venta: [this.producto?.precio_venta || '', [Validators.required, Validators.min(0.01)]],
             stock_actual: [this.producto?.stock_actual || '', [Validators.required, Validators.min(0)]],
@@ -187,9 +194,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             producto_template_id: [this.producto?.producto_template_id || null]
         });
 
-        if (this.modo === 'CREAR') {
-            this.productoForm.get('categoria_id')?.markAsTouched();
-        }
+        // No marcar touched aqui — se marca al intentar guardar (markAllAsTouched)
+        // o al cerrar el selector sin elegir (abrirSelectorCategoria)
 
         if (this.producto?.precio_costo && this.producto?.precio_venta) {
             this.margenPct = calcularMargenDesdePrecio(this.producto.precio_costo, this.producto.precio_venta);
@@ -239,7 +245,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     get categoriaLabel(): string {
         const id = this.productoForm?.get('categoria_id')?.value;
         if (!id) return 'Seleccionar categoria *';
-        return this.categorias.find(c => c.id === Number(id))?.nombre || 'Seleccionar categoria *';
+        return this.categorias.find(c => c.id === id)?.nombre || 'Seleccionar categoria *';
     }
 
     async abrirSelectorCategoria() {
@@ -270,7 +276,10 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
 
         this.productoForm.get('categoria_id')?.markAsTouched();
         if (data) {
-            this.productoForm.patchValue({ categoria_id: Number(data) });
+            const ctrl = this.productoForm.get('categoria_id');
+            ctrl?.setValue(data);
+            ctrl?.markAsDirty();
+            this.cdr.detectChanges();
         }
     }
 
@@ -310,7 +319,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             if (this.modo === 'CREAR') {
                 const resultado = await this.inventarioService.crearProductoSimple({
                     nombre: value.nombre,
-                    categoria_id: Number(value.categoria_id),
+                    categoria_id: value.categoria_id,
                     tiene_iva: value.tiene_iva,
                     tipo_venta: value.tipo_venta,
                     unidad_medida: isPeso ? value.unidad_medida : 'und',
@@ -355,7 +364,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                     if (this.imagenPathAnterior) {
                         await this.storageService.deleteFile(this.imagenPathAnterior, 'productos');
                     }
-                    productoPayload.imagen_url = null as any;
+                    productoPayload.imagen_url = null;
                 }
 
                 await this.inventarioService.actualizarProducto(this.producto!.id, productoPayload);
@@ -468,6 +477,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             this.imagenUrlExistente = null;
             this.fotoNueva = true;
             this.fotoEliminada = false;
+            this.productoForm.markAsDirty();
         } catch {
             // El usuario cancelo
         }
@@ -480,10 +490,11 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         this.fotoPreview = null;
         this.imagenUrlExistente = null;
         this.fotoNueva = false;
+        this.productoForm.markAsDirty();
     }
 
-    private obtenerNombreCategoria(categoriaId: number): string {
-        const cat = this.categorias.find(c => c.id === Number(categoriaId));
+    private obtenerNombreCategoria(categoriaId: string): string {
+        const cat = this.categorias.find(c => c.id === categoriaId);
         return cat?.nombre || 'sin-categoria';
     }
 

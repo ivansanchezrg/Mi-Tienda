@@ -5,9 +5,11 @@
     </ion-buttons>
     <ion-title>Inventario</ion-title>
     <ion-buttons slot="end">
-      <ion-button (click)="escanearYCrear()" color="primary" fill="clear">
-        <ion-icon slot="icon-only" name="scan-outline"></ion-icon>
-      </ion-button>
+      @if (barcodeScanner.isAvailable) {
+        <ion-button (click)="escanearYCrear()" color="primary" fill="clear">
+          <ion-icon slot="icon-only" name="scan-outline"></ion-icon>
+        </ion-button>
+      }
       <ion-button (click)="irACrear()" color="primary" fill="clear">
         <ion-icon slot="start" name="add-outline"></ion-icon>
         Nuevo
@@ -22,26 +24,34 @@
 
   <div class="categories-bar">
     <div class="categories-scroll" #categoriaScroll>
-      <button
-        class="category-chip"
-        [class.active]="filtroSeleccionado === 'todas'"
-        (click)="seleccionarCategoria('todas', $event)">
-        Todas
-      </button>
-      @for (cat of categorias; track cat.id) {
+      @if (templateSeleccionado) {
+        <button class="category-chip active template-chip" (click)="limpiarFiltroTemplate()">
+          <ion-icon name="color-palette-outline"></ion-icon>
+          {{ templateSeleccionado.nombre }}
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+      } @else {
         <button
           class="category-chip"
-          [class.active]="filtroSeleccionado === 'cat-' + cat.id"
-          (click)="seleccionarCategoria('cat-' + cat.id, $event)">
-          {{ cat.nombre }}
+          [class.active]="filtroSeleccionado === 'todas'"
+          (click)="seleccionarCategoria('todas', $event)">
+          Todas
+        </button>
+        @for (cat of categorias; track cat.id) {
+          <button
+            class="category-chip"
+            [class.active]="filtroSeleccionado === 'cat-' + cat.id"
+            (click)="seleccionarCategoria('cat-' + cat.id, $event)">
+            {{ cat.nombre }}
+          </button>
+        }
+        <button
+          class="category-chip desactivados"
+          [class.active]="filtroSeleccionado === 'desactivados'"
+          (click)="seleccionarCategoria('desactivados', $event)">
+          Desactivados
         </button>
       }
-      <button
-        class="category-chip desactivados"
-        [class.active]="filtroSeleccionado === 'desactivados'"
-        (click)="seleccionarCategoria('desactivados', $event)">
-        Desactivados
-      </button>
     </div>
   </div>
 </ion-header>
@@ -111,7 +121,7 @@
     <ion-card-content>
       <h3 class="product-name truncate-2">{{ prod.nombre }}</h3>
       <p class="product-category text-muted">
-        {{ prod.categoria?.nombre || 'Sin categoría' }}
+        {{ prod.categoria?.nombre || prod.producto_template?.categoria?.nombre || 'Sin categoría' }}
         @if (prod.tipo_venta === 'PESO') {
           <span class="tipo-tag peso">{{ prod.unidad_medida }}</span>
         }
@@ -122,7 +132,8 @@
           </span>
         }
         @if (prod.producto_template) {
-          <span class="tipo-tag variante">
+          <span class="tipo-tag variante"
+            (click)="filtrarPorTemplate({ id: prod.producto_template.id, nombre: prod.producto_template.nombre }, $event)">
             <ion-icon name="color-palette-outline"></ion-icon>
             {{ prod.producto_template.nombre }}
           </span>

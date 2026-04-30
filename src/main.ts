@@ -10,6 +10,15 @@ import { AppComponent } from './app/app.component';
 
 registerLocaleData(localeEs);
 
+// Supabase intenta adquirir un Navigator LockManager lock para sincronizar tokens
+// entre pestañas. En Capacitor/WebView no hay multi-tab real y el lock falla
+// inmediatamente. No afecta funcionalidad — solo es ruido en la consola.
+window.addEventListener('unhandledrejection', (event) => {
+  if (String(event.reason).includes('NavigatorLockAcquireTimeoutError')) {
+    event.preventDefault();
+  }
+});
+
 bootstrapApplication(AppComponent, {
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },

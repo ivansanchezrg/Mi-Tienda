@@ -52,9 +52,9 @@
 --   2. Fila en usuarios (si no existe) y membresia ADMIN en usuario_negocios
 --   3. Las 5 cajas (CAJA, CAJA_CHICA, VARIOS, CAJA_CELULAR, CAJA_BUS)
 --   4. Categorias de operaciones iniciales (IN-001, EG-001, EG-002, EG-003)
---   5. Categorias de productos iniciales (Sin categoria)
+--   5. Categorias de productos iniciales (Sin categoria, Bebidas, Snacks...)
 --   6. Configuraciones iniciales (negocio_, caja_, bus_, pos_, nomina_)
---   7. Secuencias de comprobantes (VENTA, RECARGA)
+--   7. Secuencias de comprobantes (TICKET, NOTA_VENTA, FACTURA, RECARGA)
 --
 -- Parametros:
 --   p_nombre_negocio   VARCHAR  — Nombre visible del negocio
@@ -89,7 +89,6 @@ AS $$
 DECLARE
     v_negocio_id  UUID;
     v_usuario_id  UUID;
-    v_cat_prod_id UUID;
 BEGIN
     -- Validaciones de entrada
     IF TRIM(p_nombre_negocio) = '' OR p_nombre_negocio IS NULL THEN
@@ -176,11 +175,17 @@ BEGIN
     -- Codigos asignados por trigger segun orden de INSERT:
     --   EG-001..EG-014 (egresos), IN-001..IN-005 (ingresos)
 
-    -- ── 5. Categoria de productos inicial ──
-    -- Fix: gen_random_uuid() + INSERT en vez de RETURNING INTO (bug Supabase)
-    v_cat_prod_id := gen_random_uuid();
-    INSERT INTO categorias_productos (id, negocio_id, nombre)
-    VALUES (v_cat_prod_id, v_negocio_id, 'Sin categoria');
+    -- ── 5. Categorias de productos iniciales ──
+    INSERT INTO categorias_productos (negocio_id, nombre) VALUES
+    (v_negocio_id, 'Sin categoria'),
+    (v_negocio_id, 'Bebidas'),
+    (v_negocio_id, 'Snacks'),
+    (v_negocio_id, 'Abarrotes'),
+    (v_negocio_id, 'Lacteos'),
+    (v_negocio_id, 'Limpieza'),
+    (v_negocio_id, 'Aseo Personal'),
+    (v_negocio_id, 'Panaderia')
+    ON CONFLICT (negocio_id, nombre) DO NOTHING;
 
     -- ── 6. Configuraciones iniciales ──
     INSERT INTO configuraciones (negocio_id, clave, valor) VALUES
@@ -206,9 +211,17 @@ BEGIN
     -- Schema v11: columnas son (negocio_id, tipo_documento, ultimo_valor)
     -- No existen columnas prefijo ni siguiente_numero
     INSERT INTO secuencias_comprobantes (negocio_id, tipo_documento, ultimo_valor) VALUES
-    (v_negocio_id, 'VENTA',   0),
-    (v_negocio_id, 'RECARGA', 0)
+    (v_negocio_id, 'TICKET',     0),
+    (v_negocio_id, 'NOTA_VENTA', 0),
+    (v_negocio_id, 'FACTURA',    0),
+    (v_negocio_id, 'RECARGA',    0)
     ON CONFLICT (negocio_id, tipo_documento) DO NOTHING;
+
+    -- ── 8. Cliente "Consumidor Final" ──
+    -- Requerido por el POS para asignar a ventas sin cliente identificado.
+    INSERT INTO clientes (negocio_id, nombre, es_consumidor_final)
+    VALUES (v_negocio_id, 'Consumidor Final', TRUE)
+    ON CONFLICT DO NOTHING;
 
     RETURN json_build_object(
         'success',     TRUE,

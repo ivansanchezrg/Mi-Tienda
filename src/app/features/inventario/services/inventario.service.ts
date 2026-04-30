@@ -1,12 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SupabaseService } from '../../../core/services/supabase.service';
+import { AuthService } from '../../auth/services/auth.service';
 import { Producto, ProductoPOS, ProductoPresentacion, ProductoTemplate, Atributo, AtributoOpcion, ProductoAtributo } from '../models/producto.model';
 import { CategoriaProducto } from '../models/categoria-producto.model';
 import { KardexInventario } from '../models/kardex.model';
 
 export interface ProductoChangeEvent {
-    tipo: 'CREADO' | 'ACTUALIZADO' | 'DESACTIVADO';
+    tipo: 'CREADO' | 'ACTUALIZADO' | 'DESACTIVADO' | 'RECARGA';
     producto: Producto;
 }
 
@@ -15,6 +16,7 @@ export interface ProductoChangeEvent {
 })
 export class InventarioService {
     private supabase = inject(SupabaseService);
+    private auth = inject(AuthService);
 
     private productoChange$ = new Subject<ProductoChangeEvent>();
     readonly onProductoChange$ = this.productoChange$.asObservable();
@@ -27,27 +29,19 @@ export class InventarioService {
     // PRODUCTOS
     // ==========================================
 
-    async obtenerProductos(buscar?: string, categoriaId?: number, page = 0, pageSize = 25): Promise<Producto[]> {
+    async obtenerProductos(buscar?: string, categoriaId?: string, templateId?: string, page = 0, pageSize = 25): Promise<Producto[]> {
         const from = page * pageSize;
         const to = from + pageSize - 1;
 
-        let query = this.supabase.client
-            .from('productos')
-            .select('*, categoria:categorias_productos(*), producto_template:producto_templates(*), presentaciones:producto_presentaciones(id)')
-            .eq('activo', true)
-            .eq('producto_presentaciones.activo', true)
-            .order('nombre')
-            .range(from, to);
-
-        if (buscar) {
-            query = query.or(`nombre.ilike.%${buscar}%,codigo_barras.ilike.%${buscar}%`);
-        }
-
-        if (categoriaId) {
-            query = query.eq('categoria_id', categoriaId);
-        }
-
-        const { data } = await query;
+        const data = await this.supabase.call<Producto[]>(
+            this.supabase.client.rpc('fn_listar_productos', {
+                p_buscar: buscar || null,
+                p_categoria_id: categoriaId || null,
+                p_template_id: templateId || null,
+                p_from: from,
+                p_to: to
+            })
+        );
         return data || [];
     }
 
@@ -147,8 +141,9 @@ export class InventarioService {
     }
 
     async crearProducto(producto: Partial<Producto>): Promise<Producto> {
+        const usuario = await this.auth.getUsuarioActual();
         const res = await this.supabase.call<Producto[]>(
-            this.supabase.client.from('productos').insert([producto]).select('*, categoria:categorias_productos(*)'),
+            this.supabase.client.from('productos').insert([{ ...producto, negocio_id: usuario?.negocio_id }]).select('*, categoria:categorias_productos(*)'),
             'Producto creado exitosamente',
             { showLoading: true }
         );
@@ -159,7 +154,7 @@ export class InventarioService {
 
     async actualizarProducto(id: string, producto: Partial<Producto>): Promise<Producto> {
         const res = await this.supabase.call<Producto[]>(
-            this.supabase.client.from('productos').update(producto).eq('id', id).select('*, categoria:categorias_productos(*)'),
+            this.supabase.client.from('productos').update(producto).eq('id', id).select('*, categoria:categorias_productos(*), producto_template:producto_templates(*, categoria:categorias_productos(*))'),
             'Producto actualizado exitosamente',
             { showLoading: true }
         );
@@ -179,7 +174,7 @@ export class InventarioService {
 
     async reactivarProducto(id: string): Promise<Producto> {
         const res = await this.supabase.call<Producto[]>(
-            this.supabase.client.from('productos').update({ activo: true }).eq('id', id).select('*, categoria:categorias_productos(*)'),
+            this.supabase.client.from('productos').update({ activo: true }).eq('id', id).select('*, categoria:categorias_productos(*), producto_template:producto_templates(*, categoria:categorias_productos(*))'),
             'Producto reactivado exitosamente',
             { showLoading: true }
         );
@@ -200,7 +195,7 @@ export class InventarioService {
     async obtenerProductoPorId(id: string): Promise<Producto | null> {
         const { data } = await this.supabase.client
             .from('productos')
-            .select('*, categoria:categorias_productos(*), producto_template:producto_templates(*), presentaciones:producto_presentaciones(id)')
+            .select('*, categoria:categorias_productos(*), producto_template:producto_templates(id, nombre, categoria_id, tipo_venta, unidad_medida, imagen_url, activo), presentaciones:producto_presentaciones(id)')
             .eq('id', id)
             .eq('producto_presentaciones.activo', true)
             .maybeSingle();
@@ -219,15 +214,16 @@ export class InventarioService {
     }
 
     async crearCategoria(nombre: string): Promise<CategoriaProducto | null> {
+        const usuario = await this.auth.getUsuarioActual();
         const res = await this.supabase.call<CategoriaProducto[]>(
-            this.supabase.client.from('categorias_productos').insert({ nombre }).select(),
+            this.supabase.client.from('categorias_productos').insert({ nombre, negocio_id: usuario?.negocio_id }).select(),
             'Categoría creada',
             { showLoading: true }
         );
         return res ? res[0] : null;
     }
 
-    async renombrarCategoria(id: number, nombre: string): Promise<void> {
+    async renombrarCategoria(id: string, nombre: string): Promise<void> {
         await this.supabase.call(
             this.supabase.client.from('categorias_productos').update({ nombre }).eq('id', id),
             'Categoría renombrada',
@@ -235,7 +231,7 @@ export class InventarioService {
         );
     }
 
-    async contarProductosPorCategoria(categoriaId: number): Promise<{ activos: number; inactivos: number }> {
+    async contarProductosPorCategoria(categoriaId: string): Promise<{ activos: number; inactivos: number }> {
         const [activosRes, inactivosRes] = await Promise.all([
             this.supabase.client
                 .from('productos')
@@ -254,7 +250,7 @@ export class InventarioService {
         };
     }
 
-    async desactivarCategoria(id: number): Promise<void> {
+    async desactivarCategoria(id: string): Promise<void> {
         await this.supabase.call(
             this.supabase.client.from('categorias_productos').update({ activo: false }).eq('id', id),
             'Categoría eliminada',
@@ -324,8 +320,9 @@ export class InventarioService {
     }
 
     async crearPresentacion(presentacion: Partial<ProductoPresentacion>, silencioso = false): Promise<ProductoPresentacion> {
+        const usuario = await this.auth.getUsuarioActual();
         const res = await this.supabase.call<ProductoPresentacion[]>(
-            this.supabase.client.from('producto_presentaciones').insert([presentacion]).select(),
+            this.supabase.client.from('producto_presentaciones').insert([{ ...presentacion, negocio_id: usuario?.negocio_id }]).select(),
             silencioso ? undefined : 'Presentación creada',
             silencioso ? undefined : { showLoading: true }
         );
@@ -426,9 +423,11 @@ export class InventarioService {
     /** Crea el atributo si no existe, o devuelve el existente. Upsert silencioso. */
     async crearOObtenerAtributo(nombre: string): Promise<Atributo | null> {
         const nombreNorm = nombre.toUpperCase().trim();
+        const usuario = await this.auth.getUsuarioActual();
+        const negocioId = usuario?.negocio_id;
         await this.supabase.client
             .from('atributos')
-            .upsert({ nombre: nombreNorm }, { onConflict: 'nombre', ignoreDuplicates: true });
+            .upsert({ negocio_id: negocioId, nombre: nombreNorm }, { onConflict: 'negocio_id,nombre', ignoreDuplicates: true });
         const data = await this.supabase.call<Atributo>(
             this.supabase.client.from('atributos').select('*').eq('nombre', nombreNorm).single()
         );
@@ -463,10 +462,12 @@ export class InventarioService {
     /** Crea la opcion si no existe, o devuelve la existente. */
     async crearOObtenerOpcionAtributo(atributoId: string, valor: string): Promise<AtributoOpcion | null> {
         const valorNorm = valor.toUpperCase().trim();
+        const usuario = await this.auth.getUsuarioActual();
+        const negocioId = usuario?.negocio_id;
         await this.supabase.client
             .from('atributo_opciones')
             .upsert(
-                { atributo_id: atributoId, valor: valorNorm },
+                { negocio_id: negocioId, atributo_id: atributoId, valor: valorNorm },
                 { onConflict: 'atributo_id,valor', ignoreDuplicates: true }
             );
         const data = await this.supabase.call<AtributoOpcion>(
@@ -516,7 +517,7 @@ export class InventarioService {
      */
     async crearProductoSimple(params: {
         nombre: string;
-        categoria_id: number;
+        categoria_id: string;
         tiene_iva: boolean;
         tipo_venta: string;
         unidad_medida: string;
@@ -546,7 +547,12 @@ export class InventarioService {
             'Producto creado exitosamente',
             { showLoading: true }
         );
-        return res || { ok: false };
+        const result = res || { ok: false };
+        if (result.ok && result.producto_id) {
+            const producto = await this.obtenerProductoPorId(result.producto_id);
+            if (producto) this.productoChange$.next({ tipo: 'CREADO', producto });
+        }
+        return result;
     }
 
     /**
@@ -555,7 +561,7 @@ export class InventarioService {
      */
     async crearProductoConVariantes(params: {
         nombre: string;
-        categoria_id: number;
+        categoria_id: string;
         tiene_iva: boolean;
         tipo_venta: string;
         unidad_medida: string;
@@ -577,42 +583,11 @@ export class InventarioService {
             `${params.variantes.length} variantes creadas`,
             { showLoading: true }
         );
-        return res || { ok: false };
-    }
-
-    /**
-     * Verifica si ya existe un SKU con la misma combinacion de atributos en un template.
-     * Retorna true si ya existe (duplicado).
-     */
-    async existeCombinacionAtributos(templateId: string, opcionIds: string[], excluirProductoId?: string): Promise<boolean> {
-        // Obtener todos los productos del template
-        const { data: skus } = await this.supabase.client
-            .from('productos')
-            .select('id')
-            .eq('producto_template_id', templateId)
-            .eq('activo', true);
-
-        if (!skus || skus.length === 0) return false;
-
-        // Para cada SKU, obtener sus atributos y comparar
-        for (const sku of skus) {
-            if (excluirProductoId && sku.id === excluirProductoId) continue;
-
-            const { data: attrs } = await this.supabase.client
-                .from('producto_atributos')
-                .select('atributo_opcion_id')
-                .eq('producto_id', sku.id);
-
-            if (!attrs) continue;
-
-            const existingIds = attrs.map(a => a.atributo_opcion_id).sort();
-            const newIds = [...opcionIds].sort();
-
-            if (existingIds.length === newIds.length && existingIds.every((id, i) => id === newIds[i])) {
-                return true; // Combinacion duplicada
-            }
+        const result = res || { ok: false };
+        if (result.ok) {
+            this.productoChange$.next({ tipo: 'RECARGA', producto: {} as Producto });
         }
-
-        return false;
+        return result;
     }
+
 }

@@ -56,9 +56,11 @@
                         <ion-input formControlName="codigo_barras" label="EAN / Codigo de Barras"
                             labelPlacement="floating" type="text"
                             placeholder="Escanea o digita el codigo..."></ion-input>
-                        <ion-button fill="clear" slot="end" (click)="escanearCodigo()" class="scan-btn">
-                            <ion-icon slot="icon-only" name="barcode-outline" color="primary"></ion-icon>
-                        </ion-button>
+                        @if (barcodeScanner.isAvailable) {
+                          <ion-button fill="clear" slot="end" (click)="escanearCodigo()" class="scan-btn">
+                              <ion-icon slot="icon-only" name="barcode-outline" color="primary"></ion-icon>
+                          </ion-button>
+                        }
                     </ion-item>
                     @if (productoForm.get('codigo_barras')?.value?.trim()) {
                     <p class="auto-code-hint auto-code-hint--ok">

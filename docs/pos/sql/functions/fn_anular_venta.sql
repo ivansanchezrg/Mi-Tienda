@@ -1,5 +1,5 @@
 -- ==========================================
--- FUNCIÓN: fn_anular_venta (v1.3)
+-- FUNCIÓN: fn_anular_venta (v2.0)
 -- ==========================================
 -- Anula una venta completada revirtiendo TODOS sus efectos:
 --   1. Repone stock de cada producto vendido (con factor_conversion si fue via presentacion)
@@ -10,13 +10,16 @@
 --   4. Elimina registros de cuentas_cobrar (solo si fue FIADO)
 --   5. Marca la venta como estado='ANULADA'
 --
--- v1.3 — Fix: revierte EFECTIVO de la caja correcta según estado del turno.
---   Antes siempre revertía de CAJA (bóveda), pero el trigger fn_actualizar_saldo_caja_venta
---   ingresa a CAJA_CHICA. Si el turno sigue abierto, el dinero aún está en CAJA_CHICA.
+-- CAMBIOS v2.0:
+--   - p_empleado_id: INTEGER → UUID (schema v11 migró PKs a UUID)
+--   - v_caja_id, v_categoria_id, v_tipo_referencia_id: INTEGER → UUID
+--   - Multi-tenant: get_negocio_id() + filtro negocio_id en cajas y categorias_operaciones
+--   - DROP/GRANT usan firma UUID
 --
--- v1.2 — Fix: usa factor_conversion de la presentacion al reponer stock.
---   Antes reponia v_detalle.cantidad (raw) en vez de cantidad * factor.
---   Si vendiste 2 cajetillas x20, el trigger desconto 40 pero la anulacion reponia 2.
+-- HEREDA DE v1.3:
+--   - Fix: revierte EFECTIVO de la caja correcta según estado del turno
+--   - Fix: usa factor_conversion al reponer stock (JOIN a producto_presentaciones)
+--   - Bloquea si es FIADO con abonos parciales
 --
 -- Si CUALQUIER paso falla, PostgreSQL hace rollback automático completo.
 --
@@ -26,13 +29,16 @@
 -- Llamada desde: VentasService.anularVenta()
 -- Parámetros:
 --   p_venta_id    — UUID de la venta a anular
---   p_empleado_id — ID del empleado que anula (auditoría)
+--   p_empleado_id — UUID del empleado que anula (auditoría)
 --   p_motivo      — Razón de la anulación (obligatorio)
 -- ==========================================
 
+-- DROP versión anterior con firma INTEGER
+DROP FUNCTION IF EXISTS public.fn_anular_venta(UUID, INTEGER, TEXT);
+
 CREATE OR REPLACE FUNCTION public.fn_anular_venta(
     p_venta_id    UUID,
-    p_empleado_id INTEGER,
+    p_empleado_id UUID,
     p_motivo      TEXT
 )
 RETURNS JSON
@@ -41,6 +47,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_negocio_id         UUID;
     v_detalle            RECORD;
     -- campos de ventas
     v_venta_id_check     UUID;
@@ -52,26 +59,30 @@ DECLARE
     -- resto de variables
     v_stock_actual       DECIMAL(12,2);
     v_cantidad_real      DECIMAL(12,2);
-    v_caja_id            INTEGER;
+    v_caja_id            UUID;
     v_saldo_actual_caja  DECIMAL(12,2);
-    v_categoria_id       INTEGER;
-    v_tipo_referencia_id INTEGER;
+    v_categoria_id       UUID;
+    v_tipo_referencia_id UUID;
     v_turno_abierto      BOOLEAN;
 BEGIN
+    -- ══════════════════════════════════════
+    -- 0. Tenant + Validaciones
+    -- ══════════════════════════════════════
+    v_negocio_id := public.get_negocio_id();
+    IF v_negocio_id IS NULL THEN
+        RETURN json_build_object('success', false, 'error', 'No hay negocio activo en el JWT');
+    END IF;
 
-    -- ══════════════════════════════════════
-    -- 0. Validaciones
-    -- ══════════════════════════════════════
     IF p_motivo IS NULL OR TRIM(p_motivo) = '' THEN
         RAISE EXCEPTION 'El motivo de anulación es obligatorio';
     END IF;
 
-    v_venta_id_check    := (SELECT id               FROM ventas WHERE id = p_venta_id);
-    v_venta_estado      := (SELECT estado            FROM ventas WHERE id = p_venta_id);
-    v_venta_metodo_pago := (SELECT metodo_pago       FROM ventas WHERE id = p_venta_id);
-    v_venta_total       := (SELECT total             FROM ventas WHERE id = p_venta_id);
-    v_venta_numero      := (SELECT numero_comprobante FROM ventas WHERE id = p_venta_id);
-    v_venta_turno_id    := (SELECT turno_id          FROM ventas WHERE id = p_venta_id);
+    v_venta_id_check    := (SELECT id               FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_estado      := (SELECT estado            FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_metodo_pago := (SELECT metodo_pago       FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_total       := (SELECT total             FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_numero      := (SELECT numero_comprobante FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_turno_id    := (SELECT turno_id          FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
 
     IF v_venta_id_check IS NULL THEN
         RAISE EXCEPTION 'Venta no encontrada: %', p_venta_id;
@@ -143,17 +154,18 @@ BEGIN
         v_turno_abierto := (SELECT hora_fecha_cierre IS NULL FROM turnos_caja WHERE id = v_venta_turno_id);
 
         IF v_turno_abierto THEN
-            v_caja_id           := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA');
-            v_saldo_actual_caja := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA_CHICA');
+            v_caja_id           := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA' AND negocio_id = v_negocio_id);
+            v_saldo_actual_caja := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA_CHICA' AND negocio_id = v_negocio_id);
         ELSE
-            v_caja_id           := (SELECT id FROM cajas WHERE codigo = 'CAJA');
-            v_saldo_actual_caja := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA');
+            v_caja_id           := (SELECT id FROM cajas WHERE codigo = 'CAJA' AND negocio_id = v_negocio_id);
+            v_saldo_actual_caja := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA' AND negocio_id = v_negocio_id);
         END IF;
 
-        -- Categoría EGRESO genérica para anulaciones
+        -- Categoría EGRESO genérica para anulaciones (filtrada por negocio)
         v_categoria_id := (
             SELECT id FROM categorias_operaciones
             WHERE tipo = 'EGRESO' AND nombre ILIKE '%Otros Gastos%'
+              AND negocio_id = v_negocio_id
             LIMIT 1
         );
 
@@ -163,7 +175,8 @@ BEGIN
             INSERT INTO operaciones_cajas (
                 caja_id, empleado_id, tipo_operacion, monto,
                 saldo_anterior, saldo_actual,
-                categoria_id, tipo_referencia_id, referencia_id, descripcion
+                categoria_id, tipo_referencia_id, referencia_id, descripcion,
+                negocio_id
             ) VALUES (
                 v_caja_id,
                 p_empleado_id,
@@ -174,7 +187,8 @@ BEGIN
                 v_categoria_id,
                 v_tipo_referencia_id,
                 p_venta_id,
-                'Anulación Venta POS #' || v_venta_numero
+                'Anulación Venta POS #' || v_venta_numero,
+                v_negocio_id
             );
 
             UPDATE cajas
@@ -220,18 +234,19 @@ END;
 $$;
 
 -- Permisos
-REVOKE EXECUTE ON FUNCTION public.fn_anular_venta(UUID, INTEGER, TEXT) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.fn_anular_venta(UUID, INTEGER, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_anular_venta(UUID, UUID, TEXT) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_anular_venta(UUID, UUID, TEXT) TO authenticated;
 
 -- Refrescar caché PostgREST
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_anular_venta IS
+    'v2.0 — UUID + multi-tenant. '
+    'p_empleado_id y variables de ID cambiados de INTEGER a UUID (schema v11). '
+    'Filtra cajas y categorias_operaciones por negocio_id (get_negocio_id()). '
     'v1.3 — Fix: revierte EFECTIVO de la caja correcta según estado del turno. '
     'Turno abierto → CAJA_CHICA (donde el trigger original ingresó el dinero). '
     'Turno cerrado → CAJA (bóveda, donde el cierre depositó el dinero). '
     'v1.2 — Fix: usa factor_conversion al reponer stock (JOIN a producto_presentaciones). '
-    'Antes reponia cantidad raw sin multiplicar por el factor de la presentacion. '
-    'v1.1 — Anula una venta completada revirtiendo stock (kardex ANULACION_VENTA), '
-    'saldo de caja (EGRESO si fue EFECTIVO), y cuentas por cobrar (DELETE si fue FIADO sin abonos). '
-    'Bloquea si es FIADO con abonos parciales. Ambos roles pueden anular. Motivo obligatorio.';
+    'v1.1 — Anula venta: stock (kardex ANULACION_VENTA), saldo caja (EGRESO si EFECTIVO), '
+    'cuentas_cobrar (DELETE si FIADO sin abonos). Bloquea si FIADO con abonos. Motivo obligatorio.';

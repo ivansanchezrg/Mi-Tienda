@@ -1,5 +1,10 @@
 # Cuentas por Cobrar — Documentación de Feature
 
+> **Nombre en UI:** "Créditos" — así aparece en el hub "Cobros y Pagos" y en el título de la página.
+> El nombre interno del módulo (`cuentas-cobrar`) y los nombres de tablas/funciones SQL
+> (`cuentas_cobrar`, `fn_listar_cuentas_cobrar`, etc.) **no cambian** — son el término contable
+> correcto y renombrarlos no aporta valor. Solo el label visible al usuario usa "Créditos".
+
 Módulo para gestionar deudas de ventas fiadas. Permite listar clientes con saldo pendiente,
 ver detalle por cliente, registrar pagos (total o parcial con distribución FIFO)
 y compartir estado de cuenta como imagen profesional.
@@ -250,7 +255,7 @@ PAGADO_PARCIAL → pago que cubre el resto → PAGADO
 { path: 'cuentas-cobrar', loadChildren: () => CUENTAS_COBRAR_ROUTES }
 ```
 
-Menú sidebar: "Cuentas por Cobrar" con icono `hand-right-outline`.
+Acceso: sidebar → "Cobros y Pagos" → card "Créditos" (icono `receipt-outline`).
 
 ---
 

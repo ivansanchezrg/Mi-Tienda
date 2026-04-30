@@ -141,7 +141,10 @@
       "Bash(sed -i \"s|this.router.navigate\\(\\\\['/home/recargas-virtuales'\\\\], { queryParams: { refresh: true } }\\)|this.router.navigate\\([ROUTES.recargasVirtuales], { queryParams: { refresh: true } }\\)|g; s|this.router.navigate\\(\\\\['/home/recargas-virtuales'\\\\]\\)|this.router.navigate\\([ROUTES.recargasVirtuales]\\)|g\" src/app/features/recargas-virtuales/pages/pagar-deudas/pagar-deudas.page.ts)",
       "Bash(sed -i \"s|handler: \\(\\) => this.router.navigate\\(\\\\['/home'\\\\]\\)|handler: \\(\\) => this.router.navigate\\([ROUTES.home]\\)|g\" src/app/features/pos/pages/pos/pos.page.ts)",
       "Bash(sed -i 's/IonMenuButton/IonBackButton/g' src/app/features/cuentas-cobrar/pages/main/cuentas-cobrar.page.ts)",
-      "Bash(sed -i 's/IonMenuButton/IonBackButton/g' src/app/features/movimientos-empleados/pages/lista/movimientos-empleados-lista.page.ts)"
+      "Bash(sed -i 's/IonMenuButton/IonBackButton/g' src/app/features/movimientos-empleados/pages/lista/movimientos-empleados-lista.page.ts)",
+      "Bash(find \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\pos\\\\\" -type f -name \"*.ts\" -o -name \"*.html\" -o -name \"*.scss\" | head -50)",
+      "Bash(grep -n \"negocioActual\\\\|negocio\\\\$\\\\|BehaviorSubject\\\\|signal\\\\|computed\" \"src/app/features/auth/services/auth.service.ts\")",
+      "Bash(grep -n \"_usuarioActual\\\\$\\\\|usuarioActual\\\\$\" \"src/app/features/auth/services/auth.service.ts\")"
     ]
   },
   "disableAllHooks": true

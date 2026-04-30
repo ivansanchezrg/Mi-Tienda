@@ -41,7 +41,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   private storageService = inject(StorageService);
   private navCtrl = inject(NavController);
   private alertCtrl = inject(AlertController);
-  private barcodeScanner = inject(BarcodeScannerService);
+  protected barcodeScanner = inject(BarcodeScannerService);
 
   @ViewChild('categoriaScroll') categoriaScrollRef!: ElementRef<HTMLDivElement>;
 
@@ -50,13 +50,15 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
 
   categorias: CategoriaProducto[] = [];
   buscarTexto = '';
-  categoriaSeleccionada?: number;
+  categoriaSeleccionada?: string;
+  templateSeleccionado?: { id: string; nombre: string };
   escaneando = false;
   mostrarDesactivados = false;
   readonly skeletonItems = Array(6);
 
   get filtroSeleccionado(): string {
     if (this.mostrarDesactivados) return 'desactivados';
+    if (this.templateSeleccionado) return `tmpl-${this.templateSeleccionado.id}`;
     if (this.categoriaSeleccionada) return `cat-${this.categoriaSeleccionada}`;
     return 'todas';
   }
@@ -95,6 +97,10 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
 
     // Escuchar cambios de producto desde la página de formulario
     this.productoChangeSub = this.inventarioService.onProductoChange$.subscribe(event => {
+      if (event.tipo === 'RECARGA') {
+        this.cargar();
+        return;
+      }
       if (event.tipo === 'DESACTIVADO') {
         this.items = this.items.filter(p => p.id !== event.producto.id);
         return;
@@ -113,14 +119,14 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
 
   protected async fetchPage(page: number): Promise<Producto[]> {
     if (this.mostrarDesactivados) {
-      // Sin paginación: los desactivados suelen ser pocos
       if (page > 0) return [];
       const productos = await this.inventarioService.obtenerProductosDesactivados();
       return productos.map(p => this.resolverImagenUrl(p));
     }
     const productos = await this.inventarioService.obtenerProductos(
       this.buscarTexto || undefined,
-      this.categoriaSeleccionada === 0 ? undefined : this.categoriaSeleccionada,
+      this.categoriaSeleccionada,
+      this.templateSeleccionado?.id,
       page,
       this.pageSize
     );
@@ -137,9 +143,8 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   aplicarFiltro() {
     clearTimeout(this.searchDebounce);
     this.searchDebounce = setTimeout(async () => {
-      // 1️⃣ Reset SIEMPRE primero — garantiza que limpiar el texto
-      //    devuelve el filtro a "Todas las categorías" sin estado residual
       this.categoriaSeleccionada = undefined;
+      this.templateSeleccionado = undefined;
       this.mostrarDesactivados = false;
 
       await this.cargar();
@@ -156,6 +161,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   }
 
   onFiltroChange(value: string) {
+    this.templateSeleccionado = undefined;
     if (value === 'desactivados') {
       this.mostrarDesactivados = true;
       this.categoriaSeleccionada = undefined;
@@ -165,8 +171,22 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       this.categoriaSeleccionada = undefined;
     } else if (value.startsWith('cat-')) {
       this.mostrarDesactivados = false;
-      this.categoriaSeleccionada = Number(value.replace('cat-', ''));
+      this.categoriaSeleccionada = value.replace('cat-', '');
     }
+    this.cargar();
+  }
+
+  filtrarPorTemplate(template: { id: string; nombre: string }, event: MouseEvent) {
+    event.stopPropagation();
+    this.templateSeleccionado = template;
+    this.categoriaSeleccionada = undefined;
+    this.mostrarDesactivados = false;
+    this.buscarTexto = '';
+    this.cargar();
+  }
+
+  limpiarFiltroTemplate() {
+    this.templateSeleccionado = undefined;
     this.cargar();
   }
 

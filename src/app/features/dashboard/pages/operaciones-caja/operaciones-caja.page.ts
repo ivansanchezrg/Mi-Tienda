@@ -64,7 +64,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
 
   @ViewChild(IonInfiniteScroll) infiniteScroll!: IonInfiniteScroll;
 
-  cajaId: number = 0;
+  cajaId: string = '';
   cajaNombre: string = '';
   cajaSaldo: number = 0;
 
@@ -120,7 +120,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
 
   ngOnInit() {
     const params = this.route.snapshot.queryParams;
-    this.cajaId = Number(params['cajaId']) || 0;
+    this.cajaId = params['cajaId'] || '';
     this.cajaNombre = params['cajaNombre'] || '';
     this.cajaCodigo = params['cajaCodigo'] || '';
     this.turnoAjeno = params['turnoAjeno'] === 'true';

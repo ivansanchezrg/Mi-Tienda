@@ -3,7 +3,7 @@
  * Para clasificación contable de ingresos y egresos
  */
 export interface CategoriaOperacion {
-  id: number;
+  id: string;
   tipo: 'INGRESO' | 'EGRESO';
   nombre: string;
   codigo: string;

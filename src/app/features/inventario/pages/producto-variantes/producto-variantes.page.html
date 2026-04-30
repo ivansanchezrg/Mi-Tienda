@@ -447,9 +447,11 @@
                             placeholder="Codigo de barras (opcional)"
                             inputmode="numeric">
                         </ion-input>
-                        <ion-button fill="clear" slot="end" (click)="escanearCodigoSku(sku)" [disabled]="escaneando">
-                            <ion-icon slot="icon-only" name="barcode-outline" color="primary"></ion-icon>
-                        </ion-button>
+                        @if (barcodeScanner.isAvailable) {
+                          <ion-button fill="clear" slot="end" (click)="escanearCodigoSku(sku)" [disabled]="escaneando">
+                              <ion-icon slot="icon-only" name="barcode-outline" color="primary"></ion-icon>
+                          </ion-button>
+                        }
                     </ion-item>
                 </div>
                 }
