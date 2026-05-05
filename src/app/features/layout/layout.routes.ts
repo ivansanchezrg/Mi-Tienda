@@ -40,20 +40,12 @@ export const LAYOUT_ROUTES: Routes = [
         loadChildren: () => import('../pos/pos.routes').then(m => m.POS_ROUTES)
       },
       {
-        path: 'cuentas-cobrar',
-        loadChildren: () => import('../cuentas-cobrar/cuentas-cobrar.routes').then(m => m.CUENTAS_COBRAR_ROUTES)
-      },
-      {
         path: 'clientes',
         loadChildren: () => import('../clientes/clientes.routes').then(m => m.CLIENTES_ROUTES)
       },
       {
         path: 'notas',
         loadChildren: () => import('../notas/notas.routes').then(m => m.NOTAS_ROUTES)
-      },
-      {
-        path: 'cuentas-corrientes',
-        loadChildren: () => import('../cuentas-corrientes/cuentas-corrientes.routes').then(m => m.CUENTAS_CORRIENTES_ROUTES)
       },
       {
         path: 'movimientos-empleados',

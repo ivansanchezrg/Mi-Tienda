@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { PAGINATION_CONFIG } from '../../../core/config/pagination.config';
 import {
-    CuentaCliente,
+    ClienteConSaldo,
     VentaFiada,
     VentaFiadaItem,
     PagoFiado,
@@ -16,19 +16,16 @@ export class CuentasCobrarService {
     private supabase = inject(SupabaseService);
 
     // ──────────────────────────────────────────────
-    // LISTA DE CLIENTES CON DEUDA
+    // LISTADO UNIFICADO — todos los clientes con saldo
     // ──────────────────────────────────────────────
 
-    /**
-     * Clientes con ventas fiadas pendientes, agrupados con total de deuda.
-     * Ordenados por mayor deuda primero.
-     */
-    async listarClientesConDeuda(page: number, busqueda?: string): Promise<CuentaCliente[]> {
-        return await this.supabase.call<CuentaCliente[]>(
-            this.supabase.client.rpc('fn_listar_cuentas_cobrar', {
+    /** Todos los clientes con su saldo pendiente (0 si no tiene deuda). */
+    async listarClientesConSaldo(page: number, busqueda?: string): Promise<ClienteConSaldo[]> {
+        return await this.supabase.call<ClienteConSaldo[]>(
+            this.supabase.client.rpc('fn_listar_clientes_con_saldo', {
                 p_busqueda: busqueda ?? null,
                 p_page: page,
-                p_page_size: PAGINATION_CONFIG.cuentasCobrar.pageSize,
+                p_page_size: PAGINATION_CONFIG.clientes.pageSize,
             })
         ) ?? [];
     }

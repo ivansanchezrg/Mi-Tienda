@@ -2,15 +2,15 @@
 // Modelo: Cuentas por Cobrar (Fiados)
 // ──────────────────────────────────────────────
 
-/** Resumen de deuda por cliente — usado en la lista principal */
-export interface CuentaCliente {
+/** Cliente con saldo pendiente — listado unificado */
+export interface ClienteConSaldo {
     cliente_id: string;
     cliente_nombre: string;
     cliente_identificacion: string | null;
     cliente_telefono: string | null;
     total_deuda: number;
-    cantidad_ventas: number;
-    ultima_venta_fecha: string;
+    cantidad_ventas_fiadas: number;
+    ultima_venta_fecha: string | null;
 }
 
 /** Venta fiada individual con saldo pendiente */

@@ -109,9 +109,9 @@
 | `fn_reparar_deficit_turno` | Dashboard |
 | `fn_verificar_transferencia_caja_chica_hoy` | Dashboard |
 | `fn_crear_transferencia` | Dashboard |
-| `fn_listar_cuentas_cobrar` | Cuentas por Cobrar |
-| `fn_registrar_pago_fiado` | Cuentas por Cobrar |
-| `fn_resumir_cuentas_cobrar` | Cuentas por Cobrar |
+| `fn_listar_cuentas_cobrar` | Clientes (Créditos) |
+| `fn_registrar_pago_fiado` | Clientes (Créditos) |
+| `fn_resumir_cuentas_cobrar` | Clientes (Créditos) |
 | `fn_ajustar_stock_inventario` | Inventario |
 | `fn_generar_codigo_interno` | Inventario |
 | `fn_generar_codigo_interno_presentacion` | Inventario |

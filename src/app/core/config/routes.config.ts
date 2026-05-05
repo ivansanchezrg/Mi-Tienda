@@ -56,20 +56,16 @@ export const ROUTES = {
     categoriasProductos:   '/configuracion/categorias-productos',
   },
 
-  cuentasCobrar: {
-    root:    '/cuentas-cobrar',
-    detalle: (clienteId: string) => `/cuentas-cobrar/${clienteId}`,
+  clientes: {
+    root:    '/clientes',
+    detalle: (clienteId: string) => `/clientes/${clienteId}`,
   },
-
-  clientes: '/clientes',
 
   notas: '/notas',
 
   historialRecargas: '/historial-recargas',
 
   recargasVirtuales: '/caja/recargas-virtuales',
-
-  cuentasCorrientes: '/cuentas-corrientes',
 
   movimientosEmpleados: {
     root:    '/movimientos-empleados',

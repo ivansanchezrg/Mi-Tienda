@@ -1,7 +1,7 @@
 <ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/cuentas-cobrar" text=""></ion-back-button>
+      <ion-back-button defaultHref="/clientes" text=""></ion-back-button>
     </ion-buttons>
     <ion-title>Detalle de cuenta</ion-title>
     <ion-buttons slot="end">
@@ -10,32 +10,33 @@
         <ion-icon slot="icon-only" name="share-outline"></ion-icon>
       </ion-button>
       }
+      @if (!loading && cliente) {
+      <ion-button (click)="editarCliente()">
+        <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+      </ion-button>
+      }
     </ion-buttons>
   </ion-toolbar>
 
   <!-- ── Cabecera del cliente — siempre visible cuando cargó ── -->
   @if (cliente) {
   <div class="cliente-header-card">
-    <div class="cliente-header-row">
-      <div class="cliente-avatar-sm">
-        <ion-icon name="person-outline"></ion-icon>
-      </div>
-      <div class="cliente-header-info">
-        <h2 class="cliente-nombre">{{ cliente.nombre }}</h2>
-        <div class="cliente-meta">
-          @if (cliente.identificacion) {
-          <span class="cliente-info">{{ cliente.identificacion }}</span>
-          }
-          @if (cliente.telefono) {
-          <span class="cliente-info">
-            <ion-icon name="call-outline"></ion-icon>
-            {{ cliente.telefono }}
-          </span>
-          }
-        </div>
-      </div>
+
+    <!-- Identidad del cliente -->
+    <div class="cliente-identidad">
+      <h2 class="cliente-nombre">{{ cliente.nombre }}</h2>
+      @if (cliente.identificacion) {
+      <p class="cliente-cedula">{{ cliente.identificacion }}</p>
+      }
+      @if (cliente.telefono) {
+      <p class="cliente-telefono">
+        <ion-icon name="call-outline"></ion-icon>
+        {{ cliente.telefono }}
+      </p>
+      }
     </div>
 
+    <!-- Resumen financiero -->
     <div class="deuda-resumen">
       <div class="deuda-item">
         <span class="deuda-label">Total fiado</span>
@@ -52,12 +53,13 @@
         <span class="deuda-valor deuda-pendiente">${{ currencyService.format(totalDeuda) }}</span>
       </div>
     </div>
+
   </div>
   }
 
   <!-- Título sección — fijo -->
   @if (!loading && ventasFiadas.length > 0) {
-  <div class="section-title">Cuentas por cobrar</div>
+  <div class="section-title">Ventas pendientes de cobro</div>
   }
 </ion-header>
 
@@ -115,7 +117,13 @@
       <!-- Header: tipo + número + ojo -->
       <div class="venta-header">
         <div class="venta-tipo">
-          <ion-icon [name]="iconComprobante(venta.tipo_comprobante)"></ion-icon>
+          @if (venta.tipo_comprobante === 'FACTURA') {
+            <ion-icon name="document-outline"></ion-icon>
+          } @else if (venta.tipo_comprobante === 'NOTA_VENTA') {
+            <ion-icon name="document-text-outline"></ion-icon>
+          } @else {
+            <ion-icon name="receipt-outline"></ion-icon>
+          }
           <span class="venta-tipo-label">{{ labelComprobante(venta.tipo_comprobante) }}</span>
           @if (venta.numero_comprobante) {
           <span class="venta-numero">#{{ venta.numero_comprobante }}</span>

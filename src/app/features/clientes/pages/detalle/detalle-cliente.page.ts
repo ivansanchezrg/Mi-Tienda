@@ -15,17 +15,18 @@ import {
     documentTextOutline, documentOutline,
     shareOutline, chevronDownCircleOutline,
     callOutline, personOutline, checkmarkCircleOutline,
-    eyeOutline, closeOutline
+    eyeOutline, closeOutline, createOutline
 } from 'ionicons/icons';
 import { CuentasCobrarService } from '../../services/cuentas-cobrar.service';
 import { VentaFiada, VentaFiadaItem } from '../../models/cuenta-cobrar.model';
-import { ClientesService } from '../../../clientes/services/clientes.service';
-import { Cliente } from '../../../clientes/models/cliente.model';
+import { ClientesService } from '../../services/clientes.service';
+import { Cliente } from '../../models/cliente.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { formatFechaEC, formatHoraEC } from '../../../../core/utils/date.util';
 import { PagoFiadoModalComponent } from '../../components/pago-fiado-modal/pago-fiado-modal.component';
 import { VentaDetalleModalComponent } from '../../../ventas/components/venta-detalle-modal/venta-detalle-modal.component';
+import { EditarClienteModalComponent } from '../../components/editar-cliente-modal/editar-cliente-modal.component';
 import { Capacitor } from '@capacitor/core';
 import { ConfigService } from '../../../../core/services/config.service';
 import { ShareEstadoCuentaService, ComprobantePagoItem } from '../../services/share-estado-cuenta.service';
@@ -80,7 +81,7 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
             documentTextOutline, documentOutline,
             shareOutline, chevronDownCircleOutline,
             callOutline, personOutline, checkmarkCircleOutline,
-            eyeOutline, closeOutline
+            eyeOutline, closeOutline, createOutline
         });
     }
 
@@ -309,6 +310,19 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
     }
 
 
+    async editarCliente() {
+        if (!this.cliente) return;
+        const modal = await this.modalCtrl.create({
+            component: EditarClienteModalComponent,
+            componentProps: { cliente: this.cliente }
+        });
+        await modal.present();
+        const { data } = await modal.onDidDismiss();
+        if (data?.cliente) {
+            this.cliente = data.cliente;
+        }
+    }
+
     // ── Helpers template ──
 
     formatFecha(iso: string): string { return formatFechaEC(iso); }
@@ -318,11 +332,5 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
         if (tipo === 'FACTURA') return 'Factura';
         if (tipo === 'NOTA_VENTA') return 'Nota de Venta';
         return 'Ticket';
-    }
-
-    iconComprobante(tipo: string): string {
-        if (tipo === 'FACTURA') return 'document-outline';
-        if (tipo === 'NOTA_VENTA') return 'document-text-outline';
-        return 'receipt-outline';
     }
 }

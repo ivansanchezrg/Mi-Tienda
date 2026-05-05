@@ -13,8 +13,13 @@
   </ion-toolbar>
 
   <ion-toolbar>
-    <ion-searchbar [value]="busqueda" (ionInput)="onBusquedaChange($event)"
-      placeholder="Buscar por nombre, cédula o teléfono..." [animated]="false" mode="ios" [debounce]="0">
+    <ion-searchbar
+      [value]="busqueda"
+      (ionInput)="onBusquedaChange($event)"
+      placeholder="Buscar por nombre, cédula o teléfono..."
+      [animated]="false"
+      mode="ios"
+      [debounce]="0">
     </ion-searchbar>
   </ion-toolbar>
 </ion-header>
@@ -25,21 +30,29 @@
   </ion-refresher>
 
   <div class="list-container">
+
+    <!-- Skeleton -->
     @if (loading) {
     <ion-list lines="none" class="client-list">
       @for (i of [1,2,3,4,5,6,7,8]; track i) {
-      <ion-item class="client-item">
+      <ion-item class="client-item skeleton">
         <div slot="start" class="client-avatar">
-          <ion-skeleton-text animated style="width: 100%; height: 100%; border-radius: 50%;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:100%;height:100%;border-radius:50%;"></ion-skeleton-text>
         </div>
         <ion-label>
-          <ion-skeleton-text animated style="width: 60%; height: 16px;"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width: 40%; height: 13px; margin-top: 4px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:55%;height:15px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:38%;height:12px;margin-top:5px;"></ion-skeleton-text>
         </ion-label>
+        <div slot="end" class="end-skeleton">
+          <ion-skeleton-text animated style="width:52px;height:16px;border-radius:4px;"></ion-skeleton-text>
+        </div>
       </ion-item>
       }
     </ion-list>
-    } @else if (clientes.length === 0) {
+    }
+
+    <!-- Lista vacía -->
+    @else if (clientes.length === 0) {
       @if (busqueda) {
       <app-empty-state
         icon="person-outline"
@@ -50,37 +63,55 @@
       <app-empty-state
         icon="person-outline"
         title="No hay clientes"
-        hint="Agrega clientes desde el botón &quot;Nuevo&quot; o desde el POS al registrar una venta.">
+        hint="Agrega el primer cliente con el botón Nuevo.">
       </app-empty-state>
       }
-    } @else {
+    }
+
+    <!-- Lista unificada -->
+    @else {
     <ion-list lines="none" class="client-list">
-      @for (cliente of clientes; track cliente.id) {
-      <ion-item button class="client-item" (click)="editarCliente(cliente)">
-        <div slot="start" class="client-avatar">
-          <ion-icon name="person-outline"></ion-icon>
+      @for (cliente of clientes; track cliente.cliente_id) {
+      <ion-item button class="client-item" (click)="verCliente(cliente)">
+
+        <!-- Avatar con iniciales -->
+        <div slot="start" class="client-avatar" [class.tiene-deuda]="cliente.total_deuda > 0">
+          <span class="avatar-text">{{ iniciales(cliente.cliente_nombre) }}</span>
         </div>
+
+        <!-- Info -->
         <ion-label>
-          <h3>{{ cliente.nombre }}</h3>
+          <h3>{{ cliente.cliente_nombre }}</h3>
           <p class="client-meta">
-            @if (cliente.identificacion) {
+            @if (cliente.cliente_identificacion) {
             <span class="meta-item">
               <ion-icon name="card-outline"></ion-icon>
-              {{ cliente.identificacion }}
+              {{ cliente.cliente_identificacion }}
             </span>
             }
-            @if (cliente.telefono) {
+            @if (cliente.cliente_telefono) {
             <span class="meta-item">
               <ion-icon name="call-outline"></ion-icon>
-              {{ cliente.telefono }}
+              {{ cliente.cliente_telefono }}
             </span>
             }
           </p>
-          @if (!cliente.identificacion && !cliente.telefono) {
-          <p class="no-info">Sin datos adicionales</p>
+          @if (cliente.total_deuda > 0 && cliente.ultima_venta_fecha) {
+          <p class="deuda-meta">
+            {{ cliente.cantidad_ventas_fiadas }} {{ cliente.cantidad_ventas_fiadas === 1 ? 'venta' : 'ventas' }}
+            · Última: {{ formatFecha(cliente.ultima_venta_fecha) }}
+          </p>
           }
         </ion-label>
-        <ion-icon name="create-outline" slot="end" color="medium" class="edit-icon"></ion-icon>
+
+        <!-- Monto deuda o sin deuda -->
+        <div slot="end" class="client-end">
+          @if (cliente.total_deuda > 0) {
+          <span class="deuda-badge">${{ currencyService.format(cliente.total_deuda) }}</span>
+          }
+          <ion-icon name="chevron-forward-outline" class="chevron-icon"></ion-icon>
+        </div>
+
       </ion-item>
       }
     </ion-list>

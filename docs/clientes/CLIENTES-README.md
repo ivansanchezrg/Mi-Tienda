@@ -1,7 +1,11 @@
 # Clientes — Documentación de Feature
 
-Módulo para gestionar los clientes de la tienda. Permite listar, buscar, crear y editar clientes.
-El modal de selección de cliente (usado desde el POS) también vive aquí.
+Módulo unificado para gestionar clientes y sus créditos (ventas fiadas). Un solo listado
+muestra todos los clientes con su saldo pendiente visible. Tap en cualquier cliente abre
+su ficha completa con datos, historial de deuda y acciones de cobro.
+
+> El término contable interno (`cuentas_cobrar`, `fn_registrar_pago_fiado`, etc.)
+> no cambia en BD ni funciones SQL — solo los labels de UI difieren.
 
 ---
 
@@ -9,101 +13,218 @@ El modal de selección de cliente (usado desde el POS) también vive aquí.
 
 ```
 src/app/features/clientes/
-├── clientes.routes.ts                        # Ruta: '' → listado
+├── clientes.routes.ts                        # Rutas: '' | ':clienteId'
 ├── models/
-│   └── cliente.model.ts                      # Interface Cliente
+│   ├── cliente.model.ts                      # Interface Cliente
+│   └── cuenta-cobrar.model.ts                # ClienteConSaldo, VentaFiada, PagoFiado, etc.
 ├── services/
-│   └── clientes.service.ts                   # CRUD completo + búsqueda + listado paginado
+│   ├── clientes.service.ts                   # CRUD completo + búsqueda
+│   ├── cuentas-cobrar.service.ts             # Listado unificado + detalle + pagos
+│   └── share-estado-cuenta.service.ts        # Generación de imagen + compartir
 ├── components/
-│   ├── seleccionar-cliente-modal/            # Modal de selección (usado desde POS)
-│   └── editar-cliente-modal/                 # Modal de edición
+│   ├── seleccionar-cliente-modal/            # Modal selector/creación (POS y listado)
+│   ├── editar-cliente-modal/                 # Modal de edición de datos
+│   └── pago-fiado-modal/                     # Modal de cobro/abono
 └── pages/
-    └── listado/                              # Lista paginada con búsqueda
-        ├── clientes-listado.page.ts
-        ├── clientes-listado.page.html
-        └── clientes-listado.page.scss
+    ├── listado/                              # Listado unificado con saldo por cliente
+    └── detalle/                              # Ficha completa: datos + deuda + acciones
 ```
 
 ---
 
-## Modelo (`cliente.model.ts`)
+## Routing
 
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `id` | `string` | UUID |
-| `identificacion` | `string \| null` | Cédula o RUC (única, usada para deduplicación) |
-| `nombre` | `string` | Nombre completo |
-| `telefono` | `string \| null` | Teléfono de contacto |
-| `email` | `string \| null` | Correo electrónico |
-| `es_consumidor_final` | `boolean` | `true` para el registro especial "Consumidor Final" |
-| `created_at` | `string?` | Fecha de creación |
+```typescript
+// clientes.routes.ts
+{ path: '',           component: ClientesListadoPage }   // listado unificado
+{ path: ':clienteId', component: DetalleClientePage }    // ficha del cliente
+
+// layout.routes.ts
+{ path: 'clientes', loadChildren: () => CLIENTES_ROUTES }
+```
+
+Acceso:
+- Sidebar → "Clientes" → `/clientes`
+- Sidebar → "Cobros y Pagos" → card "Créditos" → `/clientes` (mismo listado, filtrado por búsqueda o scroll)
+- Tap en cualquier cliente → `/clientes/:clienteId`
 
 ---
 
-## Servicio (`clientes.service.ts`)
+## Modelos (`cuenta-cobrar.model.ts`)
+
+| Interface | Uso |
+|-----------|-----|
+| `ClienteConSaldo` | Fila del listado unificado: nombre, cédula, teléfono, `total_deuda`, `cantidad_ventas_fiadas`, `ultima_venta_fecha` |
+| `VentaFiada` | Venta fiada con saldo pendiente, IVA, descuento |
+| `VentaFiadaItem` | Ítem de producto de una venta (para el ticket compartible) |
+| `PagoFiado` | Registro de pago contra una venta |
+| `CuentasCobrarResumen` | Usado por `VentasResumenPage`: total clientes + total deuda global |
+| `CuentaCliente` | Legacy — solo usado internamente por `fn_listar_cuentas_cobrar` |
+
+---
+
+## Servicios
+
+### `clientes.service.ts`
 
 | Método | Descripción |
 |--------|-------------|
-| `listarClientes(page, busqueda?)` | Lista paginada. Excluye "Consumidor Final". Busca en nombre, identificación y teléfono |
 | `buscarClientes(texto)` | Búsqueda rápida (límite 20). Usada por el modal de selección |
-| `buscarPorIdentificacion(identificacion)` | Busca cliente exacto por cédula/RUC. Usada para deduplicación |
+| `buscarPorIdentificacion(id)` | Busca exacto por cédula/RUC. Deduplicación |
 | `obtenerClientePorId(id)` | Obtiene un cliente por UUID |
-| `obtenerConsumidorFinal()` | Retorna el registro especial "Consumidor Final" |
-| `crearCliente(data)` | Crea un nuevo cliente. Toast de éxito automático |
-| `actualizarCliente(id, data)` | Actualiza nombre, teléfono y/o email. Toast de éxito automático |
+| `obtenerConsumidorFinal()` | Registro especial "Consumidor Final" |
+| `crearCliente(data)` | Crea cliente. Toast de éxito automático |
+| `actualizarCliente(id, data)` | Actualiza nombre, teléfono, email. Toast de éxito automático |
+
+### `cuentas-cobrar.service.ts`
+
+| Método | Fuente | Descripción |
+|--------|--------|-------------|
+| `listarClientesConSaldo(page, busqueda?)` | RPC `fn_listar_clientes_con_saldo` | **Listado unificado** — todos los clientes con `total_deuda` (0 si están al día). Orden: con deuda primero, luego por nombre |
+| `obtenerResumen(busqueda?)` | RPC `fn_resumir_cuentas_cobrar` | Total clientes con deuda + total $ adeudado (usado por Ventas Resumen) |
+| `obtenerVentasFiadas(clienteId)` | Query directa | Ventas FIADO pendientes del cliente |
+| `obtenerItemsVenta(ventaId)` | Query directa | Productos de la venta (para el ticket) |
+| `obtenerPagosVenta(ventaId)` | Query directa | Historial de pagos |
+| `registrarPago(ventaId, monto, metodoPago, obs?, silencioso?)` | RPC `fn_registrar_pago_fiado` | Registra pago, actualiza estado, ingresa a CAJA_CHICA si es efectivo |
+
+#### Cálculo de saldo pendiente (detalle)
+
+```
+saldo_pendiente = venta.total - SUM(cuentas_cobrar.monto WHERE venta_id = venta.id)
+```
+
+Se calcula en TypeScript al mapear `obtenerVentasFiadas()`, no como columna en BD.
 
 ---
 
-## Página listado (`pages/listado/`)
+## Páginas
 
-- Clase: `ClientesListadoPage` — extiende `PaginatedListPage<Cliente>`
-- Búsqueda con debounce 500ms en header
-- Cada item muestra: nombre, cédula/RUC, teléfono
-- Tap en un cliente → abre modal de edición
-- Botón "Nuevo" en header → abre el modal de selección/creación (reutiliza `SeleccionarClienteModalComponent`)
+### Listado unificado (`pages/listado/`)
+
+- Clase: `ClientesListadoPage` — extiende `PaginatedListPage<ClienteConSaldo>`
+- Llama a `fn_listar_clientes_con_saldo` — devuelve **todos** los clientes
+- Orden: con deuda pendiente primero (mayor deuda arriba), luego el resto por nombre
+- Avatar **azul** cuando `total_deuda > 0`, **gris** cuando está al día
+- Monto en rojo solo aparece si hay deuda; fila sin deuda no muestra monto
+- Debajo del nombre: cédula/teléfono + "X ventas · Última: fecha" (solo si tiene deuda)
+- Búsqueda con debounce 500ms por nombre, cédula o teléfono
+- Botón "Nuevo" en header → `EditarClienteModalComponent` en modo creación
+- Tap en cliente → navega a `/clientes/:clienteId`
+
+### Detalle de cuenta (`pages/detalle/`)
+
+- Recibe `clienteId` del route param
+- Carga secuencial: primero el cliente (header visible de inmediato), luego las ventas
+- Items de cada venta se cargan en paralelo (`Promise.all`) para el Share
+- `ionViewWillEnter` → `hideTabs()` / `ionViewWillLeave` → `showTabs()`
+
+**Header:**
+- Título: "Detalle de cuenta" (fijo)
+- Botón compartir (solo si hay deuda)
+- Botón editar (lápiz) → `EditarClienteModalComponent` en modo edición
+
+**Tarjeta del cliente:**
+- Nombre centrado grande
+- Cédula centrada (si tiene)
+- Teléfono centrado (si tiene)
+- Resumen financiero: Total fiado / Pagado / Pendiente
+
+**Acciones:**
+- **Cobrar** (footer, solo si hay deuda) → `PagoFiadoModalComponent`
+- **Ver detalle** (ojo en cada venta) → `VentaDetalleModalComponent`
+- **Compartir** (header, solo si hay deuda) → `ShareEstadoCuentaService`
 
 ---
 
-## Modal de edición (`editar-cliente-modal/`)
+## Componentes
 
-- Muestra la cédula/RUC como campo de solo lectura (no se cambia)
-- Permite editar: nombre, teléfono, email
-- Botón "Guardar" solo se habilita si hay cambios
-- Retorna `{ cliente: Cliente }` al cerrar con éxito
+### Modal de edición (`editar-cliente-modal/`)
 
----
+Modo creación (`cliente: null`) y modo edición (`cliente: Cliente`).
 
-## Modal de selección (`seleccionar-cliente-modal/`)
+- Creación: valida cédula ecuatoriana, detecta duplicados antes de crear
+- Edición: cédula de solo lectura, edita nombre/teléfono/email
+- "Guardar" solo habilitado si hay cambios
 
-Componente reutilizable — se usa desde `PosPage` para seleccionar/crear cliente en una venta.
+### Modal de selección (`seleccionar-cliente-modal/`)
 
-### Flujo de creación "cédula primero"
+Reutilizable — usado desde `PosPage`.
 
-1. Usuario toca "Agregar nuevo cliente"
-2. Ingresa cédula → se valida algorítmicamente (`validarCedulaEcuatoriana()`)
-3. Si es válida → busca en BD por `identificacion`
-4. **Si existe**: muestra card del cliente existente para seleccionarlo (evita duplicados)
-5. **Si no existe**: habilita campos extras (nombre, teléfono, email) para crear
+Flujo "cédula primero": ingresa cédula → valida → busca en BD → si existe muestra card para seleccionar, si no habilita campos de creación.
 
-### Consumidores que usan este modal
+### Modal de pago (`pago-fiado-modal/`)
 
-| Módulo | Componente | Propósito |
-|--------|-----------|-----------|
-| POS | `PosPage` | Seleccionar cliente para la venta |
-| Clientes | `ClientesListadoPage` | Crear nuevo cliente desde el listado |
+**Dos modos:** cobro total (default) o abono parcial (solo si `totalDeuda >= $25`).
+
+**Distribución FIFO:** el abono se distribuye de la venta más antigua a la más nueva automáticamente.
+
+**Flujo de guardado:** loop secuencial `for...of` → cada pago es una RPC independiente con `silencioso = true` → toast final único → dismiss con `{ pagado: true }`.
 
 ---
 
-## Tabla de BD
+## Compartir estado de cuenta (`share-estado-cuenta.service.ts`)
+
+```
+1. HTML vanilla con CSS inline → div oculto
+2. setTimeout(100ms) → html2canvas captura
+3. base64 → Filesystem.Cache → Share nativo del OS
+4. finally: limpia DOM + elimina archivo temporal
+```
+
+**Fallback web:** si `Share.canShare()` es false → envía resumen en texto por WhatsApp (`api.whatsapp.com`, prefijo Ecuador `593...`).
+
+---
+
+## Funciones SQL
+
+Ubicación: `docs/clientes/sql/functions/`
+
+### `fn_listar_clientes_con_saldo(p_busqueda, p_page, p_page_size)` ← principal del listado
+
+- FROM `clientes` LEFT JOIN subconsulta de deuda pendiente por cliente
+- Devuelve **todos** los clientes (sin deuda = `total_deuda: 0`)
+- Orden: `total_deuda DESC NULLS LAST`, luego `nombre ASC`
+- Búsqueda: ILIKE en nombre, identificación, teléfono
+
+### `fn_listar_cuentas_cobrar(p_busqueda, p_page, p_page_size)`
+
+- Solo clientes **con** deuda pendiente (`HAVING total_deuda > 0`)
+- Usado por `obtenerResumen()` como fuente de conteo para `VentasResumenPage`
+
+### `fn_resumir_cuentas_cobrar(p_busqueda)`
+
+- Retorna: `total_clientes` (con deuda) + `total_deuda` global
+- Siempre retorna 1 fila con COALESCE a 0
+
+### `fn_registrar_pago_fiado(p_venta_id, p_monto, p_metodo_pago, p_observaciones)`
+
+1. Valida venta FIADO activa con `FOR UPDATE` (previene race conditions)
+2. Verifica `monto ≤ saldo_pendiente`
+3. INSERT en `cuentas_cobrar`
+4. UPDATE `ventas.estado_pago` → `PAGADO_PARCIAL` o `PAGADO`
+5. Si `EFECTIVO` → operación en `CAJA_CHICA`
+
+---
+
+## Tablas de BD
 
 | Tabla | Rol |
 |-------|-----|
-| `clientes` | Registro de clientes con identificación única |
+| `clientes` | Registro de clientes, `identificacion` UNIQUE |
+| `ventas` | Ventas con `metodo_pago = 'FIADO'` + `estado_pago` |
+| `ventas_detalles` | Ítems de cada venta |
+| `cuentas_cobrar` | Pagos registrados contra ventas fiadas |
+| `cajas` | Saldo CAJA_CHICA (pagos en efectivo) |
+| `operaciones_cajas` | Log de ingresos |
 
-### Restricciones
+### Estados de pago (`ventas.estado_pago`)
 
-- `identificacion` es UNIQUE (excepto NULL) — base de la deduplicación
-- El registro con `es_consumidor_final = true` es especial y no aparece en el listado
+```
+PENDIENTE → pago parcial → PAGADO_PARCIAL → pago que cubre el resto → PAGADO
+PENDIENTE → pago total   → PAGADO
+```
+
+`NO_APLICA` = ventas con método distinto a FIADO.
 
 ---
 
@@ -112,4 +233,23 @@ Componente reutilizable — se usa desde `PosPage` para seleccionar/crear client
 | Consumidor | Qué usa | Para qué |
 |-----------|---------|----------|
 | POS | `SeleccionarClienteModalComponent`, `ClientesService` | Asignar cliente a venta |
-| Cuentas por Cobrar | `ClientesService.obtenerClientePorId()` | Mostrar datos del cliente en detalle de cuenta |
+| Ventas (resumen) | `CuentasCobrarService.obtenerResumen()` | Deuda total en el panel de resumen |
+| Cobros y Pagos (hub) | Ruta `/clientes` | Acceso al listado unificado |
+
+---
+
+## Gotchas para mantenimiento
+
+1. **html2canvas no renderiza `ion-*`** — el ticket usa solo HTML vanilla con CSS inline.
+
+2. **Share cancelado no es error** — `@capacitor/share` lanza excepción al cancelar. El catch filtra por "cancel"/"dismiss"/"abort".
+
+3. **Saldo se calcula en TypeScript** — `obtenerVentasFiadas()` calcula `total - SUM(pagos)` al mapear. No es una columna de BD.
+
+4. **FIFO no es configurable** — distribución siempre de la venta más antigua a la más nueva.
+
+5. **Solo EFECTIVO ingresa a CAJA_CHICA** — transferencia y tarjeta no generan movimiento de caja físico.
+
+6. **`cuentas_cobrar` se dropea antes que `ventas`** — tiene FK a `ventas(id)`. Orden en schema: `DROP cuentas_cobrar` → `DROP ventas`.
+
+7. **`fn_listar_clientes_con_saldo` vs `fn_listar_cuentas_cobrar`** — son funciones distintas con propósito distinto. La primera trae todos los clientes (listado UI). La segunda solo clientes con deuda (usada internamente por el resumen de ventas).

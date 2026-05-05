@@ -8,7 +8,7 @@ import {
 import { MenuController, ModalController } from '@ionic/angular/standalone';
 import {
   peopleOutline, settingsOutline, logOutOutline, personCircleOutline,
-  listOutline, swapHorizontalOutline, homeOutline, cubeOutline, handRightOutline,
+  listOutline, swapHorizontalOutline, homeOutline, cubeOutline,
   personOutline, readerOutline, barcodeOutline, receiptOutline,
   storefrontOutline, calculatorOutline, createOutline, scaleOutline,
   walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline
@@ -93,8 +93,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
       label: 'Gestión',
       items: [
         { title: 'Notas', url: ROUTES.notas, icon: readerOutline },
-        { title: 'Cobros y Pagos', url: ROUTES.cuentasCorrientes, icon: handRightOutline },
-        { title: 'Clientes', url: ROUTES.clientes, icon: personOutline },
+        { title: 'Clientes', url: ROUTES.clientes.root, icon: personOutline },
+        { title: 'Empleados', url: ROUTES.movimientosEmpleados.root, icon: walletOutline, soloAdmin: true },
       ]
     },
     {
@@ -121,7 +121,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   recargasBusHabilitada = false;
 
   constructor() {
-    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline, walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline, handRightOutline });
+    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline, walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline });
   }
 
   async ngOnInit() {
