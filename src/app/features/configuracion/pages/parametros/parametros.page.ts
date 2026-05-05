@@ -1,24 +1,26 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonSpinner, IonSkeletonText, IonIcon
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { storefrontOutline, walletOutline, busOutline, cartOutline, peopleOutline } from 'ionicons/icons';
+import { storefrontOutline, walletOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
 import { ConfiguracionService } from '../../services/configuracion.service';
+import { AuthService } from '../../../auth/services/auth.service';
+import { SupabaseService } from '@core/services/supabase.service';
 
 type Seccion = 'negocio' | 'caja' | 'bus' | 'pos' | 'nomina';
 
 const CAMPOS_POR_SECCION: Record<Seccion, string[]> = {
-  negocio: ['negocio_nombre'],
+  negocio: ['negocio_nombre', 'negocio_telefono', 'negocio_direccion'],
   caja:    ['caja_fondo_fijo_diario', 'caja_varios_transferencia_dia'],
   bus:     ['bus_alerta_saldo_bajo', 'bus_dias_antes_facturacion'],
   pos:     ['pos_descuentos_habilitados', 'pos_descuento_maximo_pct', 'pos_umbral_monto_descuento', 'pos_iva_porcentaje'],
-  nomina:  ['nomina_sueldo_base'],
+  nomina:  ['nomina_sueldo_base', 'nomina_dia_pago'],
 };
 
 const MENSAJES_SECCION: Record<Seccion, string> = {
@@ -35,24 +37,33 @@ const MENSAJES_SECCION: Record<Seccion, string> = {
   styleUrls: ['./parametros.page.scss'],
   standalone: true,
   imports: [
-    ReactiveFormsModule,
+    ReactiveFormsModule, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
     IonSpinner, IonSkeletonText, IonIcon
   ]
 })
 export class ParametrosPage implements OnInit, OnDestroy {
   constructor() {
-    addIcons({ storefrontOutline, walletOutline, busOutline, cartOutline, peopleOutline });
+    addIcons({ storefrontOutline, walletOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline });
   }
 
   private fb = inject(FormBuilder);
   private configuracionService = inject(ConfiguracionService);
   private configService = inject(ConfigService);
+  private authService = inject(AuthService);
+  private supabase = inject(SupabaseService);
   private ui = inject(UiService);
   private sub!: Subscription;
 
   form!: FormGroup;
   cargando = true;
+  esSuperadmin = false;
+  esAdmin = false;
+  recargasCelularHabilitada = false;
+  recargasBusHabilitada = false;
+  variosActiva = false;
+  guardandoModulos = false;
+  activandoVarios = false;
 
   guardando: Record<string, boolean> = {
     negocio: false, caja: false, bus: false, pos: false, nomina: false,
@@ -64,9 +75,15 @@ export class ParametrosPage implements OnInit, OnDestroy {
 
   private savedValues: Record<string, Record<string, any>> = {};
 
-  ngOnInit() {
+  async ngOnInit() {
+    const usuario = await this.authService.getUsuarioActual();
+    this.esSuperadmin = usuario?.es_superadmin ?? false;
+    this.esAdmin = usuario?.rol === 'ADMIN' || this.esSuperadmin;
+
     this.form = this.fb.group({
       negocio_nombre:               ['',   [Validators.required, Validators.maxLength(100)]],
+      negocio_telefono:             ['',   [Validators.maxLength(20)]],
+      negocio_direccion:            ['',   [Validators.maxLength(200)]],
       caja_fondo_fijo_diario:       [null, [Validators.required, Validators.min(0)]],
       caja_varios_transferencia_dia:[null, [Validators.required, Validators.min(0)]],
       bus_alerta_saldo_bajo:        [null, [Validators.required, Validators.min(0)]],
@@ -76,6 +93,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
       pos_umbral_monto_descuento:   [null, [Validators.required, Validators.min(0)]],
       pos_iva_porcentaje:           [null, [Validators.required, Validators.min(1), Validators.max(100)]],
       nomina_sueldo_base:           [null, [Validators.required, Validators.min(0)]],
+      nomina_dia_pago:              [null, [Validators.required, Validators.min(1), Validators.max(31)]],
     });
 
     this.cargarConfiguracion();
@@ -137,8 +155,13 @@ export class ParametrosPage implements OnInit, OnDestroy {
     try {
       const config = await this.configuracionService.get();
       if (config) {
+        this.recargasCelularHabilitada = config.recargas_celular_habilitada;
+        this.recargasBusHabilitada     = config.recargas_bus_habilitada;
+        this.variosActiva              = config.caja_varios_activa;
         this.form.patchValue({
           negocio_nombre:                config.negocio_nombre,
+          negocio_telefono:              config.negocio_telefono,
+          negocio_direccion:             config.negocio_direccion,
           caja_fondo_fijo_diario:        config.caja_fondo_fijo_diario,
           caja_varios_transferencia_dia: config.caja_varios_transferencia_dia,
           bus_alerta_saldo_bajo:         config.bus_alerta_saldo_bajo,
@@ -148,6 +171,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
           pos_umbral_monto_descuento:    config.pos_umbral_monto_descuento,
           pos_iva_porcentaje:            config.pos_iva_porcentaje,
           nomina_sueldo_base:            config.nomina_sueldo_base,
+          nomina_dia_pago:               config.nomina_dia_pago,
         }, { emitEvent: false });
 
         this.guardarSnapshot();
@@ -157,6 +181,42 @@ export class ParametrosPage implements OnInit, OnDestroy {
     } finally {
       this.cargando = false;
       this.suscribirCambios();
+    }
+  }
+
+  async activarVarios() {
+    if (this.activandoVarios) return;
+    this.activandoVarios = true;
+    try {
+      await this.supabase.call(
+        this.supabase.client.rpc('fn_activar_caja_varios'),
+        'Caja Varios activada'
+      );
+      this.variosActiva = true;
+      this.configService.invalidar();
+    } catch {
+      await this.ui.showError('Error al activar la caja Varios.');
+    } finally {
+      this.activandoVarios = false;
+    }
+  }
+
+  async guardarModulos() {
+    if (this.guardandoModulos) return;
+    this.guardandoModulos = true;
+    try {
+      await this.supabase.call(
+        this.supabase.client.rpc('fn_habilitar_recargas', {
+          p_celular: this.recargasCelularHabilitada,
+          p_bus:     this.recargasBusHabilitada
+        }),
+        'Módulos actualizados'
+      );
+      this.configService.invalidar();
+    } catch {
+      await this.ui.showError('Error al guardar los módulos.');
+    } finally {
+      this.guardandoModulos = false;
     }
   }
 
@@ -170,10 +230,11 @@ export class ParametrosPage implements OnInit, OnDestroy {
     this.guardando[seccion] = true;
     try {
       const valores: any = {};
+      const STRING_FIELDS = new Set(['negocio_nombre', 'negocio_telefono', 'negocio_direccion']);
       campos.forEach(c => {
         const val = this.form.value[c];
-        if (c === 'negocio_nombre') valores[c] = (val ?? '').trim();
-        else if (typeof val === 'boolean' || c.endsWith('_habilitado')) valores[c] = !!val;
+        if (STRING_FIELDS.has(c)) valores[c] = (val ?? '').trim();
+        else if (typeof val === 'boolean' || c.endsWith('_habilitado') || c.endsWith('_habilitados')) valores[c] = !!val;
         else valores[c] = Number(val);
       });
 

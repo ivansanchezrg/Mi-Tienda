@@ -55,9 +55,10 @@ EXECUTE FUNCTION fn_proteger_superadmin();
 -- Política RLS DELETE — bloquea eliminación del superadmin
 -- Cualquier authenticated puede eliminar usuarios normales (no hay DELETE en la
 -- app, pero si alguien lo intenta desde fuera), excepto el superadmin.
--- En la práctica: nadie puede hacer DELETE desde el cliente (no hay política
--- DELETE en rls_usuarios.sql), pero esta capa extra protege ante service_role
--- accidental o queries directas con bypass de RLS.
+-- En la práctica: nadie puede hacer DELETE desde el cliente (la política
+-- "superadmin_no_delete" en docs/setup/02_rls.sql exige es_superadmin = false),
+-- pero esta capa extra protege ante service_role accidental o queries directas
+-- con bypass de RLS.
 -- -----------------------------------------------------------------------------
 DROP POLICY IF EXISTS "superadmin_no_delete" ON usuarios;
 

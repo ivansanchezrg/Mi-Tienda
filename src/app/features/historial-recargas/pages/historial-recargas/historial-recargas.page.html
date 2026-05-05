@@ -5,6 +5,7 @@
     </ion-buttons>
     <ion-title>Historial de Recargas</ion-title>
   </ion-toolbar>
+  @if (recargasCelularHabilitada && recargasBusHabilitada) {
   <ion-toolbar class="filter-toolbar">
     <div class="filter-tabs">
       @for (f of filtros; track f.value) {
@@ -14,6 +15,7 @@
       }
     </div>
   </ion-toolbar>
+  }
 </ion-header>
 
 <ion-content>

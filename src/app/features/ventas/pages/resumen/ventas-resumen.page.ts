@@ -16,9 +16,9 @@ import {
 } from 'ionicons/icons';
 import { VentasService } from '../../services/ventas.service';
 import { AuthService } from '../../../auth/services/auth.service';
-import { TurnosCajaService } from '../../../dashboard/services/turnos-caja.service';
+import { TurnosCajaService } from '../../../caja/services/turnos-caja.service';
 import { RolUsuario } from '../../../auth/models/usuario_actual.model';
-import { TurnoCajaConEmpleado } from '../../../dashboard/models/turno-caja.model';
+import { TurnoCajaConEmpleado } from '../../../caja/models/turno-caja.model';
 import { CuentasCobrarService } from '../../../cuentas-cobrar/services/cuentas-cobrar.service';
 import { CuentasCobrarResumen } from '../../../cuentas-cobrar/models/cuenta-cobrar.model';
 import { ReporteVentasDia, ProductoMasVendido } from '../../models/venta.model';
@@ -48,7 +48,7 @@ export class VentasResumenPage implements OnInit {
     private turnosCajaService = inject(TurnosCajaService);
     private cuentasCobrarService = inject(CuentasCobrarService);
     private modalCtrl = inject(ModalController);
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private ui = inject(UiService);
 
     reporte: ReporteVentasDia | null = null;

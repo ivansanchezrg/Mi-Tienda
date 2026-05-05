@@ -24,23 +24,26 @@
 
       <div class="negocios-list">
         @for (negocio of negocios; track negocio.negocio_id) {
-        <ion-card class="negocio-card" (click)="seleccionar(negocio)" [class.activated]="activando === negocio.negocio_id">
-          <ion-card-content class="negocio-card-content">
-            <div class="negocio-info">
-              <p class="negocio-nombre">{{ negocio.negocio_nombre }}</p>
-              <ion-badge [color]="negocio.rol === 'ADMIN' ? 'primary' : 'medium'" class="rol-badge">
-                {{ rolLegible(negocio.rol) }}
-              </ion-badge>
-            </div>
-            <div class="negocio-arrow">
-              @if (activando === negocio.negocio_id) {
-                <ion-spinner name="crescent" color="primary"></ion-spinner>
-              } @else {
-                <ion-icon name="chevron-forward-outline" color="medium"></ion-icon>
-              }
-            </div>
-          </ion-card-content>
-        </ion-card>
+          <ion-card
+            class="negocio-card"
+            [class.activated]="activando === negocio.negocio_id"
+            (click)="seleccionar(negocio)">
+            <ion-card-content class="negocio-card-content">
+              <div class="negocio-info">
+                <p class="negocio-nombre">{{ negocio.negocio_nombre }}</p>
+                <ion-badge [color]="negocio.rol === 'ADMIN' ? 'primary' : 'medium'" class="rol-badge">
+                  {{ rolLegible(negocio.rol) }}
+                </ion-badge>
+              </div>
+              <div class="negocio-arrow">
+                @if (activando === negocio.negocio_id) {
+                  <ion-spinner name="crescent" color="primary"></ion-spinner>
+                } @else {
+                  <ion-icon name="chevron-forward-outline" color="medium"></ion-icon>
+                }
+              </div>
+            </ion-card-content>
+          </ion-card>
         }
       </div>
     }

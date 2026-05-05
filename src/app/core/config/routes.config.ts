@@ -4,7 +4,7 @@
  * Si una ruta raiz cambia, solo editar este archivo.
  */
 export const ROUTES = {
-  home: '/home',
+  home: '/caja',
 
   admin: '/admin',
 
@@ -13,7 +13,24 @@ export const ROUTES = {
     callback:           '/auth/callback',
     pending:            '/auth/pending',
     seleccionarNegocio: '/auth/seleccionar-negocio',
-    crearNegocio:       '/auth/crear-negocio',
+  },
+
+  onboarding: {
+    root:    '/onboarding',
+    negocio: '/onboarding/negocio',
+    caja:    '/onboarding/caja',
+  },
+
+  /**
+   * Wizard reutilizable para crear un negocio desde dentro del dashboard.
+   * Acepta query param `?context=admin` (superadmin desde /admin) o `?context=sucursal` (admin/superadmin dentro de un negocio).
+   * Reusa los mismos pasos del onboarding inicial pero con el contexto correcto para resolver
+   * el email del admin/propietario y el destino post-creacion.
+   */
+  crearNegocio: {
+    root:    '/crear-negocio',
+    negocio: '/crear-negocio/negocio',
+    caja:    '/crear-negocio/caja',
   },
 
   pos: '/pos',
@@ -50,7 +67,7 @@ export const ROUTES = {
 
   historialRecargas: '/historial-recargas',
 
-  recargasVirtuales: '/home/recargas-virtuales',
+  recargasVirtuales: '/caja/recargas-virtuales',
 
   cuentasCorrientes: '/cuentas-corrientes',
 
@@ -61,8 +78,8 @@ export const ROUTES = {
 
   usuarios: '/usuarios',
 
-  dashboard: {
-    operacionesCaja: '/home/operaciones-caja',
-    cierreDiario:    '/home/cierre-diario',
+  caja: {
+    operacionesCaja: '/caja/operaciones-caja',
+    cierreDiario:    '/caja/cierre-diario',
   },
 } as const;

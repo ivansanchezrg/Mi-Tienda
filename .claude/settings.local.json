@@ -144,7 +144,16 @@
       "Bash(sed -i 's/IonMenuButton/IonBackButton/g' src/app/features/movimientos-empleados/pages/lista/movimientos-empleados-lista.page.ts)",
       "Bash(find \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\pos\\\\\" -type f -name \"*.ts\" -o -name \"*.html\" -o -name \"*.scss\" | head -50)",
       "Bash(grep -n \"negocioActual\\\\|negocio\\\\$\\\\|BehaviorSubject\\\\|signal\\\\|computed\" \"src/app/features/auth/services/auth.service.ts\")",
-      "Bash(grep -n \"_usuarioActual\\\\$\\\\|usuarioActual\\\\$\" \"src/app/features/auth/services/auth.service.ts\")"
+      "Bash(grep -n \"_usuarioActual\\\\$\\\\|usuarioActual\\\\$\" \"src/app/features/auth/services/auth.service.ts\")",
+      "Bash(grep -n \"^-- ==.*=====$\\\\|^CREATE OR REPLACE FUNCTION public\\\\.fn_\\\\|^-- fn_crear_negocio\\\\|^NOTIFY pgrst\" docs/setup/03_functions.sql)",
+      "Bash(grep -n \"^\\\\$\\\\$;\\\\|fn_crear_negocio\\\\|fn_set_negocio_activo\" docs/setup/schema.sql)",
+      "PowerShell(Rename-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\dashboard\" \"caja\")",
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\dashboard\" \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\caja\" -Recurse -Force)",
+      "PowerShell(if \\($?\\) { \"Copia exitosa\" } else { \"Error en copia\" })",
+      "PowerShell(head -20)",
+      "PowerShell(Rename-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\caja\\\\dashboard.routes.ts\" \"caja.routes.ts\")",
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\dashboard\" \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\caja\" -Recurse -Force)",
+      "PowerShell(if \\($?\\) { \"Copia exitosa\" } else { \"Error\" })"
     ]
   },
   "disableAllHooks": true

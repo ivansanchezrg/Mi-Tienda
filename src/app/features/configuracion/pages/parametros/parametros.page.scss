@@ -68,7 +68,8 @@ ion-content {
   }
 
   // Input de texto simple
-  > input[type="text"] {
+  > input[type="text"],
+  > input[type="tel"] {
     width: 100%;
     padding: 13px 14px;
     border: 1.5px solid var(--ion-color-step-200);
@@ -231,6 +232,77 @@ ion-content {
     &::after {
       transform: translateX(28px);
     }
+  }
+}
+
+// ── Banner "Caja Varios no activada" ─────────────────────────────────────────
+
+.varios-inactive-banner {
+  border-top: 1px solid var(--ion-color-step-100, #f0f0f0);
+  margin: 4px -16px 0;
+  padding: 14px 16px;
+  background: rgba(var(--ion-color-warning-rgb), 0.07);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.varios-inactive-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+
+  ion-icon {
+    font-size: 20px;
+    color: var(--ion-color-warning-shade);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+}
+
+.varios-inactive-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ion-text-color);
+}
+
+.varios-inactive-hint {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+}
+
+.varios-activate-btn {
+  height: 36px;
+  padding: 0 16px;
+  background: var(--ion-color-warning);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  ion-spinner {
+    width: 14px;
+    height: 14px;
   }
 }
 

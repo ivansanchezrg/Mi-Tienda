@@ -37,7 +37,7 @@ AS $$
 DECLARE
     v_caja_id            UUID;
     v_categoria_id       UUID;
-    v_tipo_referencia_id UUID;
+    v_tipo_referencia_id INTEGER;  -- tipos_referencia usa SERIAL → INTEGER
     v_saldo_actual_caja  DECIMAL(12,2);
 BEGIN
     IF NEW.metodo_pago = 'EFECTIVO' AND NEW.estado = 'COMPLETADA' THEN

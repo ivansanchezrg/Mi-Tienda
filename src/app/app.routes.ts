@@ -11,6 +11,16 @@ export const routes: Routes = [
     loadChildren: () => import('./features/admin/admin.routes').then(m => m.ADMIN_ROUTES)
   },
   {
+    path: 'onboarding',
+    loadChildren: () => import('./features/onboarding/onboarding.routes').then(m => m.ONBOARDING_ROUTES)
+  },
+  {
+    // Wizard reutilizable para crear sucursales / negocios desde dentro del dashboard.
+    // Mismas paginas del onboarding pero con OnboardingService en modo distinto al inicial.
+    path: 'crear-negocio',
+    loadChildren: () => import('./features/crear-negocio/crear-negocio.routes').then(m => m.CREAR_NEGOCIO_ROUTES)
+  },
+  {
     path: '',
     canActivate: [authGuard],
     loadChildren: () => import('./features/layout/layout.routes').then(m => m.LAYOUT_ROUTES)

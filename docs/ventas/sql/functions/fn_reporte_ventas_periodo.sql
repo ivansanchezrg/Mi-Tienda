@@ -60,61 +60,31 @@ BEGIN
     v_inicio := (p_fecha_inicio::DATE::TIMESTAMP AT TIME ZONE 'America/Guayaquil');
     v_fin    := ((p_fecha_fin::DATE + 1)::TIMESTAMP AT TIME ZONE 'America/Guayaquil');
 
-    -- ── Totales de ventas completadas ──
-    v_total_ventas := (
-        SELECT COALESCE(COUNT(*), 0)
-        FROM   ventas
-        WHERE  estado = 'COMPLETADA'
-          AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
-          AND  fecha >= v_inicio
-          AND  fecha <  v_fin
-    );
-    v_total_monto := (
-        SELECT COALESCE(SUM(total), 0)
-        FROM   ventas
-        WHERE  estado = 'COMPLETADA'
-          AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
-          AND  fecha >= v_inicio
-          AND  fecha <  v_fin
-    );
-
-    -- ── Totales de ventas anuladas ──
-    v_total_anuladas := (
-        SELECT COALESCE(COUNT(*), 0)
-        FROM   ventas
-        WHERE  estado = 'ANULADA'
-          AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
-          AND  fecha >= v_inicio
-          AND  fecha <  v_fin
-    );
-    v_monto_anulado := (
-        SELECT COALESCE(SUM(total), 0)
-        FROM   ventas
-        WHERE  estado = 'ANULADA'
-          AND  (p_turno_id IS NULL OR turno_id = p_turno_id)
-          AND  fecha >= v_inicio
-          AND  fecha <  v_fin
-    );
+    -- ── Una sola pasada sobre ventas para todos los agregados escalares ──
+    -- (evita 4 scans separados con los mismos filtros)
+    -- Nota: := (SELECT ...) obligatorio en Supabase — SELECT ... INTO rompe el parser.
+    v_total_ventas   := (SELECT COALESCE(COUNT(*) FILTER (WHERE estado = 'COMPLETADA'), 0) FROM ventas WHERE (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio AND fecha < v_fin);
+    v_total_monto    := (SELECT COALESCE(SUM(total) FILTER (WHERE estado = 'COMPLETADA'), 0) FROM ventas WHERE (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio AND fecha < v_fin);
+    v_total_anuladas := (SELECT COALESCE(COUNT(*) FILTER (WHERE estado = 'ANULADA'), 0) FROM ventas WHERE (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio AND fecha < v_fin);
+    v_monto_anulado  := (SELECT COALESCE(SUM(total) FILTER (WHERE estado = 'ANULADA'), 0) FROM ventas WHERE (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio AND fecha < v_fin);
 
     -- ── Ganancia bruta: (precio_venta - precio_costo) * unidades ──
     -- precio_costo es el snapshot guardado al momento de la venta → históricamente exacto
-    v_costo_total := (
+    v_costo_total    := (
         SELECT COALESCE(SUM(vd.precio_costo * vd.cantidad), 0)
-        FROM   ventas_detalles vd
-        JOIN   ventas v ON v.id = vd.venta_id
-        WHERE  v.estado = 'COMPLETADA'
-          AND  (p_turno_id IS NULL OR v.turno_id = p_turno_id)
-          AND  v.fecha  >= v_inicio
-          AND  v.fecha  <  v_fin
+        FROM ventas_detalles vd
+        JOIN ventas v ON v.id = vd.venta_id
+        WHERE v.estado = 'COMPLETADA'
+          AND (p_turno_id IS NULL OR v.turno_id = p_turno_id)
+          AND v.fecha >= v_inicio AND v.fecha < v_fin
     );
     v_ganancia_bruta := (
         SELECT COALESCE(SUM((vd.precio_unitario - vd.precio_costo) * vd.cantidad), 0)
-        FROM   ventas_detalles vd
-        JOIN   ventas v ON v.id = vd.venta_id
-        WHERE  v.estado = 'COMPLETADA'
-          AND  (p_turno_id IS NULL OR v.turno_id = p_turno_id)
-          AND  v.fecha  >= v_inicio
-          AND  v.fecha  <  v_fin
+        FROM ventas_detalles vd
+        JOIN ventas v ON v.id = vd.venta_id
+        WHERE v.estado = 'COMPLETADA'
+          AND (p_turno_id IS NULL OR v.turno_id = p_turno_id)
+          AND v.fecha >= v_inicio AND v.fecha < v_fin
     );
 
     -- ── Margen % (0 si no hay ventas) ──

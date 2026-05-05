@@ -9,21 +9,26 @@
 --   - Funciones de setup legacy (trigger_proteger_superadmin,
 --     codigo_barras_unique_global, presentaciones_constraints)
 --   - Funciones helper JWT (schema auth)
---   - Funciones de setup nuevas (fn_crear_negocio, fn_set_negocio_activo)
+--   - Funciones de setup nuevas (fn_completar_onboarding, fn_set_negocio_activo)
 --   - Triggers inline (recreados por schema.sql)
 --   - Vistas
 --   - Todas las tablas (en orden de dependencia)
 --   - Todos los ENUMs
---   - Publicaciones Realtime (se re-agregan tras schema.sql + rls_usuarios.sql)
+--   - Publicaciones Realtime (se re-agregan tras schema.sql + 02_rls.sql)
 --
 -- Orden posterior al teardown:
---   1. docs/schema.sql
---   2. docs/auth/sql/setup/rls_usuarios.sql
---   3. docs/dashboard/sql/setup/rls_tablas.sql
---   4. docs/setup/fn_crear_negocio.sql
---   5. docs/setup/fn_set_negocio_activo.sql
---   6. docs/*/sql/functions/*.sql  (todas las funciones de modulos)
---   7. docs/*/sql/setup/realtime_*.sql
+--   1. docs/setup/schema.sql
+--   2. docs/setup/02_rls.sql                     (todas las RLS, fuente unica)
+--   3. docs/setup/03_functions.sql               (incluye fn_set_negocio_activo)
+--   4. docs/onboarding/sql/functions/fn_completar_onboarding.sql
+--   5. docs/onboarding/sql/functions/fn_habilitar_recargas.sql
+--   6. docs/configuracion/sql/functions/fn_activar_caja_varios.sql
+--   7. docs/*/sql/functions/*.sql                (resto de funciones de modulos)
+--   8. docs/*/sql/setup/realtime_*.sql
+--      — docs/auth/sql/setup/realtime_usuarios.sql
+--      — docs/configuracion/sql/setup/realtime_configuraciones.sql
+--      — docs/dashboard/sql/setup/realtime_turnos_caja.sql
+--      — docs/usuarios/sql/setup/realtime_usuario_negocios.sql
 -- =============================================================================
 
 -- =============================================================================
@@ -71,8 +76,12 @@ DECLARE
         -- Notas
         'fn_eliminar_nota',
         -- Setup v11.0
-        'fn_crear_negocio',
-        'fn_set_negocio_activo'
+        'fn_crear_negocio',         -- legacy (eliminado en 2026-05-02, lo dejamos aqui por si quedo en una BD vieja)
+        'fn_completar_onboarding',
+        'fn_set_negocio_activo',
+        'fn_suspender_negocio',
+        'fn_activar_caja_varios',
+        'fn_habilitar_recargas'
     ];
     v_nombre TEXT;
     v_oid    OID;

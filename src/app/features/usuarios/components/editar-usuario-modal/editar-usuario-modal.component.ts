@@ -7,7 +7,7 @@ import {
   ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, warningOutline, shieldCheckmarkOutline, swapHorizontalOutline, chevronForwardOutline, pauseCircleOutline } from 'ionicons/icons';
+import { closeOutline, warningOutline, shieldCheckmarkOutline, swapHorizontalOutline, chevronForwardOutline, pauseCircleOutline, ribbonOutline } from 'ionicons/icons';
 import { UsuarioService } from '../../services/usuario.service';
 import { UiService } from '@core/services/ui.service';
 import { AuthService } from '../../../auth/services/auth.service';
@@ -50,6 +50,9 @@ export class EditarUsuarioModalComponent implements OnInit {
   /** True si el usuario que se edita es el superadmin (protegido, no editable en rol/activo) */
   esSuperadmin = false;
 
+  /** True si el usuario es el propietario del negocio (protegido por trigger SQL — no se puede desactivar ni cambiar rol) */
+  esPropietario = false;
+
   /**
    * Nombre del negocio donde el empleado está activo actualmente.
    * Solo se carga si el empleado está inactivo en este negocio.
@@ -65,7 +68,7 @@ export class EditarUsuarioModalComponent implements OnInit {
   form!: FormGroup;
 
   constructor() {
-    addIcons({ closeOutline, warningOutline, shieldCheckmarkOutline, swapHorizontalOutline, chevronForwardOutline, pauseCircleOutline });
+    addIcons({ closeOutline, warningOutline, shieldCheckmarkOutline, swapHorizontalOutline, chevronForwardOutline, pauseCircleOutline, ribbonOutline });
   }
 
   async ngOnInit() {
@@ -77,15 +80,16 @@ export class EditarUsuarioModalComponent implements OnInit {
 
     const actual = await this.authService.getUsuarioActual();
     this.esMismoUsuario = actual?.id === this.usuario.id;
-    this.esSuperadmin = this.usuario.es_superadmin === true;
+    this.esSuperadmin   = this.usuario.es_superadmin === true;
+    this.esPropietario  = this.usuario.es_propietario === true;
 
-    // Superadmin o mismo usuario: deshabilitar campos de rol y estado (solo se puede editar el nombre)
-    if (this.esSuperadmin || this.esMismoUsuario) {
+    // Superadmin, propietario o mismo usuario: deshabilitar campos de rol y estado (solo se puede editar el nombre)
+    if (this.esSuperadmin || this.esPropietario || this.esMismoUsuario) {
       this.form.get('rol')?.disable();
       this.form.get('activo')?.disable();
     }
 
-    const esEmpleadoEditable = !this.esMismoUsuario && !this.esSuperadmin && this.usuario.rol !== 'ADMIN';
+    const esEmpleadoEditable = !this.esMismoUsuario && !this.esSuperadmin && !this.esPropietario && this.usuario.rol !== 'ADMIN';
 
     if (esEmpleadoEditable && this.usuario.activo) {
       // Activo: cargar negocios destino para transferencia
@@ -157,8 +161,8 @@ export class EditarUsuarioModalComponent implements OnInit {
       return;
     }
 
-    // Superadmin o mismo usuario: solo se permite editar el nombre
-    const bloqueado   = this.esSuperadmin || this.esMismoUsuario;
+    // Superadmin, propietario o mismo usuario: solo se permite editar el nombre
+    const bloqueado   = this.esSuperadmin || this.esPropietario || this.esMismoUsuario;
     const rolNuevo    = bloqueado ? this.usuario.rol    : this.form.value.rol;
     const activoNuevo = bloqueado ? this.usuario.activo : this.form.value.activo;
 

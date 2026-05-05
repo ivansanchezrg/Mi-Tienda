@@ -22,10 +22,6 @@ export const AUTH_ROUTES: Routes = [
     loadComponent: () => import('./pages/seleccionar-negocio/seleccionar-negocio.page').then(m => m.SelectorNegocioPage)
   },
   {
-    path: 'crear-negocio',
-    loadComponent: () => import('./pages/crear-negocio/crear-negocio.page').then(m => m.CrearNegocioPage)
-  },
-  {
     path: '',
     redirectTo: 'login',
     pathMatch: 'full'

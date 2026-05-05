@@ -11,11 +11,11 @@ import { DisabledTabComponent } from 'src/app/shared/components/disabled-tab/dis
 import { addIcons } from 'ionicons';
 import { homeOutline, cartOutline, cubeOutline, receiptOutline, add, close, barcodeOutline, createOutline, scaleOutline, calculatorOutline, pricetagOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { CuadreCajaPage } from 'src/app/features/dashboard/pages/cuadre-caja/cuadre-caja.page';
+import { CuadreCajaPage } from 'src/app/features/caja/pages/cuadre-caja/cuadre-caja.page';
 import { NuevaNotaModalComponent } from 'src/app/features/notas/components/nueva-nota-modal/nueva-nota-modal.component';
 import { NotasService } from 'src/app/features/notas/services/notas.service';
 import { AuthService } from 'src/app/features/auth/services/auth.service';
-import { TurnosCajaService } from 'src/app/features/dashboard/services/turnos-caja.service';
+import { TurnosCajaService } from 'src/app/features/caja/services/turnos-caja.service';
 import { CalculadoraMargenComponent } from 'src/app/shared/components/calculadora-margen/calculadora-margen.component';
 import { ConsultaPrecioModalComponent } from 'src/app/shared/components/consulta-precio-modal/consulta-precio-modal.component';
 import { BarcodeScannerService } from '@core/services/barcode-scanner.service';

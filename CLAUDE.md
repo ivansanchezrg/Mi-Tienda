@@ -6,7 +6,14 @@ Contexto rápido del proyecto para IAs. Lee esto antes de cualquier tarea.
 
 ## Qué es este proyecto
 
-App de gestión para tiendas minoristas. Maneja caja (sistema de **5 cajas** físicas/virtuales: CAJA, CAJA_CHICA, VARIOS, CAJA_CELULAR, CAJA_BUS), ventas POS, recargas de saldo celular/bus e inventario.
+App de gestión para tiendas minoristas. Maneja caja (hasta **5 cajas** físicas/virtuales: CAJA, CAJA_CHICA, VARIOS, CAJA_CELULAR, CAJA_BUS), ventas POS, recargas de saldo celular/bus e inventario.
+
+Un negocio recién creado tiene solo **3 cajas base** (CAJA, CAJA_CHICA, VARIOS). VARIOS, CAJA_CELULAR y CAJA_BUS son **opt-in por negocio**:
+
+- **VARIOS** — opcional desde el onboarding (toggle "Activar Caja Varios"). Si no se activó, el admin puede activarla después en Parámetros → Caja con un banner dedicado. Una vez activa **no se puede desactivar**. Flag: `caja_varios_activa`.
+- **CAJA_CELULAR / CAJA_BUS** — solo el superadmin las habilita por negocio desde Parámetros → Módulos (sección visible únicamente para superadmin). Cada una es independiente. Flags: `recargas_celular_habilitada`, `recargas_bus_habilitada`.
+
+Funciones SQL involucradas: `fn_completar_onboarding` (3 cajas + Varios opcional), `fn_activar_caja_varios` (admin), `fn_habilitar_recargas` (superadmin).
 
 **Es una SaaS multi-tenant y multiplataforma** — no es un e-commerce. Es una herramienta interna de administración que puede servir a múltiples negocios independientes desde una sola instancia.
 
@@ -46,8 +53,9 @@ App de gestión para tiendas minoristas. Maneja caja (sistema de **5 cajas** fí
 | Módulo              | Estado           |
 | ------------------- | ---------------- |
 | `auth`              | ✅ Completo                                  |
-| `admin`             | ✅ Panel superadmin (lista negocios, crear negocio). Ruta: `/admin`. Guard: `superadminGuard` |
-| `dashboard`         | ✅ Completo (v5 — 5 cajas, cierre wizard 2p) |
+| `admin`             | ✅ Panel superadmin (lista negocios, crear negocio, suspender/reactivar). Ruta: `/admin`. Guard: `superadminGuard` |
+| `crear-negocio`     | ✅ Wizard reutilizable (`/crear-negocio?context=admin\|sucursal`). Reusa páginas del onboarding inicial cambiando el modo via `OnboardingService.setMode()` |
+| `caja`              | ✅ Completo (v5 — 5 cajas, cierre wizard 2p) |
 | `recargas-virtuales`| ✅ Completo                                  |
 | `usuarios`          | ✅ Completo (solo Equipo — gestión de empleados del negocio activo) |
 | `inventario`        | ✅ Completo                                  |
@@ -68,27 +76,55 @@ La app tiene **3 niveles de acceso** con rutas separadas:
 | Nivel | Flag | Ruta | Guard |
 |-------|------|------|-------|
 | `es_superadmin = true` | Campo en `usuarios` | `/admin` | `superadminGuard` |
-| `rol = 'ADMIN'` en `usuario_negocios` | JWT claim | `/home` + rutas protegidas con `roleGuard(['ADMIN'])` | `authGuard` |
-| `rol = 'EMPLEADO'` en `usuario_negocios` | JWT claim | `/home` + rutas de empleado | `authGuard` |
+| `rol = 'ADMIN'` en `usuario_negocios` | JWT claim | `/caja` + rutas protegidas con `roleGuard(['ADMIN'])` | `authGuard` |
+| `rol = 'EMPLEADO'` en `usuario_negocios` | JWT claim | `/caja` + rutas de empleado | `authGuard` |
 
 **Flujo de login post-validación:**
 ```
 validarUsuario()
     ├── es_superadmin + sin negocio cacheado → /admin
     ├── sin negocios → /auth/crear-negocio (onboarding)
-    ├── 1 negocio   → activar directo → /home
-    └── N negocios  → /auth/seleccionar-negocio → /home
+    ├── 1 negocio   → activar directo → /caja
+    └── N negocios  → /auth/seleccionar-negocio → /caja
 ```
 
 **`/admin`** — Panel del superadmin (sin `negocio_id` en JWT):
-- Lista todos los negocios de la plataforma
-- Puede crear nuevos negocios
-- Toca un negocio → `cambiarNegocio()` → JWT actualizado con ese `negocio_id` → `/home` para operar dentro del negocio como ADMIN
+- Lista todos los negocios de la plataforma (incluye los suspendidos, marcados con badge)
+- Botón "Crear negocio" → navega al wizard `/crear-negocio?context=admin` (mismas páginas del onboarding inicial, en modo `sucursal-superadmin`). Pide email del admin del nuevo negocio.
+- Botón "Suspender / Reactivar" por cada negocio → llama a `fn_suspender_negocio` (solo superadmin). Cuando un negocio está suspendido, su propietario, admins y empleados no pueden entrar; solo el superadmin sí.
+- Toca un negocio → `cambiarNegocio()` → JWT actualizado con ese `negocio_id` → `/caja` para operar dentro del negocio como ADMIN
 - `irAlPanelAdmin()` en `AuthService` para volver a `/admin` desde dentro de un negocio
 
-**`/home` y resto** — App del negocio activo (con `negocio_id` en JWT, RLS filtra automáticamente):
+**Superadmin y membresías — reglas críticas:**
+- El superadmin **puede no tener membresía** en `usuario_negocios` para un negocio dado. `fn_set_negocio_activo` le asigna rol `ADMIN` virtual si no tiene membresía.
+- `get_es_superadmin()` lee del JWT (`app_metadata`). Cuando el superadmin está en `/admin` (sin haber pasado por `fn_set_negocio_activo`), ese claim puede estar desactualizado. **Nunca usar `get_es_superadmin()` en RLS de tablas que el superadmin necesita leer desde `/admin`** — usar `EXISTS (SELECT 1 FROM usuarios WHERE email = get_email() AND es_superadmin = true)` en su lugar.
+- La RLS de `negocios` usa la verificación contra tabla `usuarios` por este motivo (ver `02_rls.sql`).
+- `validarUsuario()` en `AuthService` maneja el caso: superadmin con `negocio_id` cacheado pero sin membresía → re-activa usando el cache directamente sin buscar en `usuario_negocios`.
+
+**`/caja` y resto** — App del negocio activo (con `negocio_id` en JWT, RLS filtra automáticamente):
 - El módulo `usuarios/` solo gestiona el Equipo del negocio activo
 - El módulo `admin/` NO aparece en el sidebar ni en las rutas de layout
+
+---
+
+## Creación de negocios — wizard único reutilizable
+
+Toda creación de negocio (onboarding inicial Y sucursales desde dentro de la app) usa el **mismo wizard** y la **misma función SQL**: `fn_completar_onboarding`. Single source of truth — no hay duplicación de pasos, validaciones ni configuraciones por defecto.
+
+| Punto de entrada | Ruta | Modo | Quién es ADMIN del nuevo negocio | Quién es propietario |
+|------------------|------|------|----------------------------------|----------------------|
+| Onboarding del primer negocio (usuario sin negocios) | `/onboarding/negocio` | `inicial` | El usuario logueado | El usuario logueado |
+| Sidebar → "Nueva sucursal" (admin común) | `/crear-negocio?context=sucursal` | `sucursal-admin` | El usuario logueado | El usuario logueado |
+| Sidebar → "Nueva sucursal" (superadmin operando dentro de un negocio) | `/crear-negocio?context=sucursal` | `sucursal-superadmin` | El superadmin pide email manual | El propietario del negocio actual (heredado) |
+| `/admin` → "Crear negocio" (superadmin) | `/crear-negocio?context=admin` | `sucursal-superadmin` | Email ingresado manualmente | Mismo email del admin (o explícito) |
+
+**Tabla `negocios.propietario_usuario_id`:** dueño del negocio, NOT NULL, FK con `ON DELETE RESTRICT`. Se setea al crear y no se modifica. Permite identificar al "dueño original" cuando un superadmin necesita actuar en su nombre.
+
+**Tabla `negocios.activo`:** flag de suspensión. `false` = bloqueado para todos sus usuarios; solo el superadmin puede entrar (para reactivarlo). Solo el superadmin lo cambia, vía `fn_suspender_negocio`. La validación se hace en `fn_set_negocio_activo` antes de actualizar el JWT.
+
+**OnboardingService.mode:** el servicio mantiene el modo del wizard en memoria (`inicial` | `sucursal-admin` | `sucursal-superadmin`). `OnboardingNegocioPage.ngOnInit()` lo resuelve desde la URL + query params + `es_superadmin` y llama `setMode()`. `OnboardingCajaPage` lee el modo al finalizar para decidir si activa el JWT del nuevo negocio (solo `inicial`) o vuelve al lugar anterior con un toast (modos `sucursal-*`).
+
+> **Eliminado en 2026-05-02:** `fn_crear_negocio` (función SQL duplicada que creaba negocios con configuraciones desactualizadas y siempre 5 cajas), `crear-negocio-modal` y `crear-sucursal-modal` (componentes de modal que solo pedían el nombre), `negocio.service.ts.crearSucursal()`. Todo unificado en el wizard reutilizable.
 
 ---
 
@@ -192,7 +228,7 @@ Todas las rutas de la app están centralizadas en `src/app/core/config/routes.co
 ```typescript
 // ❌ Incorrecto — string hardcodeado
 this.navCtrl.navigateBack('/inventario');
-this.router.navigate(['/home']);
+this.router.navigate(['/caja']);
 [routerLink]="'/configuracion'"
 
 // ✅ Correcto — siempre via ROUTES
@@ -704,7 +740,7 @@ Usar el mismo patrón si se necesita cache para otros datos de baja frecuencia d
 | Archivo | Qué contiene |
 |---------|-------------|
 | `docs/setup/03_functions.sql` | **Solo funciones de setup inicial** — las que deben existir para que la app funcione desde cero (auth, negocios, cajas). Se ejecutan junto con el schema al hacer un reset completo de Supabase. |
-| `docs/<modulo>/sql/functions/fn_nombre.sql` | **Funciones de feature** — una función por archivo, en la carpeta del módulo al que pertenece. Ejemplos: `docs/usuarios/sql/functions/fn_transferir_empleado.sql`, `docs/dashboard/sql/functions/fn_ejecutar_cierre_diario.sql`. |
+| `docs/<modulo>/sql/functions/fn_nombre.sql` | **Funciones de feature** — una función por archivo, en la carpeta del módulo al que pertenece. Ejemplos: `docs/usuarios/sql/functions/fn_transferir_empleado.sql`, `docs/caja/sql/functions/fn_ejecutar_cierre_diario.sql`. |
 
 **Regla:** si la función se necesita antes de que exista cualquier dato de negocio → `03_functions.sql`. Si es lógica de negocio de un módulo específico → carpeta del módulo.
 
@@ -882,18 +918,19 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 
 ---
 
-## Nombres de cajas (UI vs BD) — 5 cajas en v5
+## Nombres de cajas (UI vs BD) — hasta 5 cajas
 
-| Código BD      | Nombre en UI | Subtítulo       | Rol                                      |
-| -------------- | ------------ | --------------- | ---------------------------------------- |
-| `CAJA`         | Tienda       | Efectivo        | Vault de depósitos acumulados            |
-| `CAJA_CHICA`   | Cajón        | Cajón diario    | Efectivo del día (ventas POS + recargas) |
-| `VARIOS`       | Varios       | Fondo emergencia| Ex-CAJA_CHICA. Fondo fijo de gastos.    |
-| `CAJA_CELULAR` | Celular      | Saldo digital   | Efectivo recargas celular                |
-| `CAJA_BUS`     | Bus          | Saldo digital   | Efectivo recargas bus                    |
+| Código BD      | Nombre en UI | Subtítulo       | Rol                                      | Tipo       |
+| -------------- | ------------ | --------------- | ---------------------------------------- | ---------- |
+| `CAJA`         | Tienda       | Efectivo        | Vault de depósitos acumulados            | Base       |
+| `CAJA_CHICA`   | Cajón        | Cajón diario    | Efectivo del día (ventas POS + recargas) | Base       |
+| `VARIOS`       | Varios       | Fondo emergencia| Fondo fijo de gastos                     | Opt-in     |
+| `CAJA_CELULAR` | Celular      | Saldo digital   | Efectivo recargas celular                | Opt-in (superadmin) |
+| `CAJA_BUS`     | Bus          | Saldo digital   | Efectivo recargas bus                    | Opt-in (superadmin) |
 
 > No renombrar los códigos de BD. Solo los labels de UI difieren.
 > **v5 (2026-03-06):** `CAJA_CHICA` es ahora el cajón físico diario. `VARIOS` es el fondo de emergencia (antes era `CAJA_CHICA` en BD).
+> **2026-05-01:** VARIOS pasa a opt-in. CELULAR/BUS solo se crean si el superadmin habilita el módulo en Parámetros → Módulos. Las funciones SQL del cierre ya manejan el caso "Varios desactivada" (`caja_varios_activa = false` → `transferencia_diaria = 0` en cascada).
 
 ---
 
@@ -920,7 +957,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 
 | Módulo              | Doc principal                                              |
 | ------------------- | ---------------------------------------------------------- |
-| Dashboard           | `docs/dashboard/DASHBOARD-README.md`                       |
+| Caja                | `docs/caja/DASHBOARD-README.md`                            |
 | Auth                | `docs/auth/AUTH-README.md`                                 |
 | Usuarios            | `docs/usuarios/USUARIOS-README.md`                         |
 | Recargas Virtuales  | `docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md`     |

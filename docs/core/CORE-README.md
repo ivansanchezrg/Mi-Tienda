@@ -232,7 +232,7 @@ Para refrescarlos de manera silente ("Soft Refresh"):
 
 **1. Despachar Evento:** Envíale al router un Query Param de tiempo (`refresh`) desde la página hija.
 ```typescript
-this.router.navigate(['/home'], { queryParams: { refresh: Date.now() } });
+this.router.navigate(['/caja'], { queryParams: { refresh: Date.now() } });
 ```
 
 **2. Recepción:** En `ionViewWillEnter()` de la Tab Principal, interceptar y recargar:

@@ -12,11 +12,19 @@
 <ion-content>
   <div class="form-content">
 
-    <!-- Aviso superadmin / propio -->
+    <!-- Aviso superadmin / propietario / propio -->
     @if (esSuperadmin) {
       <div class="aviso aviso--info">
         <ion-icon name="shield-checkmark-outline"></ion-icon>
         <span>Administrador principal. No se puede cambiar su rol ni desactivarlo.</span>
+      </div>
+    } @else if (esPropietario) {
+      <div class="aviso aviso--propietario">
+        <ion-icon name="ribbon-outline"></ion-icon>
+        <div class="aviso-body">
+          <span class="aviso-title">Propietario del negocio</span>
+          <span class="aviso-hint">No se puede cambiar su rol ni desactivarlo. Solo el superadmin puede modificar al dueño del negocio.</span>
+        </div>
       </div>
     } @else if (esMismoUsuario) {
       <div class="aviso aviso--warning">
@@ -70,7 +78,7 @@
       </div>
 
       <!-- Rol + Estado en fila -->
-      <div class="row-fields" [class.disabled]="esSuperadmin || esMismoUsuario">
+      <div class="row-fields" [class.disabled]="esSuperadmin || esPropietario || esMismoUsuario">
 
         <!-- Rol -->
         <div class="field">
@@ -79,13 +87,13 @@
             <div
               class="chip"
               [class.selected]="form.get('rol')?.value === 'EMPLEADO'"
-              (click)="!(esSuperadmin || esMismoUsuario) && form.get('rol')?.setValue('EMPLEADO')">
+              (click)="!(esSuperadmin || esPropietario || esMismoUsuario) && form.get('rol')?.setValue('EMPLEADO')">
               Empleado
             </div>
             <div
               class="chip"
               [class.selected]="form.get('rol')?.value === 'ADMIN'"
-              (click)="!(esSuperadmin || esMismoUsuario) && form.get('rol')?.setValue('ADMIN')">
+              (click)="!(esSuperadmin || esPropietario || esMismoUsuario) && form.get('rol')?.setValue('ADMIN')">
               Admin
             </div>
           </div>
@@ -98,14 +106,14 @@
             <div
               class="chip chip--success"
               [class.selected]="form.get('activo')?.value === true"
-              (click)="!(esSuperadmin || esMismoUsuario) && form.get('activo')?.setValue(true)">
+              (click)="!(esSuperadmin || esPropietario || esMismoUsuario) && form.get('activo')?.setValue(true)">
               <div class="dot dot--activo"></div>
               Activo
             </div>
             <div
               class="chip chip--danger"
               [class.selected]="form.get('activo')?.value === false"
-              (click)="!(esSuperadmin || esMismoUsuario) && form.get('activo')?.setValue(false)">
+              (click)="!(esSuperadmin || esPropietario || esMismoUsuario) && form.get('activo')?.setValue(false)">
               <div class="dot dot--inactivo"></div>
               Inactivo
             </div>

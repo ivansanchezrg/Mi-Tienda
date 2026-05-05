@@ -131,7 +131,7 @@ const redirectTo = Capacitor.isNativePlatform()
 4. Supabase detecta el token en `window.location.hash` automaticamente
 5. CallbackPage verifica sesion con `getSession()` o `onAuthStateChange`
 6. Valida que el email exista en tabla `usuarios` con `activo = true`
-7. Redirige a `/home`
+7. Redirige a `/caja`
 
 ### Android
 
@@ -146,7 +146,7 @@ const redirectTo = Capacitor.isNativePlatform()
 9. CallbackPage extrae `access_token` y `refresh_token` de la URL guardada
 10. Setea la sesion manualmente con `auth.setSession()`
 11. Valida que el email exista en tabla `usuarios` con `activo = true`
-12. Redirige a `/home`
+12. Redirige a `/caja`
 
 **Diferencia clave:** En web Supabase detecta el token del hash automaticamente (`skipBrowserRedirect: false`). En Android se usa `skipBrowserRedirect: true` + `Browser.open()` para controlar la pestaña y poder cerrarla con `Browser.close()` al volver.
 

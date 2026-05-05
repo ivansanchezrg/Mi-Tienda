@@ -6,7 +6,7 @@ import { Browser } from '@capacitor/browser';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 import { SupabaseService } from './core/services/supabase.service';
-import { TurnosCajaService } from './features/dashboard/services/turnos-caja.service';
+import { TurnosCajaService } from './features/caja/services/turnos-caja.service';
 import { Capacitor } from '@capacitor/core';
 import { OfflineBannerComponent } from './core/components/offline-banner/offline-banner.component';
 import { ROUTES } from './core/config/routes.config';

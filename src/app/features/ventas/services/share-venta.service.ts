@@ -314,12 +314,14 @@ export class ShareVentaService {
     private drawFooter(ctx: CanvasRenderingContext2D, y: number): number {
         y = this.drawDashedLine(ctx, y);
         y += 24;
-        const hoy = new Date();
-        const d   = hoy.getDate().toString().padStart(2, '0');
-        const m   = (hoy.getMonth() + 1).toString().padStart(2, '0');
-        const h   = hoy.getHours().toString().padStart(2, '0');
-        const min = hoy.getMinutes().toString().padStart(2, '0');
-        this.drawCenteredText(ctx, `Generado: ${d}/${m}/${hoy.getFullYear()} ${h}:${min}`, y, '11px', 'normal', '#aaa');
+        // Hora de generación en zona Ecuador — new Date() usa hora local del dispositivo
+        // que puede diferir del servidor; toLocaleString fuerza la zona correcta.
+        const ahora = new Date().toLocaleString('es-EC', {
+            timeZone: 'America/Guayaquil',
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: false
+        });
+        this.drawCenteredText(ctx, `Generado: ${ahora}`, y, '11px', 'normal', '#aaa');
         y += 18;
         this.drawCenteredText(ctx, 'Este documento no es un comprobante fiscal', y, '11px', 'normal', '#aaa');
         y += 18;

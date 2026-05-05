@@ -56,10 +56,10 @@ export class SelectorNegocioPage implements OnInit {
         return;
       }
 
-      // Obtener usuario_id
+      // Obtener usuario_id y estado de suspensión global
       const { data: userData } = await this.supabase.client
         .from('usuarios')
-        .select('id')
+        .select('id, activo, es_superadmin')
         .eq('email', user.email)
         .maybeSingle();
 
@@ -68,7 +68,18 @@ export class SelectorNegocioPage implements OnInit {
         return;
       }
 
-      // Obtener membresías activas
+      // Usuario suspendido globalmente → pending
+      if (userData.activo === false && !userData.es_superadmin) {
+        this.router.navigate([ROUTES.auth.pending], { replaceUrl: true, queryParams: { motivo: 'usuario' } });
+        return;
+      }
+
+      // Abrir canal Realtime para detectar suspensión mientras está en esta pantalla
+      if (!userData.es_superadmin) {
+        this.authService.iniciarRealtimeUsuario(userData.id);
+      }
+
+      // Obtener membresías activas con estado del negocio
       const { data: membresias } = await this.supabase.client
         .from('usuario_negocios')
         .select('negocio_id, rol, negocio:negocios(nombre)')
@@ -85,7 +96,7 @@ export class SelectorNegocioPage implements OnInit {
       this.authService.negociosDisponibles = this.negocios;
 
       if (this.negocios.length === 0) {
-        this.router.navigate([ROUTES.auth.crearNegocio], { replaceUrl: true });
+        this.router.navigate([ROUTES.onboarding.negocio], { replaceUrl: true });
       } else if (this.negocios.length === 1) {
         await this.authService.validarUsuario();
       }

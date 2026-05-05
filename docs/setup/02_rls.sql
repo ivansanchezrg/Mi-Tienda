@@ -1,24 +1,28 @@
 -- =============================================================================
--- 01_rls.sql — Row Level Security (todas las tablas)
+-- 02_rls.sql — Row Level Security (todas las tablas)
 -- =============================================================================
 -- Ejecutar DESPUES de schema.sql.
--- Orden: 01_rls → 02_triggers → 03_functions → 04_realtime → 05_seed_dev
+--
+-- REGLA DE ORO: negocio_id = get_negocio_id() en TODA operacion, sin excepcion.
+-- El superadmin NO tiene bypass de tenant. Cuando opera dentro de un negocio,
+-- su JWT contiene ese negocio_id y ve exactamente lo mismo que cualquier ADMIN.
+-- Ningun usuario puede ver datos de otro negocio, nunca, bajo ninguna condicion.
 --
 -- Patron general (Grupo A — tablas con negocio_id):
---   USING  (negocio_id = public.get_negocio_id() OR public.get_es_superadmin())
---   CHECK  (negocio_id = public.get_negocio_id() OR public.get_es_superadmin())
+--   USING  (negocio_id = public.get_negocio_id())
+--   CHECK  (negocio_id = public.get_negocio_id())
 --
--- Grupo B (pivot sin negocio_id — heredan via FK al parent):
---   ventas_detalles, producto_presentaciones, producto_atributos,
---   template_atributos, template_atributo_opciones → USING (true)
+-- Grupo B (pivot sin negocio_id — heredan via FK al parent con negocio_id):
+--   ventas_detalles, producto_atributos, template_atributos,
+--   template_atributo_opciones → USING (true) — el aislamiento lo da el JOIN al parent
 --
--- Grupo C (catálogos globales — solo lectura):
+-- Grupo C (catalogos globales — solo lectura):
 --   tipos_servicio, tipos_referencia → SELECT USING (true)
 --
--- Grupo D (identidad multi-tenant — políticas propias):
+-- Grupo D (identidad multi-tenant — politicas propias):
 --   usuarios, usuario_negocios, negocios
 --
--- Tablas con negocio_id cubiertas:
+-- Tablas con negocio_id cubiertas (21 tablas Grupo A):
 --   cajas, configuraciones, categorias_operaciones, turnos_caja,
 --   recargas, recargas_virtuales, operaciones_cajas, movimientos_empleados,
 --   categorias_productos, atributos, atributo_opciones, producto_templates,
@@ -43,13 +47,17 @@ DROP POLICY IF EXISTS "superadmin_no_delete"                  ON usuarios;
 DROP POLICY IF EXISTS "usuario puede leer su propio registro" ON usuarios;
 DROP POLICY IF EXISTS "usuario puede auto-registrarse"        ON usuarios;
 
+-- SELECT: el propio usuario ve su perfil + compañeros del negocio activo.
+-- Superadmin ve todos (necesario para /admin y para gestionar usuarios desde dentro de un negocio).
 CREATE POLICY "usuarios_select" ON usuarios FOR SELECT TO authenticated
 USING (
-    public.get_es_superadmin()
-    OR email = public.get_email()
+    email = public.get_email()
     OR public.comparten_negocio(id)
+    OR public.get_es_superadmin()
 );
 
+-- INSERT: auto-registro (email propio) o ADMIN/superadmin agregando usuarios.
+-- El auto-registro cubre el primer login OAuth: el usuario aun no existe en la tabla.
 CREATE POLICY "usuarios_insert" ON usuarios FOR INSERT TO authenticated
 WITH CHECK (
     email = public.get_email()
@@ -57,14 +65,15 @@ WITH CHECK (
     OR public.get_es_superadmin()
 );
 
+-- UPDATE: ADMIN del negocio activo puede editar usuarios de su tenant.
+-- Superadmin puede editar cualquier usuario (soporte/correcciones).
 CREATE POLICY "usuarios_update" ON usuarios FOR UPDATE TO authenticated
 USING (
-    public.get_es_superadmin()
-    OR (public.get_rol() = 'ADMIN' AND public.comparten_negocio(id))
+    (public.get_rol() = 'ADMIN' AND public.comparten_negocio(id))
+    OR public.get_es_superadmin()
 );
 
--- DELETE: bloqueado para todos salvo superadmin (el trigger fn_proteger_superadmin
--- de 02_triggers.sql agrega protección extra a nivel de función).
+-- DELETE: bloqueado para todos salvo superadmin por trigger fn_proteger_superadmin
 CREATE POLICY "superadmin_no_delete" ON usuarios FOR DELETE TO authenticated
 USING (es_superadmin = false);
 
@@ -82,12 +91,14 @@ USING (
     OR usuario_id = (SELECT id FROM usuarios WHERE email = public.get_email())
 );
 
+-- INSERT: ADMIN o superadmin del negocio activo crea membresias en su tenant.
 CREATE POLICY "usuario_negocios_insert" ON usuario_negocios FOR INSERT TO authenticated
 WITH CHECK (
     negocio_id = public.get_negocio_id()
     AND (public.get_rol() = 'ADMIN' OR public.get_es_superadmin())
 );
 
+-- UPDATE: ADMIN o superadmin del negocio activo modifica membresias (activo, rol).
 CREATE POLICY "usuario_negocios_update" ON usuario_negocios FOR UPDATE TO authenticated
 USING (
     negocio_id = public.get_negocio_id()
@@ -99,6 +110,11 @@ USING (public.get_es_superadmin());
 
 
 -- negocios
+-- SELECT:
+--   1. Negocio activo del JWT (usuario normal operando un negocio)
+--   2. Superadmin via tabla usuarios — NO via JWT, porque el superadmin puede
+--      llegar a /admin sin haber pasado por fn_set_negocio_activo (sin JWT actualizado)
+--   3. Cualquier negocio donde el usuario tenga membresía activa (selector de sidebar)
 ALTER TABLE negocios ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "negocios_select" ON negocios;
 DROP POLICY IF EXISTS "negocios_insert" ON negocios;
@@ -106,7 +122,19 @@ DROP POLICY IF EXISTS "negocios_update" ON negocios;
 DROP POLICY IF EXISTS "negocios_delete" ON negocios;
 
 CREATE POLICY "negocios_select" ON negocios FOR SELECT TO authenticated
-USING (id = public.get_negocio_id() OR public.get_es_superadmin());
+USING (
+    id = public.get_negocio_id()
+    OR EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE email = public.get_email()
+        AND es_superadmin = true
+    )
+    OR id IN (
+        SELECT negocio_id FROM usuario_negocios
+        WHERE usuario_id = (SELECT id FROM usuarios WHERE email = public.get_email())
+        AND activo = true
+    )
+);
 
 CREATE POLICY "negocios_insert" ON negocios FOR INSERT TO authenticated
 WITH CHECK (public.get_es_superadmin());
@@ -119,8 +147,9 @@ USING (public.get_es_superadmin());
 
 
 -- =============================================================================
--- GRUPO A — TABLAS CON negocio_id
--- Patrón: tenant_or_superadmin en todas las operaciones
+-- GRUPO A — TABLAS CON negocio_id (21 tablas)
+-- Patron unico: negocio_id = get_negocio_id() en todas las operaciones.
+-- Sin bypass de superadmin — el JWT siempre controla el tenant activo.
 -- =============================================================================
 
 -- cajas
@@ -128,13 +157,13 @@ ALTER TABLE cajas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "cajas_select" ON cajas; DROP POLICY IF EXISTS "cajas_insert" ON cajas;
 DROP POLICY IF EXISTS "cajas_update" ON cajas; DROP POLICY IF EXISTS "cajas_delete" ON cajas;
 CREATE POLICY "cajas_select" ON cajas FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "cajas_insert" ON cajas FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "cajas_update" ON cajas FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "cajas_delete" ON cajas FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- configuraciones
 ALTER TABLE configuraciones ENABLE ROW LEVEL SECURITY;
@@ -142,26 +171,26 @@ DROP POLICY IF EXISTS "configuraciones_select" ON configuraciones; DROP POLICY I
 DROP POLICY IF EXISTS "configuraciones_update" ON configuraciones; DROP POLICY IF EXISTS "configuraciones_delete" ON configuraciones;
 DROP POLICY IF EXISTS "authenticated puede leer configuraciones" ON configuraciones;
 CREATE POLICY "configuraciones_select" ON configuraciones FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "configuraciones_insert" ON configuraciones FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "configuraciones_update" ON configuraciones FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "configuraciones_delete" ON configuraciones FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- categorias_operaciones
 ALTER TABLE categorias_operaciones ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "categorias_operaciones_select" ON categorias_operaciones; DROP POLICY IF EXISTS "categorias_operaciones_insert" ON categorias_operaciones;
 DROP POLICY IF EXISTS "categorias_operaciones_update" ON categorias_operaciones; DROP POLICY IF EXISTS "categorias_operaciones_delete" ON categorias_operaciones;
 CREATE POLICY "categorias_operaciones_select" ON categorias_operaciones FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "categorias_operaciones_insert" ON categorias_operaciones FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "categorias_operaciones_update" ON categorias_operaciones FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "categorias_operaciones_delete" ON categorias_operaciones FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- turnos_caja
 ALTER TABLE turnos_caja ENABLE ROW LEVEL SECURITY;
@@ -169,238 +198,240 @@ DROP POLICY IF EXISTS "turnos_caja_select" ON turnos_caja; DROP POLICY IF EXISTS
 DROP POLICY IF EXISTS "turnos_caja_update" ON turnos_caja; DROP POLICY IF EXISTS "turnos_caja_delete" ON turnos_caja;
 DROP POLICY IF EXISTS "authenticated puede leer turnos_caja" ON turnos_caja;
 CREATE POLICY "turnos_caja_select" ON turnos_caja FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "turnos_caja_insert" ON turnos_caja FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "turnos_caja_update" ON turnos_caja FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "turnos_caja_delete" ON turnos_caja FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- recargas
 ALTER TABLE recargas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "recargas_select" ON recargas; DROP POLICY IF EXISTS "recargas_insert" ON recargas;
 DROP POLICY IF EXISTS "recargas_update" ON recargas; DROP POLICY IF EXISTS "recargas_delete" ON recargas;
 CREATE POLICY "recargas_select" ON recargas FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "recargas_insert" ON recargas FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "recargas_update" ON recargas FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "recargas_delete" ON recargas FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- recargas_virtuales
 ALTER TABLE recargas_virtuales ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "recargas_virtuales_select" ON recargas_virtuales; DROP POLICY IF EXISTS "recargas_virtuales_insert" ON recargas_virtuales;
 DROP POLICY IF EXISTS "recargas_virtuales_update" ON recargas_virtuales; DROP POLICY IF EXISTS "recargas_virtuales_delete" ON recargas_virtuales;
 CREATE POLICY "recargas_virtuales_select" ON recargas_virtuales FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "recargas_virtuales_insert" ON recargas_virtuales FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "recargas_virtuales_update" ON recargas_virtuales FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "recargas_virtuales_delete" ON recargas_virtuales FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- operaciones_cajas
 ALTER TABLE operaciones_cajas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "operaciones_cajas_select" ON operaciones_cajas; DROP POLICY IF EXISTS "operaciones_cajas_insert" ON operaciones_cajas;
 DROP POLICY IF EXISTS "operaciones_cajas_update" ON operaciones_cajas; DROP POLICY IF EXISTS "operaciones_cajas_delete" ON operaciones_cajas;
 CREATE POLICY "operaciones_cajas_select" ON operaciones_cajas FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "operaciones_cajas_insert" ON operaciones_cajas FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "operaciones_cajas_update" ON operaciones_cajas FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "operaciones_cajas_delete" ON operaciones_cajas FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- movimientos_empleados
 ALTER TABLE movimientos_empleados ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "movimientos_empleados_select" ON movimientos_empleados; DROP POLICY IF EXISTS "movimientos_empleados_insert" ON movimientos_empleados;
 DROP POLICY IF EXISTS "movimientos_empleados_update" ON movimientos_empleados; DROP POLICY IF EXISTS "movimientos_empleados_delete" ON movimientos_empleados;
 CREATE POLICY "movimientos_empleados_select" ON movimientos_empleados FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "movimientos_empleados_insert" ON movimientos_empleados FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "movimientos_empleados_update" ON movimientos_empleados FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "movimientos_empleados_delete" ON movimientos_empleados FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- categorias_productos
 ALTER TABLE categorias_productos ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "categorias_productos_select" ON categorias_productos; DROP POLICY IF EXISTS "categorias_productos_insert" ON categorias_productos;
 DROP POLICY IF EXISTS "categorias_productos_update" ON categorias_productos; DROP POLICY IF EXISTS "categorias_productos_delete" ON categorias_productos;
 CREATE POLICY "categorias_productos_select" ON categorias_productos FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "categorias_productos_insert" ON categorias_productos FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "categorias_productos_update" ON categorias_productos FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "categorias_productos_delete" ON categorias_productos FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- atributos
 ALTER TABLE atributos ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "atributos_select" ON atributos; DROP POLICY IF EXISTS "atributos_insert" ON atributos;
 DROP POLICY IF EXISTS "atributos_update" ON atributos; DROP POLICY IF EXISTS "atributos_delete" ON atributos;
 CREATE POLICY "atributos_select" ON atributos FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "atributos_insert" ON atributos FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "atributos_update" ON atributos FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "atributos_delete" ON atributos FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- atributo_opciones
 ALTER TABLE atributo_opciones ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "atributo_opciones_select" ON atributo_opciones; DROP POLICY IF EXISTS "atributo_opciones_insert" ON atributo_opciones;
 DROP POLICY IF EXISTS "atributo_opciones_update" ON atributo_opciones; DROP POLICY IF EXISTS "atributo_opciones_delete" ON atributo_opciones;
 CREATE POLICY "atributo_opciones_select" ON atributo_opciones FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "atributo_opciones_insert" ON atributo_opciones FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "atributo_opciones_update" ON atributo_opciones FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "atributo_opciones_delete" ON atributo_opciones FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- producto_templates
 ALTER TABLE producto_templates ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "producto_templates_select" ON producto_templates; DROP POLICY IF EXISTS "producto_templates_insert" ON producto_templates;
 DROP POLICY IF EXISTS "producto_templates_update" ON producto_templates; DROP POLICY IF EXISTS "producto_templates_delete" ON producto_templates;
 CREATE POLICY "producto_templates_select" ON producto_templates FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "producto_templates_insert" ON producto_templates FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "producto_templates_update" ON producto_templates FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "producto_templates_delete" ON producto_templates FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- productos
 ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "productos_select" ON productos; DROP POLICY IF EXISTS "productos_insert" ON productos;
 DROP POLICY IF EXISTS "productos_update" ON productos; DROP POLICY IF EXISTS "productos_delete" ON productos;
 CREATE POLICY "productos_select" ON productos FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "productos_insert" ON productos FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "productos_update" ON productos FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "productos_delete" ON productos FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
--- producto_presentaciones (tiene negocio_id → patrón completo)
+-- producto_presentaciones
 ALTER TABLE producto_presentaciones ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "producto_presentaciones_select" ON producto_presentaciones; DROP POLICY IF EXISTS "producto_presentaciones_insert" ON producto_presentaciones;
 DROP POLICY IF EXISTS "producto_presentaciones_update" ON producto_presentaciones; DROP POLICY IF EXISTS "producto_presentaciones_delete" ON producto_presentaciones;
 CREATE POLICY "producto_presentaciones_select" ON producto_presentaciones FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "producto_presentaciones_insert" ON producto_presentaciones FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "producto_presentaciones_update" ON producto_presentaciones FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "producto_presentaciones_delete" ON producto_presentaciones FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
--- codigos_barras (tiene negocio_id → patrón completo)
+-- codigos_barras
 ALTER TABLE codigos_barras ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "codigos_barras_select" ON codigos_barras; DROP POLICY IF EXISTS "codigos_barras_insert" ON codigos_barras;
 DROP POLICY IF EXISTS "codigos_barras_update" ON codigos_barras; DROP POLICY IF EXISTS "codigos_barras_delete" ON codigos_barras;
 CREATE POLICY "codigos_barras_select" ON codigos_barras FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "codigos_barras_insert" ON codigos_barras FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "codigos_barras_update" ON codigos_barras FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "codigos_barras_delete" ON codigos_barras FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- clientes
 ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "clientes_select" ON clientes; DROP POLICY IF EXISTS "clientes_insert" ON clientes;
 DROP POLICY IF EXISTS "clientes_update" ON clientes; DROP POLICY IF EXISTS "clientes_delete" ON clientes;
 CREATE POLICY "clientes_select" ON clientes FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "clientes_insert" ON clientes FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "clientes_update" ON clientes FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "clientes_delete" ON clientes FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- secuencias_comprobantes
 ALTER TABLE secuencias_comprobantes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "secuencias_comprobantes_select" ON secuencias_comprobantes; DROP POLICY IF EXISTS "secuencias_comprobantes_insert" ON secuencias_comprobantes;
 DROP POLICY IF EXISTS "secuencias_comprobantes_update" ON secuencias_comprobantes; DROP POLICY IF EXISTS "secuencias_comprobantes_delete" ON secuencias_comprobantes;
 CREATE POLICY "secuencias_comprobantes_select" ON secuencias_comprobantes FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "secuencias_comprobantes_insert" ON secuencias_comprobantes FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "secuencias_comprobantes_update" ON secuencias_comprobantes FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "secuencias_comprobantes_delete" ON secuencias_comprobantes FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- ventas
 ALTER TABLE ventas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "ventas_select" ON ventas; DROP POLICY IF EXISTS "ventas_insert" ON ventas;
 DROP POLICY IF EXISTS "ventas_update" ON ventas; DROP POLICY IF EXISTS "ventas_delete" ON ventas;
 CREATE POLICY "ventas_select" ON ventas FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "ventas_insert" ON ventas FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "ventas_update" ON ventas FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "ventas_delete" ON ventas FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
--- kardex_inventario (tiene negocio_id → patrón completo)
+-- kardex_inventario
 ALTER TABLE kardex_inventario ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "kardex_inventario_select" ON kardex_inventario; DROP POLICY IF EXISTS "kardex_inventario_insert" ON kardex_inventario;
 DROP POLICY IF EXISTS "kardex_inventario_update" ON kardex_inventario; DROP POLICY IF EXISTS "kardex_inventario_delete" ON kardex_inventario;
 CREATE POLICY "kardex_inventario_select" ON kardex_inventario FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "kardex_inventario_insert" ON kardex_inventario FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "kardex_inventario_update" ON kardex_inventario FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "kardex_inventario_delete" ON kardex_inventario FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- cuentas_cobrar
 ALTER TABLE cuentas_cobrar ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "cuentas_cobrar_select" ON cuentas_cobrar; DROP POLICY IF EXISTS "cuentas_cobrar_insert" ON cuentas_cobrar;
 DROP POLICY IF EXISTS "cuentas_cobrar_update" ON cuentas_cobrar; DROP POLICY IF EXISTS "cuentas_cobrar_delete" ON cuentas_cobrar;
 CREATE POLICY "cuentas_cobrar_select" ON cuentas_cobrar FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "cuentas_cobrar_insert" ON cuentas_cobrar FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "cuentas_cobrar_update" ON cuentas_cobrar FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "cuentas_cobrar_delete" ON cuentas_cobrar FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 -- notas
 ALTER TABLE notas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "notas_select" ON notas; DROP POLICY IF EXISTS "notas_insert" ON notas;
 DROP POLICY IF EXISTS "notas_update" ON notas; DROP POLICY IF EXISTS "notas_delete" ON notas;
 CREATE POLICY "notas_select" ON notas FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "notas_insert" ON notas FOR INSERT TO authenticated
-    WITH CHECK (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "notas_update" ON notas FOR UPDATE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "notas_delete" ON notas FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id() OR public.get_es_superadmin());
+    USING (negocio_id = public.get_negocio_id());
 
 
 -- =============================================================================
--- GRUPO B — PIVOTS SIN negocio_id (heredan aislamiento via FK al parent)
+-- GRUPO B — PIVOTS SIN negocio_id
+-- El aislamiento lo garantiza el JOIN al parent (que sí tiene RLS con negocio_id).
+-- Postgres evalua la RLS del parent antes de devolver filas del pivot.
 -- =============================================================================
 
 -- ventas_detalles → hereda via ventas.negocio_id

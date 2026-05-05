@@ -23,15 +23,20 @@ export class ConfiguracionService {
      * Usa UPSERT para crear la fila si no existe.
      */
     async update(cambios: Partial<Configuracion>, successMessage = 'Parámetros guardados'): Promise<boolean> {
-        const rows: ConfiguracionRow[] = Object.entries(cambios).map(([clave, valor]) => ({
-            clave: clave as ConfiguracionKey,
+        const { data: { user } } = await this.supabase.client.auth.getUser();
+        const negocioId: string = user?.app_metadata?.['negocio_id'];
+        if (!negocioId) return false;
+
+        const rows = Object.entries(cambios).map(([clave, valor]) => ({
+            negocio_id: negocioId,
+            clave,
             valor: String(valor),
         }));
 
         const result = await this.supabase.call<ConfiguracionRow[]>(
             this.supabase.client
                 .from('configuraciones')
-                .upsert(rows, { onConflict: 'clave' })
+                .upsert(rows, { onConflict: 'negocio_id,clave' })
                 .select('clave, valor'),
             successMessage,
             { showLoading: true }

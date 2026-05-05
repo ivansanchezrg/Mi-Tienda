@@ -36,8 +36,14 @@ export const superadminGuard: CanActivateFn = async () => {
 
   if (!usuario.es_superadmin) {
     logger.warn('superadminGuard', 'Acceso denegado al panel admin → home');
-    return router.createUrlTree(['/home']);
+    return router.createUrlTree(['/caja']);
   }
+
+  // Acceso valido al panel admin: marcar la sesion como validada para que
+  // navegaciones posteriores (ej: /crear-negocio) no re-disparen validarUsuario().
+  // Sin esto, el authGuard detecta yaValidadoEnEstaSesion=false y reboteaba al
+  // superadmin de vuelta a /admin al intentar crear un negocio.
+  auth.markValidatedInSession();
 
   return true;
 };

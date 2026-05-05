@@ -60,6 +60,18 @@
         transform: scale(0.98);
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     }
+
+    &--suspendido {
+        opacity: 0.6;
+        cursor: default;
+        &:active { transform: none; }
+    }
+}
+
+.negocio-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
 .negocio-card-content {

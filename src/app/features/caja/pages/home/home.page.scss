@@ -1,0 +1,291 @@
+// Variables de diseño Flat 2.0
+:host {
+  --bg-soft: var(--ion-background-color, #f8f9fa); // Adaptativo al modo oscuro
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
+
+ion-content {
+  --background: var(--bg-soft);
+}
+
+// Header estético
+ion-toolbar {
+  --background: var(--bg-soft);
+  --border-width: 0;
+  padding: 0 8px;
+
+}
+
+// Notificaciones estilo Facebook
+.notification-btn {
+  --padding-start: 8px;
+  --padding-end: 8px;
+
+  .bell-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    ion-icon {
+      font-size: 24px;
+    }
+
+    .notif-badge {
+      position: absolute;
+      top: -6px;
+      right: -8px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      background: var(--ion-color-danger);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 9px;
+      border: 2px solid var(--bg-soft);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+}
+
+// Hero Section (Balance Total)
+.hero-section {
+  padding: 20px;
+
+  .summary-card {
+    background: var(--ion-item-background, var(--ion-color-step-50, #fff)); // Adaptativo mejorado
+    padding: 30px 20px;
+    border-radius: var(--radius-lg);
+    text-align: center;
+    box-shadow: var(--shadow-soft);
+
+    .label {
+      font-size: 13px;
+      color: var(--ion-color-medium);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .amount {
+      font-size: 38px;
+      font-weight: 800;
+      margin: 8px 0;
+      color: var(--ion-text-color);
+    }
+
+    .sub-label {
+      font-size: 12px;
+      color: var(--ion-color-step-400);
+    }
+  }
+}
+
+// Status Container
+.status-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 6px 0;
+  background: var(--ion-background-color);
+}
+
+// Status Chip
+.flat-chip {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px 6px 16px;
+    background: var(--ion-item-background, var(--ion-color-step-50, #fff));
+    border-radius: 100px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+    border: none;
+    cursor: pointer;
+    gap: 4px;
+
+    &:active {
+      opacity: 0.7;
+      transform: scale(0.97);
+    }
+
+    .chip-chevron {
+      font-size: 14px;
+      color: var(--ion-color-medium);
+      margin-left: 2px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+
+    &.TURNO_EN_CURSO .dot {
+      background: var(--ion-color-success);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    &.CERRADA .dot, &.SIN_ABRIR .dot {
+      background: var(--ion-color-medium);
+    }
+
+    .label {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+  .time {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+    margin-left: 4px;
+  }
+}
+
+// Modern List Items
+.section-title {
+  padding: 0 24px;
+
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .section-subtitle {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+  }
+}
+
+.modern-list {
+  padding: 10px 20px;
+
+  .flat-item {
+    background: var(--ion-item-background, var(--ion-color-step-50, #fff));
+    margin-bottom: 12px;
+    padding: var(--spacing-lg) var(--spacing-xs) var(--spacing-lg) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: flex-start;
+    transition: transform 0.2s;
+    position: relative;
+    overflow: hidden;
+
+    .icon-wrapper {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-right: 16px;
+      align-self: center;
+
+      // Colores con transparencia para respetar el modo oscuro
+      &.primary {
+        background: rgba(var(--ion-color-primary-rgb), 0.12);
+        color: var(--ion-color-primary);
+      }
+
+      &.tertiary {
+        background: rgba(var(--ion-color-tertiary-rgb), 0.12);
+        color: var(--ion-color-tertiary);
+      }
+
+      &.secondary {
+        background: rgba(var(--ion-color-secondary-rgb), 0.12);
+        color: var(--ion-color-secondary);
+      }
+
+      // ESTILO PARA EL BUS (Agregado)
+      &.warning {
+        background: rgba(var(--ion-color-warning-rgb), 0.12);
+        color: var(--ion-color-warning);
+      }
+    }
+
+    .flat-item-body {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      cursor: pointer;
+      min-width: 0;
+    }
+
+    .content {
+      flex: 1;
+
+      .title {
+        display: block;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--ion-text-color);
+      }
+
+      .subtitle {
+        display: block;
+        font-size: 12px;
+        color: var(--ion-color-medium);
+      }
+    }
+
+    app-options-menu {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .amount-group {
+      display: flex;
+      align-items: center;
+      align-self: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding-right: 40px; // reserva el espacio del ⋮ siempre
+
+      .value {
+        font-weight: 700;
+        font-size: 16px;
+        color: var(--ion-text-color);
+      }
+
+      ion-icon {
+        color: var(--ion-color-step-300);
+      }
+
+      .amount-col {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+      }
+
+      .virtual-badge {
+        font-size: 11px;
+        background: var(--ion-color-step-100, #f4f5f8);
+        color: var(--ion-color-medium);
+        padding: 2px 6px;
+        border-radius: var(--radius-xs);
+        font-weight: 600;
+        margin-top: 2px;
+        display: inline-block;
+      }
+    }
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.75); }
+}
+

@@ -40,6 +40,15 @@ ion-content { --background: var(--ion-background-color); }
     color: var(--ion-color-warning-shade);
   }
 
+  &--propietario {
+    align-items: flex-start;
+    background: rgba(var(--ion-color-warning-rgb), 0.09);
+    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.3);
+    color: var(--ion-color-warning-shade);
+
+    ion-icon { margin-top: 2px; }
+  }
+
   &--inactivo {
     align-items: flex-start;
     background: rgba(var(--ion-color-medium-rgb), 0.07);

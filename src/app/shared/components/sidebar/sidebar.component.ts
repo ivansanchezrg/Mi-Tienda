@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, OnDestroy, Output, EventEmitter } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import {
   IonList, IonItem, IonIcon, IonLabel,
   IonMenuToggle, IonButton
@@ -15,7 +15,7 @@ import {
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 import { RolUsuario } from '../../../features/auth/models/usuario_actual.model';
-import { TurnosCajaService } from '../../../features/dashboard/services/turnos-caja.service';
+import { TurnosCajaService } from '../../../features/caja/services/turnos-caja.service';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
 import { addIcons } from 'ionicons';
@@ -28,6 +28,7 @@ interface MenuItem {
   exact?: boolean;
   soloAdmin?: boolean;
   soloPos?: boolean;
+  soloRecargas?: boolean;
 }
 
 interface MenuGroup {
@@ -53,6 +54,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private turnosCajaService = inject(TurnosCajaService);
   private ui            = inject(UiService);
   private configService = inject(ConfigService);
+  private router        = inject(Router);
 
   @Output() accionRapida = new EventEmitter<'nueva-nota' | 'cuadre' | 'calculadora'>();
 
@@ -74,6 +76,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   empleadoRol: RolUsuario = 'EMPLEADO';
   esSuperadmin = false;
   private empleadoId: string | null = null;
+  private negocioActivoId = '';
 
   // Grupos de navegación del sidebar
   private readonly todosLosGrupos: MenuGroup[] = [
@@ -97,8 +100,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
     {
       label: 'Recargas',
       items: [
-        { title: 'Historial de Recargas', url: ROUTES.historialRecargas, icon: listOutline },
-        { title: 'Saldo Virtual', url: ROUTES.recargasVirtuales, icon: swapHorizontalOutline },
+        { title: 'Historial de Recargas', url: ROUTES.historialRecargas, icon: listOutline, soloRecargas: true },
+        { title: 'Saldo Virtual', url: ROUTES.recargasVirtuales, icon: swapHorizontalOutline, soloRecargas: true },
       ]
     },
     {
@@ -114,16 +117,22 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private posSub!: Subscription;
   private usuarioSub!: Subscription;
   private posHabilitado = false;
+  recargasCelularHabilitada = false;
+  recargasBusHabilitada = false;
 
   constructor() {
     addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline, walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline, handRightOutline });
   }
 
   async ngOnInit() {
-    const [usuario, nombreNegocio] = await Promise.all([
+    const [usuario, nombreNegocio, config] = await Promise.all([
       this.authService.getUsuarioActual(),
-      this.configService.getNombreNegocio()
+      this.configService.getNombreNegocio(),
+      this.configService.get()
     ]);
+
+    this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
+    this.recargasBusHabilitada     = config?.recargas_bus_habilitada     ?? false;
 
     this.nombreNegocio = nombreNegocio;
 
@@ -157,12 +166,15 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.usuarioSub?.unsubscribe();
   }
 
-  private aplicarDatosUsuario(usuario: { id?: string; nombre: string; email: string; rol: RolUsuario; es_superadmin?: boolean; negocio_nombre?: string }) {
+  private aplicarDatosUsuario(usuario: { id?: string; nombre: string; email: string; rol: RolUsuario; es_superadmin?: boolean; negocio_id?: string; negocio_nombre?: string }) {
     this.empleadoNombre = usuario.nombre;
     this.empleadoEmail = usuario.email;
     this.empleadoRol = usuario.rol;
     this.esSuperadmin = usuario.es_superadmin ?? false;
     this.empleadoId = usuario.id ?? null;
+    if (usuario.negocio_id) {
+      this.negocioActivoId = usuario.negocio_id;
+    }
     if (usuario.negocio_nombre) {
       this.nombreNegocio = usuario.negocio_nombre;
     }
@@ -173,8 +185,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
       .map(group => ({
         ...group,
         items: group.items.filter(item =>
-          (!item.soloAdmin || this.empleadoRol === 'ADMIN') &&
-          (!item.soloPos   || this.posHabilitado)
+          (!item.soloAdmin    || this.empleadoRol === 'ADMIN') &&
+          (!item.soloPos      || this.posHabilitado) &&
+          (!item.soloRecargas || this.recargasCelularHabilitada || this.recargasBusHabilitada)
         )
       }))
       .filter(group => group.items.length > 0);
@@ -183,7 +196,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   /**
    * Abre el selector de negocios (solo ADMIN, no superadmin).
    * - Seleccionar un negocio → cambiarNegocio()
-   * - Elegir "Nueva sucursal" → abre CrearSucursalModalComponent → crea y cambia automáticamente
+   * - Elegir "Nueva sucursal" → navega a /crear-negocio?context=sucursal (wizard reutilizado del onboarding)
    */
   async abrirSelectorNegocios() {
     if (this.empleadoRol !== 'ADMIN' || this.esSuperadmin) return;
@@ -193,7 +206,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
     const selector = await this.modalCtrl.create({
       component: SelectorNegocioModalComponent,
-      componentProps: { negocioActivoId: this.empleadoId ? await this.getNegocioActivoId() : '' },
+      componentProps: { negocioActivoId: this.negocioActivoId },
       cssClass: 'options-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1
@@ -212,34 +225,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
     }
 
     if (role === 'crear') {
-      await this.abrirCrearSucursal();
-    }
-  }
-
-  private async getNegocioActivoId(): Promise<string> {
-    const usuario = await this.authService.getUsuarioActual();
-    return usuario?.negocio_id ?? '';
-  }
-
-  private async abrirCrearSucursal() {
-    const { CrearSucursalModalComponent } = await import('./crear-sucursal-modal/crear-sucursal-modal.component');
-
-    const modal = await this.modalCtrl.create({
-      component: CrearSucursalModalComponent,
-      cssClass: 'bottom-sheet-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-    await modal.present();
-    const { data, role } = await modal.onDidDismiss();
-
-    if (role === 'confirm' && data) {
-      await this.ui.showLoading(`Cambiando a ${data.negocio_nombre}...`);
-      try {
-        await this.authService.cambiarNegocio(data.negocio_id, data.negocio_nombre);
-      } finally {
-        await this.ui.hideLoading();
-      }
+      this.router.navigate([ROUTES.crearNegocio.root], { queryParams: { context: 'sucursal' } });
     }
   }
 

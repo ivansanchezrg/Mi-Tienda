@@ -150,14 +150,14 @@
 }
 
 // ============================================================================
-// ACCIONES RÁPIDAS — fijas, solo desktop (flex-shrink: 0 como el header)
+// ACCIONES RÁPIDAS — toolbar minimalista, solo desktop
 // ============================================================================
 .quick-actions {
   flex-shrink: 0;
   display: none;
-  padding: var(--spacing-md) var(--spacing-lg);
-  gap: var(--spacing-sm);
-  border-bottom: 1px solid var(--ion-color-step-150);
+  padding: var(--spacing-sm) var(--spacing-md);
+  gap: 2px;
+  border-bottom: 1px solid var(--ion-color-step-100);
 }
 
 @media (min-width: 992px) {
@@ -166,51 +166,41 @@
   }
 }
 
-.qa-item {
+.quick-action-btn {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  flex: 1;
-}
-
-.quick-action-btn {
-  width: 46px;
-  height: 46px;
-  display: flex;
-  align-items: center;
   justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
   border: none;
-  border-radius: 14px;
-  background: var(--ion-color-step-100);
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.10);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ion-color-step-650);
   cursor: pointer;
   outline: none;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
-
-  &.success  ion-icon { color: var(--ion-color-success); }
-  &.secondary ion-icon { color: var(--ion-color-secondary); }
-  &.tertiary  ion-icon { color: var(--ion-color-tertiary); }
-  &.warning   ion-icon { color: var(--ion-color-warning); }
+  transition: background 0.15s ease, color 0.15s ease;
 
   ion-icon {
-    font-size: 24px;
+    font-size: 18px;
     pointer-events: none;
   }
 
-  // Efecto press físico
+  &:hover {
+    background: var(--ion-color-step-100);
+    color: var(--ion-color-primary);
+  }
+
   &:active {
-    transform: translateY(3px);
-    box-shadow: none;
+    background: var(--ion-color-step-150);
   }
 }
 
 .qa-label {
-  font-size: 10px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--ion-color-step-600);
-  text-align: center;
-  line-height: 1.2;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -357,16 +347,34 @@
   }
 }
 
-.btn-panel-admin {
-  --padding-start: 6px;
-  --padding-end: 6px;
-  --border-radius: var(--radius-xs);
-  margin: 0;
-  height: 34px;
+.superadmin-back-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px var(--spacing-lg);
+  background: rgba(var(--ion-color-warning-rgb), 0.10);
+  border: none;
+  border-bottom: 1px solid rgba(var(--ion-color-warning-rgb), 0.20);
+  cursor: pointer;
+  transition: background var(--transition-fast);
 
   ion-icon {
-    font-size: 19px;
-    transition: color var(--transition-fast);
+    font-size: 14px;
+    color: var(--ion-color-warning-shade);
+    flex-shrink: 0;
+  }
+
+  span {
+    font-size: 12px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-warning-shade);
+    letter-spacing: 0.1px;
+  }
+
+  &:active {
+    background: rgba(var(--ion-color-warning-rgb), 0.18);
   }
 }
 

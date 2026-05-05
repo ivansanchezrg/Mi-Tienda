@@ -162,7 +162,7 @@ npx cap run android    # Instala el APK en el dispositivo conectado
 | Módulo             | Documento                                                                            |
 | ------------------ | ------------------------------------------------------------------------------------ |
 | Auth               | [AUTH-README.md](docs/auth/AUTH-README.md)                                           |
-| Dashboard          | [DASHBOARD-README.md](docs/dashboard/DASHBOARD-README.md)                            |
+| Caja               | [DASHBOARD-README.md](docs/caja/DASHBOARD-README.md)                                 |
 | Recargas Virtuales | [RECARGAS-VIRTUALES-README.md](docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md) |
 | Inventario         | [INVENTARIO-README.md](docs/inventario/INVENTARIO-README.md)                         |
 | POS                | [POS-README.md](docs/pos/POS-README.md)                                             |

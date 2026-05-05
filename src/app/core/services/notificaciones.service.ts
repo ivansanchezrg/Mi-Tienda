@@ -28,17 +28,20 @@ export class NotificacionesService {
   async getNotificaciones(): Promise<Notificacion[]> {
     const notifs: Notificacion[] = [];
 
-    // Primera ronda: todo en paralelo
-    const [deudasCelular, saldoBus, config, gananciasPendientes, productosStockBajo] = await Promise.all([
-      this.recargasVirtualesService.obtenerDeudasPendientesCelular(),
-      this.recargasVirtualesService.getSaldoVirtualActual('BUS'),
-      this.configuracionService.get(),
-      this.gananciasService.verificarGananciasPendientes(),
+    const config = await this.configuracionService.get();
+    const celularActivo = config?.recargas_celular_habilitada ?? false;
+    const busActivo     = config?.recargas_bus_habilitada     ?? false;
+
+    // Primera ronda paralela — checks por módulo individual
+    const [deudasCelular, saldoBus, gananciasPendientes, productosStockBajo] = await Promise.all([
+      celularActivo ? this.recargasVirtualesService.obtenerDeudasPendientesCelular() : Promise.resolve([]),
+      busActivo     ? this.recargasVirtualesService.getSaldoVirtualActual('BUS')     : Promise.resolve(Infinity),
+      busActivo     ? this.gananciasService.verificarGananciasPendientes()           : Promise.resolve(null),
       this.inventarioService.obtenerProductosStockBajo()
     ]);
 
-    // Segunda ronda: solo si necesitamos calcular ganancias del mes actual
-    const necesitaGananciaMesActual = !gananciasPendientes && config &&
+    // Segunda ronda: solo si bus activo y necesitamos ganancias del mes actual
+    const necesitaGananciaMesActual = busActivo && !gananciasPendientes && config &&
       (() => {
         const hoy = new Date();
         const dias = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate() - hoy.getDate();
@@ -61,7 +64,7 @@ export class NotificacionesService {
     }
 
     // ── Saldo bajo en BUS ────────────────────────────────────────────────────
-    if (config && saldoBus <= config.bus_alerta_saldo_bajo) {
+    if (busActivo && config && saldoBus !== Infinity && saldoBus <= config.bus_alerta_saldo_bajo) {
       notifs.push({
         tipo: 'SALDO_BAJO_BUS',
         titulo: 'Saldo bajo en BUS',

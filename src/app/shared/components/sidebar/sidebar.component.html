@@ -26,26 +26,28 @@
     }
   </div>
 
+  <!-- BANNER VOLVER AL PANEL — solo superadmin operando dentro de un negocio -->
+  @if (esSuperadmin) {
+    <button class="superadmin-back-banner" (click)="volverAlPanelAdmin()">
+      <ion-icon name="arrow-back-outline"></ion-icon>
+      <span>Volver al panel admin</span>
+    </button>
+  }
+
   <!-- ACCIONES RÁPIDAS — solo desktop -->
   <div class="quick-actions">
-    <div class="qa-item">
-      <button class="quick-action-btn success" (click)="onAccionRapida('calculadora')">
-        <ion-icon name="calculator-outline"></ion-icon>
-      </button>
-      <span class="qa-label">Calc. Margen</span>
-    </div>
-    <div class="qa-item">
-      <button class="quick-action-btn secondary" (click)="onAccionRapida('nueva-nota')">
-        <ion-icon name="create-outline"></ion-icon>
-      </button>
-      <span class="qa-label">Nueva nota</span>
-    </div>
-    <div class="qa-item">
-      <button class="quick-action-btn tertiary" (click)="onAccionRapida('cuadre')">
-        <ion-icon name="scale-outline"></ion-icon>
-      </button>
+    <button type="button" class="quick-action-btn" title="Calculadora de margen" (click)="onAccionRapida('calculadora')">
+      <ion-icon name="calculator-outline"></ion-icon>
+      <span class="qa-label">Margen</span>
+    </button>
+    <button type="button" class="quick-action-btn" title="Nueva nota" (click)="onAccionRapida('nueva-nota')">
+      <ion-icon name="create-outline"></ion-icon>
+      <span class="qa-label">Nota</span>
+    </button>
+    <button type="button" class="quick-action-btn" title="Cuadre de caja" (click)="onAccionRapida('cuadre')">
+      <ion-icon name="scale-outline"></ion-icon>
       <span class="qa-label">Cuadre</span>
-    </div>
+    </button>
   </div>
 
   <!-- BODY — scrolleable -->
@@ -86,12 +88,7 @@
       </div>
     </div>
     <div class="footer-actions">
-      @if (esSuperadmin) {
-        <ion-button fill="clear" color="warning" class="btn-panel-admin" title="Volver al panel admin" (click)="volverAlPanelAdmin()">
-          <ion-icon name="arrow-back-outline" slot="icon-only"></ion-icon>
-        </ion-button>
-      }
-      @if (empleadoRol === 'ADMIN' && !esSuperadmin) {
+      @if (empleadoRol === 'ADMIN') {
         <ion-button fill="clear" color="medium" class="btn-settings" [routerLink]="configuracionRoute" (click)="closeMenu()">
           <ion-icon [icon]="settingsIcon" slot="icon-only"></ion-icon>
         </ion-button>

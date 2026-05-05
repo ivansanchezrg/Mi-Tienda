@@ -34,7 +34,7 @@
 ## ⚠️ Pendiente de decisión tuya
 
 ### Pendiente #1 — `fn_ejecutar_cierre_diario` — código muerto `pos_habilitado`
-**Archivo:** `docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql` línea 182
+**Archivo:** `docs/caja/sql/functions/fn_ejecutar_cierre_diario_v5.sql` línea 182
 
 **Situación:** La función lee `configuraciones WHERE clave = 'pos_habilitado'`, pero esa clave fue eliminada del schema (el POS se habilita/deshabilita por si hay turno abierto, no por configuración). El `COALESCE(..., TRUE)` lo resuelve silenciosamente → **no falla**, funciona como si siempre fuera `TRUE`.
 
@@ -60,7 +60,7 @@
 ---
 
 ### Pendiente #3 — `fn_crear_transferencia` — sin `FOR UPDATE`
-**Archivo:** `docs/dashboard/sql/functions/fn_crear_transferencia.sql`
+**Archivo:** `docs/caja/sql/functions/fn_crear_transferencia.sql`
 
 **Situación:** Lee los saldos de las cajas sin `FOR UPDATE`. Todas las demás funciones que modifican saldos usan `FOR UPDATE` para evitar race conditions.
 
