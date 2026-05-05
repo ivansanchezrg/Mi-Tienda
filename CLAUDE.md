@@ -60,8 +60,7 @@ Funciones SQL involucradas: `fn_completar_onboarding` (3 cajas + Varios opcional
 | `usuarios`          | ✅ Completo (solo Equipo — gestión de empleados del negocio activo) |
 | `inventario`        | ✅ Completo                                  |
 | `pos`               | ✅ Completo (descuentos, idempotencia, escáner) |
-| `cuentas-cobrar`    | ✅ Completo                                  |
-| `clientes`          | ✅ Completo                                  |
+| `clientes`          | ✅ Completo (listado + créditos/fiados unificados)           |
 | `configuracion`     | ✅ Completo (parámetros negocio, categorías)  |
 | `movimientos-empleados` | 🚧 Frontend nuevo (cuenta corriente empleados, nomina). No requiere turno abierto. |
 | ~~`reportes`~~      | ❌ Eliminado (2026-03-26) — el resumen diario se integró como panel colapsable en `ventas` |
@@ -964,8 +963,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Inventario          | `docs/inventario/INVENTARIO-README.md`                     |
 | POS                 | `docs/pos/POS-README.md`                                   |
 | Ventas              | `docs/ventas/VENTAS-README.md`                             |
-| Cuentas por Cobrar  | `docs/cuentas-cobrar/CUENTAS-COBRAR-README.md`             |
-| Clientes            | `docs/clientes/CLIENTES-README.md`                         |
+| Clientes y Créditos | `docs/clientes/CLIENTES-README.md`                         |
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
 | Sistema de diseño   | `docs/DESIGN.md`                                           |
 | Shared              | `docs/shared/SHARED-README.md`                             |

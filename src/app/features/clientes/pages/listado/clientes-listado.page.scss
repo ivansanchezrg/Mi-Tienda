@@ -1,8 +1,8 @@
 .list-container {
-    padding: var(--spacing-md) var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-md);
 }
 
-// ── Lista de clientes ──────────────────────────
+// ── Lista ───────────────────────────────────────
 .client-list {
     background: transparent;
     padding: 0;
@@ -22,14 +22,14 @@
     h3 {
         font-size: 15px;
         font-weight: 600;
-        margin: 0 0 2px 0;
+        margin: 0 0 3px 0;
         color: var(--ion-text-color);
     }
 
     .client-meta {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
+        gap: 10px;
         margin: 0;
     }
 
@@ -40,22 +40,13 @@
         font-size: 12px;
         color: var(--ion-color-medium);
 
-        ion-icon {
-            font-size: 13px;
-            flex-shrink: 0;
-        }
+        ion-icon { font-size: 12px; flex-shrink: 0; }
     }
 
-    .no-info {
-        font-size: 12px;
+    .deuda-meta {
+        font-size: 11px;
         color: var(--ion-color-medium);
-        margin: 0;
-        font-style: italic;
-    }
-
-    .edit-icon {
-        font-size: 18px;
-        opacity: 0.5;
+        margin: 2px 0 0 0;
     }
 }
 
@@ -64,20 +55,59 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    background: rgba(var(--ion-color-medium-rgb), 0.12);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     margin-right: 10px;
+    transition: background 0.2s ease;
 
-    ion-icon {
-        font-size: 20px;
-        color: var(--ion-color-primary);
+    .avatar-text {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--ion-color-medium);
+        text-transform: uppercase;
+    }
+
+    // Avatar en color primario cuando el cliente tiene deuda
+    &.tiene-deuda {
+        background: rgba(var(--ion-color-primary-rgb), 0.12);
+
+        .avatar-text { color: var(--ion-color-primary); }
     }
 }
 
-// ── Scroll to top FAB ───────────────────────────
+// ── Extremo derecho ──────────────────────────────
+.client-end {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+
+    .deuda-badge {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--ion-color-danger);
+        letter-spacing: -0.3px;
+    }
+
+    .chevron-icon {
+        font-size: 16px;
+        color: var(--ion-color-medium);
+        opacity: 0.4;
+    }
+}
+
+// ── Skeleton end ─────────────────────────────────
+.end-skeleton {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 4px;
+}
+
+// ── FAB ──────────────────────────────────────────
 .scroll-top-fab {
-    margin-bottom: env(safe-area-inset-bottom);
+    margin-bottom: 0;
 }

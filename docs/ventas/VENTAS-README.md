@@ -145,7 +145,7 @@ Aplana los JOINs anidados de Supabase:
 
 ## Modal de detalle (`venta-detalle-modal/`)
 
-Componente reutilizable — se usa desde `VentasListadoPage` y `DetalleClientePage` (cuentas-cobrar).
+Componente reutilizable — se usa desde `VentasListadoPage` y `DetalleClientePage` (clientes/detalle).
 
 ### Secciones del comprobante
 

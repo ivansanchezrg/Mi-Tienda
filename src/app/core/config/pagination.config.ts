@@ -21,12 +21,6 @@ export const PAGINATION_CONFIG = {
     pageSize: 25
   },
   /**
-   * Cuentas por cobrar (fiados)
-   */
-  cuentasCobrar: {
-    pageSize: 20
-  },
-  /**
    * Clientes
    */
   clientes: {

@@ -96,8 +96,7 @@ features/
 ├── pos/                       # Punto de venta (scanner + carrito)
 ├── ventas/                    # Historial de ventas
 ├── inventario/                # Productos, kardex, categorías
-├── cuentas-cobrar/            # Cuentas por cobrar (fiados)
-├── clientes/                  # Gestión de clientes (listado, creación, edición, selección)
+├── clientes/                  # Clientes + créditos/fiados (listado, detalle, pagos, compartir)
 ├── recargas-virtuales/        # Saldo celular/bus, liquidaciones
 ├── historial-recargas/        # Historial de recargas (página standalone)
 ├── usuarios/                  # CRUD de empleados (solo ADMIN)
@@ -193,35 +192,25 @@ inventario/
     └── inventario.service.ts
 ```
 
-#### cuentas-cobrar/
-```
-cuentas-cobrar/
-├── cuentas-cobrar.routes.ts
-├── models/
-│   └── cuenta-cobrar.model.ts
-├── pages/
-│   ├── main/                        # Lista clientes con deuda (paginado)
-│   └── detalle-cliente/             # Detalle de deuda + abonos
-├── components/
-│   └── pago-fiado-modal/            # Modal para registrar abono
-└── services/
-    ├── cuentas-cobrar.service.ts
-    └── share-estado-cuenta.service.ts  # Generar/compartir comprobantes
-```
-
 #### clientes/
 ```
 clientes/
-├── clientes.routes.ts                  # Ruta: '' → listado
+├── clientes.routes.ts                  # Rutas: '' | 'creditos' | ':clienteId'
 ├── models/
-│   └── cliente.model.ts
+│   ├── cliente.model.ts
+│   └── cuenta-cobrar.model.ts          # Interfaces de créditos y pagos
 ├── pages/
-│   └── listado/                        # Lista paginada con búsqueda
+│   ├── listado/                        # Lista paginada de todos los clientes
+│   ├── cuentas-cobrar/                 # Lista clientes con deuda (paginado)
+│   └── detalle/                        # Detalle de cuenta + abonos por cliente
 ├── components/
 │   ├── seleccionar-cliente-modal/      # Modal selector/creación (usado por POS y listado)
-│   └── editar-cliente-modal/           # Modal edición de cliente
+│   ├── editar-cliente-modal/           # Modal edición de cliente
+│   └── pago-fiado-modal/              # Modal para registrar abono
 └── services/
-    └── clientes.service.ts             # CRUD completo + listado paginado
+    ├── clientes.service.ts             # CRUD completo + listado paginado
+    ├── cuentas-cobrar.service.ts       # Queries de deuda + registro de pagos
+    └── share-estado-cuenta.service.ts  # Generar/compartir comprobantes
 ```
 
 #### recargas-virtuales/

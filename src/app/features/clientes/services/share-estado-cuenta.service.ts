@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
-import { Cliente } from '../../clientes/models/cliente.model';
+import { Cliente } from '../models/cliente.model';
 import { VentaFiada, VentaFiadaItem } from '../models/cuenta-cobrar.model';
 import { CurrencyService } from '../../../core/services/currency.service';
 import { ConfigService } from '../../../core/services/config.service';

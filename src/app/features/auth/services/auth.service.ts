@@ -248,12 +248,12 @@ export class AuthService {
       const yaActivo = negocios.find(n => n.negocio_id === cached.negocio_id);
       if (yaActivo) {
         this.logger.info('AuthService', `Sesión previa detectada: ${yaActivo.negocio_nombre}. Re-activando directo.`);
-        await this.activarNegocio(yaActivo);
+        await this.activarNegocio(yaActivo, false);
         return true;
       }
       if (this.usuarioBase?.es_superadmin) {
         this.logger.info('AuthService', `Superadmin con negocio cacheado sin membresía: ${cached.negocio_nombre}. Re-activando directo.`);
-        await this.activarNegocio({ negocio_id: cached.negocio_id, negocio_nombre: cached.negocio_nombre, rol: 'ADMIN' });
+        await this.activarNegocio({ negocio_id: cached.negocio_id, negocio_nombre: cached.negocio_nombre, rol: 'ADMIN' }, false);
         return true;
       }
     }
@@ -319,7 +319,7 @@ export class AuthService {
    *
    * Llamado por: validarUsuario() (1 negocio) y SelectorNegocioPage (N negocios).
    */
-  async activarNegocio(negocio: NegocioDisponible): Promise<void> {
+  async activarNegocio(negocio: NegocioDisponible, navegarAlInicio = true): Promise<void> {
     // Recuperar usuarioBase si se perdió (recarga de página)
     if (!this.usuarioBase) {
       const user = await this.getUser();
@@ -389,7 +389,9 @@ export class AuthService {
     this.usuarioBase = null;
 
     this.logger.info('AuthService', `Negocio activado: ${negocio.negocio_nombre} (${negocio.rol})`);
-    this.router.navigate([ROUTES.home], { replaceUrl: true });
+    if (navegarAlInicio) {
+      this.router.navigate([ROUTES.home], { replaceUrl: true });
+    }
   }
 
   // ==========================================

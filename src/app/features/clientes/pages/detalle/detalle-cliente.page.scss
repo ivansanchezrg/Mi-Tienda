@@ -23,73 +23,45 @@ ion-toolbar {
 .cliente-header-card {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    padding: var(--spacing-xl) var(--spacing-lg);
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
     background: var(--ion-item-background);
     margin: var(--spacing-md);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-level-2);
     border: 1px solid var(--ion-color-step-50);
+}
 
-    .cliente-header-row {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 100%;
-        gap: var(--spacing-sm);
-        margin-bottom: var(--spacing-xl);
-    }
-
-    .cliente-avatar-sm {
-        width: 64px;
-        height: 64px;
-        border-radius: var(--radius-sm);
-        background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        margin-bottom: var(--spacing-xs);
-
-        ion-icon {
-            font-size: 32px;
-            color: var(--ion-color-primary);
-        }
-    }
-
-    .cliente-header-info {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-        flex: 1;
-        width: 100%;
-    }
+.cliente-identidad {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 2px;
 
     .cliente-nombre {
-        font-size: 20px;
+        font-size: 19px;
         font-weight: var(--font-weight-extrabold);
         color: var(--ion-text-color);
-        margin: 0 0 var(--spacing-xs) 0;
-        letter-spacing: -0.5px;
+        margin: 0;
+        letter-spacing: -0.3px;
     }
 
-    .cliente-meta {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: var(--spacing-md);
-    }
-
-    .cliente-info {
+    .cliente-cedula {
         font-size: 13px;
-        font-weight: var(--font-weight-medium);
         color: var(--ion-color-medium);
+        margin: 0;
+    }
+
+    .cliente-telefono {
         display: inline-flex;
         align-items: center;
-        gap: var(--spacing-xs);
+        gap: 4px;
+        font-size: 13px;
+        color: var(--ion-color-medium);
+        margin: 0;
 
-        ion-icon { font-size: 14px; }
+        ion-icon { font-size: 13px; }
     }
 }
 

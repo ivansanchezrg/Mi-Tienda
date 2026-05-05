@@ -10,20 +10,22 @@ import {
     IonSearchbar, IonSkeletonText,
     IonInfiniteScroll, IonInfiniteScrollContent,
     IonFab, IonFabButton, IonButton,
-    ModalController
+    ModalController, NavController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-    personOutline, callOutline, mailOutline,
-    cardOutline, arrowUpOutline, createOutline,
-    searchOutline, closeOutline, personAddOutline
+    personOutline, callOutline, cardOutline,
+    arrowUpOutline, personAddOutline, chevronForwardOutline
 } from 'ionicons/icons';
-import { ClientesService } from '../../services/clientes.service';
+import { CuentasCobrarService } from '../../services/cuentas-cobrar.service';
+import { ClienteConSaldo } from '../../models/cuenta-cobrar.model';
+import { CurrencyService } from '../../../../core/services/currency.service';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
-import { Cliente } from '../../models/cliente.model';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { EditarClienteModalComponent } from '../../components/editar-cliente-modal/editar-cliente-modal.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { ROUTES } from '../../../../core/config/routes.config';
+import { formatFechaEC } from '../../../../core/utils/date.util';
 
 @Component({
     selector: 'app-clientes-listado',
@@ -42,12 +44,14 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
         EmptyStateComponent
     ]
 })
-export class ClientesListadoPage extends PaginatedListPage<Cliente> implements OnInit, OnDestroy {
+export class ClientesListadoPage extends PaginatedListPage<ClienteConSaldo> implements OnInit, OnDestroy {
 
-    private clientesService = inject(ClientesService);
+    private cuentasService = inject(CuentasCobrarService);
+    public currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
+    private navCtrl = inject(NavController);
 
-    get clientes(): Cliente[] { return this.items; }
+    get clientes(): ClienteConSaldo[] { return this.items; }
 
     protected readonly pageSize = PAGINATION_CONFIG.clientes.pageSize;
     readonly loadingMoreText = 'Cargando más clientes...';
@@ -59,9 +63,8 @@ export class ClientesListadoPage extends PaginatedListPage<Cliente> implements O
     constructor() {
         super();
         addIcons({
-            personOutline, callOutline, mailOutline,
-            cardOutline, arrowUpOutline, createOutline,
-            searchOutline, closeOutline, personAddOutline
+            personOutline, callOutline, cardOutline,
+            arrowUpOutline, personAddOutline, chevronForwardOutline
         });
     }
 
@@ -76,8 +79,8 @@ export class ClientesListadoPage extends PaginatedListPage<Cliente> implements O
         this.searchSub?.unsubscribe();
     }
 
-    protected async fetchPage(page: number): Promise<Cliente[]> {
-        return this.clientesService.listarClientes(page, this.busqueda || undefined);
+    protected async fetchPage(page: number): Promise<ClienteConSaldo[]> {
+        return this.cuentasService.listarClientesConSaldo(page, this.busqueda || undefined);
     }
 
     onBusquedaChange(event: CustomEvent) {
@@ -85,9 +88,8 @@ export class ClientesListadoPage extends PaginatedListPage<Cliente> implements O
         this.search$.next(this.busqueda);
     }
 
-    limpiarBusqueda() {
-        this.busqueda = '';
-        this.cargar();
+    verCliente(cliente: ClienteConSaldo) {
+        this.navCtrl.navigateForward(ROUTES.clientes.detalle(cliente.cliente_id));
     }
 
     async abrirNuevoCliente() {
@@ -102,19 +104,12 @@ export class ClientesListadoPage extends PaginatedListPage<Cliente> implements O
         }
     }
 
-    async editarCliente(cliente: Cliente) {
-        const modal = await this.modalCtrl.create({
-            component: EditarClienteModalComponent,
-            componentProps: { cliente }
-        });
-        await modal.present();
-        const { data } = await modal.onDidDismiss();
-        if (data?.cliente) {
-            const idx = this.items.findIndex(c => c.id === data.cliente.id);
-            if (idx >= 0) {
-                this.items[idx] = data.cliente;
-                this.items = [...this.items];
-            }
-        }
+    iniciales(nombre: string): string {
+        if (!nombre?.trim()) return '?';
+        return nombre.trim().split(' ').slice(0, 2).map(p => p.charAt(0).toUpperCase()).join('');
+    }
+
+    formatFecha(iso: string): string {
+        return formatFechaEC(iso);
     }
 }
