@@ -18,7 +18,7 @@ export const roleGuard = (rolesPermitidos: RolUsuario[]): CanActivateFn => async
   const usuario = await auth.getUsuarioActual();
 
   if (!usuario || !rolesPermitidos.includes(usuario.rol)) {
-    return router.createUrlTree(['/home']);
+    return router.createUrlTree(['/caja']);
   }
 
   return true;

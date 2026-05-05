@@ -30,6 +30,8 @@ docs/configuracion/
 └── sql/
     ├── setup/
     │   └── realtime_configuraciones.sql  # Habilitar Realtime + politica RLS (ejecutar 1 vez)
+    ├── functions/
+    │   └── fn_activar_caja_varios.sql    # Activa la caja VARIOS (solo admin)
     └── triggers/
         ├── trg_set_codigo_categoria_gasto.sql
         └── trg_set_codigo_categoria_operacion.sql
@@ -49,6 +51,7 @@ Prefijo por modulo seguido de guion bajo:
 |---------|--------|---------|
 | `negocio_` | General | `negocio_nombre` |
 | `caja_` | Dashboard/Cajas | `caja_fondo_fijo_diario` |
+| `recargas_` | Modulos opt-in (superadmin) | `recargas_celular_habilitada` |
 | `bus_` | Recargas Bus | `bus_alerta_saldo_bajo` |
 | `pos_` | POS | `pos_descuentos_habilitados` |
 | `nomina_` | Movimientos Empleados | `nomina_sueldo_base` |
@@ -58,16 +61,25 @@ Prefijo por modulo seguido de guion bajo:
 | Clave | Tipo | Default | Descripcion |
 |-------|------|---------|-------------|
 | `negocio_nombre` | string | `'Mi Tienda'` | Nombre del negocio (header tickets, estado de cuenta) |
-| `caja_fondo_fijo_diario` | number | `20` | Fondo fijo que inicia cada turno de caja ($) |
-| `caja_varios_transferencia_dia` | number | `20` | Transferencia diaria a caja VARIOS ($) |
-| `bus_alerta_saldo_bajo` | number | `75` | Umbral de alerta saldo bajo bus ($) |
+| `negocio_telefono` | string | `''` | Telefono del negocio (opcional, para comprobantes) |
+| `negocio_direccion` | string | `''` | Direccion del negocio (opcional, para comprobantes) |
+| `caja_fondo_fijo_diario` | number | `0` | Fondo fijo que inicia cada turno de caja ($) |
+| `caja_varios_activa` | boolean | `false` | Si la caja VARIOS esta activa para este negocio. Una vez `true` no se puede revertir. |
+| `caja_varios_transferencia_dia` | number | `0` | Transferencia diaria a caja VARIOS ($) — solo aplica si `caja_varios_activa = true` |
+| `recargas_celular_habilitada` | boolean | `false` | Habilita el modulo de recargas CELULAR (crea CAJA_CELULAR + categorias). Solo lo activa el superadmin. |
+| `recargas_bus_habilitada` | boolean | `false` | Habilita el modulo de recargas BUS (crea CAJA_BUS + categorias). Solo lo activa el superadmin. |
+| `bus_alerta_saldo_bajo` | number | `10` | Umbral de alerta saldo bajo bus ($) |
 | `bus_dias_antes_facturacion` | number | `3` | Dias antes de facturacion para notificar |
 | `pos_descuentos_habilitados` | boolean | `false` | Activa/desactiva descuentos automaticos POS |
-| `pos_descuento_maximo_pct` | number | `10` | Porcentaje de descuento a aplicar (%) |
-| `pos_umbral_monto_descuento` | number | `50` | Monto minimo del subtotal para aplicar descuento ($) |
+| `pos_descuento_maximo_pct` | number | `0` | Porcentaje de descuento a aplicar (%) |
+| `pos_umbral_monto_descuento` | number | `0` | Monto minimo del subtotal para aplicar descuento ($) |
 | `pos_iva_porcentaje` | number | `15` | Tarifa IVA vigente en %. Usado en POS/Factura para extraer base gravada |
+| `nomina_sueldo_base` | number | `0` | Sueldo base mensual de empleados (precarga al pagar nomina) |
+| `nomina_dia_pago` | number | `1` | Dia del mes en que se realiza el pago de nomina |
 
 > **Nota (2026-04-11):** `pos_habilitado` fue **eliminado** de la tabla. El estado del POS ahora se deriva automaticamente de si hay un turno de caja abierto (`turnos_caja.hora_fecha_cierre IS NULL`) via `TurnosCajaService.cajaAbierta$`. Single Source of Truth — elimina la duplicacion entre `configuraciones` y `turnos_caja`.
+
+> **Nota (2026-05-01):** `recargas_celular_habilitada` y `recargas_bus_habilitada` reemplazan al flag unificado anterior. Cada modulo es independiente — el superadmin elige cual activar por negocio desde Parametros → Modulos.
 
 ---
 
@@ -139,20 +151,26 @@ Lista de opciones agrupadas en secciones:
 
 ### Parametros del Negocio (`pages/parametros/`)
 
-Formulario reactivo (`FormGroup`) agrupado en secciones visuales. Cada seccion tiene su propio boton "Guardar" que aparece **solo cuando hay cambios pendientes** en esa seccion (comparacion por snapshot con `valueChanges`).
+Formulario reactivo (`FormGroup`) agrupado en secciones visuales. Cada seccion (excepto Modulos) tiene su propio boton "Guardar" que aparece **solo cuando hay cambios pendientes** en esa seccion (comparacion por snapshot con `valueChanges`).
 
-| Seccion | Icono | Campos |
-|---------|-------|--------|
-| Negocio | `storefront-outline` | Nombre del negocio |
-| Caja | `wallet-outline` | Fondo fijo diario, Transferencia diaria VARIOS |
-| Bus | `bus-outline` | Alerta saldo bajo, Dias antes facturacion |
-| POS | `cart-outline` | Descuentos, Porcentaje, Monto minimo, IVA |
+| Seccion | Icono | Campos | Visibilidad |
+|---------|-------|--------|-------------|
+| Negocio | `storefront-outline` | Nombre, Telefono, Direccion | Todos |
+| Caja | `wallet-outline` | Fondo fijo diario, Transferencia diaria a Varios | Todos |
+| Modulos | `apps-outline` | Toggles: Recargas Celular, Recargas Bus | **Solo superadmin** |
+| Bus | `bus-outline` | Alerta saldo bajo, Dias antes facturacion | Solo si `recargas_bus_habilitada` |
+| POS | `cart-outline` | Descuentos, Porcentaje, Monto minimo, IVA | Todos |
+| Nomina | `people-outline` | Sueldo base, Dia de pago | Todos |
 
-**Comportamiento condicional de la seccion POS**:
-- `pos_descuentos_habilitados = OFF` → oculta los campos de porcentaje y monto minimo.
-- El campo IVA siempre es visible.
+**Banner "Caja Varios no activada"** (solo admin):
+Aparece dentro de la seccion Caja cuando `caja_varios_activa = false`. Es un banner amarillo con boton "Activar" que llama a `fn_activar_caja_varios`. Una vez activada, la caja Varios aparece en el dashboard y **no se puede desactivar**. El hint informa esta restriccion antes de actuar.
 
-**Flujo de guardado por seccion**:
+**Comportamiento condicional de secciones**:
+- POS: `pos_descuentos_habilitados = OFF` → oculta los campos de porcentaje y monto minimo. El campo IVA siempre es visible.
+- Modulos: el toggle de cada recarga llama directamente a `fn_habilitar_recargas` (sin boton Guardar). La funcion crea CAJA_CELULAR/CAJA_BUS y sus categorias solo del modulo activado, y actualiza ambos flags.
+- Bus: la seccion entera depende de `recargas_bus_habilitada`. Si esta OFF, no aparece.
+
+**Flujo de guardado por seccion** (Negocio, Caja, Bus, POS, Nomina):
 1. Detecta cambios con `valueChanges` comparando snapshot guardado vs valor actual
 2. Aparece boton "Guardar" solo si hay diferencias en esa seccion
 3. Valida solo los campos de esa seccion (markAsTouched)
@@ -234,4 +252,14 @@ El POS implementa `ion-refresher` para que el empleado recargue la configuracion
 La tabla sigue publicada en Realtime para propagar cambios entre dispositivos.
 Setup ejecutado una sola vez: [`sql/setup/realtime_configuraciones.sql`](./sql/setup/realtime_configuraciones.sql)
 
-**`DisabledTabComponent`** (`shared/components/disabled-tab/`): componente reutilizable para tabs deshabilitadas por estado del sistema (ej: POS sin caja abierta). Recibe `[icon]` (objeto ionicon, NO string — evita tree-shaking en Android), `label` y `disabledMessage` opcional. Muestra el icono con un badge candado en la esquina superior derecha. Al hacer click muestra un toast explicativo en lugar de navegar.
+---
+
+## Funciones SQL relacionadas
+
+| Funcion | Donde vive | Quien puede ejecutarla | Que hace |
+|---------|-----------|------------------------|----------|
+| `fn_completar_onboarding` | `docs/onboarding/sql/functions/` | Cualquier authenticated (con email propio) o superadmin | Crea negocio + 3 cajas base (CAJA, CAJA_CHICA, VARIOS opcional) + categorias + configuraciones iniciales en una sola transaccion. |
+| `fn_activar_caja_varios` | `docs/configuracion/sql/functions/` | ADMIN del negocio activo | Crea la caja VARIOS si no existe y marca `caja_varios_activa = true`. Idempotente (`ON CONFLICT DO NOTHING`). |
+| `fn_habilitar_recargas` | `docs/onboarding/sql/functions/` | Superadmin | Habilita/deshabilita los modulos CELULAR y BUS por separado. Crea CAJA_CELULAR/CAJA_BUS y sus categorias solo del modulo recien activado. |
+
+> Los flags `recargas_celular_habilitada`, `recargas_bus_habilitada` y `caja_varios_activa` se leen via `ConfigService.get()` desde el dashboard, sidebar, paginas de recargas e historial para ocultar UI y saltear queries de modulos inactivos.

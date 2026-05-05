@@ -92,7 +92,7 @@ Cada feature es **autocontenido**: tiene sus propias páginas, servicios, modelo
 features/
 ├── layout/                    # Navegación principal (tabs + sidebar)
 ├── auth/                      # Login, OAuth callback
-├── dashboard/                 # Home, operaciones de caja, cierre, cuadre
+├── caja/                      # Home, operaciones de caja, cierre, cuadre
 ├── pos/                       # Punto de venta (scanner + carrito)
 ├── ventas/                    # Historial de ventas
 ├── inventario/                # Productos, kardex, categorías
@@ -120,17 +120,17 @@ auth/
     └── auth.service.ts
 ```
 
-#### dashboard/ (feature más complejo)
+#### caja/ (feature más complejo)
 ```
-dashboard/
-├── dashboard.routes.ts
+caja/
+├── caja.routes.ts
 ├── models/
 │   ├── categoria-operacion.model.ts
 │   ├── operacion-caja.model.ts
 │   ├── saldos-anteriores.model.ts
 │   └── turno-caja.model.ts
 ├── pages/
-│   ├── home/                        # Dashboard principal
+│   ├── home/                        # Caja principal
 │   ├── cierre-diario/               # Wizard cierre 2 pasos
 │   ├── cuadre-caja/                 # Cuadre y verificación
 │   └── operaciones-caja/            # Movimientos por caja (filtros, scroll infinito)

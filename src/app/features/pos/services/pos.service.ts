@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
-import { TurnosCajaService } from '../../dashboard/services/turnos-caja.service';
+import { TurnosCajaService } from '../../caja/services/turnos-caja.service';
 import { CartItem } from '../models/cart-item.model';
 
 export interface VentaPayload {

@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { TurnosCajaService } from '../../features/dashboard/services/turnos-caja.service';
+import { TurnosCajaService } from '../../features/caja/services/turnos-caja.service';
 import { UiService } from '../services/ui.service';
 
 /**
@@ -35,5 +35,5 @@ export const cajaAbiertaGuard: CanActivateFn = async () => {
   if (turnoAsync) return true;
 
   await ui.showToast('Abri la caja desde Inicio para usar el POS', 'warning');
-  return router.createUrlTree(['/home']);
+  return router.createUrlTree(['/caja']);
 };

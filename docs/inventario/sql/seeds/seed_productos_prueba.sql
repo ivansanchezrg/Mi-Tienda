@@ -55,7 +55,7 @@ BEGIN
     v_cat_snack  := COALESCE(v_cat_snack, v_cat_bebida);
 
     IF v_cat_bebida IS NULL THEN
-        RAISE EXCEPTION 'No hay categorias de productos para el negocio %. Ejecutar fn_crear_negocio primero.', v_negocio_id;
+        RAISE EXCEPTION 'No hay categorias de productos para el negocio %. Ejecutar fn_completar_onboarding primero.', v_negocio_id;
     END IF;
 
 

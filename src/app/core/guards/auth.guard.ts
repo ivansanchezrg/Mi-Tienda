@@ -5,7 +5,7 @@ import { AuthService } from '../../features/auth/services/auth.service';
 import { UiService } from '../services/ui.service';
 import { LoggerService } from '../services/logger.service';
 
-export const authGuard: CanActivateFn = async () => {
+export const authGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
   const ui = inject(UiService);
@@ -44,7 +44,7 @@ export const authGuard: CanActivateFn = async () => {
     }
 
     // Superadmin sin negocio activo no debe navegar por la app de negocio.
-    // Si llega aquí directamente (ej: escribe /home en la URL), mandarlo al panel admin.
+    // Si llega aquí directamente (ej: escribe /caja en la URL), mandarlo al panel admin.
     const usuario = await auth.getUsuarioActual();
 
     // Preferences vacío con sesión activa → reconstruir estado via validarUsuario()
@@ -54,9 +54,16 @@ export const authGuard: CanActivateFn = async () => {
       return false; // validarUsuario() ya navegó al destino correcto
     }
 
+    // Superadmin sin negocio activo: solo puede navegar /admin y /crear-negocio.
+    // Si intenta entrar a la app del negocio (/caja, /ventas, etc.) lo mandamos al panel admin.
+    // /crear-negocio es legitimo para el superadmin (crea sucursales para terceros desde /admin).
     if (usuario.es_superadmin && !usuario.negocio_id) {
-      logger.warn('authGuard', 'Superadmin sin negocio activo → panel admin');
-      return router.createUrlTree(['/admin']);
+      const url = state.url;
+      const rutasPermitidas = url.startsWith('/admin') || url.startsWith('/crear-negocio');
+      if (!rutasPermitidas) {
+        logger.info('authGuard', `Superadmin sin negocio activo intento ir a ${url} -> panel admin`);
+        return router.createUrlTree(['/admin']);
+      }
     }
 
     return true;

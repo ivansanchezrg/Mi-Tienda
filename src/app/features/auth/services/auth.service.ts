@@ -34,14 +34,20 @@ export class AuthService {
   private readonly USUARIO_KEY = 'usuario_actual';
 
   /**
-   * Canal de Realtime del usuario actual.
-   * Abierto tras activarNegocio() exitoso, cerrado en handleExpiredSession()
-   * via el hook registerBeforeCleanup. Solo debe existir un canal activo a la vez.
+   * Canal de Realtime del usuario actual (tabla `usuarios`).
+   * Detecta suspensión global (activo=false) y eliminación del usuario.
+   * Abierto tras activarNegocio() exitoso, cerrado en cerrarRealtimeCanales().
    */
   private canalUsuario: RealtimeChannel | null = null;
-
-  /** ID (UUID) del usuario cuyo canal está actualmente abierto. */
   private canalUsuarioId: string | null = null;
+
+  /**
+   * Canal de Realtime de la membresía activa (tabla `usuario_negocios`).
+   * Detecta cuando un ADMIN desactiva la membresía del usuario en el negocio actual.
+   * Se abre junto con canalUsuario y se cierra en el mismo cleanup.
+   */
+  private canalMembresia: RealtimeChannel | null = null;
+  private canalMembresiaKey: string | null = null;
 
   /**
    * Lista de negocios disponibles para el usuario tras login exitoso.
@@ -91,6 +97,16 @@ export class AuthService {
   }
 
   /**
+   * Marca explicitamente la sesion actual como ya validada.
+   * Usado por superadminGuard cuando detecta acceso valido al panel admin
+   * (ej: F5 en /admin con UsuarioActual cacheado), para que el authGuard de
+   * navegaciones posteriores (/crear-negocio, etc.) no re-dispare validarUsuario().
+   */
+  markValidatedInSession(): void {
+    this.validadoEnEstaSesion = true;
+  }
+
+  /**
    * Verifica si hay sesión guardada localmente (sin llamada de red).
    * Útil para el guard cuando no hay internet.
    */
@@ -126,7 +142,7 @@ export class AuthService {
    *
    * Flujo v11 (multi-tenant):
    *  1. No existe → auto-registro (solo email + nombre) → /auth/pending
-   *  2. Existe, 0 negocios activos → /auth/crear-negocio
+   *  2. Existe, 0 negocios activos → /onboarding/negocio
    *  3. Existe, 1 negocio  → activarNegocio() directamente → /home
    *  4. Existe, N negocios → guardar lista → /auth/seleccionar-negocio
    */
@@ -140,7 +156,7 @@ export class AuthService {
 
     const { data, error } = await this.supabase.client
       .from('usuarios')
-      .select('id, nombre, email, es_superadmin')
+      .select('id, nombre, email, es_superadmin, activo')
       .eq('email', user.email)
       .maybeSingle();
 
@@ -148,6 +164,13 @@ export class AuthService {
       this.logger.error('AuthService', 'Error al consultar usuario en BD', error);
       await this.ui.showError('Error al verificar tu cuenta. Intentá de nuevo.');
       await this.forceLogout();
+      return false;
+    }
+
+    // Usuario suspendido globalmente (activo = false) — excepto superadmin
+    if (data && data.activo === false && !data.es_superadmin) {
+      this.logger.warn('AuthService', 'Usuario suspendido — redirigiendo a pending');
+      this.router.navigate([ROUTES.auth.pending], { replaceUrl: true, queryParams: { motivo: 'usuario' } });
       return false;
     }
 
@@ -170,7 +193,7 @@ export class AuthService {
         return false;
       }
 
-      this.router.navigate([ROUTES.auth.crearNegocio], { replaceUrl: true });
+      this.router.navigate([ROUTES.onboarding.negocio], { replaceUrl: true });
       return false;
     }
 
@@ -181,6 +204,13 @@ export class AuthService {
       email: data.email,
       es_superadmin: data.es_superadmin ?? false
     };
+
+    // Iniciar Realtime del usuario tan pronto como se confirma su identidad.
+    // Cubre pantallas intermedias (selector, onboarding) antes de activar un negocio.
+    // Es idempotente — si activarNegocio() lo vuelve a llamar con el mismo id, no abre segundo canal.
+    if (!data.es_superadmin) {
+      this.iniciarRealtimeUsuario(data.id);
+    }
 
     // Obtener membresías activas del usuario
     // Obtener TODAS las membresías (activas e inactivas) para distinguir
@@ -201,9 +231,9 @@ export class AuthService {
     const negocios: NegocioDisponible[] = todasMembresias
       .filter((m: any) => m.activo)
       .map((m: any) => ({
-        negocio_id: m.negocio_id,
+        negocio_id:     m.negocio_id,
         negocio_nombre: m.negocio?.nombre ?? 'Sin nombre',
-        rol: m.rol as 'ADMIN' | 'EMPLEADO'
+        rol:            m.rol as 'ADMIN' | 'EMPLEADO'
       }));
 
     // Recarga de página / app resume: si hay un UsuarioActual guardado en
@@ -212,10 +242,18 @@ export class AuthService {
     // limpió en handleExpiredSession) → siempre pasa por el flujo normal.
     const cached = await this.getUsuarioActual();
     if (cached?.negocio_id) {
+      // Para superadmin: puede tener negocio cacheado sin tener membresía en usuario_negocios.
+      // En ese caso yaActivo sería undefined aunque el negocio sea válido.
+      // Re-activar directo usando el cache si el negocio existe en la lista O si es superadmin.
       const yaActivo = negocios.find(n => n.negocio_id === cached.negocio_id);
       if (yaActivo) {
         this.logger.info('AuthService', `Sesión previa detectada: ${yaActivo.negocio_nombre}. Re-activando directo.`);
         await this.activarNegocio(yaActivo);
+        return true;
+      }
+      if (this.usuarioBase?.es_superadmin) {
+        this.logger.info('AuthService', `Superadmin con negocio cacheado sin membresía: ${cached.negocio_nombre}. Re-activando directo.`);
+        await this.activarNegocio({ negocio_id: cached.negocio_id, negocio_nombre: cached.negocio_nombre, rol: 'ADMIN' });
         return true;
       }
     }
@@ -249,17 +287,17 @@ export class AuthService {
       if (todasMembresias.length > 0) {
         // Tiene membresías pero todas inactivas → fue desactivado manualmente o transferido
         this.logger.info('AuthService', 'Usuario con membresías todas inactivas → /auth/pending');
-        this.router.navigate([ROUTES.auth.pending], { replaceUrl: true });
+        this.router.navigate([ROUTES.auth.pending], { replaceUrl: true, queryParams: { motivo: 'membresia' } });
       } else {
         // Nunca tuvo membresías → usuario nuevo sin negocio asignado
         this.logger.info('AuthService', 'Usuario sin negocios — redirigiendo a crear-negocio');
-        this.router.navigate([ROUTES.auth.crearNegocio], { replaceUrl: true });
+        this.router.navigate([ROUTES.onboarding.negocio], { replaceUrl: true });
       }
       return false;
     }
 
     if (negocios.length === 1) {
-      this.logger.info('AuthService', `1 negocio encontrado. Activando: ${negocios[0].negocio_id}`);
+      this.logger.info('AuthService', `1 negocio. Activando: ${negocios[0].negocio_id}`);
       await this.activarNegocio(negocios[0]);
       return true;
     }
@@ -314,7 +352,12 @@ export class AuthService {
 
     if (rpcError) {
       this.logger.error('AuthService', 'Error en fn_set_negocio_activo', rpcError);
-      await this.ui.showError('Error al activar el negocio. Intentá de nuevo.');
+      const msg = (rpcError.message ?? '').toLowerCase();
+      if (msg.includes('suspendido y no puede acceder')) {
+        await this.ui.showError('Tu cuenta está suspendida. Contactá al administrador.');
+      } else {
+        await this.ui.showError('Error al activar el negocio. Intentá de nuevo.');
+      }
       return;
     }
 
@@ -340,6 +383,7 @@ export class AuthService {
 
     await this.saveUsuarioActual(usuarioCompleto);
     this.iniciarRealtimeUsuario(this.usuarioBase.id);
+    this.iniciarRealtimeMembresia(this.usuarioBase.id, negocio.negocio_id);
     this.validadoEnEstaSesion = true;
     this.negociosDisponibles = [];
     this.usuarioBase = null;
@@ -429,35 +473,109 @@ export class AuthService {
   }
 
   /**
-   * Cierra el canal de Realtime del usuario actual (si existe).
-   * Se llama automáticamente via registerBeforeCleanup en handleExpiredSession().
+   * Abre un canal de Realtime que escucha cambios en la membresía activa del
+   * usuario en el negocio actual (tabla `usuario_negocios`).
+   *
+   * - UPDATE activo=false → handleUsuarioDesactivado() con motivo 'membresia'
+   *   (el ADMIN desactivó al usuario en este negocio)
+   *
+   * Es idempotente: si ya existe un canal para la misma clave usuario+negocio, no abre uno nuevo.
+   * Requiere que usuario_negocios esté publicado en supabase_realtime con REPLICA IDENTITY FULL.
    */
-  async cerrarRealtimeUsuario(): Promise<void> {
-    if (!this.canalUsuario) return;
+  iniciarRealtimeMembresia(usuarioId: string, negocioId: string): void {
+    const key = `${usuarioId}-${negocioId}`;
+    if (this.canalMembresia && this.canalMembresiaKey === key) return;
+    if (this.canalMembresia) this.cerrarCanalMembresia();
+
     try {
-      await this.supabase.client.removeChannel(this.canalUsuario);
-      this.logger.info('AuthService', 'Realtime usuario cerrado');
+      const canal = this.supabase.client
+        .channel(`membresia-activa-${key}`)
+        .on(
+          'postgres_changes' as any,
+          {
+            event:  'UPDATE',
+            schema: 'public',
+            table:  'usuario_negocios',
+            filter: `usuario_id=eq.${usuarioId}`
+          },
+          (payload: any) => {
+            this.zone.run(async () => {
+              const nuevo = payload.new as { negocio_id?: string; activo?: boolean } | null;
+              if (!nuevo) return;
+              // Solo reaccionar al negocio activo del usuario — ignorar otras membresías
+              if (nuevo.negocio_id !== negocioId) return;
+              if (nuevo.activo === false) {
+                this.logger.warn('AuthService', 'Membresía del usuario desactivada en tiempo real');
+                await this.handleUsuarioDesactivado('membresia');
+              }
+            });
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            this.logger.info('AuthService', 'Realtime membresía suscrito');
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            this.logger.error('AuthService', `Realtime membresía falló: ${status}`);
+          }
+        });
+
+      this.canalMembresia    = canal;
+      this.canalMembresiaKey = key;
     } catch (err) {
-      this.logger.error('AuthService', 'Error al cerrar canal Realtime', err);
+      this.logger.error('AuthService', 'Error al iniciar Realtime de membresía', err);
+      this.canalMembresia    = null;
+      this.canalMembresiaKey = null;
+    }
+  }
+
+  private async cerrarCanalMembresia(): Promise<void> {
+    if (!this.canalMembresia) return;
+    try {
+      await this.supabase.client.removeChannel(this.canalMembresia);
+      this.logger.info('AuthService', 'Realtime membresía cerrado');
+    } catch (err) {
+      this.logger.error('AuthService', 'Error al cerrar canal Realtime membresía', err);
     } finally {
-      this.canalUsuario = null;
-      this.canalUsuarioId = null;
-      this.validadoEnEstaSesion = false;
-      this._usuarioActual$.next(null);
+      this.canalMembresia    = null;
+      this.canalMembresiaKey = null;
     }
   }
 
   /**
-   * Maneja desactivación via Realtime (UPDATE activo=false).
-   * NO cierra la sesión OAuth — el usuario puede tocar "Reintentar" si lo reactivan.
+   * Cierra ambos canales de Realtime (usuario + membresía).
+   * Se llama automáticamente via registerBeforeCleanup en handleExpiredSession().
    */
-  private async handleUsuarioDesactivado(): Promise<void> {
-    this.logger.warn('AuthService', 'Procesando desactivación de usuario');
+  async cerrarRealtimeUsuario(): Promise<void> {
+    await Promise.all([
+      this.canalUsuario   ? this.supabase.client.removeChannel(this.canalUsuario).catch(() => {})   : Promise.resolve(),
+      this.canalMembresia ? this.supabase.client.removeChannel(this.canalMembresia).catch(() => {}) : Promise.resolve()
+    ]);
+    this.canalUsuario      = null;
+    this.canalUsuarioId    = null;
+    this.canalMembresia    = null;
+    this.canalMembresiaKey = null;
+    this.validadoEnEstaSesion = false;
+    this._usuarioActual$.next(null);
+    this.logger.info('AuthService', 'Canales Realtime cerrados');
+  }
+
+  /**
+   * Maneja desactivación via Realtime.
+   * NO cierra la sesión OAuth — el usuario puede tocar "Reintentar" si lo reactivan.
+   *
+   * @param motivo 'usuario' = suspensión global (usuarios.activo=false)
+   *               'membresia' = removido del negocio (usuario_negocios.activo=false)
+   */
+  private async handleUsuarioDesactivado(motivo: 'usuario' | 'membresia' = 'usuario'): Promise<void> {
+    this.logger.warn('AuthService', `Procesando desactivación: motivo=${motivo}`);
     this.validadoEnEstaSesion = false;
     await this.cerrarRealtimeUsuario();
     await Preferences.remove({ key: this.USUARIO_KEY }).catch(() => {});
-    await this.ui.showToast('Tu cuenta fue desactivada por un administrador', 'warning');
-    this.router.navigate([ROUTES.auth.pending], { replaceUrl: true });
+    const msg = motivo === 'membresia'
+      ? 'Tu acceso a este negocio fue removido por el administrador.'
+      : 'Tu cuenta fue suspendida por el administrador.';
+    await this.ui.showToast(msg, 'warning');
+    this.router.navigate([ROUTES.auth.pending], { replaceUrl: true, queryParams: { motivo } });
   }
 
   /** Cierra sesión sin mostrar loading (uso interno) */
@@ -527,7 +645,12 @@ export class AuthService {
     await this.saveUsuarioActual(actualizado);
     this.validadoEnEstaSesion = true;
     this.logger.info('AuthService', `Negocio cambiado a: ${negocioNombre} (${rolEfectivo})`);
-    this.router.navigate([ROUTES.home], { replaceUrl: true });
+
+    // Hard reload — patron "mini logout interno" (estandar SaaS multi-tenant: Linear, Notion, Slack).
+    // El JWT y UsuarioActual ya estan persistidos. Recargar garantiza cero estado del negocio
+    // anterior en memoria: BehaviorSubjects, caches de servicios, canales Realtime, paginas de
+    // IonicRouteStrategy. Imposible que sobreviva contexto del tenant anterior.
+    window.location.href = ROUTES.home;
   }
 
   /**

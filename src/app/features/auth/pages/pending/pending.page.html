@@ -3,20 +3,19 @@
     <div class="auth-card">
 
       <div class="pending-icon-wrap">
-        <ion-icon name="time-outline"></ion-icon>
+        <ion-icon [name]="icono"></ion-icon>
       </div>
 
-      <h1>Cuenta desactivada</h1>
-      <p class="pending-message">
-        Tu acceso fue desactivado por el administrador.<br>
-        Contactalo para que te reactive.
-      </p>
+      <h1>{{ titulo }}</h1>
+      <p class="pending-message">{{ mensaje }}</p>
 
       <div class="pending-actions">
-        <ion-button expand="block" (click)="reintentar()" [disabled]="verificando">
-          <ion-icon slot="start" name="refresh-outline"></ion-icon>
-          {{ verificando ? 'Verificando...' : 'Verificar estado' }}
-        </ion-button>
+        @if (motivo !== 'membresia') {
+          <ion-button expand="block" (click)="reintentar()" [disabled]="verificando">
+            <ion-icon slot="start" name="refresh-outline"></ion-icon>
+            {{ verificando ? 'Verificando...' : 'Verificar estado' }}
+          </ion-button>
+        }
 
         <ion-button expand="block" fill="clear" color="medium" (click)="cerrarSesion()">
           <ion-icon slot="start" name="log-out-outline"></ion-icon>

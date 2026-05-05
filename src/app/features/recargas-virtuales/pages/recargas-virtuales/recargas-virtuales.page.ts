@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
@@ -14,6 +14,7 @@ import {
   listOutline, chevronBackOutline, trendingUpOutline, lockClosedOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { ConfigService } from '@core/services/config.service';
 import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
 import { GananciasService } from '@core/services/ganancias.service';
 import { RegistrarRecargaModalComponent } from '../../components/registrar-recarga-modal/registrar-recarga-modal.component';
@@ -35,15 +36,18 @@ type TabActivo = 'CELULAR' | 'BUS';
     IonRefresher, IonRefresherContent, IonSkeletonText
   ]
 })
-export class RecargasVirtualesPage implements OnInit {
+export class RecargasVirtualesPage {
   private route = inject(ActivatedRoute);
   private ui = inject(UiService);
+  private configService = inject(ConfigService);
   private service = inject(RecargasVirtualesService);
   private gananciasService = inject(GananciasService);
   private modalCtrl = inject(ModalController);
 
   tabActivo: TabActivo = 'CELULAR';
   loading = true;
+  recargasCelularHabilitada = false;
+  recargasBusHabilitada = false;
 
   // CELULAR
   saldoVirtualCelular = 0;
@@ -68,22 +72,28 @@ export class RecargasVirtualesPage implements OnInit {
     });
   }
 
-  ngOnInit() {
-    this.route.queryParams.subscribe(params => {
-      if (params['tab']) {
-        this.tabActivo = params['tab'] as TabActivo;
-      }
-    });
-  }
-
-  ionViewWillEnter() {
+  async ionViewWillEnter() {
     this.ui.hideTabs();
+    const config = await this.configService.get();
+    this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
+    this.recargasBusHabilitada     = config?.recargas_bus_habilitada ?? false;
+
+    if (!this.recargasCelularHabilitada && this.recargasBusHabilitada) {
+      this.tabActivo = 'BUS';
+    } else {
+      this.tabActivo = 'CELULAR';
+    }
+
+    const params = this.route.snapshot.queryParams;
+    if (params['tab']) {
+      this.tabActivo = params['tab'] as TabActivo;
+    }
+
     this.cargarDatos();
   }
 
   ionViewWillLeave() {
     this.ui.showTabs();
-    this.tabActivo = 'CELULAR';
   }
 
   async cargarDatos(isRefresh = false) {
@@ -91,18 +101,21 @@ export class RecargasVirtualesPage implements OnInit {
       this.loading = true;
     }
     try {
+      const loadCelular = this.recargasCelularHabilitada;
+      const loadBus     = this.recargasBusHabilitada;
+
       const [saldoCelular, saldoBus, deudas, gananciasPendientes, gananciaMesActual] = await Promise.all([
-        this.service.getSaldoVirtualActual('CELULAR'),
-        this.service.getSaldoVirtualActual('BUS'),
-        this.service.obtenerDeudasPendientesCelular(),
-        this.gananciasService.verificarGananciasPendientes(),
-        this.gananciasService.calcularGananciaBusMesActual()
+        loadCelular ? this.service.getSaldoVirtualActual('CELULAR')        : Promise.resolve(0),
+        loadBus     ? this.service.getSaldoVirtualActual('BUS')            : Promise.resolve(0),
+        loadCelular ? this.service.obtenerDeudasPendientesCelular()        : Promise.resolve([]),
+        loadBus     ? this.gananciasService.verificarGananciasPendientes() : Promise.resolve(null),
+        loadBus     ? this.gananciasService.calcularGananciaBusMesActual() : Promise.resolve(0),
       ]);
-      this.saldoVirtualCelular = saldoCelular;
-      this.saldoVirtualBus = saldoBus;
-      this.deudasPendientes = deudas;
+      this.saldoVirtualCelular    = saldoCelular;
+      this.saldoVirtualBus        = saldoBus;
+      this.deudasPendientes       = deudas;
       this.gananciaBusMesAnterior = gananciasPendientes?.gananciaBus ?? 0;
-      this.gananciaBusMesActual = gananciaMesActual;
+      this.gananciaBusMesActual   = gananciaMesActual;
     } catch {
       await this.ui.showError('Error al cargar los datos');
     } finally {

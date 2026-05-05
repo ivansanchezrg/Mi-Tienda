@@ -1,0 +1,166 @@
+================================================================================
+ORDEN DE EJECUCION EN SUPABASE — Mi Tienda
+================================================================================
+
+Fecha: 2026-05-02
+Proposito: Reset completo de la base de datos en dev. Ejecutar en este orden
+exacto desde el SQL Editor de Supabase. Cada bloque depende de los anteriores.
+
+NOTAS GENERALES:
+  - El paso 1 (teardown) es DESTRUCTIVO. Solo en dev / staging.
+  - Despues de cada bloque conviene refrescar el cache de PostgREST
+    ("Database > API" en Supabase). Las funciones ya emiten NOTIFY pgrst,
+    'reload schema' al final, pero un refresh manual no esta de mas.
+  - Si algun script falla a medias, revisar el error, corregir y re-ejecutar.
+    Todos los scripts son idempotentes (DROP IF EXISTS + CREATE OR REPLACE).
+
+================================================================================
+1. TEARDOWN (solo dev — destruye todo)
+================================================================================
+
+  docs/setup/01_teardown.sql
+
+================================================================================
+2. SCHEMA + DATOS GLOBALES
+================================================================================
+
+  docs/setup/schema.sql
+
+  Contiene:
+    - Todas las tablas + ENUMs + indices + triggers inline
+    - Vistas con security_barrier
+    - Helpers JWT (get_negocio_id, get_email, get_rol, get_es_superadmin,
+      comparten_negocio)
+    - Seeds globales (tipos_servicio, tipos_referencia)
+    - Funcion fn_set_negocio_activo (la unica funcion de setup que vive
+      directo en schema.sql; el resto vive en 03_functions.sql)
+    - FK diferida: negocios.propietario_usuario_id -> usuarios.id
+
+================================================================================
+3. ROW LEVEL SECURITY (fuente unica de verdad)
+================================================================================
+
+  docs/setup/02_rls.sql
+
+  Cubre todas las tablas en un solo archivo:
+    - Identidad: usuarios, usuario_negocios, negocios
+    - Tablas con negocio_id: cajas, configuraciones, turnos_caja, ventas, etc.
+    - Pivots sin negocio_id: ventas_detalles, producto_atributos, etc.
+    - Catalogos globales (solo lectura): tipos_servicio, tipos_referencia
+
+================================================================================
+4. FUNCIONES DE SETUP (compartidas globalmente)
+================================================================================
+
+  docs/setup/03_functions.sql
+
+  Incluye fn_set_negocio_activo (con bloqueo a negocios suspendidos para
+  todos excepto superadmin) y otras funciones de uso global.
+
+================================================================================
+5. FUNCIONES DEL FLUJO DE CREACION DE NEGOCIOS / TENANCY
+================================================================================
+
+  Orden importante (la primera depende de las tablas, las siguientes pueden ir
+  en cualquier orden entre si):
+
+  docs/onboarding/sql/functions/fn_completar_onboarding.sql
+  docs/onboarding/sql/functions/fn_habilitar_recargas.sql
+  docs/configuracion/sql/functions/fn_activar_caja_varios.sql
+  docs/admin/sql/functions/fn_suspender_negocio.sql
+
+================================================================================
+6. FUNCIONES DE MODULOS (orden libre — solo dependen de schema + RLS)
+================================================================================
+
+  Dashboard:
+    docs/dashboard/sql/functions/fn_abrir_turno.sql
+    docs/dashboard/sql/functions/fn_registrar_operacion_manual.sql
+    docs/dashboard/sql/functions/fn_crear_transferencia.sql
+    docs/dashboard/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql
+    docs/dashboard/sql/functions/fn_ejecutar_cierre_diario_v5.sql
+    docs/dashboard/sql/functions/fn_reparar_deficit_turno.sql
+    docs/dashboard/sql/functions/fn_cierre_emergencia_turno.sql
+
+  Inventario:
+    docs/inventario/sql/functions/fn_generar_codigo_interno.sql
+    docs/inventario/sql/functions/fn_generar_codigo_interno_presentacion.sql
+    docs/inventario/sql/functions/fn_crear_producto_simple.sql
+    docs/inventario/sql/functions/fn_crear_producto_con_variantes.sql
+    docs/inventario/sql/functions/fn_ajustar_stock_inventario.sql
+
+  POS:
+    docs/pos/sql/functions/fn_registrar_venta_pos.sql
+    docs/pos/sql/functions/fn_anular_venta.sql
+
+  Recargas Virtuales:
+    docs/recargas-virtuales/sql/functions/fn_registrar_recarga_proveedor_celular.sql
+    docs/recargas-virtuales/sql/functions/fn_registrar_pago_proveedor_celular.sql
+    docs/recargas-virtuales/sql/functions/fn_registrar_compra_saldo_bus.sql
+    docs/recargas-virtuales/sql/functions/fn_liquidar_ganancias_bus.sql
+
+  Cuentas por Cobrar:
+    docs/cuentas-cobrar/sql/functions/fn_registrar_pago_fiado.sql
+    docs/cuentas-cobrar/sql/functions/fn_listar_cuentas_cobrar.sql
+    docs/cuentas-cobrar/sql/functions/fn_resumir_cuentas_cobrar.sql
+
+  Ventas:
+    docs/ventas/sql/functions/fn_listar_ventas.sql
+    docs/ventas/sql/functions/fn_resumir_ventas.sql
+    docs/ventas/sql/functions/fn_reporte_ventas_periodo.sql
+    docs/ventas/sql/functions/fn_anular_venta.sql
+
+  Movimientos Empleados:
+    docs/movimientos-empleados/sql/functions/fn_registrar_adelanto_sueldo.sql
+    docs/movimientos-empleados/sql/functions/fn_pagar_nomina_empleado.sql
+
+  Notas:
+    docs/notas/sql/functions/fn_eliminar_nota.sql
+
+================================================================================
+7. TRIGGERS DE NEGOCIO (los inline ya estan en schema.sql; aqui los externos)
+================================================================================
+
+  docs/configuracion/sql/triggers/trg_set_codigo_categoria_gasto.sql
+  docs/configuracion/sql/triggers/trg_set_codigo_categoria_operacion.sql
+  docs/pos/sql/triggers/trg_actualizar_caja_por_venta.sql
+
+  docs/auth/sql/setup/trigger_proteger_superadmin.sql
+    (incluye politica RLS DELETE que blinda al superadmin)
+
+================================================================================
+8. REALTIME (publicar tablas para websocket)
+================================================================================
+
+  docs/auth/sql/setup/realtime_usuarios.sql
+  docs/configuracion/sql/setup/realtime_configuraciones.sql
+  docs/dashboard/sql/setup/realtime_turnos_caja.sql
+
+  IMPORTANTE: cada vez que se re-ejecuta schema.sql, los DROP TABLE CASCADE
+  borran las publicaciones Realtime y hay que volver a correr estos archivos.
+  Sintoma si se olvidan: cambios en BD no se propagan en tiempo real;
+  hay que navegar/refrescar para verlos.
+
+================================================================================
+9. SEEDS DE DESARROLLO (opcional, solo en dev)
+================================================================================
+
+  docs/inventario/sql/seeds/seed_productos_prueba.sql
+    (requiere que ya exista al menos un negocio creado via
+     fn_completar_onboarding)
+
+================================================================================
+DESPUES DE TODOS LOS PASOS
+================================================================================
+
+  - Refrescar PostgREST en Supabase (Database > API > Reload schema cache)
+  - Recargar la app en el browser / reiniciar la app movil para que los
+    canales Realtime se conecten a las nuevas publicaciones.
+  - Verificar policies con:
+
+      SELECT tablename, policyname, cmd
+      FROM pg_policies
+      WHERE schemaname = 'public'
+      ORDER BY tablename, cmd;
+
+================================================================================

@@ -1,8 +1,9 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnDestroy, inject } from '@angular/core';
 import { IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { listOutline, barChartOutline } from 'ionicons/icons';
 import { Router, NavigationEnd } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
 @Component({
@@ -12,19 +13,23 @@ import { filter } from 'rxjs/operators';
     standalone: true,
     imports: [IonIcon]
 })
-export class VentasTabsComponent {
+export class VentasTabsComponent implements OnDestroy {
     private router = inject(Router);
+    private routerSub!: Subscription;
 
     activeTab: 'lista' | 'resumen' = 'lista';
 
     constructor() {
         addIcons({ listOutline, barChartOutline });
 
-        // Detectar tab activa según la ruta actual
         this.syncTab(this.router.url);
-        this.router.events
+        this.routerSub = this.router.events
             .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
             .subscribe(e => this.syncTab(e.urlAfterRedirects));
+    }
+
+    ngOnDestroy() {
+        this.routerSub?.unsubscribe();
     }
 
     navigateTo(tab: 'lista' | 'resumen') {

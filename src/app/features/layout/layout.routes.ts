@@ -9,8 +9,8 @@ export const LAYOUT_ROUTES: Routes = [
     component: MainLayoutPage,
     children: [
       {
-        path: 'home',
-        loadChildren: () => import('../dashboard/dashboard.routes').then(m => m.DASHBOARD_ROUTES)
+        path: 'caja',
+        loadChildren: () => import('../caja/caja.routes').then(m => m.CAJA_ROUTES)
       },
       {
         path: 'usuarios',
@@ -62,7 +62,7 @@ export const LAYOUT_ROUTES: Routes = [
       },
       {
         path: '',
-        redirectTo: 'home',
+        redirectTo: 'caja',
         pathMatch: 'full'
       }
     ]

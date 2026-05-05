@@ -155,6 +155,33 @@ y no podrá reactivarlo — debe hacerse desde Tienda Este.
 
 ---
 
+## Kick en tiempo real al desactivar membresía
+
+Cuando un ADMIN desactiva la membresía de un usuario (`activo = false` en `usuario_negocios`),
+si ese usuario está conectado en ese momento **es expulsado automáticamente** sin necesidad de
+que recargue o navegue.
+
+### Cómo funciona
+
+`AuthService` abre un canal Realtime (`membresia-activa-{usuarioId}-{negocioId}`) al activar
+el negocio. Escucha `UPDATE` en `usuario_negocios` filtrado por `usuario_id`.
+
+Cuando `fn_actualizar_membresia` setea `activo = false`:
+1. Supabase emite el evento al canal del usuario afectado
+2. `AuthService.handleUsuarioDesactivado('membresia')` limpia la sesión local
+3. Toast: *"Tu acceso a este negocio fue removido por el administrador."*
+4. Redirige a `/auth/pending?motivo=membresia`
+
+### Requisitos de BD
+
+La tabla `usuario_negocios` debe estar publicada en Realtime con `REPLICA IDENTITY FULL`.
+Ver: `docs/usuarios/sql/setup/realtime_usuario_negocios.sql`
+
+> `REPLICA IDENTITY FULL` es obligatorio — sin él los eventos UPDATE no incluyen `usuario_id`
+> ni `negocio_id` y el filtro del canal nunca hace match.
+
+---
+
 ## Funciones SQL del módulo
 
 | Función | Archivo | Qué hace |

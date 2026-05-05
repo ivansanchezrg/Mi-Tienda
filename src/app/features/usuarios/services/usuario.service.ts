@@ -9,6 +9,7 @@ export class UsuarioService {
   /**
    * Lista todos los usuarios activos del negocio actual, con su rol en ese negocio.
    * JOIN: usuarios ⟵ usuario_negocios (filtrado por negocio_id del JWT via RLS).
+   * Marca al propietario del negocio con `es_propietario = true`.
    */
   async getAll(): Promise<Usuario[]> {
     // Filtro explícito por negocio_id necesario: la RLS de usuario_negocios tiene
@@ -18,28 +19,39 @@ export class UsuarioService {
     const negocioId = user?.app_metadata?.['negocio_id'] as string | undefined;
     if (!negocioId) return [];
 
-    const { data, error } = await this.supabase.client
-      .from('usuario_negocios')
-      .select(`
-        id,
-        rol,
-        activo,
-        usuario:usuarios!inner(id, nombre, email, es_superadmin, created_at)
-      `)
-      .eq('negocio_id', negocioId)
-      .order('activo', { ascending: false });
+    // Cargo membresias y datos del negocio (para resolver el propietario) en paralelo
+    const [membresiaRes, negocioRes] = await Promise.all([
+      this.supabase.client
+        .from('usuario_negocios')
+        .select(`
+          id,
+          rol,
+          activo,
+          usuario:usuarios!inner(id, nombre, email, es_superadmin, created_at)
+        `)
+        .eq('negocio_id', negocioId)
+        .order('activo', { ascending: false }),
+      this.supabase.client
+        .from('negocios')
+        .select('propietario_usuario_id')
+        .eq('id', negocioId)
+        .maybeSingle()
+    ]);
 
-    if (error) return [];
+    if (membresiaRes.error) return [];
 
-    return (data ?? []).map((row: any) => ({
-      membresia_id: row.id,
-      rol: row.rol,
-      activo: row.activo,
-      id: row.usuario.id,
-      nombre: row.usuario.nombre,
-      email: row.usuario.email,
-      es_superadmin: row.usuario.es_superadmin ?? false,
-      created_at: row.usuario.created_at
+    const propietarioId = (negocioRes.data as any)?.propietario_usuario_id as string | undefined;
+
+    return (membresiaRes.data ?? []).map((row: any) => ({
+      membresia_id:   row.id,
+      rol:            row.rol,
+      activo:         row.activo,
+      id:             row.usuario.id,
+      nombre:         row.usuario.nombre,
+      email:          row.usuario.email,
+      es_superadmin:  row.usuario.es_superadmin ?? false,
+      created_at:     row.usuario.created_at,
+      es_propietario: row.usuario.id === propietarioId
     }));
   }
 
@@ -65,26 +77,32 @@ export class UsuarioService {
    *
    * Si el email ya existe en `usuarios` (fue auto-registrado en otro negocio),
    * solo crea la membresía faltante.
+   *
+   * Lanza un Error con el mensaje original del backend si falla. La UI captura y traduce.
    */
-  async create(dto: CreateUsuarioDto): Promise<Usuario | null> {
+  async create(dto: CreateUsuarioDto): Promise<Usuario> {
     const { data, error } = await this.supabase.client.rpc('fn_registrar_usuario_negocio', {
       p_nombre: dto.nombre,
       p_email:  dto.email,
       p_rol:    dto.rol
     });
 
-    if (error || !data) return null;
+    if (error) throw new Error(error.message);
+    if (!data)   throw new Error('No se recibieron datos del servidor.');
 
     const r = data as any;
     return {
-      membresia_id:  r.membresia_id,
-      id:            r.usuario_id,
-      nombre:        r.nombre,
-      email:         r.email,
-      es_superadmin: r.es_superadmin ?? false,
-      created_at:    r.created_at,
-      rol:           dto.rol,
-      activo:        true
+      membresia_id:   r.membresia_id,
+      id:             r.usuario_id,
+      nombre:         r.nombre,
+      email:          r.email,
+      es_superadmin:  r.es_superadmin ?? false,
+      created_at:     r.created_at,
+      rol:            dto.rol,
+      activo:         true,
+      // Un usuario recien creado nunca es propietario del negocio (el propietario
+      // se setea al crear el negocio en fn_completar_onboarding y no cambia).
+      es_propietario: false
     };
   }
 
@@ -138,29 +156,40 @@ export class UsuarioService {
       }
     }
 
-    // Releer el registro actualizado para devolvérselo al modal
-    const { data, error: readError } = await this.supabase.client
-      .from('usuario_negocios')
-      .select(`
-        id,
-        rol,
-        activo,
-        usuario:usuarios!inner(id, nombre, email, es_superadmin, created_at)
-      `)
-      .eq('id', membresiaId)
-      .single();
+    // Releer el registro actualizado + propietario del negocio
+    const { data: { user } } = await this.supabase.client.auth.getUser();
+    const negocioId = user?.app_metadata?.['negocio_id'] as string | undefined;
 
-    if (readError || !data) return null;
+    const [readMembRes, readNegocioRes] = await Promise.all([
+      this.supabase.client
+        .from('usuario_negocios')
+        .select(`
+          id,
+          rol,
+          activo,
+          usuario:usuarios!inner(id, nombre, email, es_superadmin, created_at)
+        `)
+        .eq('id', membresiaId)
+        .single(),
+      negocioId
+        ? this.supabase.client.from('negocios').select('propietario_usuario_id').eq('id', negocioId).maybeSingle()
+        : Promise.resolve({ data: null })
+    ]);
+
+    if (readMembRes.error || !readMembRes.data) return null;
+    const data = readMembRes.data;
+    const propietarioId = (readNegocioRes.data as any)?.propietario_usuario_id as string | undefined;
 
     return {
-      membresia_id: data.id,
-      rol: data.rol,
-      activo: data.activo,
-      id: (data as any).usuario.id,
-      nombre: (data as any).usuario.nombre,
-      email: (data as any).usuario.email,
-      es_superadmin: (data as any).usuario.es_superadmin ?? false,
-      created_at: (data as any).usuario.created_at
+      membresia_id:   data.id,
+      rol:            data.rol,
+      activo:         data.activo,
+      id:             (data as any).usuario.id,
+      nombre:         (data as any).usuario.nombre,
+      email:          (data as any).usuario.email,
+      es_superadmin:  (data as any).usuario.es_superadmin ?? false,
+      created_at:     (data as any).usuario.created_at,
+      es_propietario: (data as any).usuario.id === propietarioId
     };
   }
 }

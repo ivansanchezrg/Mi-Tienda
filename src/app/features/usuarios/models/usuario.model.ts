@@ -21,6 +21,13 @@ export interface Usuario extends UsuarioBase {
   membresia_id: string;   // UUID de la fila en usuario_negocios
   rol: RolUsuario;        // rol en este negocio
   activo: boolean;        // activo en este negocio
+  /**
+   * TRUE si este usuario es el propietario (dueño) del negocio activo.
+   * Calculado contra `negocios.propietario_usuario_id`.
+   * El propietario tiene protecciones extra: no se le puede cambiar rol,
+   * desactivar ni eliminar (validado por trigger SQL).
+   */
+  es_propietario: boolean;
 }
 
 /**

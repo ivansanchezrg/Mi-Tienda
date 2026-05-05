@@ -2,7 +2,31 @@
 
 Feature independiente para la gestión de saldo virtual de CELULAR y BUS. Permite registrar recargas del proveedor, pagar deudas, comprar saldo Bus y liquidar ganancias mensuales.
 
-**Punto de entrada:** Sidebar → Recargas Virtuales → `/home/recargas-virtuales`
+**Punto de entrada:** Sidebar → Recargas Virtuales → `/caja/recargas-virtuales`
+
+---
+
+## Modulos opt-in por negocio
+
+Desde 2026-05-01, **CELULAR y BUS son módulos opcionales independientes**. Un negocio recién creado tiene ambos desactivados — no aparecen ni en el dashboard, ni en el sidebar, ni en parámetros.
+
+| Flag (en `configuraciones`) | Quién lo activa | Efecto al activar |
+|----------------------------|-----------------|-------------------|
+| `recargas_celular_habilitada` | Solo superadmin (Parámetros → Módulos) | Crea CAJA_CELULAR + categorias "Pago Proveedor Recargas" |
+| `recargas_bus_habilitada`     | Solo superadmin (Parámetros → Módulos) | Crea CAJA_BUS + categoria "Compra Saldo Virtual Bus" |
+
+Función SQL: `fn_habilitar_recargas(p_celular BOOLEAN, p_bus BOOLEAN)` en `docs/onboarding/sql/functions/`.
+
+**Comportamiento condicional en la UI** (las páginas detectan los flags via `ConfigService.get()` y se adaptan):
+
+| Estado | Sidebar | Dashboard | Saldo Virtual | Historial Recargas |
+|--------|---------|-----------|---------------|---------------------|
+| Ambos OFF | Sección "Recargas" oculta | Cards CELULAR/BUS ocultas | Página inaccesible vía menú | Solo cierres de turno (sin filtros) |
+| Solo CELULAR | Sección visible | Solo card CELULAR | Sin tabs, contenido CELULAR directo | Sin barra de filtros, solo CELULAR |
+| Solo BUS | Sección visible | Solo card BUS | Sin tabs, contenido BUS directo | Sin barra de filtros, solo BUS |
+| Ambos ON | Sección visible | Ambas cards | Tabs CELULAR/BUS | Filtros Todas/Celular/Bus |
+
+> Las páginas saltean queries de módulos inactivos (`Promise.resolve(0)` o `Promise.resolve([])` en lugar de llamar al servicio) para evitar requests innecesarios a Supabase.
 
 ---
 
@@ -40,7 +64,7 @@ Panel principal con dos tabs (CELULAR / BUS):
 | **Deshabilitado** | `gananciaBusMesActual > 0` (pero nada del mes anterior) | Card bloqueado con 🔒, muestra "Disponible el 1 de [mes]" y acumulado del mes en curso |
 | **Oculto** | Sin actividad BUS | No se muestra ningún card |
 
-**Ruta:** `/home/recargas-virtuales`
+**Ruta:** `/caja/recargas-virtuales`
 
 ---
 
@@ -51,7 +75,7 @@ Wizard de 2 pasos para saldar deudas con el proveedor CELULAR:
 - **Paso 1:** Lista de deudas pendientes con selección individual o total
 - **Paso 2:** Confirmación con saldo antes/después y validación de fondos suficientes
 
-**Ruta:** `/home/pagar-deudas`
+**Ruta:** `/caja/pagar-deudas`
 
 ---
 
@@ -92,11 +116,11 @@ Muestra las últimas 50 recargas del servicio activo (CELULAR o BUS). Cada fila 
 ## Rutas
 
 ```
-/home/recargas-virtuales  → RecargasVirtualesPage
-/home/pagar-deudas        → PagarDeudasPage
+/caja/recargas-virtuales  → RecargasVirtualesPage
+/caja/pagar-deudas        → PagarDeudasPage
 ```
 
-> Las rutas están definidas en `dashboard/dashboard.routes.ts` (el routing sigue siendo del dashboard).
+> Las rutas están definidas en `caja/caja.routes.ts`.
 
 ---
 
@@ -107,7 +131,7 @@ Muestra las últimas 50 recargas del servicio activo (CELULAR o BUS). Cada fila 
 | `RecargasVirtualesService` | `core/services/recargas-virtuales.service.ts` | Saldo virtual, deudas, RPCs de registro y pago, historial |
 | `GananciasService` | `core/services/ganancias.service.ts` | Ganancia BUS del mes anterior y mes actual, verificación de liquidación, RPC de liquidación |
 
-> `RecargasVirtualesService` y `GananciasService` están en `core/` porque también los usan `dashboard` (Home, CuadreCaja, CierreDiario).
+> `RecargasVirtualesService` y `GananciasService` están en `core/` porque también los usan `caja` (Home, CuadreCaja, CierreDiario).
 
 ---
 

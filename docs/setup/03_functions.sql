@@ -6,8 +6,8 @@
 --
 -- Incluye (en orden de dependencia):
 --   Setup:
---     fn_crear_negocio          (fuente: docs/setup/fn_crear_negocio.sql)
 --     fn_set_negocio_activo     (fuente: docs/setup/fn_set_negocio_activo.sql)
+--     (fn_crear_negocio fue eliminado — usar fn_completar_onboarding desde docs/onboarding/sql/functions/)
 --   Dashboard:
 --     fn_abrir_turno            (fuente: docs/dashboard/sql/functions/)
 --     fn_registrar_operacion_manual
@@ -45,216 +45,16 @@
 -- =============================================================================
 
 -- =============================================================================
--- fn_crear_negocio — Crear un nuevo tenant con todos sus datos semilla
--- =============================================================================
--- Crea atomicamente:
---   1. Registro en negocios
---   2. Fila en usuarios (si no existe) y membresia ADMIN en usuario_negocios
---   3. Las 5 cajas (CAJA, CAJA_CHICA, VARIOS, CAJA_CELULAR, CAJA_BUS)
---   4. Categorias de operaciones iniciales (IN-001, EG-001, EG-002, EG-003)
---   5. Categorias de productos iniciales (Sin categoria, Bebidas, Snacks...)
---   6. Configuraciones iniciales (negocio_, caja_, bus_, pos_, nomina_)
---   7. Secuencias de comprobantes (TICKET, NOTA_VENTA, FACTURA, RECARGA)
+-- (fn_crear_negocio fue eliminado en 2026-05-02)
 --
--- Parametros:
---   p_nombre_negocio   VARCHAR  — Nombre visible del negocio
---   p_admin_email      VARCHAR  — Email del primer ADMIN (debe existir en auth.users)
---   p_admin_nombre     VARCHAR  — Nombre del ADMIN (para crear fila en usuarios si no existe)
+-- Razon: era una funcion duplicada de fn_completar_onboarding (en docs/onboarding/sql/functions/)
+-- que creaba el negocio con configuraciones desactualizadas (sin recargas_*_habilitada,
+-- sin caja_varios_activa, con bus_comision_porcentaje obsoleta, creaba siempre las 5 cajas).
 --
--- Retorna: JSON con { negocio_id, usuario_id, success }
---
--- Seguridad: SECURITY DEFINER para poder insertar en todas las tablas sin
--- que el JWT del llamador tenga negocio_id todavia (el negocio aun no existe).
--- Cualquier authenticated puede llamarla, pero solo para su propio email.
--- Superadmin puede crearla para cualquier email (soporte/admin).
---
--- CORRECCIONES v1.1:
---   - Eliminado SELECT...INTO (bug Supabase): v_usuario_id usa := (SELECT ...)
---   - Eliminado RETURNING id INTO (bug Supabase): usa gen_random_uuid() + INSERT manual
---   - secuencias_comprobantes: corregidas columnas a (negocio_id, tipo_documento, ultimo_valor)
---     El schema v11 NO tiene columnas prefijo ni siguiente_numero — solo ultimo_valor
---   - Eliminada fila duplicada del SELECT en bloque 2 (lineas 56-57 del original)
+-- Single source of truth: fn_completar_onboarding. Se usa tanto en el onboarding inicial
+-- como al crear sucursales desde el dashboard (con propietario heredado del negocio actual).
 -- =============================================================================
 
-CREATE OR REPLACE FUNCTION public.fn_crear_negocio(
-    p_nombre_negocio VARCHAR,
-    p_admin_email    VARCHAR,
-    p_admin_nombre   VARCHAR DEFAULT NULL
-)
-RETURNS JSON
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-    v_negocio_id  UUID;
-    v_usuario_id  UUID;
-BEGIN
-    -- Validaciones de entrada
-    IF TRIM(p_nombre_negocio) = '' OR p_nombre_negocio IS NULL THEN
-        RAISE EXCEPTION 'El nombre del negocio no puede estar vacio';
-    END IF;
-    IF TRIM(p_admin_email) = '' OR p_admin_email IS NULL THEN
-        RAISE EXCEPTION 'El email del admin no puede estar vacio';
-    END IF;
-
-    -- Seguridad: el email del llamador debe coincidir con p_admin_email
-    -- (un usuario no puede crear un negocio a nombre de otro)
-    -- Excepcion: superadmin puede crear negocios para cualquier email
-    IF NOT COALESCE((SELECT es_superadmin FROM usuarios WHERE email = (auth.jwt() ->> 'email')), FALSE) THEN
-        IF LOWER(TRIM(p_admin_email)) != LOWER(TRIM(auth.jwt() ->> 'email')) THEN
-            RAISE EXCEPTION 'No puedes crear un negocio para otro usuario.';
-        END IF;
-    END IF;
-
-    -- ── 1. Crear el negocio ──
-    -- Fix: gen_random_uuid() + INSERT en vez de RETURNING INTO (bug Supabase)
-    -- slug: nombre en minúsculas, espacios→guiones, sin caracteres especiales
-    v_negocio_id := gen_random_uuid();
-    INSERT INTO negocios (id, nombre, slug)
-    VALUES (
-        v_negocio_id,
-        TRIM(p_nombre_negocio),
-        TRIM(BOTH '-' FROM REGEXP_REPLACE(LOWER(TRIM(p_nombre_negocio)), '[^a-z0-9]+', '-', 'g'))
-    );
-
-    -- ── 2. Crear/obtener usuario ADMIN ──
-    -- Fix: := (SELECT ...) en vez de SELECT ... INTO (bug Supabase)
-    v_usuario_id := (SELECT id FROM usuarios WHERE email = LOWER(TRIM(p_admin_email)));
-
-    IF v_usuario_id IS NULL THEN
-        -- El usuario aun no existe en la tabla publica (aun no ha hecho login)
-        -- Fix: gen_random_uuid() + INSERT en vez de RETURNING INTO (bug Supabase)
-        v_usuario_id := gen_random_uuid();
-        INSERT INTO usuarios (id, nombre, email, es_superadmin)
-        VALUES (
-            v_usuario_id,
-            COALESCE(NULLIF(TRIM(p_admin_nombre), ''), SPLIT_PART(p_admin_email, '@', 1)),
-            LOWER(TRIM(p_admin_email)),
-            FALSE
-        );
-    END IF;
-
-    -- Crear membresia ADMIN en el nuevo negocio
-    INSERT INTO usuario_negocios (usuario_id, negocio_id, rol, activo)
-    VALUES (v_usuario_id, v_negocio_id, 'ADMIN', TRUE)
-    ON CONFLICT (usuario_id, negocio_id) DO UPDATE SET rol = 'ADMIN', activo = TRUE;
-
-    -- ── 3. Las 5 cajas ──
-    INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual) VALUES
-    (v_negocio_id, 'CAJA',         'Tienda',  'Vault de depositos acumulados',   0),
-    (v_negocio_id, 'CAJA_CHICA',   'Cajon',   'Efectivo del dia (ventas + rec)', 0),
-    (v_negocio_id, 'VARIOS',       'Varios',  'Fondo fijo de emergencia',        0),
-    (v_negocio_id, 'CAJA_CELULAR', 'Celular', 'Efectivo recargas celular',       0),
-    (v_negocio_id, 'CAJA_BUS',     'Bus',     'Efectivo recargas bus',           0);
-
-    -- ── 4. Categorias de operaciones ──
-    -- El trigger fn_set_codigo_categoria_operacion asigna el codigo automaticamente.
-    INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion, seleccionable) VALUES
-    -- EGRESOS
-    (v_negocio_id, 'Compras/Mercaderia',              'EGRESO',  'Compra de productos para reventa o uso en el negocio',                             TRUE),
-    (v_negocio_id, 'Servicios Basicos',               'EGRESO',  'Pago de luz, agua, internet, telefono',                                            TRUE),
-    (v_negocio_id, 'Alquiler',                        'EGRESO',  'Pago de alquiler del local',                                                       TRUE),
-    (v_negocio_id, 'Mantenimiento',                   'EGRESO',  'Reparaciones y mantenimiento del local o equipo',                                   TRUE),
-    (v_negocio_id, 'Transporte/Combustible',          'EGRESO',  'Gastos de transporte y combustible',                                               TRUE),
-    (v_negocio_id, 'Papeleria/Suministros',           'EGRESO',  'Papeleria, utiles de oficina y suministros generales',                             TRUE),
-    (v_negocio_id, 'Salarios',                        'EGRESO',  'Pago de salarios a empleados (via flujo de nomina)',                               FALSE),
-    (v_negocio_id, 'Impuestos/Tasas',                 'EGRESO',  'Pago de impuestos y tasas municipales',                                            TRUE),
-    (v_negocio_id, 'Otros Gastos',                    'EGRESO',  'Otros gastos operativos no clasificados',                                          TRUE),
-    (v_negocio_id, 'Pago Proveedor Recargas',         'EGRESO',  'Pago al proveedor de recargas celular (saldo prestado a credito)',                 FALSE),
-    (v_negocio_id, 'Compra Saldo Virtual Bus',        'EGRESO',  'Compra de saldo virtual bus mediante deposito bancario',                           FALSE),
-    (v_negocio_id, 'Ajuste Deficit Turno Anterior',   'EGRESO',  'Retiro de Tienda para reponer deficit del turno anterior',                         FALSE),
-    (v_negocio_id, 'Ajuste Diferencia Conteo',        'EGRESO',  'Ajuste al cierre cuando el conteo fisico es menor al saldo digital del cajon',     FALSE),
-    (v_negocio_id, 'Adelanto Sueldo Empleado',        'EGRESO',  'Anticipo de sueldo entregado al empleado en efectivo (via flujo de nomina)',        FALSE),
-    -- INGRESOS
-    (v_negocio_id, 'Ventas',                          'INGRESO', 'Ingresos por ventas del negocio',                                                  TRUE),
-    (v_negocio_id, 'Devoluciones de Proveedores',     'INGRESO', 'Devolucion de dinero por parte de proveedores',                                    TRUE),
-    (v_negocio_id, 'Otros Ingresos',                  'INGRESO', 'Otros ingresos no clasificados',                                                   TRUE),
-    (v_negocio_id, 'Reposicion Deficit Turno Anterior','INGRESO','Ingreso a Varios por reposicion del deficit pendiente del turno anterior',          FALSE),
-    (v_negocio_id, 'Ajuste Diferencia Conteo',        'INGRESO', 'Ajuste al cierre cuando el conteo fisico supera al saldo digital del cajon',       FALSE);
-    -- Codigos asignados por trigger segun orden de INSERT:
-    --   EG-001..EG-014 (egresos), IN-001..IN-005 (ingresos)
-
-    -- ── 5. Categorias de productos iniciales ──
-    INSERT INTO categorias_productos (negocio_id, nombre) VALUES
-    (v_negocio_id, 'Sin categoria'),
-    (v_negocio_id, 'Bebidas'),
-    (v_negocio_id, 'Snacks'),
-    (v_negocio_id, 'Abarrotes'),
-    (v_negocio_id, 'Lacteos'),
-    (v_negocio_id, 'Limpieza'),
-    (v_negocio_id, 'Aseo Personal'),
-    (v_negocio_id, 'Panaderia')
-    ON CONFLICT (negocio_id, nombre) DO NOTHING;
-
-    -- ── 6. Configuraciones iniciales ──
-    INSERT INTO configuraciones (negocio_id, clave, valor) VALUES
-    -- Negocio
-    (v_negocio_id, 'negocio_nombre',                  p_nombre_negocio),
-    (v_negocio_id, 'negocio_telefono',                ''),
-    (v_negocio_id, 'negocio_direccion',               ''),
-    -- Caja
-    (v_negocio_id, 'caja_fondo_fijo_diario',          '0'),
-    (v_negocio_id, 'caja_varios_transferencia_dia',   '0'),
-    -- Bus
-    (v_negocio_id, 'bus_alerta_saldo_bajo',           '10'),
-    (v_negocio_id, 'bus_comision_porcentaje',         '1'),
-    -- POS
-    (v_negocio_id, 'pos_descuentos_habilitados',      'false'),
-    (v_negocio_id, 'pos_descuento_maximo',            '0'),
-    -- Nomina
-    (v_negocio_id, 'nomina_sueldo_base',              '0'),
-    (v_negocio_id, 'nomina_dia_pago',                 '1')
-    ON CONFLICT (negocio_id, clave) DO NOTHING;
-
-    -- ── 7. Secuencias de comprobantes ──
-    -- Schema v11: columnas son (negocio_id, tipo_documento, ultimo_valor)
-    -- No existen columnas prefijo ni siguiente_numero
-    INSERT INTO secuencias_comprobantes (negocio_id, tipo_documento, ultimo_valor) VALUES
-    (v_negocio_id, 'TICKET',     0),
-    (v_negocio_id, 'NOTA_VENTA', 0),
-    (v_negocio_id, 'FACTURA',    0),
-    (v_negocio_id, 'RECARGA',    0)
-    ON CONFLICT (negocio_id, tipo_documento) DO NOTHING;
-
-    -- ── 8. Cliente "Consumidor Final" ──
-    -- Requerido por el POS para asignar a ventas sin cliente identificado.
-    INSERT INTO clientes (negocio_id, nombre, es_consumidor_final)
-    VALUES (v_negocio_id, 'Consumidor Final', TRUE)
-    ON CONFLICT DO NOTHING;
-
-    RETURN json_build_object(
-        'success',     TRUE,
-        'negocio_id',  v_negocio_id,
-        'usuario_id',  v_usuario_id,
-        'mensaje',     'Negocio creado exitosamente. Ejecutar fn_set_negocio_activo para activar el JWT.'
-    );
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al crear negocio: % (SQLSTATE: %)', SQLERRM, SQLSTATE;
-END;
-$$;
-
--- Seguridad: solo superadmin puede crear negocios
-REVOKE EXECUTE ON FUNCTION public.fn_crear_negocio(VARCHAR, VARCHAR, VARCHAR) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.fn_crear_negocio(VARCHAR, VARCHAR, VARCHAR) FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.fn_crear_negocio(VARCHAR, VARCHAR, VARCHAR) TO authenticated;
--- Nota: aunque se concede a authenticated, la funcion no valida el rol del llamador (es SECURITY DEFINER).
--- El frontend verifica auth.es_superadmin() antes de llamar.
-
-NOTIFY pgrst, 'reload schema';
-
--- =============================================================================
--- USO:
---   SELECT fn_crear_negocio('Mi Tienda Central', 'admin@ejemplo.com', 'Juan Admin');
---
--- RESULTADO:
---   { "success": true, "negocio_id": "uuid...", "usuario_id": "uuid...", "mensaje": "..." }
---
--- DESPUES DE CREAR EL NEGOCIO:
---   1. Ejecutar fn_set_negocio_activo para actualizar el JWT del ADMIN
---   2. El ADMIN puede agregar empleados desde el modulo Usuarios
--- =============================================================================
 -- =============================================================================
 -- fn_set_negocio_activo — Activar un negocio en el JWT del usuario
 -- =============================================================================
@@ -272,11 +72,10 @@ NOTIFY pgrst, 'reload schema';
 --
 -- Seguridad:
 --   - SECURITY DEFINER para poder actualizar auth.users.raw_app_meta_data
---   - Valida que el usuario autenticado tenga membresia activa en ese negocio
+--   - Valida usuario no suspendido (usuarios.activo) — unico mecanismo de suspension
+--   - Valida que el usuario tenga membresia activa en ese negocio
 --   - Un superadmin puede activar cualquier negocio (para soporte/admin)
---
--- CORRECCIONES v1.1:
---   - Fix Supabase: SELECT rol, activo INTO v_rol, v_activo → dos asignaciones := (SELECT ...)
+--   - negocios.activo fue eliminado: la suspension es por usuario, no por negocio
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.fn_set_negocio_activo(
@@ -288,22 +87,19 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    v_email         TEXT;
-    v_usuario_id    UUID;
-    v_rol           TEXT;
-    v_es_superadmin BOOLEAN;
+    v_email          TEXT;
+    v_usuario_id     UUID;
+    v_rol            TEXT;
+    v_es_superadmin  BOOLEAN;
     v_negocio_nombre VARCHAR;
-    v_activo        BOOLEAN;
+    v_activo         BOOLEAN;
 BEGIN
-    -- Obtener email del usuario autenticado desde el JWT
     v_email := (auth.jwt() ->> 'email');
 
     IF v_email IS NULL THEN
         RAISE EXCEPTION 'No hay sesion activa. El JWT no contiene email.';
     END IF;
 
-    -- Obtener datos del usuario en la tabla publica
-    -- Fix: dos := (SELECT ...) en vez de SELECT ... INTO variable (bug Supabase)
     v_usuario_id    := (SELECT id            FROM usuarios WHERE email = v_email);
     v_es_superadmin := (SELECT es_superadmin FROM usuarios WHERE email = v_email);
 
@@ -311,16 +107,22 @@ BEGIN
         RAISE EXCEPTION 'Usuario % no encontrado en la tabla de usuarios.', v_email;
     END IF;
 
-    -- Verificar que el negocio existe
-    v_negocio_nombre := (SELECT nombre FROM negocios WHERE id = p_negocio_id AND activo = TRUE);
+    -- Bloquear usuarios suspendidos globalmente (excepto superadmin)
+    IF NOT COALESCE(v_es_superadmin, FALSE) THEN
+        IF NOT COALESCE((SELECT activo FROM usuarios WHERE id = v_usuario_id), TRUE) THEN
+            RAISE EXCEPTION 'El usuario % esta suspendido y no puede acceder a ningun negocio.', v_email;
+        END IF;
+    END IF;
+
+    -- Verificar que el negocio existe (sin filtrar por activo — columna eliminada)
+    v_negocio_nombre := (SELECT nombre FROM negocios WHERE id = p_negocio_id);
 
     IF v_negocio_nombre IS NULL THEN
-        RAISE EXCEPTION 'El negocio % no existe o no esta activo.', p_negocio_id;
+        RAISE EXCEPTION 'El negocio % no existe.', p_negocio_id;
     END IF;
 
     -- Verificar membresia activa (superadmin omite esta validacion)
     IF NOT COALESCE(v_es_superadmin, FALSE) THEN
-        -- Fix: dos := (SELECT ...) en vez de SELECT ... INTO v_rol, v_activo (bug Supabase)
         v_rol    := (SELECT rol    FROM usuario_negocios WHERE usuario_id = v_usuario_id AND negocio_id = p_negocio_id);
         v_activo := (SELECT activo FROM usuario_negocios WHERE usuario_id = v_usuario_id AND negocio_id = p_negocio_id);
 
@@ -340,8 +142,6 @@ BEGIN
         );
     END IF;
 
-    -- Actualizar app_metadata en auth.users
-    -- Esto actualiza el JWT en el proximo refresh de sesion
     UPDATE auth.users
     SET raw_app_meta_data = raw_app_meta_data
         || jsonb_build_object(
@@ -913,11 +713,11 @@ DECLARE
   v_cat_ajuste_ingreso_id UUID;  -- IN-005: Ajuste Diferencia Conteo
   v_cat_ajuste_egreso_id  UUID;  -- EG-013: Ajuste Diferencia Conteo
 
-  -- IDs de servicios y referencias
-  v_tipo_servicio_celular_id UUID;
-  v_tipo_servicio_bus_id     UUID;
-  v_tipo_ref_recargas_id     UUID;
-  v_tipo_ref_turnos_id       UUID;
+  -- IDs de servicios y referencias (tipos_servicio y tipos_referencia usan SERIAL → INTEGER)
+  v_tipo_servicio_celular_id INTEGER;
+  v_tipo_servicio_bus_id     INTEGER;
+  v_tipo_ref_recargas_id     INTEGER;
+  v_tipo_ref_turnos_id       INTEGER;
 
   -- Configuración
   v_fondo_fijo           DECIMAL(12,2);

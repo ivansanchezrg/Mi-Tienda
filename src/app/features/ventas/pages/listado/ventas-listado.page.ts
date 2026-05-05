@@ -25,9 +25,9 @@ import {
 import { VentasService } from '../../services/ventas.service';
 import { ShareVentaService } from '../../services/share-venta.service';
 import { AuthService } from '../../../auth/services/auth.service';
-import { TurnosCajaService } from '../../../dashboard/services/turnos-caja.service';
+import { TurnosCajaService } from '../../../caja/services/turnos-caja.service';
 import { RolUsuario } from '../../../auth/models/usuario_actual.model';
-import { TurnoCajaConEmpleado } from '../../../dashboard/models/turno-caja.model';
+import { TurnoCajaConEmpleado } from '../../../caja/models/turno-caja.model';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { Venta } from '../../models/venta.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -65,7 +65,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
     private shareService  = inject(ShareVentaService);
     private authService = inject(AuthService);
     private turnosCajaService = inject(TurnosCajaService);
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
     private alertCtrl = inject(AlertController);
 

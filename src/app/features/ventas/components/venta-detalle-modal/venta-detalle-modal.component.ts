@@ -34,7 +34,7 @@ export class VentaDetalleModalComponent implements OnInit {
 
     private ventasService = inject(VentasService);
     private shareService  = inject(ShareVentaService);
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private configService  = inject(ConfigService);
     private modalCtrl = inject(ModalController);
     private ui = inject(UiService);

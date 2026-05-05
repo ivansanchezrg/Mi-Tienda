@@ -5,7 +5,8 @@
     </ion-buttons>
     <ion-title>Saldo Virtual</ion-title>
   </ion-toolbar>
-  <!-- Tabs CELULAR / BUS -->
+  <!-- Tabs CELULAR / BUS — solo si ambos módulos están activos -->
+  @if (recargasCelularHabilitada && recargasBusHabilitada) {
   <div class="recargas-tabs">
     <button class="recargas-tab" [class.active]="tabActivo === 'CELULAR'" (click)="cambiarTab('CELULAR')">
       <ion-icon name="phone-portrait-outline"></ion-icon>
@@ -16,6 +17,7 @@
       <span>Bus</span>
     </button>
   </div>
+  }
 </ion-header>
 
 <ion-content>

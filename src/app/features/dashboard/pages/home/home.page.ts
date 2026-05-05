@@ -131,6 +131,11 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   // Privacidad
   montosOcultos = false;
 
+  // Flags configuración
+  variosActiva = false;
+  recargasCelularHabilitada = false;
+  recargasBusHabilitada = false;
+
   // Opciones del menú ⋮ — compartidas por todas las cajas
   readonly cajaOptions: MenuOption[] = [
     { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'ingreso', color: 'success' },
@@ -189,14 +194,15 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   async cargarDatos() {
     this.cargando = true;
     try {
-      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones, empleado] = await Promise.all([
+      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones, empleado, appConfig] = await Promise.all([
         this.turnosCajaService.obtenerEstadoCaja(),
         this.cajasService.obtenerSaldosCajas(),
         this.cajasService.obtenerFechaUltimoCierre(),
         this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
         this.recargasVirtualesService.getSaldoVirtualActual('BUS'),
         this.notificacionesService.getNotificaciones(),
-        this.authService.getUsuarioActual()
+        this.authService.getUsuarioActual(),
+        this.configService.get()
       ]);
 
       this.estadoCaja = { ...estadoCaja };
@@ -227,6 +233,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
       this.notificaciones = notificaciones;
       this.notificacionesPendientes = notificaciones.length;
+      this.variosActiva              = appConfig.caja_varios_activa;
+      this.recargasCelularHabilitada = appConfig.recargas_celular_habilitada;
+      this.recargasBusHabilitada     = appConfig.recargas_bus_habilitada;
     } catch (error: any) {
       await this.ui.showError('Error al cargar los datos. Verificá tu conexión e intentá de nuevo.');
     } finally {

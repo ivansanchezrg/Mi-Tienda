@@ -37,7 +37,7 @@ CREATE OR REPLACE FUNCTION public.fn_listar_ventas(
 RETURNS TABLE (
     id                    UUID,
     turno_id              UUID,
-    empleado_id           INTEGER,
+    empleado_id           UUID,
     cliente_id            UUID,
     tipo_comprobante      TEXT,
     numero_comprobante    INTEGER,

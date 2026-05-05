@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
@@ -11,8 +11,9 @@ import {
   cloudDownloadOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { ConfigService } from '@core/services/config.service';
 import { LoggerService } from '@core/services/logger.service';
-import { RecargasService, RecargaHistorial } from '../../../dashboard/services/recargas.service';
+import { RecargasService } from '../../../caja/services/recargas.service';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 
 /**
@@ -59,8 +60,9 @@ interface FiltroOption {
     IonRefresher, IonRefresherContent, IonSkeletonText
   ]
 })
-export class HistorialRecargasPage implements OnInit {
+export class HistorialRecargasPage {
   private ui = inject(UiService);
+  private configService = inject(ConfigService);
   private recargasService = inject(RecargasService);
   private recargasVirtualesService = inject(RecargasVirtualesService);
   private logger = inject(LoggerService);
@@ -69,13 +71,12 @@ export class HistorialRecargasPage implements OnInit {
   items: HistorialItem[] = [];
   itemsAgrupados: GrupoHistorial[] = [];
 
-  // Filtros
+  recargasCelularHabilitada = false;
+  recargasBusHabilitada = false;
+
+  // Filtros — se construyen dinámicamente en ionViewWillEnter
   filtroActual: FiltroServicio = 'todas';
-  filtros: FiltroOption[] = [
-    { value: 'todas', label: 'Todas' },
-    { value: 'celular', label: 'Celular' },
-    { value: 'bus', label: 'Bus' }
-  ];
+  filtros: FiltroOption[] = [];
 
   constructor() {
     addIcons({
@@ -86,12 +87,28 @@ export class HistorialRecargasPage implements OnInit {
     });
   }
 
-  async ngOnInit() {
-    await this.cargarHistorial();
-  }
-
-  ionViewWillEnter() {
+  async ionViewWillEnter() {
     this.ui.hideTabs();
+    const config = await this.configService.get();
+    this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
+    this.recargasBusHabilitada     = config?.recargas_bus_habilitada ?? false;
+
+    // Filtros solo relevantes si ambos módulos están activos
+    this.filtros = [
+      { value: 'todas',   label: 'Todas' },
+      { value: 'celular', label: 'Celular' },
+      { value: 'bus',     label: 'Bus' },
+    ];
+
+    if (this.recargasCelularHabilitada && !this.recargasBusHabilitada) {
+      this.filtroActual = 'celular';
+    } else if (this.recargasBusHabilitada && !this.recargasCelularHabilitada) {
+      this.filtroActual = 'bus';
+    } else {
+      this.filtroActual = 'todas';
+    }
+
+    await this.cargarHistorial();
   }
 
   ionViewWillLeave() {
@@ -103,8 +120,8 @@ export class HistorialRecargasPage implements OnInit {
     try {
       const [recargas, virtualesCelular, virtualesBus] = await Promise.all([
         this.recargasService.obtenerHistorialRecargas(),
-        this.recargasVirtualesService.obtenerHistorial('CELULAR'),
-        this.recargasVirtualesService.obtenerHistorial('BUS')
+        this.recargasCelularHabilitada ? this.recargasVirtualesService.obtenerHistorial('CELULAR') : Promise.resolve([]),
+        this.recargasBusHabilitada     ? this.recargasVirtualesService.obtenerHistorial('BUS')     : Promise.resolve([]),
       ]);
 
       // Convertir cierres de turno → HistorialItem

@@ -668,7 +668,7 @@ Verifica los siguientes puntos:
 | `src/global.scss` | Estilos globales e imports de Ionic |
 | `src/theme/custom/index.scss` | Entry point de estilos custom compartidos (importa `overlays`, etc.) |
 | `src/app/features/layout/pages/main/main-layout.page.scss` | **Patrón FAB Custom** + tab bar personalizado |
-| `src/app/features/dashboard/pages/home/home.page.scss` | **Ejemplo de referencia** - Implementación completa del patrón |
+| `src/app/features/caja/pages/home/home.page.scss` | **Ejemplo de referencia** - Implementación completa del patrón |
 
 ### 📖 Documentación Ionic
 

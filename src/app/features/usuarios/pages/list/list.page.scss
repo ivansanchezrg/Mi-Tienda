@@ -124,6 +124,24 @@
   }
 }
 
+.badge-propietario {
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.4px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-pill);
+  background: rgba(var(--ion-color-warning-rgb), var(--opacity-medium));
+  color: var(--ion-color-warning-shade);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+
+  ion-icon {
+    font-size: 13px;
+  }
+}
+
 .badge-inactivo {
   font-size: 10px;
   font-weight: var(--font-weight-semibold);

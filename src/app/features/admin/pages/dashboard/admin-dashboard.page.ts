@@ -1,27 +1,47 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonIcon,
   IonSkeletonText, IonSpinner,
   IonRefresher, IonRefresherContent,
-  IonButtons, IonButton
+  IonButtons, IonButton,
+  IonAccordionGroup, IonAccordion, IonItem, IonLabel,
+  ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   businessOutline, checkmarkCircle,
-  chevronForwardOutline, shieldCheckmarkOutline
+  chevronForwardOutline, shieldCheckmarkOutline,
+  addOutline, ellipsisVertical,
+  personOutline, personRemoveOutline,
+  searchOutline, closeOutline, logInOutline
 } from 'ionicons/icons';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { AuthService } from '../../../auth/services/auth.service';
 import { SupabaseService } from '@core/services/supabase.service';
 import { LoggerService } from '@core/services/logger.service';
 import { UiService } from '@core/services/ui.service';
+import { ROUTES } from '@core/config/routes.config';
 
 interface NegocioAdmin {
   id: string;
   nombre: string;
   slug: string;
-  activo: boolean;
+  propietario_usuario_id: string;
+  propietario_nombre: string;
+  propietario_email: string;
+  propietario_activo: boolean;
   created_at: string;
+}
+
+interface PropietarioGrupo {
+  usuario_id: string;
+  nombre: string;
+  email: string;
+  activo: boolean;
+  negocios: NegocioAdmin[];
 }
 
 @Component({
@@ -30,26 +50,37 @@ interface NegocioAdmin {
   styleUrls: ['./admin-dashboard.page.scss'],
   standalone: true,
   imports: [
+    FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonIcon,
     IonSkeletonText, IonSpinner,
     IonRefresher, IonRefresherContent,
     IonButtons, IonButton,
+    IonAccordionGroup, IonAccordion, IonItem, IonLabel,
     EmptyStateComponent
   ]
 })
 export class AdminDashboardPage implements OnInit {
-  private authService = inject(AuthService);
-  private supabase    = inject(SupabaseService);
-  private ui          = inject(UiService);
-  private logger      = inject(LoggerService);
+  private authService  = inject(AuthService);
+  private supabase     = inject(SupabaseService);
+  private ui           = inject(UiService);
+  private logger       = inject(LoggerService);
+  private router       = inject(Router);
+  private modalCtrl    = inject(ModalController);
+  private alertCtrl    = inject(AlertController);
 
   negocios: NegocioAdmin[] = [];
-  loading    = false;
+  loading   = false;
   cambiando: string | null = null;
   negocioActivoId: string | null = null;
 
+  busqueda = '';
+
   constructor() {
-    addIcons({ businessOutline, checkmarkCircle, chevronForwardOutline, shieldCheckmarkOutline });
+    addIcons({
+      businessOutline, checkmarkCircle, chevronForwardOutline, shieldCheckmarkOutline,
+      addOutline, ellipsisVertical, personOutline, personRemoveOutline,
+      searchOutline, closeOutline, logInOutline
+    });
   }
 
   async ngOnInit() {
@@ -63,7 +94,10 @@ export class AdminDashboardPage implements OnInit {
     try {
       const { data, error } = await this.supabase.client
         .from('negocios')
-        .select('id, nombre, slug, activo, created_at')
+        .select(`
+          id, nombre, slug, propietario_usuario_id, created_at,
+          propietario:usuarios!propietario_usuario_id (nombre, email, activo)
+        `)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -72,10 +106,54 @@ export class AdminDashboardPage implements OnInit {
         return;
       }
 
-      this.negocios = data ?? [];
+      this.negocios = (data ?? []).map((n: any) => ({
+        id:                    n.id,
+        nombre:                n.nombre,
+        slug:                  n.slug,
+        propietario_usuario_id: n.propietario_usuario_id,
+        created_at:            n.created_at,
+        propietario_nombre:    n.propietario?.nombre ?? 'Sin nombre',
+        propietario_email:     n.propietario?.email  ?? '',
+        propietario_activo:    n.propietario?.activo ?? true
+      }));
     } finally {
       this.loading = false;
     }
+  }
+
+  get propietariosAgrupados(): PropietarioGrupo[] {
+    const q = this.busqueda.trim().toLowerCase();
+
+    // Filtrar negocios que coincidan con la búsqueda
+    const negociosFiltrados = q
+      ? this.negocios.filter(n =>
+          n.nombre.toLowerCase().includes(q) ||
+          n.propietario_nombre.toLowerCase().includes(q) ||
+          n.propietario_email.toLowerCase().includes(q)
+        )
+      : this.negocios;
+
+    // Agrupar por propietario_usuario_id
+    const mapaGrupos = new Map<string, PropietarioGrupo>();
+
+    for (const n of negociosFiltrados) {
+      if (!mapaGrupos.has(n.propietario_usuario_id)) {
+        mapaGrupos.set(n.propietario_usuario_id, {
+          usuario_id: n.propietario_usuario_id,
+          nombre:     n.propietario_nombre,
+          email:      n.propietario_email,
+          activo:     n.propietario_activo,
+          negocios:   []
+        });
+      }
+      mapaGrupos.get(n.propietario_usuario_id)!.negocios.push(n);
+    }
+
+    return Array.from(mapaGrupos.values());
+  }
+
+  limpiarBusqueda() {
+    this.busqueda = '';
   }
 
   async handleRefresh(event: CustomEvent) {
@@ -94,6 +172,95 @@ export class AdminDashboardPage implements OnInit {
       await this.ui.hideLoading();
       this.cambiando = null;
     }
+  }
+
+  crearNegocio() {
+    this.router.navigate([ROUTES.crearNegocio.root], { queryParams: { context: 'admin' } });
+  }
+
+  async abrirOpciones(event: Event, negocio: NegocioAdmin) {
+    event.stopPropagation();
+
+    const groups: ModalOptionGroup[] = [
+      {
+        options: [
+          {
+            label:    'Ingresar al negocio',
+            icon:     'log-in-outline',
+            value:    'ingresar',
+            subtitle: negocio.id === this.negocioActivoId ? 'Negocio activo actualmente' : 'Entrar y operar dentro de este negocio',
+            color:    negocio.id === this.negocioActivoId ? undefined : 'primary'
+          }
+        ]
+      },
+      {
+        options: [
+          {
+            label:    negocio.propietario_activo ? 'Suspender propietario' : 'Reactivar propietario',
+            icon:     negocio.propietario_activo ? 'person-remove-outline' : 'person-outline',
+            value:    'toggle-usuario',
+            color:    negocio.propietario_activo ? 'danger' : undefined,
+            subtitle: negocio.propietario_activo
+              ? 'Bloquea al propietario en todos sus negocios'
+              : 'Restaura el acceso del propietario a todos sus negocios'
+          }
+        ]
+      }
+    ];
+
+    const modal = await this.modalCtrl.create({
+      component: OptionsModalComponent,
+      componentProps: { title: negocio.nombre, groups },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
+    });
+
+    await modal.present();
+    const { data } = await modal.onDidDismiss();
+    if (!data) return;
+
+    if (data === 'ingresar')       await this.entrarNegocio(negocio);
+    if (data === 'toggle-usuario') await this.toggleUsuario(negocio);
+  }
+
+  private async confirmar(header: string, message: string): Promise<boolean> {
+    const alert = await this.alertCtrl.create({
+      header,
+      message,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Confirmar', role: 'confirm' }
+      ]
+    });
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+    return role === 'confirm';
+  }
+
+  private async toggleUsuario(negocio: NegocioAdmin) {
+    const accion = negocio.propietario_activo ? 'suspender' : 'reactivar';
+    const ok = await this.confirmar(
+      `Confirmar ${accion} propietario`,
+      negocio.propietario_activo
+        ? `¿Suspender al propietario? No podrá entrar a ninguno de sus negocios.`
+        : `¿Reactivar al propietario? Recuperará el acceso a todos sus negocios.`
+    );
+    if (!ok) return;
+
+    const { error } = await this.supabase.client.rpc('fn_suspender_usuario', {
+      p_usuario_id: negocio.propietario_usuario_id,
+      p_activo:     !negocio.propietario_activo
+    });
+
+    if (error) {
+      this.logger.error('AdminDashboard', `Error al ${accion} usuario`, error);
+      await this.ui.showError(`No se pudo ${accion} al propietario.`);
+      return;
+    }
+
+    negocio.propietario_activo = !negocio.propietario_activo;
+    await this.ui.showSuccess(negocio.propietario_activo ? 'Propietario reactivado' : 'Propietario suspendido');
   }
 
   async salir() {

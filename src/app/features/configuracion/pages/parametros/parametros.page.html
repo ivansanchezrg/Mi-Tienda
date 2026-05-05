@@ -41,6 +41,20 @@
           <span class="input-hint">Aparece en comprobantes y estados de cuenta</span>
         </div>
 
+        <div class="input-group">
+          <label class="input-label">Teléfono</label>
+          <input type="tel" formControlName="negocio_telefono" autocomplete="off"
+            placeholder="Ej: 0999 123 456" maxlength="20">
+          <span class="input-hint">Opcional — se puede mostrar en comprobantes</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Dirección</label>
+          <input type="text" formControlName="negocio_direccion" autocomplete="off"
+            placeholder="Ej: Av. Principal 123" maxlength="200">
+          <span class="input-hint">Opcional — se puede mostrar en comprobantes</span>
+        </div>
+
         @if (tieneCambios['negocio']) {
         <div id="footer-negocio" class="section-footer">
           <button type="button" class="section-save-btn" [disabled]="guardando['negocio']" (click)="guardarSeccion('negocio')">
@@ -77,6 +91,21 @@
           <span class="input-hint">Monto fijo que se transfiere a Varios (fondo emergencia) en cada cierre</span>
         </div>
 
+        @if (esAdmin && !variosActiva) {
+        <div class="varios-inactive-banner">
+          <div class="varios-inactive-info">
+            <ion-icon name="wallet-outline"></ion-icon>
+            <div>
+              <span class="varios-inactive-title">Caja Varios no activada</span>
+              <span class="varios-inactive-hint">Al activarla se crea la caja de fondo de emergencia. Una vez activa no se puede desactivar.</span>
+            </div>
+          </div>
+          <button type="button" class="varios-activate-btn" [disabled]="activandoVarios" (click)="activarVarios()">
+            @if (activandoVarios) { <ion-spinner name="crescent"></ion-spinner> } Activar
+          </button>
+        </div>
+        }
+
         @if (tieneCambios['caja']) {
         <div id="footer-caja" class="section-footer">
           <button type="button" class="section-save-btn" [disabled]="guardando['caja']" (click)="guardarSeccion('caja')">
@@ -86,7 +115,52 @@
         }
       </div>
 
-      <!-- ── SECCIÓN: BUS ───────────────────────────────── -->
+      <!-- ── SECCIÓN: MÓDULOS — solo superadmin ──────────────────────────── -->
+      @if (esSuperadmin) {
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="apps-outline"></ion-icon>
+          <span>Módulos</span>
+        </div>
+
+        <div class="input-group">
+          <label class="toggle-row">
+            <span class="input-label">
+              <ion-icon name="phone-portrait-outline" style="vertical-align: middle; margin-right: 5px;"></ion-icon>
+              Recargas Celular
+            </span>
+            <label class="toggle-switch">
+              <input type="checkbox" [(ngModel)]="recargasCelularHabilitada" [ngModelOptions]="{standalone: true}" (ngModelChange)="guardarModulos()">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          <span class="input-hint">Habilita CAJA_CELULAR, historial de recargas y deudas con proveedor.</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="toggle-row">
+            <span class="input-label">
+              <ion-icon name="bus-outline" style="vertical-align: middle; margin-right: 5px;"></ion-icon>
+              Recargas Bus
+            </span>
+            <label class="toggle-switch">
+              <input type="checkbox" [(ngModel)]="recargasBusHabilitada" [ngModelOptions]="{standalone: true}" (ngModelChange)="guardarModulos()">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          <span class="input-hint">Habilita CAJA_BUS, saldo virtual y liquidación de ganancias.</span>
+        </div>
+
+        @if (guardandoModulos) {
+        <div class="section-footer">
+          <ion-spinner name="crescent" style="width:18px;height:18px;color:var(--ion-color-primary)"></ion-spinner>
+        </div>
+        }
+      </div>
+      }
+
+      <!-- ── SECCIÓN: BUS (solo si el módulo bus está habilitado) ── -->
+      @if (recargasBusHabilitada) {
       <div class="section-card">
         <div class="section-header">
           <ion-icon name="bus-outline"></ion-icon>
@@ -121,6 +195,7 @@
         </div>
         }
       </div>
+      }
 
       <!-- ── SECCIÓN: POS ──────────────────────────────────── -->
       <div class="section-card">
@@ -188,7 +263,7 @@
           <span>Nómina</span>
         </div>
 
-        <div class="input-group last">
+        <div class="input-group">
           <label class="input-label">Sueldo base mensual</label>
           <div class="input-with-prefix">
             <span class="prefix">$</span>
@@ -196,6 +271,16 @@
               formControlName="nomina_sueldo_base" autocomplete="off">
           </div>
           <span class="input-hint">Se precarga al pagar nómina. El admin puede ajustarlo antes de confirmar.</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Día de pago</label>
+          <div class="input-with-suffix">
+            <input type="number" inputmode="numeric" step="1" min="1" max="31"
+              formControlName="nomina_dia_pago" autocomplete="off">
+            <span class="suffix">del mes</span>
+          </div>
+          <span class="input-hint">Día del mes en que se realiza el pago de nómina</span>
         </div>
 
         @if (tieneCambios['nomina']) {

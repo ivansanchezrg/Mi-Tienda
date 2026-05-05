@@ -20,63 +20,138 @@
 
   <div class="admin-wrap">
 
-    <p class="seccion-label">Negocios registrados</p>
+    <!-- Header: título + botón crear -->
+    <div class="seccion-header">
+      <p class="seccion-label">Negocios registrados</p>
+      <button class="btn-crear-negocio" (click)="crearNegocio()">
+        <ion-icon name="add-outline"></ion-icon>
+        <span>Crear negocio</span>
+      </button>
+    </div>
 
+    <!-- Buscador -->
+    <div class="search-wrap">
+      <ion-icon name="search-outline" class="search-icon"></ion-icon>
+      <input
+        class="search-input"
+        type="text"
+        placeholder="Buscar por negocio, propietario o email..."
+        [(ngModel)]="busqueda"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false">
+      @if (busqueda) {
+        <button class="search-clear" (click)="limpiarBusqueda()">
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+      }
+    </div>
+
+    <!-- Skeleton -->
     @if (loading) {
-      <div class="negocios-list">
-        @for (i of [1,2,3]; track i) {
-          <div class="negocio-card">
-            <div class="negocio-icon-wrap">
-              <ion-skeleton-text animated style="width: 44px; height: 44px; border-radius: 12px;"></ion-skeleton-text>
+      <div class="skeleton-list">
+        @for (i of [1,2]; track i) {
+          <div class="skeleton-grupo">
+            <div class="skeleton-header">
+              <div>
+                <ion-skeleton-text animated style="width: 120px; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+                <ion-skeleton-text animated style="width: 160px; height: 11px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text>
+              </div>
+              <ion-skeleton-text animated style="width: 60px; height: 11px; border-radius: 4px;"></ion-skeleton-text>
             </div>
-            <div class="negocio-info">
-              <ion-skeleton-text animated style="width: 55%; height: 16px; border-radius: 4px;"></ion-skeleton-text>
-              <ion-skeleton-text animated style="width: 35%; height: 12px; border-radius: 4px; margin-top: 6px;"></ion-skeleton-text>
-            </div>
+            @for (j of [1,2]; track j) {
+              <div class="skeleton-row">
+                <ion-skeleton-text animated style="width: 44%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+                <ion-skeleton-text animated style="width: 20%; height: 11px; border-radius: 4px;"></ion-skeleton-text>
+              </div>
+            }
           </div>
         }
       </div>
+
+    <!-- Sin negocios -->
     } @else if (negocios.length === 0) {
       <app-empty-state
         icon="business-outline"
         title="Sin negocios"
-        hint="Aún no hay negocios registrados en la plataforma.">
+        hint="Aún no hay negocios registrados. Tocá 'Crear negocio' para empezar.">
       </app-empty-state>
+
+    <!-- Sin resultados de búsqueda -->
+    } @else if (propietariosAgrupados.length === 0) {
+      <app-empty-state
+        icon="search-outline"
+        title="Sin resultados"
+        hint="No hay negocios ni propietarios que coincidan con la búsqueda.">
+      </app-empty-state>
+
+    <!-- Acordeones por propietario -->
     } @else {
-      <div class="negocios-list">
-        @for (negocio of negocios; track negocio.id) {
-          <div
-            class="negocio-card"
-            [class.negocio-card--activo]="negocio.id === negocioActivoId"
-            [class.negocio-card--loading]="cambiando === negocio.id"
-            [class.negocio-card--inactivo]="!negocio.activo"
-            (click)="entrarNegocio(negocio)">
+      <ion-accordion-group [multiple]="false">
 
-            <div class="negocio-icon-wrap" [class.negocio-icon-wrap--activo]="negocio.id === negocioActivoId">
-              <ion-icon name="business-outline"></ion-icon>
-            </div>
+        @for (grupo of propietariosAgrupados; track grupo.usuario_id) {
+          <ion-accordion [value]="grupo.usuario_id" class="propietario-accordion" [class.propietario-accordion--suspendido]="!grupo.activo">
 
-            <div class="negocio-info">
-              <p class="negocio-nombre">{{ negocio.nombre }}</p>
-              <p class="negocio-slug">{{ negocio.slug }}</p>
-            </div>
+            <!-- Header del acordeón: propietario -->
+            <ion-item slot="header" lines="none" class="propietario-item" [class.propietario-item--suspendido]="!grupo.activo">
+              <div class="propietario-avatar" [class.propietario-avatar--suspendido]="!grupo.activo" slot="start">
+                <ion-icon name="person-outline"></ion-icon>
+              </div>
+              <ion-label class="propietario-label">
+                <div class="propietario-label-top">
+                  <span class="propietario-nombre">{{ grupo.nombre }}</span>
+                  @if (!grupo.activo) {
+                    <span class="badge-suspendido badge-suspendido--usuario">Suspendido</span>
+                  }
+                </div>
+                <span class="propietario-email">{{ grupo.email }}</span>
+              </ion-label>
+              <div class="propietario-contador" slot="end">
+                {{ grupo.negocios.length }} {{ grupo.negocios.length === 1 ? 'negocio' : 'negocios' }}
+              </div>
+            </ion-item>
 
-            <div class="negocio-accion">
-              @if (cambiando === negocio.id) {
-                <ion-spinner name="crescent" color="primary"></ion-spinner>
-              } @else if (negocio.id === negocioActivoId) {
-                <ion-icon name="checkmark-circle" color="success"></ion-icon>
-              } @else {
-                <ion-icon name="chevron-forward-outline" color="medium"></ion-icon>
+            <!-- Contenido expandido: negocios del propietario -->
+            <div slot="content" class="accordion-content">
+              @for (negocio of grupo.negocios; track negocio.id; let last = $last) {
+                <div
+                  class="negocio-row"
+                  [class.negocio-row--activo]="negocio.id === negocioActivoId"
+                  [class.negocio-row--last]="last">
+
+                  <div class="negocio-row-main">
+
+                    <div class="negocio-row-info">
+                      <div class="negocio-row-top">
+                        <span class="negocio-nombre">{{ negocio.nombre }}</span>
+                      </div>
+                      <span class="negocio-slug">{{ negocio.slug }}</span>
+                    </div>
+
+                    <div class="negocio-row-accion">
+                      @if (cambiando === negocio.id) {
+                        <ion-spinner name="crescent" color="primary"></ion-spinner>
+                      } @else if (negocio.id === negocioActivoId) {
+                        <ion-icon name="checkmark-circle" color="success"></ion-icon>
+                      }
+                    </div>
+
+                  </div>
+
+                  <button class="btn-opciones" (click)="abrirOpciones($event, negocio)">
+                    <ion-icon name="ellipsis-vertical"></ion-icon>
+                  </button>
+
+                </div>
               }
             </div>
 
-          </div>
+          </ion-accordion>
         }
-      </div>
+
+      </ion-accordion-group>
     }
 
   </div>
-
 
 </ion-content>

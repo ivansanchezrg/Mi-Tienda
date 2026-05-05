@@ -67,17 +67,22 @@
       <!-- Badges -->
       <div class="employee-badges">
         @if (usuario.es_superadmin) {
-        <span class="badge-superadmin">
-          <ion-icon name="shield-checkmark-outline"></ion-icon>
-          Super
-        </span>
+          <span class="badge-superadmin">
+            <ion-icon name="shield-checkmark-outline"></ion-icon>
+            Super
+          </span>
+        } @else if (usuario.es_propietario) {
+          <span class="badge-propietario">
+            <ion-icon name="ribbon-outline"></ion-icon>
+            Propietario
+          </span>
         } @else {
-        <span class="badge-rol" [class.admin]="usuario.rol === 'ADMIN'">
-          {{ usuario.rol === 'ADMIN' ? 'Admin' : 'Empleado' }}
-        </span>
+          <span class="badge-rol" [class.admin]="usuario.rol === 'ADMIN'">
+            {{ usuario.rol === 'ADMIN' ? 'Admin' : 'Empleado' }}
+          </span>
         }
         @if (!usuario.activo) {
-        <span class="badge-inactivo">Inactivo</span>
+          <span class="badge-inactivo">Inactivo</span>
         }
       </div>
 
