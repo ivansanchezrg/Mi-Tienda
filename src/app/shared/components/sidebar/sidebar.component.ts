@@ -11,7 +11,8 @@ import {
   listOutline, swapHorizontalOutline, homeOutline, cubeOutline,
   personOutline, readerOutline, barcodeOutline, receiptOutline,
   storefrontOutline, calculatorOutline, createOutline, scaleOutline,
-  walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline
+  walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline,
+  lockClosedOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 import { RolUsuario } from '../../../features/auth/models/usuario_actual.model';
@@ -29,6 +30,7 @@ interface MenuItem {
   soloAdmin?: boolean;
   soloPos?: boolean;
   soloRecargas?: boolean;
+  disabled?: boolean;
 }
 
 interface MenuGroup {
@@ -121,7 +123,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   recargasBusHabilitada = false;
 
   constructor() {
-    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline, walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline });
+    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline, walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline, lockClosedOutline });
   }
 
   async ngOnInit() {
@@ -184,11 +186,15 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.menuGroups = this.todosLosGrupos
       .map(group => ({
         ...group,
-        items: group.items.filter(item =>
-          (!item.soloAdmin    || this.empleadoRol === 'ADMIN') &&
-          (!item.soloPos      || this.posHabilitado) &&
-          (!item.soloRecargas || this.recargasCelularHabilitada || this.recargasBusHabilitada)
-        )
+        items: group.items
+          .filter(item =>
+            (!item.soloAdmin    || this.empleadoRol === 'ADMIN') &&
+            (!item.soloRecargas || this.recargasCelularHabilitada || this.recargasBusHabilitada)
+          )
+          .map(item => ({
+            ...item,
+            disabled: item.soloPos && !this.posHabilitado
+          }))
       }))
       .filter(group => group.items.length > 0);
   }
@@ -227,6 +233,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (role === 'crear') {
       this.router.navigate([ROUTES.crearNegocio.root], { queryParams: { context: 'sucursal' } });
     }
+  }
+
+  onItemDeshabilitadoClick() {
+    this.ui.showToast('Abrí la caja desde Inicio para usar el POS', 'warning');
   }
 
   async onAccionRapida(accion: 'nueva-nota' | 'cuadre' | 'calculadora') {

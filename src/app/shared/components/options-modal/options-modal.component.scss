@@ -2,19 +2,12 @@
     display: block;
 }
 
-.modal-handle {
-    width: 36px;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--ion-color-step-300);
-    margin: var(--spacing-sm) auto var(--spacing-md);
-}
-
-.modal-header {
-    padding: 0 var(--spacing-lg) var(--spacing-md);
+.options-header {
+    padding: var(--spacing-md) var(--spacing-lg) var(--spacing-md);
 }
 
 .modal-title {
+    display: block;
     margin: 0;
     font-size: 18px;
     font-weight: 700;
@@ -22,9 +15,11 @@
 }
 
 .modal-subtitle {
+    display: block;
     margin: 4px 0 0;
     font-size: 13px;
     color: var(--ion-color-step-500);
+    white-space: pre-line;
 }
 
 .modal-body {

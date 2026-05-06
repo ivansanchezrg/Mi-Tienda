@@ -198,24 +198,24 @@ export class RecargasService {
         { showLoading: false }
       ),
 
-      // 3. Saldo actual de CAJA_CELULAR
+      // 3. Saldo actual de CAJA_CELULAR (puede no existir si el módulo no está habilitado)
       this.supabase.call<CajaQuery>(
         this.supabase.client
           .from('cajas')
           .select('saldo_actual')
           .eq('codigo', 'CAJA_CELULAR')
-          .single(),
+          .maybeSingle(),
         undefined,
         { showLoading: false }
       ),
 
-      // 4. Saldo actual de CAJA_BUS
+      // 4. Saldo actual de CAJA_BUS (puede no existir si el módulo no está habilitado)
       this.supabase.call<CajaQuery>(
         this.supabase.client
           .from('cajas')
           .select('saldo_actual')
           .eq('codigo', 'CAJA_BUS')
-          .single()
+          .maybeSingle()
       ),
 
       // 5. Configuración (fondo_fijo + transferencia_diaria para el preview del Paso 3)
@@ -294,7 +294,7 @@ export class RecargasService {
           .from('cajas')
           .select('id')
           .eq('codigo', 'VARIOS')
-          .single(),
+          .maybeSingle(),
         undefined,
         { showLoading: false }
       ),
@@ -303,7 +303,7 @@ export class RecargasService {
           .from('cajas')
           .select('id')
           .eq('codigo', 'CAJA_CELULAR')
-          .single(),
+          .maybeSingle(),
         undefined,
         { showLoading: false }
       ),
@@ -312,7 +312,7 @@ export class RecargasService {
           .from('cajas')
           .select('id')
           .eq('codigo', 'CAJA_BUS')
-          .single(),
+          .maybeSingle(),
         undefined,
         { showLoading: false }
       )

@@ -328,7 +328,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   async onChipTurnoClick() {
     if (this.esMiTurno) {
-      // Mi turno — mostrar info + opción de cerrar
       const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
       const groups: ModalOptionGroup[] = [{
         options: [
@@ -339,7 +338,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
         component: OptionsModalComponent,
         componentProps: {
           title: 'Turno Activo',
-          subtitle: `${cajaNombre} abierto · Ventas POS habilitadas · Desde ${this.estadoCaja.horaApertura}`,
+          subtitle: `${cajaNombre} abierto · Desde ${this.estadoCaja.horaApertura}`,
           groups
         },
         cssClass: 'options-modal',
@@ -351,7 +350,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       if (data === 'cerrar') await this.onCerrarCaja();
 
     } else if (this.cajaAbierta) {
-      // Turno ajeno — informativo; admins pueden hacer cierre de emergencia
       const nombre = this.estadoCaja.empleadoNombre || 'otro empleado';
       const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
       const groups: ModalOptionGroup[] = this.esAdmin
@@ -361,7 +359,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
         component: OptionsModalComponent,
         componentProps: {
           title: 'Turno en Progreso',
-          subtitle: `${cajaNombre} abierto por ${nombre} · Solo ese empleado puede registrar movimientos`,
+          subtitle: `${cajaNombre} abierto por ${nombre}\nSolo ese empleado puede registrar movimientos`,
           groups
         },
         cssClass: 'options-modal',
@@ -373,7 +371,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       if (data === 'emergencia') await this.onCierreEmergencia();
 
     } else {
-      // Sin turno — mostrar info + opción de abrir
       const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
       const groups: ModalOptionGroup[] = [{
         options: [
@@ -384,7 +381,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
         component: OptionsModalComponent,
         componentProps: {
           title: 'Caja Cerrada',
-          subtitle: `${cajaNombre} sin turno activo · Ventas POS deshabilitadas`,
+          subtitle: `${cajaNombre} sin turno activo`,
           groups
         },
         cssClass: 'options-modal',

@@ -168,6 +168,11 @@ ion-toolbar {
 .modern-list {
   padding: 10px 20px;
 
+  .flat-item--disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
   .flat-item {
     background: var(--ion-item-background, var(--ion-color-step-50, #fff));
     margin-bottom: 12px;
