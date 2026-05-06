@@ -259,6 +259,35 @@
   }
 }
 
+.menu-item--disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: auto;
+}
+
+.menu-item-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-right: var(--spacing-lg);
+
+  ion-icon:first-child {
+    font-size: 22px;
+    color: var(--ion-color-medium);
+  }
+}
+
+.menu-item-lock {
+  position: absolute;
+  bottom: -3px;
+  right: -6px;
+  font-size: 10px;
+  color: var(--ion-color-medium);
+  background: var(--ion-background-color);
+  border-radius: 50%;
+  padding: 1px;
+}
+
 .active-item {
   --background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
 

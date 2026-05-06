@@ -79,15 +79,17 @@
       </div>
     </div>
 
-    @if (cajaAbierta) {
-    <div class="flat-item">
-      <div class="flat-item-body" (click)="onSaldoClick('cajaChica')">
+    <div class="flat-item" [class.flat-item--disabled]="!cajaAbierta">
+      <div class="flat-item-body" (click)="cajaAbierta && onSaldoClick('cajaChica')">
         <div class="icon-wrapper tertiary">
           <ion-icon name="cash-outline"></ion-icon>
         </div>
         <div class="content">
           <span class="title">{{ cajaNombreFor('CAJA_CHICA') }}</span>
-          <span class="subtitle">Cierre: {{ fechaUltimoCierre }}</span>
+          <span class="subtitle">
+            @if (cajaAbierta) { Cierre: {{ fechaUltimoCierre }} }
+            @else { Sin turno activo }
+          </span>
         </div>
       </div>
       <div class="amount-group">
@@ -104,7 +106,6 @@
         }
       </div>
     </div>
-    }
 
     @if (variosActiva) {
     <div class="flat-item">
