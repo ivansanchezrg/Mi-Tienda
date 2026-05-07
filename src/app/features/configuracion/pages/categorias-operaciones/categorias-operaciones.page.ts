@@ -49,7 +49,7 @@ export class CategoriasOperacionesPage implements OnInit {
     addIcons({ addOutline, lockClosedOutline, chevronForwardOutline });
   }
 
-  ngOnInit() {
+  async ngOnInit() {
     this.cargarCategorias();
   }
 
@@ -82,7 +82,7 @@ export class CategoriasOperacionesPage implements OnInit {
     try {
       this.categorias = await this.service.getCategorias();
     } catch {
-      await this.ui.showError('Error al cargar las categorías. Verificá tu conexión.');
+      await this.ui.showError('Error al cargar las categorías. Verifica tu conexión.');
     } finally {
       this.loading = false;
     }

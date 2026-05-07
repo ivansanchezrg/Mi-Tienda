@@ -286,12 +286,46 @@ ion-accordion-group {
     transition: opacity 0.1s ease;
 }
 
+.negocio-row-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+}
+
 .negocio-slug {
     font-size: 12px;
     color: var(--ion-color-medium);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.badge-modulo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    flex-shrink: 0;
+
+    ion-icon { font-size: 11px; }
+
+    &--celular {
+        background: rgba(var(--ion-color-secondary-rgb), 0.15);
+        ion-icon { color: var(--ion-color-secondary); }
+    }
+
+    &--bus {
+        background: rgba(var(--ion-color-warning-rgb), 0.15);
+        ion-icon { color: var(--ion-color-warning); }
+    }
+
+    &--varios {
+        background: rgba(var(--ion-color-tertiary-rgb), 0.15);
+        ion-icon { color: var(--ion-color-tertiary); }
+    }
 }
 
 .negocio-row-accion {

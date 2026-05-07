@@ -64,6 +64,11 @@ export class AuthService {
   private readonly _usuarioActual$ = new BehaviorSubject<UsuarioActual | null>(null);
   readonly usuarioActual$ = this._usuarioActual$.asObservable();
 
+  /** Valor sincronico del usuario actual (util en codigo imperativo). */
+  get usuarioActualValue(): UsuarioActual | null {
+    return this._usuarioActual$.value;
+  }
+
   /**
    * Flag que indica si validarUsuario() ya se ejecutó exitosamente en esta sesión.
    * Se resetea a false en handleExpiredSession() (via cleanup) y handleUsuarioDesactivado().

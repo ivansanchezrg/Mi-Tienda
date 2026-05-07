@@ -15,7 +15,8 @@ import {
   chevronForwardOutline, shieldCheckmarkOutline,
   addOutline, ellipsisVertical,
   personOutline, personRemoveOutline,
-  searchOutline, closeOutline, logInOutline
+  searchOutline, closeOutline, logInOutline,
+  phonePortraitOutline, busOutline, extensionPuzzleOutline, archiveOutline
 } from 'ionicons/icons';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
@@ -24,25 +25,7 @@ import { SupabaseService } from '@core/services/supabase.service';
 import { LoggerService } from '@core/services/logger.service';
 import { UiService } from '@core/services/ui.service';
 import { ROUTES } from '@core/config/routes.config';
-
-interface NegocioAdmin {
-  id: string;
-  nombre: string;
-  slug: string;
-  propietario_usuario_id: string;
-  propietario_nombre: string;
-  propietario_email: string;
-  propietario_activo: boolean;
-  created_at: string;
-}
-
-interface PropietarioGrupo {
-  usuario_id: string;
-  nombre: string;
-  email: string;
-  activo: boolean;
-  negocios: NegocioAdmin[];
-}
+import { NegocioAdmin, PropietarioGrupo } from '../../models/negocio-admin.model';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -72,14 +55,14 @@ export class AdminDashboardPage implements OnInit {
   loading   = false;
   cambiando: string | null = null;
   negocioActivoId: string | null = null;
-
   busqueda = '';
 
   constructor() {
     addIcons({
       businessOutline, checkmarkCircle, chevronForwardOutline, shieldCheckmarkOutline,
       addOutline, ellipsisVertical, personOutline, personRemoveOutline,
-      searchOutline, closeOutline, logInOutline
+      searchOutline, closeOutline, logInOutline,
+      phonePortraitOutline, busOutline, extensionPuzzleOutline, archiveOutline
     });
   }
 
@@ -92,11 +75,13 @@ export class AdminDashboardPage implements OnInit {
   async cargar(silencioso = false) {
     if (!silencioso) this.loading = true;
     try {
+      // Cargar negocios + propietarios + flags de módulos en una sola query
       const { data, error } = await this.supabase.client
         .from('negocios')
         .select(`
           id, nombre, slug, propietario_usuario_id, created_at,
-          propietario:usuarios!propietario_usuario_id (nombre, email, activo)
+          propietario:usuarios!propietario_usuario_id (nombre, email, activo),
+          configuraciones (clave, valor)
         `)
         .order('created_at', { ascending: true });
 
@@ -106,16 +91,27 @@ export class AdminDashboardPage implements OnInit {
         return;
       }
 
-      this.negocios = (data ?? []).map((n: any) => ({
-        id:                    n.id,
-        nombre:                n.nombre,
-        slug:                  n.slug,
-        propietario_usuario_id: n.propietario_usuario_id,
-        created_at:            n.created_at,
-        propietario_nombre:    n.propietario?.nombre ?? 'Sin nombre',
-        propietario_email:     n.propietario?.email  ?? '',
-        propietario_activo:    n.propietario?.activo ?? true
-      }));
+      this.negocios = (data ?? []).map((n: any) => {
+        const cfg: Record<string, string> = {};
+        for (const c of (n.configuraciones ?? [])) cfg[c.clave] = c.valor;
+
+        return {
+          id:                     n.id,
+          nombre:                 n.nombre,
+          slug:                   n.slug,
+          propietario_usuario_id: n.propietario_usuario_id,
+          created_at:             n.created_at,
+          propietario_nombre:     n.propietario?.nombre  ?? 'Sin nombre',
+          propietario_email:      n.propietario?.email   ?? '',
+          propietario_activo:     n.propietario?.activo  ?? true,
+          modulos: {
+            celular:      cfg['recargas_celular_habilitada'] === 'true',
+            bus:          cfg['recargas_bus_habilitada']     === 'true',
+            varios:       cfg['caja_varios_activa']          === 'true',
+            varios_monto: parseFloat(cfg['caja_varios_transferencia_dia'] ?? '0') || 0
+          }
+        } satisfies NegocioAdmin;
+      });
     } finally {
       this.loading = false;
     }
@@ -124,7 +120,6 @@ export class AdminDashboardPage implements OnInit {
   get propietariosAgrupados(): PropietarioGrupo[] {
     const q = this.busqueda.trim().toLowerCase();
 
-    // Filtrar negocios que coincidan con la búsqueda
     const negociosFiltrados = q
       ? this.negocios.filter(n =>
           n.nombre.toLowerCase().includes(q) ||
@@ -133,7 +128,6 @@ export class AdminDashboardPage implements OnInit {
         )
       : this.negocios;
 
-    // Agrupar por propietario_usuario_id
     const mapaGrupos = new Map<string, PropietarioGrupo>();
 
     for (const n of negociosFiltrados) {
@@ -163,7 +157,6 @@ export class AdminDashboardPage implements OnInit {
 
   async entrarNegocio(negocio: NegocioAdmin) {
     if (this.cambiando || negocio.id === this.negocioActivoId) return;
-
     this.cambiando = negocio.id;
     await this.ui.showLoading(`Entrando a ${negocio.nombre}...`);
     try {
@@ -188,8 +181,16 @@ export class AdminDashboardPage implements OnInit {
             label:    'Ingresar al negocio',
             icon:     'log-in-outline',
             value:    'ingresar',
-            subtitle: negocio.id === this.negocioActivoId ? 'Negocio activo actualmente' : 'Entrar y operar dentro de este negocio',
-            color:    negocio.id === this.negocioActivoId ? undefined : 'primary'
+            subtitle: negocio.id === this.negocioActivoId
+              ? 'Negocio activo actualmente'
+              : 'Entrar y operar dentro de este negocio',
+            color: negocio.id === this.negocioActivoId ? undefined : 'primary'
+          },
+          {
+            label:    'Módulos',
+            icon:     'extension-puzzle-outline',
+            value:    'modulos',
+            subtitle: this.resumenModulos(negocio)
           }
         ]
       },
@@ -221,7 +222,35 @@ export class AdminDashboardPage implements OnInit {
     if (!data) return;
 
     if (data === 'ingresar')       await this.entrarNegocio(negocio);
+    if (data === 'modulos')        await this.abrirModulos(negocio);
     if (data === 'toggle-usuario') await this.toggleUsuario(negocio);
+  }
+
+  async abrirModulos(negocio: NegocioAdmin) {
+    const { ModulosNegocioModalComponent } = await import('../../components/modulos-negocio-modal/modulos-negocio-modal.component');
+
+    const modal = await this.modalCtrl.create({
+      component: ModulosNegocioModalComponent,
+      componentProps: { negocio },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
+    });
+
+    await modal.present();
+    const { data, role } = await modal.onDidDismiss<{ celular: boolean; bus: boolean; varios: boolean; varios_monto: number }>();
+
+    if (role === 'confirm' && data) {
+      negocio.modulos = { celular: data.celular, bus: data.bus, varios: data.varios, varios_monto: data.varios_monto ?? 0 };
+    }
+  }
+
+  private resumenModulos(negocio: NegocioAdmin): string {
+    const activos: string[] = [];
+    if (negocio.modulos.celular) activos.push('Celular');
+    if (negocio.modulos.bus)     activos.push('Bus');
+    if (negocio.modulos.varios)  activos.push('Varios');
+    return activos.length ? activos.join(' · ') : 'Sin módulos adicionales';
   }
 
   private async confirmar(header: string, message: string): Promise<boolean> {

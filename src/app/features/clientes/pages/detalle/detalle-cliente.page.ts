@@ -17,6 +17,7 @@ import {
     callOutline, personOutline, checkmarkCircleOutline,
     eyeOutline, closeOutline, createOutline
 } from 'ionicons/icons';
+import { AuthService } from '../../../auth/services/auth.service';
 import { CuentasCobrarService } from '../../services/cuentas-cobrar.service';
 import { VentaFiada, VentaFiadaItem } from '../../models/cuenta-cobrar.model';
 import { ClientesService } from '../../services/clientes.service';
@@ -58,12 +59,14 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
     private shareService = inject(ShareEstadoCuentaService);
     private alertCtrl = inject(AlertController);
     private config = inject(ConfigService);
+    private authService = inject(AuthService);
 
     cliente: Cliente | null = null;
     ventasFiadas: VentaFiada[] = [];
     itemsPorVenta = new Map<string, VentaFiadaItem[]>();
     loading = true;
     compartiendo = false;
+    esSuperadmin = false;
 
     private clienteId = '';
 
@@ -87,6 +90,8 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
 
     async ngOnInit() {
         this.clienteId = this.route.snapshot.paramMap.get('clienteId') ?? '';
+        const usuario = await this.authService.getUsuarioActual();
+        this.esSuperadmin = usuario?.es_superadmin ?? false;
         await this.cargarDatos();
     }
 

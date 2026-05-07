@@ -333,6 +333,50 @@ await modal.present();
 
 ---
 
+### `app-period-filter` — Selector de período
+
+**Archivo:** `components/period-filter/`
+
+Barra de tabs pill para seleccionar un período de filtro (Hoy / Semana / Mes / Todo). Reemplaza el patrón de botones de período hardcodeados dentro de cada página.
+
+#### API
+
+| `@Input()` | Tipo | Descripción |
+|---|---|---|
+| `options` | `PeriodOption[]` | Lista de opciones `{ value: string; label: string }` |
+| `selected` | `string` | Valor activo (pill resaltado) |
+| `label` | `string?` | Etiqueta opcional a la izquierda de las tabs |
+
+| `@Output()` | Tipo | Descripción |
+|---|---|---|
+| `selectionChange` | `EventEmitter<string>` | Emite el `value` de la opción seleccionada |
+
+#### Ejemplo de uso
+
+```typescript
+import { PeriodFilterComponent, PeriodOption } from '@shared/components/period-filter/period-filter.component';
+
+readonly periodos: PeriodOption[] = [
+  { value: 'hoy',    label: 'Hoy' },
+  { value: 'semana', label: 'Semana' },
+  { value: 'mes',    label: 'Mes' },
+  { value: 'todo',   label: 'Todo' },
+];
+filtro = 'hoy';
+```
+
+```html
+<app-period-filter
+  [options]="periodos"
+  [selected]="filtro"
+  (selectionChange)="cambiarFiltro($event)">
+</app-period-filter>
+```
+
+> Actualmente usado en `VentasResumenPage`. El componente no emite si el valor seleccionado ya es el activo.
+
+---
+
 ### `app-sidebar` — Menú lateral
 
 **Archivo:** `components/sidebar/`

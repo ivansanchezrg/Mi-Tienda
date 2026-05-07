@@ -45,6 +45,8 @@ DECLARE
     v_variantes         JSON;
     v_atributos_tmpl    JSON;
 BEGIN
+    PERFORM public.fn_assert_no_superadmin();
+
     v_negocio_id := public.get_negocio_id();
 
     IF v_negocio_id IS NULL THEN

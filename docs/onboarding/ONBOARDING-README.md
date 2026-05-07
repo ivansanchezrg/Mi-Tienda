@@ -208,7 +208,7 @@ Operación atómica: crea todo o no crea nada. Si falla cualquier paso, rollback
 | 3 | `negocios` | Inserta el negocio con `slug` generado automáticamente desde el nombre. |
 | 4 | `usuario_negocios` | Membresía ADMIN del admin en el nuevo negocio (upsert). |
 | 4b | `usuario_negocios` | Si el propietario difiere del admin, también le da membresía ADMIN. |
-| 5 | `cajas` | 3 cajas base: `CAJA` (Tienda), `CAJA_CHICA` (Cajón), `VARIOS` (Varios). `CAJA_CELULAR` y `CAJA_BUS` solo se crean si el superadmin los habilita después via `fn_habilitar_recargas`. |
+| 5 | `cajas` | 3 cajas base: `CAJA` (Tienda), `CAJA_CHICA` (Cajón), `VARIOS` (Varios). `CAJA_CELULAR` y `CAJA_BUS` solo se crean si el superadmin los habilita después via `fn_configurar_modulos`. |
 | 6 | `categorias_operaciones` | 17 categorías preconfiguradas (egresos + ingresos estándar de tienda minorista). |
 | 7 | `categorias_productos` | 8 categorías base (Sin categoría, Bebidas, Snacks, etc.). |
 | 8 | `configuraciones` | Defaults del negocio + valores del wizard (fondo fijo, Varios, nómina, POS, módulos). |
@@ -257,14 +257,16 @@ Superadmin:
 
 ---
 
-## Función SQL — `fn_habilitar_recargas`
+## Función SQL — `fn_configurar_modulos`
 
-**Archivo:** `docs/onboarding/sql/functions/fn_habilitar_recargas.sql`
+**Archivo:** `docs/onboarding/sql/functions/fn_configurar_modulos.sql`
 
-Habilita los módulos opcionales `CAJA_CELULAR` y/o `CAJA_BUS` para un negocio existente. Solo el superadmin puede ejecutarla. Se llama desde Parámetros → Módulos en el panel del negocio.
+Habilita los módulos opcionales `CAJA_CELULAR`, `CAJA_BUS` y/o `VARIOS` para un negocio existente. Solo el superadmin puede ejecutarla. Se llama desde Parámetros → Módulos en el panel del negocio.
+
+**Parámetros:** `p_celular BOOLEAN`, `p_bus BOOLEAN`, `p_varios BOOLEAN`
 
 - Crea la caja física (`cajas`) si no existe
-- Actualiza la configuración `recargas_celular_habilitada` / `recargas_bus_habilitada` a `'true'`
+- Actualiza las configuraciones `recargas_celular_habilitada`, `recargas_bus_habilitada`, `caja_varios_activa` según corresponda
 
 ---
 
@@ -278,10 +280,10 @@ Todas viven en tabla `configuraciones` (clave/valor). Los módulos las leen via 
 | `negocio_telefono` | Teléfono del wizard | Admin en Parámetros |
 | `negocio_direccion` | Dirección del wizard | Admin en Parámetros |
 | `caja_fondo_fijo_diario` | Fondo fijo del wizard | Admin en Parámetros |
-| `caja_varios_activa` | Toggle del wizard | `fn_activar_caja_varios` (una vez activa, no se puede desactivar) |
+| `caja_varios_activa` | Toggle del wizard | Solo superadmin via `fn_configurar_modulos` / `fn_configurar_modulos_admin` (una vez activa, no se puede desactivar) |
 | `caja_varios_transferencia_dia` | Monto del wizard (o 0) | Admin en Parámetros |
-| `recargas_celular_habilitada` | `false` | Solo superadmin via `fn_habilitar_recargas` |
-| `recargas_bus_habilitada` | `false` | Solo superadmin via `fn_habilitar_recargas` |
+| `recargas_celular_habilitada` | `false` | Solo superadmin via `fn_configurar_modulos` / `fn_configurar_modulos_admin` |
+| `recargas_bus_habilitada` | `false` | Solo superadmin via `fn_configurar_modulos` / `fn_configurar_modulos_admin` |
 | `pos_descuentos_habilitados` | `false` | Admin en Parámetros |
 | `pos_descuento_maximo_pct` | `0` | Admin en Parámetros |
 | `pos_umbral_monto_descuento` | `0` | Admin en Parámetros |
@@ -339,7 +341,8 @@ Superadmin desde /admin → "Crear negocio"
 | `features/onboarding/onboarding.routes.ts` | Rutas `/onboarding/negocio` y `/onboarding/caja` (sin sidebar) |
 | `features/crear-negocio/crear-negocio.routes.ts` | Rutas `/crear-negocio/negocio` y `/crear-negocio/caja` (con sidebar) |
 | `docs/onboarding/sql/functions/fn_completar_onboarding.sql` | Función atómica: crea negocio + todas sus tablas asociadas en una sola transacción |
-| `docs/onboarding/sql/functions/fn_habilitar_recargas.sql` | Habilita módulos CAJA_CELULAR / CAJA_BUS (solo superadmin, post-creación) |
+| `docs/onboarding/sql/functions/fn_configurar_modulos.sql` | Habilita módulos CAJA_CELULAR / CAJA_BUS / VARIOS (solo superadmin, desde dentro del negocio) |
+| `docs/admin/sql/functions/fn_configurar_modulos_admin.sql` | Habilita módulos CAJA_CELULAR / CAJA_BUS / VARIOS (solo superadmin, desde `/admin`) |
 | `docs/setup/03_functions.sql` | `fn_set_negocio_activo` — activa el JWT con el negocio recién creado (llamado por `activarYFinalizar`) |
 
 ---

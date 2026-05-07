@@ -1,0 +1,180 @@
+.modal-header-icon {
+  background: rgba(var(--ion-color-primary-rgb), 0.1);
+  ion-icon { color: var(--ion-color-primary); }
+}
+
+.modal-negocio-nombre {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  padding: 0 2px;
+}
+
+.modulos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modulo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: var(--ion-color-step-50, rgba(var(--ion-color-medium-rgb), 0.04));
+}
+
+.modulo-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex: 1;
+  min-width: 0;
+}
+
+.modulo-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  ion-icon { font-size: 20px; }
+
+  &--celular {
+    background: rgba(var(--ion-color-secondary-rgb), 0.12);
+    ion-icon { color: var(--ion-color-secondary); }
+  }
+
+  &--bus {
+    background: rgba(var(--ion-color-warning-rgb), 0.12);
+    ion-icon { color: var(--ion-color-warning); }
+  }
+
+  &--varios {
+    background: rgba(var(--ion-color-tertiary-rgb), 0.12);
+    ion-icon { color: var(--ion-color-tertiary); }
+  }
+}
+
+.modulo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.modulo-label {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-dark);
+}
+
+.modulo-desc {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// ── Toggle custom ──────────────────────────────────────────
+.toggle-btn {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border-radius: 13px;
+  border: none;
+  background: rgba(var(--ion-color-medium-rgb), 0.25);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+  padding: 0;
+
+  &--on {
+    background: var(--ion-color-primary);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+
+  .toggle-btn--on & {
+    transform: translateX(20px);
+  }
+}
+
+// ── Input monto Varios ──────────────────────────────────────────
+.varios-monto-group {
+  padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.varios-monto-label {
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.varios-monto-input {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: var(--ion-color-step-50, rgba(var(--ion-color-medium-rgb), 0.06));
+  border: 1.5px solid var(--ion-color-step-150, rgba(var(--ion-color-medium-rgb), 0.2));
+  border-radius: var(--radius-md);
+  padding: 10px var(--spacing-md);
+
+  &:focus-within {
+    border-color: var(--ion-color-tertiary);
+  }
+}
+
+.varios-monto-prefix {
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-medium);
+  flex-shrink: 0;
+}
+
+.varios-monto-input input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  color: var(--ion-color-dark);
+  outline: none;
+  min-width: 0;
+
+  &::placeholder { color: var(--ion-color-medium); }
+}
+
+.varios-monto-hint {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+}
+
+.varios-monto-error {
+  font-size: 11px;
+  color: var(--ion-color-danger);
+}

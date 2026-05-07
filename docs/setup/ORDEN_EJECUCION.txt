@@ -65,8 +65,8 @@ NOTAS GENERALES:
   en cualquier orden entre si):
 
   docs/onboarding/sql/functions/fn_completar_onboarding.sql
-  docs/onboarding/sql/functions/fn_habilitar_recargas.sql
-  docs/configuracion/sql/functions/fn_activar_caja_varios.sql
+  docs/onboarding/sql/functions/fn_configurar_modulos.sql
+  docs/admin/sql/functions/fn_configurar_modulos_admin.sql
   docs/admin/sql/functions/fn_suspender_negocio.sql
 
 ================================================================================
@@ -106,7 +106,6 @@ NOTAS GENERALES:
 
   Ventas:
     docs/ventas/sql/functions/fn_listar_ventas.sql
-    docs/ventas/sql/functions/fn_resumir_ventas.sql
     docs/ventas/sql/functions/fn_reporte_ventas_periodo.sql
     docs/ventas/sql/functions/fn_anular_venta.sql
 

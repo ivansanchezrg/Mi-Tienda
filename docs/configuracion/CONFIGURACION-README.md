@@ -30,8 +30,6 @@ docs/configuracion/
 └── sql/
     ├── setup/
     │   └── realtime_configuraciones.sql  # Habilitar Realtime + politica RLS (ejecutar 1 vez)
-    ├── functions/
-    │   └── fn_activar_caja_varios.sql    # Activa la caja VARIOS (solo admin)
     └── triggers/
         ├── trg_set_codigo_categoria_gasto.sql
         └── trg_set_codigo_categoria_operacion.sql
@@ -162,12 +160,9 @@ Formulario reactivo (`FormGroup`) agrupado en secciones visuales. Cada seccion (
 | POS | `cart-outline` | Descuentos, Porcentaje, Monto minimo, IVA | Todos |
 | Nomina | `people-outline` | Sueldo base, Dia de pago | Todos |
 
-**Banner "Caja Varios no activada"** (solo admin):
-Aparece dentro de la seccion Caja cuando `caja_varios_activa = false`. Es un banner amarillo con boton "Activar" que llama a `fn_activar_caja_varios`. Una vez activada, la caja Varios aparece en el dashboard y **no se puede desactivar**. El hint informa esta restriccion antes de actuar.
-
 **Comportamiento condicional de secciones**:
 - POS: `pos_descuentos_habilitados = OFF` → oculta los campos de porcentaje y monto minimo. El campo IVA siempre es visible.
-- Modulos: el toggle de cada recarga llama directamente a `fn_habilitar_recargas` (sin boton Guardar). La funcion crea CAJA_CELULAR/CAJA_BUS y sus categorias solo del modulo activado, y actualiza ambos flags.
+- Modulos: los toggles de cada modulo (Celular, Bus, Varios) llaman directamente a `fn_configurar_modulos` (sin boton Guardar). La funcion crea las cajas y categorias solo del modulo activado y actualiza los flags correspondientes.
 - Bus: la seccion entera depende de `recargas_bus_habilitada`. Si esta OFF, no aparece.
 
 **Flujo de guardado por seccion** (Negocio, Caja, Bus, POS, Nomina):
@@ -259,7 +254,7 @@ Setup ejecutado una sola vez: [`sql/setup/realtime_configuraciones.sql`](./sql/s
 | Funcion | Donde vive | Quien puede ejecutarla | Que hace |
 |---------|-----------|------------------------|----------|
 | `fn_completar_onboarding` | `docs/onboarding/sql/functions/` | Cualquier authenticated (con email propio) o superadmin | Crea negocio + 3 cajas base (CAJA, CAJA_CHICA, VARIOS opcional) + categorias + configuraciones iniciales en una sola transaccion. |
-| `fn_activar_caja_varios` | `docs/configuracion/sql/functions/` | ADMIN del negocio activo | Crea la caja VARIOS si no existe y marca `caja_varios_activa = true`. Idempotente (`ON CONFLICT DO NOTHING`). |
-| `fn_habilitar_recargas` | `docs/onboarding/sql/functions/` | Superadmin | Habilita/deshabilita los modulos CELULAR y BUS por separado. Crea CAJA_CELULAR/CAJA_BUS y sus categorias solo del modulo recien activado. |
+| `fn_configurar_modulos` | `docs/onboarding/sql/functions/` | Solo superadmin (desde dentro del negocio) | Habilita los modulos CELULAR, BUS y/o VARIOS. Crea las cajas y categorias del modulo activado y actualiza los flags. Parametros: `p_celular BOOLEAN`, `p_bus BOOLEAN`, `p_varios BOOLEAN`. |
+| `fn_configurar_modulos_admin` | `docs/admin/sql/functions/` | Solo superadmin (desde `/admin`) | Igual que `fn_configurar_modulos` pero opera sobre un negocio especificado por parametro, sin necesitar JWT del negocio. |
 
 > Los flags `recargas_celular_habilitada`, `recargas_bus_habilitada` y `caja_varios_activa` se leen via `ConfigService.get()` desde el dashboard, sidebar, paginas de recargas e historial para ocultar UI y saltear queries de modulos inactivos.

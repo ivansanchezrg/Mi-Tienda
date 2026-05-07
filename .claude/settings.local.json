@@ -153,7 +153,16 @@
       "PowerShell(head -20)",
       "PowerShell(Rename-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\caja\\\\dashboard.routes.ts\" \"caja.routes.ts\")",
       "PowerShell(Copy-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\dashboard\" \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\caja\" -Recurse -Force)",
-      "PowerShell(if \\($?\\) { \"Copia exitosa\" } else { \"Error\" })"
+      "PowerShell(if \\($?\\) { \"Copia exitosa\" } else { \"Error\" })",
+      "Bash(node -e \"const icons = require\\('ionicons/icons'\\); const matches = Object.keys\\(icons\\).filter\\(k => k.toLowerCase\\(\\).includes\\('extension'\\) || k.toLowerCase\\(\\).includes\\('puzzle'\\) || k.toLowerCase\\(\\).includes\\('grid'\\) || k.toLowerCase\\(\\).includes\\('apps'\\)\\); console.log\\(matches.join\\('\\\\n'\\)\\)\")",
+      "Bash(grep -r \"esMiTurno\\\\$\\\\|usuarioActual\\\\$\" /c/Users/ivan/Desktop/Proyectos/mi-tienda/src/app --include=\"*.ts\")",
+      "Bash(grep -rn \"cajaAbierta\\\\$\" c:/Users/ivan/Desktop/Proyectos/mi-tienda/src --include=\"*.ts\")",
+      "Bash(sed -i 's/confirmá/confirma/g' \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/caja/pages/cierre-diario/cierre-diario.page.html\")",
+      "Bash(sed -i 's/Verificá/Verifica/g; s/intentá/intenta/g; s/Seleccioná/Selecciona/g; s/Ingresá/Ingresa/g; s/Confirmás/Confirmas/g; s/Registrá/Registra/g' c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/caja/pages/cuadre-caja/cuadre-caja.page.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/caja/pages/cierre-diario/cierre-diario.page.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/caja/pages/home/home.page.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/caja/pages/operaciones-caja/operaciones-caja.page.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/usuarios/pages/list/list.page.ts 'c:/Users/ivan/Desktop/Proyectos\\\\mi-tienda/src/app/features/configuracion/pages/parametros/parametros.page.ts' c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/configuracion/pages/categorias-productos/categorias-productos.page.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/configuracion/pages/categorias-operaciones/categorias-operaciones.page.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/usuarios/components/editar-usuario-modal/editar-usuario-modal.component.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/onboarding/pages/caja/onboarding-caja.page.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/recargas-virtuales/pages/pagar-deudas/pagar-deudas.page.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/recargas-virtuales/components/registrar-recarga-modal/registrar-recarga-modal.component.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/onboarding/pages/negocio/onboarding-negocio.page.ts c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/pos/pages/pos/pos.page.ts)",
+      "Bash(sed -i \"s/Cerrá e intentá/Cierra e intenta/g\" \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/caja/components/operacion-modal/operacion-modal.component.ts\")",
+      "Bash(sed -i \"s/Revisá tu conexión e intenta/Revisa tu conexión e intenta/g\" \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/caja/pages/home/home.page.ts\")",
+      "Bash(grep -i \"á$\\\\|á \")",
+      "Bash(npm list *)"
     ]
   },
   "disableAllHooks": true

@@ -8,11 +8,11 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  walletOutline, cashOutline, phonePortraitOutline, busOutline,
+  walletOutline, archiveOutline, cashOutline, fileTrayOutline, phonePortraitOutline, busOutline,
   chevronForward, notificationsOutline, cloudOfflineOutline,
   alertCircleOutline, eyeOutline, eyeOffOutline,
   arrowUpOutline, arrowDownOutline,
-  lockClosedOutline, lockOpenOutline, warningOutline
+  lockClosedOutline, lockOpenOutline
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
@@ -30,7 +30,6 @@ import { NotificacionesService, Notificacion } from '@core/services/notificacion
 import { NotificacionesModalComponent } from '../../components/notificaciones-modal/notificaciones-modal.component';
 import { VerificarFondoModalComponent } from '../../components/verificar-fondo-modal/verificar-fondo-modal.component';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
-import { CierreEmergenciaModalComponent } from '../../components/cierre-emergencia-modal/cierre-emergencia-modal.component';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { ROUTES } from '@core/config/routes.config';
@@ -67,6 +66,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   nombreNegocio = 'Mi Tienda';
   private networkSub?: Subscription;
   private queryParamsSub?: Subscription;
+  private turnoSub?: Subscription;
 
   // Estado del turno de caja
   estadoCaja: EstadoCaja = {
@@ -119,6 +119,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   nombreUsuario = '';
   empleadoActualId: string | null = null;
   esAdmin = false;
+  esSuperadmin = false;
 
   // Fechas
   fechaUltimoCierre = '';
@@ -146,11 +147,11 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   constructor() {
     super();
     addIcons({
-      walletOutline, cashOutline, phonePortraitOutline, busOutline,
+      walletOutline, archiveOutline, cashOutline, fileTrayOutline, phonePortraitOutline, busOutline,
       chevronForward, notificationsOutline, cloudOfflineOutline,
       alertCircleOutline, eyeOutline, eyeOffOutline,
       arrowUpOutline, arrowDownOutline,
-      lockClosedOutline, lockOpenOutline, warningOutline
+      lockClosedOutline, lockOpenOutline
     });
   }
 
@@ -170,11 +171,34 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     });
 
     await this.cargarDatos();
+
+    // Sincronizar estado del chip via Realtime — cubre apertura y cierre desde otros dispositivos
+    this.turnoSub = this.turnosCajaService.turnoActivo$.subscribe(turno => {
+      if (turno) {
+        this.estadoCaja.empleadoNombre = turno.empleado?.nombre ?? '';
+        this.estadoCaja.horaApertura = new Date(turno.hora_fecha_apertura).toLocaleTimeString('es-ES', {
+          hour: '2-digit', minute: '2-digit', hour12: true
+        });
+        this.estadoCaja.estado = 'TURNO_EN_CURSO';
+        this.estadoCaja.turnoActivo = turno;
+      } else {
+        // Turno cerrado desde otro dispositivo — resetear todo el estado visual
+        const habiaTurno = this.estadoCaja.estado === 'TURNO_EN_CURSO';
+        this.estadoCaja.empleadoNombre = '';
+        this.estadoCaja.horaApertura = '';
+        this.estadoCaja.turnoActivo = null;
+        // Si había turno activo, ese turno se acaba de cerrar → sumar al contador
+        if (habiaTurno) this.estadoCaja.turnosHoy = Math.max(1, this.estadoCaja.turnosHoy);
+        this.estadoCaja.estado = this.estadoCaja.turnosHoy > 0 ? 'CERRADA' : 'SIN_ABRIR';
+      }
+      this.cdr.markForCheck();
+    });
   }
 
   ngOnDestroy() {
     this.networkSub?.unsubscribe();
     this.queryParamsSub?.unsubscribe();
+    this.turnoSub?.unsubscribe();
   }
 
   private async manejarAccion(action: string) {
@@ -228,7 +252,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
       this.nombreUsuario = empleado?.nombre || 'Usuario';
       this.empleadoActualId = empleado?.id ?? null;
-      this.esAdmin = empleado?.rol === 'ADMIN';
+      this.esAdmin       = empleado?.rol === 'ADMIN';
+      this.esSuperadmin  = empleado?.es_superadmin ?? false;
       this.fechaActual = this.formatearFecha(new Date());
 
       this.notificaciones = notificaciones;
@@ -237,7 +262,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       this.recargasCelularHabilitada = appConfig.recargas_celular_habilitada;
       this.recargasBusHabilitada     = appConfig.recargas_bus_habilitada;
     } catch (error: any) {
-      await this.ui.showError('Error al cargar los datos. Verificá tu conexión e intentá de nuevo.');
+      await this.ui.showError('Error al cargar los datos. Verifica tu conexión e intenta de nuevo.');
     } finally {
       this.cargando = false;
       this.cdr.detectChanges();
@@ -327,6 +352,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   async onChipTurnoClick() {
+    // Superadmin solo observa — sin acciones operativas
+    if (this.esSuperadmin) return;
+
     if (this.esMiTurno) {
       const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
       const groups: ModalOptionGroup[] = [{
@@ -351,24 +379,19 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     } else if (this.cajaAbierta) {
       const nombre = this.estadoCaja.empleadoNombre || 'otro empleado';
-      const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
-      const groups: ModalOptionGroup[] = this.esAdmin
-        ? [{ options: [{ label: 'Cierre de Emergencia', icon: 'warning-outline', value: 'emergencia', color: 'danger' }] }]
-        : [];
+      const hora = this.estadoCaja.horaApertura ? ` desde las ${this.estadoCaja.horaApertura}` : '';
       const modal = await this.modalCtrl.create({
         component: OptionsModalComponent,
         componentProps: {
-          title: 'Turno en Progreso',
-          subtitle: `${cajaNombre} abierto por ${nombre}\nSolo ese empleado puede registrar movimientos`,
-          groups
+          title: 'Turno activo',
+          subtitle: `Turno abierto por ${nombre}${hora}.\nSolo él puede operar el Cajón — las demás cajas están disponibles.`,
+          groups: []
         },
         cssClass: 'options-modal',
         breakpoints: [0, 1],
         initialBreakpoint: 1
       });
       await modal.present();
-      const { data } = await modal.onDidDismiss();
-      if (data === 'emergencia') await this.onCierreEmergencia();
 
     } else {
       const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
@@ -394,32 +417,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     }
   }
 
-  async onCierreEmergencia() {
-    if (!this.esAdmin) return;
-    const turno = this.estadoCaja.turnoActivo;
-    if (!turno) return;
-    if (!this.empleadoActualId) return;
-
-    const modal = await this.modalCtrl.create({
-      component: CierreEmergenciaModalComponent,
-      componentProps: {
-        turnoId:         turno.id,
-        adminId:         this.empleadoActualId,
-        empleadoNombre:  this.estadoCaja.empleadoNombre || 'Empleado',
-        horaApertura:    this.estadoCaja.horaApertura
-      },
-      cssClass: 'bottom-sheet-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-
-    await modal.present();
-    const { role } = await modal.onDidDismiss();
-    if (role === 'confirm') {
-      await this.cargarDatos();
-      this.cdr.detectChanges();
-    }
-  }
 
   async onAbrirCaja() {
     if (this.estadoCaja.estado === 'TURNO_EN_CURSO') {
@@ -435,7 +432,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     if (resultado.turnoId) {
       await this.cargarDatos();
       this.cdr.detectChanges();
-      await this.irAlPOSTrasTurno();
+      this.ui.showToast('Caja abierta', 'success');
       return;
     }
 
@@ -447,7 +444,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     if (success) {
       await this.cargarDatos();
       this.cdr.detectChanges();
-      await this.irAlPOSTrasTurno();
     } else {
       // abrirTurno() devuelve false: puede ser turno ya abierto (datos desactualizados)
       // o error real. Verificar cuál es para dar el mensaje correcto.
@@ -457,7 +453,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
           // Lock timeout de Supabase — el turno del usuario actual ya existe
           await this.cargarDatos();
           this.cdr.detectChanges();
-          await this.irAlPOSTrasTurno();
+          this.ui.showToast('Caja abierta', 'success');
         } else {
           // Datos desactualizados — hay un turno de otro empleado abierto
           const nombre = turnoActivo.empleado?.nombre || 'otro empleado';
@@ -467,18 +463,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         }
       } else {
-        await this.ui.showError('No se pudo abrir el turno. Verificá tu conexión e intentá de nuevo.');
+        await this.ui.showError('No se pudo abrir el turno. Verifica tu conexión e intenta de nuevo.');
       }
-    }
-  }
-
-  private async irAlPOSTrasTurno() {
-    if (!this.esAdmin) {
-      this.ui.showToast('¡Listo! Ya puedes registrar ventas', 'success');
-      await new Promise(resolve => setTimeout(resolve, 600));
-      this.router.navigate([ROUTES.pos]);
-    } else {
-      this.ui.showToast('Caja abierta', 'success');
     }
   }
 
@@ -493,7 +479,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     await this.ui.hideLoading();
 
     if (existeCierre === null) {
-      await this.ui.showError('No se pudo verificar el estado del turno. Revisá tu conexión e intentá de nuevo.');
+      await this.ui.showError('No se pudo verificar el estado del turno. Revisa tu conexión e intenta de nuevo.');
       return;
     }
 

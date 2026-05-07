@@ -72,6 +72,8 @@ BEGIN
   -- OBTENER NEGOCIO DEL JWT
   -- ==========================================
 
+  PERFORM public.fn_assert_no_superadmin();
+
   v_negocio_id := public.get_negocio_id();
   IF v_negocio_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'No hay negocio activo en el JWT');

@@ -41,12 +41,11 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private scanner = inject(BarcodeScannerService);
 
-  /**
-   * True si hay turno de caja abierto. Determina si el tab POS está habilitado.
-   * Se sincroniza via Realtime con TurnosCajaService.cajaAbierta$.
-   */
   posHabilitado = false;
+  posDisabledMessage = 'Abrí la caja desde Inicio para usar el POS';
+  esSuperadmin = false;
   private posSub!: Subscription;
+  private turnoSub!: Subscription;
 
   homeIcon = homeOutline;
   posIcon = barcodeOutline;
@@ -68,15 +67,29 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   escaneandoPrecio = false;
 
   async ngOnInit() {
-    // El POS se habilita automaticamente cuando hay un turno de caja abierto.
-    // TurnosCajaService sincroniza el estado via Realtime de la tabla turnos_caja.
-    this.posSub = this.turnosCajaService.cajaAbierta$.subscribe(abierta => {
-      this.posHabilitado = abierta;
+    const usuario = await this.authService.getUsuarioActual();
+    this.esSuperadmin = usuario?.es_superadmin ?? false;
+
+    // El POS solo se habilita para el empleado que abrio el turno.
+    this.posSub = this.turnosCajaService.esMiTurno$.subscribe(esMio => {
+      this.posHabilitado = esMio;
+    });
+
+    // Mensaje contextual del tab deshabilitado — se actualiza con el nombre
+    // del empleado que tiene el turno, independiente del timing de esMiTurno$.
+    this.turnoSub = this.turnosCajaService.turnoActivo$.subscribe(turno => {
+      if (turno && !this.posHabilitado) {
+        const nombre = turno.empleado?.nombre ?? 'otro empleado';
+        this.posDisabledMessage = `${nombre} ya tiene el turno abierto. Solo él puede usar el POS`;
+      } else if (!turno) {
+        this.posDisabledMessage = 'Abrí la caja desde Inicio para usar el POS';
+      }
     });
   }
 
   ngOnDestroy() {
     this.posSub?.unsubscribe();
+    this.turnoSub?.unsubscribe();
   }
 
   get showTabs() { return this.ui.tabsVisible(); }

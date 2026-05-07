@@ -56,6 +56,8 @@ DECLARE
   v_fecha_hoy              DATE;
   v_deudas_count           INTEGER;
 BEGIN
+  PERFORM public.fn_assert_no_superadmin();
+
   v_fecha_hoy := CURRENT_DATE;
 
   -- ==========================================

@@ -16,6 +16,8 @@ DECLARE
     v_rol     rol_usuario_enum;
     v_email   TEXT;
 BEGIN
+    PERFORM public.fn_assert_no_superadmin();
+
     -- Obtener el email del usuario autenticado desde el JWT
     v_email := auth.jwt() ->> 'email';
 

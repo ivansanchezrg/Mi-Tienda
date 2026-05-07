@@ -14,6 +14,15 @@
       <p class="onboarding-subtitle">{{ subtitulo }}</p>
     </div>
 
+    @if (mode !== 'inicial') {
+    <div class="info-card">
+      <ion-icon name="information-circle-outline"></ion-icon>
+      <div>
+        <p>{{ infoBannerDescripcion }}</p>
+      </div>
+    </div>
+    }
+
     <form [formGroup]="form" class="onboarding-form" (ngSubmit)="continuar()">
 
       <div class="field-group">
@@ -114,7 +123,7 @@
           } @else if (verificacion === 'nuevo') {
             <span class="verif-status verif-status--nuevo">
               <ion-icon name="person-add-outline"></ion-icon>
-              Se creará una cuenta nueva. Ingresá el nombre del administrador abajo.
+              Se creará una cuenta nueva. Ingresa el nombre del administrador abajo.
             </span>
           } @else if (verificacion === 'error') {
             <span class="verif-status verif-status--error">

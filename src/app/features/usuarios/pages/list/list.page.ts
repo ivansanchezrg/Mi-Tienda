@@ -57,7 +57,7 @@ export class ListPage implements OnInit {
     try {
       this.usuarios = await this.usuarioService.getAll();
     } catch {
-      await this.ui.showError('Error al cargar los usuarios. Verificá tu conexión.');
+      await this.ui.showError('Error al cargar los usuarios. Verifica tu conexión.');
     } finally {
       this.loading = false;
     }

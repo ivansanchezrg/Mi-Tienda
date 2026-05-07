@@ -92,7 +92,7 @@ export class OnboardingCajaPage {
     try {
       const negocioId = await this.onboardingService.completar();
       if (!negocioId) {
-        await this.ui.showError('No se pudo crear el negocio. Verificá los datos e intentá de nuevo.');
+        await this.ui.showError('No se pudo crear el negocio. Verifica los datos e intenta de nuevo.');
         return;
       }
 
@@ -103,7 +103,7 @@ export class OnboardingCajaPage {
         // Onboarding: activa JWT y va a /home
         const ok = await this.onboardingService.activarYFinalizar(negocioId);
         if (!ok) {
-          await this.ui.showError('Negocio creado pero no se pudo activar la sesión. Cerrá sesión e ingresá de nuevo.');
+          await this.ui.showError('Negocio creado pero no se pudo activar la sesión. Cierra sesión e ingresa de nuevo.');
         }
       } else {
         // Sucursal: NO activa el JWT del nuevo negocio

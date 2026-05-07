@@ -5,15 +5,14 @@ import { TurnosCajaService } from '../../features/caja/services/turnos-caja.serv
 import { UiService } from '../services/ui.service';
 
 /**
- * Guard que protege rutas que requieren un turno de caja abierto (ej: /pos).
+ * Guard que protege rutas que requieren que el usuario actual sea quien abrio
+ * el turno de caja (ej: /pos).
  *
- * Si no hay turno activo → redirige a /home y muestra un toast explicativo.
- * Esto evita que el usuario llegue al POS por URL directa, deep-link o historial
- * cuando la caja esta cerrada.
+ * Solo el empleado que abrio el turno puede acceder al POS y al Cajon.
+ * Los demas usuarios ven un toast explicativo y quedan en /caja.
  *
- * Usa TurnosCajaService.turnoActivo$ (estado reactivo ya cargado al login) en
- * lugar de una query fresca — es instantaneo y siempre esta sincronizado via
- * Realtime, sin agregar round-trips al guard.
+ * Usa TurnosCajaService.esMiTurnoValue (sincrono, O(1)) y cae al observable
+ * como defensa si el estado aun no cargo.
  *
  * Uso en routes:
  *   canActivate: [cajaAbiertaGuard]
@@ -23,17 +22,19 @@ export const cajaAbiertaGuard: CanActivateFn = async () => {
   const ui = inject(UiService);
   const router = inject(Router);
 
-  // Usar el valor sincronico del BehaviorSubject — no hace query, es O(1).
+  if (turnosCaja.esMiTurnoValue) return true;
+
+  // Defensa extra: si el BehaviorSubject aun no tiene valor (guard corre antes
+  // de que inicializarEstadoReactivo() resuelva), esperar el primer emit.
+  const esMio = await firstValueFrom(turnosCaja.esMiTurno$);
+  if (esMio) return true;
+
   const turno = turnosCaja.turnoActivoValue;
-
-  if (turno) return true;
-
-  // Defensa extra: si por alguna razon el BehaviorSubject aun no tiene valor
-  // (ej: guard corre antes de que inicializarEstadoReactivo() resuelva), tomar
-  // el primer valor del observable. Si despues de eso sigue null, bloquear.
-  const turnoAsync = await firstValueFrom(turnosCaja.turnoActivo$);
-  if (turnoAsync) return true;
-
-  await ui.showToast('Abri la caja desde Inicio para usar el POS', 'warning');
+  if (turno) {
+    const nombre = turno.empleado?.nombre ?? 'Otro empleado';
+    await ui.showToast(`${nombre} ya tiene el turno abierto. Solo él puede usar el POS`, 'warning');
+  } else {
+    await ui.showToast('Abrí la caja desde Inicio para usar el POS', 'warning');
+  }
   return router.createUrlTree(['/caja']);
 };

@@ -182,7 +182,9 @@ export class OperacionesCajaService {
           await this.storageService.deleteFile(pathImagen);
         }
 
-        await this.ui.showError('Error al registrar la operación');
+        const rawMsg = error.message ?? '';
+        const superadminMatch = rawMsg.match(/superadmin_blocked:\s*(.+)/i);
+        await this.ui.showError(superadminMatch ? superadminMatch[1].trim() : 'Error al registrar la operación');
         return false;
       }
 

@@ -8,7 +8,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   storefrontOutline, arrowForwardOutline, logOutOutline, arrowBackOutline,
-  checkmarkCircle, personAddOutline, searchOutline
+  checkmarkCircle, personAddOutline, searchOutline, informationCircleOutline
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../auth/services/auth.service';
@@ -71,7 +71,7 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
   constructor() {
     addIcons({
       storefrontOutline, arrowForwardOutline, logOutOutline, arrowBackOutline,
-      checkmarkCircle, personAddOutline, searchOutline
+      checkmarkCircle, personAddOutline, searchOutline, informationCircleOutline
     });
   }
 
@@ -164,10 +164,17 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
     return 'Continuar';
   }
 
+  get infoBannerDescripcion(): string {
+    if (this.mode === 'sucursal-superadmin') {
+      return 'Este negocio tendrá su propio administrador, caja, inventario y empleados, totalmente independiente.';
+    }
+    return 'La sucursal funcionará de forma independiente: caja, inventario y empleados propios, separados del negocio actual.';
+  }
+
   get errorNombre(): string | null {
     const c = this.nombreCtrl;
     if (!c.touched || c.valid) return null;
-    if (c.hasError('required'))  return 'Ingresá el nombre del negocio.';
+    if (c.hasError('required'))  return 'Ingresa el nombre del negocio.';
     if (c.hasError('minlength')) return 'Mínimo 2 caracteres.';
     if (c.hasError('maxlength')) return 'Máximo 80 caracteres.';
     return null;
@@ -176,7 +183,7 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
   get errorAdminEmail(): string | null {
     const c = this.adminEmailCtrl;
     if (!c.touched || c.valid) return null;
-    if (c.hasError('required'))  return 'Ingresá el email del administrador.';
+    if (c.hasError('required'))  return 'Ingresa el email del administrador.';
     if (c.hasError('email'))     return 'Email inválido.';
     if (c.hasError('maxlength')) return 'Máximo 100 caracteres.';
     return null;

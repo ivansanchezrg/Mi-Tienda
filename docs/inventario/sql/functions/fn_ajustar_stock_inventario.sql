@@ -34,6 +34,8 @@ DECLARE
     v_stock_nuevo    DECIMAL(12,2);
     v_delta          DECIMAL(12,2);
 BEGIN
+    PERFORM public.fn_assert_no_superadmin();
+
     v_negocio_id := public.get_negocio_id();
 
     -- 1. Validaciones básicas

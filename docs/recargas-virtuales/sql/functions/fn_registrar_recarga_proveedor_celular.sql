@@ -54,6 +54,8 @@ DECLARE
   v_cantidad_deudas           INTEGER;
   v_total_deudas              NUMERIC;
 BEGIN
+  PERFORM public.fn_assert_no_superadmin();
+
   -- ==========================================
   -- 1. VALIDACIONES INICIALES
   -- ==========================================

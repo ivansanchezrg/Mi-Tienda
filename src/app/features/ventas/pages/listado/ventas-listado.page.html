@@ -23,6 +23,8 @@
           <ion-icon name="calendar-outline"></ion-icon>
           @if (filtroActivo === 'custom') {
           <span>{{ fechaLabel }}</span>
+          <ion-icon name="close-outline" class="fecha-clear"
+            (click)="$event.stopPropagation(); onFiltroClick('hoy')"></ion-icon>
           }
         </button>
       </div>
@@ -197,6 +199,7 @@
 </ion-content>
 
 
+@if (fechaPickerVisible) {
 <ion-modal [keepContentsMounted]="true" trigger="open-date-picker" cssClass="date-picker-modal">
   <ng-template>
     <ion-datetime id="fecha-ventas" presentation="date" [value]="fechaFiltro" [max]="hoy" locale="es-EC"
@@ -204,3 +207,4 @@
     </ion-datetime>
   </ng-template>
 </ion-modal>
+}

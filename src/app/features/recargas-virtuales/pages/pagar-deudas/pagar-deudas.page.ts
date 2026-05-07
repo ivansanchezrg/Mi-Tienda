@@ -111,7 +111,7 @@ export class PagarDeudasPage implements OnInit {
 
   async siguientePaso() {
     if (this.deudasSeleccionadas.size === 0) {
-      await this.ui.showError('Seleccioná al menos una deuda');
+      await this.ui.showError('Selecciona al menos una deuda');
       return;
     }
     this.pasoActual = 2;

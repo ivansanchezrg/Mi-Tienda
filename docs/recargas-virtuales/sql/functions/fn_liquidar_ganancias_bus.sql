@@ -37,6 +37,7 @@ DECLARE
   v_filas_afectadas  INTEGER;
   v_transfer_result  JSON;
 BEGIN
+  PERFORM public.fn_assert_no_superadmin();
 
   -- ==========================================
   -- INICIALIZACIÓN

@@ -71,7 +71,7 @@ export class CuadreCajaPage implements OnInit {
       this.saldoVirtualActualCelular = saldoVirtualCelular;
       this.saldoVirtualActualBus = saldoVirtualBus;
     } catch (error: any) {
-      await this.ui.showError('Error al cargar datos del cuadre. Verificá tu conexión.');
+      await this.ui.showError('Error al cargar datos del cuadre. Verifica tu conexión.');
     }
   }
 

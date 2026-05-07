@@ -52,16 +52,12 @@
   </div>
 
   <!-- Barra de filtros -->
-  <div class="filter-bar">
-    <span class="filter-label">Movimientos</span>
-    <div class="filter-tabs">
-      @for (f of ['hoy', 'semana', 'mes', 'todas']; track f) {
-      <button class="filter-tab" [class.active]="filtro === f" (click)="cambiarFiltroDirecto(f)">
-        {{ f === 'todas' ? 'Todo' : (f | titlecase) }}
-      </button>
-      }
-    </div>
-  </div>
+  <app-period-filter
+    [options]="periodos"
+    [selected]="filtro"
+    label="Movimientos"
+    (selectionChange)="cambiarFiltroDirecto($event)">
+  </app-period-filter>
 
   <!-- Skeleton -->
   @if (loading && operaciones.length === 0) {

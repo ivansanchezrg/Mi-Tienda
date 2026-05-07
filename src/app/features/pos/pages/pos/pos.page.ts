@@ -1036,7 +1036,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     // Si es consumidor final, forzar selección de cliente antes de abrir el modal
     if (this.clienteSeleccionado.es_consumidor_final) {
-      this.ui.showToast('Seleccioná un cliente para continuar', 'warning');
+      this.ui.showToast('Selecciona un cliente para continuar', 'warning');
       await this.abrirSelectorCliente();
       if (this.clienteSeleccionado.es_consumidor_final) return; // canceló o no eligió
     }

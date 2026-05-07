@@ -89,6 +89,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
     // Rol y usuario actual
     rolUsuario: RolUsuario | null = null;
     usuarioId: string | null = null;
+    esSuperadmin = false;
 
     // Filtro por turno (solo ADMIN)
     turnosDelDia: TurnoCajaConEmpleado[] = [];
@@ -147,6 +148,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         const usuario = await this.authService.getUsuarioActual();
         this.rolUsuario = usuario?.rol ?? null;
         this.usuarioId = usuario?.id ?? null;
+        this.esSuperadmin = usuario?.es_superadmin ?? false;
         await Promise.all([
             this.cargar(),
             this.cargarTurnos()
@@ -182,9 +184,15 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         this.cargar();
     }
 
+    fechaPickerVisible = true;
+
     onFiltroClick(filtro: string) {
         this.filtroActivo = filtro;
         this.turnoSeleccionado = null;
+        // Resetear el IonDatetime a hoy destruyéndolo y recreándolo
+        this.fechaFiltro = getFechaLocal();
+        this.fechaPickerVisible = false;
+        setTimeout(() => { this.fechaPickerVisible = true; }, 0);
         if (filtro === 'hoy') {
             this.cargarTurnos();
         } else if (filtro !== 'custom') {

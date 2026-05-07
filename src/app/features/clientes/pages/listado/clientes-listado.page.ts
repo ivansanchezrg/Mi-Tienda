@@ -18,6 +18,7 @@ import {
     arrowUpOutline, personAddOutline, chevronForwardOutline
 } from 'ionicons/icons';
 import { CuentasCobrarService } from '../../services/cuentas-cobrar.service';
+import { AuthService } from '../../../auth/services/auth.service';
 import { ClienteConSaldo } from '../../models/cuenta-cobrar.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
@@ -47,9 +48,12 @@ import { formatFechaEC } from '../../../../core/utils/date.util';
 export class ClientesListadoPage extends PaginatedListPage<ClienteConSaldo> implements OnInit, OnDestroy {
 
     private cuentasService = inject(CuentasCobrarService);
+    private authService = inject(AuthService);
     public currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
     private navCtrl = inject(NavController);
+
+    esSuperadmin = false;
 
     get clientes(): ClienteConSaldo[] { return this.items; }
 
@@ -69,6 +73,9 @@ export class ClientesListadoPage extends PaginatedListPage<ClienteConSaldo> impl
     }
 
     async ngOnInit() {
+        const usuario = await this.authService.getUsuarioActual();
+        this.esSuperadmin = usuario?.es_superadmin ?? false;
+
         this.searchSub = this.search$
             .pipe(debounceTime(500), distinctUntilChanged())
             .subscribe(() => this.cargar());

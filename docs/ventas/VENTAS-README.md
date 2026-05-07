@@ -58,8 +58,7 @@ Tab "Resumen" → router.navigate(['/ventas/resumen'])
 | `EstadoPagoType` | `'NO_APLICA' \| 'PENDIENTE' \| 'PAGADO_PARCIAL' \| 'PAGADO'` |
 | `Venta` | Venta completa con JOINs opcionales (detalle modal). Incluye `descuento`, `descuento_pct` |
 | `VentaDetalle` | Ítem de producto: cantidad, precio_unitario, subtotal |
-| `VentasResumen` | Totalizador: total_registros + total_monto |
-| `ReporteVentasDia` | Resumen agregado por período: totales, ganancia bruta, margen %, métodos, comprobantes, top productos |
+| `ReporteVentasDia` | Resumen agregado por período: totales, ganancia bruta, margen %, descuentos totales, clientes únicos, métodos, comprobantes, top productos |
 | `ReporteMetodoPago` | `{ metodo, cantidad, monto }` |
 | `ReporteTipoComprobante` | `{ tipo, cantidad, monto }` |
 | `ProductoMasVendido` | `{ producto_id, nombre, total_unidades, total_monto, total_ventas }` |
@@ -71,8 +70,7 @@ Tab "Resumen" → router.navigate(['/ventas/resumen'])
 | Método | Fuente | Descripción |
 |--------|--------|-------------|
 | `obtenerVentas(filtro, page, busqueda?, estado?, turnoId?)` | RPC `fn_listar_ventas` | Lista paginada. `estado` = `'COMPLETADA'` (default) o `'ANULADA'`. `turnoId` filtra por turno específico (solo ADMIN lo usa) |
-| `resumirVentas(filtro, busqueda?, estado?, turnoId?)` | RPC `fn_resumir_ventas` | Total registros + monto para el filtro activo |
-| `obtenerReportePeriodo(filtro, turnoId?)` | RPC `fn_reporte_ventas_periodo` | Resumen agregado: totales, por método, por comprobante, top productos |
+| `obtenerReportePeriodo(filtro, turnoId?)` | RPC `fn_reporte_ventas_periodo` | Resumen agregado: totales, descuentos, clientes únicos, por método, por comprobante, top productos |
 | `obtenerVentaDetalle(ventaId)` | Query directa `ventas` | Venta completa: ítems, cliente, empleado, pagos FIADO |
 | `anularVenta(ventaId, motivo)` | RPC `fn_anular_venta` | Anula atómicamente: revierte stock, caja y cuentas_cobrar |
 
@@ -127,17 +125,17 @@ Aplana los JOINs anidados de Supabase:
 ## Página resumen (`pages/resumen/`)
 
 - Clase: `VentasResumenPage`
-- Filtro de período: **Hoy / Semana / Mes / Todo** (selector en la parte superior)
-- **Filtro por turno**: visible solo para ADMIN con filtro "Hoy" y 2+ turnos
+- Filtro de período: **Hoy / Semana / Mes / Todo** via `PeriodFilterComponent` (`shared/components/period-filter/`)
 - Carga reporte del período + deuda pendiente en paralelo (`Promise.all`)
 - Pull-to-refresh sin doble spinner
+- Gráficos renderizados con **ApexCharts** (`ng-apexcharts` + `apexcharts`)
 
 ### Secciones
 
-1. **Hero card** — Total del período + stats (ventas, ticket promedio, anuladas)
-2. **Métodos de pago** — Listado con iconos coloreados, cantidad, monto y % del total
-3. **Comprobantes** — Desglose por tipo (Ticket, Nota de Venta, Factura) con badge de cantidad
-4. **Más vendidos** — Top productos: unidades vendidas, número de ventas y monto total
+1. **Hero card** — Total del período + stats (ventas, ticket promedio, anuladas, descuentos totales, clientes únicos)
+2. **Gráfico donut** — Métodos de pago por monto (`ng-apexcharts` type: `donut`). Leyenda custom en lista debajo del gráfico con cantidad, monto y % del total
+3. **Más vendidos** — Gráfico de barras horizontales (`ng-apexcharts` type: `bar`, distributed: true) con top 5 productos por monto
+4. **Comprobantes** — Desglose por tipo (Ticket, Nota de Venta, Factura) con badge de cantidad
 5. **Ganancia bruta** — Ingresos, costo, ganancia en verde y badge de % de margen
 6. **Deuda pendiente** — Card de alerta con total clientes y monto (desde cuentas_cobrar)
 
@@ -187,7 +185,7 @@ El porcentaje se lee de `ventas.descuento_pct` (columna SMALLINT), no se calcula
 
 Ubicación: `docs/ventas/sql/functions/`
 
-### `fn_listar_ventas(p_filtro, p_busqueda, p_page, p_page_size, p_estado, p_turno_id)` — v1.4
+### `fn_listar_ventas(p_filtro, p_busqueda, p_page, p_page_size, p_estado, p_turno_id)` — v1.5
 
 - Filtra por período (hoy/semana/mes/todo/fecha exacta) en timezone Ecuador
 - `p_estado`: `'COMPLETADA'` (default) o `'ANULADA'`
@@ -195,19 +193,17 @@ Ubicación: `docs/ventas/sql/functions/`
 - Búsqueda ILIKE en nombre cliente, identificación, número comprobante
 - Paginación LIMIT/OFFSET
 - Devuelve campos planos (sin JOINs anidados)
+- **v1.5**: agrega filtro explícito `negocio_id = get_negocio_id()` en la query principal — obligatorio porque `SECURITY DEFINER` bypasea RLS
 
-### `fn_resumir_ventas(p_filtro, p_busqueda, p_estado, p_turno_id)` — v1.3
-
-- Mismos filtros que la lista (incluye `p_turno_id`)
-- Retorna: `total_registros` + `total_monto` (1 fila siempre)
-
-### `fn_reporte_ventas_periodo(p_fecha_inicio, p_fecha_fin, p_turno_id)` — v1.4
+### `fn_reporte_ventas_periodo(p_fecha_inicio, p_fecha_fin, p_turno_id)` — v1.6
 
 - Resumen agregado de un rango de fechas en timezone Ecuador
 - `p_turno_id`: UUID del turno. `NULL` = todos los turnos. Solo el ADMIN lo envía desde el frontend
 - Solo incluye ventas `COMPLETADAS` (excluye `ANULADAS` de totales)
 - Retorna JSON con:
   - `total_ventas`, `total_monto`, `total_anuladas`, `monto_anulado`
+  - `total_descuentos` — suma de `descuento` en ventas completadas del período
+  - `clientes_unicos` — `COUNT(DISTINCT cliente_id)` en ventas completadas (excluye consumidor final)
   - `costo_total` — suma de `vd.precio_costo × cantidad` (snapshot histórico, no el costo actual del producto)
   - `ganancia_bruta` — `total_monto - costo_total`
   - `margen_pct` — `ganancia_bruta / total_monto × 100` (redondeado a 2 decimales)
@@ -215,6 +211,8 @@ Ubicación: `docs/ventas/sql/functions/`
   - `por_tipo_comprobante[]` — `{ tipo, cantidad, monto }`
   - `top_productos[]` — `{ producto_id, nombre, total_unidades, total_monto, total_ventas }`
 
+> **v1.6**: agrega filtro explícito `negocio_id = get_negocio_id()` en todas las queries — obligatorio porque `SECURITY DEFINER` bypasea RLS.
+> **v1.5**: agrega `total_descuentos` y `clientes_unicos`.
 > **v1.4**: usa `vd.precio_costo` de `ventas_detalles` en lugar de `p.precio_costo` de `productos`. Los reportes históricos ya no cambian si se modifica el costo de un producto en inventario.
 
 ---

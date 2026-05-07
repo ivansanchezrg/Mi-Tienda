@@ -149,7 +149,7 @@ BEGIN
     (v_negocio_id, 'CAJA',       'Tienda', 'Vault de depositos acumulados',   0),
     (v_negocio_id, 'CAJA_CHICA', 'Cajon',  'Efectivo del dia (ventas + rec)', 0),
     (v_negocio_id, 'VARIOS',     'Varios', 'Fondo fijo de emergencia',        0);
-    -- CAJA_CELULAR y CAJA_BUS se crean solo si el superadmin habilita el módulo de recargas (fn_habilitar_recargas)
+    -- CAJA_CELULAR y CAJA_BUS se crean solo si el superadmin habilita el módulo de recargas (fn_configurar_modulos)
 
     -- ── 6. Categorías de operaciones ──
     INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion, seleccionable) VALUES
@@ -162,9 +162,12 @@ BEGIN
     (v_negocio_id, 'Salarios',                         'EGRESO',  'Pago de salarios a empleados (via flujo de nomina)',                              FALSE),
     (v_negocio_id, 'Impuestos/Tasas',                  'EGRESO',  'Pago de impuestos y tasas municipales',                                           TRUE),
     (v_negocio_id, 'Otros Gastos',                     'EGRESO',  'Otros gastos operativos no clasificados',                                         TRUE),
+    (v_negocio_id, 'Pago Proveedor Recargas',           'EGRESO',  'Pago al proveedor de recargas celular (saldo prestado a credito)',               FALSE),
+    (v_negocio_id, 'Compra Saldo Virtual Bus',          'EGRESO',  'Compra de saldo virtual bus mediante deposito bancario',                           FALSE),
     (v_negocio_id, 'Ajuste Deficit Turno Anterior',    'EGRESO',  'Retiro de Tienda para reponer deficit del turno anterior',                        FALSE),
     (v_negocio_id, 'Ajuste Diferencia Conteo',         'EGRESO',  'Ajuste al cierre cuando el conteo fisico es menor al saldo digital del cajon',    FALSE),
     (v_negocio_id, 'Adelanto Sueldo Empleado',         'EGRESO',  'Anticipo de sueldo entregado al empleado en efectivo (via flujo de nomina)',       FALSE),
+    (v_negocio_id, 'Anulacion Venta',                  'EGRESO',  'Reversa de efectivo al anular una venta POS completada',                          FALSE),
     (v_negocio_id, 'Ventas',                           'INGRESO', 'Ingresos por ventas del negocio',                                                 TRUE),
     (v_negocio_id, 'Devoluciones de Proveedores',      'INGRESO', 'Devolucion de dinero por parte de proveedores',                                   TRUE),
     (v_negocio_id, 'Otros Ingresos',                   'INGRESO', 'Otros ingresos no clasificados',                                                  TRUE),

@@ -5,7 +5,7 @@ import {
   IonSpinner, IonSkeletonText, IonIcon
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { storefrontOutline, walletOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline } from 'ionicons/icons';
+import { storefrontOutline, walletOutline, archiveOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
@@ -44,7 +44,7 @@ const MENSAJES_SECCION: Record<Seccion, string> = {
 })
 export class ParametrosPage implements OnInit, OnDestroy {
   constructor() {
-    addIcons({ storefrontOutline, walletOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline });
+    addIcons({ storefrontOutline, walletOutline, archiveOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline });
   }
 
   private fb = inject(FormBuilder);
@@ -60,10 +60,14 @@ export class ParametrosPage implements OnInit, OnDestroy {
   esSuperadmin = false;
   esAdmin = false;
   recargasCelularHabilitada = false;
-  recargasBusHabilitada = false;
-  variosActiva = false;
-  guardandoModulos = false;
-  activandoVarios = false;
+  recargasBusHabilitada     = false;
+  variosActiva              = false;
+  variosMonto               = 0;
+  guardandoModulos          = false;
+
+  get variosMontoInvalido(): boolean {
+    return this.variosActiva && this.variosMonto <= 0;
+  }
 
   guardando: Record<string, boolean> = {
     negocio: false, caja: false, bus: false, pos: false, nomina: false,
@@ -158,6 +162,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
         this.recargasCelularHabilitada = config.recargas_celular_habilitada;
         this.recargasBusHabilitada     = config.recargas_bus_habilitada;
         this.variosActiva              = config.caja_varios_activa;
+        this.variosMonto               = config.caja_varios_transferencia_dia ?? 0;
         this.form.patchValue({
           negocio_nombre:                config.negocio_nombre,
           negocio_telefono:              config.negocio_telefono,
@@ -177,38 +182,24 @@ export class ParametrosPage implements OnInit, OnDestroy {
         this.guardarSnapshot();
       }
     } catch {
-      await this.ui.showError('Error al cargar los parámetros. Verificá tu conexión.');
+      await this.ui.showError('Error al cargar los parámetros. Verifica tu conexión.');
     } finally {
       this.cargando = false;
       this.suscribirCambios();
     }
   }
 
-  async activarVarios() {
-    if (this.activandoVarios) return;
-    this.activandoVarios = true;
-    try {
-      await this.supabase.call(
-        this.supabase.client.rpc('fn_activar_caja_varios'),
-        'Caja Varios activada'
-      );
-      this.variosActiva = true;
-      this.configService.invalidar();
-    } catch {
-      await this.ui.showError('Error al activar la caja Varios.');
-    } finally {
-      this.activandoVarios = false;
-    }
-  }
-
   async guardarModulos() {
     if (this.guardandoModulos) return;
+    if (this.variosMontoInvalido) return;
     this.guardandoModulos = true;
     try {
       await this.supabase.call(
-        this.supabase.client.rpc('fn_habilitar_recargas', {
-          p_celular: this.recargasCelularHabilitada,
-          p_bus:     this.recargasBusHabilitada
+        this.supabase.client.rpc('fn_configurar_modulos', {
+          p_celular:      this.recargasCelularHabilitada,
+          p_bus:          this.recargasBusHabilitada,
+          p_varios:       this.variosActiva,
+          p_varios_monto: this.variosActiva ? this.variosMonto : 0
         }),
         'Módulos actualizados'
       );
@@ -246,7 +237,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
         this.tieneCambios = { ...this.tieneCambios, [seccion]: false };
       }
     } catch {
-      await this.ui.showError('Error al guardar. Verificá tu conexión.');
+      await this.ui.showError('Error al guardar. Verifica tu conexión.');
     } finally {
       this.guardando[seccion] = false;
     }

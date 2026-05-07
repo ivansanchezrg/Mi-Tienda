@@ -211,10 +211,14 @@ ion-toolbar {
         color: var(--ion-color-secondary);
       }
 
-      // ESTILO PARA EL BUS (Agregado)
       &.warning {
         background: rgba(var(--ion-color-warning-rgb), 0.12);
         color: var(--ion-color-warning);
+      }
+
+      &.success {
+        background: rgba(var(--ion-color-success-rgb), 0.12);
+        color: var(--ion-color-success);
       }
     }
 

@@ -9,8 +9,8 @@
 --     1. docs/setup/02_rls.sql                                        (todas las RLS, fuente unica)
 --     2. docs/setup/03_functions.sql                                  (fn_set_negocio_activo)
 --     3. docs/onboarding/sql/functions/fn_completar_onboarding.sql
---     4. docs/onboarding/sql/functions/fn_habilitar_recargas.sql
---     5. docs/configuracion/sql/functions/fn_activar_caja_varios.sql
+--     4. docs/onboarding/sql/functions/fn_configurar_modulos.sql
+--     5. docs/admin/sql/functions/fn_configurar_modulos_admin.sql
 --     6. docs/admin/sql/functions/fn_suspender_negocio.sql
 --     7. docs/*/sql/functions/*.sql                                   (resto de funciones de modulos)
 --     8. docs/*/sql/setup/realtime_*.sql
@@ -1380,7 +1380,7 @@ NOTIFY pgrst, 'reload schema';
 --   Recargas:    fn_registrar_recarga_proveedor_celular, fn_registrar_pago_proveedor_celular,
 --                fn_registrar_compra_saldo_bus, fn_liquidar_ganancias_bus
 --   Cuentas:     fn_registrar_pago_fiado, fn_listar_cuentas_cobrar, fn_resumir_cuentas_cobrar
---   Ventas:      fn_listar_ventas, fn_resumir_ventas, fn_reporte_ventas_periodo
+--   Ventas:      fn_listar_ventas, fn_reporte_ventas_periodo
 --   Empleados:   fn_registrar_adelanto_sueldo, fn_pagar_nomina_empleado
 --   Notas:       fn_eliminar_nota
 -- ==========================================

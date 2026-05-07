@@ -96,6 +96,8 @@ DECLARE
   v_existing_numero    INTEGER;
   v_precio_costo       DECIMAL(12,2);
 BEGIN
+  PERFORM public.fn_assert_no_superadmin();
+
   -- Obtener negocio del JWT
   v_negocio_id := public.get_negocio_id();
   IF v_negocio_id IS NULL THEN
