@@ -21,8 +21,8 @@
 --   2. docs/setup/02_rls.sql                     (todas las RLS, fuente unica)
 --   3. docs/setup/03_functions.sql               (incluye fn_set_negocio_activo)
 --   4. docs/onboarding/sql/functions/fn_completar_onboarding.sql
---   5. docs/onboarding/sql/functions/fn_habilitar_recargas.sql
---   6. docs/configuracion/sql/functions/fn_activar_caja_varios.sql
+--   5. docs/onboarding/sql/functions/fn_configurar_modulos.sql
+--   6. docs/admin/sql/functions/fn_configurar_modulos_admin.sql
 --   7. docs/*/sql/functions/*.sql                (resto de funciones de modulos)
 --   8. docs/*/sql/setup/realtime_*.sql
 --      — docs/auth/sql/setup/realtime_usuarios.sql
@@ -68,7 +68,6 @@ DECLARE
         'fn_ean13_check_digit',
         -- Ventas
         'fn_listar_ventas',
-        'fn_resumir_ventas',
         'fn_reporte_ventas_periodo',
         -- Movimientos Empleados
         'fn_registrar_adelanto_sueldo',
@@ -81,7 +80,10 @@ DECLARE
         'fn_set_negocio_activo',
         'fn_suspender_negocio',
         'fn_activar_caja_varios',
-        'fn_habilitar_recargas'
+        'fn_habilitar_recargas',
+        'fn_habilitar_recargas_admin',
+        'fn_configurar_modulos',
+        'fn_configurar_modulos_admin'
     ];
     v_nombre TEXT;
     v_oid    OID;

@@ -15,7 +15,7 @@ Desde 2026-05-01, **CELULAR y BUS son módulos opcionales independientes**. Un n
 | `recargas_celular_habilitada` | Solo superadmin (Parámetros → Módulos) | Crea CAJA_CELULAR + categorias "Pago Proveedor Recargas" |
 | `recargas_bus_habilitada`     | Solo superadmin (Parámetros → Módulos) | Crea CAJA_BUS + categoria "Compra Saldo Virtual Bus" |
 
-Función SQL: `fn_habilitar_recargas(p_celular BOOLEAN, p_bus BOOLEAN)` en `docs/onboarding/sql/functions/`.
+Función SQL: `fn_configurar_modulos(p_celular BOOLEAN, p_bus BOOLEAN, p_varios BOOLEAN DEFAULT FALSE)` en `docs/onboarding/sql/functions/` (desde dentro del negocio) y `fn_configurar_modulos_admin` en `docs/admin/sql/functions/` (desde `/admin`).
 
 **Comportamiento condicional en la UI** (las páginas detectan los flags via `ConfigService.get()` y se adaptan):
 

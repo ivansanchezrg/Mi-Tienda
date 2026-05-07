@@ -170,7 +170,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
 
   async confirmar() {
     if (!this.montoVirtual || this.montoVirtual <= 0) {
-      await this.ui.showError('Ingresá el monto');
+      await this.ui.showError('Ingresa el monto');
       return;
     }
     if (this.guardando) return;

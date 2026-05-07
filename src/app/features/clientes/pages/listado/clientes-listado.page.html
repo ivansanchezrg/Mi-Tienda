@@ -4,12 +4,14 @@
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
     <ion-title>Clientes</ion-title>
+    @if (!esSuperadmin) {
     <ion-buttons slot="end">
       <ion-button (click)="abrirNuevoCliente()" color="primary" fill="clear">
         <ion-icon slot="start" name="person-add-outline"></ion-icon>
         Nuevo
       </ion-button>
     </ion-buttons>
+    }
   </ion-toolbar>
 
   <ion-toolbar>

@@ -24,6 +24,7 @@ import {
 } from '../../models/movimiento-empleado.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
+import { AuthService } from '../../../auth/services/auth.service';
 import { formatFechaEC, formatHoraEC } from '../../../../core/utils/date.util';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
@@ -56,6 +57,7 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
   private service = inject(MovimientosEmpleadosService);
   public currencyService = inject(CurrencyService);
   private ui = inject(UiService);
+  private authService = inject(AuthService);
   private modalCtrl = inject(ModalController);
   private navCtrl = inject(NavController);
 
@@ -66,6 +68,7 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
   loading = true;
   hasMore = true;
   verLiquidados = false;
+  esSuperadmin = false;
 
   private page = 0;
   private readonly pageSize = PAGINATION_CONFIG.movimientosEmpleados.pageSize;
@@ -84,6 +87,8 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
 
   async ngOnInit() {
     this.empleadoId = this.route.snapshot.paramMap.get('empleadoId') ?? '';
+    const usuario = await this.authService.getUsuarioActual();
+    this.esSuperadmin = usuario?.es_superadmin ?? false;
     await this.cargarDatos();
   }
 

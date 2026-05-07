@@ -42,8 +42,8 @@ ion-modal.bottom-sheet-modal {
   flex-direction: column;
   gap: var(--spacing-lg);
   padding: var(--spacing-xl);
+  padding-top: 28px;
   background: var(--ion-color-light);
-
 }
 
 .modal-header {

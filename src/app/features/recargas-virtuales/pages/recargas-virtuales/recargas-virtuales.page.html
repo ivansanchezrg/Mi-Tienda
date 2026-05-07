@@ -42,6 +42,7 @@
   <!-- Subtítulo Opciones -->
   <div class="section-title">Opciones</div>
 
+  @if (!esSuperadmin) {
   <!-- BOTÓN: Registrar recarga del proveedor -->
   <div class="action-card-large" (click)="abrirModalRecarga()">
     <div class="action-icon celular">
@@ -74,6 +75,7 @@
     <ion-icon name="checkmark-circle-outline"></ion-icon>
     <span>Sin deudas pendientes con el proveedor</span>
   </div>
+  }
   }
 
   <!-- BOTÓN: Ver Historial -->
@@ -142,6 +144,7 @@
   <!-- Subtítulo Opciones -->
   <div class="section-title">Opciones</div>
 
+  @if (!esSuperadmin) {
   <!-- BOTÓN: Comprar saldo virtual -->
   <div class="action-card-large" (click)="abrirModalCompraBus()">
     <div class="action-icon bus">
@@ -181,6 +184,7 @@
       <p>Disponible el {{ proximoMesDisplay }} · Acumulado: ${{ gananciaBusMesActual | number:'1.2-2' }}</p>
     </div>
   </div>
+  }
   }
 
   <!-- BOTÓN: Ver Historial -->

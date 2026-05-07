@@ -55,7 +55,10 @@ DECLARE
   v_tipo           tipo_operacion_caja_enum;
   v_caja_codigo    TEXT;
 BEGIN
-  -- 0. Obtener negocio del JWT
+  -- 0. Verificar que no sea superadmin
+  PERFORM public.fn_assert_no_superadmin();
+
+  -- 0.1. Obtener negocio del JWT
   v_negocio_id := public.get_negocio_id();
   IF v_negocio_id IS NULL THEN
     RAISE EXCEPTION 'No hay negocio activo en el JWT';

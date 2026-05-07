@@ -9,7 +9,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   closeOutline, alertCircleOutline, checkmarkCircle, checkmarkCircleOutline,
-  walletOutline, cashOutline, briefcaseOutline, lockOpenOutline
+  fileTrayOutline, lockOpenOutline
 } from 'ionicons/icons';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { UiService } from '@core/services/ui.service';
@@ -45,7 +45,7 @@ export class VerificarFondoModalComponent {
   constructor() {
     addIcons({
       closeOutline, alertCircleOutline, checkmarkCircle, checkmarkCircleOutline,
-      walletOutline, cashOutline, briefcaseOutline, lockOpenOutline
+      fileTrayOutline, lockOpenOutline
     });
   }
 

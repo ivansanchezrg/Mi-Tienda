@@ -108,7 +108,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
       this.categorias = await this.operacionesService.obtenerCategorias(this.tipo);
     } catch (error: any) {
       this.categorias = [];
-      await this.ui.showError('Error al cargar las categorías. Cerrá e intentá de nuevo.');
+      await this.ui.showError('Error al cargar las categorías. Cierra e intenta de nuevo.');
     } finally {
       this.cargandoCategorias = false;
     }

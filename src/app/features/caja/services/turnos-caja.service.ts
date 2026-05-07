@@ -1,12 +1,12 @@
 import { Injectable, inject, NgZone } from '@angular/core';
-import { BehaviorSubject, map, distinctUntilChanged } from 'rxjs';
+import { BehaviorSubject, map, distinctUntilChanged, combineLatest } from 'rxjs';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseService } from '@core/services/supabase.service';
 import { UiService } from '@core/services/ui.service';
 import { LoggerService } from '@core/services/logger.service';
 import { ConfigService } from '@core/services/config.service';
 import { AuthService } from '../../auth/services/auth.service';
-import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo, ResultadoCierreEmergencia } from '../models/turno-caja.model';
+import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
 import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
 
 @Injectable({
@@ -36,12 +36,15 @@ export class TurnosCajaService {
   readonly turnoActivo$ = this._turnoActivo$.asObservable();
 
   /**
-   * Derivado: true si hay caja abierta (turno activo no-null).
-   * Usado por guards, layout y sidebar para habilitar/deshabilitar secciones
-   * del app que dependen de un turno en curso (POS, Cajon).
+   * Derivado: true si el turno activo fue abierto por el usuario actual.
+   * Solo el empleado que abrió el turno puede operar el Cajón y el POS.
+   * Los demás usuarios pueden ver el estado pero no registrar en esas secciones.
    */
-  readonly cajaAbierta$ = this._turnoActivo$.pipe(
-    map(t => t !== null),
+  readonly esMiTurno$ = combineLatest([
+    this._turnoActivo$,
+    this.authService.usuarioActual$
+  ]).pipe(
+    map(([turno, usuario]) => turno !== null && !!usuario && turno.empleado_id === usuario.id),
     distinctUntilChanged()
   );
 
@@ -72,6 +75,13 @@ export class TurnosCajaService {
   /** Valor sincronico del turno activo (util en codigo imperativo). */
   get turnoActivoValue(): TurnoCajaConEmpleado | null {
     return this._turnoActivo$.value;
+  }
+
+  /** Valor sincronico: true si el turno activo pertenece al usuario actual. */
+  get esMiTurnoValue(): boolean {
+    const turno = this._turnoActivo$.value;
+    const usuario = this.authService.usuarioActualValue;
+    return turno !== null && !!usuario && turno.empleado_id === usuario.id;
   }
 
   /**
@@ -486,36 +496,6 @@ export class TurnosCajaService {
     return turnos ?? [];
   }
 
-  /**
-   * Ejecuta el cierre de emergencia de un turno abierto por un empleado ausente.
-   * Solo disponible para administradores.
-   *
-   * Delega toda la lógica a fn_cierre_emergencia_turno que:
-   *   - Valida rol ADMIN del caller
-   *   - Aplica la distribución en cascada igual que el cierre normal
-   *   - Registra FALTANTE_CAJA si hay diferencia negativa de conteo
-   *   - Cierra el turno con observaciones "CIERRE DE EMERGENCIA"
-   *   - NO procesa recargas virtuales (el admin las gestiona manualmente)
-   */
-  async cerrarEmergencia(params: {
-    adminId: string;
-    turnoId: string;
-    efectivoFisico: number;
-    motivo?: string;
-  }): Promise<ResultadoCierreEmergencia | null> {
-    const response = await this.supabase.call<ResultadoCierreEmergencia>(
-      this.supabase.client.rpc('fn_cierre_emergencia_turno', {
-        p_admin_id:        params.adminId,
-        p_turno_id:        params.turnoId,
-        p_efectivo_fisico: params.efectivoFisico,
-        p_motivo:          params.motivo ?? null
-      }),
-      undefined,
-      { showLoading: true }
-    );
-
-    return response;
-  }
 
   /**
    * Obtiene el estado completo de la caja para mostrar en el banner

@@ -157,7 +157,9 @@ export class SupabaseService {
       // 5. Manejo Centralizado de Errores
       this.logger.error('SupabaseService', 'Query error', error);
 
-      const msg = error.message || error.error_description || 'Ocurrió un error inesperado';
+      const rawMsg = error.message || error.error_description || 'Ocurrió un error inesperado';
+      const superadminMatch = rawMsg.match(/superadmin_blocked:\s*(.+)/i);
+      const msg = superadminMatch ? superadminMatch[1].trim() : rawMsg;
 
       // JWT expirado/inválido → limpiar sesión y redirigir al login
       if (this.isJwtError(msg)) {

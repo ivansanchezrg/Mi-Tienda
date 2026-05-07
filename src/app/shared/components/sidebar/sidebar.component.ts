@@ -147,10 +147,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
       }
     }
 
-    // El estado del POS depende de si hay un turno de caja abierto.
-    // TurnosCajaService emite cajaAbierta$ via Realtime de la tabla turnos_caja.
-    this.posSub = this.turnosCajaService.cajaAbierta$.subscribe(abierta => {
-      this.posHabilitado = abierta;
+    // El POS solo se habilita para el empleado que abrio el turno.
+    // TurnosCajaService emite esMiTurno$ via Realtime de la tabla turnos_caja.
+    this.posSub = this.turnosCajaService.esMiTurno$.subscribe(esMio => {
+      this.posHabilitado = esMio;
       this.recalcularMenu();
     });
 
@@ -236,7 +236,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   onItemDeshabilitadoClick() {
-    this.ui.showToast('Abrí la caja desde Inicio para usar el POS', 'warning');
+    const turno = this.turnosCajaService.turnoActivoValue;
+    const msg = turno
+      ? `${turno.empleado?.nombre ?? 'Otro empleado'} ya tiene el turno abierto. Solo él puede usar el POS`
+      : 'Abrí la caja desde Inicio para usar el POS';
+    this.ui.showToast(msg, 'warning');
   }
 
   async onAccionRapida(accion: 'nueva-nota' | 'cuadre' | 'calculadora') {

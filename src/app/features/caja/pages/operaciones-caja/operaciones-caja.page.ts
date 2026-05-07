@@ -26,6 +26,7 @@ import { OperacionModalComponent, OperacionModalResult } from '../../components/
 import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 import { AuthService } from '../../../auth/services/auth.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { PeriodFilterComponent, PeriodOption } from '../../../../shared/components/period-filter/period-filter.component';
 import { ROUTES } from '@core/config/routes.config';
 
 interface OperacionAgrupada {
@@ -47,7 +48,8 @@ interface OperacionAgrupada {
     IonContent, IonIcon, IonCard,
     IonInfiniteScroll, IonInfiniteScrollContent, IonSkeletonText,
     IonRefresher, IonRefresherContent,
-    EmptyStateComponent
+    EmptyStateComponent,
+    PeriodFilterComponent
   ]
 })
 export class OperacionesCajaPage implements OnInit, OnDestroy {
@@ -71,6 +73,14 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   operaciones: OperacionCaja[] = [];
   operacionesAgrupadas: OperacionAgrupada[] = [];
   filtro: FiltroFecha = 'hoy';
+
+  readonly periodos: PeriodOption[] = [
+    { value: 'hoy',    label: 'Hoy' },
+    { value: 'semana', label: 'Semana' },
+    { value: 'mes',    label: 'Mes' },
+    { value: 'todas',  label: 'Todo' },
+  ];
+
   page = 0;
   total = 0;
   hasMore = false;
@@ -418,7 +428,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
         await this.ejecutarOperacion(tipo, data);
       }
     } catch (error: any) {
-      await this.ui.showError('Error al abrir el formulario. Verificá tu conexión.');
+      await this.ui.showError('Error al abrir el formulario. Verifica tu conexión.');
     }
   }
 

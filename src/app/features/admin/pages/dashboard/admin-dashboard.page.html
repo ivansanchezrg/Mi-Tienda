@@ -74,7 +74,7 @@
       <app-empty-state
         icon="business-outline"
         title="Sin negocios"
-        hint="Aún no hay negocios registrados. Tocá 'Crear negocio' para empezar.">
+        hint="Aún no hay negocios registrados. Toca 'Crear negocio' para empezar.">
       </app-empty-state>
 
     <!-- Sin resultados de búsqueda -->
@@ -125,7 +125,24 @@
                       <div class="negocio-row-top">
                         <span class="negocio-nombre">{{ negocio.nombre }}</span>
                       </div>
-                      <span class="negocio-slug">{{ negocio.slug }}</span>
+                      <div class="negocio-row-meta">
+                        <span class="negocio-slug">{{ negocio.slug }}</span>
+                        @if (negocio.modulos.celular) {
+                          <span class="badge-modulo badge-modulo--celular">
+                            <ion-icon name="phone-portrait-outline"></ion-icon>
+                          </span>
+                        }
+                        @if (negocio.modulos.bus) {
+                          <span class="badge-modulo badge-modulo--bus">
+                            <ion-icon name="bus-outline"></ion-icon>
+                          </span>
+                        }
+                        @if (negocio.modulos.varios) {
+                          <span class="badge-modulo badge-modulo--varios">
+                            <ion-icon name="archive-outline"></ion-icon>
+                          </span>
+                        }
+                      </div>
                     </div>
 
                     <div class="negocio-row-accion">

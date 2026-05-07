@@ -31,12 +31,14 @@
         </div>
         <span class="fab-option-label">Calc. Margen</span>
       </div>
+      @if (!esSuperadmin) {
       <div class="fab-option" (click)="nuevaNota()">
         <div class="fab-option-icon secondary">
           <ion-icon [icon]="createIcon"></ion-icon>
         </div>
         <span class="fab-option-label">Nueva nota</span>
       </div>
+      }
       <div class="fab-option" (click)="irACuadre()">
         <div class="fab-option-icon tertiary">
           <ion-icon [icon]="scaleIcon"></ion-icon>
@@ -63,7 +65,7 @@
         <ion-label>POS</ion-label>
       </ion-tab-button>
       } @else {
-      <app-disabled-tab [icon]="posIcon" label="POS"></app-disabled-tab>
+      <app-disabled-tab [icon]="posIcon" label="POS" [disabledMessage]="posDisabledMessage"></app-disabled-tab>
       }
 
       <!-- FAB integrado como tab -->

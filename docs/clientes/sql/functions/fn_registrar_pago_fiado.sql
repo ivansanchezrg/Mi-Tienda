@@ -36,6 +36,8 @@ DECLARE
     v_tipo_referencia_id INTEGER;
     v_saldo_caja         DECIMAL(12,2);
 BEGIN
+    PERFORM public.fn_assert_no_superadmin();
+
     -- 0. Obtener empleado autenticado
     v_empleado_id := (SELECT id FROM usuarios WHERE usuario = auth.jwt() ->> 'email');
 

@@ -33,6 +33,7 @@ export class AppComponent {
     this.setupResumeListener();
     this.setupSplashScreenHide();
     this.setupBlurOnNavigation();
+    this.setupNumberInputNoScroll();
   }
 
   /**
@@ -58,6 +59,15 @@ export class AppComponent {
     this.router.events
       .pipe(filter((e): e is NavigationStart => e instanceof NavigationStart))
       .subscribe(() => (document.activeElement as HTMLElement)?.blur());
+  }
+
+  private setupNumberInputNoScroll() {
+    document.addEventListener('wheel', (event) => {
+      const target = event.target as HTMLElement;
+      if (target instanceof HTMLInputElement && target.type === 'number') {
+        target.blur();
+      }
+    }, { passive: true });
   }
 
   private setupDeepLinkListener() {

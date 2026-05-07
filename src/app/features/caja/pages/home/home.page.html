@@ -33,6 +33,9 @@
       </span>
       @if (estadoCaja.estado === 'TURNO_EN_CURSO') {
         <span class="time">• {{ estadoCaja.horaApertura }}</span>
+        @if (estadoCaja.empleadoNombre) {
+          <span class="time">• {{ estadoCaja.empleadoNombre }}</span>
+        }
       }
       <ion-icon name="chevron-forward" class="chip-chevron"></ion-icon>
     </button>
@@ -73,16 +76,18 @@
         } @else {
         <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCaja | number:'1.2-2')) }}</span>
         }
-        <app-options-menu triggerId="menu-caja" [options]="cajaOptions"
-          (optionSelected)="onCajaMenuOption($event, 'caja')">
-        </app-options-menu>
+        @if (!esSuperadmin) {
+          <app-options-menu triggerId="menu-caja" [options]="cajaOptions"
+            (optionSelected)="onCajaMenuOption($event, 'caja')">
+          </app-options-menu>
+        }
       </div>
     </div>
 
     <div class="flat-item" [class.flat-item--disabled]="!cajaAbierta">
       <div class="flat-item-body" (click)="cajaAbierta && onSaldoClick('cajaChica')">
-        <div class="icon-wrapper tertiary">
-          <ion-icon name="cash-outline"></ion-icon>
+        <div class="icon-wrapper success">
+          <ion-icon name="file-tray-outline"></ion-icon>
         </div>
         <div class="content">
           <span class="title">{{ cajaNombreFor('CAJA_CHICA') }}</span>
@@ -99,7 +104,7 @@
         } @else {
         <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCajaChica | number:'1.2-2')) }}</span>
         }
-        @if (esMiTurno) {
+        @if (esMiTurno && !esSuperadmin) {
           <app-options-menu triggerId="menu-caja-chica" [options]="cajaOptions"
             (optionSelected)="onCajaMenuOption($event, 'cajaChica')">
           </app-options-menu>
@@ -111,7 +116,7 @@
     <div class="flat-item">
       <div class="flat-item-body" (click)="onSaldoClick('varios')">
         <div class="icon-wrapper tertiary">
-          <ion-icon name="wallet-outline"></ion-icon>
+          <ion-icon name="archive-outline"></ion-icon>
         </div>
         <div class="content">
           <span class="title">{{ cajaNombreFor('VARIOS') }}</span>
@@ -125,9 +130,11 @@
         } @else {
         <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoVarios | number:'1.2-2')) }}</span>
         }
-        <app-options-menu triggerId="menu-varios" [options]="cajaOptions"
-          (optionSelected)="onCajaMenuOption($event, 'varios')">
-        </app-options-menu>
+        @if (!esSuperadmin) {
+          <app-options-menu triggerId="menu-varios" [options]="cajaOptions"
+            (optionSelected)="onCajaMenuOption($event, 'varios')">
+          </app-options-menu>
+        }
       </div>
     </div>
     }
@@ -153,7 +160,7 @@
             <span class="virtual-badge">Virtual: {{ montosOcultos ? '••••' : ('$' + (saldoVirtualCelular | number:'1.2-2')) }}</span>
           </div>
           }
-          @if (esAdmin) {
+          @if (esAdmin && !esSuperadmin) {
             <app-options-menu triggerId="menu-celular" [options]="cajaOptions"
               (optionSelected)="onCajaMenuOption($event, 'celular')">
             </app-options-menu>
@@ -183,7 +190,7 @@
             <span class="virtual-badge">Virtual: {{ montosOcultos ? '••••' : ('$' + (saldoVirtualBus | number:'1.2-2')) }}</span>
           </div>
           }
-          @if (esAdmin) {
+          @if (esAdmin && !esSuperadmin) {
             <app-options-menu triggerId="menu-bus" [options]="cajaOptions"
               (optionSelected)="onCajaMenuOption($event, 'bus')">
             </app-options-menu>

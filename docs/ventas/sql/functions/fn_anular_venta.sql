@@ -56,6 +56,8 @@ DECLARE
     v_venta_total        DECIMAL(12,2);
     v_venta_numero       INTEGER;
     v_venta_turno_id     UUID;
+    v_venta_tipo_comp    TEXT;
+    v_descripcion_op     TEXT;
     -- resto de variables
     v_stock_actual       DECIMAL(12,2);
     v_cantidad_real      DECIMAL(12,2);
@@ -68,6 +70,9 @@ BEGIN
     -- ══════════════════════════════════════
     -- 0. Tenant + Validaciones
     -- ══════════════════════════════════════
+
+    PERFORM public.fn_assert_no_superadmin();
+
     v_negocio_id := public.get_negocio_id();
     IF v_negocio_id IS NULL THEN
         RETURN json_build_object('success', false, 'error', 'No hay negocio activo en el JWT');
@@ -77,12 +82,21 @@ BEGIN
         RAISE EXCEPTION 'El motivo de anulación es obligatorio';
     END IF;
 
-    v_venta_id_check    := (SELECT id               FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
-    v_venta_estado      := (SELECT estado            FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
-    v_venta_metodo_pago := (SELECT metodo_pago       FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
-    v_venta_total       := (SELECT total             FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_id_check    := (SELECT id                FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_estado      := (SELECT estado             FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_metodo_pago := (SELECT metodo_pago        FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_total       := (SELECT total              FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
     v_venta_numero      := (SELECT numero_comprobante FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
-    v_venta_turno_id    := (SELECT turno_id          FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_turno_id    := (SELECT turno_id           FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    v_venta_tipo_comp   := (SELECT tipo_comprobante::TEXT FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+
+    -- Descripción: "Ticket #3 — motivo del usuario"
+    v_descripcion_op := CASE v_venta_tipo_comp
+        WHEN 'TICKET'     THEN 'Ticket #'         || v_venta_numero
+        WHEN 'FACTURA'    THEN 'Factura #'         || v_venta_numero
+        WHEN 'NOTA_VENTA' THEN 'Nota de Venta #'   || v_venta_numero
+        ELSE v_venta_tipo_comp || ' #'             || v_venta_numero
+    END || ' — ' || TRIM(p_motivo);
 
     IF v_venta_id_check IS NULL THEN
         RAISE EXCEPTION 'Venta no encontrada: %', p_venta_id;
@@ -125,10 +139,11 @@ BEGIN
         WHERE  id = v_detalle.producto_id;
 
         INSERT INTO kardex_inventario (
-            producto_id, tipo_movimiento, cantidad,
+            negocio_id, producto_id, tipo_movimiento, cantidad,
             stock_anterior, stock_nuevo,
             referencia_id, presentacion_id, observaciones
         ) VALUES (
+            v_negocio_id,
             v_detalle.producto_id,
             'ANULACION_VENTA',
             v_cantidad_real,
@@ -136,7 +151,7 @@ BEGIN
             v_stock_actual + v_cantidad_real,
             p_venta_id,
             v_detalle.presentacion_id,
-            'Anulación Venta POS #' || v_venta_numero || ': ' || TRIM(p_motivo)
+            v_descripcion_op
         );
     END LOOP;
 
@@ -161,15 +176,17 @@ BEGIN
             v_saldo_actual_caja := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA' AND negocio_id = v_negocio_id);
         END IF;
 
-        -- Categoría EGRESO para anulaciones: busca primero por código estándar,
-        -- luego cualquier EGRESO del negocio como fallback.
+        -- Categoría EGRESO para anulaciones — nombre canónico definido en fn_completar_onboarding.
         v_categoria_id := (
             SELECT id FROM categorias_operaciones
-            WHERE tipo = 'EGRESO'
+            WHERE nombre = 'Anulacion Venta'
+              AND tipo = 'EGRESO'
               AND negocio_id = v_negocio_id
-            ORDER BY (codigo = 'EG-999') DESC, codigo
-            LIMIT 1
         );
+
+        IF v_categoria_id IS NULL THEN
+            RAISE EXCEPTION 'Categoría "Anulacion Venta" (EGRESO) no encontrada para este negocio. Verifica que las categorías de operación estén correctamente inicializadas.';
+        END IF;
 
         v_tipo_referencia_id := (SELECT id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1);
 
@@ -189,7 +206,7 @@ BEGIN
                 v_categoria_id,
                 v_tipo_referencia_id,
                 p_venta_id,
-                'Anulación Venta POS #' || v_venta_numero,
+                v_descripcion_op,
                 v_negocio_id
             );
 

@@ -80,6 +80,7 @@ DECLARE
   v_venta_bus_hoy             NUMERIC;
   v_disponible_total          NUMERIC;
 BEGIN
+  PERFORM public.fn_assert_no_superadmin();
 
   -- ==========================================
   -- INICIALIZACIÓN — obtener IDs y configuración

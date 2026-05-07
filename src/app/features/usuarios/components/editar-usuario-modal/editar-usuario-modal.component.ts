@@ -149,7 +149,7 @@ export class EditarUsuarioModalComponent implements OnInit {
         await this.ui.showError('No se pudo transferir el empleado. Intentá de nuevo.');
       }
     } catch {
-      await this.ui.showError('Error al transferir el empleado. Verificá tu conexión.');
+      await this.ui.showError('Error al transferir el empleado. Verifica tu conexión.');
     } finally {
       this.transfiriendo = false;
     }
@@ -204,7 +204,7 @@ export class EditarUsuarioModalComponent implements OnInit {
 
       this.modalCtrl.dismiss(updated, 'confirm');
     } catch {
-      await this.ui.showError('Error al actualizar el usuario. Verificá tu conexión.');
+      await this.ui.showError('Error al actualizar el usuario. Verifica tu conexión.');
     } finally {
       this.guardando = false;
     }

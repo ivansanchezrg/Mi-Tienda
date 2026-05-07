@@ -14,18 +14,21 @@ import {
   phonePortraitOutline,
   busOutline,
   walletOutline,
+  archiveOutline,
   checkmarkCircleOutline,
   cashOutline,
   trendingUpOutline,
   calculatorOutline,
   informationCircleOutline,
   alertCircleOutline,
-  receiptOutline
+  receiptOutline,
+  fileTrayOutline
 } from 'ionicons/icons';
 import { CommonModule } from '@angular/common';
 import { UiService } from '@core/services/ui.service';
 import { HasPendingChanges } from '@core/guards/pending-changes.guard';
 import { CurrencyService } from '@core/services/currency.service';
+import { ConfigService } from '@core/services/config.service';
 import { RecargasService } from '../../services/recargas.service';
 import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
@@ -66,6 +69,7 @@ export class CierreDiarioPage implements HasPendingChanges {
   private authService = inject(AuthService);
   private alertCtrl = inject(AlertController);
   private currencyService = inject(CurrencyService);
+  private configService = inject(ConfigService);
 
   // ==========================================
   // ESTADO DEL WIZARD (v5: 2 pasos)
@@ -109,6 +113,11 @@ export class CierreDiarioPage implements HasPendingChanges {
   // Turno activo (cargado en init para reutilizar en ejecutarCierre)
   turnoActivo: TurnoCajaConEmpleado | null = null;
 
+  // Módulos habilitados (leídos de configuraciones)
+  recargasCelularHabilitada = false;
+  recargasBusHabilitada = false;
+  variosActiva = false;
+
   // Conciliación real del turno (Paso 2)
   ventasPosEfectivo = 0;   // Ventas POS en efectivo registradas en el sistema
   egresos = 0;             // Egresos/gastos del cajón durante el turno
@@ -127,19 +136,21 @@ export class CierreDiarioPage implements HasPendingChanges {
       phonePortraitOutline,
       busOutline,
       walletOutline,
+      archiveOutline,
       checkmarkCircleOutline,
       cashOutline,
       trendingUpOutline,
       calculatorOutline,
       informationCircleOutline,
       alertCircleOutline,
-      receiptOutline
+      receiptOutline,
+      fileTrayOutline
     });
 
     this.cierreForm = this.fb.group({
-      // Paso 1 — Los 3 inputs del turno
-      saldoVirtualCelularFinal: ['', [Validators.required]],
-      saldoVirtualBusFinal:     ['', [Validators.required]],
+      // Paso 1 — validators dinámicos aplicados en cargarDatosIniciales() según módulos habilitados
+      saldoVirtualCelularFinal: [''],
+      saldoVirtualBusFinal:     [''],
       efectivoFisico:           ['', [Validators.required]],
       // Paso 2 — Observaciones opcionales
       observaciones: ['']
@@ -172,14 +183,36 @@ export class CierreDiarioPage implements HasPendingChanges {
     this.cargandoDatos = true;
     try {
       // Lote 1: todo en paralelo
-      const [datos, saldoVirtualCelular, saldoVirtualBus, transferenciaYaHecha, saldosCajas, estadoCaja] = await Promise.all([
+      const [datos, saldoVirtualCelular, saldoVirtualBus, transferenciaYaHecha, saldosCajas, estadoCaja, config] = await Promise.all([
         this.recargasService.getDatosCierreDiario(),
         this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
         this.recargasVirtualesService.getSaldoVirtualActual('BUS'),
         this.recargasService.verificarTransferenciaYaHecha(),
         this.cajasService.obtenerSaldosCajas(),
-        this.turnosCajaService.obtenerEstadoCaja()
+        this.turnosCajaService.obtenerEstadoCaja(),
+        this.configService.get()
       ]);
+
+      // Flags de módulos — condicionan inputs, validadores y datos enviados al SQL
+      this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
+      this.recargasBusHabilitada     = config?.recargas_bus_habilitada     ?? false;
+      this.variosActiva              = config?.caja_varios_activa          ?? false;
+
+      // Aplicar validators dinámicos según módulos activos
+      const celularCtrl = this.cierreForm.get('saldoVirtualCelularFinal');
+      const busCtrl     = this.cierreForm.get('saldoVirtualBusFinal');
+      if (this.recargasCelularHabilitada) {
+        celularCtrl?.setValidators([Validators.required]);
+      } else {
+        celularCtrl?.clearValidators();
+      }
+      if (this.recargasBusHabilitada) {
+        busCtrl?.setValidators([Validators.required]);
+      } else {
+        busCtrl?.clearValidators();
+      }
+      celularCtrl?.updateValueAndValidity();
+      busCtrl?.updateValueAndValidity();
 
       // Saldos virtuales
       this.saldoAnteriorCelular      = datos.saldosVirtuales.celular;
@@ -218,7 +251,7 @@ export class CierreDiarioPage implements HasPendingChanges {
         this.egresos           = resumen.egresos;
       }
     } catch (error: any) {
-      await this.ui.showError('Error al cargar los datos del cierre. Verificá tu conexión e intentá de nuevo.');
+      await this.ui.showError('Error al cargar los datos del cierre. Verifica tu conexión e intenta de nuevo.');
     } finally {
       this.cargandoDatos = false;
     }
@@ -297,10 +330,12 @@ export class CierreDiarioPage implements HasPendingChanges {
 
   /**
    * Transferencia que recibirá VARIOS (prioridad 1).
+   * Si Varios está inactiva → $0 (todo va a Tienda).
    * Recibe si efectivo >= transferenciaDiaria completa.
    * Si ya recibió hoy (2do turno) → $0.
    */
   get transferenciaPreviewVarios(): number {
+    if (!this.variosActiva) return 0;
     if (this.transferenciaCajaChicaYaHecha) return 0;
     return this.efectivoFisico >= this.transferenciaDiariaVarios
       ? this.transferenciaDiariaVarios
@@ -322,8 +357,9 @@ export class CierreDiarioPage implements HasPendingChanges {
     return Math.max(0, this.efectivoFisico - this.transferenciaPreviewVarios - this.fondoDistribuidoPreview);
   }
 
-  /** ¿VARIOS no recibirá hoy? (efectivo < transferenciaDiaria) */
+  /** ¿VARIOS no recibirá hoy? (efectivo < transferenciaDiaria). Siempre false si Varios está inactiva. */
   get hayDeficitPreview(): boolean {
+    if (!this.variosActiva) return false;
     if (this.transferenciaCajaChicaYaHecha) return false;
     return this.efectivoFisico < this.transferenciaDiariaVarios;
   }
@@ -340,7 +376,7 @@ export class CierreDiarioPage implements HasPendingChanges {
    */
   get montoReposicionApertura(): number {
     let monto = 0;
-    if (!this.transferenciaCajaChicaYaHecha && this.hayDeficitPreview) {
+    if (this.variosActiva && !this.transferenciaCajaChicaYaHecha && this.hayDeficitPreview) {
       monto += this.transferenciaDiariaVarios;
     }
     if (this.hayDeficitFondo) monto += this.fondoFijo;
@@ -392,11 +428,13 @@ export class CierreDiarioPage implements HasPendingChanges {
     const busCtrl      = this.cierreForm.get('saldoVirtualBusFinal');
     const efectivoCtrl = this.cierreForm.get('efectivoFisico');
 
-    celularCtrl?.markAsTouched();
-    busCtrl?.markAsTouched();
+    if (this.recargasCelularHabilitada) celularCtrl?.markAsTouched();
+    if (this.recargasBusHabilitada)     busCtrl?.markAsTouched();
     efectivoCtrl?.markAsTouched();
 
-    if (celularCtrl?.invalid || busCtrl?.invalid || efectivoCtrl?.invalid) return;
+    const celularInvalid = this.recargasCelularHabilitada && celularCtrl?.invalid;
+    const busInvalid     = this.recargasBusHabilitada     && busCtrl?.invalid;
+    if (celularInvalid || busInvalid || efectivoCtrl?.invalid) return;
 
     if (this.hayVentaNegativa) {
       const msgs: string[] = [];
@@ -404,7 +442,7 @@ export class CierreDiarioPage implements HasPendingChanges {
       if (this.ventaBus    < 0) msgs.push(`<strong>Bus:</strong> venta negativa ($${this.ventaBus.toFixed(2)})`);
       await this.ui.showError(
         `<p>No podés continuar con ventas negativas.</p>${msgs.join('<br>')}
-         <p style="margin-top:12px">Registrá las recargas del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>`
+         <p style="margin-top:12px">Registra las recargas del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>`
       );
       return;
     }
@@ -419,7 +457,7 @@ export class CierreDiarioPage implements HasPendingChanges {
   async confirmarCierre() {
     const alert = await this.alertCtrl.create({
       header: 'Confirmar Cierre',
-      message: '¿Confirmás el cierre del turno con los valores indicados?',
+      message: '¿Confirmas el cierre del turno con los valores indicados?',
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
         { text: 'Confirmar', role: 'confirm' }
@@ -438,15 +476,15 @@ export class CierreDiarioPage implements HasPendingChanges {
   private async ejecutarCierre() {
     await this.ui.showLoading('Guardando cierre...');
     try {
-      const saldoCelularFinal = this.saldoCelularFinal;
-      const saldoBusFinal     = this.saldoBusFinal;
+      const saldoCelularFinal = this.recargasCelularHabilitada ? this.saldoCelularFinal : 0;
+      const saldoBusFinal     = this.recargasBusHabilitada     ? this.saldoBusFinal     : 0;
       const efectivoFisico    = this.efectivoFisico;
       const observaciones     = this.cierreForm.get('observaciones')?.value || null;
 
       const empleado = await this.authService.getUsuarioActual();
       if (!empleado?.id) {
         await this.ui.hideLoading();
-        await this.ui.showError('No se pudo identificar al usuario. Cerrá sesión e ingresá de nuevo.');
+        await this.ui.showError('No se pudo identificar al usuario. Cierra sesión e ingresa de nuevo.');
         return;
       }
 

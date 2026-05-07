@@ -1,1 +1,7 @@
-// estilos en src/theme/onboarding.scss (global)
+// Override de spacing del info-card en esta página:
+// — menos separación del subtítulo (el global tiene margin-bottom: 32px en .onboarding-header)
+// — más separación hacia el formulario
+.info-card {
+  margin-top: -16px;   // acerca el banner al subtítulo
+  margin-bottom: 24px; // separa del primer input
+}

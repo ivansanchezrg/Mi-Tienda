@@ -44,7 +44,7 @@
 
 // Formulario de entrada (Paso 1)
 .input-list {
-  margin-bottom: var(--spacing-2xl);
+  margin-bottom: 0;
   background: transparent;
 
   .input-item {
@@ -287,13 +287,21 @@
     gap: var(--spacing-sm);
     margin-bottom: var(--spacing-sm);
 
-    .caja-icon {
-      font-size: 20px;
+    .caja-icon-wrapper {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      flex-shrink: 0;
 
-      &.caja { color: var(--ion-color-success); }
-      &.caja-chica { color: var(--ion-color-tertiary); }
-      &.celular { color: var(--ion-color-primary); }
-      &.bus { color: var(--ion-color-danger); }
+      &.primary   { background: rgba(var(--ion-color-primary-rgb), 0.12);   color: var(--ion-color-primary); }
+      &.success   { background: rgba(var(--ion-color-success-rgb), 0.12);   color: var(--ion-color-success); }
+      &.tertiary  { background: rgba(var(--ion-color-tertiary-rgb), 0.12);  color: var(--ion-color-tertiary); }
+      &.secondary { background: rgba(var(--ion-color-secondary-rgb), 0.12); color: var(--ion-color-secondary); }
+      &.warning   { background: rgba(var(--ion-color-warning-rgb), 0.12);   color: var(--ion-color-warning); }
     }
 
     strong {
@@ -568,7 +576,7 @@
   display: flex;
   flex-direction: row;
   gap: var(--spacing-md);
-  margin-top: var(--spacing-2xl);
+  margin-top: 0;
   padding-bottom: var(--spacing-lg);
 
   ion-button {

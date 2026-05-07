@@ -166,12 +166,17 @@ CREATE POLICY "cajas_delete" ON cajas FOR DELETE TO authenticated
     USING (negocio_id = public.get_negocio_id());
 
 -- configuraciones
+-- SELECT: tenant normal + superadmin puede leer configuraciones de cualquier negocio
+-- (necesario para el panel /admin donde lista módulos de todos los negocios sin JWT de negocio)
 ALTER TABLE configuraciones ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "configuraciones_select" ON configuraciones; DROP POLICY IF EXISTS "configuraciones_insert" ON configuraciones;
 DROP POLICY IF EXISTS "configuraciones_update" ON configuraciones; DROP POLICY IF EXISTS "configuraciones_delete" ON configuraciones;
 DROP POLICY IF EXISTS "authenticated puede leer configuraciones" ON configuraciones;
 CREATE POLICY "configuraciones_select" ON configuraciones FOR SELECT TO authenticated
-    USING (negocio_id = public.get_negocio_id());
+    USING (
+        negocio_id = public.get_negocio_id()
+        OR EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true)
+    );
 CREATE POLICY "configuraciones_insert" ON configuraciones FOR INSERT TO authenticated
     WITH CHECK (negocio_id = public.get_negocio_id());
 CREATE POLICY "configuraciones_update" ON configuraciones FOR UPDATE TO authenticated
@@ -484,6 +489,132 @@ CREATE POLICY "tipos_servicio_select" ON tipos_servicio FOR SELECT TO authentica
 ALTER TABLE tipos_referencia ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "tipos_referencia_select" ON tipos_referencia;
 CREATE POLICY "tipos_referencia_select" ON tipos_referencia FOR SELECT TO authenticated USING (true);
+
+
+-- =============================================================================
+-- BLOQUEO SUPERADMIN — writes directos desde servicios Angular
+-- =============================================================================
+-- El superadmin entra a los negocios solo para revisar datos.
+-- Las funciones SQL ya tienen PERFORM fn_assert_no_superadmin() para RPCs.
+-- Estas políticas RESTRICTIVE cubren los INSERT/UPDATE/DELETE directos
+-- (sin RPC) que hacen los servicios Angular: clientes, inventario, notas, etc.
+--
+-- RESTRICTIVE = se evalúa con AND sobre las políticas permisivas existentes.
+-- No reemplaza las políticas de tenant — las suma. El superadmin queda bloqueado
+-- incluso si las políticas de negocio_id lo habrían permitido pasar.
+--
+-- Tablas cubiertas (writes directos identificados en servicios Angular):
+--   Grupo A: clientes, productos, categorias_productos, producto_presentaciones,
+--            atributos, atributo_opciones, categorias_operaciones,
+--            movimientos_empleados, notas, configuraciones,
+--            turnos_caja, cajas, operaciones_cajas, ventas,
+--            recargas, recargas_virtuales, kardex_inventario, cuentas_cobrar
+--   Grupo B: producto_atributos, ventas_detalles
+-- =============================================================================
+
+-- Helper: subquery reutilizable para verificar superadmin
+-- (no se puede usar fn_assert_no_superadmin() en WITH CHECK — RLS no admite PERFORM)
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON clientes;
+CREATE POLICY "superadmin_no_write" ON clientes AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON productos;
+CREATE POLICY "superadmin_no_write" ON productos AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON categorias_productos;
+CREATE POLICY "superadmin_no_write" ON categorias_productos AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON producto_presentaciones;
+CREATE POLICY "superadmin_no_write" ON producto_presentaciones AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON atributos;
+CREATE POLICY "superadmin_no_write" ON atributos AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON atributo_opciones;
+CREATE POLICY "superadmin_no_write" ON atributo_opciones AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON categorias_operaciones;
+CREATE POLICY "superadmin_no_write" ON categorias_operaciones AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON movimientos_empleados;
+CREATE POLICY "superadmin_no_write" ON movimientos_empleados AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON notas;
+CREATE POLICY "superadmin_no_write" ON notas AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON configuraciones;
+CREATE POLICY "superadmin_no_write" ON configuraciones AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON turnos_caja;
+CREATE POLICY "superadmin_no_write" ON turnos_caja AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON cajas;
+CREATE POLICY "superadmin_no_write" ON cajas AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON operaciones_cajas;
+CREATE POLICY "superadmin_no_write" ON operaciones_cajas AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON ventas;
+CREATE POLICY "superadmin_no_write" ON ventas AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON recargas;
+CREATE POLICY "superadmin_no_write" ON recargas AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON recargas_virtuales;
+CREATE POLICY "superadmin_no_write" ON recargas_virtuales AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON kardex_inventario;
+CREATE POLICY "superadmin_no_write" ON kardex_inventario AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON cuentas_cobrar;
+CREATE POLICY "superadmin_no_write" ON cuentas_cobrar AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+-- Grupo B — pivots sin negocio_id (USING también bloqueado para UPDATE/DELETE)
+DROP POLICY IF EXISTS "superadmin_no_write" ON producto_atributos;
+CREATE POLICY "superadmin_no_write" ON producto_atributos AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+DROP POLICY IF EXISTS "superadmin_no_write" ON ventas_detalles;
+CREATE POLICY "superadmin_no_write" ON ventas_detalles AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
 
 
 NOTIFY pgrst, 'reload schema';

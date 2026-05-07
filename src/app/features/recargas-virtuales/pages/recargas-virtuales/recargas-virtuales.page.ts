@@ -15,6 +15,7 @@ import {
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
+import { AuthService } from '../../../auth/services/auth.service';
 import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
 import { GananciasService } from '@core/services/ganancias.service';
 import { RegistrarRecargaModalComponent } from '../../components/registrar-recarga-modal/registrar-recarga-modal.component';
@@ -40,12 +41,14 @@ export class RecargasVirtualesPage {
   private route = inject(ActivatedRoute);
   private ui = inject(UiService);
   private configService = inject(ConfigService);
+  private authService = inject(AuthService);
   private service = inject(RecargasVirtualesService);
   private gananciasService = inject(GananciasService);
   private modalCtrl = inject(ModalController);
 
   tabActivo: TabActivo = 'CELULAR';
   loading = true;
+  esSuperadmin = false;
   recargasCelularHabilitada = false;
   recargasBusHabilitada = false;
 
@@ -74,6 +77,9 @@ export class RecargasVirtualesPage {
 
   async ionViewWillEnter() {
     this.ui.hideTabs();
+    const usuario = await this.authService.getUsuarioActual();
+    this.esSuperadmin = usuario?.es_superadmin ?? false;
+
     const config = await this.configService.get();
     this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
     this.recargasBusHabilitada     = config?.recargas_bus_habilitada ?? false;

@@ -10,10 +10,10 @@ App de gestión para tiendas minoristas. Maneja caja (hasta **5 cajas** físicas
 
 Un negocio recién creado tiene solo **3 cajas base** (CAJA, CAJA_CHICA, VARIOS). VARIOS, CAJA_CELULAR y CAJA_BUS son **opt-in por negocio**:
 
-- **VARIOS** — opcional desde el onboarding (toggle "Activar Caja Varios"). Si no se activó, el admin puede activarla después en Parámetros → Caja con un banner dedicado. Una vez activa **no se puede desactivar**. Flag: `caja_varios_activa`.
+- **VARIOS** — opcional desde el onboarding (toggle "Activar Caja Varios"). Si no se activó en el onboarding, solo el superadmin puede activarla después desde Parámetros → Módulos. Una vez activa **no se puede desactivar**. Flag: `caja_varios_activa`.
 - **CAJA_CELULAR / CAJA_BUS** — solo el superadmin las habilita por negocio desde Parámetros → Módulos (sección visible únicamente para superadmin). Cada una es independiente. Flags: `recargas_celular_habilitada`, `recargas_bus_habilitada`.
 
-Funciones SQL involucradas: `fn_completar_onboarding` (3 cajas + Varios opcional), `fn_activar_caja_varios` (admin), `fn_habilitar_recargas` (superadmin).
+Funciones SQL involucradas: `fn_completar_onboarding` (3 cajas + Varios opcional), `fn_configurar_modulos` (superadmin, desde negocio), `fn_configurar_modulos_admin` (superadmin, desde `/admin`).
 
 **Es una SaaS multi-tenant y multiplataforma** — no es un e-commerce. Es una herramienta interna de administración que puede servir a múltiples negocios independientes desde una sola instancia.
 
@@ -23,8 +23,36 @@ Funciones SQL involucradas: `fn_completar_onboarding` (3 cajas + Varios opcional
 - Supabase expone `get_negocio_id()` y `get_email()` como funciones helper que leen el JWT
 - Toda query filtra automáticamente por `negocio_id` vía RLS — **nunca hardcodear** un `negocio_id` en código
 - El superadmin puede operar dentro de cualquier negocio cambiando el `negocio_id` del JWT (`cambiarNegocio()`)
-- **Al agregar una tabla nueva:** siempre crear la política RLS correspondiente con `negocio_id = get_negocio_id()`
+- **Al agregar una tabla nueva:** siempre crear la política RLS correspondiente con `negocio_id = get_negocio_id()` **y** agregar la política RESTRICTIVE `superadmin_no_write` (ver abajo) en `docs/setup/02_rls.sql`
 - **Al agregar una función SQL nueva:** usar `SECURITY DEFINER` + `SET search_path = public` y filtrar por `get_negocio_id()` internamente
+- **Al agregar una función SQL de mutación:** llamar `PERFORM public.fn_assert_no_superadmin();` al inicio (antes de cualquier otra lógica). Ejecutar `docs/setup/fn_assert_no_superadmin.sql` en Supabase si la función helper aún no existe
+
+### Superadmin — bloqueo en escrituras directas (RLS RESTRICTIVE)
+
+Además del bloqueo en funciones RPC (`fn_assert_no_superadmin`), toda tabla mutable tiene una política RESTRICTIVE que bloquea INSERT/UPDATE/DELETE directos desde el cliente Angular:
+
+```sql
+-- En docs/setup/02_rls.sql — patrón para cada tabla nueva
+DROP POLICY IF EXISTS "superadmin_no_write" ON mi_tabla;
+CREATE POLICY "superadmin_no_write" ON mi_tabla AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE email = public.get_email() AND es_superadmin = true
+    ));
+```
+
+**Por qué `WITH CHECK` y no `PERFORM`:** RLS no soporta `PERFORM` — solo expresiones booleanas. La subquery `NOT EXISTS` replica el mismo check que `fn_assert_no_superadmin()`.
+
+**Tablas cubiertas actualmente** (en `02_rls.sql`): `clientes`, `productos`, `categorias_productos`, `producto_presentaciones`, `atributos`, `atributo_opciones`, `categorias_operaciones`, `movimientos_empleados`, `notas`, `configuraciones`, `turnos_caja`, `cajas`, `operaciones_cajas`, `ventas`, `recargas`, `recargas_virtuales`, `kardex_inventario`, `cuentas_cobrar`, `producto_atributos`, `ventas_detalles`.
+
+Funciones exentas de `fn_assert_no_superadmin` (el superadmin sí las ejecuta): `fn_configurar_modulos`, `fn_configurar_modulos_admin`, `fn_suspender_negocio`, `fn_set_negocio_activo`, `fn_completar_onboarding`, `fn_actualizar_membresia`, `fn_transferir_empleado`, `fn_suspender_usuario`.
+
+**Mensaje de error al usuario:** `fn_assert_no_superadmin` lanza `RAISE EXCEPTION 'superadmin_blocked: Esta acción no está disponible en modo supervisión'`. El prefijo `superadmin_blocked:` es detectado en dos lugares:
+- `SupabaseService.call()` — extrae el texto después del prefijo y lo muestra como toast limpio (cubre todos los servicios que usan `call()`)
+- Servicios que usan `.client.rpc()` directo — extraen el texto con el mismo regex: `rawMsg.match(/superadmin_blocked:\s*(.+)/i)`
+
+**No ocultar botones en el frontend:** el superadmin ve el flujo completo para poder entender y dar soporte a los usuarios. La BD es el único guardián. Si intenta ejecutar una acción, recibe el toast de error automáticamente.
 
 ### Multiplataforma
 - **Android**: APK vía Capacitor — plataforma principal, toda decisión UI/UX debe funcionar aquí primero
@@ -734,6 +762,24 @@ Usar el mismo patrón si se necesita cache para otros datos de baja frecuencia d
 - Documentar las funciones en `docs/<modulo>/sql/functions/`
 - Templates completos y criterios de decisión en `docs/ESTRUCTURA-PROYECTO.md`
 
+### Superadmin — bloqueo obligatorio en funciones de mutación
+
+**Toda función SQL que mute datos operativos del negocio debe bloquear al superadmin.** El superadmin entra a un negocio solo para revisar datos — no para ejecutar operaciones.
+
+Llamar a la función helper centralizada **al inicio de la función**, antes de cualquier otra lógica. Un solo `PERFORM`, un solo lugar de mantenimiento:
+
+```sql
+PERFORM public.fn_assert_no_superadmin();
+```
+
+La función helper está en `docs/setup/fn_assert_no_superadmin.sql` y debe ejecutarse en Supabase **antes** que cualquier función de mutación. Lanza `RAISE EXCEPTION` internamente — esa excepción burbujea automáticamente y aborta la función llamante, independientemente de si retorna `void`, `JSON` o `TABLE`.
+
+**Funciones que SÍ deben bloquearse** — toda función que toque caja, ventas, inventario, clientes, recargas, nómina o notas:
+`fn_abrir_turno`, `fn_ejecutar_cierre_diario_v5`, `fn_cierre_emergencia_turno`, `fn_registrar_operacion_manual`, `fn_crear_transferencia`, `fn_reparar_deficit_turno`, `fn_registrar_venta_pos`, `fn_anular_venta`, `fn_ajustar_stock_inventario`, `fn_crear_producto_simple`, `fn_crear_producto_con_variantes`, `fn_registrar_pago_fiado`, `fn_registrar_recarga_proveedor_celular`, `fn_registrar_pago_proveedor_celular`, `fn_registrar_compra_saldo_bus`, `fn_liquidar_ganancias_bus`, `fn_registrar_adelanto_sueldo`, `fn_pagar_nomina_empleado`, `fn_eliminar_nota`.
+
+**Funciones que NO se bloquean** — funciones de setup/admin que el superadmin usa deliberadamente:
+`fn_configurar_modulos`, `fn_configurar_modulos_admin`, `fn_suspender_usuario`, `fn_actualizar_membresia`, `fn_transferir_empleado`, `fn_set_negocio_activo`, `fn_completar_onboarding`, `fn_suspender_negocio`.
+
 ### Dónde vive cada función SQL
 
 | Archivo | Qué contiene |
@@ -949,6 +995,9 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 - No dejar botones de acción habilitados durante operaciones async → usar flag `guardando`/`procesando` + `[disabled]`
 - No crear subscriptions (`.subscribe()`) sin cleanup en `ngOnDestroy()` → evitar memory leaks
 - No usar `console.error()` en servicios → usar `LoggerService.error()` para que quede en los logs del dispositivo
+- No crear funciones SQL de mutación sin `PERFORM public.fn_assert_no_superadmin();` al inicio
+- No agregar una tabla nueva sin su política RESTRICTIVE `superadmin_no_write` en `docs/setup/02_rls.sql`
+- No ocultar botones de acción al superadmin en el frontend — la seguridad está en la BD (RLS + `fn_assert_no_superadmin`). El superadmin necesita ver el flujo completo para dar soporte. Si intenta ejecutar una acción, recibe el toast de error de la BD.
 
 ---
 
