@@ -430,7 +430,7 @@ CREATE POLICY "notas_insert" ON notas FOR INSERT TO authenticated
 CREATE POLICY "notas_update" ON notas FOR UPDATE TO authenticated
     USING (negocio_id = public.get_negocio_id());
 CREATE POLICY "notas_delete" ON notas FOR DELETE TO authenticated
-    USING (negocio_id = public.get_negocio_id());
+    USING (negocio_id = public.get_negocio_id() AND public.get_rol() = 'ADMIN');
 
 
 -- =============================================================================

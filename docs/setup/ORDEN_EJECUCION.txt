@@ -114,7 +114,7 @@ NOTAS GENERALES:
     docs/movimientos-empleados/sql/functions/fn_pagar_nomina_empleado.sql
 
   Notas:
-    docs/notas/sql/functions/fn_eliminar_nota.sql
+    (sin funciones — DELETE directo con RLS desde 2026-05-07)
 
 ================================================================================
 7. TRIGGERS DE NEGOCIO (los inline ya estan en schema.sql; aqui los externos)

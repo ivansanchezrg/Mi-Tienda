@@ -1382,7 +1382,7 @@ NOTIFY pgrst, 'reload schema';
 --   Cuentas:     fn_registrar_pago_fiado, fn_listar_cuentas_cobrar, fn_resumir_cuentas_cobrar
 --   Ventas:      fn_listar_ventas, fn_reporte_ventas_periodo
 --   Empleados:   fn_registrar_adelanto_sueldo, fn_pagar_nomina_empleado
---   Notas:       fn_eliminar_nota
+--   Notas:       (sin funciones — DELETE directo con RLS, notas_delete restringe a ADMIN)
 -- ==========================================
 
 -- ==========================================

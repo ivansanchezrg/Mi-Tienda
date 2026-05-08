@@ -68,10 +68,9 @@ export class ClientesService {
     }
 
     async crearCliente(data: { nombre: string; identificacion?: string; telefono?: string; email?: string }): Promise<Cliente | null> {
-        const usuario = await this.auth.getUsuarioActual();
         return this.supabase.call<Cliente>(
             this.supabase.client.from('clientes')
-                .insert({ ...data, negocio_id: usuario?.negocio_id })
+                .insert({ ...data, negocio_id: this.auth.usuarioActualValue?.negocio_id })
                 .select()
                 .single(),
             'Cliente creado correctamente'

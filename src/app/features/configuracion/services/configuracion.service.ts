@@ -1,10 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
+import { AuthService } from '../../auth/services/auth.service';
 import { Configuracion, ConfiguracionKey, ConfiguracionRow, mapRowsToConfig } from '../models/configuracion.model';
 
 @Injectable({ providedIn: 'root' })
 export class ConfiguracionService {
     private supabase = inject(SupabaseService);
+    private auth = inject(AuthService);
 
     /**
      * Obtiene la configuración global como objeto tipado.
@@ -23,8 +25,7 @@ export class ConfiguracionService {
      * Usa UPSERT para crear la fila si no existe.
      */
     async update(cambios: Partial<Configuracion>, successMessage = 'Parámetros guardados'): Promise<boolean> {
-        const { data: { user } } = await this.supabase.client.auth.getUser();
-        const negocioId: string = user?.app_metadata?.['negocio_id'];
+        const negocioId = this.auth.usuarioActualValue?.negocio_id;
         if (!negocioId) return false;
 
         const rows = Object.entries(cambios).map(([clave, valor]) => ({
