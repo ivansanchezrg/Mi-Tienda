@@ -141,9 +141,8 @@ export class InventarioService {
     }
 
     async crearProducto(producto: Partial<Producto>): Promise<Producto> {
-        const usuario = await this.auth.getUsuarioActual();
         const res = await this.supabase.call<Producto[]>(
-            this.supabase.client.from('productos').insert([{ ...producto, negocio_id: usuario?.negocio_id }]).select('*, categoria:categorias_productos(*)'),
+            this.supabase.client.from('productos').insert([{ ...producto, negocio_id: this.auth.usuarioActualValue?.negocio_id }]).select('*, categoria:categorias_productos(*)'),
             'Producto creado exitosamente',
             { showLoading: true }
         );
@@ -214,9 +213,8 @@ export class InventarioService {
     }
 
     async crearCategoria(nombre: string): Promise<CategoriaProducto | null> {
-        const usuario = await this.auth.getUsuarioActual();
         const res = await this.supabase.call<CategoriaProducto[]>(
-            this.supabase.client.from('categorias_productos').insert({ nombre, negocio_id: usuario?.negocio_id }).select(),
+            this.supabase.client.from('categorias_productos').insert({ nombre, negocio_id: this.auth.usuarioActualValue?.negocio_id }).select(),
             'Categoría creada',
             { showLoading: true }
         );
@@ -320,9 +318,8 @@ export class InventarioService {
     }
 
     async crearPresentacion(presentacion: Partial<ProductoPresentacion>, silencioso = false): Promise<ProductoPresentacion> {
-        const usuario = await this.auth.getUsuarioActual();
         const res = await this.supabase.call<ProductoPresentacion[]>(
-            this.supabase.client.from('producto_presentaciones').insert([{ ...presentacion, negocio_id: usuario?.negocio_id }]).select(),
+            this.supabase.client.from('producto_presentaciones').insert([{ ...presentacion, negocio_id: this.auth.usuarioActualValue?.negocio_id }]).select(),
             silencioso ? undefined : 'Presentación creada',
             silencioso ? undefined : { showLoading: true }
         );
@@ -423,11 +420,12 @@ export class InventarioService {
     /** Crea el atributo si no existe, o devuelve el existente. Upsert silencioso. */
     async crearOObtenerAtributo(nombre: string): Promise<Atributo | null> {
         const nombreNorm = nombre.toUpperCase().trim();
-        const usuario = await this.auth.getUsuarioActual();
-        const negocioId = usuario?.negocio_id;
-        await this.supabase.client
-            .from('atributos')
-            .upsert({ negocio_id: negocioId, nombre: nombreNorm }, { onConflict: 'negocio_id,nombre', ignoreDuplicates: true });
+        const negocioId = this.auth.usuarioActualValue?.negocio_id;
+        await this.supabase.call(
+            this.supabase.client
+                .from('atributos')
+                .upsert({ negocio_id: negocioId, nombre: nombreNorm }, { onConflict: 'negocio_id,nombre', ignoreDuplicates: true })
+        );
         const data = await this.supabase.call<Atributo>(
             this.supabase.client.from('atributos').select('*').eq('nombre', nombreNorm).single()
         );
@@ -462,14 +460,15 @@ export class InventarioService {
     /** Crea la opcion si no existe, o devuelve la existente. */
     async crearOObtenerOpcionAtributo(atributoId: string, valor: string): Promise<AtributoOpcion | null> {
         const valorNorm = valor.toUpperCase().trim();
-        const usuario = await this.auth.getUsuarioActual();
-        const negocioId = usuario?.negocio_id;
-        await this.supabase.client
-            .from('atributo_opciones')
-            .upsert(
-                { negocio_id: negocioId, atributo_id: atributoId, valor: valorNorm },
-                { onConflict: 'atributo_id,valor', ignoreDuplicates: true }
-            );
+        const negocioId = this.auth.usuarioActualValue?.negocio_id;
+        await this.supabase.call(
+            this.supabase.client
+                .from('atributo_opciones')
+                .upsert(
+                    { negocio_id: negocioId, atributo_id: atributoId, valor: valorNorm },
+                    { onConflict: 'atributo_id,valor', ignoreDuplicates: true }
+                )
+        );
         const data = await this.supabase.call<AtributoOpcion>(
             this.supabase.client
                 .from('atributo_opciones')

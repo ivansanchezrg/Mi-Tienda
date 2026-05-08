@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
+import { AuthService } from '../../auth/services/auth.service';
 import { PAGINATION_CONFIG } from '@core/config/pagination.config';
 import {
   MovimientoEmpleado, SaldoEmpleado, PreviewNomina,
@@ -12,6 +13,7 @@ import {
 })
 export class MovimientosEmpleadosService {
   private supabase = inject(SupabaseService);
+  private auth = inject(AuthService);
 
   // ── Queries directas ──
 
@@ -103,7 +105,7 @@ export class MovimientosEmpleadosService {
     descripcion: string,
     creadoPor: string
   ): Promise<boolean> {
-    const negocioId = await this._getNegocioId();
+    const negocioId = this.auth.usuarioActualValue?.negocio_id;
 
     // Usamos .select() para que Supabase retorne la fila insertada.
     // Sin .select(), data=null tanto en éxito como en error RLS — indistinguibles.
@@ -214,7 +216,7 @@ export class MovimientosEmpleadosService {
         .from('usuario_negocios')
         .select('activo, created_at, updated_at')
         .eq('usuario_id', beneficiarioId)
-        .eq('negocio_id', await this._getNegocioId())
+        .eq('negocio_id', this.auth.usuarioActualValue?.negocio_id)
         .maybeSingle()
     ) ?? null;
 
@@ -266,18 +268,6 @@ export class MovimientosEmpleadosService {
       esTransferido,
       tienePagosPrevios
     };
-  }
-
-  /** Lee el negocio_id del usuario actual desde Preferences (sin query HTTP) */
-  private async _getNegocioId(): Promise<string> {
-    const { Preferences } = await import('@capacitor/preferences');
-    const { value } = await Preferences.get({ key: 'usuario_actual' });
-    if (!value) return '';
-    try {
-      return JSON.parse(value)?.negocio_id ?? '';
-    } catch {
-      return '';
-    }
   }
 
   // ── RPCs atomicas ──

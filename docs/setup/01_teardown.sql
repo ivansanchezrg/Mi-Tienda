@@ -72,8 +72,7 @@ DECLARE
         -- Movimientos Empleados
         'fn_registrar_adelanto_sueldo',
         'fn_pagar_nomina_empleado',
-        -- Notas
-        'fn_eliminar_nota',
+        -- Notas: sin funciones (DELETE directo con RLS desde 2026-05-07)
         -- Setup v11.0
         'fn_crear_negocio',         -- legacy (eliminado en 2026-05-02, lo dejamos aqui por si quedo en una BD vieja)
         'fn_completar_onboarding',

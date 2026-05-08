@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SupabaseService } from '../../../core/services/supabase.service';
+import { AuthService } from '../../auth/services/auth.service';
 import { Nota } from '../models/nota.model';
 import { PAGINATION_CONFIG } from '../../../core/config/pagination.config';
 
@@ -27,6 +28,7 @@ function mapNota(raw: any): Nota {
 @Injectable({ providedIn: 'root' })
 export class NotasService {
     private supabase = inject(SupabaseService);
+    private auth = inject(AuthService);
 
     readonly notaCreada$ = new Subject<Nota>();
 
@@ -49,7 +51,7 @@ export class NotasService {
     async crear(texto: string, creadaPor: string): Promise<Nota | null> {
         const raw = await this.supabase.call<any>(
             this.supabase.client.from('notas')
-                .insert({ texto, creada_por: creadaPor })
+                .insert({ texto, creada_por: creadaPor, negocio_id: this.auth.usuarioActualValue?.negocio_id })
                 .select(SELECT_NOTA)
                 .single(),
             'Nota creada'
@@ -65,7 +67,7 @@ export class NotasService {
                 .update({
                     completada: true,
                     completada_por: completadaPor,
-                    completada_at: 'now()'
+                    completada_at: new Date().toISOString()
                 })
                 .eq('id', id)
                 .select(SELECT_NOTA)
@@ -87,7 +89,7 @@ export class NotasService {
 
     async eliminar(id: string): Promise<boolean> {
         const result = await this.supabase.call(
-            this.supabase.client.rpc('fn_eliminar_nota', { p_nota_id: id }),
+            this.supabase.client.from('notas').delete().eq('id', id),
             'Nota eliminada'
         );
         return result !== null;

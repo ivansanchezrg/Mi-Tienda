@@ -1,10 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
+import { AuthService } from '../../auth/services/auth.service';
 import { CategoriaOperacion, CategoriaOperacionInsert } from '../models/categoria-operacion.model';
 
 @Injectable({ providedIn: 'root' })
 export class CategoriasOperacionesService {
   private supabase = inject(SupabaseService);
+  private auth = inject(AuthService);
 
   /**
    * Obtiene TODAS las categorías (incluyendo las del sistema).
@@ -27,13 +29,14 @@ export class CategoriasOperacionesService {
    * Siempre se crea con seleccionable = true (visible en dropdowns del usuario).
    */
   async crear(categoria: CategoriaOperacionInsert): Promise<CategoriaOperacion> {
-    const { data, error } = await this.supabase.client
-      .from('categorias_operaciones')
-      .insert({ ...categoria, seleccionable: true })
-      .select()
-      .single();
-
-    if (error) throw new Error(`Error al crear categoría: ${error.message}`);
+    const data = await this.supabase.call<CategoriaOperacion>(
+      this.supabase.client
+        .from('categorias_operaciones')
+        .insert({ ...categoria, seleccionable: true, negocio_id: this.auth.usuarioActualValue?.negocio_id })
+        .select()
+        .single()
+    );
+    if (!data) throw new Error('Error al crear categoría');
     return data;
   }
 

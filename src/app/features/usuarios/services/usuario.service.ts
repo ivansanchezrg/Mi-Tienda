@@ -1,10 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
+import { AuthService } from '../../auth/services/auth.service';
 import { Usuario, CreateUsuarioDto, UpdateUsuarioDto, RolUsuario } from '../models/usuario.model';
 
 @Injectable({ providedIn: 'root' })
 export class UsuarioService {
   private supabase = inject(SupabaseService);
+  private auth = inject(AuthService);
 
   /**
    * Lista todos los usuarios activos del negocio actual, con su rol en ese negocio.
@@ -15,8 +17,7 @@ export class UsuarioService {
     // Filtro explícito por negocio_id necesario: la RLS de usuario_negocios tiene
     // una cláusula OR que permite ver las propias membresías en todos los negocios
     // (para el selector de login). Sin este filtro, el admin aparece N veces.
-    const { data: { user } } = await this.supabase.client.auth.getUser();
-    const negocioId = user?.app_metadata?.['negocio_id'] as string | undefined;
+    const negocioId = this.auth.usuarioActualValue?.negocio_id;
     if (!negocioId) return [];
 
     // Cargo membresias y datos del negocio (para resolver el propietario) en paralelo
@@ -157,8 +158,7 @@ export class UsuarioService {
     }
 
     // Releer el registro actualizado + propietario del negocio
-    const { data: { user } } = await this.supabase.client.auth.getUser();
-    const negocioId = user?.app_metadata?.['negocio_id'] as string | undefined;
+    const negocioId = this.auth.usuarioActualValue?.negocio_id;
 
     const [readMembRes, readNegocioRes] = await Promise.all([
       this.supabase.client
