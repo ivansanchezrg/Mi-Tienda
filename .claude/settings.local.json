@@ -162,7 +162,13 @@
       "Bash(sed -i \"s/Cerrá e intentá/Cierra e intenta/g\" \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/caja/components/operacion-modal/operacion-modal.component.ts\")",
       "Bash(sed -i \"s/Revisá tu conexión e intenta/Revisa tu conexión e intenta/g\" \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/caja/pages/home/home.page.ts\")",
       "Bash(grep -i \"á$\\\\|á \")",
-      "Bash(npm list *)"
+      "Bash(npm list *)",
+      "Bash(git rm *)",
+      "Bash(git restore *)",
+      "Bash(git mv *)",
+      "Bash(mv src/app/features/auth/models/usuario_actual.model.ts src/app/features/auth/models/usuario-actual.model.ts)",
+      "Bash(sed -i 's|@core/services/recargas-virtuales.service|../../../recargas-virtuales/services/recargas-virtuales.service|g; s|@core/services/ganancias.service|../../../recargas-virtuales/services/ganancias.service|g' src/app/features/caja/services/recargas.service.ts)",
+      "Bash(sed -i 's|@core/services/recargas-virtuales.service|../../../recargas-virtuales/services/recargas-virtuales.service|g; s|@core/services/ganancias.service|../../../recargas-virtuales/services/ganancias.service|g' src/app/features/caja/pages/cierre-diario/cierre-diario.page.ts src/app/features/caja/pages/cuadre-caja/cuadre-caja.page.ts src/app/features/caja/pages/home/home.page.ts src/app/features/historial-recargas/pages/historial-recargas/historial-recargas.page.ts)"
     ]
   },
   "disableAllHooks": true

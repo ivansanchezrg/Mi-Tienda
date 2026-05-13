@@ -185,7 +185,7 @@ src/app/
 | `UiService`               | Loading, toasts, alertas, confirmaciones, `hideTabs()`/`showTabs()` para ocultar tabs en páginas de detalle |
 | `ConfigService`           | Lee tabla `configuraciones` (clave/valor con prefijo por módulo: `negocio_`, `caja_`, `bus_`, `pos_`, `nomina_`) con cache en memoria. Métodos: `get()`, `getNombreNegocio()`, `invalidar()` |
 | `CurrencyService`         | Formateo de moneda: `format(value)` y `parse(value)`. No formatear manualmente |
-| `StorageService`          | Sube imágenes a Supabase Storage con compresión automática. `uploadImage(dataUrl, bucket, subfolder)` |
+| `StorageService`          | Captura fotos y sube imágenes a Supabase Storage con compresión automática. Bucket único `mi-tienda`, aislado por `negocio_id`. Ver sección "Storage multi-tenant" |
 | `GananciasService`        | Lógica de comisiones recargas virtuales (liquidación BUS mensual) |
 | `RecargasVirtualesService`| Operaciones de saldo celular/bus                            |
 | `LoggerService`           | Logs estructurados a filesystem con rotación (no usar console.log directo) |
@@ -979,6 +979,82 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 
 ---
 
+## Storage multi-tenant — patrón obligatorio
+
+Toda subida de archivos usa un **único bucket `mi-tienda`** con aislamiento por `negocio_id` al inicio del path. Nunca crear buckets separados por módulo ni por negocio.
+
+### Estructura de paths
+
+```
+mi-tienda/
+  {negocio_id}/
+    comprobantes/YYYY/MM/operaciones/{uuid}.webp   ← comprobantes de caja
+    productos/{categoria}/{uuid}.webp              ← fotos de productos
+```
+
+### API de StorageService
+
+```typescript
+// Capturar foto (cámara o galería) — retorna SafeUrl para preview + rawUrl para upload
+const result = await this.storageService.capturarFoto(CameraSource.Camera);
+if (!result) return; // usuario canceló
+this.fotoPreviewUrl = result.previewUrl; // SafeUrl → <img [src]>
+this.fotoRawUrl = result.rawUrl;         // string → uploadImage()
+
+// Subir imagen — negocio_id se inyecta internamente, no se pasa como parámetro
+const path = await this.storageService.uploadImage(rawUrl, 'comprobantes/operaciones');
+const path = await this.storageService.uploadImage(rawUrl, `productos/${subfolder}`, false);
+
+// Obtener URL firmada (bucket privado — comprobantes)
+const url = await this.storageService.getSignedUrl(path);
+
+// Obtener URL pública (bucket público — productos)
+const url = this.storageService.getPublicUrl(path);
+
+// Eliminar archivo (rollback si RPC falla, o al cambiar imagen)
+await this.storageService.deleteFile(path);
+```
+
+### Reglas críticas
+
+- **Nunca pasar `bucket` como parámetro** — el bucket (`mi-tienda`) es constante definido en `StorageService`. Los callers solo pasan `subfolder`.
+- **Nunca pasar `negocio_id` como parámetro** — `StorageService` lo lee directamente de `AuthService.usuarioActualValue?.negocio_id`.
+- **Subfolder describe el tipo de contenido**, no el negocio: `'comprobantes/operaciones'`, `'productos/bebidas'`.
+- **Rollback obligatorio**: si el RPC falla después de un upload exitoso, llamar `deleteFile(path)` para no dejar huérfanos en Storage.
+- **El path que retorna `uploadImage()` es lo que se guarda en BD** — nunca guardar URLs firmadas ni públicas en la base de datos.
+
+### RLS de Storage — leer siempre del JWT, nunca de `auth.users`
+
+Las políticas RLS sobre `storage.objects` deben leer el `negocio_id` **del JWT del request**, no haciendo una subquery a `auth.users`. La subquery a `auth.users` falla silenciosamente porque en el contexto de un request de Storage el rol es `authenticated` y `auth.uid()` puede no resolver correctamente dentro de esa subquery.
+
+```sql
+-- ❌ Incorrecto — subquery a auth.users falla en contexto Storage
+WITH CHECK (
+    bucket_id = 'mi-tienda'
+    AND (storage.foldername(name))[1] = (
+        SELECT raw_app_meta_data->>'negocio_id'
+        FROM auth.users WHERE id = auth.uid()
+    )
+);
+
+-- ✅ Correcto — leer directamente del JWT (mismo mecanismo que get_negocio_id())
+WITH CHECK (
+    bucket_id = 'mi-tienda'
+    AND (storage.foldername(name))[1] = (auth.jwt() -> 'app_metadata' ->> 'negocio_id')
+);
+```
+
+`auth.jwt() -> 'app_metadata' ->> 'negocio_id'` es exactamente lo que usa `public.get_negocio_id()` — la fuente de verdad para RLS en toda la app. Las políticas de Storage siguen el mismo patrón. Ver `docs/setup/03_storage_rls.sql`.
+
+### Al agregar un nuevo tipo de archivo
+
+1. Definir el subfolder descriptivo (ej: `'notas/adjuntos'`)
+2. Llamar `uploadImage(rawUrl, 'notas/adjuntos')` — el path resultante será `{negocio_id}/notas/adjuntos/YYYY/MM/{uuid}.webp`
+3. Guardar el path en BD
+4. Para visualizar: `getSignedUrl(path)` si el bucket es privado, `getPublicUrl(path)` si es público
+
+---
+
 ## No hacer
 
 - No hardcodear strings de rutas en `navigate()`, `navigateForward()`, `navigateBack()` ni `routerLink` — usar siempre `ROUTES` de `core/config/routes.config.ts`
@@ -998,6 +1074,9 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 - No crear funciones SQL de mutación sin `PERFORM public.fn_assert_no_superadmin();` al inicio
 - No agregar una tabla nueva sin su política RESTRICTIVE `superadmin_no_write` en `docs/setup/02_rls.sql`
 - No ocultar botones de acción al superadmin en el frontend — la seguridad está en la BD (RLS + `fn_assert_no_superadmin`). El superadmin necesita ver el flujo completo para dar soporte. Si intenta ejecutar una acción, recibe el toast de error de la BD.
+- No llamar a `Camera.getPhoto` directamente — usar siempre `StorageService.capturarFoto()`
+- No pasar `bucket` ni `negocio_id` a los métodos de `StorageService` — el bucket es `mi-tienda` (constante interna) y el `negocio_id` se inyecta automáticamente. Solo pasar el `subfolder` descriptivo
+- No guardar URLs firmadas ni URLs públicas en la BD — guardar siempre el `path` que retorna `uploadImage()`
 
 ---
 
@@ -1016,9 +1095,14 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
 | Sistema de diseño   | `docs/DESIGN.md`                                           |
 | Shared              | `docs/shared/SHARED-README.md`                             |
-| Estructura/Patrones | `docs/ESTRUCTURA-PROYECTO.md`                              |
+| Estructura/Patrones | `docs/guides/ESTRUCTURA-PROYECTO.md`                       |
 | Schema BD           | `docs/setup/schema.sql`                                    |
 | Configuracion       | `docs/configuracion/CONFIGURACION-README.md`               |
-| Arquitectura cajas  | `docs/ARQUITECTURA.md`                                     |
-| Mov. Empleados      | `docs/movimientos-empleados/PLAN-IMPLEMENTACION.md`        |
+| Arquitectura cajas  | `docs/guides/ARQUITECTURA.md`                              |
+| Mov. Empleados      | `docs/movimientos-empleados/MOVIMIENTOS-EMPLEADOS-README.md` |
 | App icon & splash   | `docs/assets/ASSETS-README.md`                             |
+| Notas               | `docs/notas/NOTAS-README.md`                               |
+| Layout              | `docs/layout/LAYOUT-README.md`                             |
+| Historial Recargas  | `docs/historial-recargas/HISTORIAL-RECARGAS-README.md`     |
+| Crear Negocio       | `docs/crear-negocio/CREAR-NEGOCIO-README.md`               |
+| Auditoría producción | `docs/AUDITORIA-PRODUCCION-2026-05-07.md`                 |

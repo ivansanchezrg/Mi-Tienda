@@ -6,11 +6,10 @@
 --
 -- Cubre:
 --   - Todas las funciones de modulos (docs/*/sql/functions/)
---   - Funciones de setup legacy (trigger_proteger_superadmin,
---     codigo_barras_unique_global, presentaciones_constraints)
---   - Funciones helper JWT (schema auth)
---   - Funciones de setup nuevas (fn_completar_onboarding, fn_set_negocio_activo)
---   - Triggers inline (recreados por schema.sql)
+--   - Funciones de setup (fn_assert_no_superadmin, fn_set_negocio_activo,
+--     fn_registrar_usuario_negocio, fn_completar_onboarding, fn_configurar_modulos*)
+--   - Funciones de trigger inline (schema.sql + setup legacy)
+--   - Funciones helper JWT (schema auth) — NO se dropean (propiedad de Supabase)
 --   - Vistas
 --   - Todas las tablas (en orden de dependencia)
 --   - Todos los ENUMs
@@ -19,15 +18,23 @@
 -- Orden posterior al teardown:
 --   1. docs/setup/schema.sql
 --   2. docs/setup/02_rls.sql                     (todas las RLS, fuente unica)
---   3. docs/setup/03_functions.sql               (incluye fn_set_negocio_activo)
---   4. docs/onboarding/sql/functions/fn_completar_onboarding.sql
---   5. docs/onboarding/sql/functions/fn_configurar_modulos.sql
---   6. docs/admin/sql/functions/fn_configurar_modulos_admin.sql
---   7. docs/*/sql/functions/*.sql                (resto de funciones de modulos)
---   8. docs/*/sql/setup/realtime_*.sql
---      — docs/auth/sql/setup/realtime_usuarios.sql
+--   3. docs/setup/03_functions.sql               (fn_set_negocio_activo, fn_registrar_usuario_negocio)
+--   4. docs/setup/fn_assert_no_superadmin.sql    (helper bloqueo superadmin — antes de cualquier funcion de mutacion)
+--   5. docs/auth/sql/setup/trigger_proteger_superadmin.sql
+--   6. docs/auth/sql/setup/trigger_proteger_propietario.sql
+--   7. docs/onboarding/sql/functions/fn_completar_onboarding.sql
+--   8. docs/onboarding/sql/functions/fn_configurar_modulos.sql
+--   9. docs/admin/sql/functions/fn_configurar_modulos_admin.sql
+--  10. docs/admin/sql/functions/fn_consultar_usuario_por_email.sql
+--  11. docs/admin/sql/functions/fn_suspender_usuario.sql
+--  12. docs/usuarios/sql/functions/fn_actualizar_membresia.sql
+--  13. docs/usuarios/sql/functions/fn_transferir_empleado.sql
+--  14. docs/inventario/sql/setup/codigo_barras_unique_global.sql
+--  15. docs/inventario/sql/setup/presentaciones_constraints.sql
+--  16. docs/*/sql/functions/*.sql                (resto de funciones de modulos)
+--  17. docs/*/sql/setup/realtime_*.sql
 --      — docs/configuracion/sql/setup/realtime_configuraciones.sql
---      — docs/dashboard/sql/setup/realtime_turnos_caja.sql
+--      — docs/caja/sql/setup/realtime_turnos_caja.sql
 --      — docs/usuarios/sql/setup/realtime_usuario_negocios.sql
 -- =============================================================================
 
@@ -40,9 +47,10 @@
 DO $$
 DECLARE
     v_nombres TEXT[] := ARRAY[
-        -- Dashboard
+        -- Caja
         'fn_abrir_turno',
-        'fn_ejecutar_cierre_diario',
+        'fn_ejecutar_cierre_diario',        -- legacy nombre anterior
+        'fn_ejecutar_cierre_diario_v5',
         'fn_reparar_deficit_turno',
         'fn_registrar_operacion_manual',
         'fn_crear_transferencia',
@@ -51,14 +59,15 @@ DECLARE
         'fn_registrar_recarga_proveedor_celular',
         'fn_registrar_pago_proveedor_celular',
         'fn_registrar_compra_saldo_bus',
-        'fn_liquidar_ganancias_bus',
+        'fn_liquidar_ganancias',
         -- POS
         'fn_registrar_venta_pos',
         'fn_anular_venta',
-        -- Cuentas por Cobrar
+        -- Clientes / Cuentas por Cobrar
         'fn_registrar_pago_fiado',
         'fn_listar_cuentas_cobrar',
         'fn_resumir_cuentas_cobrar',
+        'fn_listar_clientes_con_saldo',
         -- Inventario
         'fn_ajustar_stock_inventario',
         'fn_generar_codigo_interno',
@@ -66,14 +75,31 @@ DECLARE
         'fn_crear_producto_simple',
         'fn_crear_producto_con_variantes',
         'fn_ean13_check_digit',
+        'fn_listar_productos',
         -- Ventas
         'fn_listar_ventas',
         'fn_reporte_ventas_periodo',
         -- Movimientos Empleados
         'fn_registrar_adelanto_sueldo',
         'fn_pagar_nomina_empleado',
-        -- Notas: sin funciones (DELETE directo con RLS desde 2026-05-07)
+        -- Usuarios
+        'fn_actualizar_membresia',
+        'fn_transferir_empleado',
+        -- Admin
+        'fn_consultar_usuario_por_email',
+        'fn_suspender_usuario',
+        -- Notas
+        'fn_eliminar_nota',
+        -- Usuarios helpers
+        'fn_get_usuarios_asignables',
+        'comparten_negocio',
+        -- Ventas
+        'fn_resumir_ventas',
+        -- Recargas Virtuales (bus)
+        'fn_liquidar_ganancias_bus',
         -- Setup v11.0
+        'fn_assert_no_superadmin',
+        'fn_registrar_usuario_negocio',
         'fn_crear_negocio',         -- legacy (eliminado en 2026-05-02, lo dejamos aqui por si quedo en una BD vieja)
         'fn_completar_onboarding',
         'fn_set_negocio_activo',
@@ -102,10 +128,19 @@ BEGIN
 END $$;
 
 -- =============================================================================
--- 2. FUNCIONES HELPER JWT (schema auth)
--- NO se dropean aqui — son propiedad de Supabase (permission denied).
--- schema.sql usa CREATE OR REPLACE, que las sobreescribe sin necesidad de DROP.
+-- 2. FUNCIONES HELPER JWT (public schema, recreadas por schema.sql)
+-- Intentamos dropearlas; si Supabase da permission denied, se ignora el error.
+-- schema.sql usa CREATE OR REPLACE de todas formas — el resultado es el mismo.
 -- =============================================================================
+DO $$
+BEGIN
+    DROP FUNCTION IF EXISTS public.get_negocio_id()   CASCADE;
+    DROP FUNCTION IF EXISTS public.get_es_superadmin() CASCADE;
+    DROP FUNCTION IF EXISTS public.get_rol()           CASCADE;
+    DROP FUNCTION IF EXISTS public.get_email()         CASCADE;
+EXCEPTION WHEN insufficient_privilege OR others THEN
+    NULL;  -- Supabase puede denegar el DROP — schema.sql las sobreescribe igual
+END $$;
 
 -- =============================================================================
 -- 3. FUNCIONES DE TRIGGER INLINE y LEGACY (recreadas por schema.sql)
@@ -125,6 +160,8 @@ DECLARE
         'fn_set_codigo_categoria_operacion',
         'fn_actualizar_stock_venta',
         'fn_actualizar_saldo_caja_venta',
+        'fn_proteger_propietario_negocio',
+        'fn_validar_codigo_barras_unico',
         -- Legacy v10.1
         'fn_proteger_cambio_superadmin',
         'fn_proteger_superadmin'
@@ -145,6 +182,13 @@ BEGIN
         END LOOP;
     END LOOP;
 END $$;
+
+-- =============================================================================
+-- 3b. TRIGGERS LEGACY (DROP explicito — el CASCADE de la funcion los elimina,
+--     pero los listamos para claridad y por si la funcion ya no existe)
+-- =============================================================================
+DROP TRIGGER IF EXISTS trg_codigo_barras_unico_productos      ON public.productos;
+DROP TRIGGER IF EXISTS trg_codigo_barras_unico_presentaciones ON public.producto_presentaciones;
 
 -- =============================================================================
 -- 4. VISTAS

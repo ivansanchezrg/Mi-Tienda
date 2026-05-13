@@ -502,6 +502,12 @@
 }
 
 // Fila de Caja Chica cuando hay déficit
+// Fila de caja sin movimiento en el día — muestra saldo + badge en lugar de ecuación
+.caja-sin-movimiento {
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
 .caja-verificacion.con-deficit {
   border-left: 3px solid var(--ion-color-warning);
   padding-left: 8px;

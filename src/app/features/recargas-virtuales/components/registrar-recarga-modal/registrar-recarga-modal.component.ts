@@ -12,7 +12,7 @@ import {
   checkmarkCircleOutline, alertCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
+import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
@@ -215,16 +215,13 @@ export class RegistrarRecargaModalComponent implements OnInit {
           saldo_virtual_maquina: this.saldoVirtualMaquina ?? undefined
         });
 
-        if (!resultado?.success) {
-          await this.ui.showError('Error al registrar compra BUS');
-          return;
-        }
+        if (!resultado?.success) return;  // supabase.call() ya mostró el toast de error
 
         await this.ui.showSuccess(`Compra registrada: $${this.montoVirtual.toFixed(2)}`);
         this.modalCtrl.dismiss({ success: true });
       }
-    } catch (error: any) {
-      await this.ui.showError(error?.message || 'Error inesperado');
+    } catch {
+      // Errores ya los muestra supabase.call() — no duplicar toast
     } finally {
       this.guardando = false;
     }

@@ -381,7 +381,7 @@ filtro = 'hoy';
 
 **Archivo:** `components/sidebar/`
 
-Menú de navegación lateral de la app. Se gestiona automáticamente con `IonMenu`. Incluye accesos rápidos a las acciones del FAB para desktop (donde el FAB no se muestra).
+Menú de navegación lateral de la app. Se gestiona automáticamente con `IonMenu`. Incluye accesos rápidos a las acciones del FAB para desktop (donde el FAB no se muestra). Contiene el sub-componente `selector-negocio-modal` (`components/sidebar/selector-negocio-modal/`) para cambiar de negocio desde el sidebar sin recargar la página de selección.
 
 | `@Output()` | Tipo | Descripción |
 |---|---|---|
@@ -447,6 +447,12 @@ Hace scroll al top de un `ion-content` automáticamente cuando el valor vinculad
 <!-- Con duración personalizada (0 = sin animación) -->
 <ion-content [appScrollReset]="seccion" [scrollResetDuration]="0">
 ```
+
+### `appUppercaseInput` — Mayúsculas automáticas
+
+**Archivo:** `directives/uppercase-input.directive.ts`
+
+Convierte automáticamente el valor de un `ion-input` a mayúsculas mientras el usuario escribe. Útil para campos como códigos, identificaciones o nombres normalizados.
 
 ---
 

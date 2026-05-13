@@ -78,7 +78,7 @@ export class RegistrarUsuarioModalComponent {
     const email = (this.form.value.email ?? '').trim();
 
     if (/ya pertenece al negocio/i.test(raw)) {
-      return `${email} ya forma parte de este negocio. Si lo desactivaste antes, podés reactivarlo desde la lista.`;
+      return `${email} ya forma parte de este negocio. Si lo desactivaste antes, puedes reactivarlo desde la lista.`;
     }
 
     if (/no existe en el sistema/i.test(raw)) {

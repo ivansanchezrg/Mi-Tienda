@@ -98,7 +98,7 @@ Convierte el filtro de período a rango `{ inicio, fin }` en fecha local Ecuador
 Aplana los JOINs anidados de Supabase:
 - `clientes.nombre` → `cliente_nombre`
 - `clientes.identificacion` → `cliente_identificacion`
-- `empleados.nombre` → `empleado_nombre`
+- `usuarios.nombre` → `empleado_nombre`
 - `cuentas_cobrar[].monto` → `total_abonado` (suma acumulada de pagos)
 
 ---
@@ -247,7 +247,7 @@ Ubicación: `docs/pos/sql/functions/fn_anular_venta.sql` (v1.1)
 | `ventas` | Registro principal con estado y estado_pago |
 | `ventas_detalles` | Ítems de cada venta. Incluye `precio_costo` (snapshot al momento de la venta) |
 | `clientes` | Datos del cliente (JOIN en detalle) |
-| `empleados` | Nombre del cajero (JOIN en detalle) |
+| `usuarios` | Nombre del cajero (JOIN en detalle) |
 | `cuentas_cobrar` | Pagos registrados (FIADO) — JOIN para calcular total_abonado |
 | `kardex_inventario` | Reversión de stock al anular |
 | `cajas` | Descuento de saldo CAJA_CHICA al anular ventas en efectivo |

@@ -18,9 +18,7 @@
         @if (notif.tipo !== 'STOCK_BAJO') {
           <button class="notif-item" (click)="navegar(notif)">
             <div class="notif-icon" [ngClass]="getIconClass(notif.tipo)">
-              @if (notif.tipo === 'DEUDA_CELULAR') {
-                <ion-icon name="phone-portrait-outline"></ion-icon>
-              } @else if (notif.tipo === 'SALDO_BAJO_BUS') {
+              @if (notif.tipo === 'SALDO_BAJO_BUS') {
                 <ion-icon name="bus-outline"></ion-icon>
               } @else {
                 <ion-icon name="calendar-outline"></ion-icon>

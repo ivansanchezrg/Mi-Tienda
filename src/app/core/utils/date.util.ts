@@ -54,6 +54,18 @@ export function getInicioDiaSiguienteISO(): string {
   return getInicioDiaSiguienteDeISO(getFechaLocal());
 }
 
+/**
+ * Retorna el inicio de hace N días en ISO UTC, para usar como lower bound en queries.
+ * @param dias  Número de días hacia atrás (7 = semana, 30 = mes)
+ * @example
+ * .gte('fecha', getInicioHaceNDiasISO(7))  // últimos 7 días
+ */
+export function getInicioHaceNDiasISO(dias: number): string {
+  const fecha = getFechaLocal();
+  const [year, month, day] = fecha.split('-').map(Number);
+  return new Date(year, month - 1, day - dias).toISOString();
+}
+
 // ─────────────────────────────────────────────────────────────
 // PARSEO DE TIMESTAMPS DE SUPABASE
 // ─────────────────────────────────────────────────────────────

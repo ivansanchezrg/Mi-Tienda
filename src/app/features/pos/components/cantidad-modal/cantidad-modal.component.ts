@@ -28,7 +28,7 @@ export class CantidadModalComponent implements OnInit, AfterViewInit {
     @Input() cantidadActual: number = 0;   // 0 = nuevo, >0 = editar
     @Input() esEdicion: boolean = false;
 
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
 
     cantidad: number | null = null;

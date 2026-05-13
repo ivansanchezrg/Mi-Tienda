@@ -8,7 +8,7 @@ import { SupabaseService } from '@core/services/supabase.service';
 import { UiService } from '@core/services/ui.service';
 import { LoggerService } from '@core/services/logger.service';
 import { environment } from '../../../../environments/environment';
-import { UsuarioActual } from '../models/usuario_actual.model';
+import { UsuarioActual } from '../models/usuario-actual.model';
 import { ROUTES } from '@core/config/routes.config';
 
 /** Negocio disponible para el selector de negocio activo */
@@ -32,6 +32,15 @@ export class AuthService {
   // Key de storage de Supabase: sb-{projectRef}-auth-token
   private readonly STORAGE_KEY: string;
   private readonly USUARIO_KEY = 'usuario_actual';
+  /**
+   * Flag persistido en Preferences que indica que el usuario completó
+   * una autenticación OAuth activa en esta instalación.
+   * Se escribe al completar login (activarNegocio / onboarding).
+   * Se borra en logout/handleExpiredSession via registerBeforeCleanup.
+   * Permite al authGuard distinguir "sesión persistida de antes" de
+   * "usuario que ya eligió su cuenta en esta instalación".
+   */
+  private readonly AUTENTICADO_KEY = 'sesion_autenticada';
 
   /**
    * Canal de Realtime del usuario actual (tabla `usuarios`).
@@ -91,6 +100,10 @@ export class AuthService {
     // Registrar cleanup del canal de Realtime ante cualquier expiración/logout.
     // Esto evita websockets huérfanos cuando la sesión se cierra por cualquier vía.
     this.supabase.registerBeforeCleanup(() => this.cerrarRealtimeUsuario());
+    // Borrar el flag de autenticación activa al cerrar sesión.
+    this.supabase.registerBeforeCleanup(() =>
+      Preferences.remove({ key: this.AUTENTICADO_KEY }).catch(() => {})
+    );
   }
 
   /**
@@ -109,6 +122,17 @@ export class AuthService {
    */
   markValidatedInSession(): void {
     this.validadoEnEstaSesion = true;
+  }
+
+  /**
+   * Verifica si el usuario completó una autenticación OAuth activa
+   * en esta instalación (no es solo una sesión persistida de antes).
+   * Persistido en Preferences — sobrevive kill/reopen de la app pero
+   * se borra en logout.
+   */
+  async hasActiveAuth(): Promise<boolean> {
+    const { value } = await Preferences.get({ key: this.AUTENTICADO_KEY });
+    return value === 'true';
   }
 
   /**
@@ -198,6 +222,7 @@ export class AuthService {
         return false;
       }
 
+      await Preferences.set({ key: this.AUTENTICADO_KEY, value: 'true' });
       this.router.navigate([ROUTES.onboarding.negocio], { replaceUrl: true });
       return false;
     }
@@ -359,9 +384,9 @@ export class AuthService {
       this.logger.error('AuthService', 'Error en fn_set_negocio_activo', rpcError);
       const msg = (rpcError.message ?? '').toLowerCase();
       if (msg.includes('suspendido y no puede acceder')) {
-        await this.ui.showError('Tu cuenta está suspendida. Contactá al administrador.');
+        await this.ui.showError('Tu cuenta está suspendida. Contacta al administrador.');
       } else {
-        await this.ui.showError('Error al activar el negocio. Intentá de nuevo.');
+        await this.ui.showError('Error al activar el negocio. Intenta de nuevo.');
       }
       return;
     }
@@ -387,6 +412,7 @@ export class AuthService {
     };
 
     await this.saveUsuarioActual(usuarioCompleto);
+    await Preferences.set({ key: this.AUTENTICADO_KEY, value: 'true' });
     this.iniciarRealtimeUsuario(this.usuarioBase.id);
     this.iniciarRealtimeMembresia(this.usuarioBase.id, negocio.negocio_id);
     this.validadoEnEstaSesion = true;

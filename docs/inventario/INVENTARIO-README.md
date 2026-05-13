@@ -35,6 +35,7 @@ features/inventario/
 │   └── inventario.service.ts    # Queries, CRUD, presentaciones, variantes, ajustes de stock
 ├── components/
 │   ├── presentacion-modal/      # Modal bottom-sheet para crear/editar presentaciones
+│   ├── ajuste-stock-modal/      # Modal para registrar ajustes de stock (inventario físico)
 │   └── atributo-modal/          # Modal para gestionar atributos (no usado directamente, inline en producto-variantes)
 ├── models/
 │   ├── producto.model.ts        # Producto, ProductoPOS, ProductoPresentacion, Atributo, AtributoOpcion, TipoVenta
@@ -487,7 +488,7 @@ interface AtributoOpcion {
 ```typescript
 interface Producto {
     id: string;
-    categoria_id?: number;
+    categoria_id?: string;
     codigo_barras?: string;
     nombre: string;
     precio_costo: number;
@@ -638,8 +639,9 @@ const FORMATOS_DEFAULT = [
 
 ### Imagenes de productos
 
-- Upload: `StorageService.uploadImage()` con `quality: 80, width: 1200, height: 1600` (~300KB)
-- Bucket: `productos` en Supabase Storage
-- Subfolder: nombre de la categoria sanitizado (`Bebidas` → `bebidas`)
-- Al cambiar imagen: se elimina la anterior del storage
+- Captura: `StorageService.capturarFoto()` — `quality: 70`, `width/height: 1280`, `resultType: Uri`. Retorna `{ previewUrl: SafeUrl, rawUrl: string }`. El preview se muestra inmediato con la URL nativa; el `rawUrl` se pasa a `uploadImage()` al guardar.
+- Upload: `StorageService.uploadImage(rawUrl, 'productos', subfolder, false)` — comprime a WebP máx 1200px antes de subir (~150–300KB)
+- Bucket: `productos` (público) en Supabase Storage
+- Subfolder: nombre de la categoría sanitizado (`Bebidas` → `bebidas`)
+- Al cambiar imagen: se elimina la anterior del storage (`deleteFile`)
 - Al desactivar producto: la imagen se conserva (por si se reactiva)

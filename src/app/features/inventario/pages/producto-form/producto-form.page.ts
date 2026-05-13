@@ -1,8 +1,13 @@
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
-import { IonicModule, AlertController, NavController, ViewWillEnter } from '@ionic/angular';
+import {
+    AlertController, NavController, ModalController, ViewWillEnter,
+    IonHeader, IonToolbar, IonButtons, IonButton, IonTitle, IonContent, IonIcon,
+    IonInput, IonItem, IonCard, IonCardContent, IonSkeletonText, IonSpinner, IonToggle
+} from '@ionic/angular/standalone';
 import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
 import {
@@ -15,7 +20,7 @@ import {
     trendingDownOutline, removeOutline, sparklesOutline,
     colorPaletteOutline, pricetagOutline
 } from 'ionicons/icons';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { CameraSource } from '@capacitor/camera';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
 import { ROUTES } from '../../../../core/config/routes.config';
 
@@ -49,14 +54,18 @@ import { StorageService } from '../../../../core/services/storage.service';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { PresentacionModalComponent, PresentacionModalResult } from '../../components/presentacion-modal/presentacion-modal.component';
 import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
-import { ModalController } from '@ionic/angular';
 
 @Component({
     selector: 'app-producto-form',
     templateUrl: './producto-form.page.html',
     styleUrls: ['./producto-form.page.scss'],
     standalone: true,
-    imports: [IonicModule, CommonModule, ReactiveFormsModule, FormsModule, NumbersOnlyDirective, CurrencyInputDirective, UppercaseInputDirective, ScannerOverlayComponent]
+    imports: [
+        CommonModule, ReactiveFormsModule, FormsModule,
+        IonHeader, IonToolbar, IonButtons, IonButton, IonTitle, IonContent, IonIcon,
+        IonInput, IonItem, IonCard, IonCardContent, IonSkeletonText, IonSpinner, IonToggle,
+        NumbersOnlyDirective, CurrencyInputDirective, UppercaseInputDirective, ScannerOverlayComponent
+    ]
 })
 export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private inicializado = false;
@@ -64,9 +73,9 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     private route = inject(ActivatedRoute);
     private fb = inject(FormBuilder);
     private inventarioService = inject(InventarioService);
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private ui = inject(UiService);
-    private storageService = inject(StorageService);
+    protected storageService = inject(StorageService);
     private alertCtrl = inject(AlertController);
     private modalCtrl = inject(ModalController);
     private logger = inject(LoggerService);
@@ -101,7 +110,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     atributosSeleccionados: AtributoSeleccionado[] = [];
 
     // Imagen del producto
-    fotoPreview: string | null = null;
+    fotoPreviewUrl: SafeUrl | null = null;   // para <img [src]>
+    private fotoRawUrl: string | null = null; // para uploadImage()
     imagenUrlExistente: string | null = null;
     private imagenPathAnterior: string | null = null;
     private fotoNueva = false;
@@ -135,7 +145,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             this.producto = producto;
             if (producto.imagen_url) {
                 this.imagenPathAnterior = producto.imagen_url;
-                this.imagenUrlExistente = this.storageService.getPublicUrl(producto.imagen_url, 'productos');
+                this.imagenUrlExistente = this.storageService.getPublicUrl(producto.imagen_url);
             }
             [this.presentaciones, this.presentacionesInactivas] = await Promise.all([
                 this.inventarioService.obtenerPresentaciones(producto.id),
@@ -304,12 +314,11 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         const isPeso = value.tipo_venta === 'PESO';
 
         try {
-            // Subir imagen si hay una nueva
             let imagenUrl: string | null = null;
-            if (this.fotoNueva && this.fotoPreview) {
-                const categoriaNombre = this.obtenerNombreCategoria(value.categoria_id);
-                const subfolder = this.sanitizarSubfolder(categoriaNombre);
-                imagenUrl = await this.storageService.uploadImage(this.fotoPreview, 'productos', subfolder, false);
+            if (this.fotoNueva && this.fotoRawUrl) {
+                const subfolder = this.sanitizarSubfolder(this.obtenerNombreCategoria(value.categoria_id));
+                const oldPath = this.modo === 'EDITAR' ? (this.imagenPathAnterior ?? null) : null;
+                imagenUrl = await this.storageService.replaceImage(this.fotoRawUrl, `productos/${subfolder}`, oldPath, false);
                 if (!imagenUrl) {
                     this.guardando = false;
                     return;
@@ -342,7 +351,6 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                     this.navCtrl.navigateBack(ROUTES.inventario.root);
                 }
             } else {
-                // ── Modo EDITAR: solo actualizar datos del producto ──
                 const productoPayload: Partial<Producto> = {
                     ...value,
                     codigo_barras: value.codigo_barras?.trim() || null,
@@ -356,14 +364,9 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                 };
 
                 if (imagenUrl) {
-                    if (this.imagenPathAnterior) {
-                        await this.storageService.deleteFile(this.imagenPathAnterior, 'productos');
-                    }
                     productoPayload.imagen_url = imagenUrl;
                 } else if (this.fotoEliminada) {
-                    if (this.imagenPathAnterior) {
-                        await this.storageService.deleteFile(this.imagenPathAnterior, 'productos');
-                    }
+                    if (this.imagenPathAnterior) await this.storageService.deleteFile(this.imagenPathAnterior);
                     productoPayload.imagen_url = null;
                 }
 
@@ -444,50 +447,34 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     }
 
     async seleccionarFoto() {
-        const alert = await this.alertCtrl.create({
-            header: 'Imagen del producto',
-            buttons: [
-                {
-                    text: 'Tomar foto',
-                    handler: () => this.tomarFoto(CameraSource.Camera)
-                },
-                {
-                    text: 'Galeria',
-                    handler: () => this.tomarFoto(CameraSource.Photos)
-                },
-                { text: 'Cancelar', role: 'cancel' }
-            ]
-        });
+        const buttons: any[] = [];
+        if (this.storageService.isNative) {
+            buttons.push({ text: 'Tomar foto', handler: () => this.tomarFoto(CameraSource.Camera) });
+        }
+        buttons.push({ text: 'Galeria', handler: () => this.tomarFoto(CameraSource.Photos) });
+        buttons.push({ text: 'Cancelar', role: 'cancel' });
+
+        const alert = await this.alertCtrl.create({ header: 'Imagen del producto', buttons });
         await alert.present();
     }
 
     private async tomarFoto(source: CameraSource) {
-        try {
-            const image = await Camera.getPhoto({
-                quality: 80,
-                allowEditing: false,
-                resultType: CameraResultType.DataUrl,
-                source,
-                width: 1200,
-                height: 1600,
-                correctOrientation: true
-            });
-
-            this.fotoPreview = image.dataUrl || null;
-            this.imagenUrlExistente = null;
-            this.fotoNueva = true;
-            this.fotoEliminada = false;
-            this.productoForm.markAsDirty();
-        } catch {
-            // El usuario cancelo
-        }
+        const result = await this.storageService.capturarFoto(source);
+        if (!result) return;
+        this.fotoPreviewUrl = result.previewUrl;
+        this.fotoRawUrl = result.rawUrl;
+        this.imagenUrlExistente = null;
+        this.fotoNueva = true;
+        this.fotoEliminada = false;
+        this.productoForm.markAsDirty();
     }
 
     removerFoto() {
         if (this.imagenPathAnterior && !this.fotoNueva) {
             this.fotoEliminada = true;
         }
-        this.fotoPreview = null;
+        this.fotoPreviewUrl = null;
+        this.fotoRawUrl = null;
         this.imagenUrlExistente = null;
         this.fotoNueva = false;
         this.productoForm.markAsDirty();

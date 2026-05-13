@@ -43,7 +43,7 @@ export class PagoFiadoModalComponent implements OnInit {
     private modalCtrl = inject(ModalController);
     private fb = inject(FormBuilder);
     private cuentasService = inject(CuentasCobrarService);
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private ui = inject(UiService);
 
     @Input() ventas: VentaFiada[] = [];

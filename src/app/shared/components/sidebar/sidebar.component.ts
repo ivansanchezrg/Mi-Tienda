@@ -15,7 +15,7 @@ import {
   lockClosedOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
-import { RolUsuario } from '../../../features/auth/models/usuario_actual.model';
+import { RolUsuario } from '../../../features/auth/models/usuario-actual.model';
 import { TurnosCajaService } from '../../../features/caja/services/turnos-caja.service';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
@@ -260,14 +260,19 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   async logout() {
-    const turno = await this.turnosCajaService.obtenerTurnoActivo();
-    if (turno && turno.empleado_id === this.empleadoId) {
+    await this.ui.showLoading('Cerrando sesión...');
+    try {
+      const turno = await this.turnosCajaService.obtenerTurnoActivo();
+      if (turno && turno.empleado_id === this.empleadoId) {
+        await this.ui.hideLoading();
+        await this.closeMenu();
+        await this.ui.showError('Tienes un turno activo. Realiza el cierre diario antes de cerrar sesión.');
+        return;
+      }
       await this.closeMenu();
-      await this.ui.showError('Tienes un turno activo. Realizá el cierre diario antes de cerrar sesión.');
-      return;
+      await this.authService.logout();
+    } catch {
+      await this.ui.hideLoading();
     }
-
-    await this.closeMenu();
-    await this.authService.logout();
   }
 }

@@ -3,15 +3,59 @@
 
 .onboarding-content {
   --background: var(--ion-background-color);
+
+  // Desktop: fondo diferenciado para que la tarjeta resalte
+  @media (min-width: 992px) {
+    --background: var(--ion-color-light);
+  }
+
+  // Patrón Ionic correcto para que el contenido interno ocupe el alto completo
+  // y el centrado vertical funcione en Android y web.
+  &::part(scroll) {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
 }
 
 .onboarding-wrapper {
+  width: 100%;
   max-width: 480px;
   margin: 0 auto;
-  padding: 24px 20px calc(32px + env(safe-area-inset-bottom));
-  min-height: 100%;
+  padding: 32px 20px calc(24px + env(safe-area-inset-bottom));
+  flex: 1;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+
+  // Tablet (≥600px): más respiro lateral
+  @media (min-width: 600px) {
+    padding: 40px 32px calc(32px + env(safe-area-inset-bottom));
+  }
+
+  // Desktop (≥992px): tarjeta centrada con sombra sutil
+  @media (min-width: 992px) {
+    max-width: 520px;
+    flex: unset;
+    padding: 40px 40px 40px;
+    margin: 48px auto;
+    background: var(--ion-item-background, var(--ion-background-color));
+    border-radius: 20px;
+    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.08);
+  }
+}
+
+// Espaciador flexible — empuja el bloque central hacia el medio de la pantalla.
+// Vive entre onboarding-progress y onboarding-header.
+// max-height: 64px evita separación excesiva en pantallas muy altas (≥750px).
+.onboarding-spacer {
+  flex: 1;
+  max-height: 64px;
+
+  // En desktop no aplica — la tarjeta tiene altura natural
+  @media (min-width: 992px) {
+    display: none;
+  }
 }
 
 // Barra de progreso
@@ -19,12 +63,12 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 32px;
+  margin-bottom: 0;   // el spacer debajo (onboarding-spacer) maneja el espacio
 
   ion-progress-bar {
     flex: 1;
     height: 6px;
-    border-radius: 3px;
+    --border-radius: 3px;
     --background: var(--ion-color-light-shade);
     --progress-background: var(--ion-color-primary);
   }
@@ -35,12 +79,19 @@
     white-space: nowrap;
     font-weight: 500;
   }
+
+  // En desktop: margen inferior fijo para separar la barra del header de la tarjeta
+  @media (min-width: 992px) {
+    margin-bottom: 28px;
+  }
 }
 
 // Header del paso
 .onboarding-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
+
+  @media (min-width: 600px) { margin-bottom: 32px; }
 
   .onboarding-icon {
     width: 64px;
@@ -56,6 +107,12 @@
       font-size: 32px;
       color: var(--ion-color-primary);
     }
+
+    @media (min-width: 992px) {
+      width: 72px;
+      height: 72px;
+      ion-icon { font-size: 36px; }
+    }
   }
 
   .onboarding-title {
@@ -63,6 +120,8 @@
     font-weight: 700;
     color: var(--ion-text-color);
     margin: 0 0 8px;
+
+    @media (min-width: 992px) { font-size: 26px; }
   }
 
   .onboarding-subtitle {
@@ -70,15 +129,16 @@
     color: var(--ion-color-medium);
     margin: 0;
     line-height: 1.5;
+
+    @media (min-width: 992px) { font-size: 15px; }
   }
 }
 
-// Formulario
+// Formulario — no flex:1, el espacio sobrante lo absorbe .onboarding-logout con margin-top:auto
 .onboarding-form {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  flex: 1;
 }
 
 // Campos
@@ -328,7 +388,7 @@
   margin-top: 8px;
 
   ion-button:first-child {
-    flex: 0 0 auto;
+    flex: 0 0 96px;   // ancho fijo en móvil para que "Atrás" no se encoja
     --border-radius: 12px;
     height: 52px;
   }
@@ -339,6 +399,10 @@
     height: 52px;
     font-size: 16px;
     font-weight: 600;
+  }
+
+  @media (min-width: 600px) {
+    ion-button:first-child { flex: 0 0 110px; }
   }
 }
 
@@ -356,7 +420,7 @@
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
-// Botón cerrar sesión
+// Botón cerrar sesión / volver
 .onboarding-logout {
   display: flex;
   align-items: center;
@@ -371,4 +435,10 @@
   margin-top: auto;
 
   ion-icon { font-size: 16px; }
+
+  &:hover { color: var(--ion-color-medium-shade); }
+
+  @media (min-width: 992px) {
+    margin-top: 24px;  // espacio fijo en desktop — la tarjeta ya tiene padding
+  }
 }

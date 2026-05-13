@@ -137,16 +137,16 @@ export class EditarUsuarioModalComponent implements OnInit {
 
     this.transfiriendo = true;
     try {
-      const ok = await this.usuarioService.transferir(
+      const result = await this.usuarioService.transferir(
         this.usuario.membresia_id,
         negocio.negocio_id,
         this.usuario.rol
       );
 
-      if (ok) {
+      if (result.success) {
         this.modalCtrl.dismiss({ transferido: true, negocioNombre: negocio.negocio_nombre, empleadoNombre: this.usuario.nombre }, 'confirm');
       } else {
-        await this.ui.showError('No se pudo transferir el empleado. Intentá de nuevo.');
+        await this.ui.showError(result.error ?? 'No se pudo transferir el empleado. Intenta de nuevo.');
       }
     } catch {
       await this.ui.showError('Error al transferir el empleado. Verifica tu conexión.');
@@ -173,7 +173,7 @@ export class EditarUsuarioModalComponent implements OnInit {
     if (this.usuario.rol === 'ADMIN' && (estaDesactivando || estaDegradando)) {
       const totalAdmins = await this.usuarioService.contarAdmins();
       if (totalAdmins <= 1) {
-        await this.ui.showError('No podés realizar esta acción: es el único administrador del sistema.');
+        await this.ui.showError('No puedes realizar esta acción: es el único administrador del sistema.');
         return;
       }
     }
@@ -214,7 +214,7 @@ export class EditarUsuarioModalComponent implements OnInit {
     return new Promise(async resolve => {
       const alert = await this.alertCtrl.create({
         header: 'Desactivar usuario',
-        message: `¿Seguro que querés desactivar a ${this.usuario.nombre}? No podrá ingresar al sistema.`,
+        message: `¿Seguro que quieres desactivar a ${this.usuario.nombre}? No podrá ingresar al sistema.`,
         buttons: [
           { text: 'Cancelar',   role: 'cancel',  handler: () => resolve(false) },
           { text: 'Desactivar', role: 'confirm', handler: () => resolve(true)  }

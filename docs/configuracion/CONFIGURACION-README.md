@@ -31,7 +31,6 @@ docs/configuracion/
     ├── setup/
     │   └── realtime_configuraciones.sql  # Habilitar Realtime + politica RLS (ejecutar 1 vez)
     └── triggers/
-        ├── trg_set_codigo_categoria_gasto.sql
         └── trg_set_codigo_categoria_operacion.sql
 ```
 

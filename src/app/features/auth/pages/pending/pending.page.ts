@@ -48,9 +48,9 @@ export class PendingPage implements OnInit {
 
   get mensaje(): string {
     if (this.motivo === 'membresia') {
-      return 'Tu acceso a este negocio fue removido. Contactá al administrador si creés que es un error.';
+      return 'Tu acceso a este negocio fue removido. Contacta al administrador si crees que es un error.';
     }
-    return 'Tu cuenta fue suspendida por el administrador. Contactalo para que te reactive.';
+    return 'Tu cuenta fue suspendida por el administrador. Contáctalo para que te reactive.';
   }
 
   async reintentar() {
@@ -71,7 +71,7 @@ export class PendingPage implements OnInit {
         .maybeSingle();
 
       if (data?.activo === false) {
-        await this.ui.showToast('Tu cuenta sigue suspendida. Contactá al administrador.', 'warning');
+        await this.ui.showToast('Tu cuenta sigue suspendida. Contacta al administrador.', 'warning');
         return;
       }
 

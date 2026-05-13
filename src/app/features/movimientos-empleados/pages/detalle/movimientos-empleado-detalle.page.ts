@@ -55,7 +55,7 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
 
   private route = inject(ActivatedRoute);
   private service = inject(MovimientosEmpleadosService);
-  public currencyService = inject(CurrencyService);
+  protected currencyService = inject(CurrencyService);
   private ui = inject(UiService);
   private authService = inject(AuthService);
   private modalCtrl = inject(ModalController);

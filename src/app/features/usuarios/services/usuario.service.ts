@@ -110,14 +110,17 @@ export class UsuarioService {
   /**
    * Transfiere un empleado de la membresía origen a otro negocio destino.
    * Desactiva la membresía en el negocio actual y crea/reactiva en el destino.
+   *
+   * Retorna { success, mensaje?, error? } desde la función SQL.
    */
-  async transferir(membresiaId: string, negocioDestinoId: string, rol: RolUsuario): Promise<boolean> {
-    const { error } = await this.supabase.client.rpc('fn_transferir_empleado', {
+  async transferir(membresiaId: string, negocioDestinoId: string, rol: RolUsuario): Promise<{ success: boolean; mensaje?: string; error?: string }> {
+    const { data, error } = await this.supabase.client.rpc('fn_transferir_empleado', {
       p_membresia_id:       membresiaId,
       p_negocio_destino_id: negocioDestinoId,
       p_rol:                rol
     });
-    return !error;
+    if (error) return { success: false, error: error.message };
+    return data as { success: boolean; mensaje?: string; error?: string };
   }
 
   /**

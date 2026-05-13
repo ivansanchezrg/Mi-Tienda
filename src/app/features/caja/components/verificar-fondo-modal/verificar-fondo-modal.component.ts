@@ -86,7 +86,7 @@ export class VerificarFondoModalComponent {
 
     if (!result.ok) {
       this.abriendo = false;
-      this.errorMsg = result.errorMsg || 'Error al registrar. Verifica tu conexion e intenta de nuevo.';
+      await this.ui.showError(result.errorMsg || 'Error al registrar. Verifica tu conexión e intenta de nuevo.');
       return;
     }
 

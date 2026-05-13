@@ -3,10 +3,10 @@ import { SupabaseService } from '@core/services/supabase.service';
 import { LoggerService } from '@core/services/logger.service';
 import { ConfigService } from '@core/services/config.service';
 import { SaldosAnteriores, DatosCierreDiario, ParamsCierreDiario } from '../models/saldos-anteriores.model';
-import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
+import { RecargasVirtualesService } from '../../recargas-virtuales/services/recargas-virtuales.service';
 import { getFechaLocal, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
 import { AuthService } from '../../auth/services/auth.service';
-import { UsuarioActual } from '../../auth/models/usuario_actual.model';
+import { UsuarioActual } from '../../auth/models/usuario-actual.model';
 
 /**
  * Tipo de retorno de la query de saldo virtual
@@ -46,12 +46,13 @@ interface CajasIds {
  * Interface para historial de recargas
  */
 export interface RecargaHistorial {
-  id: number;
+  id: string;
   fecha: string;
   servicio: string;
   saldo_anterior: number;
   saldo_actual: number;
   venta_dia: number;
+  saldo_caja: number;
   created_at: string;
 }
 
@@ -495,6 +496,7 @@ export class RecargasService {
         saldo_virtual_anterior,
         saldo_virtual_actual,
         venta_dia,
+        saldo_caja,
         created_at,
         tipos_servicio!inner(codigo)
       `)
@@ -505,7 +507,6 @@ export class RecargasService {
       throw response.error;
     }
 
-    // Usar venta_dia guardado en BD — NO recalcular (evita negativos por recargas del proveedor)
     const recargas: RecargaHistorial[] = (response.data || []).map((r: any) => ({
       id: r.id,
       fecha: r.fecha,
@@ -513,6 +514,7 @@ export class RecargasService {
       saldo_anterior: r.saldo_virtual_anterior,
       saldo_actual: r.saldo_virtual_actual,
       venta_dia: r.venta_dia,
+      saldo_caja: r.saldo_caja ?? 0,
       created_at: r.created_at
     }));
 

@@ -70,6 +70,13 @@ BEGIN
     -- ── Negocio del JWT (SECURITY DEFINER bypasea RLS — filtro manual obligatorio) ──
     v_negocio_id := public.get_negocio_id();
 
+    -- Defensa en profundidad: validar que p_turno_id (si viene) pertenece al negocio
+    IF p_turno_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM turnos_caja tc WHERE tc.id = p_turno_id AND tc.negocio_id = v_negocio_id
+    ) THEN
+        RAISE EXCEPTION 'El turno especificado no pertenece a este negocio';
+    END IF;
+
     -- ── Fecha actual en Ecuador ─────────────────────────────────────────────
     v_fecha_local := (NOW() AT TIME ZONE 'America/Guayaquil')::DATE;
 
@@ -146,8 +153,8 @@ BEGIN
           OR c.identificacion ILIKE '%' || v_term || '%'
       )
     ORDER BY v.fecha DESC
-    OFFSET p_page * p_page_size
-    LIMIT  p_page_size;
+    OFFSET p_page * LEAST(GREATEST(p_page_size, 1), 200)
+    LIMIT  LEAST(GREATEST(p_page_size, 1), 200);
 END;
 $$;
 

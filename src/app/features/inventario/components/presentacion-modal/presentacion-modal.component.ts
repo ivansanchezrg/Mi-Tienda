@@ -64,7 +64,7 @@ export class PresentacionModalComponent implements OnInit {
     private fb = inject(FormBuilder);
     private ui = inject(UiService);
     private barcodeScanner = inject(BarcodeScannerService);
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
 
     form!: FormGroup;
     guardando = false;

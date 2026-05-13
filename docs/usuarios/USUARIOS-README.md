@@ -30,15 +30,19 @@ Si está activo en Tienda A, no puede reactivarse en Tienda B sin primero ser tr
 ```typescript
 // features/usuarios/models/usuario.model.ts
 
-export interface Usuario {
-  membresia_id: string;   // UUID de usuario_negocios — identifica la membresía
-  id:           string;   // UUID de usuarios — identifica la persona
+export interface UsuarioBase {
+  id:           string;   // UUID de usuarios
   nombre:       string;
   email:        string;
-  rol:          RolUsuario;
-  activo:       boolean;
   es_superadmin: boolean;
-  created_at:   string;
+  created_at?:  string;
+}
+
+export interface Usuario extends UsuarioBase {
+  membresia_id:  string;   // UUID de usuario_negocios — identifica la membresía
+  rol:           RolUsuario;
+  activo:        boolean;
+  es_propietario: boolean; // TRUE si es el dueño del negocio — tiene protecciones extra
 }
 ```
 

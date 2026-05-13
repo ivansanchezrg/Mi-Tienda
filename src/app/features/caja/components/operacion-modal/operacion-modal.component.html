@@ -103,19 +103,19 @@
           }
         </label>
 
-        @if (!fotoComprobante) {
+        @if (!fotoPreviewUrl) {
           <button type="button" class="upload-btn"
             [class.upload-btn--required]="!esIngreso"
             (click)="seleccionarFoto()">
             <ion-icon name="camera-outline"></ion-icon>
-            <span>Tomar foto o seleccionar de galería</span>
+            <span>{{ storageService.isNative ? 'Tomar foto o seleccionar de galería' : 'Seleccionar de galería' }}</span>
             @if (!esIngreso) {
               <span class="upload-required-hint">Requerido para egresos</span>
             }
           </button>
         } @else {
           <div class="photo-preview">
-            <img [src]="fotoComprobante" alt="Comprobante">
+            <img [src]="fotoPreviewUrl" alt="Comprobante">
             <button type="button" class="remove-photo" (click)="removerFoto()">
               <ion-icon name="close-circle"></ion-icon>
             </button>
@@ -130,10 +130,15 @@
           class="submit-btn"
           [class.ingreso]="esIngreso"
           [class.egreso]="!esIngreso"
-          [disabled]="form.invalid || montoExcedeSaldo || (!esIngreso && !fotoComprobante)"
+          [disabled]="form.invalid || montoExcedeSaldo || (!esIngreso && !fotoRawUrl)"
           (click)="confirmar()">
-          <ion-icon [name]="esIngreso ? 'arrow-down-outline' : 'arrow-up-outline'"></ion-icon>
-          {{ esIngreso ? 'Confirmar Ingreso' : 'Confirmar Egreso' }}
+          @if (esIngreso) {
+            <ion-icon name="arrow-down-outline"></ion-icon>
+            Confirmar Ingreso
+          } @else {
+            <ion-icon name="arrow-up-outline"></ion-icon>
+            Confirmar Egreso
+          }
         </button>
       </div>
     </div>

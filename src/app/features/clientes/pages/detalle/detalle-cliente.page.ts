@@ -53,7 +53,7 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
     private route = inject(ActivatedRoute);
     private cuentasService = inject(CuentasCobrarService);
     private clientesService = inject(ClientesService);
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private ui = inject(UiService);
     private modalCtrl = inject(ModalController);
     private shareService = inject(ShareEstadoCuentaService);

@@ -53,7 +53,7 @@ core/
 │   ├── ui.service.ts                # Loading, toasts, alertas, hideTabs()/showTabs()
 │   ├── config.service.ts            # Tabla configuraciones con cache: get(), getNombreNegocio(), invalidar()
 │   ├── currency.service.ts          # Formateo de moneda: format(value), parse(value)
-│   ├── storage.service.ts           # Upload imágenes a Supabase Storage con compresión
+│   ├── storage.service.ts           # Captura de fotos (capturarFoto), compresión WebP y upload a Supabase Storage
 │   ├── logger.service.ts            # Logs a filesystem con rotación (max 3 archivos)
 │   ├── network.service.ts           # Estado de conectividad: isOnline$ (BehaviorSubject)
 │   ├── ganancias.service.ts         # Comisiones recargas virtuales (liquidación BUS mensual)
@@ -111,7 +111,7 @@ features/
 auth/
 ├── auth.routes.ts
 ├── models/
-│   └── usuario_actual.model.ts
+│   └── usuario-actual.model.ts
 ├── pages/
 │   ├── login/                       # Login con Google OAuth
 │   └── callback/                    # Callback de OAuth
@@ -140,8 +140,6 @@ caja/
 └── services/
     ├── cajas.service.ts
     ├── categorias-operaciones.service.ts
-    ├── categorias-gastos.service.ts   # ⚠️ OBSOLETO — pendiente eliminar
-    ├── notificaciones.service.ts
     ├── operaciones-caja.service.ts
     ├── recargas.service.ts
     └── turnos-caja.service.ts
@@ -195,13 +193,12 @@ inventario/
 #### clientes/
 ```
 clientes/
-├── clientes.routes.ts                  # Rutas: '' | 'creditos' | ':clienteId'
+├── clientes.routes.ts                  # Rutas: '' | ':clienteId'
 ├── models/
 │   ├── cliente.model.ts
 │   └── cuenta-cobrar.model.ts          # Interfaces de créditos y pagos
 ├── pages/
-│   ├── listado/                        # Lista paginada de todos los clientes
-│   ├── cuentas-cobrar/                 # Lista clientes con deuda (paginado)
+│   ├── listado/                        # Listado unificado (clientes + saldo de deuda)
 │   └── detalle/                        # Detalle de cuenta + abonos por cliente
 ├── components/
 │   ├── seleccionar-cliente-modal/      # Modal selector/creación (usado por POS y listado)
@@ -250,11 +247,9 @@ configuracion/
 ├── pages/
 │   ├── main/                        # Menú principal de configuración
 │   ├── parametros/                  # Parámetros del negocio
-│   ├── categorias-operaciones/      # CRUD categorías ingreso/egreso
-│   └── categorias-gastos/           # ⚠️ OBSOLETO — pendiente eliminar
+│   └── categorias-operaciones/      # CRUD categorías ingreso/egreso
 ├── components/
 │   ├── categoria-operacion-modal/
-│   ├── categoria-gasto-modal/       # ⚠️ OBSOLETO — pendiente eliminar
 │   └── logs-modal/
 └── services/
     └── configuracion.service.ts
@@ -916,16 +911,12 @@ SET search_path = public
 AS $$
 DECLARE
     v_variable    RECORD;
-    v_empleado_id INTEGER;
+    v_empleado_id UUID;
 BEGIN
-    -- 0. Obtener empleado autenticado
-    SELECT id INTO v_empleado_id
-    FROM usuarios
-    WHERE usuario = auth.jwt() ->> 'email';
+    -- 0. Bloquear superadmin en funciones de mutacion
+    PERFORM public.fn_assert_no_superadmin();
 
-    IF v_empleado_id IS NULL THEN
-        RAISE EXCEPTION 'Usuario no autenticado';
-    END IF;
+    -- 1. Validaciones
 
     -- 1. Validaciones
     -- ...

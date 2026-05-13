@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../../features/auth/services/auth.service';
-import { RolUsuario } from '../../features/auth/models/usuario_actual.model';
+import { RolUsuario } from '../../features/auth/models/usuario-actual.model';
 
 /**
  * Guard de roles. Verifica que el usuario tenga uno de los roles permitidos.

@@ -12,5 +12,11 @@ export const publicGuard: CanActivateFn = async () => {
     return true;
   }
 
+  // Sesión OAuth persistida pero sin autenticación activa (primera instalación,
+  // reinstalación, etc.) → dejar ver el login para que el usuario elija cuenta.
+  if (!(await auth.hasActiveAuth())) {
+    return true;
+  }
+
   return router.createUrlTree(['/caja']);
 };

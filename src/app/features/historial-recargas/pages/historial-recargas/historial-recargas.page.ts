@@ -6,39 +6,16 @@ import {
   IonRefresher, IonRefresherContent, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import {
-  phonePortraitOutline, busOutline, listOutline,
-  cloudDownloadOutline
-} from 'ionicons/icons';
+import { phonePortraitOutline, busOutline, listOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
 import { LoggerService } from '@core/services/logger.service';
-import { RecargasService } from '../../../caja/services/recargas.service';
-import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
-
-/**
- * Tipo unificado para el historial: engloba tanto cierres de turno
- * (de la tabla `recargas`) como recargas del proveedor (de `recargas_virtuales`).
- */
-export interface HistorialItem {
-  id: string | number;
-  fecha: string;
-  servicio: string;
-  tipo: 'CIERRE' | 'CARGA_VIRTUAL';
-  // Solo para CIERRE
-  saldo_anterior?: number;
-  saldo_actual?: number;
-  venta_dia?: number;
-  // Solo para CARGA_VIRTUAL
-  monto_virtual?: number;
-  pagado?: boolean;
-  created_at: string;
-}
+import { RecargasService, RecargaHistorial } from '../../../caja/services/recargas.service';
 
 interface GrupoHistorial {
   fecha: string;
   fechaDisplay: string;
-  items: HistorialItem[];
+  items: RecargaHistorial[];
 }
 
 type FiltroServicio = 'todas' | 'celular' | 'bus';
@@ -64,27 +41,20 @@ export class HistorialRecargasPage {
   private ui = inject(UiService);
   private configService = inject(ConfigService);
   private recargasService = inject(RecargasService);
-  private recargasVirtualesService = inject(RecargasVirtualesService);
   private logger = inject(LoggerService);
 
   loading = true;
-  items: HistorialItem[] = [];
+  items: RecargaHistorial[] = [];
   itemsAgrupados: GrupoHistorial[] = [];
 
   recargasCelularHabilitada = false;
   recargasBusHabilitada = false;
 
-  // Filtros — se construyen dinámicamente en ionViewWillEnter
   filtroActual: FiltroServicio = 'todas';
   filtros: FiltroOption[] = [];
 
   constructor() {
-    addIcons({
-      phonePortraitOutline,
-      busOutline,
-      listOutline,
-      cloudDownloadOutline
-    });
+    addIcons({ phonePortraitOutline, busOutline, listOutline });
   }
 
   async ionViewWillEnter() {
@@ -93,7 +63,6 @@ export class HistorialRecargasPage {
     this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
     this.recargasBusHabilitada     = config?.recargas_bus_habilitada ?? false;
 
-    // Filtros solo relevantes si ambos módulos están activos
     this.filtros = [
       { value: 'todas',   label: 'Todas' },
       { value: 'celular', label: 'Celular' },
@@ -118,39 +87,7 @@ export class HistorialRecargasPage {
   async cargarHistorial(silencioso = false) {
     if (!silencioso) this.loading = true;
     try {
-      const [recargas, virtualesCelular, virtualesBus] = await Promise.all([
-        this.recargasService.obtenerHistorialRecargas(),
-        this.recargasCelularHabilitada ? this.recargasVirtualesService.obtenerHistorial('CELULAR') : Promise.resolve([]),
-        this.recargasBusHabilitada     ? this.recargasVirtualesService.obtenerHistorial('BUS')     : Promise.resolve([]),
-      ]);
-
-      // Convertir cierres de turno → HistorialItem
-      const itemsCierre: HistorialItem[] = recargas.map(r => ({
-        id: r.id,
-        fecha: r.fecha,
-        servicio: r.servicio,
-        tipo: 'CIERRE' as const,
-        saldo_anterior: r.saldo_anterior,
-        saldo_actual: r.saldo_actual,
-        venta_dia: r.venta_dia,
-        created_at: r.created_at
-      }));
-
-      // Convertir recargas del proveedor → HistorialItem
-      const itemsVirtuales: HistorialItem[] = [...virtualesCelular, ...virtualesBus].map(rv => ({
-        id: rv.id,
-        fecha: rv.fecha,
-        servicio: rv.servicio,
-        tipo: 'CARGA_VIRTUAL' as const,
-        monto_virtual: rv.monto_virtual,
-        pagado: rv.pagado,
-        created_at: rv.created_at
-      }));
-
-      // Combinar y ordenar por created_at descendente
-      this.items = [...itemsCierre, ...itemsVirtuales]
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
+      this.items = await this.recargasService.obtenerHistorialRecargas();
       this.agruparPorFecha();
     } catch (error) {
       this.logger.error('HistorialRecargasPage', 'Error al cargar historial', error);
@@ -160,26 +97,19 @@ export class HistorialRecargasPage {
     }
   }
 
-  /**
-   * Cambia el filtro y reagrupa
-   */
   cambiarFiltro(filtro: FiltroServicio) {
     this.filtroActual = filtro;
     this.agruparPorFecha();
   }
 
-  /**
-   * Agrupa los items por fecha (aplicando filtro)
-   */
   private agruparPorFecha() {
-    const grupos = new Map<string, HistorialItem[]>();
+    const grupos = new Map<string, RecargaHistorial[]>();
 
     for (const item of this.filtrarItems()) {
-      const fecha = item.fecha;
-      if (!grupos.has(fecha)) {
-        grupos.set(fecha, []);
+      if (!grupos.has(item.fecha)) {
+        grupos.set(item.fecha, []);
       }
-      grupos.get(fecha)!.push(item);
+      grupos.get(item.fecha)!.push(item);
     }
 
     this.itemsAgrupados = Array.from(grupos.entries()).map(([fecha, items]) => ({
@@ -189,20 +119,12 @@ export class HistorialRecargasPage {
     }));
   }
 
-  /**
-   * Filtra los items según el filtro actual (aplica a ambos tipos)
-   */
-  private filtrarItems(): HistorialItem[] {
-    if (this.filtroActual === 'todas') {
-      return this.items;
-    }
-    const servicioFiltro = this.filtroActual.toUpperCase();
-    return this.items.filter(i => i.servicio === servicioFiltro);
+  private filtrarItems(): RecargaHistorial[] {
+    if (this.filtroActual === 'todas') return this.items;
+    const codigo = this.filtroActual.toUpperCase();
+    return this.items.filter(i => i.servicio === codigo);
   }
 
-  /**
-   * Formatea la fecha del grupo (ej: "Hoy", "Ayer", "3 Feb")
-   */
   private formatearFechaGrupo(fecha: string): string {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
@@ -212,16 +134,12 @@ export class HistorialRecargasPage {
     const fechaItem = new Date(fecha + 'T00:00:00');
     fechaItem.setHours(0, 0, 0, 0);
 
-    if (fechaItem.getTime() === hoy.getTime()) {
-      return 'Hoy';
-    } else if (fechaItem.getTime() === ayer.getTime()) {
-      return 'Ayer';
-    } else {
-      const dia = fechaItem.getDate();
-      const mes = fechaItem.toLocaleDateString('es-ES', { month: 'short' });
-      const mesCapitalizado = mes.charAt(0).toUpperCase() + mes.slice(1);
-      return `${dia} ${mesCapitalizado}`;
-    }
+    if (fechaItem.getTime() === hoy.getTime()) return 'Hoy';
+    if (fechaItem.getTime() === ayer.getTime()) return 'Ayer';
+
+    const dia = fechaItem.getDate();
+    const mes = fechaItem.toLocaleDateString('es-ES', { month: 'short' });
+    return `${dia} ${mes.charAt(0).toUpperCase() + mes.slice(1)}`;
   }
 
   async handleRefresh(event: CustomEvent) {
@@ -233,12 +151,7 @@ export class HistorialRecargasPage {
     return servicio === 'CELULAR' ? 'phone-portrait-outline' : 'bus-outline';
   }
 
-  getColorServicio(servicio: string): string {
-    return servicio === 'CELULAR' ? 'primary' : 'secondary';
-  }
-
-  formatearHora(created_at: string): string {
-    const date = new Date(created_at);
-    return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  labelCaja(servicio: string): string {
+    return servicio === 'CELULAR' ? 'Caja Celular' : 'Caja Bus';
   }
 }

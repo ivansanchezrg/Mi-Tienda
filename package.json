@@ -1,8 +1,8 @@
 {
   "name": "mi-tienda",
-  "version": "0.0.1",
-  "author": "Ionic Framework",
-  "homepage": "https://ionicframework.com/",
+  "version": "1.0.0",
+  "author": "Ivan Sanchez",
+  "homepage": "https://github.com/ivansanchezrg/mi-tienda",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -22,7 +22,6 @@
     "@angular/platform-browser": "^20.0.0",
     "@angular/platform-browser-dynamic": "^20.0.0",
     "@angular/router": "^20.0.0",
-    "@capacitor-community/sqlite": "^8.0.0",
     "@capacitor-mlkit/barcode-scanning": "^8.0.1",
     "@capacitor/android": "^8.0.2",
     "@capacitor/app": "8.0.0",

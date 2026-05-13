@@ -29,10 +29,10 @@
 
               <!-- Icono según estado — nombres estáticos para Android -->
               <div class="historial-icon"
-                [class.pagado]="r.pagado"
-                [class.pendiente]="!r.pagado && tipo === 'CELULAR'"
-                [class.bus]="!r.pagado && tipo === 'BUS'">
-                @if (r.pagado) {
+                [class.pagado]="r.pagado_proveedor"
+                [class.pendiente]="!r.pagado_proveedor && tipo === 'CELULAR'"
+                [class.bus]="!r.pagado_proveedor && tipo === 'BUS'">
+                @if (r.pagado_proveedor) {
                   <ion-icon name="checkmark-circle-outline"></ion-icon>
                 } @else if (tipo === 'CELULAR') {
                   <ion-icon name="alert-circle-outline"></ion-icon>
@@ -50,10 +50,14 @@
                   </div>
                 } @else {
                   <div class="historial-sub">
-                    ${{ r.monto_virtual | number:'1.2-2' }}
+                    Depósito: ${{ r.monto_virtual | number:'1.2-2' }}
                     @if (r.observaciones) { · {{ r.observaciones }} }
                   </div>
                 }
+                <div class="historial-ganancia" [class.liquidada]="r.pagado_proveedor">
+                  Ganancia: ${{ gananciaDelRegistro(r) | number:'1.2-2' }}
+                  @if (!r.pagado_proveedor) { <span class="ganancia-pending">· pendiente</span> }
+                </div>
                 @if (r.empleado_nombre) {
                   <div class="historial-sub">Por: {{ r.empleado_nombre }}</div>
                 }
@@ -61,12 +65,12 @@
 
               <!-- Badge estado -->
               @if (tipo === 'CELULAR') {
-                <div class="historial-badge" [class.pagado]="r.pagado" [class.pendiente]="!r.pagado">
-                  {{ r.pagado ? 'Pagado' : 'Pendiente' }}
+                <div class="historial-badge" [class.pagado]="r.pagado_proveedor" [class.pendiente]="!r.pagado_proveedor">
+                  {{ r.pagado_proveedor ? 'Pagado' : 'Pendiente' }}
                 </div>
               } @else {
-                <div class="historial-badge" [class.pagado]="r.pagado" [class.sin-liquidar]="!r.pagado">
-                  {{ r.pagado ? 'Liquidado' : 'Sin liquidar' }}
+                <div class="historial-badge" [class.pagado]="r.pagado_proveedor" [class.sin-liquidar]="!r.pagado_proveedor">
+                  {{ r.pagado_proveedor ? 'Liquidado' : 'Sin liquidar' }}
                 </div>
               }
 

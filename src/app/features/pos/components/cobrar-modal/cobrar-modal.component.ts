@@ -33,7 +33,7 @@ export class CobrarModalComponent {
 
     @ViewChild('montoInput') montoInputRef!: ElementRef<HTMLInputElement>;
 
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
 
     paso: Paso = 'metodo';

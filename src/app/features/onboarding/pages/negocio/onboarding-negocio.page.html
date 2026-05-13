@@ -2,9 +2,11 @@
   <div class="onboarding-wrapper">
 
     <div class="onboarding-progress">
-      <ion-progress-bar value="0.33"></ion-progress-bar>
+      <ion-progress-bar value="0.5"></ion-progress-bar>
       <span class="step-label">Paso 1 de 2</span>
     </div>
+
+    <div class="onboarding-spacer"></div>
 
     <div class="onboarding-header">
       <div class="onboarding-icon">
@@ -127,7 +129,7 @@
             </span>
           } @else if (verificacion === 'error') {
             <span class="verif-status verif-status--error">
-              No se pudo verificar el email. Podés continuar y se gestionará al crear el negocio.
+              No se pudo verificar el email. Puedes continuar y se gestionará al crear el negocio.
             </span>
           } @else {
             <span class="field-hint">El usuario que administrará este negocio. Debe coincidir con el email con el que iniciará sesión.</span>
@@ -161,7 +163,7 @@
               [value]="nombreEncontrado"
               [disabled]="true"
               autocomplete="off">
-            <span class="field-hint">Este nombre ya está registrado en la cuenta del usuario y no se modifica desde acá.</span>
+            <span class="field-hint">Este nombre ya está registrado en la cuenta del usuario y no se modifica desde aquí.</span>
           </div>
         }
       }

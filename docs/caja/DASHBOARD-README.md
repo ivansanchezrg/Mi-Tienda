@@ -66,8 +66,8 @@ Al finalizar con éxito, la página llama a `TurnosCajaService.refrescarTurnoAct
 ### Recargas Virtuales
 
 > ⚠️ **Movido a feature independiente:** `src/app/features/recargas-virtuales/`
-> Las páginas `recargas-virtuales` y `pagar-deudas` ya no están en `caja/pages/`. Las rutas `/caja/recargas-virtuales` y `/caja/pagar-deudas` siguen funcionando igual — solo cambió la ubicación física de los archivos.
-> **Documentación completa:** Ver [SALDO-VIRTUAL-README.md](../../../recargas-virtuales/docs/SALDO-VIRTUAL-README.md)
+> La ruta `/caja/recargas-virtuales` carga el componente desde `features/recargas-virtuales/pages/recargas-virtuales/` — solo cambió la ubicación física de los archivos.
+> **Documentación completa:** Ver [RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md)
 
 ---
 
@@ -247,9 +247,9 @@ canActivate: [cajaAbiertaGuard]
 | OperacionesCajaService   | `caja/services/operaciones-caja.service.ts`       | Consulta de operaciones con filtros y paginación    |
 | TurnosCajaService        | `caja/services/turnos-caja.service.ts`            | Gestión de turnos de caja + estado reactivo global (`turnoActivo$`, `cajaAbierta$`) |
 | NotificacionesService    | `core/services/notificaciones.service.ts` ⬆️           | Agrega y expone todas las notificaciones de la app  |
-| RecargasVirtualesService | `core/services/recargas-virtuales.service.ts` ⬆️       | Gestión de saldo virtual, deudas, liquidaciones     |
-| GananciasService         | `core/services/ganancias.service.ts` ⬆️                | Cálculo y verificación de ganancias mensuales BUS   |
-> ⬆️ = Movido fuera de caja. `RecargasVirtualesService` y `GananciasService`: refactor features (2026-02-25). `NotificacionesService`: movido a `core/services/` (2026-03-27) — usado por caja e inventario.
+| RecargasVirtualesService | `recargas-virtuales/services/recargas-virtuales.service.ts` | Gestión de saldo virtual, deudas, liquidaciones     |
+| GananciasService         | `recargas-virtuales/services/ganancias.service.ts`          | Cálculo y verificación de ganancias mensuales BUS   |
+> `NotificacionesService` vive en `core/services/` — usado por caja e inventario. `RecargasVirtualesService` y `GananciasService` viven en `features/recargas-virtuales/services/`.
 
 ---
 
@@ -261,7 +261,7 @@ canActivate: [cajaAbiertaGuard]
 | `core/services/currency.service.ts`             | Parseo y formato de montos                    |
 | `core/services/storage.service.ts`              | Subida de imágenes a Supabase Storage         |
 | `core/guards/pending-changes.guard.ts`          | Protege cierre-diario de salidas accidentales |
-| `core/pages/scrollable.page.ts`                 | HomePage extiende para reset scroll           |
+| `shared/directives/scroll-reset.directive.ts`   | Resetea scroll al top entre pasos de wizards  |
 | `shared/directives/currency-input.directive.ts` | Formato automático en inputs de moneda        |
 | `shared/directives/numbers-only.directive.ts`   | Solo permite números en inputs                |
 | `shared/directives/scroll-reset.directive.ts`   | Scroll al top entre pasos de wizards          |

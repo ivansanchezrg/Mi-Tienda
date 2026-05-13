@@ -39,7 +39,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
 export class MovimientosEmpleadosListaPage implements OnInit, ViewWillEnter, ViewWillLeave {
 
   private service = inject(MovimientosEmpleadosService);
-  public currencyService = inject(CurrencyService);
+  protected currencyService = inject(CurrencyService);
   private ui = inject(UiService);
   private router = inject(Router);
 

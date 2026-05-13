@@ -383,6 +383,12 @@
               </div>
               <strong>Tienda</strong>
             </div>
+            @if (depositoPreviewCaja === 0) {
+            <div class="caja-calculo caja-sin-movimiento">
+              <span class="saldo">{{ saldoAnteriorCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+              <span class="ya-hecha-badge">sin movimiento</span>
+            </div>
+            } @else {
             <div class="caja-calculo">
               <span class="saldo">{{ saldoAnteriorCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
               <span class="operador">+</span>
@@ -390,6 +396,7 @@
               <span class="operador">=</span>
               <span class="resultado">{{ saldoFinalCaja | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
+            }
           </div>
 
           <!-- VARIOS (solo si está activa) -->
@@ -401,6 +408,12 @@
               </div>
               <strong>Varios</strong>
             </div>
+            @if (transferenciaPreviewVarios === 0) {
+            <div class="caja-calculo caja-sin-movimiento">
+              <span class="saldo">{{ saldoAnteriorVarios | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+              <span class="ya-hecha-badge">sin movimiento</span>
+            </div>
+            } @else {
             <div class="caja-calculo">
               <span class="saldo">{{ saldoAnteriorVarios | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
               <span class="operador">+</span>
@@ -408,6 +421,7 @@
               <span class="operador">=</span>
               <span class="resultado">{{ saldoFinalVarios | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
+            }
           </div>
           }
 
@@ -420,6 +434,12 @@
               </div>
               <strong>Celular</strong>
             </div>
+            @if (ventaCelular === 0) {
+            <div class="caja-calculo caja-sin-movimiento">
+              <span class="saldo">{{ saldoAnteriorCajaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+              <span class="ya-hecha-badge">sin movimiento</span>
+            </div>
+            } @else {
             <div class="caja-calculo">
               <span class="saldo">{{ saldoAnteriorCajaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
               <span class="operador">+</span>
@@ -427,6 +447,7 @@
               <span class="operador">=</span>
               <span class="resultado">{{ saldoFinalCajaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
+            }
           </div>
           }
 
@@ -439,6 +460,12 @@
               </div>
               <strong>Bus</strong>
             </div>
+            @if (ventaBus === 0) {
+            <div class="caja-calculo caja-sin-movimiento">
+              <span class="saldo">{{ saldoAnteriorCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
+              <span class="ya-hecha-badge">sin movimiento</span>
+            </div>
+            } @else {
             <div class="caja-calculo">
               <span class="saldo">{{ saldoAnteriorCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
               <span class="operador">+</span>
@@ -446,6 +473,7 @@
               <span class="operador">=</span>
               <span class="resultado">{{ saldoFinalCajaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</span>
             </div>
+            }
           </div>
           }
 

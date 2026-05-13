@@ -4,15 +4,15 @@
 -- FECHA: 2026-03-03
 -- ==========================================
 -- CAMBIOS v4.0 — Ganancia BUS como deuda pendiente de cobro:
---   pagado        = false  → ganancia pendiente de cobrar al proveedor
---   pagado        = true   → ganancia ya cobrada (via liquidar_ganancias_bus)
---   monto_a_pagar = p_monto  → monto completo pagado al proveedor (mismo que monto_virtual)
---   ganancia      = 0  → no se guarda por fila; se calcula al liquidar como ROUND(SUM(monto_a_pagar)*comision%, 2)
---   fecha_pago, operacion_pago_id = NULL (se setean cuando se liquida el mes)
+--   pagado_proveedor     = false  → ganancia pendiente de cobrar al proveedor
+--   pagado_proveedor     = true   → ganancia ya cobrada (via liquidar_ganancias_bus)
+--   monto_a_pagar        = p_monto  → monto completo pagado al proveedor (mismo que monto_virtual)
+--   ganancia             = 0  → no se guarda por fila; se calcula al liquidar como ROUND(SUM(monto_a_pagar)*comision%, 2)
+--   fecha_pago_proveedor, operacion_pago_id = NULL (se setean cuando se liquida)
 --
---   La liquidación mensual (liquidar_ganancias_bus) hace:
---     ROUND(SUM(monto_a_pagar) WHERE tipo=BUS AND pagado=false AND fecha IN mes, 2)
---     + TRANSFERENCIA CAJA_BUS → CAJA_CHICA (atómica con UPDATE pagado=true)
+--   La liquidación (liquidar_ganancias_bus) hace:
+--     ROUND(SUM(monto_a_pagar) WHERE tipo=BUS AND pagado_proveedor=false, 2)
+--     + TRANSFERENCIA CAJA_BUS → caja destino (atómica con UPDATE pagado_proveedor=true)
 --
 -- CAMBIOS v3.1 — Fix timestamp mini cierre:
 --   recargas_virtuales usa clock_timestamp() en lugar de NOW() para garantizar
@@ -39,12 +39,13 @@
 
 DROP FUNCTION IF EXISTS public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT);
 DROP FUNCTION IF EXISTS public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC);
+DROP FUNCTION IF EXISTS public.fn_registrar_compra_saldo_bus(DATE, UUID, NUMERIC, TEXT, NUMERIC);
 
 CREATE OR REPLACE FUNCTION public.fn_registrar_compra_saldo_bus(
   p_fecha                 DATE,
-  p_empleado_id           INTEGER,
+  p_empleado_id           UUID,
   p_monto                 NUMERIC,
-  p_observaciones                 TEXT    DEFAULT NULL,
+  p_observaciones         TEXT    DEFAULT NULL,
   p_saldo_virtual_maquina NUMERIC DEFAULT NULL
 )
 RETURNS JSON
@@ -53,12 +54,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  v_negocio_id               UUID;
   -- IDs de tablas de referencia
-  v_caja_bus_id              INTEGER;
+  v_caja_bus_id              UUID;
   v_tipo_bus_id              INTEGER;
   v_tipo_ref_rv_id           INTEGER;  -- tipos_referencia 'recargas_virtuales'
   v_tipo_ref_recargas_id     INTEGER;  -- tipos_referencia 'recargas'
-  v_categoria_eg011_id       INTEGER;
+  v_categoria_eg011_id       UUID;
 
   -- Saldos
   v_saldo_anterior           NUMERIC;   -- CAJA_BUS antes de cualquier operación
@@ -72,6 +74,10 @@ DECLARE
   v_operacion_egreso_id      UUID;
   v_recarga_id               UUID;
 
+  -- Ganancia
+  v_comision_pct              NUMERIC;
+  v_ganancia                  NUMERIC;
+
   -- Para cálculo de ventas acumuladas
   v_saldo_ultimo_cierre_bus   NUMERIC;
   v_fecha_ultimo_cierre_bus   TIMESTAMP;
@@ -82,12 +88,19 @@ DECLARE
 BEGIN
   PERFORM public.fn_assert_no_superadmin();
 
+  v_negocio_id := public.get_negocio_id();
+  IF v_negocio_id IS NULL THEN
+    RAISE EXCEPTION 'No hay negocio activo en el JWT';
+  END IF;
+
   -- ==========================================
   -- INICIALIZACIÓN — obtener IDs y configuración
   -- ==========================================
 
-  v_caja_bus_id          := (SELECT id FROM cajas WHERE codigo = 'CAJA_BUS');
+  v_caja_bus_id          := (SELECT id FROM cajas WHERE codigo = 'CAJA_BUS' AND negocio_id = v_negocio_id);
   v_tipo_bus_id          := (SELECT id FROM tipos_servicio WHERE codigo = 'BUS');
+  v_comision_pct         := (SELECT porcentaje_comision FROM tipos_servicio WHERE codigo = 'BUS');
+  v_ganancia             := ROUND(p_monto * v_comision_pct / 100.0, 2);
   v_tipo_ref_rv_id       := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas_virtuales');
   v_tipo_ref_recargas_id := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas');
   v_categoria_eg011_id   := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-011');
@@ -123,6 +136,7 @@ BEGIN
       FROM recargas r
       JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
       WHERE ts.codigo = 'BUS'
+        AND r.negocio_id = v_negocio_id
       ORDER BY r.created_at DESC
       LIMIT 1
     );
@@ -132,6 +146,7 @@ BEGIN
       FROM recargas r
       JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
       WHERE ts.codigo = 'BUS'
+        AND r.negocio_id = v_negocio_id
       ORDER BY r.created_at DESC
       LIMIT 1
     );
@@ -145,6 +160,7 @@ BEGIN
       SELECT COALESCE(SUM(rv.monto_virtual), 0)
       FROM recargas_virtuales rv
       WHERE rv.tipo_servicio_id = v_tipo_bus_id
+        AND rv.negocio_id = v_negocio_id
         AND rv.created_at > v_fecha_ultimo_cierre_bus
     );
 
@@ -195,16 +211,19 @@ BEGIN
     -- Snapshot parcial en `recargas`
     -- ON CONFLICT: si ya hubo un mini cierre en este turno+BUS, acumula las ventas
     -- El cierre diario (ejecutar_cierre_diario) tiene el mismo ON CONFLICT para cerrar el día
+    -- saldo_caja: saldo de CAJA_BUS tras sumar las ventas del día (antes de descontar la compra)
     INSERT INTO recargas (
-      id, fecha, turno_id, empleado_id, tipo_servicio_id,
-      venta_dia, saldo_virtual_anterior, saldo_virtual_actual
+      id, negocio_id, fecha, turno_id, empleado_id, tipo_servicio_id,
+      venta_dia, saldo_virtual_anterior, saldo_virtual_actual, saldo_caja
     ) VALUES (
-      v_mini_cierre_id, p_fecha, v_turno_id, p_empleado_id, v_tipo_bus_id,
-      v_venta_bus_hoy, v_saldo_virtual_sistema, p_saldo_virtual_maquina
+      v_mini_cierre_id, v_negocio_id, p_fecha, v_turno_id, p_empleado_id, v_tipo_bus_id,
+      v_venta_bus_hoy, v_saldo_virtual_sistema, p_saldo_virtual_maquina,
+      v_saldo_anterior + v_venta_bus_hoy  -- CAJA_BUS después del ingreso de ventas
     )
     ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
       venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
-      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual;
+      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual,
+      saldo_caja           = EXCLUDED.saldo_caja;
 
     v_mini_cierre_id := (SELECT id FROM recargas WHERE turno_id = v_turno_id AND tipo_servicio_id = v_tipo_bus_id);
 
@@ -213,13 +232,13 @@ BEGIN
     v_saldo_despues_ingreso := v_saldo_anterior + v_venta_bus_hoy;
 
     INSERT INTO operaciones_cajas (
-      id, fecha, caja_id, empleado_id,
+      id, negocio_id, fecha, caja_id, empleado_id,
       tipo_operacion, monto,
       saldo_anterior, saldo_actual,
       tipo_referencia_id, referencia_id,
       descripcion
     ) VALUES (
-      v_operacion_ingreso_id, NOW(), v_caja_bus_id, p_empleado_id,
+      v_operacion_ingreso_id, v_negocio_id, NOW(), v_caja_bus_id, p_empleado_id,
       'INGRESO', v_venta_bus_hoy,
       v_saldo_anterior, v_saldo_despues_ingreso,
       v_tipo_ref_recargas_id, v_mini_cierre_id,
@@ -241,13 +260,13 @@ BEGIN
 
   -- EGRESO debe existir ANTES de recargas_virtuales (FK: operacion_pago_id)
   INSERT INTO operaciones_cajas (
-    id, fecha, caja_id, empleado_id,
+    id, negocio_id, fecha, caja_id, empleado_id,
     tipo_operacion, monto,
     saldo_anterior, saldo_actual,
     categoria_id, tipo_referencia_id, referencia_id,
     descripcion
   ) VALUES (
-    v_operacion_egreso_id, NOW(), v_caja_bus_id, p_empleado_id,
+    v_operacion_egreso_id, v_negocio_id, NOW(), v_caja_bus_id, p_empleado_id,
     'EGRESO', p_monto,
     v_saldo_despues_ingreso, v_saldo_nuevo,
     v_categoria_eg011_id, v_tipo_ref_rv_id, v_recarga_id,
@@ -255,13 +274,13 @@ BEGIN
   );
 
   INSERT INTO recargas_virtuales (
-    id, fecha, tipo_servicio_id, empleado_id,
+    id, negocio_id, fecha, tipo_servicio_id, empleado_id,
     monto_virtual, monto_a_pagar, ganancia,
-    pagado, observaciones, created_at
-    -- fecha_pago, operacion_pago_id: NULL hasta que se liquide el mes
+    pagado_proveedor, observaciones, created_at
+    -- fecha_pago_proveedor, operacion_pago_id: NULL hasta que se liquide
   ) VALUES (
-    v_recarga_id, p_fecha, v_tipo_bus_id, p_empleado_id,
-    p_monto, p_monto, 0,
+    v_recarga_id, v_negocio_id, p_fecha, v_tipo_bus_id, p_empleado_id,
+    p_monto, p_monto, v_ganancia,
     false, p_observaciones, clock_timestamp()
     -- clock_timestamp() avanza en tiempo real (NOW() es estable en transacción)
     -- Garantiza created_at > snapshot del mini cierre → getSaldoVirtualActual lo cuenta correctamente
@@ -299,14 +318,14 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.fn_registrar_compra_saldo_bus IS
-'v4.0 - Ganancia BUS como deuda pendiente: pagado=false, monto_a_pagar=monto_completo, ganancia=0.
-La liquidación (liquidar_ganancias_bus) calcula ROUND(SUM(monto_a_pagar)*comision%, 2) WHERE pagado=false,
-transfiere ese total de CAJA_BUS→CAJA_CHICA y marca pagado=true en una transacción atómica.
+'v4.0 - Ganancia BUS como deuda pendiente: pagado_proveedor=false, monto_a_pagar=monto_completo, ganancia=0.
+La liquidación (liquidar_ganancias_bus) calcula ROUND(SUM(monto_a_pagar)*comision%, 2) WHERE pagado_proveedor=false,
+transfiere ese total de CAJA_BUS→caja destino y marca pagado_proveedor=true en una transacción atómica.
 v3.1 - Fix timestamp: clock_timestamp() garantiza created_at > snapshot del mini cierre.
 v3.0 - Mini cierre integrado: con p_saldo_virtual_maquina y ventas > 0 crea snapshot
 en recargas (ON CONFLICT acumula) + INGRESO por ventas + EGRESO por compra. CAJA_BUS nunca negativa.';
 
-REVOKE EXECUTE ON FUNCTION public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) FROM anon;
-GRANT EXECUTE ON FUNCTION public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_registrar_compra_saldo_bus(DATE, UUID, NUMERIC, TEXT, NUMERIC) FROM anon;
+GRANT EXECUTE ON FUNCTION public.fn_registrar_compra_saldo_bus(DATE, UUID, NUMERIC, TEXT, NUMERIC) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
