@@ -1,10 +1,11 @@
-import { Component, NgZone, inject } from '@angular/core';
+import { Component, NgZone, OnDestroy, inject } from '@angular/core';
 import { NavigationEnd, NavigationStart, Router } from '@angular/router';
 import { filter, take } from 'rxjs/operators';
 import { App, URLOpenListenerEvent } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
+import { PluginListenerHandle } from '@capacitor/core';
 import { SupabaseService } from './core/services/supabase.service';
 import { TurnosCajaService } from './features/caja/services/turnos-caja.service';
 import { Capacitor } from '@capacitor/core';
@@ -16,7 +17,7 @@ import { ROUTES } from './core/config/routes.config';
   templateUrl: 'app.component.html',
   imports: [IonApp, IonRouterOutlet, OfflineBannerComponent],
 })
-export class AppComponent {
+export class AppComponent implements OnDestroy {
 
   private supabase = inject(SupabaseService);
   private router = inject(Router);
@@ -28,6 +29,14 @@ export class AppComponent {
   // inyeccion el servicio no existe hasta que alguna pagina lo pida.
   private turnosCaja = inject(TurnosCajaService);
 
+  private wheelListener = (event: WheelEvent) => {
+    const target = event.target as HTMLElement;
+    if (target instanceof HTMLInputElement && target.type === 'number') {
+      target.blur();
+    }
+  };
+  private capacitorListeners: PluginListenerHandle[] = [];
+
   constructor() {
     this.setupDeepLinkListener();
     this.setupResumeListener();
@@ -36,23 +45,41 @@ export class AppComponent {
     this.setupNumberInputNoScroll();
   }
 
+  async ngOnDestroy() {
+    document.removeEventListener('wheel', this.wheelListener);
+    await Promise.all(this.capacitorListeners.map(l => l.remove()));
+    this.capacitorListeners = [];
+  }
+
   /**
    * Oculta el splash screen nativo solo cuando la primera ruta termina de
    * renderizar. Evita el flash blanco entre el splash de Android y el primer
    * paint de Angular. Requiere `launchAutoHide: false` en capacitor.config.ts
    * — sin eso, Capacitor lo oculta automáticamente al montar el WebView.
+   *
+   * Timeout de seguridad de 6s: si NavigationEnd nunca llega (guard que falla,
+   * error de red en el bootstrap) el splash no queda bloqueado indefinidamente.
    */
   private setupSplashScreenHide() {
     if (!Capacitor.isNativePlatform()) return;
 
+    let hidden = false;
+    const hide = async () => {
+      if (hidden) return;
+      hidden = true;
+      await SplashScreen.hide({ fadeOutDuration: 200 });
+    };
+
+    // Ocultar al primer NavigationEnd — la ruta real ya fue resuelta y renderizada
     this.router.events
       .pipe(
         filter((e): e is NavigationEnd => e instanceof NavigationEnd),
         take(1)
       )
-      .subscribe(async () => {
-        await SplashScreen.hide();
-      });
+      .subscribe(() => hide());
+
+    // Fallback: si en 6s no llegó NavigationEnd, ocultar igualmente
+    setTimeout(() => hide(), 6000);
   }
 
   private setupBlurOnNavigation() {
@@ -62,18 +89,13 @@ export class AppComponent {
   }
 
   private setupNumberInputNoScroll() {
-    document.addEventListener('wheel', (event) => {
-      const target = event.target as HTMLElement;
-      if (target instanceof HTMLInputElement && target.type === 'number') {
-        target.blur();
-      }
-    }, { passive: true });
+    document.addEventListener('wheel', this.wheelListener, { passive: true });
   }
 
-  private setupDeepLinkListener() {
+  private async setupDeepLinkListener() {
     if (!Capacitor.isNativePlatform()) return;
 
-    App.addListener('appUrlOpen', async (event: URLOpenListenerEvent) => {
+    const handle = await App.addListener('appUrlOpen', async (event: URLOpenListenerEvent) => {
       await Browser.close();
       this.supabase.pendingDeepLinkUrl = event.url;
 
@@ -83,6 +105,7 @@ export class AppComponent {
         }
       });
     });
+    this.capacitorListeners.push(handle);
   }
 
   /**
@@ -92,13 +115,14 @@ export class AppComponent {
    * y la primera query fallaría con "JWT expired". Este listener renueva
    * el token proactivamente al volver.
    */
-  private setupResumeListener() {
-    App.addListener('appStateChange', ({ isActive }) => {
+  private async setupResumeListener() {
+    const handle = await App.addListener('appStateChange', ({ isActive }) => {
       if (isActive) {
         this.zone.run(() => {
           this.supabase.refreshSessionOnResume();
         });
       }
     });
+    this.capacitorListeners.push(handle);
   }
 }

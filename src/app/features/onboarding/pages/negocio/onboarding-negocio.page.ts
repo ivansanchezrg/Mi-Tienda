@@ -155,8 +155,8 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
   }
 
   get subtitulo(): string {
-    if (this.mode === 'inicial')         return 'Primero, contanos cómo se llama tu negocio.';
-    if (this.mode === 'sucursal-admin')  return 'Configurá los datos de tu nueva sucursal.';
+    if (this.mode === 'inicial')         return 'Primero, cuéntanos cómo se llama tu negocio.';
+    if (this.mode === 'sucursal-admin')  return 'Configura los datos de tu nueva sucursal.';
     return 'Datos del negocio y del administrador que lo gestionará.';
   }
 

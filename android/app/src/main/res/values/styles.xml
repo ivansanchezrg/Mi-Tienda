@@ -22,8 +22,20 @@
     </style> -->
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <!-- Fondo completo del splash — azul corporativo -->
         <item name="windowSplashScreenBackground">#0052CC</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <!--
+          ic_launcher (no ic_launcher_foreground) como ícono del splash.
+          El foreground PNG tiene transparencia en el área de safe zone del
+          adaptive icon — cuando Android 12+ lo escala y anima (zoom-in),
+          el ícono puede no verse si el contenido real cae fuera del círculo
+          de recorte. El ic_launcher.png ya tiene el ícono completo con fondo
+          azul incorporado, garantizando visibilidad siempre.
+        -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <!-- Le dice a Android que el ícono tiene su propio fondo — sin esto,
+             Android 12+ dibuja un círculo blanco detrás del PNG en algunos OEMs. -->
+        <item name="windowSplashScreenIconBackgroundColor">#0052CC</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

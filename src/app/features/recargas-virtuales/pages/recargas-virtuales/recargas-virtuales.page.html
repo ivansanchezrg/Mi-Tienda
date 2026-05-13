@@ -5,7 +5,6 @@
     </ion-buttons>
     <ion-title>Saldo Virtual</ion-title>
   </ion-toolbar>
-  <!-- Tabs CELULAR / BUS — solo si ambos módulos están activos -->
   @if (recargasCelularHabilitada && recargasBusHabilitada) {
   <div class="recargas-tabs">
     <button class="recargas-tab" [class.active]="tabActivo === 'CELULAR'" (click)="cambiarTab('CELULAR')">
@@ -31,98 +30,148 @@
   @if (tabActivo === 'CELULAR') {
   <div class="tab-animate">
 
-  @if (!loading) {
-  <!-- Saldo actual -->
-  <div class="saldo-header">
-    <div class="saldo-tab-nombre">Celular</div>
-    <div class="saldo-monto">${{ saldoVirtualCelular | number:'1.2-2' }}</div>
-    <div class="saldo-label">Saldo virtual actual</div>
-  </div>
+    @if (!loading) {
 
-  <!-- Subtítulo Opciones -->
-  <div class="section-title">Opciones</div>
+    <div class="saldo-header">
+      <div class="saldo-servicio-pill celular">
+        <ion-icon name="phone-portrait-outline"></ion-icon>
+        <span>Celular</span>
+      </div>
+      <div class="saldo-monto">${{ saldoVirtualCelular | number:'1.2-2' }}</div>
+      <div class="saldo-label">Saldo para vender recargas</div>
+      <div class="saldo-divider"></div>
+      <div class="saldo-caja-row">
+        <ion-icon name="wallet-outline"></ion-icon>
+        <span class="saldo-caja-label">Caja Celular</span>
+        <span class="saldo-caja-valor">${{ cajaCelularSaldo | number:'1.2-2' }}</span>
+      </div>
+    </div>
 
-  @if (!esSuperadmin) {
-  <!-- BOTÓN: Registrar recarga del proveedor -->
-  <div class="action-card-large" (click)="abrirModalRecarga()">
-    <div class="action-icon celular">
-      <ion-icon name="phone-portrait-outline"></ion-icon>
-    </div>
-    <div class="action-content">
-      <h3>Registrar Recarga del Proveedor</h3>
-      <p>Cuando el proveedor te carga saldo virtual</p>
-    </div>
-    <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
-  </div>
+    <div class="section-title">Acciones</div>
 
-  <!-- BOTÓN: Pagar al proveedor -->
-  @if (cantidadDeudasPendientes > 0) {
-  <div class="action-card-large" (click)="navegarAPagarDeudas()">
-    <div class="action-icon danger">
-      <ion-icon name="cash-outline"></ion-icon>
+    @if (!esSuperadmin) {
+    <div class="action-card-large" (click)="abrirModalRecarga()">
+      <div class="action-icon celular">
+        <ion-icon name="phone-portrait-outline"></ion-icon>
+      </div>
+      <div class="action-content">
+        <h3>El proveedor me cargó saldo</h3>
+        <p>Registra el saldo virtual que te acreditó el proveedor</p>
+      </div>
+      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
-    <div class="action-content">
-      <h3>
-        Pagar al Proveedor
-        <span class="badge">{{ cantidadDeudasPendientes }}</span>
-      </h3>
-      <p>Deudas pendientes: ${{ totalDeudasPendientes | number:'1.2-2' }}</p>
-    </div>
-    <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
-  </div>
-  } @else {
-  <div class="info-card success">
-    <ion-icon name="checkmark-circle-outline"></ion-icon>
-    <span>Sin deudas pendientes con el proveedor</span>
-  </div>
-  }
-  }
 
-  <!-- BOTÓN: Ver Historial -->
-  <div class="action-card-large" (click)="abrirHistorial()">
-    <div class="action-icon">
-      <ion-icon name="list-outline"></ion-icon>
+    <!-- Liquidar Ganancia CELULAR — 3 estados:
+         1. Activa (con acordeón)  → hay ganancia y CAJA_CELULAR cubre el total
+         2. Bloqueada por saldo    → hay ganancia pero CAJA_CELULAR no alcanza
+         3. Oculta                 → no hay recargas pendientes -->
+    @if (celularPuedeLiquidar) {
+    <div class="liquidacion-card success" [class.expandida]="liquidacionCelularExpandida" (click)="toggleLiquidacionCelular()">
+      <div class="liquidacion-header">
+        <div class="action-icon success">
+          <ion-icon name="cash-outline"></ion-icon>
+        </div>
+        <div class="action-content">
+          <h3>
+            Liquidar Ganancia
+            <span class="badge success">${{ gananciaCelularPendiente | number:'1.2-2' }}</span>
+          </h3>
+          <p>{{ pendientesCelular.length }} recarga{{ pendientesCelular.length === 1 ? '' : 's' }} · toca para ver el desglose</p>
+        </div>
+        <ion-icon name="chevron-forward-outline" class="chevron" [class.rotado]="liquidacionCelularExpandida"></ion-icon>
+      </div>
+      @if (liquidacionCelularExpandida) {
+      <div class="liquidacion-detalle" (click)="$event.stopPropagation()">
+        <div class="detalle-header-row">
+          <span>Fecha</span>
+          <span>Saldo recibido</span>
+          <span>Tu ganancia</span>
+        </div>
+        @for (fila of pendientesCelular; track fila.id) {
+        <div class="detalle-fila">
+          <span class="detalle-fecha">{{ formatearFecha(fila.fecha) }}</span>
+          <span class="detalle-monto">${{ fila.monto_virtual | number:'1.2-2' }}</span>
+          <span class="detalle-ganancia">${{ fila.ganancia | number:'1.2-2' }}</span>
+        </div>
+        }
+        <div class="detalle-total-row">
+          <span>Total</span>
+          <span>${{ gananciaCelularPendiente | number:'1.2-2' }}</span>
+        </div>
+        <ion-button expand="block" color="success" class="liquidar-btn" (click)="confirmarLiquidacion('CELULAR')">
+          Liquidar ganancia · transferir a {{ nombreCajaDestino }}
+        </ion-button>
+      </div>
+      }
     </div>
-    <div class="action-content">
-      <h3>Ver Historial</h3>
-      <p>Consultar movimientos registrados</p>
-    </div>
-    <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
-  </div>
-  } @else {
-  <!-- SKELETON CELULAR -->
-  <div class="saldo-header">
-    <div class="saldo-label">Saldo virtual actual</div>
-    <div class="saldo-monto"><ion-skeleton-text animated
-        style="width: 120px; height: 38px; display: inline-block; border-radius: 8px;"></ion-skeleton-text></div>
-  </div>
-  <div class="section-title"><ion-skeleton-text animated
-      style="width: 80px; height: 18px; border-radius: 4px;"></ion-skeleton-text></div>
 
-  <div class="action-card-large">
-    <div class="action-icon" style="background: var(--ion-color-light);">
-      <ion-skeleton-text animated
-        style="width: 100%; height: 100%; border-radius: 12px; opacity: 0;"></ion-skeleton-text>
+    } @else if (celularBloqueadoPorSaldo) {
+    <div class="action-card-large disabled" (click)="explicarLiquidacionSinSaldoCelular()">
+      <div class="action-icon disabled">
+        <ion-icon name="lock-closed-outline"></ion-icon>
+      </div>
+      <div class="action-content">
+        <h3>
+          Liquidar Ganancia
+          <span class="badge muted">${{ gananciaCelularPendiente | number:'1.2-2' }}</span>
+        </h3>
+        <p>Caja Celular tiene ${{ cajaCelularSaldo | number:'1.2-2' }} — necesitas ${{ gananciaCelularPendiente | number:'1.2-2' }}</p>
+      </div>
+      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
-    <div class="action-content">
-      <h3><ion-skeleton-text animated style="width: 80%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
-      <p><ion-skeleton-text animated
-          style="width: 60%; height: 14px; border-radius: 4px; margin-top: 6px;"></ion-skeleton-text></p>
-    </div>
-  </div>
+    }
+    }
 
-  <div class="action-card-large">
-    <div class="action-icon" style="background: var(--ion-color-light);">
-      <ion-skeleton-text animated
-        style="width: 100%; height: 100%; border-radius: 12px; opacity: 0;"></ion-skeleton-text>
+    @if (ultimasRecargasCelular.length > 0) {
+    <div class="ultimos-movimientos">
+      <div class="ultimos-header">
+        <span>Últimos movimientos</span>
+        <button class="ver-todo-btn" (click)="abrirHistorial()">
+          Ver todo <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+      </div>
+      @for (recarga of ultimasRecargasCelular; track recarga.id) {
+      <div class="movimiento-item">
+        <div class="movimiento-left">
+          <span class="movimiento-monto">${{ recarga.monto_virtual | number:'1.2-2' }}</span>
+          <span class="movimiento-fecha">{{ formatearFecha(recarga.fecha) }}</span>
+        </div>
+        @if (recarga.pagado_proveedor) {
+        <span class="movimiento-badge pagado">Liquidado</span>
+        } @else {
+        <span class="movimiento-badge pendiente">Pendiente</span>
+        }
+      </div>
+      }
     </div>
-    <div class="action-content">
-      <h3><ion-skeleton-text animated style="width: 60%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
-      <p><ion-skeleton-text animated
-          style="width: 50%; height: 14px; border-radius: 4px; margin-top: 6px;"></ion-skeleton-text></p>
+    }
+
+    } @else {
+    <!-- SKELETON CELULAR -->
+    <div class="saldo-header">
+      <ion-skeleton-text animated style="width: 80px; height: 22px; border-radius: 12px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width: 140px; height: 40px; border-radius: 8px; margin-top: 8px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width: 160px; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+      <div class="saldo-divider"></div>
+      <div class="saldo-caja-row">
+        <ion-skeleton-text animated style="width: 100%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+      </div>
     </div>
-  </div>
-  }
+    <div class="action-card-large">
+      <div class="action-icon" style="background: var(--ion-color-light);"></div>
+      <div class="action-content">
+        <h3><ion-skeleton-text animated style="width: 80%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
+        <p><ion-skeleton-text animated style="width: 60%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+      </div>
+    </div>
+    <div class="action-card-large">
+      <div class="action-icon" style="background: var(--ion-color-light);"></div>
+      <div class="action-content">
+        <h3><ion-skeleton-text animated style="width: 50%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
+        <p><ion-skeleton-text animated style="width: 70%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+      </div>
+    </div>
+    }
 
   </div>
   }
@@ -133,105 +182,158 @@
   @if (tabActivo === 'BUS') {
   <div class="tab-animate">
 
-  @if (!loading) {
-  <!-- Saldo actual -->
-  <div class="saldo-header">
-    <div class="saldo-tab-nombre">Bus</div>
-    <div class="saldo-monto">${{ saldoVirtualBus | number:'1.2-2' }}</div>
-    <div class="saldo-label">Saldo virtual actual</div>
-  </div>
+    @if (!loading) {
 
-  <!-- Subtítulo Opciones -->
-  <div class="section-title">Opciones</div>
+    <div class="saldo-header">
+      <div class="saldo-servicio-pill bus">
+        <ion-icon name="bus-outline"></ion-icon>
+        <span>Bus</span>
+      </div>
+      <div class="saldo-monto">${{ saldoVirtualBus | number:'1.2-2' }}</div>
+      <div class="saldo-label">Saldo para vender pasajes</div>
+      <div class="saldo-divider"></div>
+      <div class="saldo-caja-row">
+        <ion-icon name="wallet-outline"></ion-icon>
+        <span class="saldo-caja-label">Caja Bus</span>
+        <span class="saldo-caja-valor">${{ cajaBusSaldo | number:'1.2-2' }}</span>
+      </div>
+    </div>
 
-  @if (!esSuperadmin) {
-  <!-- BOTÓN: Comprar saldo virtual -->
-  <div class="action-card-large" (click)="abrirModalCompraBus()">
-    <div class="action-icon bus">
-      <ion-icon name="bus-outline"></ion-icon>
+    @if (ultimasRecargasBus.length === 0 && saldoVirtualBus === 0) {
+    <div class="onboarding-hint-card">
+      <ion-icon name="information-circle-outline"></ion-icon>
+      <div>
+        <p class="hint-titulo">¿Cómo funciona?</p>
+        <p class="hint-texto">Deposita en el banco al proveedor Bus, luego en la máquina presiona F7 → Opción 2 (Recargas SAM en línea) para acreditar el saldo. Una vez acreditado, registra el depósito aquí.</p>
+      </div>
     </div>
-    <div class="action-content">
-      <h3>Comprar Saldo Virtual</h3>
-      <p>Registrar compra mediante depósito bancario</p>
-    </div>
-    <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
-  </div>
+    }
 
-  <!-- BOTÓN: Liquidar Ganancia -->
-  @if (gananciaBusMesAnterior > 0) {
-  <!-- Estado 1: Ganancia pendiente del mes anterior → habilitado -->
-  <div class="action-card-large success" (click)="abrirModalLiquidacionBus()">
-    <div class="action-icon success">
-      <ion-icon name="cash-outline"></ion-icon>
-    </div>
-    <div class="action-content">
-      <h3>
-        Liquidar Ganancia
-        <span class="badge success">${{ gananciaBusMesAnterior | number:'1.2-2' }}</span>
-      </h3>
-      <p>Proveedor acredita ganancia del mes anterior</p>
-    </div>
-    <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
-  </div>
-  } @else if (gananciaBusMesActual > 0) {
-  <!-- Estado 2: Mes en curso con ventas → deshabilitado, muestra cuándo estará disponible -->
-  <div class="action-card-large disabled">
-    <div class="action-icon">
-      <ion-icon name="lock-closed-outline"></ion-icon>
-    </div>
-    <div class="action-content">
-      <h3>Liquidar Ganancia</h3>
-      <p>Disponible el {{ proximoMesDisplay }} · Acumulado: ${{ gananciaBusMesActual | number:'1.2-2' }}</p>
-    </div>
-  </div>
-  }
-  }
+    <div class="section-title">Acciones</div>
 
-  <!-- BOTÓN: Ver Historial -->
-  <div class="action-card-large" (click)="abrirHistorial()">
-    <div class="action-icon">
-      <ion-icon name="list-outline"></ion-icon>
+    @if (!esSuperadmin) {
+    <div class="action-card-large" (click)="abrirModalCompraBus()">
+      <div class="action-icon bus">
+        <ion-icon name="bus-outline"></ion-icon>
+      </div>
+      <div class="action-content">
+        <h3>Registrar depósito bancario</h3>
+        <p>Ya deposité en el banco, registrar el saldo recibido</p>
+      </div>
+      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
-    <div class="action-content">
-      <h3>Ver Historial</h3>
-      <p>Consultar movimientos registrados</p>
-    </div>
-    <ion-icon name="chevron-back-outline" class="chevron"></ion-icon>
-  </div>
-  } @else {
-  <!-- SKELETON BUS -->
-  <div class="saldo-header">
-    <div class="saldo-label">Saldo virtual actual</div>
-    <div class="saldo-monto"><ion-skeleton-text animated
-        style="width: 120px; height: 38px; display: inline-block; border-radius: 8px;"></ion-skeleton-text></div>
-  </div>
-  <div class="section-title"><ion-skeleton-text animated
-      style="width: 80px; height: 18px; border-radius: 4px;"></ion-skeleton-text></div>
 
-  <div class="action-card-large">
-    <div class="action-icon" style="background: var(--ion-color-light);">
-      <ion-skeleton-text animated
-        style="width: 100%; height: 100%; border-radius: 12px; opacity: 0;"></ion-skeleton-text>
+    <!-- Liquidar Ganancia BUS — 3 estados:
+         1. Activa (con acordeón)  → hay ganancia y CAJA_BUS cubre el total
+         2. Bloqueada por saldo    → hay ganancia pero CAJA_BUS no alcanza
+         3. Oculta                 → no hay depósitos pendientes -->
+    @if (busPuedeLiquidar) {
+    <div class="liquidacion-card success" [class.expandida]="liquidacionBusExpandida" (click)="toggleLiquidacionBus()">
+      <div class="liquidacion-header">
+        <div class="action-icon success">
+          <ion-icon name="cash-outline"></ion-icon>
+        </div>
+        <div class="action-content">
+          <h3>
+            Liquidar Ganancia
+            <span class="badge success">${{ gananciasBusPendiente | number:'1.2-2' }}</span>
+          </h3>
+          <p>{{ pendientesBus.length }} depósito{{ pendientesBus.length === 1 ? '' : 's' }} · toca para ver el desglose</p>
+        </div>
+        <ion-icon name="chevron-forward-outline" class="chevron" [class.rotado]="liquidacionBusExpandida"></ion-icon>
+      </div>
+      @if (liquidacionBusExpandida) {
+      <div class="liquidacion-detalle" (click)="$event.stopPropagation()">
+        <div class="detalle-header-row">
+          <span>Fecha</span>
+          <span>Depósito</span>
+          <span>Ganancia</span>
+        </div>
+        @for (fila of pendientesBus; track fila.id) {
+        <div class="detalle-fila">
+          <span class="detalle-fecha">{{ formatearFecha(fila.fecha) }}</span>
+          <span class="detalle-monto">${{ fila.monto_a_pagar | number:'1.2-2' }}</span>
+          <span class="detalle-ganancia">${{ fila.ganancia | number:'1.2-2' }}</span>
+        </div>
+        }
+        <div class="detalle-total-row">
+          <span>Total</span>
+          <span>${{ gananciasBusPendiente | number:'1.2-2' }}</span>
+        </div>
+        <ion-button expand="block" color="success" class="liquidar-btn" (click)="confirmarLiquidacion('BUS')">
+          Liquidar ganancia · transferir a {{ nombreCajaDestino }}
+        </ion-button>
+      </div>
+      }
     </div>
-    <div class="action-content">
-      <h3><ion-skeleton-text animated style="width: 70%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
-      <p><ion-skeleton-text animated
-          style="width: 80%; height: 14px; border-radius: 4px; margin-top: 6px;"></ion-skeleton-text></p>
-    </div>
-  </div>
 
-  <div class="action-card-large">
-    <div class="action-icon" style="background: var(--ion-color-light);">
-      <ion-skeleton-text animated
-        style="width: 100%; height: 100%; border-radius: 12px; opacity: 0;"></ion-skeleton-text>
+    } @else if (busBloqueadoPorSaldo) {
+    <div class="action-card-large disabled" (click)="explicarLiquidacionSinSaldoBus()">
+      <div class="action-icon disabled">
+        <ion-icon name="lock-closed-outline"></ion-icon>
+      </div>
+      <div class="action-content">
+        <h3>
+          Liquidar Ganancia
+          <span class="badge muted">${{ gananciasBusPendiente | number:'1.2-2' }}</span>
+        </h3>
+        <p>Caja Bus tiene ${{ cajaBusSaldo | number:'1.2-2' }} — necesitas ${{ gananciasBusPendiente | number:'1.2-2' }}</p>
+      </div>
+      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
-    <div class="action-content">
-      <h3><ion-skeleton-text animated style="width: 65%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
-      <p><ion-skeleton-text animated
-          style="width: 90%; height: 14px; border-radius: 4px; margin-top: 6px;"></ion-skeleton-text></p>
+    }
+    }
+
+    @if (ultimasRecargasBus.length > 0) {
+    <div class="ultimos-movimientos">
+      <div class="ultimos-header">
+        <span>Últimos movimientos</span>
+        <button class="ver-todo-btn" (click)="abrirHistorial()">
+          Ver todo <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+      </div>
+      @for (recarga of ultimasRecargasBus; track recarga.id) {
+      <div class="movimiento-item">
+        <div class="movimiento-left">
+          <span class="movimiento-monto">${{ recarga.monto_virtual | number:'1.2-2' }}</span>
+          <span class="movimiento-fecha">{{ formatearFecha(recarga.fecha) }}</span>
+        </div>
+        @if (recarga.pagado_proveedor) {
+        <span class="movimiento-badge liquidado">Liquidado</span>
+        } @else {
+        <span class="movimiento-badge sin-liquidar">Sin liquidar</span>
+        }
+      </div>
+      }
     </div>
-  </div>
-  }
+    }
+
+    } @else {
+    <!-- SKELETON BUS -->
+    <div class="saldo-header">
+      <ion-skeleton-text animated style="width: 60px; height: 22px; border-radius: 12px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width: 120px; height: 40px; border-radius: 8px; margin-top: 8px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width: 150px; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+      <div class="saldo-divider"></div>
+      <div class="saldo-caja-row">
+        <ion-skeleton-text animated style="width: 100%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+      </div>
+    </div>
+    <div class="action-card-large">
+      <div class="action-icon" style="background: var(--ion-color-light);"></div>
+      <div class="action-content">
+        <h3><ion-skeleton-text animated style="width: 70%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
+        <p><ion-skeleton-text animated style="width: 80%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+      </div>
+    </div>
+    <div class="action-card-large">
+      <div class="action-icon" style="background: var(--ion-color-light);"></div>
+      <div class="action-content">
+        <h3><ion-skeleton-text animated style="width: 60%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
+        <p><ion-skeleton-text animated style="width: 90%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+      </div>
+    </div>
+    }
 
   </div>
   }

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
-import { getFechaLocal } from '@core/utils/date.util';
+import { UiService } from '@core/services/ui.service';
 
 export interface RecargaVirtual {
   id: string;
@@ -11,16 +11,14 @@ export interface RecargaVirtual {
   monto_virtual: number;
   monto_a_pagar: number;
   ganancia: number;
-  pagado: boolean;
-  fecha_pago: string | null;
+  pagado_proveedor: boolean;
+  fecha_pago_proveedor: string | null;
+  ganancia_liquidada: boolean;
+  fecha_liquidacion_ganancia: string | null;
   observaciones: string | null;
   created_at: string;
 }
 
-/**
- * Interface para el retorno de la función de registro de recarga CELULAR (v2.0)
- * Solo crea la deuda — sin transferencia de ganancia ni movimiento de cajas
- */
 export interface RegistroRecargaCompletoResult {
   success: boolean;
   recarga_id: string;
@@ -43,13 +41,20 @@ export interface RegistroRecargaCompletoResult {
   };
 }
 
+/** Retorno de fn_liquidar_ganancias. */
+export interface LiquidacionResult {
+  success: boolean;
+  total_ganancia: number;
+  caja_destino: 'VARIOS' | 'CAJA';
+  filas_afectadas: number;
+  message: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RecargasVirtualesService {
   private supabase = inject(SupabaseService);
+  private ui = inject(UiService);
 
-  /**
-   * Obtiene el porcentaje de comisión de un tipo de servicio desde la BD
-   */
   async getPorcentajeComision(servicio: 'CELULAR' | 'BUS'): Promise<number> {
     const response = await this.supabase.client
       .from('tipos_servicio')
@@ -62,14 +67,15 @@ export class RecargasVirtualesService {
   }
 
   /**
-   * Obtiene las deudas pendientes del proveedor CELULAR (pagado = false)
+   * Filas pendientes de liquidar (pagado_proveedor=false) de un servicio.
+   * Usadas para el acordeón de desglose en la card "Liquidar Ganancia".
    */
-  async obtenerDeudasPendientesCelular(): Promise<RecargaVirtual[]> {
+  async obtenerPendientes(servicio: 'CELULAR' | 'BUS'): Promise<RecargaVirtual[]> {
     const response = await this.supabase.client
       .from('recargas_virtuales')
       .select('*, tipos_servicio!inner(codigo)')
-      .eq('tipos_servicio.codigo', 'CELULAR')
-      .eq('pagado', false)
+      .eq('tipos_servicio.codigo', servicio)
+      .eq('pagado_proveedor', false)
       .order('fecha', { ascending: true });
 
     if (response.error) throw response.error;
@@ -80,9 +86,6 @@ export class RecargasVirtualesService {
     }));
   }
 
-  /**
-   * Obtiene el historial de recargas virtuales de un servicio
-   */
   async obtenerHistorial(servicio: 'CELULAR' | 'BUS'): Promise<RecargaVirtual[]> {
     const response = await this.supabase.client
       .from('recargas_virtuales')
@@ -100,9 +103,6 @@ export class RecargasVirtualesService {
     }));
   }
 
-  /**
-   * Obtiene el saldo actual de una caja específica
-   */
   async getSaldoCajaActual(codigoCaja: string): Promise<number> {
     const response = await this.supabase.client
       .from('cajas')
@@ -115,15 +115,27 @@ export class RecargasVirtualesService {
   }
 
   /**
-   * Obtiene el saldo virtual actual de un servicio.
-   * Fórmula: último saldo_virtual_actual (cierre diario)
-   *        + SUM(monto_virtual de recargas_virtuales registradas DESPUÉS del último cierre)
-   *
-   * Se usa created_at (no fecha) porque fecha es la fecha del negocio y puede ser
-   * de días anteriores. Lo que importa es si ya fue incorporado al cierre o no.
+   * Saldo virtual del último snapshot en `recargas` para un servicio.
+   * Usado exclusivamente en el cuadre — no suma recargas posteriores al snapshot.
+   */
+  async getSaldoUltimoCierre(servicio: 'CELULAR' | 'BUS'): Promise<number> {
+    const result = await this.supabase.client
+      .from('recargas')
+      .select('saldo_virtual_actual, tipos_servicio!inner(codigo)')
+      .eq('tipos_servicio.codigo', servicio)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (result.error) throw result.error;
+    return result.data?.saldo_virtual_actual ?? 0;
+  }
+
+  /**
+   * Saldo virtual actual de un servicio.
+   * Fórmula: último cierre diario + recargas registradas después de ese cierre.
    */
   async getSaldoVirtualActual(servicio: 'CELULAR' | 'BUS'): Promise<number> {
-    // 1. Último cierre diario
     const ultimoCierre = await this.supabase.client
       .from('recargas')
       .select('saldo_virtual_actual, created_at, tipos_servicio!inner(codigo)')
@@ -136,7 +148,6 @@ export class RecargasVirtualesService {
     const saldoCierre: number = ultimoCierre.data?.saldo_virtual_actual ?? 0;
     const fechaUltimoCierre: string | null = ultimoCierre.data?.created_at ?? null;
 
-    // 2. Recargas virtuales registradas DESPUÉS del último cierre (aún no incorporadas)
     let query = this.supabase.client
       .from('recargas_virtuales')
       .select('monto_virtual, tipos_servicio!inner(codigo)')
@@ -155,14 +166,6 @@ export class RecargasVirtualesService {
     return saldoCierre + sumaNueva;
   }
 
-  /**
-   * Registra cuando el proveedor CELULAR carga saldo virtual.
-   *
-   * Solo crea la deuda (pagado=false) — NO mueve dinero de cajas.
-   * El pago se realiza más adelante con registrarPagoProveedorCelular().
-   *
-   * @returns {Promise<RegistroRecargaCompletoResult>} Todos los datos actualizados en un solo JSON
-   */
   async registrarRecargaProveedorCelular(params: {
     fecha: string;
     empleado_id: string;
@@ -186,60 +189,27 @@ export class RecargasVirtualesService {
   }
 
   /**
-   * Registra el pago al proveedor CELULAR (EGRESO de CAJA_CELULAR)
+   * Liquida toda la ganancia pendiente de CELULAR o BUS. Atómico: todo o nada.
+   * Ambos servicios: filtra pagado_proveedor=false, marca pagado+liquidado en un paso.
+   * Caja destino calculada por el SQL: VARIOS si está activa, sino CAJA (Tienda).
    */
-  async registrarPagoProveedorCelular(params: {
-    empleado_id: string;
-    deuda_ids: string[];
-    observaciones?: string;
-  }): Promise<any> {
-    return this.supabase.call(
-      this.supabase.client.rpc('fn_registrar_pago_proveedor_celular', {
-        p_empleado_id: params.empleado_id,
-        p_deuda_ids: params.deuda_ids,
-        p_observaciones: params.observaciones || null
-      }),
-      undefined,
-      { showLoading: true }
-    );
-  }
-
-  /**
-   * Liquida las ganancias BUS pendientes de un mes.
-   *
-   * Delega en `liquidar_ganancias_bus` (SQL): operación atómica que suma
-   * monto_a_pagar WHERE tipo=BUS AND pagado=false AND fecha IN mes,
-   * transfiere CAJA_BUS → CAJA_CHICA y marca las filas como pagado=true.
-   */
-  async liquidarGananciasBus(params: {
-    mes: string;
-    empleado_id: string;
-  }): Promise<{ success: boolean; mes: string; total_ganancia: number; filas_afectadas: number; message: string }> {
-    const result = await this.supabase.call<{ success: boolean; mes: string; total_ganancia: number; filas_afectadas: number; message: string }>(
-      this.supabase.client.rpc('fn_liquidar_ganancias_bus', {
-        p_mes: params.mes,
-        p_empleado_id: params.empleado_id
+  async liquidarGanancias(servicio: 'CELULAR' | 'BUS', empleadoId: string): Promise<LiquidacionResult> {
+    const result = await this.supabase.call<LiquidacionResult>(
+      this.supabase.client.rpc('fn_liquidar_ganancias', {
+        p_servicio:    servicio,
+        p_empleado_id: empleadoId
       }),
       undefined,
       { showLoading: true }
     );
 
     if (!result) {
-      throw new Error('Error al liquidar ganancias BUS: respuesta vacía del servidor');
+      throw new Error(`Error al liquidar ganancias ${servicio}: respuesta vacía del servidor`);
     }
 
     return result;
   }
 
-  /**
-   * Registra la compra de saldo virtual BUS (EGRESO inmediato de CAJA_BUS).
-   *
-   * Si se provee `saldo_virtual_maquina`, la función SQL usa validación extendida:
-   *   disponible = CAJA_BUS + ventas_del_día_sin_cerrar
-   *   Permite que CAJA_BUS quede negativa temporalmente (se corrige al cierre diario).
-   *
-   * Si NO se provee, usa la validación original (solo CAJA_BUS >= monto).
-   */
   async registrarCompraSaldoBus(params: {
     fecha: string;
     empleado_id: string;
@@ -247,17 +217,27 @@ export class RecargasVirtualesService {
     observaciones?: string;
     saldo_virtual_maquina?: number;
   }): Promise<any> {
-    return this.supabase.call(
-      this.supabase.client.rpc('fn_registrar_compra_saldo_bus', {
+    await this.ui.showLoading();
+    try {
+      const response = await this.supabase.client.rpc('fn_registrar_compra_saldo_bus', {
         p_fecha: params.fecha,
         p_empleado_id: params.empleado_id,
         p_monto: params.monto,
         p_observaciones: params.observaciones || null,
         p_saldo_virtual_maquina: params.saldo_virtual_maquina ?? null
-      }),
-      undefined,
-      { showLoading: true }
-    );
-  }
+      });
 
+      // Reemplazar mensaje técnico de turno por texto legible antes de que call() lo muestre
+      if (response.error) {
+        const raw: string = response.error.message ?? '';
+        if (raw.toLowerCase().includes('turno')) {
+          response.error.message = 'Debes tener un turno abierto. Ve a Inicio y abre el turno primero.';
+        }
+      }
+
+      return await this.supabase.call(Promise.resolve(response));
+    } finally {
+      await this.ui.hideLoading();
+    }
+  }
 }

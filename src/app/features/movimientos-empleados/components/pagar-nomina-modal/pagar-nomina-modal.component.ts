@@ -40,7 +40,7 @@ export class PagarNominaModalComponent implements OnInit {
   private service = inject(MovimientosEmpleadosService);
   private authService = inject(AuthService);
   private configService = inject(ConfigService);
-  public currencyService = inject(CurrencyService);
+  protected currencyService = inject(CurrencyService);
 
   readonly TIPO_CONFIG = TIPO_MOVIMIENTO_CONFIG;
 

@@ -40,7 +40,6 @@ export class NotificacionesModalComponent {
   }
 
   getIconClass(tipo: string): string {
-    if (tipo === 'DEUDA_CELULAR') return 'celular';
     if (tipo === 'SALDO_BAJO_BUS') return 'bus';
     if (tipo === 'STOCK_BAJO') return 'stock';
     return 'facturacion';

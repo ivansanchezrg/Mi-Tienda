@@ -123,14 +123,14 @@
                     <span class="optional-badge">Opcional</span>
                 </div>
 
-                @if (!fotoPreview && !imagenUrlExistente) {
+                @if (!fotoPreviewUrl && !imagenUrlExistente) {
                 <button type="button" class="upload-btn" (click)="seleccionarFoto()">
                     <ion-icon name="camera-outline"></ion-icon>
-                    <span>Tomar foto o seleccionar de galeria</span>
+                    <span>{{ storageService.isNative ? 'Tomar foto o seleccionar de galeria' : 'Seleccionar de galeria' }}</span>
                 </button>
                 } @else {
                 <div class="photo-preview">
-                    <img [src]="fotoPreview || imagenUrlExistente" alt="Imagen del producto">
+                    <img [src]="fotoPreviewUrl || imagenUrlExistente" alt="Imagen del producto">
                     <button type="button" class="remove-photo" (click)="removerFoto()">
                         <ion-icon name="close-circle"></ion-icon>
                     </button>

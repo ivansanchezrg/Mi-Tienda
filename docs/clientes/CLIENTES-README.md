@@ -189,7 +189,7 @@ Ubicación: `docs/clientes/sql/functions/`
 ### `fn_listar_cuentas_cobrar(p_busqueda, p_page, p_page_size)`
 
 - Solo clientes **con** deuda pendiente (`HAVING total_deuda > 0`)
-- Usado por `obtenerResumen()` como fuente de conteo para `VentasResumenPage`
+- Usado por el listado de cuentas por cobrar (paginado) — NO por `obtenerResumen()`
 
 ### `fn_resumir_cuentas_cobrar(p_busqueda)`
 
@@ -252,4 +252,4 @@ PENDIENTE → pago total   → PAGADO
 
 6. **`cuentas_cobrar` se dropea antes que `ventas`** — tiene FK a `ventas(id)`. Orden en schema: `DROP cuentas_cobrar` → `DROP ventas`.
 
-7. **`fn_listar_clientes_con_saldo` vs `fn_listar_cuentas_cobrar`** — son funciones distintas con propósito distinto. La primera trae todos los clientes (listado UI). La segunda solo clientes con deuda (usada internamente por el resumen de ventas).
+7. **`fn_listar_clientes_con_saldo` vs `fn_listar_cuentas_cobrar`** — son funciones distintas con propósito distinto. `fn_listar_clientes_con_saldo` trae todos los clientes (listado principal UI con saldo). `fn_listar_cuentas_cobrar` trae solo clientes con deuda > 0 (listado de cuentas por cobrar). El resumen del panel de ventas usa `fn_resumir_cuentas_cobrar` (1 fila: total clientes + total deuda).

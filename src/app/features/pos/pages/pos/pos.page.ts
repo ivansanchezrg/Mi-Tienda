@@ -55,7 +55,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   @ViewChild('searchInput') searchInputRef!: ElementRef<HTMLInputElement>;
 
   private inventarioService = inject(InventarioService);
-  public currencyService = inject(CurrencyService);
+  protected currencyService = inject(CurrencyService);
   private ui = inject(UiService);
   private posService = inject(PosService);
   private alertCtrl = inject(AlertController);
@@ -124,7 +124,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private async confirmarLimpiarCarrito() {
     const alert = await this.alertCtrl.create({
       header: 'Limpiar carrito',
-      message: `¿Descartás los ${this.totalArticulos} artículos del carrito?`,
+      message: `¿Descartas los ${this.totalArticulos} artículos del carrito?`,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
         {
@@ -406,7 +406,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   /** Resuelve la URL pública de la imagen del producto (si el path es relativo) */
   private resolverImagen(producto: ProductoPOS): ProductoPOS {
     if (producto.imagen_url && !producto.imagen_url.startsWith('http')) {
-      return { ...producto, imagen_url: this.storageService.getPublicUrl(producto.imagen_url, 'productos') ?? undefined };
+      return { ...producto, imagen_url: this.storageService.getPublicUrl(producto.imagen_url) ?? undefined };
     }
     return producto;
   }

@@ -1,6 +1,6 @@
 import { Component, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, ModalController } from '@ionic/angular';
+import { ModalController, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
     checkmarkOutline, arrowDownOutline, arrowUpOutline,
@@ -29,7 +29,7 @@ export interface ModalOptionGroup {
     templateUrl: './options-modal.component.html',
     styleUrls: ['./options-modal.component.scss'],
     standalone: true,
-    imports: [CommonModule, IonicModule]
+    imports: [CommonModule, IonIcon]
 })
 export class OptionsModalComponent {
     constructor() {

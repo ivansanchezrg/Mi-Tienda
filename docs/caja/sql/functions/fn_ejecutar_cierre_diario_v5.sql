@@ -473,7 +473,7 @@ BEGIN
   IF v_venta_celular > 0 THEN
     INSERT INTO recargas (
       id, negocio_id, fecha, turno_id, empleado_id, tipo_servicio_id,
-      venta_dia, saldo_virtual_anterior, saldo_virtual_actual
+      venta_dia, saldo_virtual_anterior, saldo_virtual_actual, saldo_caja
     ) VALUES (
       gen_random_uuid(),
       v_negocio_id,
@@ -483,7 +483,8 @@ BEGIN
       v_tipo_servicio_celular_id,
       v_venta_celular,
       p_saldo_anterior_celular,
-      p_saldo_celular_final
+      p_saldo_celular_final,
+      v_saldo_final_caja_celular
     );
 
     v_recarga_celular_id := (SELECT id FROM recargas WHERE turno_id = p_turno_id AND tipo_servicio_id = v_tipo_servicio_celular_id AND negocio_id = v_negocio_id);
@@ -520,7 +521,7 @@ BEGIN
   ) THEN
     INSERT INTO recargas (
       id, negocio_id, fecha, turno_id, empleado_id, tipo_servicio_id,
-      venta_dia, saldo_virtual_anterior, saldo_virtual_actual
+      venta_dia, saldo_virtual_anterior, saldo_virtual_actual, saldo_caja
     ) VALUES (
       gen_random_uuid(),
       v_negocio_id,
@@ -530,11 +531,13 @@ BEGIN
       v_tipo_servicio_bus_id,
       v_venta_bus,
       p_saldo_anterior_bus,
-      p_saldo_bus_final
+      p_saldo_bus_final,
+      v_saldo_final_caja_bus
     )
     ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
       venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
-      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual;
+      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual,
+      saldo_caja           = EXCLUDED.saldo_caja;
 
     v_recarga_bus_id := (SELECT id FROM recargas WHERE turno_id = p_turno_id AND tipo_servicio_id = v_tipo_servicio_bus_id AND negocio_id = v_negocio_id);
 

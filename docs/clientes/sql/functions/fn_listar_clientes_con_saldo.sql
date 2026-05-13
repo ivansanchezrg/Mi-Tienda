@@ -71,8 +71,8 @@ AS $$
     ORDER BY
         deuda.total_deuda DESC NULLS LAST,
         c.nombre ASC
-    LIMIT  p_page_size
-    OFFSET p_page * p_page_size;
+    LIMIT  LEAST(GREATEST(p_page_size, 1), 200)
+    OFFSET p_page * LEAST(GREATEST(p_page_size, 1), 200);
 $$;
 
 REVOKE EXECUTE ON FUNCTION fn_listar_clientes_con_saldo(TEXT, INTEGER, INTEGER) FROM anon;

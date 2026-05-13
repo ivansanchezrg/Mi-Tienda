@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { LoadingController, ToastController } from '@ionic/angular/standalone';
 // 1. IMPORTANTE: Importamos los iconos como objetos, no usamos strings
 import { checkmarkCircleOutline, alertCircleOutline } from 'ionicons/icons';
+import { TIMING } from '@core/config/timing.config';
 
 @Injectable({ providedIn: 'root' })
 export class UiService {
@@ -54,7 +55,7 @@ export class UiService {
           this.loadingElement = null; // Limpia referencia antes del dismiss
           await el.dismiss().catch(() => { });
         }
-      }, 50);
+      }, TIMING.hideLoadingDebounceMs);
     }
   }
 

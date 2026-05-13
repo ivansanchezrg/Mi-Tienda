@@ -2,7 +2,7 @@ import { Component, inject, OnInit, ViewChild, ElementRef } from '@angular/core'
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
-  IonButton, IonIcon, ModalController
+  IonButton, IonIcon, IonSkeletonText, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -10,7 +10,7 @@ import {
   cashOutline, scaleOutline, informationCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
+import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 
@@ -22,7 +22,7 @@ import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive'
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    IonButton, IonIcon,
+    IonButton, IonIcon, IonSkeletonText,
     CurrencyInputDirective,
     NumbersOnlyDirective
   ]
@@ -41,6 +41,7 @@ export class CuadreCajaPage implements OnInit {
   // Misma fórmula que en cierre-diario: getSaldoVirtualActual()
   saldoVirtualActualCelular = 0;
   saldoVirtualActualBus = 0;
+  loading = true;
 
   constructor() {
     addIcons({
@@ -63,15 +64,18 @@ export class CuadreCajaPage implements OnInit {
   }
 
   async cargarDatos() {
+    this.loading = true;
     try {
       const [saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
-        this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
-        this.recargasVirtualesService.getSaldoVirtualActual('BUS')
+        this.recargasVirtualesService.getSaldoUltimoCierre('CELULAR'),
+        this.recargasVirtualesService.getSaldoUltimoCierre('BUS')
       ]);
       this.saldoVirtualActualCelular = saldoVirtualCelular;
       this.saldoVirtualActualBus = saldoVirtualBus;
     } catch (error: any) {
       await this.ui.showError('Error al cargar datos del cuadre. Verifica tu conexión.');
+    } finally {
+      this.loading = false;
     }
   }
 
@@ -102,8 +106,18 @@ export class CuadreCajaPage implements OnInit {
     return this.ventaBus >= 0;
   }
 
+  get mostrarResultadoCelular(): boolean {
+    const val = this.form.get('saldoCelularActual')?.value;
+    return val !== null && val !== '' && val >= 0;
+  }
+
+  get mostrarResultadoBus(): boolean {
+    const val = this.form.get('saldoBusActual')?.value;
+    return val !== null && val !== '' && val >= 0;
+  }
+
   get mostrarResultado(): boolean {
-    return this.form.valid && this.ventaCelularValida && this.ventaBusValida;
+    return this.mostrarResultadoCelular || this.mostrarResultadoBus;
   }
 
   cerrar() {

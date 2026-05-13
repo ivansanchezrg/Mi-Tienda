@@ -8,6 +8,7 @@ import { LoggerService } from './logger.service';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { ROUTES } from '@core/config/routes.config';
+import { TIMING } from '@core/config/timing.config';
 
 
 @Injectable({ providedIn: 'root' })
@@ -266,7 +267,7 @@ export class SupabaseService {
   async refreshSessionOnResume(): Promise<void> {
     // 1. THROTTLE — bloquear ráfagas de appStateChange (desbloqueo, switches rápidos, etc.)
     const nowMs = Date.now();
-    if (nowMs - this.lastResumeRefreshAt < 30_000) {
+    if (nowMs - this.lastResumeRefreshAt < TIMING.resumeRefreshThrottleMs) {
       return;
     }
 
@@ -287,8 +288,8 @@ export class SupabaseService {
         const nowSec = Math.floor(Date.now() / 1000);
         const secondsLeft = expiresAt - nowSec;
 
-        // Si quedan más de 5 minutos, el token está sano — no refrescar
-        if (secondsLeft > 300) {
+        // Si quedan más de jwtRefreshUmbralSegundos (5 min), el token está sano — no refrescar
+        if (secondsLeft > TIMING.jwtRefreshUmbralSegundos) {
           return;
         }
 

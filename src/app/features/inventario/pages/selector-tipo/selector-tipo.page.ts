@@ -1,6 +1,9 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, NavController } from '@ionic/angular';
+import {
+    NavController,
+    IonHeader, IonToolbar, IonButtons, IonButton, IonTitle, IonContent, IonIcon
+} from '@ionic/angular/standalone';
 import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
 import { arrowBackOutline, cubeOutline, colorPaletteOutline, chevronForwardOutline } from 'ionicons/icons';
@@ -11,7 +14,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
     templateUrl: './selector-tipo.page.html',
     styleUrls: ['./selector-tipo.page.scss'],
     standalone: true,
-    imports: [CommonModule, IonicModule]
+    imports: [CommonModule, IonHeader, IonToolbar, IonButtons, IonButton, IonTitle, IonContent, IonIcon]
 })
 export class SelectorTipoPage {
     private navCtrl = inject(NavController);

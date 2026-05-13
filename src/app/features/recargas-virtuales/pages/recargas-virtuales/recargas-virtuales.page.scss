@@ -14,6 +14,7 @@ ion-content {
 }
 
 .recargas-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -44,7 +45,7 @@ ion-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--spacing-xl) var(--spacing-lg);
+  padding: var(--spacing-lg) var(--spacing-lg);
   margin: var(--spacing-md);
   background: var(--ion-item-background);
   border-radius: var(--radius-md);
@@ -52,19 +53,10 @@ ion-content {
   border: 1px solid var(--ion-color-step-50);
   gap: var(--spacing-xs);
 
-  .saldo-tab-nombre {
-    font-size: 13px;
-    font-weight: var(--font-weight-bold);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--ion-color-primary);
-  }
-
   .saldo-label {
     font-size: 11px;
     font-weight: var(--font-weight-medium);
     color: var(--ion-color-medium);
-    margin-top: var(--spacing-xs);
   }
 
   .saldo-monto {
@@ -76,6 +68,66 @@ ion-content {
   }
 }
 
+// Pill identificador de servicio (reemplaza saldo-tab-nombre)
+.saldo-servicio-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+
+  ion-icon { font-size: 13px; }
+
+  &.celular {
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    color: var(--ion-color-primary);
+  }
+
+  &.bus {
+    background: rgba(var(--ion-color-secondary-rgb), 0.12);
+    color: var(--ion-color-secondary);
+  }
+}
+
+// Separador dentro de la card de saldo
+.saldo-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--ion-color-step-100);
+  margin: var(--spacing-xs) 0 var(--spacing-xs);
+}
+
+// Fila caja efectivo (wallet icon + label + valor)
+.saldo-caja-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+
+  ion-icon {
+    font-size: 14px;
+    color: var(--ion-color-medium);
+  }
+
+  .saldo-caja-label {
+    flex: 1;
+    font-size: 12px;
+    color: var(--ion-color-medium);
+    font-weight: 500;
+  }
+
+  .saldo-caja-valor {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ion-text-color);
+  }
+}
+
+
 // ── Section title ─────────────────────────────────────────────────────────────
 
 .section-title {
@@ -86,6 +138,7 @@ ion-content {
   text-transform: uppercase;
   letter-spacing: 0.6px;
 }
+
 
 // ── Action cards ──────────────────────────────────────────────────────────────
 
@@ -126,7 +179,6 @@ ion-content {
     }
   }
 
-  // Icono cuadrado con fondo coloreado
   .action-icon {
     width: 48px;
     height: 48px;
@@ -161,9 +213,13 @@ ion-content {
       background: rgba(var(--ion-color-success-rgb), 0.1);
       ion-icon { color: var(--ion-color-success); }
     }
+
+    &.disabled {
+      background: rgba(var(--ion-color-medium-rgb), 0.12);
+      ion-icon { color: var(--ion-color-medium); }
+    }
   }
 
-  // Texto
   .action-content {
     flex: 1;
     min-width: 0;
@@ -193,6 +249,10 @@ ion-content {
         &.success {
           background: var(--ion-color-success);
         }
+
+        &.muted {
+          background: var(--ion-color-medium);
+        }
       }
     }
 
@@ -204,16 +264,15 @@ ion-content {
     }
   }
 
-  // Flecha
   .chevron {
     font-size: 18px;
     color: var(--ion-color-step-400);
-    transform: rotate(180deg);
     flex-shrink: 0;
   }
 }
 
-// ── Info card (sin deudas) ────────────────────────────────────────────────────
+
+// ── Info card (sin deudas / éxito) ────────────────────────────────────────────
 
 .info-card {
   display: flex;
@@ -268,27 +327,240 @@ ion-content {
   }
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
 
-.empty-state {
+// ── Hint onboarding BUS ───────────────────────────────────────────────────────
+
+.onboarding-hint-card {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
   gap: 12px;
-  min-height: 200px;
+  margin: 0 16px 12px;
+  padding: 14px 16px;
+  background: rgba(var(--ion-color-secondary-rgb), 0.06);
+  border: 1px solid rgba(var(--ion-color-secondary-rgb), 0.2);
+  border-radius: 12px;
 
-  ion-icon,
-  ion-spinner {
-    font-size: 48px;
-    color: var(--ion-color-medium);
-    opacity: 0.5;
+  ion-icon {
+    font-size: 22px;
+    color: var(--ion-color-secondary);
+    flex-shrink: 0;
+    margin-top: 1px;
   }
 
-  p {
-    font-size: 14px;
-    color: var(--ion-color-medium);
+  .hint-titulo {
+    margin: 0 0 3px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ion-text-color);
+  }
+
+  .hint-texto {
     margin: 0;
+    font-size: 12px;
+    color: var(--ion-color-medium);
+    line-height: 1.5;
+  }
+}
+
+
+// ── Card de liquidación con acordeón ─────────────────────────────────────────
+
+.liquidacion-card {
+  margin: 0 16px 12px;
+  border-radius: 14px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.07);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+
+  &.success {
+    border: 1.5px solid rgba(var(--ion-color-success-rgb), 0.4);
+    background: rgba(var(--ion-color-success-rgb), 0.03);
+  }
+
+  &.expandida {
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.liquidacion-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+
+  &:active { opacity: 0.8; }
+
+  .action-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .chevron {
+    transition: transform 0.25s ease;
+    &.rotado { transform: rotate(90deg); }
+  }
+}
+
+// Tabla de desglose dentro del acordeón
+.liquidacion-detalle {
+  border-top: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
+  padding: 0 16px 12px;
+  animation: fadeInDown 0.2s ease;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.detalle-header-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 10px 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ion-color-medium);
+  border-bottom: 1px solid var(--ion-color-step-100);
+}
+
+.detalle-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ion-color-step-50);
+
+  &:last-of-type { border-bottom: none; }
+}
+
+.detalle-fecha {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+.detalle-monto {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ion-text-color);
+}
+
+.detalle-ganancia {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ion-color-success);
+}
+
+.detalle-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: rgba(var(--ion-color-success-rgb), 0.08);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ion-color-success);
+}
+
+.liquidar-btn {
+  margin-top: 12px;
+}
+
+
+// ── Últimos movimientos ───────────────────────────────────────────────────────
+
+.ultimos-movimientos {
+  margin: 4px 16px var(--spacing-lg);
+  background: var(--ion-item-background);
+  border-radius: 14px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.07);
+  overflow: hidden;
+}
+
+.ultimos-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--ion-color-step-50);
+
+  span {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--ion-color-medium);
+  }
+}
+
+.ver-todo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ion-color-primary);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+
+  ion-icon { font-size: 14px; }
+}
+
+.movimiento-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--ion-color-step-50);
+
+  &:last-child { border-bottom: none; }
+
+  .movimiento-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .movimiento-monto {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ion-text-color);
+  }
+
+  .movimiento-fecha {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+  }
+
+  .movimiento-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+
+    &.pagado {
+      background: rgba(var(--ion-color-success-rgb), 0.1);
+      color: var(--ion-color-success);
+    }
+
+    &.pendiente {
+      background: rgba(var(--ion-color-warning-rgb), 0.12);
+      color: var(--ion-color-warning-shade);
+    }
+
+    &.liquidado {
+      background: rgba(var(--ion-color-success-rgb), 0.1);
+      color: var(--ion-color-success);
+    }
+
+    &.sin-liquidar {
+      background: rgba(var(--ion-color-secondary-rgb), 0.12);
+      color: var(--ion-color-secondary);
+    }
   }
 }

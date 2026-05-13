@@ -1,10 +1,17 @@
 -- ============================================================
 -- Unicidad global de código de barras (productos + presentaciones)
 -- ============================================================
--- El UNIQUE por tabla no impide que el mismo código exista en
--- productos Y en producto_presentaciones simultáneamente.
--- Este trigger valida unicidad cruzada entre ambas tablas.
+-- NOTA: esta lógica fue reemplazada por la tabla codigos_barras +
+-- fn_sync_codigo_barras (schema.sql). Este archivo se conserva como
+-- archivo de mantenimiento puntual — re-ejecutable en cualquier momento.
+--
+-- DROP + CREATE garantiza que siempre queda la versión limpia.
 -- ============================================================
+
+-- ── Limpiar versión anterior ───────────────────────────────
+DROP TRIGGER IF EXISTS trg_codigo_barras_unico_productos      ON productos;
+DROP TRIGGER IF EXISTS trg_codigo_barras_unico_presentaciones ON producto_presentaciones;
+DROP FUNCTION IF EXISTS fn_validar_codigo_barras_unico() CASCADE;
 
 -- ── Función de validación ──────────────────────────────────
 

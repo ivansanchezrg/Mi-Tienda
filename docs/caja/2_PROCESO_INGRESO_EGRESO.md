@@ -18,12 +18,12 @@ Modal para **registrar movimientos manuales de efectivo** en CAJA o CAJA_CHICA. 
 | `components/operacion-modal/operacion-modal.component.html` | Template del formulario |
 | `services/operaciones-caja.service.ts` | `registrarOperacion()`, `obtenerCategorias()` |
 | `services/cajas.service.ts` | `obtenerCajas()` — para el selector de caja dentro del modal |
-| `services/storage.service.ts` | `uploadImage()`, `getSignedUrl()`, `deleteFile()` |
+| `core/services/storage.service.ts` | `capturarFoto()`, `uploadImage()`, `getSignedUrl()`, `deleteFile()` |
 | `models/categoria-operacion.model.ts` | `CategoriaOperacion` |
 
 ### Cajas habilitadas
 
-Solo **CAJA** y **CAJA_CHICA** aparecen en el selector del modal (`cajasFiltradas`). CAJA_CELULAR y CAJA_BUS no permiten operaciones manuales y quedan excluidas.
+Solo **CAJA**, **CAJA_CHICA** y **VARIOS** aparecen en el selector del modal (`cajasFiltradas`). CAJA_CELULAR y CAJA_BUS no permiten operaciones manuales y quedan excluidas.
 
 ---
 
@@ -63,22 +63,24 @@ ejecutarOperacion(tipo, data)
 
 ---
 
-## 4. Cámara — parámetros de optimización
+## 4. Cámara y compresión de imagen
 
-```typescript
-Camera.getPhoto({
-  quality:            80,    // 80% — buen balance calidad/tamaño
-  width:              1200,  // Limitar ancho (px)
-  height:             1600,  // Limitar alto (px)
-  allowEditing:       false,
-  resultType:         CameraResultType.DataUrl,
-  correctOrientation: true   // Corregir rotación EXIF (importante en Android)
-})
-```
+La captura y compresión están centralizadas en `StorageService` (ver [CORE-README.md](../core/CORE-README.md#storageservice)).
 
-> Resultado típico: 200–500 KB en vez de 3–10 MB (~90% reducción). Supabase Storage no comprime automáticamente.
+`OperacionModalComponent` llama a `storageService.capturarFoto(source)` — **no configura `Camera.getPhoto` directamente**. Todos los parámetros de captura viven en un único lugar: `StorageService.capturarFoto()`.
 
-Cuando el usuario cancela, el plugin lanza una excepción — el `catch` la silencia deliberadamente. Si el permiso de cámara fue denegado, tampoco se muestra error (el usuario nota que no se abrió la cámara).
+El modal mantiene dos propiedades separadas:
+- `fotoPreviewUrl: SafeUrl` — para el `<img [src]>` inmediato (URL nativa via `Capacitor.convertFileSrc`, sin pasar por el bridge)
+- `fotoRawUrl: string` — se pasa al caller al confirmar, quien lo entrega a `uploadImage()`
+
+Flujo completo al registrar un comprobante:
+1. `capturarFoto(source)` → abre cámara/galería → retorna `{ previewUrl, rawUrl }`
+2. Preview aparece inmediato en la UI (`fotoPreviewUrl`)
+3. Al confirmar: el modal emite `fotoRawUrl` en `OperacionModalResult.fotoComprobante`
+4. `registrarOperacion()` llama `uploadImage(rawUrl, 'comprobantes', 'operaciones')` → comprime a WebP → sube a Storage → retorna `path`
+5. El `path` se pasa al RPC — nunca la URL
+
+Cuando el usuario cancela, `capturarFoto()` retorna `null` silenciosamente (la excepción del plugin queda encapsulada en el servicio).
 
 ---
 

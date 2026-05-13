@@ -12,8 +12,15 @@
 -- Ejecutar una sola vez en el SQL Editor de Supabase.
 -- =============================================================================
 
--- 1. Publicar la tabla en el canal de Realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE turnos_caja;
+-- 1. Publicar la tabla en el canal de Realtime (idempotente)
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime' AND tablename = 'turnos_caja'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE turnos_caja;
+    END IF;
+END $$;
 
 -- 2. REPLICA IDENTITY FULL para que los eventos UPDATE entreguen la fila completa
 --    (por defecto solo vienen las columnas modificadas, lo que rompe la logica

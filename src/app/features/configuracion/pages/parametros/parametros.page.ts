@@ -54,6 +54,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
   private supabase = inject(SupabaseService);
   private ui = inject(UiService);
   private sub!: Subscription;
+  private scrollTimeout?: ReturnType<typeof setTimeout>;
 
   form!: FormGroup;
   cargando = true;
@@ -80,10 +81,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
   private savedValues: Record<string, Record<string, any>> = {};
 
   async ngOnInit() {
-    const usuario = await this.authService.getUsuarioActual();
-    this.esSuperadmin = usuario?.es_superadmin ?? false;
-    this.esAdmin = usuario?.rol === 'ADMIN' || this.esSuperadmin;
-
+    // Construir form primero (no depende de usuario ni de config)
     this.form = this.fb.group({
       negocio_nombre:               ['',   [Validators.required, Validators.maxLength(100)]],
       negocio_telefono:             ['',   [Validators.maxLength(20)]],
@@ -100,11 +98,18 @@ export class ParametrosPage implements OnInit, OnDestroy {
       nomina_dia_pago:              [null, [Validators.required, Validators.min(1), Validators.max(31)]],
     });
 
-    this.cargarConfiguracion();
+    // Cargar usuario y configuración en paralelo
+    const [usuario] = await Promise.all([
+      this.authService.getUsuarioActual(),
+      this.cargarConfiguracion()
+    ]);
+    this.esSuperadmin = usuario?.es_superadmin ?? false;
+    this.esAdmin = usuario?.rol === 'ADMIN' || this.esSuperadmin;
   }
 
   ngOnDestroy() {
     this.sub?.unsubscribe();
+    clearTimeout(this.scrollTimeout);
   }
 
   ionViewWillEnter() {
@@ -145,7 +150,8 @@ export class ParametrosPage implements OnInit, OnDestroy {
       // Scroll al botón guardar de la sección que acaba de tener cambios
       for (const seccion of Object.keys(nuevo) as Seccion[]) {
         if (nuevo[seccion] && !anterior[seccion]) {
-          setTimeout(() => {
+          clearTimeout(this.scrollTimeout);
+          this.scrollTimeout = setTimeout(() => {
             document.getElementById(`footer-${seccion}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }, 50);
           break;

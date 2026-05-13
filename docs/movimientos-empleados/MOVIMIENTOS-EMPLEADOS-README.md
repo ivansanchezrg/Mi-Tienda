@@ -54,7 +54,7 @@ El saldo se calcula en tiempo real desde la vista `v_saldos_empleados`:
 ```sql
 CREATE TABLE movimientos_empleados (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    empleado_id         INTEGER NOT NULL REFERENCES usuarios(id),
+    empleado_id         UUID NOT NULL REFERENCES usuarios(id),
     fecha               TIMESTAMPTZ DEFAULT NOW(),
     tipo_movimiento     tipo_movimiento_empleado_enum NOT NULL,
     monto               DECIMAL(12,2) NOT NULL CHECK (monto > 0),
@@ -62,7 +62,7 @@ CREATE TABLE movimientos_empleados (
     descripcion         TEXT,
     estado_liquidacion  VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE',
     liquidado_en        UUID REFERENCES movimientos_empleados(id),
-    creado_por          INTEGER REFERENCES usuarios(id),
+    creado_por          UUID REFERENCES usuarios(id),
     created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 ```

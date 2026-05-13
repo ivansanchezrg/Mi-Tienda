@@ -1,8 +1,14 @@
 -- ============================================================
--- Constraints e índices para producto_presentaciones (v8.1)
--- Ejecutar UNA SOLA VEZ sobre la BD existente.
--- Ya incluido en docs/schema.sql para instalaciones nuevas.
+-- Constraints e índices para producto_presentaciones
+-- Re-ejecutable en cualquier momento (DROP + IF NOT EXISTS).
+-- Ya incluido en schema.sql — usar este archivo solo para
+-- aplicar sobre una BD existente sin correr el schema completo.
 -- ============================================================
+
+-- ── Limpiar versión anterior ───────────────────────────────
+DROP INDEX IF EXISTS uq_presentaciones_principal;
+DROP INDEX IF EXISTS uq_presentaciones_nombre;
+DROP INDEX IF EXISTS idx_presentaciones_producto_activo;
 
 -- 1. Solo 1 presentacion principal por producto
 --    Si ya existe un duplicado, resolver manualmente antes de ejecutar.

@@ -32,6 +32,16 @@ export const authGuard: CanActivateFn = async (_route, state) => {
   const session = await auth.getSession();
 
   if (session) {
+    // Si hay sesión OAuth persistida pero el usuario nunca eligió su cuenta
+    // activamente en esta instalación (flag en Preferences), redirigir al login.
+    // Esto cubre: reinstalación, desinstalación+instalación, primer uso.
+    // El flag se escribe al completar OAuth (activarNegocio / onboarding nuevo usuario).
+    // El flag se borra en logout — usuarios que ya eligieron su cuenta no se ven afectados.
+    if (!auth.yaValidadoEnEstaSesion && !(await auth.hasActiveAuth())) {
+      logger.info('authGuard', 'Sesión persistida sin autenticación activa → login');
+      return router.createUrlTree(['/auth/login']);
+    }
+
     // Primera navegación de la sesión: validar contra BD para detectar
     // desactivaciones que ocurrieron mientras la app estaba cerrada.
     // Navegaciones siguientes: confiar en cache + Realtime (cero queries extra).

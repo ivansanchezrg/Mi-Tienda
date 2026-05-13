@@ -66,10 +66,11 @@ Supabase OAuth en web usa **flujo implícito**: redirige a `/auth/callback#acces
 /auth/callback             → CallbackPage           (sin guard — siempre debe ejecutarse)
 /auth/pending              → PendingPage            (sin guard — lazy loaded)
 /auth/seleccionar-negocio  → SelectorNegocioPage    (sin guard — lazy loaded)
-/auth/crear-negocio        → CrearNegocioPage       (sin guard — lazy loaded)
 ```
 
 Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
+
+> Los usuarios sin negocio son redirigidos a `/onboarding/negocio` (no a `/auth/crear-negocio`). El wizard de creación de negocio es un módulo separado (`/crear-negocio`) registrado en `app.routes.ts`, no dentro del módulo `auth`.
 
 ### 6. Servicio de Auth — Multi-Tenant
 
@@ -144,10 +145,9 @@ Para cambiar de negocio sin necesidad de re-login (desde el panel admin o select
 
 #### Métodos de Realtime
 
-- `iniciarRealtimeUsuario(id: string)` → abre canal websocket para escuchar cambios del usuario actual. Idempotente. (ver sección 9)
-- `cerrarRealtimeUsuario()` → cierra canal de usuario Y canal de negocio. Se llama automáticamente via hook `registerBeforeCleanup`
-- `iniciarRealtimeNegocio(negocioId: string)` → abre canal para detectar suspensión del negocio activo. Se abre en `activarNegocio()`. (ver sección 9)
-- `cerrarRealtimeNegocio()` → cierra solo el canal de negocio. Llamado internamente por `cerrarRealtimeUsuario()`
+- `iniciarRealtimeUsuario(id: string)` → abre canal websocket para escuchar cambios del usuario actual en tabla `usuarios`. Idempotente. (ver sección 11)
+- `iniciarRealtimeMembresia(usuarioId: string, negocioId: string)` → abre canal para detectar desactivación de la membresía del usuario en el negocio activo (tabla `usuario_negocios`). Se abre en `activarNegocio()`. (ver sección 11)
+- `cerrarRealtimeUsuario()` → cierra canal de usuario Y canal de membresía. Se llama automáticamente via hook `registerBeforeCleanup`
 
 #### Métodos de Usuario Actual (Capacitor Preferences)
 
@@ -159,7 +159,7 @@ Para cambiar de negocio sin necesidad de re-login (desde el panel admin o select
 **Modelo `UsuarioActual`:**
 
 ```typescript
-// features/auth/models/usuario_actual.model.ts
+// features/auth/models/usuario-actual.model.ts
 
 export type RolUsuario = 'ADMIN' | 'EMPLEADO';
 
@@ -216,7 +216,6 @@ export interface NegocioDisponible {
   negocio_id: string;
   negocio_nombre: string;
   rol: 'ADMIN' | 'EMPLEADO';
-  negocio_activo: boolean;  // false si el negocio está suspendido
 }
 ```
 
@@ -387,9 +386,9 @@ App vuelve del background
   │    └─ handleUsuarioDesactivado() → cerrar ambos canales + limpiar Preferences
   │         └─ /auth/pending?motivo=usuario  (sesión OAuth intacta — "Verificar estado" sin re-login)
   │
-  ├─ Realtime canal negocios: superadmin suspende el negocio (UPDATE activo=false)
-  │    └─ cerrar ambos canales + limpiar Preferences
-  │         └─ /auth/pending?motivo=negocio  (sesión OAuth intacta — "Verificar negocio" sin re-login)
+  ├─ Realtime canal membresía: admin desactiva membresía del usuario (UPDATE activo=false en usuario_negocios)
+  │    └─ handleUsuarioDesactivado('membresia') → cerrar ambos canales + limpiar Preferences
+  │         └─ /auth/pending?motivo=membresia  (sesión OAuth intacta)
   │
   ├─ Realtime canal usuarios: superadmin cambia nombre del usuario (UPDATE otros campos)
   │    └─ saveUsuarioActual() → emite en usuarioActual$ → sidebar se actualiza en vivo
@@ -416,7 +415,7 @@ Protege el layout principal. Aplicado en `app.routes.ts`.
 | Online + sesión + primera navegación | `validarUsuario()` consulta BD, activa negocio, inicia Realtime (usuario + negocio), guarda en Preferences |
 | Online + sesión + navegaciones siguientes | Skip — confía en cache + Realtime (cero queries extra) |
 | Online + sesión + usuario suspendido en BD | `validarUsuario()` redirige a `/auth/pending?motivo=usuario` |
-| Online + sesión + negocio suspendido | Canal Realtime detecta en segundos → `/auth/pending?motivo=negocio` |
+| Online + sesión + membresía desactivada | Canal Realtime detecta en segundos → `/auth/pending?motivo=membresia` |
 | Offline + sesión local + usuario activo | Permite acceso + toast "Sin conexión" |
 | Offline + sesión local + usuario inactivo | Redirige a `/auth/pending` (lee Preferences) |
 | Offline + sin sesión | Redirige a `/auth/login` |
@@ -427,7 +426,7 @@ Usa `AuthService.hasLocalSession()` para verificar sesión guardada en localStor
 
 Protege el login. Con sesión activa → redirige a `/caja`. Aplicado en `auth.routes.ts`.
 
-- **Importante:** `publicGuard` NO se aplica a `/auth/callback`, `/auth/pending`, `/auth/seleccionar-negocio` ni `/auth/crear-negocio` para que siempre se ejecuten correctamente
+- **Importante:** `publicGuard` NO se aplica a `/auth/callback`, `/auth/pending` ni `/auth/seleccionar-negocio` para que siempre se ejecuten correctamente
 
 #### roleGuard (rutas por rol)
 
@@ -474,51 +473,53 @@ Protege `/admin`. Verifica `es_superadmin = true` en `getUsuarioActual()`. Si no
 
 | Canal | Tabla | Evento | Efecto |
 |-------|-------|--------|--------|
-| `usuario-activo-{id}` | `usuarios` | `UPDATE activo=false` | `handleUsuarioDesactivado()` → `/auth/pending?motivo=usuario` |
+| `usuario-activo-{id}` | `usuarios` | `UPDATE activo=false` | `handleUsuarioDesactivado('usuario')` → `/auth/pending?motivo=usuario` |
 | `usuario-activo-{id}` | `usuarios` | `UPDATE otros campos` | Actualiza cache + emite `usuarioActual$` → sidebar se actualiza en vivo |
 | `usuario-activo-{id}` | `usuarios` | `DELETE` | `handleExpiredSession()` → cierra sesión + `/auth/login` |
-| `negocio-activo-{id}` | `negocios` | `UPDATE activo=false` | Cierra ambos canales + limpia Preferences + `/auth/pending?motivo=negocio` |
+| `membresia-activa-{usuarioId}-{negocioId}` | `usuario_negocios` | `UPDATE activo=false` | `handleUsuarioDesactivado('membresia')` → `/auth/pending?motivo=membresia` |
 
 #### Canal de usuario (`iniciarRealtimeUsuario`)
 
 - Se abre una sola conexión por sesión: `canal usuario-activo-{id}`
-- Filtro: `id=eq.{id}` — solo el registro del usuario actual
-- `UPDATE activo=false` → `handleUsuarioDesactivado()`: **NO cierra la sesión OAuth**. Solo cierra canales + limpia Preferences + redirige a `/auth/pending?motivo=usuario`. El usuario puede tocar "Verificar estado" cuando lo reactiven sin re-autenticarse.
+- Filtro: `id=eq.{id}` — solo el registro del usuario actual en tabla `usuarios`
+- `UPDATE activo=false` → `handleUsuarioDesactivado('usuario')`: **NO cierra la sesión OAuth**. Solo cierra canales + limpia Preferences + redirige a `/auth/pending?motivo=usuario`. El usuario puede tocar "Verificar estado" cuando lo reactiven sin re-autenticarse.
 - `UPDATE` otros campos (nombre, es_superadmin) → `saveUsuarioActual()` + emite `usuarioActual$`. `NgZone.run()` para que Angular detecte el cambio.
 - `DELETE` → `handleExpiredSession()` → cierre completo de sesión + `/auth/login`
 - Se inicia en `validarUsuario()` tan pronto como se confirma la identidad (antes de activar negocio) — cubre la pantalla del selector y el onboarding
 
-#### Canal de negocio (`iniciarRealtimeNegocio`)
+#### Canal de membresía (`iniciarRealtimeMembresia`)
 
 - Se abre en `activarNegocio()` junto con el canal de usuario
-- Filtro: `id=eq.{negocioId}` — solo el negocio activo del usuario
-- `UPDATE activo=false` → cierra ambos canales (`cerrarRealtimeUsuario()` llama a `cerrarRealtimeNegocio()` internamente) + limpia Preferences + toast + `/auth/pending?motivo=negocio`
-- Idempotente: si ya hay canal para el mismo negocio, no abre otro
+- Tabla: `usuario_negocios` — detecta cuando un ADMIN desactiva la membresía del usuario en el negocio actual
+- Filtro: `usuario_id=eq.{usuarioId}` con validación adicional en el handler: solo reacciona al `negocio_id` activo, ignora otras membresías
+- `UPDATE activo=false` en la membresía del negocio activo → `handleUsuarioDesactivado('membresia')` → `/auth/pending?motivo=membresia`
+- Idempotente: si ya hay canal para la misma clave `{usuarioId}-{negocioId}`, no abre otro
+- Requiere que `usuario_negocios` esté publicada en `supabase_realtime` con `REPLICA IDENTITY FULL`
 
-#### Comportamiento diferenciado por tipo de suspensión
+#### Comportamiento diferenciado por tipo de desactivación
 
 ```
-activo=false en tabla usuarios (propietario suspendido por superadmin)
-  → handleUsuarioDesactivado()
-  → toast "Tu acceso fue suspendido por el administrador."
+activo=false en tabla usuarios (usuario suspendido globalmente por superadmin)
+  → handleUsuarioDesactivado('usuario')
+  → toast "Tu cuenta fue suspendida por el administrador."
   → navigate /auth/pending?motivo=usuario
   → [sesión OAuth conservada para "Verificar estado"]
 
-activo=false en tabla negocios (negocio suspendido por superadmin)
-  → handler de iniciarRealtimeNegocio
-  → toast "Este negocio fue suspendido por el administrador."
-  → navigate /auth/pending?motivo=negocio
-  → [sesión OAuth conservada para "Verificar estado"]
+activo=false en tabla usuario_negocios (admin remueve membresía del usuario)
+  → handleUsuarioDesactivado('membresia')
+  → toast "Tu acceso a este negocio fue removido por el administrador."
+  → navigate /auth/pending?motivo=membresia
+  → [sesión OAuth conservada]
 ```
 
 #### Ambos canales se inician incluso en el selector de negocios
 
-`iniciarRealtimeUsuario()` se llama desde `validarUsuario()` — antes de activar ningún negocio — para proteger la pantalla del selector. `iniciarRealtimeNegocio()` se llama al activar. Si el usuario es suspendido mientras elige negocio, el canal de usuario ya está escuchando.
+`iniciarRealtimeUsuario()` se llama desde `validarUsuario()` — antes de activar ningún negocio — para proteger la pantalla del selector. `iniciarRealtimeMembresia()` se llama al activar. Si el usuario es suspendido mientras elige negocio, el canal de usuario ya está escuchando.
 
 #### Política RLS requerida en BD
 
 - Tabla `usuarios`: cada usuario solo recibe eventos de su propio registro (`email = auth.jwt() ->> 'email'`). Ver `docs/auth/sql/setup/realtime_usuarios.sql`.
-- Tabla `negocios`: debe estar publicada con `REPLICA IDENTITY FULL`. Ver `docs/admin/sql/setup/realtime_negocios.sql`.
+- Tabla `usuario_negocios`: debe estar publicada en `supabase_realtime` con `REPLICA IDENTITY FULL`. Ver `docs/usuarios/sql/setup/realtime_usuario_negocios.sql`.
 
 #### Hook `registerBeforeCleanup` — cierre sin dependencias circulares
 
@@ -535,11 +536,11 @@ this.supabase.registerBeforeCleanup(() => this.cerrarRealtimeUsuario());
 | Escenario | Sin Realtime | Con Realtime |
 |---|---|---|
 | Superadmin suspende usuario logueado | Sigue operando 1h hasta que expire el JWT | Redirige a `/auth/pending?motivo=usuario` en segundos. Sesión OAuth conservada. |
-| Superadmin suspende negocio activo | Sigue operando 1h | Redirige a `/auth/pending?motivo=negocio` en segundos. Sesión OAuth conservada. |
+| Admin desactiva membresía del usuario | Sigue operando 1h | Redirige a `/auth/pending?motivo=membresia` en segundos. Sesión OAuth conservada. |
 | Superadmin elimina usuario logueado | Sigue operando 1h | Redirige a `/auth/login` en segundos. Sesión cerrada. |
 | Superadmin cambia nombre del usuario | No se entera hasta cerrar app | Sidebar se actualiza en vivo |
 | Superadmin reactiva usuario | Debe cerrar y abrir la app | "Verificar estado" en `/auth/pending` re-ejecuta `validarUsuario()` sin re-login |
-| Superadmin reactiva negocio | Debe cerrar y abrir la app | "Verificar negocio" en `/auth/pending` re-ejecuta `validarUsuario()` sin re-login |
+| Admin reactiva membresía | Debe cerrar y abrir la app | "Verificar estado" en `/auth/pending` re-ejecuta `validarUsuario()` sin re-login |
 | App sin internet al suspender | — | Evento se entrega al reconectarse (Supabase encola) |
 | Doble llamada a `iniciarRealtimeUsuario()` | — | Idempotente — mismo id: no abre segundo canal |
 | Realtime falla al suscribirse | — | Log de error, el usuario entra normal. Las capas de JWT y guards siguen activas. |
@@ -603,18 +604,18 @@ Lo que conecta auth con usuarios:
 | `core/guards/superadmin.guard.ts` | Guard para `/admin` — verifica `es_superadmin` |
 | `app.component.ts` | `setupDeepLinkListener()` (deep links Android) + `setupResumeListener()` (refresh on resume) |
 | `app.routes.ts` | `authGuard` aplicado a layout |
-| `features/auth/models/usuario_actual.model.ts` | `UsuarioActual` (con `negocio_id`, `negocio_nombre`, `es_superadmin`, `id: string`), `RolUsuario` |
+| `features/auth/models/usuario-actual.model.ts` | `UsuarioActual` (con `negocio_id`, `negocio_nombre`, `es_superadmin`, `id: string`), `RolUsuario` |
 | `features/auth/pages/login/login.page.ts` | UI de login + botón Google con spinner inline + `ChangeDetectorRef` para forzar render antes del OAuth |
 | `features/auth/pages/callback/callback.page.ts` | Procesa tokens web y Android, llama `validarUsuario()` |
 | `features/auth/pages/pending/pending.page.ts` | Pantalla de suspensión con UI contextual según `?motivo=usuario\|negocio\|membresia`. "Verificar estado" consulta BD directamente antes de llamar `validarUsuario()` — evita falso positivo "sigue suspendido" cuando ya fue reactivado. |
 | `features/auth/pages/seleccionar-negocio/` | Selector de negocio activo. Muestra todos (activos + suspendidos). Badge "Suspendido" en warning, bloqueo de tap en suspendidos. Inicia Realtime al cargar. |
-| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (multi-tenant + suspensión), `activarNegocio()`, `cambiarNegocio()`, `irAlPanelAdmin()`, `logout()`, `logoutSilent()`, `iniciarRealtimeUsuario()`, `cerrarRealtimeUsuario()`, `iniciarRealtimeNegocio()`, `cerrarRealtimeNegocio()`, `handleUsuarioDesactivado()`, `getUsuarioActual()` (Preferences), `usuarioActual$` (BehaviorSubject reactivo), `negociosDisponibles` |
+| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (multi-tenant + suspensión), `activarNegocio()`, `cambiarNegocio()`, `irAlPanelAdmin()`, `logout()`, `logoutSilent()`, `iniciarRealtimeUsuario()`, `iniciarRealtimeMembresia()`, `cerrarRealtimeUsuario()`, `handleUsuarioDesactivado()`, `getUsuarioActual()` (Preferences), `usuarioActual$` (BehaviorSubject reactivo), `negociosDisponibles` |
 | `features/auth/services/negocio.service.ts` | `getMisNegocios()` — lista de negocios del usuario autenticado (para transferencias y cambio de negocio). Incluye `negocio_activo: boolean` |
-| `features/auth/auth.routes.ts` | Rutas `/auth/login` (publicGuard), `/auth/callback`, `/auth/pending`, `/auth/seleccionar-negocio`, `/auth/crear-negocio` |
+| `features/auth/auth.routes.ts` | Rutas `/auth/login` (publicGuard), `/auth/callback`, `/auth/pending`, `/auth/seleccionar-negocio` |
 | `shared/components/sidebar/sidebar.component.ts` | Muestra datos del usuario + nombre del negocio activo, filtra items por rol, suscripción reactiva a `usuarioActual$`, logout |
 | `docs/setup/02_rls.sql` | Script SQL idempotente con TODAS las políticas RLS del proyecto, incluidas `usuarios`, `usuario_negocios`, `negocios`. Ejecutar tras cada `schema.sql` |
 | `docs/auth/sql/setup/realtime_usuarios.sql` | Publicación Realtime para tabla `usuarios` (suspensión + cambios en tiempo real) |
-| `docs/admin/sql/setup/realtime_negocios.sql` | Publicación Realtime para tabla `negocios` (suspensión en tiempo real) |
+| `docs/usuarios/sql/setup/realtime_usuario_negocios.sql` | Publicación Realtime para tabla `usuario_negocios` (detección de membresía desactivada en tiempo real) |
 | `docs/auth/sql/setup/trigger_proteger_superadmin.sql` | Trigger + política DELETE que blinda al superadmin contra UPDATE/DELETE accidentales |
 | `docs/setup/03_functions.sql` | Incluye `fn_set_negocio_activo`. Bloquea acceso si `usuarios.activo=false` o `negocios.activo=false` (excepto superadmin) |
 | `docs/setup/schema.sql` | `comparten_negocio()` — helper RLS + columna `activo` en `usuarios` |
@@ -642,13 +643,6 @@ Se agregó manualmente el siguiente `intent-filter` dentro del `<activity>` prin
 ```
 
 **IMPORTANTE:** El valor de `android:scheme` debe coincidir con el `appId` en `capacitor.config.ts` y con el `redirectUrl` en `supabase.service.ts` (`ec.mitienda.app://auth/callback`).
-
----
-
-## Tareas pendientes
-
-- [ ] Verificar que `trg_updated_at_usuario_negocios` no rompa otras operaciones tras el DROP (o agregar columna `updated_at` a `usuario_negocios` si se necesita)
-- [ ] Probar `fn_transferir_empleado` con el trigger eliminado
 
 ---
 

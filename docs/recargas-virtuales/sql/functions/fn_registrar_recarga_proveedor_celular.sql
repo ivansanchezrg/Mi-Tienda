@@ -1,11 +1,19 @@
 -- ==========================================
 -- FUNCIÓN: fn_registrar_recarga_proveedor_celular
--- VERSIÓN: 2.0
--- FECHA: 2026-02-24
+-- VERSIÓN: 2.1
+-- FECHA: 2026-05-07
 -- ==========================================
 -- Registra la deuda con el proveedor CELULAR cuando este carga saldo virtual.
--- NO mueve dinero de cajas ni valida saldo — solo crea la deuda (pagado=false).
+-- NO mueve dinero de cajas ni valida saldo — solo crea la deuda (pagado_proveedor=false).
 -- El pago se realiza más adelante con registrar_pago_proveedor_celular.
+--
+-- v2.1 (2026-05-07) — FIX multi-tenant + tipos:
+--   - INSERT ahora incluye negocio_id (la columna es NOT NULL — antes la función
+--     fallaba en cada llamada con violación de constraint).
+--   - p_empleado_id cambia de INTEGER → UUID (schema v11 usa UUID en usuarios.id).
+--   - Todas las queries internas filtran por negocio_id = get_negocio_id()
+--     (defensa en profundidad: aunque RLS ya filtra, el filtro explícito evita
+--     que cambios futuros en RLS rompan el aislamiento de tenant).
 --
 -- Retorna JSON con todos los datos para actualizar la UI sin queries adicionales:
 --   - success, recarga_id, monto_virtual, monto_a_pagar, ganancia
@@ -14,16 +22,16 @@
 --
 -- Parámetros:
 --   p_fecha          DATE     Fecha del negocio
---   p_empleado_id    INT      Empleado que registra
+--   p_empleado_id    UUID     Empleado que registra
 --   p_monto_virtual  NUMERIC  Monto virtual cargado por el proveedor (ej: 210.53)
 -- ==========================================
 
--- Descomentar solo si cambia la firma (parámetros o tipo de retorno):
--- DROP FUNCTION IF EXISTS fn_registrar_recarga_proveedor_celular(DATE, INTEGER, NUMERIC);
+-- DROP firma anterior (cambió tipo de p_empleado_id INTEGER → UUID)
+DROP FUNCTION IF EXISTS public.fn_registrar_recarga_proveedor_celular(DATE, INTEGER, NUMERIC);
 
-CREATE OR REPLACE FUNCTION fn_registrar_recarga_proveedor_celular(
+CREATE OR REPLACE FUNCTION public.fn_registrar_recarga_proveedor_celular(
   p_fecha         DATE,
-  p_empleado_id   INTEGER,
+  p_empleado_id   UUID,
   p_monto_virtual NUMERIC
 )
 RETURNS JSON
@@ -32,6 +40,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  v_negocio_id                UUID;
+
   -- IDs de servicios
   v_tipo_celular_id           INTEGER;
   v_comision_pct              NUMERIC;
@@ -56,11 +66,17 @@ DECLARE
 BEGIN
   PERFORM public.fn_assert_no_superadmin();
 
+  v_negocio_id := public.get_negocio_id();
+
+  IF v_negocio_id IS NULL THEN
+    RAISE EXCEPTION 'No hay negocio activo en el JWT';
+  END IF;
+
   -- ==========================================
   -- 1. VALIDACIONES INICIALES
   -- ==========================================
 
-  v_tipo_celular_id := (SELECT id                FROM tipos_servicio WHERE codigo = 'CELULAR');
+  v_tipo_celular_id := (SELECT id                  FROM tipos_servicio WHERE codigo = 'CELULAR');
   v_comision_pct    := (SELECT porcentaje_comision FROM tipos_servicio WHERE codigo = 'CELULAR');
 
   IF v_tipo_celular_id IS NULL THEN
@@ -87,11 +103,11 @@ BEGIN
   v_recarga_id := gen_random_uuid();
 
   INSERT INTO recargas_virtuales (
-    id, fecha, tipo_servicio_id, empleado_id,
+    id, negocio_id, fecha, tipo_servicio_id, empleado_id,
     monto_virtual, monto_a_pagar, ganancia,
-    pagado, created_at
+    pagado_proveedor, created_at
   ) VALUES (
-    v_recarga_id, p_fecha, v_tipo_celular_id, p_empleado_id,
+    v_recarga_id, v_negocio_id, p_fecha, v_tipo_celular_id, p_empleado_id,
     p_monto_virtual, v_monto_a_pagar, v_ganancia,
     false, NOW()
   );
@@ -104,14 +120,16 @@ BEGIN
   v_saldo_ultimo_cierre := (
     SELECT COALESCE(saldo_virtual_actual, 0)
     FROM recargas
-    WHERE tipo_servicio_id = v_tipo_celular_id
+    WHERE negocio_id = v_negocio_id
+      AND tipo_servicio_id = v_tipo_celular_id
     ORDER BY created_at DESC
     LIMIT 1
   );
   v_fecha_ultimo_cierre := (
     SELECT created_at
     FROM recargas
-    WHERE tipo_servicio_id = v_tipo_celular_id
+    WHERE negocio_id = v_negocio_id
+      AND tipo_servicio_id = v_tipo_celular_id
     ORDER BY created_at DESC
     LIMIT 1
   );
@@ -124,7 +142,8 @@ BEGIN
   v_suma_recargas_post_cierre := (
     SELECT COALESCE(SUM(monto_virtual), 0)
     FROM recargas_virtuales rv
-    WHERE rv.tipo_servicio_id = v_tipo_celular_id
+    WHERE rv.negocio_id = v_negocio_id
+      AND rv.tipo_servicio_id = v_tipo_celular_id
       AND rv.created_at > v_fecha_ultimo_cierre
   );
 
@@ -146,21 +165,24 @@ BEGIN
       ) ORDER BY rv.fecha ASC
     )
     FROM recargas_virtuales rv
-    WHERE rv.tipo_servicio_id = v_tipo_celular_id
-      AND rv.pagado = false
+    WHERE rv.negocio_id = v_negocio_id
+      AND rv.tipo_servicio_id = v_tipo_celular_id
+      AND rv.pagado_proveedor = false
   );
 
   v_cantidad_deudas := (
     SELECT COUNT(*)
     FROM recargas_virtuales
-    WHERE tipo_servicio_id = v_tipo_celular_id
-      AND pagado = false
+    WHERE negocio_id = v_negocio_id
+      AND tipo_servicio_id = v_tipo_celular_id
+      AND pagado_proveedor = false
   );
   v_total_deudas := (
     SELECT COALESCE(SUM(monto_a_pagar), 0)
     FROM recargas_virtuales
-    WHERE tipo_servicio_id = v_tipo_celular_id
-      AND pagado = false
+    WHERE negocio_id = v_negocio_id
+      AND tipo_servicio_id = v_tipo_celular_id
+      AND pagado_proveedor = false
   );
 
   -- ==========================================
@@ -188,11 +210,12 @@ EXCEPTION
 END;
 $$;
 
-COMMENT ON FUNCTION fn_registrar_recarga_proveedor_celular IS
-'v2.0 - Registra deuda con proveedor CELULAR. Solo crea la deuda (pagado=false).
-Sin transferencia de ganancia: la ganancia queda en CAJA_CELULAR como diferencia entre ventas y pago.';
+COMMENT ON FUNCTION public.fn_registrar_recarga_proveedor_celular IS
+'v2.1 - Registra deuda con proveedor CELULAR. Solo crea la deuda (pagado_proveedor=false).
+Sin transferencia de ganancia: la ganancia queda en CAJA_CELULAR como diferencia entre ventas y pago.
+Multi-tenant: filtra todo por get_negocio_id() del JWT.';
 
-REVOKE EXECUTE ON FUNCTION fn_registrar_recarga_proveedor_celular(DATE, INTEGER, NUMERIC) FROM anon;
-GRANT EXECUTE ON FUNCTION fn_registrar_recarga_proveedor_celular(DATE, INTEGER, NUMERIC) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_registrar_recarga_proveedor_celular(DATE, UUID, NUMERIC) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_registrar_recarga_proveedor_celular(DATE, UUID, NUMERIC) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

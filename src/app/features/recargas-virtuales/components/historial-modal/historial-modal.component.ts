@@ -11,7 +11,7 @@ import {
 } from 'ionicons/icons';
 import { ModalController } from '@ionic/angular/standalone';
 import { UiService } from '@core/services/ui.service';
-import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
+import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 type TipoServicio = 'CELULAR' | 'BUS';
@@ -64,7 +64,11 @@ export class HistorialModalComponent implements OnInit {
   }
 
   get tituloModal(): string {
-    return `Historial ${this.tipo === 'CELULAR' ? 'Celular' : 'Bus'}`;
+    return `Movimientos ${this.tipo === 'CELULAR' ? 'Celular' : 'Bus'}`;
+  }
+
+  gananciaDelRegistro(r: RecargaVirtual): number {
+    return r.ganancia;
   }
 
   formatearFecha(fecha: string): string {

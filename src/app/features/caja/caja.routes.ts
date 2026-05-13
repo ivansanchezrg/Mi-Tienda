@@ -19,10 +19,6 @@ export const CAJA_ROUTES: Routes = [
   {
     path: 'recargas-virtuales',
     loadComponent: () => import('../recargas-virtuales/pages/recargas-virtuales/recargas-virtuales.page').then(m => m.RecargasVirtualesPage)
-  },
-  {
-    path: 'pagar-deudas',
-    loadComponent: () => import('../recargas-virtuales/pages/pagar-deudas/pagar-deudas.page').then(m => m.PagarDeudasPage)
   }
 ];
 

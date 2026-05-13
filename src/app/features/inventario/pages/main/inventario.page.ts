@@ -1,7 +1,13 @@
 import { Component, ElementRef, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AlertController, IonicModule, NavController } from '@ionic/angular';
+import {
+  AlertController, NavController,
+  IonHeader, IonToolbar, IonButtons, IonMenuButton, IonTitle, IonButton, IonIcon,
+  IonSearchbar, IonContent, IonRefresher, IonRefresherContent,
+  IonCard, IonCardContent, IonSkeletonText,
+  IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton
+} from '@ionic/angular/standalone';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Subscription } from 'rxjs';
 import { addIcons } from 'ionicons';
@@ -33,11 +39,18 @@ import { ROUTES } from '../../../../core/config/routes.config';
   templateUrl: './inventario.page.html',
   styleUrls: ['./inventario.page.scss'],
   standalone: true,
-  imports: [IonicModule, CommonModule, FormsModule, EmptyStateComponent, ScannerOverlayComponent]
+  imports: [
+    CommonModule, FormsModule,
+    IonHeader, IonToolbar, IonButtons, IonMenuButton, IonTitle, IonButton, IonIcon,
+    IonSearchbar, IonContent, IonRefresher, IonRefresherContent,
+    IonCard, IonCardContent, IonSkeletonText,
+    IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton,
+    EmptyStateComponent, ScannerOverlayComponent
+  ]
 })
 export class InventarioPage extends PaginatedListPage<Producto> implements OnInit, OnDestroy {
   private inventarioService = inject(InventarioService);
-  public currencyService = inject(CurrencyService);
+  protected currencyService = inject(CurrencyService);
   private storageService = inject(StorageService);
   private navCtrl = inject(NavController);
   private alertCtrl = inject(AlertController);
@@ -208,7 +221,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
 
   private resolverImagenUrl(producto: Producto): Producto {
     if (producto.imagen_url && !producto.imagen_url.startsWith('http')) {
-      return { ...producto, imagen_url: this.storageService.getPublicUrl(producto.imagen_url, 'productos') || undefined };
+      return { ...producto, imagen_url: this.storageService.getPublicUrl(producto.imagen_url) || undefined };
     }
     return producto;
   }

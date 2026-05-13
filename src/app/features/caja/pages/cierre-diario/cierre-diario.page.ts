@@ -30,7 +30,7 @@ import { HasPendingChanges } from '@core/guards/pending-changes.guard';
 import { CurrencyService } from '@core/services/currency.service';
 import { ConfigService } from '@core/services/config.service';
 import { RecargasService } from '../../services/recargas.service';
-import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
+import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { CajasService } from '../../services/cajas.service';
 import { AuthService } from '../../../auth/services/auth.service';
@@ -441,7 +441,7 @@ export class CierreDiarioPage implements HasPendingChanges {
       if (this.ventaCelular < 0) msgs.push(`<strong>Celular:</strong> venta negativa ($${this.ventaCelular.toFixed(2)})`);
       if (this.ventaBus    < 0) msgs.push(`<strong>Bus:</strong> venta negativa ($${this.ventaBus.toFixed(2)})`);
       await this.ui.showError(
-        `<p>No podés continuar con ventas negativas.</p>${msgs.join('<br>')}
+        `<p>No puedes continuar con ventas negativas.</p>${msgs.join('<br>')}
          <p style="margin-top:12px">Registra las recargas del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>`
       );
       return;

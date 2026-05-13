@@ -26,7 +26,7 @@ import { VentasService } from '../../services/ventas.service';
 import { ShareVentaService } from '../../services/share-venta.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { TurnosCajaService } from '../../../caja/services/turnos-caja.service';
-import { RolUsuario } from '../../../auth/models/usuario_actual.model';
+import { RolUsuario } from '../../../auth/models/usuario-actual.model';
 import { TurnoCajaConEmpleado } from '../../../caja/models/turno-caja.model';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { Venta } from '../../models/venta.model';

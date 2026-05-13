@@ -37,11 +37,22 @@ Para evitar lag visual o "Toasts fantasma", es **obligatorio** invocar `await th
 Manejo centralizado de consultas a la base de datos PostgreSQL. Existen dos patrones válidos según el caso de uso:
 
 #### Patrón A: Mutaciones (Insert / Update / Delete)
-`supabase.call()` no muestra spinner por defecto. Habilítalo explícitamente pasando `{ showLoading: true }` para acciones que modifican datos y deben bloquear la UI temporalmente.
+`supabase.call()` no muestra spinner por defecto. Habilítalo explícitamente pasando `{ showLoading: true }` en el tercer parámetro.
+
+Firma: `call<T>(promise, successMessage?, options?)`
 
 ```typescript
+// Con mensaje de éxito + spinner
+await this.supabase.call(
+  this.supabase.client.from('gastos').insert(payload),
+  'Gasto registrado correctamente',
+  { showLoading: true }
+);
+
+// Sin mensaje de éxito, con spinner
 const data = await this.supabase.call<Employee>(
   this.supabase.client.from('usuarios').insert({...}).select().single(),
+  undefined,
   { showLoading: true }
 );
 ```
@@ -159,6 +170,78 @@ body.scanner-active .scanner-overlay * {
 | Cámara continua (POS) | `ionViewDidLeave` + `ngOnDestroy` → `barcodeScanner.stop()` |
 | Cámara one-shot (inventario) | Se cierra automáticamente — no requiere cleanup manual |
 | AudioContext (beep) | Gestionado internamente por el servicio (singleton) |
+
+---
+
+### StorageService (`core/services/storage.service.ts`)
+
+Punto único para captura de fotos, compresión y subida a Supabase Storage. Cualquier módulo que necesite fotografiar o subir imágenes debe usar este servicio — nunca llamar a `Camera.getPhoto` directamente.
+
+#### API pública
+
+| Método | Descripción |
+|--------|-------------|
+| `capturarFoto(source)` | Abre cámara o galería. Retorna `{ previewUrl: SafeUrl, rawUrl: string } \| null`. `previewUrl` va directo al `<img [src]>`; `rawUrl` se pasa a `uploadImage()`. Null si el usuario canceló. |
+| `uploadImage(imageUrl, bucket, subfolder, useDatePrefix?)` | Comprime a WebP y sube a Storage. Acepta URL nativa o dataUrl. Retorna `path \| null` |
+| `getSignedUrl(path, bucket?, expiresIn?)` | URL firmada temporal (default: 1h). Para buckets privados |
+| `getPublicUrl(path, bucket?)` | URL pública directa. Solo para buckets públicos (ej: `productos`) |
+| `deleteFile(path, bucket?)` | Elimina un archivo. Usar para rollback si el RPC falla después de subir |
+
+#### Captura de fotos
+
+```typescript
+import { CameraSource } from '@capacitor/camera';
+import { SafeUrl } from '@angular/platform-browser';
+private storageService = inject(StorageService);
+
+// En el componente: dos propiedades separadas
+fotoPreviewUrl: SafeUrl | null = null;  // para <img [src]>
+fotoRawUrl: string | null = null;       // para uploadImage()
+
+// Abrir cámara
+const result = await this.storageService.capturarFoto(CameraSource.Camera);
+if (!result) return; // usuario canceló
+
+this.fotoPreviewUrl = result.previewUrl; // SafeUrl — Angular no bloquea capacitor://
+this.fotoRawUrl = result.rawUrl;         // string — para el upload posterior
+```
+
+```html
+<img [src]="fotoPreviewUrl" alt="Preview" />
+```
+
+Parámetros internos (definidos una sola vez en el servicio): `quality: 70`, `width/height: 1280`, `correctOrientation: true`, `saveToGallery: false`, `resultType: Uri`.
+
+`capturarFoto` usa `CameraResultType.Uri` + `Capacitor.convertFileSrc()` para evitar serializar la imagen por el bridge de Capacitor. La conversión a WebP ocurre solo al momento del upload, no al previsualizar.
+
+#### Compresión automática en `uploadImage`
+
+1. Si `imageUrl` no es base64: hace `fetch()` local para obtener el blob
+2. **Redimensiona** al lado más largo a máx 1200px (mantiene proporción)
+3. **WebP primero** (calidad 0.8), fallback automático a JPEG si el dispositivo no lo soporta
+4. **Nombre generado**: `YYYY/MM/{subfolder}/{uuid}.webp` (o `.jpg` si fallback)
+
+#### Estructura en Storage
+
+```
+comprobantes/  (bucket privado — requiere signed URL)
+  2026/05/operaciones/{uuid}.webp   ← comprobantes de operaciones manuales de caja
+
+productos/  (bucket público)
+  {subfolder-categoria}/{uuid}.webp  ← fotos de productos (useDatePrefix=false)
+```
+
+#### Patrón rollback
+
+```typescript
+const path = await this.storageService.uploadImage(rawUrl, 'comprobantes', 'operaciones');
+if (!path) return; // error ya mostrado por el servicio
+
+const { error } = await supabase.rpc('fn_mi_operacion', { p_comprobante_url: path });
+if (error) {
+  await this.storageService.deleteFile(path); // rollback: no dejar huérfanos en Storage
+}
+```
 
 ---
 

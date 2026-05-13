@@ -1,16 +1,18 @@
 import { Component, inject, Input, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonContent, IonIcon, IonSpinner,
-  ModalController
+  ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, imagesOutline, chevronDownOutline, businessOutline } from 'ionicons/icons';
+import { closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, chevronDownOutline, businessOutline } from 'ionicons/icons';
 import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component'; // usado en ModalController.create()
 import { Subscription } from 'rxjs';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { CameraSource } from '@capacitor/camera';
+import { StorageService } from '@core/services/storage.service';
 import { Caja } from '../../services/cajas.service';
 import { CategoriaOperacion } from '../../models/categoria-operacion.model';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
@@ -47,10 +49,12 @@ export interface OperacionModalResult {
 })
 export class OperacionModalComponent implements OnInit, OnDestroy {
   private modalCtrl = inject(ModalController);
+  private alertCtrl = inject(AlertController);
   private fb = inject(FormBuilder);
   private cdr = inject(ChangeDetectorRef);
   private operacionesService = inject(OperacionesCajaService);
   private ui = inject(UiService);
+  protected storageService = inject(StorageService);
 
   @Input() tipo!: 'INGRESO' | 'EGRESO';
   @Input() cajas: Caja[] = [];
@@ -62,11 +66,12 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   cargandoCategorias = true;
   saldoCajaSeleccionada: number = 0;
   nombreCajaSeleccionada: string = '';
-  fotoComprobante: string | null = null;
+  fotoPreviewUrl: SafeUrl | null = null;  // para <img [src]>
+  fotoRawUrl: string | null = null;       // para uploadImage() al confirmar
   private cajaIdSub?: Subscription;
 
   constructor() {
-    addIcons({ closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, imagesOutline, chevronDownOutline, businessOutline });
+    addIcons({ closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, chevronDownOutline, businessOutline });
   }
 
   async ngOnInit() {
@@ -182,50 +187,30 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   }
 
   async seleccionarFoto() {
-    const groups: ModalOptionGroup[] = [{
-      options: [
-        { label: 'Tomar foto', icon: 'camera-outline', value: 'camera' },
-        { label: 'Seleccionar de galería', icon: 'images-outline', value: 'gallery' },
-      ]
-    }];
+    const buttons: any[] = [];
+    if (this.storageService.isNative) {
+      buttons.push({ text: 'Tomar foto', handler: () => this.tomarFoto(CameraSource.Camera) });
+    }
+    buttons.push({ text: 'Seleccionar de galería', handler: () => this.tomarFoto(CameraSource.Photos) });
+    buttons.push({ text: 'Cancelar', role: 'cancel' });
 
-    const modal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
-      componentProps: { title: 'Comprobante', groups },
-      cssClass: 'options-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-
-    await modal.present();
-    const { data } = await modal.onDidDismiss();
-
-    if (data === 'camera') this.tomarFoto(CameraSource.Camera);
-    else if (data === 'gallery') this.tomarFoto(CameraSource.Photos);
+    const alert = await this.alertCtrl.create({ header: 'Comprobante', buttons });
+    await alert.present();
   }
 
-  async tomarFoto(source: CameraSource) {
-    try {
-      const image = await Camera.getPhoto({
-        quality: 80,              // Calidad 80% (buen balance calidad/tamaño)
-        allowEditing: false,
-        resultType: CameraResultType.DataUrl,
-        source: source,
-        width: 1200,              // Limitar ancho máximo a 1200px
-        height: 1600,             // Limitar alto máximo a 1600px
-        correctOrientation: true  // Corregir orientación (importante!)
-      });
-
-      this.fotoComprobante = image.dataUrl || null;
-      this.cdr.detectChanges(); // Forzar detección de cambios para web
-    } catch {
-      // El plugin lanza excepción al cancelar — no mostrar error al usuario
+  private async tomarFoto(source: CameraSource) {
+    const result = await this.storageService.capturarFoto(source);
+    if (result) {
+      this.fotoPreviewUrl = result.previewUrl;
+      this.fotoRawUrl = result.rawUrl;
     }
+    this.cdr.detectChanges();
   }
 
   removerFoto() {
-    this.fotoComprobante = null;
-    this.cdr.detectChanges(); // Forzar detección de cambios para web
+    this.fotoPreviewUrl = null;
+    this.fotoRawUrl = null;
+    this.cdr.detectChanges();
   }
 
   confirmar() {
@@ -238,8 +223,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Validar comprobante obligatorio para egresos
-    if (!this.esIngreso && !this.fotoComprobante) {
+    if (!this.esIngreso && !this.fotoRawUrl) {
       return;
     }
 
@@ -248,7 +232,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
       categoriaId: this.form.value.categoriaId,
       monto: this.form.value.monto,
       descripcion: this.form.value.descripcion || '',
-      fotoComprobante: this.fotoComprobante
+      fotoComprobante: this.fotoRawUrl
     };
 
     this.modalCtrl.dismiss(result, 'confirm');

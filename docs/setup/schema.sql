@@ -5,15 +5,17 @@
 -- ⚠️  REESCRITURA COMPLETA: borra y recrea todas las tablas.
 -- ⚠️  Ejecutar SOLO en entorno de desarrollo. No hay datos en produccion.
 -- ⚠️  Para actualizar funciones PostgreSQL usar archivos en docs/*/sql/functions/
--- ⚠️  Orden de ejecucion posterior al schema:
---     1. docs/setup/02_rls.sql                                        (todas las RLS, fuente unica)
---     2. docs/setup/03_functions.sql                                  (fn_set_negocio_activo)
---     3. docs/onboarding/sql/functions/fn_completar_onboarding.sql
---     4. docs/onboarding/sql/functions/fn_configurar_modulos.sql
---     5. docs/admin/sql/functions/fn_configurar_modulos_admin.sql
---     6. docs/admin/sql/functions/fn_suspender_negocio.sql
---     7. docs/*/sql/functions/*.sql                                   (resto de funciones de modulos)
---     8. docs/*/sql/setup/realtime_*.sql
+-- ⚠️  Orden de ejecucion posterior al schema (ver 01_teardown.sql para lista completa):
+--     1. docs/setup/02_rls.sql
+--     2. docs/setup/03_functions.sql               (fn_set_negocio_activo, fn_registrar_usuario_negocio)
+--     3. docs/setup/fn_assert_no_superadmin.sql
+--     4. docs/auth/sql/setup/trigger_proteger_superadmin.sql
+--     5. docs/auth/sql/setup/trigger_proteger_propietario.sql
+--     6. docs/onboarding/sql/functions/fn_completar_onboarding.sql
+--     7. docs/onboarding/sql/functions/fn_configurar_modulos.sql
+--     8. docs/admin/sql/functions/fn_configurar_modulos_admin.sql
+--     9. docs/*/sql/functions/*.sql                (resto de funciones de modulos)
+--    10. docs/*/sql/setup/realtime_*.sql
 -- ==========================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -283,6 +285,7 @@ CREATE TABLE IF NOT EXISTS recargas (
     venta_dia              DECIMAL(12,2) NOT NULL CHECK (venta_dia >= 0),
     saldo_virtual_anterior DECIMAL(12,2) NOT NULL,
     saldo_virtual_actual   DECIMAL(12,2) NOT NULL,
+    saldo_caja             DECIMAL(12,2) NOT NULL DEFAULT 0,  -- saldo de CAJA_CELULAR o CAJA_BUS tras el cierre
     observaciones          TEXT,
     created_at             TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (turno_id, tipo_servicio_id)
@@ -290,20 +293,25 @@ CREATE TABLE IF NOT EXISTS recargas (
 
 -- 11. recargas_virtuales
 CREATE TABLE IF NOT EXISTS recargas_virtuales (
-    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    negocio_id        UUID    NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
-    fecha             DATE    NOT NULL,
-    tipo_servicio_id  INTEGER NOT NULL REFERENCES tipos_servicio(id),
-    empleado_id       UUID    NOT NULL REFERENCES usuarios(id),
-    monto_virtual     DECIMAL(12,2) NOT NULL CHECK (monto_virtual >= 0),
-    monto_a_pagar     DECIMAL(12,2) NOT NULL CHECK (monto_a_pagar >= 0),
-    ganancia          DECIMAL(12,2) NOT NULL DEFAULT 0,
-    pagado            BOOLEAN DEFAULT FALSE,
-    fecha_pago        DATE,
-    operacion_pago_id UUID,   -- FK a operaciones_cajas (definida despues con ALTER)
-    observaciones     TEXT,
-    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id                         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    negocio_id                 UUID    NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
+    fecha                      DATE    NOT NULL,
+    tipo_servicio_id           INTEGER NOT NULL REFERENCES tipos_servicio(id),
+    empleado_id                UUID    NOT NULL REFERENCES usuarios(id),
+    monto_virtual              DECIMAL(12,2) NOT NULL CHECK (monto_virtual >= 0),
+    monto_a_pagar              DECIMAL(12,2) NOT NULL CHECK (monto_a_pagar >= 0),
+    ganancia                   DECIMAL(12,2) NOT NULL DEFAULT 0,
+    pagado_proveedor           BOOLEAN NOT NULL DEFAULT FALSE,         -- CELULAR: se pago al proveedor / BUS: se compro saldo
+    fecha_pago_proveedor       DATE,
+    operacion_pago_id          UUID,                                   -- FK a operaciones_cajas (definida despues con ALTER)
+    ganancia_liquidada         BOOLEAN NOT NULL DEFAULT FALSE,         -- true = la ganancia ya se transfirio a otra caja (o se decidio dejarla)
+    fecha_liquidacion_ganancia DATE,
+    observaciones              TEXT,
+    created_at                 TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_recargas_virtuales_ganancia_pendiente
+    ON public.recargas_virtuales (negocio_id, tipo_servicio_id)
+    WHERE ganancia_liquidada = FALSE;
 
 -- 12. operaciones_cajas — ledger de auditoria de movimientos en cajas
 -- Inmutable: solo descripcion y comprobante_url son editables post-INSERT (ver trigger)
@@ -525,15 +533,15 @@ CREATE TABLE IF NOT EXISTS ventas (
     cliente_id       UUID REFERENCES clientes(id),
     empleado_id      UUID NOT NULL REFERENCES usuarios(id),
     fecha            TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    subtotal         DECIMAL(12,2) NOT NULL,
-    descuento        DECIMAL(12,2) DEFAULT 0,
-    descuento_pct    SMALLINT DEFAULT 0,
-    total            DECIMAL(12,2) NOT NULL,
+    subtotal         DECIMAL(12,2) NOT NULL CHECK (subtotal >= 0),
+    descuento        DECIMAL(12,2) DEFAULT 0 CHECK (descuento >= 0),
+    descuento_pct    SMALLINT DEFAULT 0 CHECK (descuento_pct >= 0 AND descuento_pct <= 100),
+    total            DECIMAL(12,2) NOT NULL CHECK (total >= 0),
     metodo_pago      VARCHAR(20) DEFAULT 'EFECTIVO'
                          CHECK (metodo_pago IN ('EFECTIVO', 'DEUNA', 'TRANSFERENCIA', 'FIADO')),
-    base_iva_0       DECIMAL(12,2) DEFAULT 0,
-    base_iva_15      DECIMAL(12,2) DEFAULT 0,
-    iva_valor        DECIMAL(12,2) DEFAULT 0,
+    base_iva_0       DECIMAL(12,2) DEFAULT 0 CHECK (base_iva_0 >= 0),
+    base_iva_15      DECIMAL(12,2) DEFAULT 0 CHECK (base_iva_15 >= 0),
+    iva_valor        DECIMAL(12,2) DEFAULT 0 CHECK (iva_valor >= 0),
     tipo_comprobante     tipo_comprobante_enum DEFAULT 'TICKET',
     numero_comprobante   INTEGER,
     secuencial_sri       VARCHAR(17),
@@ -551,10 +559,10 @@ CREATE TABLE IF NOT EXISTS ventas_detalles (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     venta_id        UUID NOT NULL REFERENCES ventas(id) ON DELETE CASCADE,
     producto_id     UUID NOT NULL REFERENCES productos(id),
-    cantidad        DECIMAL(12,2) NOT NULL,
-    precio_unitario DECIMAL(12,2) NOT NULL,
-    precio_costo    DECIMAL(12,2) NOT NULL DEFAULT 0,
-    subtotal        DECIMAL(12,2) NOT NULL,
+    cantidad        DECIMAL(12,2) NOT NULL CHECK (cantidad > 0),
+    precio_unitario DECIMAL(12,2) NOT NULL CHECK (precio_unitario >= 0),
+    precio_costo    DECIMAL(12,2) NOT NULL DEFAULT 0 CHECK (precio_costo >= 0),
+    subtotal        DECIMAL(12,2) NOT NULL CHECK (subtotal >= 0),
     presentacion_id UUID REFERENCES producto_presentaciones(id)
 );
 
@@ -662,7 +670,7 @@ CREATE INDEX IF NOT EXISTS idx_recargas_negocio_fecha           ON recargas(nego
 CREATE INDEX IF NOT EXISTS idx_recargas_negocio_turno           ON recargas(negocio_id, turno_id);
 CREATE INDEX IF NOT EXISTS idx_recargas_negocio_tipo_servicio   ON recargas(negocio_id, tipo_servicio_id);
 CREATE INDEX IF NOT EXISTS idx_recargas_negocio_empleado        ON recargas(negocio_id, empleado_id);
-CREATE INDEX IF NOT EXISTS idx_recargas_virt_negocio_pagado     ON recargas_virtuales(negocio_id, pagado);
+CREATE INDEX IF NOT EXISTS idx_recargas_virt_negocio_pagado     ON recargas_virtuales(negocio_id, pagado_proveedor);
 CREATE INDEX IF NOT EXISTS idx_recargas_virt_negocio_servicio   ON recargas_virtuales(negocio_id, tipo_servicio_id);
 CREATE INDEX IF NOT EXISTS idx_operaciones_negocio_fecha        ON operaciones_cajas(negocio_id, fecha DESC);
 CREATE INDEX IF NOT EXISTS idx_operaciones_negocio_caja         ON operaciones_cajas(negocio_id, caja_id);
@@ -1345,7 +1353,8 @@ BEGIN
     END IF;
 
     RAISE NOTICE '=== SEED DEV COMPLETADO ===';
-    RAISE NOTICE 'Email: %  |  Password: % (solo si fue creado ahora)', v_superadmin_email, v_superadmin_pass;
+    RAISE NOTICE 'Superadmin email: %', v_superadmin_email;
+    RAISE NOTICE 'Password: (no se imprime por seguridad — ver schema.sql si es la primera ejecucion)';
 END $$;
 
 NOTIFY pgrst, 'reload schema';
@@ -1356,7 +1365,7 @@ NOTIFY pgrst, 'reload schema';
 -- INVENTARIO FINAL:
 -- ✅ 29 Tablas (21 Grupo A + 4 Grupo B + 2 Grupo C + 1 Grupo D + 1 negocios)
 -- ✅ 4 Enums
--- ✅ 5 Helpers JWT en schema auth
+-- ✅ 4 Helpers JWT + comparten_negocio (todos en schema public)
 -- ✅ 12 Triggers / funciones de trigger (incluye fn_proteger_superadmin)
 -- ✅ 2 Vistas con security_barrier
 -- ✅ ~55 Indices (simples + compuestos por tenant + parciales)
@@ -1365,24 +1374,21 @@ NOTIFY pgrst, 'reload schema';
 -- ✅ Realtime: usuarios, configuraciones, turnos_caja
 -- ✅ Seed dev: superadmin (⚠️  comentar en produccion)
 --
--- ORDEN DE EJECUCION (2 pasos):
---   1. schema.sql    — tablas + triggers + funciones setup + realtime + seed dev
---   2. 01_rls.sql    — Row Level Security (separado: depende de permisos Supabase)
---   3. 03_functions.sql — todas las RPCs de modulos (separado: ~5000 lineas)
---
--- FUNCIONES RPC por modulo (en 03_functions.sql, fuente de verdad en docs/*/sql/functions/):
---   Dashboard:   fn_abrir_turno, fn_registrar_operacion_manual, fn_crear_transferencia,
---                fn_verificar_transferencia_caja_chica_hoy, fn_ejecutar_cierre_diario,
---                fn_reparar_deficit_turno, fn_cierre_emergencia_turno
+-- ORDEN DE EJECUCION — ver 01_teardown.sql para la lista completa y ordenada.
+-- FUNCIONES RPC — cada modulo tiene su archivo en docs/*/sql/functions/ (fuente de verdad).
+--   Caja:        fn_abrir_turno, fn_ejecutar_cierre_diario_v5, fn_registrar_operacion_manual,
+--                fn_crear_transferencia, fn_verificar_transferencia_caja_chica_hoy, fn_reparar_deficit_turno
 --   Inventario:  fn_generar_codigo_interno, fn_generar_codigo_interno_presentacion,
---                fn_crear_producto_simple, fn_crear_producto_con_variantes, fn_ajustar_stock_inventario
+--                fn_crear_producto_simple, fn_crear_producto_con_variantes, fn_ajustar_stock_inventario, fn_listar_productos
 --   POS:         fn_registrar_venta_pos, fn_anular_venta
 --   Recargas:    fn_registrar_recarga_proveedor_celular, fn_registrar_pago_proveedor_celular,
---                fn_registrar_compra_saldo_bus, fn_liquidar_ganancias_bus
---   Cuentas:     fn_registrar_pago_fiado, fn_listar_cuentas_cobrar, fn_resumir_cuentas_cobrar
---   Ventas:      fn_listar_ventas, fn_reporte_ventas_periodo
+--                fn_registrar_compra_saldo_bus, fn_liquidar_ganancias, fn_liquidar_ganancias_bus
+--   Clientes:    fn_registrar_pago_fiado, fn_listar_cuentas_cobrar, fn_resumir_cuentas_cobrar, fn_listar_clientes_con_saldo
+--   Ventas:      fn_listar_ventas, fn_reporte_ventas_periodo, fn_resumir_ventas
 --   Empleados:   fn_registrar_adelanto_sueldo, fn_pagar_nomina_empleado
---   Notas:       (sin funciones — DELETE directo con RLS, notas_delete restringe a ADMIN)
+--   Usuarios:    fn_actualizar_membresia, fn_transferir_empleado, fn_get_usuarios_asignables
+--   Admin:       fn_consultar_usuario_por_email, fn_suspender_usuario, fn_suspender_negocio
+--   Notas:       fn_eliminar_nota
 -- ==========================================
 
 -- ==========================================

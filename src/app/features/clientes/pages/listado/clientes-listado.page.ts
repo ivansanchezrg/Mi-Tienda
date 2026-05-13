@@ -49,7 +49,7 @@ export class ClientesListadoPage extends PaginatedListPage<ClienteConSaldo> impl
 
     private cuentasService = inject(CuentasCobrarService);
     private authService = inject(AuthService);
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
     private navCtrl = inject(NavController);
 

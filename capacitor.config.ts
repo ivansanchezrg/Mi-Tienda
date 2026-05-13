@@ -14,11 +14,6 @@ const config: CapacitorConfig = {
       style: 'dark',
       resizeOnFullScreen: true
     },
-    CapacitorSQLite: {
-      iosDatabaseLocation: 'Library/CapacitorDatabase',
-      iosIsEncryption: false,
-      androidIsEncryption: false
-    },
     SplashScreen: {
       launchAutoHide: false,
       backgroundColor: '#0052CC'

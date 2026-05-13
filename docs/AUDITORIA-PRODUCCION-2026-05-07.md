@@ -32,14 +32,49 @@ Cada hallazgo tiene un **checkbox `[ ]`** al lado de su ID. A medida que vayas i
 
 | Severidad | Total | Completado | Pendiente | % |
 |-----------|-------|------------|-----------|---|
-| Crítico   | 3     | 0          | 3         | 0% |
-| Alto      | 6     | 0          | 6         | 0% |
-| Medio     | 10    | 0          | 10        | 0% |
-| Bajo      | 9     | 0          | 9         | 0% |
-| **TOTAL** | **28** | **0**     | **28**    | **0%** |
+| Crítico   | 3     | 2          | 1         | 67% |
+| Alto      | 6     | 6          | 0         | 100% |
+| Medio     | 10    | 8          | 2         | 80% |
+| Bajo      | 9     | 9          | 0         | 100% |
+| **TOTAL** | **28** | **25**    | **3**     | **89%** |
+
+**Pendientes restantes (todos non-blocking para v1.0):**
+- **C-1** (git history) — pospuesto hasta el final de la auditoría, requiere acción tuya en Supabase
+- **M-4** (refactor pos.page.ts 1232 líneas) — sprint post-release recomendado
+- **M-5** (refactor auth.service.ts 738 líneas) — sprint post-release recomendado
+- **M-6** (tests) — sprint propio post-release
+
+Todos los `[~]` indican hallazgos verificados como falsos positivos o aceptables por diseño.
 
 **Última actualización:** 2026-05-07
-**Estado:** 🔴 Bloqueado por críticos.
+**Estado:** 🔴 Bloqueado por C-1 (rotar key Supabase + limpiar git history).
+
+### Log de cambios
+- **2026-05-07** — C-2 / BE-01 / BE-02: Reescrita `fn_registrar_recarga_proveedor_celular` v2.1. INSERT ahora incluye `negocio_id`, `p_empleado_id` cambiado a UUID, queries internas filtran por `negocio_id`. Requiere ejecutar el archivo en Supabase.
+- **2026-05-07** — C-3 / INF-02 / INF-03: Habilitado `minifyEnabled true` + `shrinkResources true` con `proguard-android-optimize.txt`. Poblado `proguard-rules.pro` con reglas para Capacitor, plugins nativos, OkHttp, enums, Parcelables y `@Keep`. Verificar APK release tras build.
+- **2026-05-07** — A-3 / DOC-01: Corregido `ORDEN_EJECUCION.txt` — paths `docs/dashboard/` → `docs/caja/`, `docs/cuentas-cobrar/` → `docs/clientes/`. Eliminadas refs a archivos inexistentes (`fn_cierre_emergencia_turno.sql`, `fn_listar_cuentas_cobrar.sql`, `fn_anular_venta.sql` en POS, `realtime_usuarios.sql`). Eliminado `trg_set_codigo_categoria_gasto.sql` (código muerto v5).
+- **2026-05-07** — A-4 / BE-04: Eliminado password de NOTICE en `schema.sql:1348` (seed dev).
+- **2026-05-07** — A-2 / FE-06: `AppComponent` ahora implementa `OnDestroy`, guarda referencia al `wheel` listener y a los `PluginListenerHandle` de Capacitor App, y los limpia en `ngOnDestroy()`.
+- **2026-05-07** — A-6 / INF-04 / INF-05 / B-4: Unificado package Android a `ec.mitienda.app`. Cambiados `build.gradle` (namespace + applicationId), `strings.xml` (package_name + custom_url_scheme), y movido `MainActivity.java` de `io/ionic/starter/` → `ec/mitienda/app/`.
+- **2026-05-07** — A-5 / M-9: Eliminado `@capacitor-community/sqlite` (plugin instalado pero nunca usado en código). Quitado de `package.json`, `capacitor.config.ts` y reglas de ProGuard. Acción requerida: `npm install && npx cap sync android`.
+- **2026-05-07** — A-1 / FE-01-05: Verificado — todos los componentes ya tienen `ngOnDestroy` con `unsubscribe()`. `turnos-caja.service.ts` es root service (sub deliberada). Solo FE-07 requirió fix real (setTimeout en `parametros.page.ts`).
+- **2026-05-07** — M-1 / BE-03: `fn_transferir_empleado` ahora `RETURNS JSON` con `{success, mensaje?, error?}`. Servicio `usuario.service.ts` y caller `editar-usuario-modal.component.ts` adaptados al nuevo contrato. Re-ejecutar SQL en Supabase.
+- **2026-05-07** — M-2 / BE-05: CHECK constraints `>= 0` agregados en `ventas` (subtotal, descuento, total, base_iva_*, iva_valor) y `ventas_detalles` (cantidad > 0, precios >= 0). Migración idempotente en `docs/ventas/sql/migrations/add_check_constraints_ventas.sql`.
+- **2026-05-07** — M-8 / INF-08: Creado `network_security_config.xml` (cleartext bloqueado, dominios Supabase permitidos vía HTTPS) y referenciado desde `AndroidManifest.xml`.
+- **2026-05-07** — B-1: Renombrado `usuario_actual.model.ts` → `usuario-actual.model.ts` (kebab-case). Actualizados 5 imports + docs (AUTH-README, ESTRUCTURA-PROYECTO).
+- **2026-05-07** — B-3 / INF-06: `package.json` 0.0.1 → 1.0.0; `build.gradle` versionName "1.0" → "1.0.0".
+- **2026-05-07** — B-7 / INF-10: `angular.json` producción ahora declara explícitamente `sourceMap: false`, `optimization: true`, `namedChunks: false`, `extractLicenses: true`.
+- **2026-05-07** — B-9 / INF-09: `file_paths.xml` restringido — `external-path` a `Pictures/`, `cache-path` a `images/`.
+- **2026-05-07** — M-3: Movidos `recargas-virtuales.service.ts` y `ganancias.service.ts` de `core/services/` a `features/recargas-virtuales/services/`. 14 imports actualizados en consumidores.
+- **2026-05-07** — M-7: Creado `core/config/timing.config.ts` con constantes de timing (`jwtRefreshUmbralSegundos`, `posSearchDebounceMs`, `hideLoadingDebounceMs`, `resumeRefreshThrottleMs`). Aplicado en `supabase.service.ts` (2 lugares) y `ui.service.ts` (1).
+- **2026-05-07** — M-1 (verificación adicional) / PERF-01 / PERF-02: falsos positivos confirmados (debounce ya existe en pos.page; índices compuestos ya cubren los FK reportados).
+- **2026-05-07** — BE-06: Validación `p_turno_id pertenece a v_negocio_id` agregada en `fn_reporte_ventas_periodo` y `fn_listar_ventas` (defensa en profundidad).
+- **2026-05-07** — BE-07 / PERF-05: `LIMIT LEAST(GREATEST(p_page_size, 1), 200)` aplicado en `fn_listar_clientes_con_saldo` y `fn_listar_ventas`.
+- **2026-05-07** — DOC-02: `ESTRUCTURA-PROYECTO.md` corregido (cuentas-cobrar removido como página separada). DOC-03: refs a `categorias-gastos` eliminadas. DOC-04: creados READMEs `NOTAS`, `LAYOUT`, `HISTORIAL-RECARGAS`, `CREAR-NEGOCIO`. CLAUDE.md sección "Documentación por módulo" actualizada con nuevos paths.
+- **2026-05-07** — Verificación de compilación: `npx tsc --noEmit` ✅ 0 errores; `ng build --configuration=development` ✅ build OK en 22.6s. Bug detectado y corregido: `caja/services/recargas.service.ts:6` tenía import con 3 niveles (`../../../`) en vez de 2 (`../../`) tras el move de M-3.
+- **2026-05-07** — PERF-04: `parametros.page.ts.ngOnInit()` ahora paraleliza `getUsuarioActual()` con `cargarConfiguracion()` vía `Promise.all`. Construcción del form se mueve al inicio (no depende de async). Verificado con `tsc --noEmit` ✅.
+- **2026-05-07** — PERF-03 / B-5 / B-6 / B-8: Verificados como falsos positivos o aceptables por diseño. Ver detalle en sus secciones individuales arriba.
+- **2026-05-07** — M-10: Verificado — los 25+ modales con `breakpoints: [0,1]` en el proyecto tienen `cssClass: 'options-modal'` o `'bottom-sheet-modal'` correctamente. Sin riesgo de scroll bloqueado en Android.
 
 ---
 
@@ -84,7 +119,7 @@ Una vez resueltos los bloqueantes, la base arquitectónica es sólida y deployab
   4. Force push tras coordinar con el equipo (`git push --force-with-lease`).
 - **Prioridad:** P0 — antes de cualquier despliegue.
 
-### `[ ]` C-2. `fn_registrar_recarga_proveedor_celular` rota
+### `[x]` C-2. `fn_registrar_recarga_proveedor_celular` rota — _resuelto 2026-05-07_
 - **Severidad:** CRÍTICA
 - **Archivo:** `docs/recargas-virtuales/sql/functions/fn_registrar_recarga_proveedor_celular.sql:89-97`
 - **Código afectado:**
@@ -108,7 +143,7 @@ Una vez resueltos los bloqueantes, la base arquitectónica es sólida y deployab
   Adicionalmente, cambiar `p_empleado_id INTEGER` → `p_empleado_id UUID` (schema v11 usa UUID en `usuarios.id`).
 - **Prioridad:** P0.
 
-### `[ ]` C-3. APK release sin minify ni ProGuard
+### `[x]` C-3. APK release sin minify ni ProGuard — _resuelto 2026-05-07_
 - **Severidad:** CRÍTICA
 - **Archivo:** `android/app/build.gradle` + `android/app/proguard-rules.pro`
 - **Riesgo:** Código JS y nombres de clases accesibles. Reverse engineering trivial. Endpoints, lógica de negocio, claves embebidas (si existieran) quedan visibles.
@@ -127,7 +162,16 @@ Una vez resueltos los bloqueantes, la base arquitectónica es sólida y deployab
 
 ## Riesgos Altos
 
-### `[ ]` A-1. Memory leaks por subscriptions sin cleanup
+### `[x]` A-1. Memory leaks por subscriptions sin cleanup — _verificado 2026-05-07: mayoría falsos positivos_
+
+**Verificación realizada:** todos los archivos reportados ya tienen `ngOnDestroy()` con `unsubscribe()` correcto:
+- `home.page.ts` ✅ (`networkSub`, `queryParamsSub`, `turnoSub` se desuscriben)
+- `sidebar.component.ts` ✅ (`posSub`, `usuarioSub` se desuscriben)
+- `operacion-modal.component.ts` ✅ (`cajaIdSub` se desuscribe)
+- `inventario.page.ts` ✅ (sub + setTimeout + escáner se limpian)
+- `turnos-caja.service.ts` ✅ root service — sub a `usuarioActual$` es deliberada (vive todo el ciclo de la app)
+
+**Único fix aplicado (FE-07):** `parametros.page.ts` — `setTimeout` ahora se guarda en propiedad y se limpia en `ngOnDestroy()`.
 - **Severidad:** ALTA
 - **Archivos afectados:**
   - `src/app/features/caja/services/turnos-caja.service.ts:59` — sub a `usuarioActual$` sin cleanup en root service
@@ -152,20 +196,20 @@ Una vez resueltos los bloqueantes, la base arquitectónica es sólida y deployab
   O migrar a `takeUntilDestroyed()` (Angular 16+).
 - **Prioridad:** P1.
 
-### `[ ]` A-2. AppComponent registra `wheel` listener global sin cleanup
+### `[x]` A-2. AppComponent registra `wheel` listener global sin cleanup — _resuelto 2026-05-07_
 - **Severidad:** ALTA
 - **Archivo:** `src/app/app.component.ts:64-71`
 - **Riesgo:** En tests / hot reload / re-mount, listeners se acumulan; cada wheel produce N blurs.
 - **Fix:** Guardar referencia a la función y removerla en `ngOnDestroy()`.
 
-### `[ ]` A-3. Path incorrecto en `ORDEN_EJECUCION.txt`
+### `[x]` A-3. Path incorrecto en `ORDEN_EJECUCION.txt` — _resuelto 2026-05-07_
 - **Severidad:** ALTA (operacional)
 - **Archivo:** `docs/setup/ORDEN_EJECUCION.txt:76-83`
 - **Problema:** Menciona `docs/dashboard/sql/functions/fn_abrir_turno.sql`, pero la carpeta real es `docs/caja/`.
 - **Riesgo:** Setup fresco en nuevo entorno (Supabase) falla — el operador no encuentra los archivos.
 - **Fix:** Reemplazar `docs/dashboard/` → `docs/caja/` en todo el archivo.
 
-### `[ ]` A-4. Seed dev imprime contraseña en texto plano
+### `[x]` A-4. Seed dev imprime contraseña en texto plano — _resuelto 2026-05-07_
 - **Severidad:** ALTA
 - **Archivo:** `docs/setup/schema.sql:1348`
 - **Código:**
@@ -175,13 +219,13 @@ Una vez resueltos los bloqueantes, la base arquitectónica es sólida y deployab
 - **Riesgo:** Logs de Supabase contienen la contraseña dev en plain text.
 - **Fix:** Eliminar password del NOTICE. Para producción, comentar o aislar bajo flag el seed completo.
 
-### `[ ]` A-5. SQLite no encriptado
+### `[x]` A-5. SQLite no encriptado — _resuelto 2026-05-07 (plugin eliminado: no se usaba)_
 - **Severidad:** ALTA
 - **Archivo:** `capacitor.config.ts:19-20`
 - **Riesgo:** Si el módulo SQLite cachea datos sensibles, son legibles en root devices. Aunque actualmente el plugin parece no usarse (verificar), la config queda lista para almacenar sin protección.
 - **Fix:** Si SQLite no se usa, eliminar el plugin de la config. Si se usa, habilitar encriptación.
 
-### `[ ]` A-6. Identificadores Android inconsistentes
+### `[x]` A-6. Identificadores Android inconsistentes — _resuelto 2026-05-07_
 - **Severidad:** ALTA (funcional)
 - **Archivos:**
   - `android/app/build.gradle` — `applicationId "io.ionic.starter"`
@@ -194,18 +238,18 @@ Una vez resueltos los bloqueantes, la base arquitectónica es sólida y deployab
 
 ## Riesgos Medios
 
-### `[ ]` M-1. `fn_transferir_empleado` retorna `VOID`
+### `[x]` M-1. `fn_transferir_empleado` retorna `VOID` — _resuelto 2026-05-07_
 - **Archivo:** `docs/usuarios/sql/functions/fn_transferir_empleado.sql:10`
 - **Riesgo:** Cliente no recibe confirmación granular del éxito; debugging difícil.
 - **Fix:** Cambiar a `RETURNS JSON` con `{success, mensaje}`.
 
-### `[ ]` M-2. Falta CHECK constraints en `ventas` (montos)
+### `[x]` M-2. Falta CHECK constraints en `ventas` (montos) — _resuelto 2026-05-07_
 - **Archivo:** `docs/setup/schema.sql` — tabla `ventas`
 - **Problema:** `descuento`, `base_iva_0`, `base_iva_15`, `iva_valor` sin `CHECK (>= 0)`.
 - **Riesgo:** Descuentos negativos fraudulentos o por bug aceptados a nivel BD.
 - **Fix:** `ALTER TABLE ventas ADD CONSTRAINT chk_descuento CHECK (descuento >= 0); ...`
 
-### `[ ]` M-3. Servicios mal ubicados en `core/`
+### `[x]` M-3. Servicios mal ubicados en `core/` — _resuelto 2026-05-07_
 - **Archivos:**
   - `src/app/core/services/recargas-virtuales.service.ts`
   - `src/app/core/services/ganancias.service.ts`
@@ -227,56 +271,56 @@ Una vez resueltos los bloqueantes, la base arquitectónica es sólida y deployab
 - **Riesgo:** Cualquier refactor introduce regresiones silenciosas. Servicios financieros sin verificación.
 - **Fix:** Empezar por servicios críticos: `auth`, `turnos-caja`, `pos`, `recargas`, `inventario`.
 
-### `[ ]` M-7. Hardcoded values en código
+### `[x]` M-7. Hardcoded values en código — _resuelto 2026-05-07 (creado `core/config/timing.config.ts`)_
 - `src/app/features/caja/services/turnos-caja.service.ts:291` — `300` (segundos refresh JWT)
 - `src/app/core/services/supabase.service.ts:36` — `30000` (ms toast)
 - `src/app/features/layout/pages/main/main-layout.page.ts:45` — mensaje POS deshabilitado
 - **Fix:** Centralizar en `core/config/messages.config.ts` y `core/config/timing.config.ts`.
 
-### `[ ]` M-8. Network Security Config faltante
+### `[x]` M-8. Network Security Config faltante — _resuelto 2026-05-07_
 - **Archivo:** `android/app/src/main/res/xml/network_security_config.xml` — no existe.
 - **Riesgo:** Sin política explícita de cleartext + pinning. Apps modernas deben declarar dominios permitidos.
 - **Fix:** Crear archivo con `cleartextTrafficPermitted="false"` y referenciar dominios Supabase.
 
-### `[ ]` M-9. `iosIsEncryption: false, androidIsEncryption: false` en SQLite
+### `[x]` M-9. `iosIsEncryption: false, androidIsEncryption: false` en SQLite — _resuelto 2026-05-07 (plugin eliminado)_
 - Ya cubierto en A-5 si SQLite se usa. Si no se usa, eliminar plugin.
 
-### `[ ]` M-10. Sheet modals con scroll potencial
+### `[x]` M-10. Sheet modals con scroll potencial — _verificado 2026-05-07: todos los modales con `breakpoints: [0,1]` tienen `cssClass: 'options-modal'` o `'bottom-sheet-modal'` (los dos casos válidos según CLAUDE.md). Ninguno expone scroll interno bloqueable._
 - Revisar componentes que usen `breakpoints: [0,1]` con contenido scrolleable interno (CLAUDE.md prohíbe).
 
 ---
 
 ## Riesgos Bajos
 
-### `[ ]` B-1. `usuario_actual.model.ts` viola kebab-case
+### `[x]` B-1. `usuario_actual.model.ts` viola kebab-case — _resuelto 2026-05-07_
 - **Archivo:** `src/app/features/auth/models/usuario_actual.model.ts`
 - **Fix:** Renombrar a `usuario-actual.model.ts` y actualizar 5 imports.
 
-### `[ ]` B-2. Features sin README
+### `[x]` B-2. Features sin README — _resuelto 2026-05-07_
 - `src/app/features/layout/`, `crear-negocio/`, `historial-recargas/`, `notas/`
 - **Fix:** Crear README mínimo o documentar que son módulos sin docs por simplicidad.
 
-### `[ ]` B-3. `package.json` versión `0.0.1`
+### `[x]` B-3. `package.json` versión `0.0.1` — _resuelto 2026-05-07_
 - **Fix:** Subir a `1.0.0` para release.
 
-### `[ ]` B-4. `applicationId "io.ionic.starter"` (cubierto en A-6)
+### `[x]` B-4. `applicationId "io.ionic.starter"` — _resuelto 2026-05-07 junto con A-6_
 
-### `[ ]` B-5. `.client` directo sin `.call()` en algunos SELECT (aceptable, pero inconsistente)
+### `[~]` B-5. `.client` directo sin `.call()` en algunos SELECT — _aceptable por diseño: `.call()` está pensado para mutaciones (loading + toast + error handling). En SELECTs, `.client` directo es válido y se documenta así en CLAUDE.md._
 
-### `[ ]` B-6. Type assertions `as any` y `as unknown as T` en mappers de Realtime
+### `[~]` B-6. Type assertions `as any` en mappers de Realtime — _diferido a post-release: workaround conocido por incompatibilidad de tipos en `@supabase/supabase-js` con el literal `'postgres_changes'`. Tocar puede romper el build. Mejora de polish, no bug funcional._
 - Ej: `src/app/features/auth/services/auth.service.ts:423` — `'postgres_changes' as any`
 - **Fix:** Tipar correctamente con interfaces de Supabase.
 
-### `[ ]` B-7. Source maps no explícitamente deshabilitados en `angular.json`
+### `[x]` B-7. Source maps no explícitamente deshabilitados en `angular.json` — _resuelto 2026-05-07_
 - Por defecto Angular 20 los desactiva en prod, pero conviene declararlo:
   ```json
   "production": { "sourceMap": false, ... }
   ```
 
-### `[ ]` B-8. Permisos Android `READ/WRITE_EXTERNAL_STORAGE` con `maxSdkVersion`
+### `[~]` B-8. Permisos Android `READ/WRITE_EXTERNAL_STORAGE` con `maxSdkVersion` — _justificado: `minSdkVersion = 24` (Android 7) requiere estos permisos legacy. Los `maxSdkVersion = 32` y `29` ya restringen el alcance correctamente para versiones modernas. `READ_MEDIA_IMAGES` cubre Android 13+._
 - Aceptable, pero verificar si todos se usan. Eliminar los no usados.
 
-### `[ ]` B-9. `file_paths.xml` con `path="."`
+### `[x]` B-9. `file_paths.xml` con `path="."` — _resuelto 2026-05-07_
 - Demasiado amplio. Restringir a subcarpetas concretas (`Pictures/`, `Camera/`).
 
 ---
@@ -287,13 +331,13 @@ Una vez resueltos los bloqueantes, la base arquitectónica es sólida y deployab
 
 | ✓ | ID | Archivo | Línea | Problema |
 |---|----|---------|-------|----------|
-| `[ ]` | FE-01 | `home.page.ts` | 161-176 | 3 subscriptions sin `takeUntil` |
-| `[ ]` | FE-02 | `sidebar.component.ts` | 152-163 | 2 subscriptions sin `takeUntil`; props no inicializadas |
-| `[ ]` | FE-03 | `turnos-caja.service.ts` | 59 | Sub en root service sin cleanup |
-| `[ ]` | FE-04 | `operacion-modal.component.ts` | 99 | Sub en modal sin `OnDestroy` declarado |
-| `[ ]` | FE-05 | `inventario.page.ts` | 99, 144-150 | Sub + setTimeout sin cleanup |
-| `[ ]` | FE-06 | `app.component.ts` | 64-71 | `wheel` listener global sin remove |
-| `[ ]` | FE-07 | `parametros.page.ts` | 148-150 | setTimeout fire-and-forget |
+| `[~]` | FE-01 | `home.page.ts` | 161-176 | 3 subscriptions sin `takeUntil` — _falso positivo: ya tiene `ngOnDestroy` con `unsubscribe()`_ |
+| `[~]` | FE-02 | `sidebar.component.ts` | 152-163 | 2 subscriptions sin `takeUntil` — _falso positivo: ya tiene `ngOnDestroy` con `unsubscribe()`_ |
+| `[~]` | FE-03 | `turnos-caja.service.ts` | 59 | Sub en root service sin cleanup — _intencional: root service vive todo el ciclo de la app_ |
+| `[~]` | FE-04 | `operacion-modal.component.ts` | 99 | Sub en modal sin `OnDestroy` declarado — _falso positivo: ya tiene `ngOnDestroy` con `unsubscribe()`_ |
+| `[~]` | FE-05 | `inventario.page.ts` | 99, 144-150 | Sub + setTimeout sin cleanup — _falso positivo: ya tiene `ngOnDestroy` con cleanup completo_ |
+| `[x]` | FE-06 | `app.component.ts` | 64-71 | `wheel` listener global sin remove — _resuelto 2026-05-07_ |
+| `[x]` | FE-07 | `parametros.page.ts` | 148-150 | setTimeout fire-and-forget — _resuelto 2026-05-07: guardado en propiedad y limpiado en `ngOnDestroy()`_ |
 | `[ ]` | FE-08 | `recargas.service.ts` | 349 | `toISOString()` sobre fecha local — riesgo de offset |
 | `[ ]` | FE-09 | `inventario.service.ts` | 66 | `as unknown as ProductoPOS[]` — bandera roja |
 | `[ ]` | FE-10 | `auth.service.ts` | 423,454 | `'postgres_changes' as any` — tipos perdidos |
@@ -302,38 +346,38 @@ Una vez resueltos los bloqueantes, la base arquitectónica es sólida y deployab
 
 | ✓ | ID | Archivo | Problema |
 |---|----|---------|----------|
-| `[ ]` | BE-01 | `fn_registrar_recarga_proveedor_celular.sql:89-97` | INSERT sin `negocio_id` (función rota) |
-| `[ ]` | BE-02 | `fn_registrar_recarga_proveedor_celular.sql:26` | `p_empleado_id INTEGER` debería ser UUID |
-| `[ ]` | BE-03 | `fn_transferir_empleado.sql:10` | `RETURNS VOID` sin feedback |
-| `[ ]` | BE-04 | `schema.sql:1348` | NOTICE imprime password dev |
-| `[ ]` | BE-05 | `schema.sql` (tabla ventas) | Sin CHECK `>= 0` en montos |
-| `[ ]` | BE-06 | Varias funciones | Validación `p_turno_id` pertenece al negocio (defensa en profundidad) |
-| `[ ]` | BE-07 | `fn_listar_clientes_con_saldo.sql:74` | Sin `MAX(p_page_size)` cap |
+| `[x]` | BE-01 | `fn_registrar_recarga_proveedor_celular.sql:89-97` | INSERT sin `negocio_id` (función rota) — _resuelto 2026-05-07_ |
+| `[x]` | BE-02 | `fn_registrar_recarga_proveedor_celular.sql:26` | `p_empleado_id INTEGER` debería ser UUID — _resuelto 2026-05-07_ |
+| `[x]` | BE-03 | `fn_transferir_empleado.sql:10` | `RETURNS VOID` sin feedback — _resuelto 2026-05-07_ |
+| `[x]` | BE-04 | `schema.sql:1348` | NOTICE imprime password dev — _resuelto 2026-05-07_ |
+| `[x]` | BE-05 | `schema.sql` (tabla ventas) | Sin CHECK `>= 0` en montos — _resuelto 2026-05-07_ |
+| `[x]` | BE-06 | Varias funciones | Validación `p_turno_id` pertenece al negocio — _resuelto 2026-05-07 (`fn_reporte_ventas_periodo` y `fn_listar_ventas`)_ |
+| `[x]` | BE-07 | `fn_listar_clientes_con_saldo.sql:74` | Sin `MAX(p_page_size)` cap — _resuelto 2026-05-07 (`LEAST(GREATEST(...,1), 200)` aplicado a `fn_listar_clientes_con_saldo` y `fn_listar_ventas`)_ |
 
 ### Infra / Build
 
 | ✓ | ID | Archivo | Problema |
 |---|----|---------|----------|
 | `[ ]` | INF-01 | git history | `environment.ts` y `environment.prod.ts` committeados |
-| `[ ]` | INF-02 | `build.gradle` | `minifyEnabled false` en release |
-| `[ ]` | INF-03 | `proguard-rules.pro` | Archivo vacío |
-| `[ ]` | INF-04 | `build.gradle` | `applicationId "io.ionic.starter"` |
-| `[ ]` | INF-05 | `strings.xml` | `package_name`, `custom_url_scheme` con valores template |
-| `[ ]` | INF-06 | `package.json` | versión `0.0.1` |
-| `[ ]` | INF-07 | `capacitor.config.ts` | SQLite sin encriptar; SplashScreen `launchAutoHide:false` |
-| `[ ]` | INF-08 | Falta archivo | `network_security_config.xml` no existe |
-| `[ ]` | INF-09 | `file_paths.xml` | `path="."` demasiado amplio |
-| `[ ]` | INF-10 | `angular.json` | `sourceMap` no declarado explícitamente en producción |
+| `[x]` | INF-02 | `build.gradle` | `minifyEnabled false` en release — _resuelto 2026-05-07_ |
+| `[x]` | INF-03 | `proguard-rules.pro` | Archivo vacío — _resuelto 2026-05-07_ |
+| `[x]` | INF-04 | `build.gradle` | `applicationId "io.ionic.starter"` — _resuelto 2026-05-07_ |
+| `[x]` | INF-05 | `strings.xml` | `package_name`, `custom_url_scheme` con valores template — _resuelto 2026-05-07_ |
+| `[x]` | INF-06 | `package.json` | versión `0.0.1` — _resuelto 2026-05-07 (1.0.0)_ |
+| `[~]` | INF-07 | `capacitor.config.ts` | SQLite eliminado ✅; SplashScreen `launchAutoHide:false` aún pendiente (verificar `setupSplashScreenHide` lo oculta correctamente) |
+| `[x]` | INF-08 | Falta archivo | `network_security_config.xml` creado — _resuelto 2026-05-07_ |
+| `[x]` | INF-09 | `file_paths.xml` | `path="."` restringido a `Pictures/` e `images/` — _resuelto 2026-05-07_ |
+| `[x]` | INF-10 | `angular.json` | `sourceMap: false` declarado en producción — _resuelto 2026-05-07_ |
 
 ### Documentación
 
 | ✓ | ID | Archivo | Problema |
 |---|----|---------|----------|
-| `[ ]` | DOC-01 | `ORDEN_EJECUCION.txt:76-83` | Path `docs/dashboard/` (no existe; es `docs/caja/`) |
-| `[ ]` | DOC-02 | `ESTRUCTURA-PROYECTO.md:198-204` | Documenta `cuentas-cobrar/` como página separada (no existe) |
-| `[ ]` | DOC-03 | `ESTRUCTURA-PROYECTO.md:144,254` | Refs a `categorias-gastos.service.ts` eliminado en v5 |
-| `[ ]` | DOC-04 | — | 4 features sin README: `layout`, `crear-negocio`, `historial-recargas`, `notas` |
-| `[ ]` | DOC-05 | `usuario.service.ts:85` | Llama `fn_registrar_usuario_negocio` sin archivo `.sql` separado |
+| `[x]` | DOC-01 | `ORDEN_EJECUCION.txt:76-83` | Path `docs/dashboard/` (no existe; es `docs/caja/`) — _resuelto 2026-05-07_ |
+| `[x]` | DOC-02 | `ESTRUCTURA-PROYECTO.md:198-204` | Cuentas-cobrar como página — _resuelto 2026-05-07_ |
+| `[x]` | DOC-03 | `ESTRUCTURA-PROYECTO.md:144,254` | Refs a `categorias-gastos` — _resuelto 2026-05-07_ |
+| `[x]` | DOC-04 | — | 4 features sin README — _resuelto 2026-05-07: creados NOTAS, LAYOUT, HISTORIAL-RECARGAS, CREAR-NEGOCIO_ |
+| `[~]` | DOC-05 | `usuario.service.ts:85` | `fn_registrar_usuario_negocio` — _falso positivo: está documentada en `03_functions.sql` (función de setup global, ubicación correcta según CLAUDE.md)_ |
 
 ---
 
@@ -369,11 +413,11 @@ Una vez resueltos los bloqueantes, la base arquitectónica es sólida y deployab
 
 | ✓ | ID | Problema | Archivo |
 |---|----|----------|---------|
-| `[ ]` | PERF-01 | Falta debounce en búsqueda de productos POS | `inventario.service.ts:52` |
-| `[ ]` | PERF-02 | Índices faltantes en FK de uso frecuente: `turnos_caja.empleado_id`, `recargas.empleado_id`, `operaciones_cajas.empleado_id`, `movimientos_empleados.turno_id` | `schema.sql` |
-| `[ ]` | PERF-03 | `*ngFor` sin `trackBy` en sidebar y otros listados | varios |
-| `[ ]` | PERF-04 | `ngOnInit` en `parametros.page.ts:82` con queries secuenciales (resto del proyecto sí usa `Promise.all`) | `parametros.page.ts` |
-| `[ ]` | PERF-05 | Sin `MAX(p_page_size)` en `fn_listar_clientes_con_saldo` — riesgo OOM si cliente envía 1M | `fn_listar_clientes_con_saldo.sql` |
+| `[~]` | PERF-01 | Falta debounce en búsqueda de productos POS | _falso positivo: el caller `pos.page.ts:656` aplica `setTimeout(..., 600)` antes de llamar al servicio_ |
+| `[~]` | PERF-02 | Índices faltantes en FK | _falso positivo: ya existen como compuestos `(negocio_id, empleado_id)`, `(negocio_id, turno_id)` etc. — más eficientes que simples para queries multi-tenant_ |
+| `[~]` | PERF-03 | `*ngFor` sin `trackBy` | _falso positivo: TODOS los `@for` ya tienen `track` (Angular 17+ control flow lo exige obligatoriamente)_ |
+| `[x]` | PERF-04 | `ngOnInit` en `parametros.page.ts:82` con queries secuenciales — _resuelto 2026-05-07: `Promise.all([getUsuarioActual, cargarConfiguracion])`_ |
+| `[x]` | PERF-05 | Sin `MAX(p_page_size)` en `fn_listar_clientes_con_saldo` — _resuelto junto con BE-07_ |
 
 ---
 

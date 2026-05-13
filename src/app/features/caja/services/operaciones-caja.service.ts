@@ -4,6 +4,7 @@ import { StorageService } from '@core/services/storage.service';
 import { UiService } from '@core/services/ui.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { PAGINATION_CONFIG } from '@core/config/pagination.config';
+import { getInicioDiaSiguienteISO, getInicioHaceNDiasISO } from '@core/utils/date.util';
 import {
   OperacionCaja,
   OperacionesPaginadas,
@@ -21,11 +22,6 @@ export class OperacionesCajaService {
   private authService = inject(AuthService);
   private pageSize = PAGINATION_CONFIG.operacionesCaja.pageSize;
 
-  /**
-   * Obtiene las categorías de operaciones filtradas por tipo
-   * @param tipo - 'INGRESO' o 'EGRESO' (opcional, si no se envía trae todas)
-   * @returns Lista de categorías activas
-   */
   async obtenerCategorias(tipo?: 'INGRESO' | 'EGRESO'): Promise<CategoriaOperacion[]> {
     let query = this.supabase.client
       .from('categorias_operaciones')
@@ -47,9 +43,6 @@ export class OperacionesCajaService {
     return data || [];
   }
 
-  /**
-   * Obtiene operaciones de una caja con paginación
-   */
   async obtenerOperacionesCaja(
     cajaId: string,
     filtro: FiltroFecha = 'hoy',
@@ -69,34 +62,17 @@ export class OperacionesCajaService {
       .eq('caja_id', cajaId)
       .order('fecha', { ascending: false });
 
-    // Filtro por fecha
+    // Filtro por fecha — usar utilidades locales para evitar desfase UTC
     if (filtro !== 'todas') {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const manana = new Date(hoy);
-      manana.setDate(manana.getDate() + 1);
+      const inicioDiaISO = getInicioHaceNDiasISO(0);  // medianoche hoy local → UTC
 
-      let fechaInicio: Date;
-
-      switch (filtro) {
-        case 'hoy':
-          fechaInicio = hoy;
-          break;
-        case 'semana':
-          fechaInicio = new Date(hoy);
-          fechaInicio.setDate(fechaInicio.getDate() - 7);
-          break;
-        case 'mes':
-          fechaInicio = new Date(hoy);
-          fechaInicio.setMonth(fechaInicio.getMonth() - 1);
-          break;
-        default:
-          fechaInicio = hoy;
-      }
+      const inicioFiltroISO = filtro === 'semana' ? getInicioHaceNDiasISO(7)
+                            : filtro === 'mes'    ? getInicioHaceNDiasISO(30)
+                            : inicioDiaISO;
 
       query = query
-        .gte('fecha', fechaInicio.toISOString())
-        .lt('fecha', manana.toISOString());
+        .gte('fecha', inicioFiltroISO)
+        .lt('fecha', getInicioDiaSiguienteISO());
     }
 
     // Paginación
@@ -115,16 +91,24 @@ export class OperacionesCajaService {
     };
   }
 
-  /**
-   * Registra una nueva operación de INGRESO o EGRESO
-   * @param cajaId - ID de la caja
-   * @param tipo - 'INGRESO' o 'EGRESO'
-   * @param categoriaId - ID de la categoría contable
-   * @param monto - Monto de la operación
-   * @param descripcion - Descripción opcional
-   * @param fotoComprobante - DataURL de la foto (null si no hay)
-   * @returns true si se guardó correctamente, false si hubo error
-   */
+  async actualizarComprobante(operacionId: string, newImageUrl: string, oldPath: string | null): Promise<boolean> {
+    const newPath = await this.storageService.replaceImage(newImageUrl, 'comprobantes/operaciones', oldPath);
+    if (!newPath) return false;
+
+    const { error } = await this.supabase.client
+      .from('operaciones_cajas')
+      .update({ comprobante_url: newPath })
+      .eq('id', operacionId);
+
+    if (error) {
+      await this.storageService.deleteFile(newPath);
+      await this.ui.showError('Error al actualizar el comprobante');
+      return false;
+    }
+
+    return true;
+  }
+
   async registrarOperacion(
     cajaId: string,
     tipo: 'INGRESO' | 'EGRESO',
@@ -136,33 +120,25 @@ export class OperacionesCajaService {
     try {
       let pathImagen: string | null = null;
 
-      // 1. Si hay foto, subirla primero a Storage
       if (fotoComprobante) {
         await this.ui.showLoading('Subiendo comprobante...');
-
-        pathImagen = await this.storageService.uploadImage(fotoComprobante, 'comprobantes', 'operaciones');
+        pathImagen = await this.storageService.uploadImage(fotoComprobante, 'comprobantes/operaciones');
+        await this.ui.hideLoading();
 
         if (!pathImagen) {
-          await this.ui.hideLoading();
           await this.ui.showError('Error al subir el comprobante. Intenta de nuevo.');
           return false;
         }
-
-        await this.ui.hideLoading();
       }
 
-      // 2. Obtener empleado actual
       const empleado = await this.authService.getUsuarioActual();
-
       if (!empleado) {
         await this.ui.showError('No se pudo obtener información del empleado');
         return false;
       }
 
-      // 3. Mostrar loading para guardar operación
       await this.ui.showLoading(`Registrando ${tipo.toLowerCase()}...`);
 
-      // 4. Llamar a la función PostgreSQL que maneja todo
       const { data, error } = await this.supabase.client.rpc('fn_registrar_operacion_manual', {
         p_caja_id: cajaId,
         p_empleado_id: empleado.id,
@@ -170,14 +146,13 @@ export class OperacionesCajaService {
         p_categoria_id: categoriaId,
         p_monto: monto,
         p_descripcion: descripcion || null,
-        p_comprobante_url: pathImagen  // ← Guardamos PATH, no URL
+        p_comprobante_url: pathImagen
       });
 
       await this.ui.hideLoading();
 
-      // Verificar si hubo error en la llamada RPC
       if (error) {
-        // Si falla y ya subimos la imagen, eliminarla
+        // Rollback: eliminar imagen huérfana en Storage si el RPC falla
         if (pathImagen) {
           await this.storageService.deleteFile(pathImagen);
         }
@@ -188,13 +163,8 @@ export class OperacionesCajaService {
         return false;
       }
 
-      // Verificar el resultado de la función
       if (!data || !data.success) {
-        // Si falla y ya subimos la imagen, eliminarla
-        if (pathImagen) {
-          await this.storageService.deleteFile(pathImagen);
-        }
-
+        if (pathImagen) await this.storageService.deleteFile(pathImagen);
         await this.ui.showError(data?.error || 'Error al registrar la operación');
         return false;
       }

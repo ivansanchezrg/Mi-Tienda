@@ -23,7 +23,7 @@ import { CajasService, Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { ConfigService } from '@core/services/config.service';
-import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
+import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { EstadoCaja } from '../../models/turno-caja.model';
 import { NotificacionesService, Notificacion } from '@core/services/notificaciones.service';

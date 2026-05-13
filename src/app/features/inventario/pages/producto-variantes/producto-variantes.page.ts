@@ -1,8 +1,11 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
-import { IonicModule, NavController } from '@ionic/angular';
-import { ModalController } from '@ionic/angular';
+import {
+    NavController, ModalController,
+    IonHeader, IonToolbar, IonButtons, IonButton, IonTitle, IonContent, IonFooter, IonIcon,
+    IonInput, IonItem, IonCard, IonCardContent, IonSpinner, IonToggle
+} from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
     arrowBackOutline, colorPaletteOutline, addOutline, closeOutline,
@@ -50,21 +53,17 @@ interface SKUGenerado {
     styleUrls: ['./producto-variantes.page.scss'],
     standalone: true,
     imports: [
-        CommonModule,
-        IonicModule,
-        ReactiveFormsModule,
-        FormsModule,
-        NumbersOnlyDirective,
-        CurrencyInputDirective,
-        UppercaseInputDirective,
-        ScannerOverlayComponent,
+        CommonModule, ReactiveFormsModule, FormsModule,
+        IonHeader, IonToolbar, IonButtons, IonButton, IonTitle, IonContent, IonFooter, IonIcon,
+        IonInput, IonItem, IonCard, IonCardContent, IonSpinner, IonToggle,
+        NumbersOnlyDirective, CurrencyInputDirective, UppercaseInputDirective, ScannerOverlayComponent,
     ]
 })
 export class ProductoVariantesPage implements OnInit {
     private navCtrl = inject(NavController);
     private fb = inject(FormBuilder);
     private inventarioService = inject(InventarioService);
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private ui = inject(UiService);
     private logger = inject(LoggerService);
     private modalCtrl = inject(ModalController);

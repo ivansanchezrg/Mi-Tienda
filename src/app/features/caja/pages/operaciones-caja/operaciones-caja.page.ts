@@ -6,7 +6,7 @@ import {
   IonContent, IonIcon, IonCard,
   IonInfiniteScroll, IonInfiniteScrollContent,
   IonRefresher, IonRefresherContent,
-  ModalController, IonSkeletonText
+  ModalController, AlertController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -15,6 +15,7 @@ import {
   cashOutline, documentTextOutline, walletOutline,
   documentAttachOutline, closeOutline, ellipsisVertical, close
 } from 'ionicons/icons';
+import { CameraSource } from '@capacitor/camera';
 import { Subscription } from 'rxjs';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { OperacionCaja, FiltroFecha } from '../../models/operacion-caja.model';
@@ -58,6 +59,7 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   private cajasService = inject(CajasService);
   private ui = inject(UiService);
   private modalCtrl = inject(ModalController);
+  private alertCtrl = inject(AlertController);
   private storageService = inject(StorageService);
   private networkService = inject(NetworkService);
   private route = inject(ActivatedRoute);
@@ -294,19 +296,6 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     }
   }
 
-  getOperacionIcon(tipo: string): string {
-    const icons: Record<string, string> = {
-      'INGRESO': 'arrow-down-outline',
-      'EGRESO': 'arrow-up-outline',
-      'TRANSFERENCIA_ENTRANTE': 'arrow-down-outline',
-      'TRANSFERENCIA_SALIENTE': 'arrow-up-outline',
-      'APERTURA': 'lock-open-outline',
-      'CIERRE': 'lock-closed-outline',
-      'AJUSTE': 'create-outline'
-    };
-    return icons[tipo] || 'cash-outline';
-  }
-
   getOperacionColor(tipo: string): string {
     const colors: Record<string, string> = {
       'INGRESO': 'success',
@@ -448,25 +437,52 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
     }
   }
 
-  async verComprobante(path: string) {
+  async abrirOpcionesComprobante(op: OperacionCaja) {
+    const buttons: any[] = [
+      { text: 'Ver comprobante', handler: () => this.verComprobante(op.comprobante_url!) }
+    ];
+    if (this.storageService.isNative) {
+      buttons.push({ text: 'Cambiar foto', handler: () => this.cambiarComprobante(op, CameraSource.Camera) });
+    }
+    buttons.push({ text: 'Cambiar desde galería', handler: () => this.cambiarComprobante(op, CameraSource.Photos) });
+    buttons.push({ text: 'Cancelar', role: 'cancel' });
+
+    const alert = await this.alertCtrl.create({ header: 'Comprobante', buttons });
+    await alert.present();
+  }
+
+  private async verComprobante(path: string) {
     try {
       await this.ui.showLoading('Cargando comprobante...');
-
       const signedUrl = await this.storageService.getSignedUrl(path);
-
       if (!signedUrl) {
         await this.ui.showError('No se pudo cargar el comprobante');
         return;
       }
-
       const modal = await this.modalCtrl.create({
         component: ComprobanteModalComponent,
         componentProps: { url: signedUrl },
         cssClass: 'comprobante-modal'
       });
       await modal.present();
-    } catch (error: any) {
-      await this.ui.showError('Error al cargar el comprobante. Intentá de nuevo.');
+    } catch {
+      await this.ui.showError('Error al cargar el comprobante');
+    } finally {
+      await this.ui.hideLoading();
+    }
+  }
+
+  private async cambiarComprobante(op: OperacionCaja, source: CameraSource) {
+    const result = await this.storageService.capturarFoto(source);
+    if (!result) return;
+
+    await this.ui.showLoading('Actualizando comprobante...');
+    try {
+      const ok = await this.service.actualizarComprobante(op.id, result.rawUrl, op.comprobante_url ?? null);
+      if (ok) {
+        await this.ui.showSuccess('Comprobante actualizado');
+        await this.cargarOperaciones(true);
+      }
     } finally {
       await this.ui.hideLoading();
     }

@@ -69,6 +69,14 @@ DECLARE
 BEGIN
     v_negocio_id := public.get_negocio_id();
 
+    -- Defensa en profundidad: validar que p_turno_id (si viene) pertenece al negocio activo.
+    -- RLS ya filtra por negocio, pero un check explícito previene resultados confusos.
+    IF p_turno_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND negocio_id = v_negocio_id
+    ) THEN
+        RAISE EXCEPTION 'El turno especificado no pertenece a este negocio';
+    END IF;
+
     -- Rango actual (exclusivo al final)
     v_inicio := (p_fecha_inicio::DATE::TIMESTAMP AT TIME ZONE 'America/Guayaquil');
     v_fin    := ((p_fecha_fin::DATE + 1)::TIMESTAMP AT TIME ZONE 'America/Guayaquil');
