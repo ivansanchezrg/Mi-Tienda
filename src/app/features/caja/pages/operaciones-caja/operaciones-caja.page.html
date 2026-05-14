@@ -96,14 +96,6 @@
 
     <div class="date-header">
       <span class="date-text">{{ grupo.fechaDisplay }}</span>
-      <div class="date-totals">
-        @if (grupo.totalIngresos > 0) {
-          <span class="total-in">+${{ grupo.totalIngresos | number:'1.2-2' }}</span>
-        }
-        @if (grupo.totalEgresos > 0) {
-          <span class="total-out">-${{ grupo.totalEgresos | number:'1.2-2' }}</span>
-        }
-      </div>
     </div>
 
     <ion-card class="operations-card">

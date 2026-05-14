@@ -65,6 +65,7 @@ export class CuadreCajaPage implements OnInit {
 
   async cargarDatos() {
     this.loading = true;
+    this.form.disable();
     try {
       const [saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
         this.recargasVirtualesService.getSaldoUltimoCierre('CELULAR'),
@@ -76,6 +77,7 @@ export class CuadreCajaPage implements OnInit {
       await this.ui.showError('Error al cargar datos del cuadre. Verifica tu conexión.');
     } finally {
       this.loading = false;
+      this.form.enable();
     }
   }
 

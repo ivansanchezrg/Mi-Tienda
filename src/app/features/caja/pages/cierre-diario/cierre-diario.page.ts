@@ -185,8 +185,8 @@ export class CierreDiarioPage implements HasPendingChanges {
       // Lote 1: todo en paralelo
       const [datos, saldoVirtualCelular, saldoVirtualBus, transferenciaYaHecha, saldosCajas, estadoCaja, config] = await Promise.all([
         this.recargasService.getDatosCierreDiario(),
-        this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
-        this.recargasVirtualesService.getSaldoVirtualActual('BUS'),
+        this.recargasVirtualesService.getSaldoUltimoCierre('CELULAR'),
+        this.recargasVirtualesService.getSaldoUltimoCierre('BUS'),
         this.recargasService.verificarTransferenciaYaHecha(),
         this.cajasService.obtenerSaldosCajas(),
         this.turnosCajaService.obtenerEstadoCaja(),

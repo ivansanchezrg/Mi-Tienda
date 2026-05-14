@@ -270,8 +270,7 @@ CREATE TABLE IF NOT EXISTS turnos_caja (
     empleado_id         UUID     NOT NULL REFERENCES usuarios(id),
     hora_fecha_apertura TIMESTAMP WITH TIME ZONE NOT NULL,
     hora_fecha_cierre   TIMESTAMP WITH TIME ZONE,
-    fondo_cubierto      BOOLEAN NOT NULL DEFAULT TRUE,
-    observaciones       TEXT
+    fondo_cubierto      BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- 10. recargas — control de saldo virtual por servicio y turno
@@ -749,7 +748,7 @@ ORDER BY u.nombre;
 -- Empleados transferidos (activo=FALSE) no aparecen — sus movimientos
 -- PENDIENTE siguen en este negocio y son visibles via query directa.
 
-CREATE OR REPLACE VIEW v_productos_completos WITH (security_barrier=true) AS
+CREATE OR REPLACE VIEW v_productos_completos WITH (security_invoker=true, security_barrier=true) AS
 SELECT
     p.id,
     p.negocio_id,

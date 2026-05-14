@@ -50,7 +50,7 @@
 Solo si las 3 pasan → `router.navigate(['/caja/cierre-diario'])` sin overlay activo (evita colisión con el ciclo de vida de `ionViewWillEnter`).
 
 En `cargarDatosIniciales()` se carga en paralelo:
-- Saldos virtuales actuales (CELULAR + BUS) desde `RecargasVirtualesService`
+- Saldos virtuales del último snapshot (CELULAR + BUS) desde `RecargasVirtualesService.getSaldoUltimoCierre()` — solo lee `saldo_virtual_actual` del último registro en `recargas`, sin sumar recargas posteriores
 - Datos del cierre (saldos de cajas, fondo fijo) desde `RecargasService`
 - Flag `transferenciaCajaChicaYaHecha` desde `RecargasService.verificarTransferenciaYaHecha()` — ver §4
 - Saldos de CAJA y VARIOS para la verificación antes→después
@@ -72,9 +72,11 @@ En `cargarDatosIniciales()` se carga en paralelo:
 
 **Cálculo de ventas:**
 ```
-venta_celular = saldoActualCelular - saldoVirtualCelularFinal
-venta_bus     = saldoActualBus     - saldoVirtualBusFinal
+venta_celular = saldoUltimoCierre_celular - saldoVirtualCelularFinal
+venta_bus     = saldoUltimoCierre_bus     - saldoVirtualBusFinal
 ```
+
+`saldoUltimoCierre` = `saldo_virtual_actual` del último registro en la tabla `recargas` (cierre diario o mini cierre). No suma recargas virtuales posteriores — eso evitaba el doble conteo al usar la fórmula completa de `getSaldoVirtualActual()`.
 
 Venta negativa indica que falta registrar una recarga del proveedor en Recargas Virtuales.
 

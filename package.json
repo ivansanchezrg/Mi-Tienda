@@ -38,6 +38,7 @@
     "@capacitor/status-bar": "^8.0.0",
     "@ionic/angular": "^8.0.0",
     "@supabase/supabase-js": "^2.93.2",
+    "android": "^0.0.8",
     "apexcharts": "^5.10.6",
     "html2canvas-pro": "^2.0.2",
     "ionicons": "^7.0.0",
