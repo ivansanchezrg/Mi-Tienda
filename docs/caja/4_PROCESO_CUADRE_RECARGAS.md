@@ -16,7 +16,7 @@ Modal de **verificación de ventas de recargas** (CELULAR y BUS) en cualquier mo
 |---|---|
 | `pages/cuadre-caja/cuadre-caja.page.ts` | Modal: carga saldos virtuales del sistema, calcula ventas, limpiar |
 | `pages/cuadre-caja/cuadre-caja.page.html` | UI: campos de entrada + resultado automático |
-| `services/recargas-virtuales.service.ts` | `getSaldoVirtualActual('CELULAR' \| 'BUS')` |
+| `services/recargas-virtuales.service.ts` | `getSaldoUltimoCierre('CELULAR' \| 'BUS')` |
 
 ---
 
@@ -25,8 +25,8 @@ Modal de **verificación de ventas de recargas** (CELULAR y BUS) en cualquier mo
 ```
 ngOnInit
   └─ cargarDatos()
-       ├─ getSaldoVirtualActual('CELULAR')  → saldoVirtualActualCelular
-       └─ getSaldoVirtualActual('BUS')      → saldoVirtualActualBus
+       ├─ getSaldoUltimoCierre('CELULAR')  → saldoVirtualActualCelular
+       └─ getSaldoUltimoCierre('BUS')      → saldoVirtualActualBus
         ↓
 Página muestra los saldos del sistema como referencia (helper text bajo los campos)
 
@@ -38,8 +38,10 @@ Getters calculan en tiempo real:
   ├─ ventaCelular = saldoVirtualActualCelular - saldoCelularActual
   └─ ventaBus     = saldoVirtualActualBus     - saldoBusActual
 
-mostrarResultado = form.valid && ventaCelular >= 0 && ventaBus >= 0
-  └─ Resultado aparece automáticamente (sin botón confirmar)
+mostrarResultadoCelular = saldoCelularActual tiene valor >= 0
+mostrarResultadoBus     = saldoBusActual tiene valor >= 0
+mostrarResultado        = al menos uno de los dos tiene valor
+  └─ Resultado parcial aparece automáticamente (sin necesidad de llenar ambos campos)
         ↓
 Botón "Limpiar" → form.reset() → limpia los campos sin cerrar el modal
 ```
@@ -49,17 +51,10 @@ Botón "Limpiar" → form.reset() → limpia los campos sin cerrar el modal
 ## 3. Fórmula de cálculo
 
 ```
-venta = saldoVirtualActual (sistema) - saldoActual (ingresado de la máquina)
+venta = saldoUltimoCierre (sistema) - saldoActual (ingresado de la máquina)
 ```
 
-`getSaldoVirtualActual()` usa la misma fórmula que el cierre diario:
-
-```
-saldoVirtualActual = último saldo_virtual_actual (tabla recargas)
-                   + SUM(monto_virtual de recargas_virtuales con created_at > último_cierre_at)
-```
-
-Esto significa que si el proveedor cargó saldo hoy (y aún no se cerró), ese monto ya está incluido — el resultado sigue siendo correcto.
+`getSaldoUltimoCierre()` lee únicamente el campo `saldo_virtual_actual` del último registro en la tabla `recargas` (cierre diario o mini cierre). **No suma recargas virtuales posteriores** — eso producía doble conteo cuando el proveedor cargaba saldo el mismo día antes del cierre.
 
 ---
 
@@ -81,4 +76,5 @@ Si `ventaCelular < 0` o `ventaBus < 0` → el resultado **no se muestra** y apar
 | Requiere efectivo contado | ❌ No | ✅ Sí |
 | Veces por día | Ilimitado | 1 por turno |
 | Cierra turno | ❌ No | ✅ Sí |
-| Fórmula de venta | Igual | Igual |
+| Método de saldo | `getSaldoUltimoCierre()` | `getSaldoUltimoCierre()` |
+| Resultado parcial | ✅ Muestra por campo (sin llenar ambos) | N/A (ambos campos requeridos) |

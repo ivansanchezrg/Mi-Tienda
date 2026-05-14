@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { Component, inject, OnDestroy, ViewChild } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
@@ -53,7 +53,7 @@ interface OperacionAgrupada {
     PeriodFilterComponent
   ]
 })
-export class OperacionesCajaPage implements OnInit, OnDestroy {
+export class OperacionesCajaPage implements OnDestroy {
   private router = inject(Router);
   private service = inject(OperacionesCajaService);
   private cajasService = inject(CajasService);
@@ -130,27 +130,27 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
 
   }
 
-  ngOnInit() {
+  async ionViewWillEnter() {
+    // Leer queryParams aquí (no en ngOnInit) para que se actualicen
+    // cada vez que se navega a esta página con una caja diferente.
+    // IonicRouteStrategy cachea la página — ngOnInit solo se ejecuta una vez.
     const params = this.route.snapshot.queryParams;
-    this.cajaId = params['cajaId'] || '';
+    this.cajaId     = params['cajaId']     || '';
     this.cajaNombre = params['cajaNombre'] || '';
     this.cajaCodigo = params['cajaCodigo'] || '';
     this.turnoAjeno = params['turnoAjeno'] === 'true';
-    this.esMiTurno = params['esMiTurno'] === 'true';
+    this.esMiTurno  = params['esMiTurno']  === 'true';
 
     if (!this.cajaId) {
       this.router.navigate([ROUTES.home]);
       return;
     }
-  }
 
-  async ionViewWillEnter() {
     this.ui.hideTabs();
 
     const usuario = await this.authService.getUsuarioActual();
     this.esAdmin = usuario?.rol === 'ADMIN';
 
-    // Suscribirse al estado de red (limpiar anterior si existe)
     this.networkSub?.unsubscribe();
     this.networkSub = this.networkService.getNetworkStatus().subscribe(isOnline => {
       this.isOnline = isOnline;
@@ -323,25 +323,10 @@ export class OperacionesCajaPage implements OnInit, OnDestroy {
   }
 
   formatFechaGrupo(fecha: Date): string {
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-
-    const ayer = new Date(hoy);
-    ayer.setDate(ayer.getDate() - 1);
-
-    const fechaDia = new Date(fecha);
-    fechaDia.setHours(0, 0, 0, 0);
-
-    if (fechaDia.getTime() === hoy.getTime()) {
-      return 'Hoy';
-    } else if (fechaDia.getTime() === ayer.getTime()) {
-      return 'Ayer';
-    }
-
     return fecha.toLocaleDateString('es', {
       weekday: 'long',
       day: 'numeric',
-      month: 'short'
+      month: 'long'
     });
   }
 

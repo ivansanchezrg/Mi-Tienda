@@ -126,20 +126,11 @@ export class HistorialRecargasPage {
   }
 
   private formatearFechaGrupo(fecha: string): string {
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    const ayer = new Date(hoy);
-    ayer.setDate(ayer.getDate() - 1);
-
-    const fechaItem = new Date(fecha + 'T00:00:00');
-    fechaItem.setHours(0, 0, 0, 0);
-
-    if (fechaItem.getTime() === hoy.getTime()) return 'Hoy';
-    if (fechaItem.getTime() === ayer.getTime()) return 'Ayer';
-
-    const dia = fechaItem.getDate();
-    const mes = fechaItem.toLocaleDateString('es-ES', { month: 'short' });
-    return `${dia} ${mes.charAt(0).toUpperCase() + mes.slice(1)}`;
+    return new Date(fecha + 'T00:00:00').toLocaleDateString('es', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    });
   }
 
   async handleRefresh(event: CustomEvent) {

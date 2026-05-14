@@ -17,7 +17,7 @@
 --     en movimientos_empleados y son consultables via query directa.
 -- =============================================================================
 
-CREATE OR REPLACE VIEW v_saldos_empleados WITH (security_barrier=true) AS
+CREATE OR REPLACE VIEW v_saldos_empleados WITH (security_invoker=true, security_barrier=true) AS
 SELECT
     un.negocio_id,
     u.id   AS empleado_id,

@@ -29,7 +29,7 @@
       <div class="amount-wrapper" [class.error]="!ventaCelularValida && saldoCelularActual > 0">
         <span class="currency">$</span>
         <input #saldoCelularInput type="number" inputmode="decimal" placeholder="0.00"
-          formControlName="saldoCelularActual" appCurrencyInput appNumbersOnly [disabled]="loading">
+          formControlName="saldoCelularActual" appCurrencyInput appNumbersOnly>
       </div>
       @if (!ventaCelularValida && saldoCelularActual > 0) {
       <span class="error-text">⚠️ Venta negativa — registrá la recarga del proveedor</span>
@@ -54,7 +54,7 @@
       <div class="amount-wrapper" [class.error]="!ventaBusValida && saldoBusActual > 0">
         <span class="currency">$</span>
         <input type="number" inputmode="decimal" placeholder="0.00"
-          formControlName="saldoBusActual" appCurrencyInput appNumbersOnly [disabled]="loading">
+          formControlName="saldoBusActual" appCurrencyInput appNumbersOnly>
       </div>
       @if (!ventaBusValida && saldoBusActual > 0) {
       <span class="error-text">⚠️ Venta negativa — registrá la compra de saldo virtual</span>
