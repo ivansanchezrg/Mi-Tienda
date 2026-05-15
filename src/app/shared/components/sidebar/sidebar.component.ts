@@ -260,11 +260,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   async logout() {
-    await this.ui.showLoading('Cerrando sesión...');
     try {
       const turno = await this.turnosCajaService.obtenerTurnoActivo();
       if (turno && turno.empleado_id === this.empleadoId) {
-        await this.ui.hideLoading();
         await this.closeMenu();
         await this.ui.showError('Tienes un turno activo. Realiza el cierre diario antes de cerrar sesión.');
         return;
@@ -272,7 +270,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       await this.closeMenu();
       await this.authService.logout();
     } catch {
-      await this.ui.hideLoading();
+      // sin loading activo que limpiar
     }
   }
 }

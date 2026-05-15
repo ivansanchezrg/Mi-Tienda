@@ -29,10 +29,14 @@ ALTER TABLE turnos_caja REPLICA IDENTITY FULL;
 
 -- 3. Politica RLS: usuarios autenticados pueden leer turnos_caja
 --    (necesario para que Realtime respete RLS y entregue los cambios)
-CREATE POLICY "authenticated puede leer turnos_caja"
-ON turnos_caja FOR SELECT
-TO authenticated
-USING (true);
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE tablename = 'turnos_caja' AND policyname = 'authenticated puede leer turnos_caja'
+    ) THEN
+        EXECUTE 'CREATE POLICY "authenticated puede leer turnos_caja" ON turnos_caja FOR SELECT TO authenticated USING (true)';
+    END IF;
+END $$;
 
 -- =============================================================================
 -- Verificacion (ejecutar por separado si se quiere confirmar el estado)

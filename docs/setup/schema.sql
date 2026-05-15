@@ -121,29 +121,33 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- que Supabase expone internamente (auth.jwt(), auth.uid(), etc.).
 
 CREATE OR REPLACE FUNCTION public.get_negocio_id()
-RETURNS UUID LANGUAGE sql STABLE AS $$
+RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
     SELECT (auth.jwt() -> 'app_metadata' ->> 'negocio_id')::UUID;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_es_superadmin()
-RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
     SELECT COALESCE((auth.jwt() -> 'app_metadata' ->> 'es_superadmin')::BOOLEAN, FALSE);
 $$;
 
 -- Rol del usuario en el negocio activo (seteado por fn_set_negocio_activo)
 CREATE OR REPLACE FUNCTION public.get_rol()
-RETURNS TEXT LANGUAGE sql STABLE AS $$
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
     SELECT auth.jwt() -> 'app_metadata' ->> 'rol';
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_email()
-RETURNS TEXT LANGUAGE sql STABLE AS $$
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
     SELECT auth.jwt() ->> 'email';
 $$;
 
 -- Permisos: authenticated puede invocar los helpers (necesario para RLS)
 -- NOTA: comparten_negocio se define MAS ABAJO, despues de las tablas, porque
 -- LANGUAGE sql valida la existencia de las tablas en tiempo de creacion.
+REVOKE EXECUTE ON FUNCTION public.get_negocio_id()         FROM anon;
+REVOKE EXECUTE ON FUNCTION public.get_es_superadmin()      FROM anon;
+REVOKE EXECUTE ON FUNCTION public.get_rol()                FROM anon;
+REVOKE EXECUTE ON FUNCTION public.get_email()              FROM anon;
 GRANT EXECUTE ON FUNCTION public.get_negocio_id()          TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_es_superadmin()       TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_rol()                 TO authenticated;
@@ -631,6 +635,7 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
     );
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.comparten_negocio(UUID) FROM anon;
 GRANT EXECUTE ON FUNCTION public.comparten_negocio(UUID) TO authenticated;
 
 -- ==========================================
@@ -783,7 +788,7 @@ BEGIN
     NEW.updated_at := NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER trg_updated_at_cajas
     BEFORE UPDATE ON cajas FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
@@ -810,7 +815,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER trg_limpiar_herencia_template
     BEFORE INSERT OR UPDATE ON productos
@@ -877,7 +882,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER trg_sync_barcode_productos
     AFTER INSERT OR UPDATE OF codigo_barras OR DELETE ON productos
@@ -902,7 +907,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER trg_proteger_movimiento_empleado
     BEFORE UPDATE ON movimientos_empleados
@@ -913,7 +918,7 @@ RETURNS TRIGGER AS $$
 BEGIN
     RAISE EXCEPTION 'No se pueden eliminar movimientos de empleados. Para corregir, crear un movimiento de ajuste.';
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER trg_bloquear_delete_movimiento
     BEFORE DELETE ON movimientos_empleados
@@ -940,7 +945,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER trg_proteger_operacion_caja
     BEFORE UPDATE ON operaciones_cajas

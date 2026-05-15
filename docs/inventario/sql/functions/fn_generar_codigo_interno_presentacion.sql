@@ -47,6 +47,7 @@ CREATE TRIGGER trg_generar_codigo_interno_presentacion
     EXECUTE FUNCTION fn_generar_codigo_interno_presentacion();
 
 -- Permisos
+REVOKE EXECUTE ON FUNCTION public.fn_generar_codigo_interno_presentacion() FROM anon;
 GRANT EXECUTE ON FUNCTION fn_generar_codigo_interno_presentacion() TO authenticated;
 
 -- Recargar schema de PostgREST
