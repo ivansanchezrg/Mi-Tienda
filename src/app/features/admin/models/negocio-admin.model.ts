@@ -1,8 +1,9 @@
 export interface ModulosNegocio {
-  celular:      boolean;
-  bus:          boolean;
-  varios:       boolean;
-  varios_monto: number;
+  celular:           boolean;
+  bus:               boolean;
+  varios:            boolean;
+  varios_monto:      number;
+  tipo_comprobante:  'TICKET' | 'NOTA_VENTA' | 'FACTURA';
 }
 
 export interface NegocioAdmin {

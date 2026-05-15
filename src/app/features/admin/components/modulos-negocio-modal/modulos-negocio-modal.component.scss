@@ -178,3 +178,54 @@
   font-size: 11px;
   color: var(--ion-color-danger);
 }
+
+// ── Tipo de comprobante ────────────────────────────────────────────────────────
+
+.comprobante-section {
+  padding: 16px 20px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comprobante-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ion-color-dark);
+}
+
+.comprobante-options {
+  display: flex;
+  gap: 8px;
+}
+
+.comprobante-opt {
+  flex: 1;
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1.5px solid var(--ion-color-light-shade);
+  background: var(--ion-color-light);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ion-color-medium-shade);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+
+  &--active {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.08);
+    color: var(--ion-color-primary);
+    font-weight: 600;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.comprobante-hint {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+}

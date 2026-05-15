@@ -261,7 +261,7 @@
         </div>
         }
 
-        <div class="input-group last">
+        <div class="input-group">
           <label class="input-label">Tarifa IVA vigente</label>
           <div class="input-with-suffix">
             <input type="number" inputmode="numeric" step="1" min="1" max="100"
@@ -269,6 +269,20 @@
             <span class="suffix">%</span>
           </div>
           <span class="input-hint">Tasa de IVA para facturas (actualmente 15% en Ecuador). Cambiar solo si el SRI actualiza la tarifa.</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Tipo de comprobante</label>
+          <div class="comprobante-readonly">
+            @if (tipoComprobanteActual === 'TICKET') {
+              <span class="comprobante-badge comprobante-badge--ticket">Ticket</span>
+            } @else if (tipoComprobanteActual === 'NOTA_VENTA') {
+              <span class="comprobante-badge comprobante-badge--nota">Nota de Venta</span>
+            } @else {
+              <span class="comprobante-badge comprobante-badge--factura">Factura</span>
+            }
+          </div>
+          <span class="input-hint">Definido según el régimen tributario de tu negocio. Para cambiarlo, contacta al administrador del sistema.</span>
         </div>
 
         @if (tieneCambios['pos']) {

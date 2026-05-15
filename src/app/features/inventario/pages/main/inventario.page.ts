@@ -109,7 +109,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     await this.cargar();
 
     // Escuchar cambios de producto desde la página de formulario
-    this.productoChangeSub = this.inventarioService.onProductoChange$.subscribe(event => {
+    this.productoChangeSub = this.inventarioService.onProductoChange$.subscribe(async event => {
       if (event.tipo === 'RECARGA') {
         this.cargar();
         return;
@@ -118,7 +118,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
         this.items = this.items.filter(p => p.id !== event.producto.id);
         return;
       }
-      const producto = this.resolverImagenUrl(event.producto);
+      const producto = await this.resolverImagenUrl(event.producto);
       if (event.tipo === 'CREADO') {
         this.items.unshift(producto);
       } else if (event.tipo === 'ACTUALIZADO') {
@@ -134,7 +134,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     if (this.mostrarDesactivados) {
       if (page > 0) return [];
       const productos = await this.inventarioService.obtenerProductosDesactivados();
-      return productos.map(p => this.resolverImagenUrl(p));
+      return this.resolverImagenesLote(productos);
     }
     const productos = await this.inventarioService.obtenerProductos(
       this.buscarTexto || undefined,
@@ -143,7 +143,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       page,
       this.pageSize
     );
-    return productos.map(p => this.resolverImagenUrl(p));
+    return this.resolverImagenesLote(productos);
   }
 
   onSearchInput(event: CustomEvent) {
@@ -219,11 +219,14 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     this.navCtrl.navigateForward(ROUTES.inventario.nuevoSimple, { queryParams: { codigo: codigoBarras } });
   }
 
-  private resolverImagenUrl(producto: Producto): Producto {
-    if (producto.imagen_url && !producto.imagen_url.startsWith('http')) {
-      return { ...producto, imagen_url: this.storageService.getPublicUrl(producto.imagen_url) || undefined };
-    }
-    return producto;
+  private async resolverImagenUrl(producto: Producto): Promise<Producto> {
+    const url = await this.storageService.resolveImageUrl(producto.imagen_url);
+    return { ...producto, imagen_url: url ?? undefined };
+  }
+
+  private async resolverImagenesLote(productos: Producto[]): Promise<Producto[]> {
+    const urls = await this.storageService.resolveImageUrls(productos.map(p => p.imagen_url));
+    return productos.map((p, i) => ({ ...p, imagen_url: urls[i] ?? undefined }));
   }
 
   irAEditar(producto: Producto) {

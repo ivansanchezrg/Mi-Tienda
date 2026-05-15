@@ -127,6 +127,19 @@ export class StorageService {
     }
   }
 
+  // Resuelve el path de Storage a una URL firmada válida.
+  // Si ya es una URL completa (http/https) la retorna tal cual — evita doble resolución.
+  async resolveImageUrl(path: string | null | undefined): Promise<string | null> {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    return this.getSignedUrl(path);
+  }
+
+  // Resuelve múltiples paths en paralelo — usar cuando se carga una lista de productos.
+  async resolveImageUrls(paths: (string | null | undefined)[]): Promise<(string | null)[]> {
+    return Promise.all(paths.map(p => this.resolveImageUrl(p)));
+  }
+
   // Upload nueva imagen y elimina la anterior atómicamente desde el cliente.
   // Si el upload falla retorna null y no toca oldPath.
   // Si el delete de oldPath falla la nueva imagen ya está guardada — se loguea pero no revierte.

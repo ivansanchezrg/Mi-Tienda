@@ -45,7 +45,6 @@ import { InventarioService } from '../../services/inventario.service';
 
 import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only.directive';
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
-import { UppercaseInputDirective } from '../../../../shared/directives/uppercase-input.directive';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { calcularPrecioDesdeMargen, calcularMargenDesdePrecio } from '../../../../core/utils/margen.util';
 import { UiService } from '../../../../core/services/ui.service';
@@ -64,7 +63,7 @@ import { ScannerOverlayComponent } from '../../../../shared/components/scanner-o
         CommonModule, ReactiveFormsModule, FormsModule,
         IonHeader, IonToolbar, IonButtons, IonButton, IonTitle, IonContent, IonIcon,
         IonInput, IonItem, IonCard, IonCardContent, IonSkeletonText, IonSpinner, IonToggle,
-        NumbersOnlyDirective, CurrencyInputDirective, UppercaseInputDirective, ScannerOverlayComponent
+        NumbersOnlyDirective, CurrencyInputDirective, ScannerOverlayComponent
     ]
 })
 export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
@@ -145,7 +144,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             this.producto = producto;
             if (producto.imagen_url) {
                 this.imagenPathAnterior = producto.imagen_url;
-                this.imagenUrlExistente = this.storageService.getPublicUrl(producto.imagen_url);
+                this.imagenUrlExistente = await this.storageService.resolveImageUrl(producto.imagen_url);
             }
             [this.presentaciones, this.presentacionesInactivas] = await Promise.all([
                 this.inventarioService.obtenerPresentaciones(producto.id),

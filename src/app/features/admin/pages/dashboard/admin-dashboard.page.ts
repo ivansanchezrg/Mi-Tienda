@@ -105,10 +105,11 @@ export class AdminDashboardPage implements OnInit {
           propietario_email:      n.propietario?.email   ?? '',
           propietario_activo:     n.propietario?.activo  ?? true,
           modulos: {
-            celular:      cfg['recargas_celular_habilitada'] === 'true',
-            bus:          cfg['recargas_bus_habilitada']     === 'true',
-            varios:       cfg['caja_varios_activa']          === 'true',
-            varios_monto: parseFloat(cfg['caja_varios_transferencia_dia'] ?? '0') || 0
+            celular:          cfg['recargas_celular_habilitada'] === 'true',
+            bus:              cfg['recargas_bus_habilitada']     === 'true',
+            varios:           cfg['caja_varios_activa']          === 'true',
+            varios_monto:     parseFloat(cfg['caja_varios_transferencia_dia'] ?? '0') || 0,
+            tipo_comprobante: (cfg['pos_tipo_comprobante'] as 'TICKET' | 'NOTA_VENTA' | 'FACTURA') ?? 'TICKET'
           }
         } satisfies NegocioAdmin;
       });
@@ -238,10 +239,16 @@ export class AdminDashboardPage implements OnInit {
     });
 
     await modal.present();
-    const { data, role } = await modal.onDidDismiss<{ celular: boolean; bus: boolean; varios: boolean; varios_monto: number }>();
+    const { data, role } = await modal.onDidDismiss<{ celular: boolean; bus: boolean; varios: boolean; varios_monto: number; tipo_comprobante: 'TICKET' | 'NOTA_VENTA' | 'FACTURA' }>();
 
     if (role === 'confirm' && data) {
-      negocio.modulos = { celular: data.celular, bus: data.bus, varios: data.varios, varios_monto: data.varios_monto ?? 0 };
+      negocio.modulos = {
+        celular:          data.celular,
+        bus:              data.bus,
+        varios:           data.varios,
+        varios_monto:     data.varios_monto ?? 0,
+        tipo_comprobante: data.tipo_comprobante ?? 'TICKET'
+      };
     }
   }
 

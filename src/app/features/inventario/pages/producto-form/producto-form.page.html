@@ -80,7 +80,7 @@
                 <div class="input-group mb-md">
                     <ion-item class="custom-input flat-item" lines="none"
                         [class.ion-invalid]="esCampoInvalido('nombre')">
-                        <ion-input appUppercaseInput formControlName="nombre" label="Nombre del Producto *" labelPlacement="floating"
+                        <ion-input formControlName="nombre" label="Nombre del Producto *" labelPlacement="floating"
                             type="text" placeholder="Ej. Funda Grande"></ion-input>
                     </ion-item>
                     @if (esCampoInvalido('nombre')) {

@@ -96,6 +96,25 @@
 
   </div>
 
+  <div class="comprobante-section">
+    <div class="comprobante-section-label">Tipo de comprobante</div>
+    <div class="comprobante-options">
+      <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'TICKET'"
+        (click)="tipoComprobante = 'TICKET'" [disabled]="guardando" type="button">
+        Ticket
+      </button>
+      <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'NOTA_VENTA'"
+        (click)="tipoComprobante = 'NOTA_VENTA'" [disabled]="guardando" type="button">
+        Nota de Venta
+      </button>
+      <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'FACTURA'"
+        (click)="tipoComprobante = 'FACTURA'" [disabled]="guardando" type="button">
+        Factura
+      </button>
+    </div>
+    <span class="comprobante-hint">Según el régimen tributario del negocio (SRI)</span>
+  </div>
+
   <div class="modal-actions modal-actions--row">
     <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()" [disabled]="guardando">
       Cancelar
