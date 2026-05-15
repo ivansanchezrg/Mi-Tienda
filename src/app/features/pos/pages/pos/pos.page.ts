@@ -91,33 +91,22 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   errorCliente = false;       // fallo de red / error inesperado
   sinConsumidorFinal = false; // la BD no tiene ningún consumidor final creado
 
-  /** Tipo de comprobante activo — controla desglose fiscal en el footer */
+  /** Tipo de comprobante — solo lectura, configurado por el superadmin */
   tipoComprobante: TipoComprobante = TipoComprobante.TICKET;
 
-  /** Opciones del menú ⋮ para el componente reutilizable */
+  /** Opciones del menú ⋮ — solo Limpiar carrito */
   readonly ACCION_LIMPIAR = '__LIMPIAR__';
 
   comprobanteOptions: MenuOption[] = [
-    { label: 'Ticket',       icon: 'receipt-outline',        value: TipoComprobante.TICKET,      active: true },
-    { label: 'Nota de Venta',icon: 'document-text-outline',  value: TipoComprobante.NOTA_VENTA,  active: false },
-    { label: 'Factura',      icon: 'document-outline',       value: TipoComprobante.FACTURA,     active: false },
-    { label: '',             icon: '',                       value: '__sep__',                   active: false, separator: true },
-    { label: 'Limpiar carrito', icon: 'trash-outline',       value: '__LIMPIAR__',               active: false, color: 'danger' },
+    { label: 'Limpiar carrito', icon: 'trash-outline', value: '__LIMPIAR__', active: false, color: 'danger' },
   ];
 
-  /** Handler unificado del menú ⋮ */
+  /** Handler del menú ⋮ */
   async onComprobanteOption(option: MenuOption) {
     if (option.value === this.ACCION_LIMPIAR) {
       if (this.carrito.length === 0) return;
       await this.confirmarLimpiarCarrito();
-      return;
     }
-    // Cambio de tipo de comprobante
-    this.tipoComprobante = option.value as TipoComprobante;
-    this.comprobanteOptions = this.comprobanteOptions.map(o => ({
-      ...o,
-      active: o.value === this.tipoComprobante
-    }));
   }
 
   /** Pide confirmación antes de vaciar el carrito */
@@ -172,6 +161,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   private async cargarConfig() {
     this.appConfig = await this.configService.get();
+    this.tipoComprobante = this.appConfig.pos_tipo_comprobante as TipoComprobante;
   }
 
   async cargarCliente() {
@@ -379,7 +369,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       }
     } else {
       if (maxUnidades > 0) {
-        const prod = this.resolverImagen(producto);
+        const prod = await this.resolverImagen(producto);
         const item: CartItem = {
           ...prod,
           precio_venta: precioVenta,
@@ -403,12 +393,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  /** Resuelve la URL pública de la imagen del producto (si el path es relativo) */
-  private resolverImagen(producto: ProductoPOS): ProductoPOS {
-    if (producto.imagen_url && !producto.imagen_url.startsWith('http')) {
-      return { ...producto, imagen_url: this.storageService.getPublicUrl(producto.imagen_url) ?? undefined };
-    }
-    return producto;
+  private async resolverImagen(producto: ProductoPOS): Promise<ProductoPOS> {
+    const url = await this.storageService.resolveImageUrl(producto.imagen_url);
+    return { ...producto, imagen_url: url ?? undefined };
   }
 
   /** Calcula cuantas unidades base de un producto estan comprometidas en el carrito */
@@ -453,7 +440,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       itemExistente.cantidad += cantRedondeada;
       itemExistente.subtotal = Math.round(itemExistente.cantidad * itemExistente.precio_venta * 100) / 100;
     } else {
-      const prod = this.resolverImagen(producto);
+      const prod = await this.resolverImagen(producto);
       this.carrito.push({
         ...prod,
         cantidad: cantRedondeada,
@@ -511,7 +498,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       existe.cantidad += cantidadReal;
       existe.subtotal = Math.round(existe.cantidad * existe.precio_venta * 100) / 100;
     } else {
-      const prod = this.resolverImagen(producto);
+      const prod = await this.resolverImagen(producto);
       const item: CartItem = {
         ...prod,
         precio_venta: precioVenta,
@@ -1154,12 +1141,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.carrito = [];
     this.buscarTexto = '';
     this.productosBusqueda = [];
-    // Resetear cliente y comprobante a sus defaults tras cada venta
-    this.tipoComprobante = TipoComprobante.TICKET;
-    this.comprobanteOptions = this.comprobanteOptions.map(o => ({
-      ...o,
-      active: o.value === TipoComprobante.TICKET
-    }));
+    // El tipo de comprobante no se resetea — viene de config y no cambia entre ventas
     await this.cargarCliente();
   }
 

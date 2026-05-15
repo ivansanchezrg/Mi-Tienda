@@ -1310,6 +1310,24 @@ ALTER TABLE usuario_negocios REPLICA IDENTITY FULL;
 -- SEED DEV — Superadmin para desarrollo
 -- ⚠️  Cambiar email/nombre/password antes de ejecutar en produccion.
 -- ⚠️  En produccion: comentar o eliminar este bloque.
+--
+-- PROBLEMA CONOCIDO — usuario creado con email/password (no Google):
+--   El script inserta en auth.users con provider 'email', pero la app solo
+--   tiene login con Google. Supabase crea el registro incompleto y luego
+--   el Magic Link y otros métodos fallan con "Database error finding user".
+--
+-- SOLUCIÓN si el superadmin no puede entrar (usuario corrupto en auth.users):
+--   1. Ejecutar en SQL Editor:
+--        DELETE FROM public.usuarios WHERE email = 'tu-email@gmail.com';
+--        DELETE FROM auth.users      WHERE email = 'tu-email@gmail.com';
+--   2. Iniciar sesión en la app con Google (ese mismo email).
+--      Supabase crea el usuario limpio con provider Google.
+--      ⚠️  La app redirige al onboarding porque el usuario no tiene negocio —
+--          NO completar el onboarding. Cerrar la app o volver atrás.
+--   3. Ejecutar en SQL Editor:
+--        UPDATE public.usuarios SET es_superadmin = true WHERE email = 'tu-email@gmail.com';
+--      El trigger trg_sync_superadmin sincroniza el flag al JWT automáticamente.
+--   4. Volver a iniciar sesión con Google → entra directamente a /admin como superadmin.
 -- ==========================================
 
 DO $$

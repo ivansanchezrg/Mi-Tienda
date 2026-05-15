@@ -65,6 +65,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
   variosActiva              = false;
   variosMonto               = 0;
   guardandoModulos          = false;
+  tipoComprobanteActual: 'TICKET' | 'NOTA_VENTA' | 'FACTURA' = 'TICKET';
 
   get variosMontoInvalido(): boolean {
     return this.variosActiva && this.variosMonto <= 0;
@@ -169,6 +170,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
         this.recargasBusHabilitada     = config.recargas_bus_habilitada;
         this.variosActiva              = config.caja_varios_activa;
         this.variosMonto               = config.caja_varios_transferencia_dia ?? 0;
+        this.tipoComprobanteActual     = config.pos_tipo_comprobante;
         this.form.patchValue({
           negocio_nombre:                config.negocio_nombre,
           negocio_telefono:              config.negocio_telefono,

@@ -21,11 +21,12 @@ export class ModulosNegocioModalComponent implements OnInit {
   private supabase  = inject(SupabaseService);
   private ui        = inject(UiService);
 
-  celular      = false;
-  bus          = false;
-  varios       = false;
-  variosMonto  = 0;
-  guardando    = false;
+  celular          = false;
+  bus              = false;
+  varios           = false;
+  variosMonto      = 0;
+  tipoComprobante: 'TICKET' | 'NOTA_VENTA' | 'FACTURA' = 'TICKET';
+  guardando        = false;
 
   get variosMontoInvalido(): boolean {
     return this.varios && this.variosMonto <= 0;
@@ -36,10 +37,11 @@ export class ModulosNegocioModalComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.celular     = this.negocio.modulos.celular;
-    this.bus         = this.negocio.modulos.bus;
-    this.varios      = this.negocio.modulos.varios;
-    this.variosMonto = this.negocio.modulos.varios_monto ?? 0;
+    this.celular         = this.negocio.modulos.celular;
+    this.bus             = this.negocio.modulos.bus;
+    this.varios          = this.negocio.modulos.varios;
+    this.variosMonto     = this.negocio.modulos.varios_monto ?? 0;
+    this.tipoComprobante = this.negocio.modulos.tipo_comprobante ?? 'TICKET';
   }
 
   cerrar() {
@@ -53,16 +55,17 @@ export class ModulosNegocioModalComponent implements OnInit {
     try {
       await this.supabase.call(
         this.supabase.client.rpc('fn_configurar_modulos_admin', {
-          p_negocio_id:   this.negocio.id,
-          p_celular:      this.celular,
-          p_bus:          this.bus,
-          p_varios:       this.varios,
-          p_varios_monto: this.varios ? this.variosMonto : 0
+          p_negocio_id:        this.negocio.id,
+          p_celular:           this.celular,
+          p_bus:               this.bus,
+          p_varios:            this.varios,
+          p_varios_monto:      this.varios ? this.variosMonto : 0,
+          p_tipo_comprobante:  this.tipoComprobante
         }),
         'Módulos actualizados'
       );
       this.modalCtrl.dismiss(
-        { celular: this.celular, bus: this.bus, varios: this.varios, varios_monto: this.variosMonto },
+        { celular: this.celular, bus: this.bus, varios: this.varios, varios_monto: this.variosMonto, tipo_comprobante: this.tipoComprobante },
         'confirm'
       );
     } finally {

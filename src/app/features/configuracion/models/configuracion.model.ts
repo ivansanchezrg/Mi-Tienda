@@ -22,6 +22,8 @@ export interface Configuracion {
     pos_umbral_monto_descuento: number;
     /** Tarifa IVA vigente en %. Usado en POS/Factura para extraer base gravada. Default: 15 */
     pos_iva_porcentaje: number;
+    /** Tipo de comprobante configurado por el superadmin según régimen tributario del negocio */
+    pos_tipo_comprobante: 'TICKET' | 'NOTA_VENTA' | 'FACTURA';
     /** Sueldo base por defecto para pago de nómina. Se precarga en el wizard, editable por el admin. */
     nomina_sueldo_base: number;
     nomina_dia_pago: number;
@@ -46,6 +48,7 @@ export const CONFIGURACION_DEFAULTS: Configuracion = {
     pos_descuento_maximo_pct: 0,
     pos_umbral_monto_descuento: 0,
     pos_iva_porcentaje: 15,
+    pos_tipo_comprobante: 'TICKET',
     nomina_sueldo_base: 0,
     nomina_dia_pago: 1,
 };
@@ -80,6 +83,7 @@ export function mapRowsToConfig(rows: ConfiguracionRow[]): Configuracion {
         pos_descuento_maximo_pct:      num('pos_descuento_maximo_pct',      D.pos_descuento_maximo_pct),
         pos_umbral_monto_descuento:    num('pos_umbral_monto_descuento',    D.pos_umbral_monto_descuento),
         pos_iva_porcentaje:            num('pos_iva_porcentaje',            D.pos_iva_porcentaje),
+        pos_tipo_comprobante:          (map.get('pos_tipo_comprobante') as 'TICKET' | 'NOTA_VENTA' | 'FACTURA') ?? D.pos_tipo_comprobante,
         nomina_sueldo_base:            num('nomina_sueldo_base',            D.nomina_sueldo_base),
         nomina_dia_pago:               num('nomina_dia_pago',               D.nomina_dia_pago),
     };

@@ -7,25 +7,28 @@
 -- necesidad de entrar a él (cambiar el JWT).
 --
 -- Parámetros:
---   p_negocio_id    UUID           — negocio a configurar
---   p_celular       BOOLEAN        — true = activar, false = desactivar
---   p_bus           BOOLEAN        — true = activar, false = desactivar
---   p_varios        BOOLEAN        — true = activar (irreversible), false = sin cambio
---   p_varios_monto  DECIMAL(12,2)  — monto diario a transferir a VARIOS al cierre (requerido si p_varios = true)
+--   p_negocio_id        UUID           — negocio a configurar
+--   p_celular           BOOLEAN        — true = activar, false = desactivar
+--   p_bus               BOOLEAN        — true = activar, false = desactivar
+--   p_varios            BOOLEAN        — true = activar (irreversible), false = sin cambio
+--   p_varios_monto      DECIMAL(12,2)  — monto diario a transferir a VARIOS al cierre (requerido si p_varios = true)
+--   p_tipo_comprobante  TEXT           — 'TICKET' | 'NOTA_VENTA' | 'FACTURA' (según régimen SRI)
 --
 -- Retorna: JSON con { success }
 -- =============================================================================
 
--- Eliminar función anterior (nombre viejo y firma sin monto)
+-- Eliminar firmas anteriores
 DROP FUNCTION IF EXISTS public.fn_habilitar_recargas_admin(UUID, BOOLEAN, BOOLEAN);
 DROP FUNCTION IF EXISTS public.fn_configurar_modulos_admin(UUID, BOOLEAN, BOOLEAN, BOOLEAN);
+DROP FUNCTION IF EXISTS public.fn_configurar_modulos_admin(UUID, BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL);
 
 CREATE OR REPLACE FUNCTION public.fn_configurar_modulos_admin(
-    p_negocio_id   UUID,
-    p_celular      BOOLEAN,
-    p_bus          BOOLEAN,
-    p_varios       BOOLEAN          DEFAULT FALSE,
-    p_varios_monto DECIMAL(12,2)    DEFAULT 0
+    p_negocio_id        UUID,
+    p_celular           BOOLEAN,
+    p_bus               BOOLEAN,
+    p_varios            BOOLEAN          DEFAULT FALSE,
+    p_varios_monto      DECIMAL(12,2)    DEFAULT 0,
+    p_tipo_comprobante  TEXT             DEFAULT 'TICKET'
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -46,6 +49,10 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM negocios WHERE id = p_negocio_id) THEN
         RAISE EXCEPTION 'El negocio no existe';
+    END IF;
+
+    IF p_tipo_comprobante NOT IN ('TICKET', 'NOTA_VENTA', 'FACTURA') THEN
+        RAISE EXCEPTION 'Tipo de comprobante inválido. Valores permitidos: TICKET, NOTA_VENTA, FACTURA';
     END IF;
 
     -- ── Módulo CELULAR ──
@@ -78,7 +85,7 @@ BEGIN
     -- ── Módulo VARIOS (irreversible: solo se activa, nunca se desactiva) ──
     IF p_varios THEN
         IF p_varios_monto IS NULL OR p_varios_monto <= 0 THEN
-            RAISE EXCEPTION 'Para activar Caja Varios debés indicar un monto diario mayor a $0';
+            RAISE EXCEPTION 'Para activar Caja Varios debes indicar un monto diario mayor a $0';
         END IF;
 
         INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual)
@@ -89,7 +96,8 @@ BEGIN
     -- ── Flags de configuración ──
     INSERT INTO configuraciones (negocio_id, clave, valor) VALUES
     (p_negocio_id, 'recargas_celular_habilitada', p_celular::TEXT),
-    (p_negocio_id, 'recargas_bus_habilitada',     p_bus::TEXT)
+    (p_negocio_id, 'recargas_bus_habilitada',     p_bus::TEXT),
+    (p_negocio_id, 'pos_tipo_comprobante',         p_tipo_comprobante)
     ON CONFLICT (negocio_id, clave) DO UPDATE SET valor = EXCLUDED.valor;
 
     IF p_varios THEN
@@ -109,8 +117,8 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.fn_configurar_modulos_admin(UUID, BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.fn_configurar_modulos_admin(UUID, BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL) FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.fn_configurar_modulos_admin(UUID, BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_configurar_modulos_admin(UUID, BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL, TEXT) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.fn_configurar_modulos_admin(UUID, BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL, TEXT) FROM authenticated;
+GRANT  EXECUTE ON FUNCTION public.fn_configurar_modulos_admin(UUID, BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL, TEXT) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
