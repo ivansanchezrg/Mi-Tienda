@@ -20,8 +20,8 @@ ion-split-pane {
 
 
 ion-tab-bar {
-  --background: var(--ion-background-color);
-  border-top: none;
+  --background: var(--tab-bar-background);
+  border-top: 1px solid var(--tab-bar-border);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
   height: calc(68px + env(safe-area-inset-bottom) / 2);
   padding-bottom: calc(env(safe-area-inset-bottom) / 2);
@@ -30,7 +30,8 @@ ion-tab-bar {
 ion-tab-button {
   --padding-bottom: calc(env(safe-area-inset-bottom) / 2);
   --ripple-color: transparent;
-  --color-selected: var(--ion-color-primary);
+  --color-selected: var(--tab-bar-color-active);
+  --color: var(--tab-bar-color-inactive);
   position: relative;
 
   ion-icon {

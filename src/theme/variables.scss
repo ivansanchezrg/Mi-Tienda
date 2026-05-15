@@ -55,6 +55,14 @@
   --ion-item-background: #ffffff;
 
   // ============================================================================
+  // TAB BAR
+  // ============================================================================
+  --tab-bar-background:      #ffffff;
+  --tab-bar-border:          #E5E7EB;
+  --tab-bar-color-active:    #0054E9;
+  --tab-bar-color-inactive:  #6B7280;
+
+  // ============================================================================
   // BORDER RADIUS (Bordes Redondeados)
   // ============================================================================
 
@@ -253,6 +261,12 @@
     --ion-background-color: #121212;
     --ion-background-color-rgb: 18, 18, 18;
     --ion-item-background: #1e1e1e;
+
+    // Tab bar dark mode
+    --tab-bar-background:      #1e1e1e;
+    --tab-bar-border:          #2a2a2a;
+    --tab-bar-color-active:    #4F8CFF;
+    --tab-bar-color-inactive:  #94A3B8;
 
     // Sombras con mayor opacidad en dark mode — el fondo oscuro absorbe
     // sombras sutiles y necesitan más contraste para percibirse

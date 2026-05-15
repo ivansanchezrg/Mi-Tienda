@@ -16,6 +16,17 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    flavorDimensions "env"
+    productFlavors {
+        production {
+            dimension "env"
+            applicationId "ec.mitienda.app"
+        }
+        staging {
+            dimension "env"
+            applicationId "ec.mitienda.app.test"
+        }
+    }
     buildTypes {
         release {
             minifyEnabled true

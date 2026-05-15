@@ -9,7 +9,7 @@
  * https://ionicframework.com/docs/layout/global-stylesheets
  */
 
- 
+
 // Estilos personalizados
 @use './theme/custom/index';
 @use './theme/onboarding';
@@ -81,6 +81,7 @@ ion-fab {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -151,4 +152,3 @@ body.scanner-active ion-modal .scanner-overlay,
 body.scanner-active ion-modal .scanner-overlay * {
   visibility: visible;
 }
-

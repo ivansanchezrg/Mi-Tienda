@@ -24,7 +24,11 @@
 
   <div class="categories-bar">
     <div class="categories-scroll" #categoriaScroll>
-      @if (templateSeleccionado) {
+      @if (loading) {
+        @for (i of [1,2,3,4]; track $index) {
+          <ion-skeleton-text animated class="category-chip-skeleton"></ion-skeleton-text>
+        }
+      } @else if (templateSeleccionado) {
         <button class="category-chip active template-chip" (click)="limpiarFiltroTemplate()">
           <ion-icon name="color-palette-outline"></ion-icon>
           {{ templateSeleccionado.nombre }}

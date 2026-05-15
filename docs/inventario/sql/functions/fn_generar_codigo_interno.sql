@@ -80,6 +80,8 @@ CREATE TRIGGER trg_generar_codigo_interno
 
 -- 5. Permisos
 GRANT USAGE, SELECT ON SEQUENCE seq_codigo_interno_producto TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_ean13_check_digit(TEXT) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.fn_generar_codigo_interno() FROM anon;
 GRANT EXECUTE ON FUNCTION fn_ean13_check_digit(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION fn_generar_codigo_interno() TO authenticated;
 
