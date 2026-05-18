@@ -18,7 +18,7 @@ import {
     checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline,
     addOutline, refreshOutline, warningOutline, trendingUpOutline,
     trendingDownOutline, removeOutline, sparklesOutline,
-    colorPaletteOutline, pricetagOutline
+    colorPaletteOutline, pricetagOutline, imageOutline
 } from 'ionicons/icons';
 import { CameraSource } from '@capacitor/camera';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
@@ -32,6 +32,8 @@ interface PresentacionForm {
     precio_venta: number;
     precio_costo: number;
     codigo_barras?: string;
+    imagen_url?: string | null;
+    previewUrl?: string;  // solo en memoria para mostrar thumbnail en la lista
 }
 
 // AtributoSeleccionado se usa para mostrar los atributos del producto en modo EDITAR (readonly)
@@ -98,6 +100,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
     presentaciones: ProductoPresentacion[] = [];
     presentacionesInactivas: ProductoPresentacion[] = [];
     mostrarInactivas = false;
+    presentacionesImagenUrls = new Map<string, string>();  // id → signedUrl
     // Presentaciones en modo CREAR (en memoria, aun sin producto_id)
     presentacionesNuevas: PresentacionForm[] = [];
     // Nombre de la presentacion recien agregada para disparar animacion
@@ -125,7 +128,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             checkmarkCircleOutline, searchOutline, cubeOutline, scaleOutline,
             addOutline, refreshOutline, warningOutline, trendingUpOutline,
             trendingDownOutline, removeOutline, sparklesOutline,
-            colorPaletteOutline, pricetagOutline
+            colorPaletteOutline, pricetagOutline, imageOutline
         });
     }
 
@@ -150,6 +153,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                 this.inventarioService.obtenerPresentaciones(producto.id),
                 this.inventarioService.obtenerPresentacionesInactivas(producto.id)
             ]);
+            await this.resolverImagenesPresentaciones([...this.presentaciones, ...this.presentacionesInactivas]);
 
             // Si tiene template, cargar datos readonly
             if (producto.producto_template) {
@@ -325,6 +329,27 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             }
 
             if (this.modo === 'CREAR') {
+                // Subir imágenes pendientes de presentaciones en paralelo
+                const subfolder = this.sanitizarSubfolder(this.obtenerNombreCategoria(value.categoria_id));
+                const presentacionesConImagen = await Promise.all(
+                    this.presentacionesNuevas.map(async p => {
+                        let imagen_url = p.imagen_url ?? undefined;
+                        if (imagen_url?.startsWith('__pending__')) {
+                            const rawUrl = imagen_url.slice('__pending__'.length);
+                            const path = await this.storageService.uploadImage(rawUrl, `productos/${subfolder}`, false);
+                            imagen_url = path ?? undefined;
+                        }
+                        return {
+                            nombre: p.nombre,
+                            factor_conversion: p.factor_conversion,
+                            precio_venta: p.precio_venta,
+                            precio_costo: p.precio_costo,
+                            codigo_barras: p.codigo_barras,
+                            imagen_url
+                        };
+                    })
+                );
+
                 const resultado = await this.inventarioService.crearProductoSimple({
                     nombre: value.nombre,
                     categoria_id: value.categoria_id,
@@ -337,13 +362,7 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                     precio_venta: this.currencyService.parse(value.precio_venta),
                     stock_actual: Number(value.stock_actual) || 0,
                     stock_minimo: Number(value.stock_minimo) || 0,
-                    presentaciones: this.presentacionesNuevas.map(p => ({
-                        nombre: p.nombre,
-                        factor_conversion: p.factor_conversion,
-                        precio_venta: p.precio_venta,
-                        precio_costo: p.precio_costo,
-                        codigo_barras: p.codigo_barras
-                    }))
+                    presentaciones: presentacionesConImagen
                 });
 
                 if (resultado.ok) {
@@ -517,16 +536,48 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             this.presentacionesNuevas.map(p => p.nombre)
         );
         if (!result) return;
-        this.presentacionesNuevas = [...this.presentacionesNuevas, result];
+
+        // Imagen se sube al guardar el producto (junto con todo lo demás)
+        const pres: PresentacionForm = {
+            nombre: result.nombre,
+            factor_conversion: result.factor_conversion,
+            precio_venta: result.precio_venta,
+            precio_costo: result.precio_costo,
+            codigo_barras: result.codigo_barras,
+            imagen_url: result.imagenRawUrl ? `__pending__${result.imagenRawUrl}` : result.imagen_url,
+            previewUrl: result.imagenRawUrl || undefined
+        };
+        this.presentacionesNuevas = [...this.presentacionesNuevas, pres];
         this.animarPresentacion(result.nombre);
     }
 
     async editarPresentacionNueva(index: number) {
         const pres = this.presentacionesNuevas[index];
         const nombresOtros = this.presentacionesNuevas.filter((_, i) => i !== index).map(p => p.nombre);
-        const result = await this.abrirPresentacionModal(nombresOtros, pres);
+        // Resolver imagen existente para mostrar preview
+        const imagenExistente = pres.imagen_url?.startsWith('__pending__')
+            ? null
+            : pres.imagen_url ?? null;
+        const result = await this.abrirPresentacionModal(nombresOtros, pres, undefined, imagenExistente);
         if (!result) return;
-        this.presentacionesNuevas = this.presentacionesNuevas.map((p, i) => i === index ? result : p);
+        const updated: PresentacionForm = {
+            nombre: result.nombre,
+            factor_conversion: result.factor_conversion,
+            precio_venta: result.precio_venta,
+            precio_costo: result.precio_costo,
+            codigo_barras: result.codigo_barras,
+            imagen_url: result.imagenRawUrl
+                ? `__pending__${result.imagenRawUrl}`
+                : result.imagen_url !== undefined
+                    ? result.imagen_url
+                    : pres.imagen_url,
+            previewUrl: result.imagenRawUrl
+                ? result.imagenRawUrl
+                : result.imagen_url === null
+                    ? undefined
+                    : pres.previewUrl
+        };
+        this.presentacionesNuevas = this.presentacionesNuevas.map((p, i) => i === index ? updated : p);
     }
 
     eliminarPresentacionNueva(index: number) {
@@ -542,16 +593,32 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             this.presentaciones.map(p => p.nombre),
             undefined,
             async (result) => {
+                let imagenPath: string | null | undefined = undefined;
+                if (result.imagenRawUrl) {
+                    const subfolder = this.sanitizarSubfolder(this.obtenerNombreCategoria(this.productoForm.get('categoria_id')?.value));
+                    imagenPath = await this.storageService.uploadImage(result.imagenRawUrl, `productos/${subfolder}`, false);
+                    if (!imagenPath) return false;
+                }
                 const creada = await this.inventarioService.crearPresentacion({
                     producto_id: this.producto!.id,
-                    ...result
+                    nombre: result.nombre,
+                    factor_conversion: result.factor_conversion,
+                    precio_venta: result.precio_venta,
+                    precio_costo: result.precio_costo,
+                    codigo_barras: result.codigo_barras,
+                    imagen_url: imagenPath ?? undefined
                 });
                 if (creada?.id) {
                     this.presentaciones = [...this.presentaciones, creada];
+                    if (creada.imagen_url) {
+                        const url = await this.storageService.resolveImageUrl(creada.imagen_url);
+                        if (url) this.presentacionesImagenUrls.set(creada.id, url);
+                    }
                     this.animarPresentacion(creada.nombre);
                     this.ui.showToast(`Presentacion "${creada.nombre}" guardada`, 'success');
                     return true;
                 }
+                if (imagenPath) await this.storageService.deleteFile(imagenPath);
                 return false;
             }
         );
@@ -568,11 +635,45 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
             nombresOtros,
             pres,
             async (result) => {
-                await this.inventarioService.actualizarPresentacion(pres.id, result);
+                const subfolder = this.sanitizarSubfolder(this.obtenerNombreCategoria(this.productoForm.get('categoria_id')?.value));
+                let imagenPath: string | null | undefined = undefined;
+
+                if (result.imagenRawUrl) {
+                    imagenPath = await this.storageService.replaceImage(
+                        result.imagenRawUrl,
+                        `productos/${subfolder}`,
+                        pres.imagen_url ?? null,
+                        false
+                    );
+                    if (!imagenPath) return false;
+                } else if (result.imagen_url === null && pres.imagen_url) {
+                    await this.storageService.deleteFile(pres.imagen_url);
+                    imagenPath = null;
+                }
+
+                const payload: Partial<ProductoPresentacion> = {
+                    nombre: result.nombre,
+                    factor_conversion: result.factor_conversion,
+                    precio_venta: result.precio_venta,
+                    precio_costo: result.precio_costo,
+                    codigo_barras: result.codigo_barras
+                };
+                if (imagenPath !== undefined) payload.imagen_url = imagenPath;
+
+                await this.inventarioService.actualizarPresentacion(pres.id, payload);
                 this.presentaciones = await this.inventarioService.obtenerPresentaciones(this.producto!.id);
+                // Actualizar mapa de URLs de imagen tras edicion
+                this.presentacionesImagenUrls.delete(pres.id);
+                if (imagenPath) {
+                    const url = await this.storageService.resolveImageUrl(imagenPath);
+                    if (url) this.presentacionesImagenUrls.set(pres.id, url);
+                } else if (imagenPath === null) {
+                    // imagen eliminada — ya borrada del mapa
+                }
                 this.ui.showToast(`Presentacion "${result.nombre}" actualizada`, 'success');
                 return true;
-            }
+            },
+            pres.imagen_url ?? null
         );
     }
 
@@ -602,10 +703,22 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
         await alert.present();
     }
 
+    private async resolverImagenesPresentaciones(presentaciones: ProductoPresentacion[]) {
+        await Promise.all(
+            presentaciones
+                .filter(p => p.imagen_url)
+                .map(async p => {
+                    const url = await this.storageService.resolveImageUrl(p.imagen_url);
+                    if (url) this.presentacionesImagenUrls.set(p.id, url);
+                })
+        );
+    }
+
     private async abrirPresentacionModal(
         nombresExistentes: string[],
         presentacionActual?: PresentacionModalResult,
-        onConfirmar?: (result: PresentacionModalResult) => Promise<boolean>
+        onConfirmar?: (result: PresentacionModalResult) => Promise<boolean>,
+        imagenExistente?: string | null
     ): Promise<PresentacionModalResult | null> {
         const nombreProducto = (this.productoForm.get('nombre')?.value ?? '').trim().toUpperCase()
             || this.producto?.nombre?.toUpperCase()
@@ -617,7 +730,8 @@ export class ProductoFormPage implements OnInit, OnDestroy, ViewWillEnter {
                 presentacionActual,
                 precioBase: this.currencyService.parse(this.productoForm.get('precio_costo')?.value ?? 0),
                 nombreProducto,
-                onConfirmar
+                onConfirmar,
+                imagenExistente: imagenExistente ?? null
             },
             cssClass: 'bottom-sheet-modal',
             breakpoints: [0, 1],

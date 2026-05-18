@@ -140,7 +140,7 @@ export class PagoFiadoModalComponent implements OnInit {
             options: [
                 { label: 'Efectivo', icon: 'cash-outline', value: 'EFECTIVO' },
                 { label: 'Transferencia', icon: 'phone-portrait-outline', value: 'TRANSFERENCIA' },
-                { label: 'Tarjeta / DeUna', icon: 'card-outline', value: 'DEUNA' },
+                { label: 'Deuna', icon: 'card-outline', value: 'DEUNA' },
             ]
         }];
 
@@ -215,7 +215,7 @@ export class PagoFiadoModalComponent implements OnInit {
 
     private getLabelMetodo(metodo: string): string {
         if (metodo === 'TRANSFERENCIA') return 'Transferencia';
-        if (metodo === 'DEUNA') return 'Tarjeta / DeUna';
+        if (metodo === 'DEUNA') return 'Deuna';
         return 'Efectivo';
     }
 }

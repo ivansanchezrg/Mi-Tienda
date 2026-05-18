@@ -56,13 +56,35 @@ export class InventarioService {
                 id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo,
                 imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id,
                 producto_template:producto_templates(id, nombre),
-                presentaciones:producto_presentaciones(id, producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal, activo)
+                presentaciones:producto_presentaciones(id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, imagen_url, es_principal, activo)
             `)
             .eq('activo', true)
             .eq('producto_presentaciones.activo', true)
             .or(`nombre.ilike.%${texto}%,codigo_barras.ilike.%${texto}%`)
             .order('nombre')
             .limit(20);
+        return (data || []) as unknown as ProductoPOS[];
+    }
+
+    /** Carga productos activos para el catálogo POS, opcionalmente filtrados por categoría. */
+    async obtenerProductosCatalogoPOS(categoriaId?: string): Promise<ProductoPOS[]> {
+        let query = this.supabase.client
+            .from('productos')
+            .select(`
+                id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo,
+                imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id,
+                producto_template:producto_templates(id, nombre, imagen_url, template_atributos(atributo:atributos(nombre))),
+                presentaciones:producto_presentaciones(id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, imagen_url, es_principal, activo)
+            `)
+            .eq('activo', true)
+            .eq('producto_presentaciones.activo', true)
+            .order('nombre');
+
+        if (categoriaId) {
+            query = query.eq('categoria_id', categoriaId);
+        }
+
+        const { data } = await query;
         return (data || []) as unknown as ProductoPOS[];
     }
 
@@ -87,38 +109,34 @@ export class InventarioService {
         producto: ProductoPOS;
         presentacion?: ProductoPresentacion;
     } | null> {
-        // 1. Buscar en productos
-        const prod = await this.supabase.call<ProductoPOS>(
-            this.supabase.client
-                .from('productos')
-                .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id')
-                .eq('codigo_barras', codigo)
-                .eq('activo', true)
-                .maybeSingle()
-        );
+        type PresRow = {
+            id: string; producto_id: string; nombre: string;
+            factor_conversion: number; precio_venta: number; precio_costo: number;
+            codigo_barras: string | null; imagen_url: string | null;
+            es_principal: boolean; activo: boolean; producto: ProductoPOS;
+        };
+
+        // Buscar en productos y presentaciones en paralelo — el código pertenece a uno o al otro
+        const [prod, pres] = await Promise.all([
+            this.supabase.call<ProductoPOS>(
+                this.supabase.client
+                    .from('productos')
+                    .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id')
+                    .eq('codigo_barras', codigo)
+                    .eq('activo', true)
+                    .maybeSingle()
+            ),
+            this.supabase.call<PresRow>(
+                this.supabase.client
+                    .from('producto_presentaciones')
+                    .select('id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, imagen_url, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id)')
+                    .eq('codigo_barras', codigo)
+                    .eq('activo', true)
+                    .maybeSingle()
+            ),
+        ]);
 
         if (prod) return { producto: prod };
-
-        // 2. Buscar en presentaciones
-        const pres = await this.supabase.call<{
-            id: string;
-            producto_id: string;
-            nombre: string;
-            factor_conversion: number;
-            precio_venta: number;
-            precio_costo: number;
-            codigo_barras: string | null;
-            es_principal: boolean;
-            activo: boolean;
-            producto: ProductoPOS;
-        }>(
-            this.supabase.client
-                .from('producto_presentaciones')
-                .select('id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id)')
-                .eq('codigo_barras', codigo)
-                .eq('activo', true)
-                .maybeSingle()
-        );
 
         if (pres?.producto) {
             return {
@@ -131,6 +149,7 @@ export class InventarioService {
                     precio_venta: pres.precio_venta,
                     precio_costo: pres.precio_costo,
                     codigo_barras: pres.codigo_barras ?? undefined,
+                    imagen_url: pres.imagen_url,
                     es_principal: pres.es_principal,
                     activo: pres.activo
                 }
@@ -526,7 +545,7 @@ export class InventarioService {
         precio_venta: number;
         stock_actual: number;
         stock_minimo: number;
-        presentaciones?: { nombre: string; factor_conversion: number; precio_venta: number; precio_costo: number; codigo_barras?: string }[];
+        presentaciones?: { nombre: string; factor_conversion: number; precio_venta: number; precio_costo: number; codigo_barras?: string; imagen_url?: string }[];
     }): Promise<{ ok: boolean; producto_id?: string }> {
         const res = await this.supabase.call<{ ok: boolean; producto_id?: string }>(
             this.supabase.client.rpc('fn_crear_producto_simple', {
@@ -566,7 +585,7 @@ export class InventarioService {
         unidad_medida: string;
         imagen_url?: string;
         atributos_template: { atributo_nombre: string; opcion_ids: string[] }[];
-        variantes: { nombre: string; precio_costo: number; precio_venta: number; stock_actual: number; stock_minimo: number; opcion_ids: string[]; codigo_barras?: string | null; presentaciones?: { nombre: string; factor_conversion: number; precio_venta: number; precio_costo: number; codigo_barras?: string }[] }[];
+        variantes: { nombre: string; precio_costo: number; precio_venta: number; stock_actual: number; stock_minimo: number; opcion_ids: string[]; codigo_barras?: string | null; imagen_url?: string | null; presentaciones?: { nombre: string; factor_conversion: number; precio_venta: number; precio_costo: number; codigo_barras?: string; imagen_url?: string }[] }[];
     }): Promise<{ ok: boolean; template_id?: string; skus_creados?: number }> {
         const res = await this.supabase.call<{ ok: boolean; template_id?: string; skus_creados?: number }>(
             this.supabase.client.rpc('fn_crear_producto_con_variantes', {

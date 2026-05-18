@@ -232,6 +232,13 @@
                         <div class="presentaciones-list">
                             @for (pres of presentacionesNuevas; track pres.nombre; let i = $index) {
                             <div class="pres-item" [class.pres-item-enter]="presentacionRecienAgregada === pres.nombre">
+                                @if (pres.previewUrl) {
+                                <img [src]="pres.previewUrl" class="pres-thumb" alt="">
+                                } @else {
+                                <div class="pres-thumb pres-thumb--empty">
+                                    <ion-icon name="image-outline"></ion-icon>
+                                </div>
+                                }
                                 <div class="pres-info" (click)="editarPresentacionNueva(i)">
                                     <span class="pres-nombre">{{ pres.nombre }}</span>
                                     <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
@@ -256,6 +263,13 @@
                         <div class="presentaciones-list">
                             @for (pres of presentaciones; track pres.id) {
                             <div class="pres-item" [class.pres-item-enter]="presentacionRecienAgregada === pres.nombre">
+                                @if (presentacionesImagenUrls.get(pres.id)) {
+                                <img [src]="presentacionesImagenUrls.get(pres.id)" class="pres-thumb" alt="">
+                                } @else {
+                                <div class="pres-thumb pres-thumb--empty">
+                                    <ion-icon name="image-outline"></ion-icon>
+                                </div>
+                                }
                                 <div class="pres-info" (click)="editarPresentacion(pres)">
                                     <span class="pres-nombre">{{ pres.nombre }}</span>
                                     <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
@@ -329,6 +343,13 @@
                 <div class="presentaciones-list mt-xs">
                     @for (pres of presentaciones; track pres.id) {
                     <div class="pres-item" [class.pres-item-enter]="presentacionRecienAgregada === pres.nombre">
+                        @if (presentacionesImagenUrls.get(pres.id)) {
+                        <img [src]="presentacionesImagenUrls.get(pres.id)" class="pres-thumb" alt="">
+                        } @else {
+                        <div class="pres-thumb pres-thumb--empty">
+                            <ion-icon name="image-outline"></ion-icon>
+                        </div>
+                        }
                         <div class="pres-info" (click)="editarPresentacion(pres)">
                             <span class="pres-nombre">{{ pres.nombre }}</span>
                             <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>

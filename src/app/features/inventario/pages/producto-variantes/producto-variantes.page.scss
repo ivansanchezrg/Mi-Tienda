@@ -1,3 +1,135 @@
+// ── Imagen del template ─────────────────────────
+.section-header-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: 4px;
+}
+
+.section-title--inline {
+    margin: 0;
+}
+
+.optional-badge {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--ion-color-medium);
+    background: var(--ion-color-step-100);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.upload-btn {
+    width: 100%;
+    padding: var(--spacing-lg);
+    background: var(--ion-color-step-50);
+    border: 2px dashed var(--ion-color-step-300);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+
+    ion-icon { font-size: 32px; color: var(--ion-color-medium); }
+    span { font-size: 13px; color: var(--ion-color-medium); font-weight: var(--font-weight-medium); }
+    &:active { background: var(--ion-color-step-100); }
+}
+
+.photo-preview {
+    position: relative;
+    width: 100%;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--ion-color-step-150);
+
+    img { width: 100%; max-height: 280px; object-fit: contain; background: var(--ion-color-step-50); display: block; }
+
+    .remove-photo {
+        position: absolute;
+        top: var(--spacing-sm);
+        right: var(--spacing-sm);
+        width: 32px;
+        height: 32px;
+        background: rgba(0,0,0,0.6);
+        border: none;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        cursor: pointer;
+        ion-icon { font-size: 22px; }
+        &:active { transform: scale(0.9); }
+    }
+}
+
+// ── Imagen por SKU (paso 3) ─────────────────────
+.sku-imagen-row {
+    margin-top: var(--spacing-sm);
+    display: flex;
+    align-items: center;
+}
+
+.sku-imagen-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1.5px dashed var(--ion-color-step-250);
+    border-radius: var(--radius-sm, 8px);
+    background: var(--ion-color-step-50);
+    color: var(--ion-color-step-500);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+
+    ion-icon { font-size: 18px; color: var(--ion-color-primary); flex-shrink: 0; }
+    &:active { border-color: var(--ion-color-primary); }
+}
+
+.sku-opcional {
+    font-size: 11px;
+    color: var(--ion-color-medium);
+    background: var(--ion-color-step-100);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.sku-imagen-preview {
+    position: relative;
+    display: inline-flex;
+
+    img {
+        width: 64px;
+        height: 64px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1.5px solid var(--ion-color-step-200);
+        display: block;
+    }
+
+    .sku-imagen-remove {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        width: 22px;
+        height: 22px;
+        border: none;
+        background: transparent;
+        color: var(--ion-color-danger);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+
+        ion-icon { font-size: 22px; }
+        &:active { opacity: 0.7; }
+    }
+}
+
 // ── Layout base ────────────────────────────────
 .form-container {
     display: flex;

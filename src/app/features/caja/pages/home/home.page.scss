@@ -180,9 +180,10 @@ ion-toolbar {
     border-radius: var(--radius-md);
     display: flex;
     align-items: flex-start;
-    transition: transform 0.2s;
+    transition: background var(--transition-fast);
     position: relative;
     overflow: hidden;
+
 
     .icon-wrapper {
       width: 48px;

@@ -1,6 +1,6 @@
 -- ==========================================
 -- SEED: Productos de prueba — Inventario
--- Version: 2.0 (schema v11 — multi-tenant, UUID)
+-- Version: 2.1 (schema v11 — multi-tenant, UUID)
 -- ==========================================
 -- Cubre los 4 flujos reales del modulo de inventario:
 --
@@ -11,9 +11,14 @@
 --
 -- COMO EJECUTAR:
 --   1. Abrir Supabase SQL Editor
---   2. Autenticarse como ADMIN del negocio (las funciones leen get_negocio_id() del JWT)
---   3. Reemplazar el negocio_id real en la variable v_negocio_id (primera linea del DO $$)
---   4. Ejecutar todo el bloque
+--   2. Reemplazar '<REEMPLAZAR-CON-NEGOCIO-ID>' con el UUID real del negocio (2 lugares: set_config + DO $$)
+--   3. Ejecutar el bloque set_config PRIMERO (simula el JWT que leen las funciones SQL)
+--   4. Ejecutar el bloque DO $$ en la misma sesion
+--
+-- POR QUE set_config:
+--   Las funciones usan get_negocio_id() = auth.jwt()->'app_metadata'->>'negocio_id'.
+--   El SQL Editor de Supabase no tiene JWT de usuario — set_config inyecta el claim
+--   en la sesion actual para que auth.jwt() lo devuelva correctamente.
 --
 -- LIMPIEZA:
 --   DELETE FROM producto_templates WHERE nombre IN ('TEST-TAPIOCA', 'TEST-GASEOSA COLA') AND negocio_id = '<tu-negocio-id>';
@@ -21,6 +26,20 @@
 --   DELETE FROM atributos WHERE nombre IN ('SABOR', 'TAMANIO') AND negocio_id = '<tu-negocio-id>';
 -- ==========================================
 
+-- ── PASO 1: Simular JWT con negocio_id (ejecutar antes del DO $$) ──
+-- Reemplazar el UUID con el negocio real
+SELECT set_config(
+    'request.jwt.claims',
+    json_build_object(
+        'app_metadata', json_build_object(
+            'negocio_id', '<REEMPLAZAR-CON-NEGOCIO-ID>',
+            'rol',        'ADMIN'
+        )
+    )::text,
+    true  -- true = solo esta sesion (se resetea al cerrar)
+);
+
+-- ── PASO 2: Seed de productos ──
 DO $$
 DECLARE
     -- ── CONFIGURACION: reemplazar con el UUID real del negocio ──

@@ -20,17 +20,17 @@
       <div class="metodos-section">
         <span class="metodos-label">Método de pago</span>
 
-        <button class="metodo-btn" (click)="seleccionarMetodo('DEUNA')">
+        <button class="metodo-btn" [class.metodo-btn--activo]="metodoSeleccionado === 'DEUNA'" (click)="seleccionarMetodo('DEUNA')">
           <ion-icon name="card-outline"></ion-icon>
-          <span>Tarjeta / DeUna</span>
+          <span>Deuna</span>
         </button>
 
-        <button class="metodo-btn" (click)="seleccionarMetodo('TRANSFERENCIA')">
+        <button class="metodo-btn" [class.metodo-btn--activo]="metodoSeleccionado === 'TRANSFERENCIA'" (click)="seleccionarMetodo('TRANSFERENCIA')">
           <ion-icon name="phone-portrait-outline"></ion-icon>
           <span>Transferencia</span>
         </button>
 
-        <button class="metodo-btn metodo-fiado" (click)="seleccionarMetodo('FIADO')">
+        <button class="metodo-btn metodo-fiado" [class.metodo-btn--activo]="metodoSeleccionado === 'FIADO'" (click)="seleccionarMetodo('FIADO')">
           <ion-icon name="hand-right-outline"></ion-icon>
           <span>Fiado</span>
         </button>
@@ -39,6 +39,10 @@
       <div class="acciones">
         <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">
           Cancelar
+        </ion-button>
+        <ion-button expand="block" color="primary" [disabled]="!metodoSeleccionado" (click)="confirmarMetodo()">
+          <ion-icon name="checkmark-outline" slot="start"></ion-icon>
+          Confirmar
         </ion-button>
       </div>
 

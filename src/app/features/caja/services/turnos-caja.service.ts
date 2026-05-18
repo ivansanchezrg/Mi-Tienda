@@ -1,5 +1,5 @@
 import { Injectable, inject, NgZone } from '@angular/core';
-import { BehaviorSubject, map, distinctUntilChanged, combineLatest } from 'rxjs';
+import { BehaviorSubject, map, distinctUntilChanged, combineLatest, filter, firstValueFrom } from 'rxjs';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseService } from '@core/services/supabase.service';
 import { UiService } from '@core/services/ui.service';
@@ -48,6 +48,13 @@ export class TurnosCajaService {
     distinctUntilChanged()
   );
 
+  /**
+   * Emite true una vez que inicializarEstadoReactivo() termino su query a BD.
+   * El guard cajaAbiertaGuard espera este flag antes de decidir — evita la
+   * race condition al hacer refresh (el estado reactivo aun no cargo).
+   */
+  private readonly _inicializado$ = new BehaviorSubject<boolean>(false);
+
   /** Canal de Realtime que escucha cambios en turnos_caja. Uno solo a la vez. */
   private canalTurnos: RealtimeChannel | null = null;
 
@@ -60,9 +67,11 @@ export class TurnosCajaService {
       if (usuario) {
         this.inicializarEstadoReactivo();
       } else {
-        // logout / sesion expirada → reset defensivo (el hook beforeCleanup
-        // tambien lo hace, pero dejar ambos garantiza consistencia).
+        // logout / sesion expirada → reset defensivo.
+        // _inicializado$ vuelve a false para que el guard espere correctamente
+        // si el usuario vuelve a iniciar sesion en la misma sesion de app.
         this._turnoActivo$.next(null);
+        this._inicializado$.next(false);
       }
     });
 
@@ -98,7 +107,19 @@ export class TurnosCajaService {
       this.abrirRealtimeTurnos();
     } catch (err) {
       this.logger.error('TurnosCajaService', 'Error al inicializar estado reactivo', err);
+    } finally {
+      this._inicializado$.next(true);
     }
+  }
+
+  /**
+   * Resuelve cuando el estado de BD ya cargo (inicializarEstadoReactivo termino).
+   * Usar en guards que necesitan saber si hay turno ANTES de decidir la navegacion.
+   * Si ya estaba inicializado, resuelve inmediatamente sin query extra.
+   */
+  async esperarEstadoListo(): Promise<void> {
+    if (this._inicializado$.value) return;
+    await firstValueFrom(this._inicializado$.pipe(filter(v => v)));
   }
 
   /**

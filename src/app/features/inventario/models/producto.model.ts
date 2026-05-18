@@ -60,6 +60,7 @@ export interface ProductoPresentacion {
     precio_venta: number;        // precio de venta de esta presentacion
     precio_costo: number;        // costo real del paquete (obligatorio)
     codigo_barras?: string;
+    imagen_url?: string | null;
     es_principal: boolean;
     activo: boolean;
 }
@@ -98,6 +99,8 @@ export type ProductoPOS = Pick<Producto,
     'stock_actual' | 'stock_minimo' | 'imagen_url' | 'tiene_iva' |
     'tipo_venta' | 'unidad_medida' | 'producto_template_id'
 > & {
-    producto_template?: Pick<ProductoTemplate, 'id' | 'nombre'> | null;
+    producto_template?: (Pick<ProductoTemplate, 'id' | 'nombre' | 'imagen_url'> & {
+        template_atributos?: { atributo?: Pick<Atributo, 'nombre'> }[];
+    }) | null;
     presentaciones?: ProductoPresentacion[];   // cargadas en la busqueda POS (JOIN)
 };

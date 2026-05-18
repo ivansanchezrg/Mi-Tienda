@@ -23,6 +23,8 @@ ion-content {
   box-shadow: var(--shadow-level-1);
   display: flex;
   align-items: center;
+  transition: background var(--transition-fast);
+
   gap: var(--spacing-md);
   cursor: pointer;
   transition: opacity var(--transition-fast);

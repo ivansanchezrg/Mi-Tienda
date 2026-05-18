@@ -6,10 +6,12 @@
 features/pos/
 ├── pages/pos/
 │   ├── pos.page.ts        # Lógica principal (carrito, búsqueda, escáner, cobro)
-│   ├── pos.page.html       # Template con modo normal + modo escáner
+│   ├── pos.page.html       # Template con modo catálogo + modo lista
 │   └── pos.page.scss       # Estilos (carrito, escáner, search, footer)
 ├── components/
-│   └── cobrar-modal/       # Modal unificado de cobro (selección método + monto + vuelto)
+│   ├── cobrar-modal/       # Modal unificado de cobro (selección método + monto + vuelto)
+│   ├── cantidad-modal/     # Modal para editar cantidad de un ítem (unidades o peso)
+│   └── variante-selector-modal/  # Modal para elegir variante/presentación de un template
 ├── services/
 │   └── pos.service.ts      # Procesa venta via RPC (transacción atómica)
 ├── models/
@@ -39,12 +41,37 @@ features/pos/
 
 ---
 
+## Vista catálogo vs vista lista
+
+El POS tiene dos modos de visualización que el empleado alterna con un botón de tab en la toolbar.
+
+### Vista catálogo
+
+Grid de cards de productos. Es el modo principal de entrada de productos.
+
+- Cards de producto simple muestran badge de cantidad en la esquina superior derecha cuando el producto ya está en el carrito. Tocar el badge abre `CantidadModalComponent` directamente.
+- Cards de template (producto con variantes) muestran un badge visual `catalogo-card-badge--template` que indica variantes disponibles — no es clickeable para editar cantidad.
+- Al agregar un producto desde catálogo se dispara la animación "fly to pill": se clona visualmente el card y vuela hacia el pill flotante del carrito.
+- La barra de búsqueda por texto solo existe en el modo catálogo. El filtro de categorías también es exclusivo de este modo.
+- `carritoCountMap` y `templateCountMap` son `computed()` signals — se recalculan solo cuando el carrito cambia.
+- `itemsCatalogo` es un `computed<CatalogoItem[]>()` — filtra y agrupa productos solo cuando cambia `productosCatalogo` o `buscarTexto`.
+
+### Vista lista (carrito)
+
+Muestra los ítems ya agregados al carrito. No tiene barra de búsqueda.
+
+- Cada ítem es completamente tappable (toda la fila): abre `CantidadModalComponent` directamente.
+- Cada fila muestra: thumbnail cuadrado | nombre + precio unitario + badges de stock | subtotal + badge `x2` (cantidad).
+- Swipe-left en un ítem es el atajo rápido para eliminarlo.
+- Los steppers `+/-` inline ya no existen en la vista lista — la edición de cantidad siempre va por `CantidadModalComponent`.
+
+---
+
 ## Modos de entrada de productos
 
-### 1. Búsqueda por nombre
+### 1. Búsqueda por nombre (solo modo catálogo)
 - Debounce de 450ms
-- Muestra lista de sugerencias (slot="fixed", no scrollea con el carrito)
-- Click en sugerencia agrega al carrito
+- Filtra el catálogo visible en tiempo real
 - **Navegación por teclado** (desktop/pistola con teclado): `↓`/`↑` navegan la lista, `Enter` agrega el ítem resaltado (o el primero si ninguno está resaltado). En Android no tiene efecto (el teclado virtual no emite flechas)
 
 ### 2. Búsqueda por código
@@ -96,21 +123,13 @@ body.scanner-active .scanner-overlay * {
 
 ---
 
-## Menú ⋮ (opciones de comprobante)
+## Menú ⋮
 
-El botón ⋮ del header abre un `OptionsMenuComponent` con las siguientes opciones:
+El botón ⋮ del header abre un `OptionsMenuComponent` con una sola opción:
 
 | Opción | Acción |
 |--------|--------|
-| Ticket | Cambia tipo de comprobante a TICKET |
-| Nota de Venta | Cambia tipo de comprobante a NOTA_VENTA |
-| Factura | Cambia tipo de comprobante a FACTURA |
-| *(separador)* | `<hr>` visual — no clickeable |
-| Limpiar carrito | Pide confirmación (`AlertController`) y vacía el carrito + resetea cliente y comprobante a defaults |
-
-El handler unificado `onComprobanteOption()` distingue la acción por `option.value`:
-- `__LIMPIAR__` → llama `confirmarLimpiarCarrito()`
-- Cualquier `TipoComprobante` → actualiza `tipoComprobante` y el checkmark activo en el menú
+| Limpiar carrito | Pide confirmación (`AlertController`) y vacía el carrito + resetea cliente a default |
 
 ---
 
@@ -125,6 +144,8 @@ El handler unificado `onComprobanteOption()` distingue la acción por `option.va
 **Cálculo IVA**: `precio_venta` YA incluye IVA. Para factura se extrae: `base15 = totalConIva / _ivaDivisor`.
 
 > **Tarifa dinámica**: el divisor se calcula desde `appConfig.pos_iva_porcentaje` (tabla `configuraciones`, clave `pos_iva_porcentaje`, default `15`). Si el SRI cambia la tasa, el admin la actualiza en Parámetros sin redeploy.
+
+**Tipo de comprobante**: se configura por el administrador en Parámetros del Negocio (`pos_tipo_comprobante` en tabla `configuraciones`). El cajero no lo cambia desde el header — el header solo muestra el chip de descuento `-X%` si hay descuentos activos.
 
 **Indicador visual en carrito**: cuando el comprobante es FACTURA, los productos con `tiene_iva = false` muestran un badge gris `IVA 0%` junto al precio unitario, para que el cajero detecte productos mal configurados antes de emitir.
 
@@ -221,7 +242,7 @@ El POS aplica descuentos automáticos sobre el subtotal bruto si se cumplen las 
 - Función SQL: `fn_registrar_venta_pos` v1.7 (parámetros `p_descuento` + `p_descuento_pct` + snapshot `precio_costo`)
 
 **Indicadores visuales:**
-- **Header**: chip verde `-X%` junto al chip de comprobante (solo si descuentos habilitados)
+- **Header**: chip verde `-X%` junto al título "POS" (solo si descuentos habilitados)
 - **Footer (upselling)**: mensaje `"$X más para -Y%"` cuando el subtotal está entre 70-100% del umbral — herramienta de upselling para el empleado
 - **Footer (aplicado)**: fila verde `"Descuento (X%) -$Y"` cuando el subtotal supera el umbral
 - **Cobrar modal**: subtotal tachado + descuento verde antes del total (excepto FIADO)
@@ -231,12 +252,100 @@ El POS aplica descuentos automáticos sobre el subtotal bruto si se cumplen las 
 
 ---
 
+## `CantidadModalComponent`
+
+Modal bottom-sheet para editar la cantidad de un ítem del carrito (o asignarla al agregar desde catálogo).
+
+### Header
+
+Muestra un thumbnail cuadrado con `border-radius: var(--radius-md)`. Si `imagenUrl` tiene valor la muestra; si no, muestra un ícono sobre fondo gris:
+- `scale-outline` para productos de tipo PESO
+- `cube-outline` para productos de tipo UNIDAD
+
+```typescript
+@Input() imagenUrl?: string;  // signed URL ya resuelta — se pasa desde pos.page.ts
+```
+
+### Modo unidades
+
+Número gigante en el centro tappable. Al tocarlo activa el modo de edición directa (input inline). Botón `-` circular rojo a la izquierda; botón `+` circular azul a la derecha.
+
+- No hay input visible por defecto — se evita que el teclado virtual aparezca al abrir el sheet en mobile.
+- `modoEdicionDirecta: boolean` controla si se muestra el número o el input inline.
+- Al tocar `-` o `+` mientras el input está activo: vuelve automáticamente al número grande.
+- `activarEdicionDirecta()` activa el modo input con `select()` + `focus()`.
+
+### Modo peso
+
+Input decimal visible desde el inicio, con focus automático al abrir el modal.
+
+---
+
+## `VarianteSelectorModalComponent`
+
+Modal para elegir variante (producto con atributos) o presentación de un producto template.
+
+### Control de stock
+
+`sinStock(variante, presentacion?)` calcula las unidades comprometidas en el carrito para ese SKU y las compara contra el stock disponible:
+
+- Si sin stock y contador = 0: muestra badge "Sin stock" (gris, pill) en lugar del botón `+`. La fila completa tiene `vsm-row--sin-stock` (opacity 0.55).
+- Si sin stock y contador > 0: el botón `+` del stepper queda deshabilitado.
+
+### Callbacks asíncronas
+
+`onAgregar` y `onIncrementar` retornan `Promise<boolean>`. Si retornan `false` (stock insuficiente detectado por el carrito), el contador del modal no se actualiza y no se dispara la animación fly-to-pill.
+
+### Imágenes de presentaciones
+
+Las imágenes de presentaciones (`producto_presentaciones.imagen_url`) se muestran condicionalmente:
+
+```html
+@if (p.imagen_url) {
+  <img [src]="p.imagen_url" [alt]="p.nombre" class="vsm-row-img" loading="lazy">
+} @else {
+  <ion-icon name="cube-outline" class="vsm-row-img-placeholder"></ion-icon>
+}
+```
+
+---
+
+## Imágenes en el POS
+
+`resolverImagen()` en `pos.page.ts` resuelve en paralelo:
+- Imagen del SKU (producto individual)
+- Imagen del template (producto padre con variantes)
+- Imágenes de todas las presentaciones activas
+
+**Fallback chain por ítem**: `presentacion.imagen_url → producto.imagen_url → producto_template.imagen_url`
+
+Las URLs resueltas son signed URLs obtenidas via `StorageService`. `templateImagenUrl` en `CatalogoItem` se resuelve correctamente a signed URL antes de mostrarse en las cards del catálogo.
+
+---
+
+## Signals y performance
+
+`pos.page.ts` usa signals de Angular para minimizar recálculos:
+
+| Signal | Tipo | Descripción |
+|--------|------|-------------|
+| `buscarTexto` | `signal('')` | Texto de búsqueda del catálogo |
+| `productosCatalogo` | `signal<ProductoPOS[]>([])` | Catálogo completo cargado desde BD |
+| `itemsCatalogo` | `computed<CatalogoItem[]>()` | Filtra y agrupa solo cuando cambia catálogo o búsqueda |
+| `carritoCountMap` | `computed()` | Mapa `productoId → cantidad` para badges de simples |
+| `templateCountMap` | `computed()` | Mapa `templateId → cantidad total` para badges de templates |
+| `_brutosDesglose` | `computed()` | Único reduce para calcular IVA 0% e IVA 15% simultáneamente |
+
+---
+
 ## Dependencias clave
 
-- `InventarioService` — queries de productos (por nombre, por código). `ProductoPOS` incluye `stock_minimo` para badges visuales en carrito
+- `InventarioService` — queries de productos (por nombre, por código, catálogo POS). Incluye `imagen_url` y `precio_costo` en presentaciones
 - `PosService` — RPC `fn_registrar_venta_pos`
 - `BarcodeScannerService` — escáner de cámara centralizado (permisos, overlay, beep, vibración, formatos QR + lineales)
 - `CobrarModalComponent` — modal unificado de cobro (reemplaza OptionsModal + VueltoModal)
+- `CantidadModalComponent` — modal para editar cantidad de un ítem (unidades o peso)
+- `VarianteSelectorModalComponent` — modal para elegir variante o presentación de un template
 - `ClientesService` — consumidor final default + selector de cliente
 - `ConfigService` — configuración de descuentos automáticos y tarifa IVA (`pos_iva_porcentaje`) — cache en memoria
 - `NetworkService` — verificación de conectividad antes de queries
@@ -248,3 +357,4 @@ El POS aplica descuentos automáticos sobre el subtotal bruto si se cumplen las 
 ## Notas de stock en carrito
 
 El stock del carrito es una "foto" del momento en que se agregó el producto. Si otro usuario ajusta el stock desde otro dispositivo mientras hay una venta en curso, el carrito no se actualiza automáticamente. **Protocolo interno**: si el empleado detecta discrepancia, debe eliminar el producto del carrito y volver a buscarlo para refrescar el stock.
+
