@@ -9,6 +9,9 @@
 
 ion-content {
     --background: var(--bg-soft);
+    --padding-start: 0;
+    --padding-end: 0;
+    --padding-top: 0;
 }
 
 // 2. Toolbar base
@@ -23,24 +26,6 @@ ion-toolbar {
             display: flex;
             align-items: center;
             gap: var(--spacing-sm);
-
-            .comprobante-chip {
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-                padding: 3px 8px;
-                border-radius: var(--radius-pill);
-                background: var(--ion-color-step-100);
-                border: 1px solid var(--ion-color-step-150);
-                font-size: 10px;
-                font-weight: var(--font-weight-semibold);
-                color: var(--ion-color-medium);
-                letter-spacing: 0;
-
-                ion-icon {
-                    font-size: 11px;
-                }
-            }
 
             .descuento-chip {
                 display: inline-flex;
@@ -67,267 +52,94 @@ ion-toolbar {
 // BUSCADOR HEADER
 // ─────────────────────────────────────────
 
-.search-toolbar {
-    --background: var(--bg-soft);
+.cliente-toolbar {
+    --background: var(--ion-item-background);
     --border-width: 0;
-    padding-bottom: 0;
-    border-bottom: 2px solid var(--ion-color-step-150);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    padding: 0;
+    border-bottom: 1px solid var(--ion-color-step-100);
+}
 
-    .searchbar-wrapper {
-        padding: 0 var(--spacing-sm);
-    }
+// ── Fila cliente ──
+.cliente-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 var(--spacing-md);
 
-    .search-box {
+    .chr-label {
         display: flex;
         align-items: center;
-        background: var(--ion-item-background);
-        border-radius: 12px;
-        height: 46px;
-        gap: 0;
+        gap: 5px;
+        font-size: 13px;
+        color: var(--ion-color-medium);
 
-        .search-mode-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            width: 46px;
-            align-self: stretch;
-            background: var(--ion-color-step-100);
-            border: none;
-            border-right: 1px solid var(--ion-color-step-150);
-            border-radius: 12px 0 0 12px;
-            cursor: pointer;
+        ion-icon { font-size: 14px; }
+    }
+
+    .chr-value {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 13px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--ion-text-color);
+    }
+
+    .chr-nombre {
+        max-width: 160px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .chr-action-btn {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        background: var(--ion-color-step-100);
+        border: none;
+        padding: 4px 8px;
+        cursor: pointer;
+        color: var(--ion-color-medium);
+        border-radius: var(--radius-pill);
+
+        ion-icon {
+            font-size: 16px;
             color: var(--ion-color-primary);
-
-            ion-icon {
-                font-size: 20px;
-            }
-
-            &:active {
-                background: rgba(var(--ion-color-primary-rgb), 0.12);
-            }
         }
 
-        .search-input {
-            flex: 1;
-            height: 100%;
-            border: none;
-            background: transparent;
-            font-size: 15px;
-            color: var(--ion-text-color);
-            outline: none;
-            padding: 0 4px 0 12px;
-
-            &::placeholder {
-                color: var(--ion-color-medium);
-            }
-        }
-
-        .search-spinner {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-            margin-right: 8px;
-            pointer-events: none;
-        }
-
-        .search-clear-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 28px;
-            height: 28px;
-            flex-shrink: 0;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            margin-right: 4px;
-
-            ion-icon {
-                font-size: 18px;
-            }
-        }
+        &:active { opacity: 0.6; }
     }
 
-    // ── Fila cliente inline — solo el botón > es tappable ──
-    .cliente-header-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 15px var(--spacing-md) 10px;
-
-        .chr-label {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 13px;
-            color: var(--ion-color-medium);
-
-            ion-icon { font-size: 14px; }
-        }
-
-        .chr-value {
-            display: flex;
-            align-items: center;
-            gap: 3px;
-            font-size: 13px;
-            font-weight: var(--font-weight-semibold);
-            color: var(--ion-text-color);
-        }
-
-        .chr-nombre {
-            max-width: 160px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .chr-action-btn {
-            display: flex;
-            align-items: center;
-            gap: 3px;
-            background: var(--ion-color-step-100);
-            border: none;
-            padding: 4px 8px;
-            cursor: pointer;
-            color: var(--ion-color-medium);
-            border-radius: var(--radius-pill);
-
-            ion-icon {
-                font-size: 16px;
-                color: var(--ion-color-primary);
-            }
-
-            &:active {
-                opacity: 0.6;
-            }
-        }
-
-        &.cliente-header-row--requerido {
-            .chr-label,
-            .chr-value,
-            ion-icon {
-                color: var(--ion-color-warning-shade);
-            }
+    &.cliente-header-row--requerido {
+        .chr-label,
+        .chr-value,
+        ion-icon {
+            color: var(--ion-color-warning-shade);
         }
     }
 }
-
-// ─────────────────────────────────────────
-// LISTA FLOTANTE DE SUGERENCIAS
-// ─────────────────────────────────────────
-
-.search-results-wrapper {
-    width: 100%;
-    z-index: 9000;
-
-    .search-results-list {
-        max-height: 260px;
-        overflow-y: auto;
-        background: var(--ion-color-step-50);
-        border-bottom: 1px solid var(--ion-color-step-150);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-
-        .suggestion-item {
-            --padding-start: var(--spacing-xl);
-            --inner-padding-end: var(--spacing-xl);
-            --min-height: 52px;
-            --border-color: var(--ion-color-step-100);
-            --background: var(--ion-color-step-50);
-            border-bottom: 1px solid var(--ion-color-step-100);
-            animation: suggestionSlideIn 0.2s ease both;
-
-            &.suggestion-active {
-                --background: rgba(var(--ion-color-primary-rgb), 0.08);
-                --border-color: rgba(var(--ion-color-primary-rgb), 0.2);
-            }
-
-            &:last-child {
-                border-bottom: none;
-            }
-
-            h2 {
-                font-weight: var(--font-weight-semibold);
-                font-size: 14px;
-                margin: 0 0 1px 0;
-                color: var(--ion-text-color);
-            }
-
-            p {
-                font-size: 12px;
-                color: var(--ion-color-medium);
-                margin: 0;
-            }
-
-            &:active {
-                --background: rgba(var(--ion-color-primary-rgb), 0.06);
-            }
-        }
-
-        .suggestion-end {
-            display: flex;
-            align-items: center;
-            gap: var(--spacing-sm);
-        }
-
-        .suggestion-price {
-            font-size: 14px;
-            font-weight: var(--font-weight-bold);
-            color: var(--ion-color-primary);
-            white-space: nowrap;
-        }
-
-        .suggestion-add-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: var(--ion-color-primary);
-            color: white;
-            flex-shrink: 0;
-
-            ion-icon {
-                font-size: 18px;
-            }
-
-            &--multi {
-                background: var(--ion-color-secondary, #3dc2ff);
-            }
-        }
-
-        .pres-hint {
-            color: var(--ion-color-secondary, #3dc2ff);
-            font-weight: var(--font-weight-semibold);
-        }
-    }
-}
-
 
 // ─────────────────────────────────────────
 // LISTA DE CARRITO
 // ─────────────────────────────────────────
 
-@keyframes suggestionSlideIn {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
+
+.cart-wrapper {
+    background: var(--ion-item-background);
 }
 
 .cart-list {
     background: transparent;
     padding: 0;
-    // Espacio extra al final para que el último item no quede tapado por el footer en Android
-    padding-bottom: 16px;
 }
 
 .cart-sliding {
-    margin-bottom: var(--spacing-sm);
-    border-radius: var(--radius-md);
     background: transparent;
     overflow: hidden;
-    box-shadow: var(--shadow-level-1);
+    border-bottom: 1px solid var(--ion-color-step-100);
+
+    &:last-child { border-bottom: none; }
 
     &.cart-item-enter {
         animation: cartItemEnter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
@@ -369,18 +181,19 @@ ion-toolbar {
 
 .cart-item {
     --background: var(--ion-item-background);
-    --border-radius: var(--radius-md);
-    --padding-start: var(--spacing-sm);
-    --inner-padding-end: var(--spacing-sm);
-    --padding-top: var(--spacing-sm);
-    --padding-bottom: var(--spacing-sm);
+    --border-radius: 0;
+    --padding-start: var(--spacing-md);
+    --inner-padding-end: var(--spacing-md);
+    --padding-top: var(--spacing-xs);
+    --padding-bottom: var(--spacing-xs);
+    --min-height: 56px;
 
     // Thumbnail del producto
     .item-thumb {
-        width: 44px;
-        height: 44px;
-        border-radius: var(--radius-sm);
-        background: var(--ion-color-step-50);
+        width: 48px;
+        height: 48px;
+        border-radius: 0;
+        background: var(--ion-color-step-100);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -397,7 +210,7 @@ ion-toolbar {
         ion-icon {
             font-size: 20px;
             color: var(--ion-color-medium);
-            opacity: 0.5;
+            opacity: 0.45;
         }
     }
 
@@ -406,27 +219,24 @@ ion-toolbar {
         display: flex;
         flex-direction: column;
         justify-content: center;
-        padding-right: var(--spacing-sm);
-        min-width: 0; // Permite que el flex-child se encoja correctamente
+        padding-right: var(--spacing-xs);
+        min-width: 0;
 
         .product-name {
             font-size: 14px;
             font-weight: var(--font-weight-semibold);
-            margin: 0 0 3px 0;
+            margin: 0 0 1px 0;
             color: var(--ion-text-color);
             line-height: 1.2;
-            // Truncar a 2 líneas
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            line-clamp: 2;
-            -webkit-box-orient: vertical;
+            white-space: nowrap;
             overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .presentacion-label {
             font-size: 11px;
             color: var(--ion-color-medium);
-            margin: 0 0 2px 0;
+            margin: 0 0 1px 0;
             line-height: 1;
         }
 
@@ -436,7 +246,7 @@ ion-toolbar {
             gap: var(--spacing-xs);
 
             .unit-price {
-                font-size: 12px;
+                font-size: 11px;
                 color: var(--ion-color-medium);
             }
 
@@ -447,86 +257,38 @@ ion-toolbar {
         }
     }
 
-    // Total + controles de cantidad
+    // Total + cantidad
     .item-actions {
         display: flex;
         flex-direction: column;
-        align-items: center;
+        align-items: flex-end;
         justify-content: center;
         flex-shrink: 0;
+        gap: 2px;
 
         .total-price {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: var(--font-weight-bold);
             color: var(--ion-color-primary);
-            letter-spacing: -0.5px;
-            margin-bottom: var(--spacing-xs);
+            letter-spacing: -0.3px;
         }
 
-        // Pastilla +/- con área táctil mínima de 44px (HIG / Material M3)
-        .stepper-wrapper {
-            display: flex;
-            align-items: center;
-            background: var(--ion-color-step-50);
+        .item-qty-badge {
+            font-size: 11px;
+            font-weight: var(--font-weight-semibold);
+            color: var(--ion-color-medium);
+            background: var(--ion-color-step-100);
             border-radius: var(--radius-pill);
-            padding: 2px;
-
-            .stepper-btn {
-                background: transparent;
-                border: none;
-                color: var(--ion-color-medium);
-                width: 44px; // área táctil mínima accesible
-                height: 36px;
-                border-radius: var(--radius-pill);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 18px;
-                cursor: pointer;
-                transition: background var(--transition-fast);
-
-                &:active {
-                    background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
-                }
-
-                &:disabled {
-                    opacity: 0.4;
-                    cursor: not-allowed;
-                    background: transparent;
-
-                    ion-icon {
-                        color: var(--ion-color-medium);
-                    }
-                }
-
-                ion-icon {
-                    color: var(--ion-color-primary);
-                }
-            }
-
-            .stepper-val {
-                min-width: 28px;
-                text-align: center;
-                font-weight: var(--font-weight-bold);
-                font-size: 15px;
-                color: var(--ion-text-color);
-                cursor: pointer;
-                background: rgba(var(--ion-color-primary-rgb), 0.08);
-                border-radius: var(--radius-sm);
-                padding: 2px 8px;
-            }
+            padding: 1px 7px;
+            white-space: nowrap;
         }
     }
 
 }
 
 // ─────────────────────────────────────────
-// MODO ESCÁNER: STACK (capas apiladas)
+// MODO ESCÁNER
 // ─────────────────────────────────────────
-// Ambos paneles ocupan 100% de la pantalla.
-// El z-index controla cuál está encima:
-// - Escaneando → cámara encima (frame en el centro exacto del viewport)
-// - Pausado    → carrito encima (fullscreen para editar)
 
 .scanner-stack {
     position: fixed;
@@ -535,7 +297,7 @@ ion-toolbar {
     visibility: visible;
 }
 
-// ── CAPA CÁMARA: fullscreen, transparente ──
+// Capa cámara
 .scanner-camera-layer {
     position: absolute;
     inset: 0;
@@ -568,15 +330,8 @@ ion-toolbar {
     }
 
     @keyframes scanMove {
-
-        0%,
-        100% {
-            top: 10%;
-        }
-
-        50% {
-            top: 90%;
-        }
+        0%, 100% { top: 10%; }
+        50%       { top: 90%; }
     }
 
     .scanner-hint {
@@ -707,15 +462,15 @@ ion-toolbar {
     bottom: var(--spacing-md);
     right: var(--spacing-sm);
     background: var(--ion-item-background);
-    border: 1px solid var(--ion-color-step-150);
-    border-radius: var(--radius-lg);
-    width: 45px;
-    height: 45px;
+    border: none;
+    border-radius: var(--radius-pill);
+    width: 50px;
+    height: 50px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--ion-color-medium);
-    box-shadow: var(--shadow-level-2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
     z-index: 100;
     cursor: pointer;
     transition: color var(--transition-fast);
@@ -726,6 +481,7 @@ ion-toolbar {
 
     &:active {
         color: var(--ion-color-primary);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
     }
 }
 
@@ -739,6 +495,33 @@ ion-toolbar {
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
     // Dentro de tabs: ion-tab-bar ya maneja safe-area-inset-bottom
     padding-bottom: var(--spacing-md);
+
+    // Desglose fiscal compacto — una línea horizontal (modo FACTURA)
+    .breakdown-fiscal {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 0;
+        margin-bottom: var(--spacing-xs);
+        border-bottom: 1px solid var(--ion-color-step-150);
+
+        .bf-item {
+            font-size: 11px;
+            color: var(--ion-color-medium);
+            white-space: nowrap;
+
+            strong {
+                font-weight: var(--font-weight-semibold);
+                color: var(--ion-text-color);
+            }
+        }
+
+        .bf-sep {
+            font-size: 11px;
+            color: var(--ion-color-step-300);
+            flex-shrink: 0;
+        }
+    }
 
     .breakdown {
         margin-bottom: var(--spacing-md);
@@ -836,6 +619,10 @@ ion-toolbar {
             color: var(--ion-color-primary);
             letter-spacing: -1.5px;
             line-height: 1;
+
+            &--bump {
+                animation: totalBump 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            }
         }
     }
 
@@ -849,8 +636,8 @@ ion-toolbar {
     .btn-charge-main {
         --border-radius: var(--radius-md);
         font-weight: var(--font-weight-bold);
-        font-size: 16px;
-        height: 54px;
+        font-size: 15px;
+        height: 44px;
         flex: 1;
         margin: 0;
         letter-spacing: 0.3px;
@@ -859,10 +646,517 @@ ion-toolbar {
     .btn-charge-other {
         --border-radius: var(--radius-md);
         font-weight: var(--font-weight-semibold);
-        font-size: 14px;
-        height: 54px;
+        font-size: 13px;
+        height: 44px;
         flex: 0.7;
         margin: 0;
     }
 }
 
+// ─────────────────────────────────────────
+// BOTÓN VOLVER AL CATÁLOGO (modo lista)
+// ─────────────────────────────────────────
+
+.volver-catalogo-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding: 9px var(--spacing-md);
+    background: var(--ion-color-step-50);
+    border: none;
+    border-bottom: 1px solid var(--ion-color-step-150);
+    color: var(--ion-color-primary);
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+
+    ion-icon { font-size: 16px; }
+
+    &:active { background: rgba(var(--ion-color-primary-rgb), 0.06); }
+}
+
+// ─────────────────────────────────────────
+// VISTA CATÁLOGO
+// ─────────────────────────────────────────
+
+// Elimina el outline/focus-ring nativo del WebView en todos los botones del catálogo
+.catalogo-wrapper button,
+.catalogo-cart-pill {
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.catalogo-wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+
+    .catalogo-cats-bar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+}
+
+// Barra de categorías + búsqueda — contenedor relativo para las dos capas
+.catalogo-cats-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--ion-color-step-100);
+    background: var(--ion-item-background);
+    min-height: 54px;
+    overflow: hidden; // clip para la animación de la capa de búsqueda
+}
+
+// Capa 1 — tabs + botón búsqueda (scroll horizontal)
+.cats-layer {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    overflow-x: auto;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &::-webkit-scrollbar { display: none; }
+    scrollbar-width: none;
+
+    // Al abrir search: se desliza hacia arriba y desaparece
+    .catalogo-cats-bar--searching & {
+        opacity: 0;
+        transform: translateY(-6px);
+        pointer-events: none;
+    }
+}
+
+// Botón ícono de búsqueda (dentro de cats-layer)
+.cat-search-btn {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--ion-color-step-200);
+    background: transparent;
+    color: var(--ion-color-medium);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    ion-icon { font-size: 18px; }
+    &:active { background: rgba(var(--ion-color-primary-rgb), 0.08); }
+}
+
+// Capa 2 — input de búsqueda a ancho completo (posición absoluta sobre la barra)
+.search-layer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--ion-item-background);
+    // Estado inicial: desplazada hacia abajo, invisible
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+    // Al abrir search: sube y aparece
+    .catalogo-cats-bar--searching & {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+}
+
+.cat-search-mode-btn {
+    flex-shrink: 0;
+    width: 42px;
+    height: 38px;
+    background: var(--ion-color-step-100);
+    border: none;
+    border-right: 1px solid var(--ion-color-step-150);
+    border-radius: 10px 0 0 10px;
+    color: var(--ion-color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    ion-icon { font-size: 18px; }
+    &:active { background: rgba(var(--ion-color-primary-rgb), 0.12); }
+}
+
+// Input + spinner + botón X comparten el mismo borde
+.cat-search-field {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    height: 38px;
+    border: 1px solid var(--ion-color-step-100);
+    border-left: none;
+    border-radius: 0 10px 10px 0;
+    background: transparent;
+    padding-right: 4px;
+}
+
+.cat-search-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: none;
+    background: transparent;
+    font-size: 15px;
+    color: var(--ion-text-color);
+    outline: none;
+    padding: 0 8px 0 12px;
+    caret-color: var(--ion-color-primary);
+
+    &::placeholder { color: var(--ion-color-medium); }
+}
+
+.cat-search-spinner {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
+.cat-search-close-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    color: var(--ion-color-medium);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    ion-icon { font-size: 20px; --ionicon-stroke-width: 56; }
+    &:active { color: var(--ion-color-danger); }
+}
+
+.cat-tab {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--ion-color-step-200);
+    background: transparent;
+    color: var(--ion-color-medium);
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+
+    &.cat-tab--active {
+        background: var(--ion-color-dark);
+        border-color: var(--ion-color-dark);
+        color: var(--ion-color-dark-contrast);
+    }
+
+    &:active:not(.cat-tab--active) {
+        background: rgba(var(--ion-color-primary-rgb), 0.08);
+    }
+}
+
+// Grid de productos — auto-fill con tarjetas de ~110px mínimo
+.catalogo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+    padding: var(--spacing-sm);
+    padding-bottom: 100px;
+
+    // Tablet (600–991px) — columnas fijas más anchas
+    @media (min-width: 600px) and (max-width: 991px) {
+        grid-template-columns: repeat(5, 1fr);
+    }
+
+    // Desktop con split-pane (≥992px) — el área del POS es ~70% del viewport
+    @media (min-width: 992px) {
+        grid-template-columns: repeat(6, 1fr);
+    }
+}
+
+// Skeleton del card — misma estructura que .catalogo-card (img + franja info)
+.catalogo-card-skeleton {
+    display: flex;
+    flex-direction: column;
+    aspect-ratio: 3 / 4;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow-level-1);
+
+    .ccs-img {
+        flex: 1;
+        min-height: 0;
+
+        ion-skeleton-text {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            border-radius: 0;
+        }
+    }
+
+    .ccs-info {
+        flex-shrink: 0;
+        padding: 5px 7px 6px;
+        background: var(--ion-item-background);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+}
+
+// Tarjeta — flexbox column: sección foto (flex:1) + franja info (flex-shrink:0)
+// aspect-ratio da la altura total; la foto ocupa lo que sobre después de la franja
+.catalogo-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    aspect-ratio: 3 / 4;  // más alto que ancho → más espacio para la foto
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--ion-item-background);
+    box-shadow: var(--shadow-level-1);
+    border: none;
+    outline: none;
+    padding: 0;
+    text-align: left;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+
+    &:active {
+        transform: scale(0.95);
+        opacity: 0.85;
+    }
+
+&--added {
+        animation: cardAdded 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+}
+
+@keyframes cardAdded {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(0.91); box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.5); }
+    100% { transform: scale(1);   box-shadow: var(--shadow-level-1); }
+}
+
+@keyframes totalBump {
+    0%   { transform: scale(1);    color: var(--ion-color-primary); }
+    40%  { transform: scale(1.18); color: var(--ion-color-primary-shade); }
+    100% { transform: scale(1);    color: var(--ion-color-primary); }
+}
+
+// Badge de cantidad — pegado a la esquina superior derecha del card
+// top-right sigue el radius del card, las otras 3 esquinas rectas
+.catalogo-card-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-width: 32px;
+    height: 32px;
+    border-radius: 0 8px 0 8px;
+    background: var(--ion-color-primary);
+    color: var(--ion-color-primary-contrast);
+    font-size: 13px;
+    font-weight: var(--font-weight-bold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    z-index: 3;
+    border: none;
+    cursor: pointer;
+
+    &:active {
+        background: var(--ion-color-primary-shade);
+    }
+
+    // Variante de template: no es clickeable (hay N items, no uno solo)
+    &--template {
+        cursor: default;
+        pointer-events: none;
+    }
+}
+
+// Nombre como placeholder cuando no hay imagen
+.catalogo-card-placeholder-nombre {
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-medium);
+    text-align: center;
+    padding: var(--spacing-sm);
+    line-height: 1.3;
+    user-select: none;
+    -webkit-user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+// Sección imagen — flex-grow ocupa todo el espacio disponible sobre la franja
+.catalogo-card-img {
+    flex: 1;
+    min-height: 0;
+    background: var(--ion-color-step-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        pointer-events: none;
+        -webkit-touch-callout: none;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    ion-icon {
+        font-size: 32px;
+        color: var(--ion-color-step-300);
+    }
+}
+
+// Franja inferior — nombre + precio, altura fija
+.catalogo-card-info {
+    flex-shrink: 0;
+    padding: 5px 7px 6px;
+    background: var(--ion-item-background);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.catalogo-card-nombre {
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.catalogo-card-precio {
+    font-size: 12px;
+    font-weight: var(--font-weight-bold);
+    color: var(--ion-color-primary);
+    letter-spacing: -0.2px;
+}
+
+// Indicador venta por peso
+.catalogo-card-multi {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    z-index: 3;
+    padding: 2px 6px;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--ion-color-dark-rgb), 0.55);
+    color: var(--ion-color-light);
+    font-size: 9px;
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    backdrop-filter: blur(4px);
+}
+
+// ─────────────────────────────────────────
+// PILL FLOTANTE DEL CARRITO (modo catálogo)
+// ─────────────────────────────────────────
+
+.catalogo-cart-pill {
+    // slot="fixed" — Ionic posiciona sobre el tab bar igual que .scanner-corner-btn
+    position: absolute;
+    bottom: var(--spacing-md);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 12px 20px;
+    background: var(--ion-color-primary);
+    color: var(--ion-color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-pill);
+    box-shadow: 0 4px 20px rgba(var(--ion-color-primary-rgb), 0.45);
+    cursor: pointer;
+    white-space: nowrap;
+    animation: pillEnter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+    ion-icon { font-size: 20px; }
+
+    .pill-count {
+        background: var(--ion-color-primary-contrast);
+        color: var(--ion-color-primary);
+        font-size: 12px;
+        font-weight: var(--font-weight-bold);
+        border-radius: var(--radius-pill);
+        padding: 1px 7px;
+        min-width: 22px;
+        text-align: center;
+    }
+
+    .pill-label {
+        font-size: 15px;
+        font-weight: var(--font-weight-semibold);
+    }
+
+    .pill-total {
+        font-size: 15px;
+        font-weight: var(--font-weight-bold);
+        opacity: 0.9;
+    }
+
+    .pill-arrow {
+        font-size: 16px;
+        opacity: 0.7;
+    }
+
+    &:active {
+        transform: translateX(-50%) scale(0.96);
+        box-shadow: 0 2px 10px rgba(var(--ion-color-primary-rgb), 0.3);
+    }
+}
+
+@keyframes pillEnter {
+    from { opacity: 0; transform: translateX(-50%) translateY(20px) scale(0.9); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);   }
+}
+
+@keyframes pillCountBump {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.4); }
+    100% { transform: scale(1); }
+}
+
+.pill-count {
+    &.qty-bump {
+        animation: pillCountBump 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+}

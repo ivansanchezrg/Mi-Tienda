@@ -118,6 +118,31 @@
             </ion-card-content>
         </ion-card>
 
+        <!-- Imagen del template -->
+        <ion-card class="form-card shadow-1 rounded-lg m-0 mb-md">
+            <ion-card-content class="p-lg">
+                <div class="section-header-row">
+                    <h3 class="section-title section-title--inline">Imagen del producto</h3>
+                    <span class="optional-badge">Opcional</span>
+                </div>
+                <p class="section-hint mb-sm">Esta imagen representa al grupo completo. Cada variante puede tener la suya propia en el paso 3.</p>
+
+                @if (!templateFotoPreviewUrl) {
+                <button type="button" class="upload-btn" (click)="seleccionarFotoTemplate()">
+                    <ion-icon name="camera-outline"></ion-icon>
+                    <span>{{ storageService.isNative ? 'Tomar foto o seleccionar de galeria' : 'Seleccionar de galeria' }}</span>
+                </button>
+                } @else {
+                <div class="photo-preview">
+                    <img [src]="templateFotoPreviewUrl" alt="Imagen del producto">
+                    <button type="button" class="remove-photo" (click)="removerFotoTemplate()">
+                        <ion-icon name="close-circle"></ion-icon>
+                    </button>
+                </div>
+                }
+            </ion-card-content>
+        </ion-card>
+
         <ion-card class="form-card shadow-1 rounded-lg m-0 mb-md">
             <ion-card-content class="p-lg">
                 <h3 class="section-title">Precios base</h3>
@@ -453,6 +478,24 @@
                           </ion-button>
                         }
                     </ion-item>
+                </div>
+
+                <!-- Imagen individual de la variante -->
+                <div class="sku-imagen-row">
+                    @if (!sku.imagenPreviewUrl) {
+                    <button type="button" class="sku-imagen-btn" (click)="seleccionarFotoSku(sku)">
+                        <ion-icon name="image-outline"></ion-icon>
+                        <span>Agregar imagen</span>
+                        <span class="sku-opcional">Opcional</span>
+                    </button>
+                    } @else {
+                    <div class="sku-imagen-preview">
+                        <img [src]="sku.imagenPreviewUrl" alt="Imagen variante">
+                        <button type="button" class="sku-imagen-remove" (click)="removerFotoSku(sku)">
+                            <ion-icon name="close-circle"></ion-icon>
+                        </button>
+                    </div>
+                    }
                 </div>
                 }
 

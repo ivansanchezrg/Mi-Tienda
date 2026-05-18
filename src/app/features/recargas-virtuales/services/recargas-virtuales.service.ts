@@ -131,39 +131,8 @@ export class RecargasVirtualesService {
     return result.data?.saldo_virtual_actual ?? 0;
   }
 
-  /**
-   * Saldo virtual actual de un servicio.
-   * Fórmula: último cierre diario + recargas registradas después de ese cierre.
-   */
   async getSaldoVirtualActual(servicio: 'CELULAR' | 'BUS'): Promise<number> {
-    const ultimoCierre = await this.supabase.client
-      .from('recargas')
-      .select('saldo_virtual_actual, created_at, tipos_servicio!inner(codigo)')
-      .eq('tipos_servicio.codigo', servicio)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (ultimoCierre.error) throw ultimoCierre.error;
-    const saldoCierre: number = ultimoCierre.data?.saldo_virtual_actual ?? 0;
-    const fechaUltimoCierre: string | null = ultimoCierre.data?.created_at ?? null;
-
-    let query = this.supabase.client
-      .from('recargas_virtuales')
-      .select('monto_virtual, tipos_servicio!inner(codigo)')
-      .eq('tipos_servicio.codigo', servicio);
-
-    if (fechaUltimoCierre) {
-      query = query.gt('created_at', fechaUltimoCierre);
-    }
-
-    const recargasNuevas = await query;
-    if (recargasNuevas.error) throw recargasNuevas.error;
-
-    const sumaNueva: number = (recargasNuevas.data ?? [])
-      .reduce((acc: number, r: any) => acc + Number(r.monto_virtual), 0);
-
-    return saldoCierre + sumaNueva;
+    return this.getSaldoUltimoCierre(servicio);
   }
 
   async registrarRecargaProveedorCelular(params: {

@@ -122,6 +122,24 @@
     </div>
     }
 
+    <!-- Imagen de la presentación (opcional) -->
+    <div class="imagen-pres-section">
+      @if (tieneImagen) {
+        <div class="imagen-pres-preview">
+          <img [src]="fotoPreviewUrl || imagenUrlResuelta" alt="Imagen de presentación" class="imagen-pres-img">
+          <button type="button" class="imagen-pres-remove" (click)="removerFoto()" aria-label="Quitar imagen">
+            <ion-icon name="trash-outline"></ion-icon>
+          </button>
+        </div>
+      } @else {
+        <button type="button" class="imagen-pres-placeholder" (click)="seleccionarFoto()">
+          <ion-icon name="image-outline"></ion-icon>
+          <span>Agregar imagen</span>
+          <span class="imagen-pres-optional">Opcional</span>
+        </button>
+      }
+    </div>
+
     <!-- Fila 3: Código de barras -->
     @if (modo === 'CREAR') {
     <div class="field-group">

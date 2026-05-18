@@ -78,7 +78,7 @@ ion-modal.bottom-sheet-modal {
   height: 36px;
   border-radius: 50%;
   border: none;
-  background: var(--ion-color-step-100, #f0f0f0);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -86,8 +86,9 @@ ion-modal.bottom-sheet-modal {
   flex-shrink: 0;
 
   ion-icon {
-    font-size: 20px;
+    font-size: 22px;
     color: var(--ion-color-medium);
+    --ionicon-stroke-width: 56;
   }
 }
 

@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   // appId: 'com.mitienda.app',
   appId: 'ec.mitienda.app',
-  appName: 'Mi Tienda',
+  appName: 'NexoPOS',
   webDir: 'www',
   server: {
     androidScheme: 'https'

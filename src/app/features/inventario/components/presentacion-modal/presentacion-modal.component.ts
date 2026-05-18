@@ -1,11 +1,14 @@
 import { Component, Input, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { IonButton, IonIcon, IonSpinner, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, layersOutline, barcodeOutline, informationCircleOutline, trendingUpOutline, trendingDownOutline, removeOutline, checkmarkCircleOutline, sparklesOutline } from 'ionicons/icons';
+import { closeOutline, layersOutline, barcodeOutline, informationCircleOutline, trendingUpOutline, trendingDownOutline, removeOutline, checkmarkCircleOutline, sparklesOutline, imageOutline, cameraOutline, trashOutline } from 'ionicons/icons';
+import { CameraSource } from '@capacitor/camera';
 import { UiService } from '../../../../core/services/ui.service';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
+import { StorageService } from '../../../../core/services/storage.service';
 
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only.directive';
@@ -20,6 +23,8 @@ export interface PresentacionModalResult {
     precio_venta: number;
     precio_costo: number;
     codigo_barras?: string;
+    imagen_url?: string | null;
+    imagenRawUrl?: string;
 }
 
 @Component({
@@ -53,6 +58,9 @@ export class PresentacionModalComponent implements OnInit {
     /** Nombre del producto padre — se muestra como subtítulo en el header */
     @Input() nombreProducto = '';
 
+    /** Path de imagen existente — se muestra en modo EDITAR (se convierte a signed URL) */
+    @Input() imagenExistente?: string | null;
+
     /**
      * Callback que ejecuta la operación de BD.
      * Retorna true si fue exitoso — el modal solo se cierra en ese caso.
@@ -64,12 +72,19 @@ export class PresentacionModalComponent implements OnInit {
     private fb = inject(FormBuilder);
     private ui = inject(UiService);
     private barcodeScanner = inject(BarcodeScannerService);
+    private storageService = inject(StorageService);
     protected currencyService = inject(CurrencyService);
 
     form!: FormGroup;
     guardando = false;
     escaneando = false;
     margenPct: number = 20;
+
+    // Imagen de la presentacion
+    fotoPreviewUrl: SafeUrl | null = null;
+    private fotoRawUrl: string | null = null;
+    imagenUrlResuelta: string | null = null;
+    private imagenEliminada = false;
 
     get modo(): 'CREAR' | 'EDITAR' {
         return this.presentacionActual ? 'EDITAR' : 'CREAR';
@@ -104,7 +119,7 @@ export class PresentacionModalComponent implements OnInit {
     }
 
     constructor() {
-        addIcons({ closeOutline, layersOutline, barcodeOutline, informationCircleOutline, trendingUpOutline, trendingDownOutline, removeOutline, checkmarkCircleOutline, sparklesOutline });
+        addIcons({ closeOutline, layersOutline, barcodeOutline, informationCircleOutline, trendingUpOutline, trendingDownOutline, removeOutline, checkmarkCircleOutline, sparklesOutline, imageOutline, cameraOutline, trashOutline });
     }
 
     async escanearCodigo() {
@@ -116,7 +131,7 @@ export class PresentacionModalComponent implements OnInit {
         this.ui.showToast(`Código capturado: ${codigo}`, 'success');
     }
 
-    ngOnInit() {
+    async ngOnInit() {
         this.form = this.fb.group({
             nombre: [
                 this.presentacionActual?.nombre ?? '',
@@ -145,6 +160,11 @@ export class PresentacionModalComponent implements OnInit {
                 this.costoPack,
                 this.presentacionActual.precio_venta
             );
+        }
+
+        // Resolver imagen existente si hay una en modo EDITAR
+        if (this.imagenExistente) {
+            this.imagenUrlResuelta = await this.storageService.resolveImageUrl(this.imagenExistente);
         }
     }
 
@@ -194,6 +214,29 @@ export class PresentacionModalComponent implements OnInit {
         return !!(c && c.invalid && (c.dirty || c.touched));
     }
 
+    get tieneImagen(): boolean {
+        return !!(this.fotoPreviewUrl || this.imagenUrlResuelta);
+    }
+
+    async seleccionarFoto() {
+        const source = this.storageService.isNative ? CameraSource.Camera : CameraSource.Photos;
+        const result = await this.storageService.capturarFoto(source);
+        if (!result) return;
+        this.fotoPreviewUrl = result.previewUrl;
+        this.fotoRawUrl = result.rawUrl;
+        this.imagenUrlResuelta = null;
+        this.imagenEliminada = false;
+    }
+
+    removerFoto() {
+        if (this.imagenExistente && !this.fotoRawUrl) {
+            this.imagenEliminada = true;
+        }
+        this.fotoPreviewUrl = null;
+        this.fotoRawUrl = null;
+        this.imagenUrlResuelta = null;
+    }
+
     cerrar() {
         this.modalCtrl.dismiss(null, 'cancel');
     }
@@ -210,7 +253,9 @@ export class PresentacionModalComponent implements OnInit {
             factor_conversion: Math.round(Number(v.factor_conversion)),
             precio_costo: this.currencyService.parse(v.precio_costo),
             precio_venta: this.currencyService.parse(v.precio_venta),
-            codigo_barras: v.codigo_barras?.trim() || undefined
+            codigo_barras: v.codigo_barras?.trim() || undefined,
+            imagen_url: this.imagenEliminada ? null : undefined,
+            imagenRawUrl: this.fotoRawUrl || undefined
         };
 
         // Sin callback (modo CREAR en memoria): cerrar directamente

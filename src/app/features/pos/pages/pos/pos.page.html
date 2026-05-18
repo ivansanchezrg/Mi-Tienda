@@ -4,27 +4,17 @@
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
     <ion-title>
-      <div class="title-with-chip">
-        <span>POS</span>
-        <div class="comprobante-chip">
-          @if (tipoComprobante === TipoComprobante.TICKET) {
-            <ion-icon name="receipt-outline"></ion-icon>
-            <span>Ticket</span>
-          } @else if (tipoComprobante === TipoComprobante.NOTA_VENTA) {
-            <ion-icon name="document-text-outline"></ion-icon>
-            <span>Nota de Venta</span>
-          } @else {
-            <ion-icon name="document-text-outline"></ion-icon>
-            <span>Factura</span>
-          }
+      @if (descuentoActivo) {
+        <div class="title-with-chip">
+          <span>POS</span>
+          <div class="descuento-chip">
+            <ion-icon name="pricetag-outline"></ion-icon>
+            <span>-{{ descuentoPct }}%</span>
+          </div>
         </div>
-        @if (descuentoActivo) {
-        <div class="descuento-chip">
-          <ion-icon name="pricetag-outline"></ion-icon>
-          <span>-{{ descuentoPct }}%</span>
-        </div>
-        }
-      </div>
+      } @else {
+        POS
+      }
     </ion-title>
     <ion-buttons slot="end">
       <!-- Menú ⋮ — acciones rápidas del POS -->
@@ -34,36 +24,9 @@
     </ion-buttons>
   </ion-toolbar>
 
-  <ion-toolbar class="search-toolbar">
-    <div class="searchbar-wrapper">
-      <div class="search-box">
-        <button class="search-mode-btn" (click)="toggleModoBusqueda()" type="button">
-          @if (modoBusqueda === 'codigo') {
-            <ion-icon name="barcode-outline"></ion-icon>
-          } @else {
-            <ion-icon name="search-outline"></ion-icon>
-          }
-        </button>
-        <input class="search-input" #searchInput
-          [(ngModel)]="buscarTexto"
-          [placeholder]="modoBusqueda === 'codigo' ? 'Buscar por código...' : 'Buscar por nombre...'"
-          [inputMode]="modoBusqueda === 'codigo' ? 'numeric' : 'text'"
-          (input)="onSearchInput($event)"
-          (keyup)="onSearchKeyup($event)"
-          autocomplete="off"
-          autocorrect="off"
-          spellcheck="false" />
-        @if (buscando) {
-          <ion-spinner name="crescent" class="search-spinner" color="medium"></ion-spinner>
-        } @else if (buscarTexto) {
-          <button class="search-clear-btn" (click)="limpiarBusqueda()" type="button">
-            <ion-icon name="close-outline" color="medium"></ion-icon>
-          </button>
-        }
-      </div>
-    </div>
 
-    <!-- Fila cliente — solo el botón > abre el modal -->
+  <!-- Fila cliente — solo en modo lista (en catálogo se gestiona al cobrar) -->
+  <ion-toolbar class="cliente-toolbar" [class.ion-hide]="vistaActual === 'catalogo'">
     <div class="cliente-header-row"
       [class.cliente-header-row--requerido]="tipoComprobante === TipoComprobante.FACTURA && clienteSeleccionado?.es_consumidor_final">
       <span class="chr-label">
@@ -124,9 +87,9 @@
 
     <!-- Badge-botón: tap para cerrar escáner -->
     <button class="scanner-cart-badge" (click)="cerrarEscaner()">
-      @if (carrito.length > 0) {
+      @if (carrito().length > 0) {
         <ion-icon name="cart-outline"></ion-icon>
-        <span>{{ totalArticulos }} · ${{ currencyService.format(totalPagar) }}</span>
+        <span>{{ totalArticulos() }} · ${{ currencyService.format(totalPagar()) }}</span>
         <ion-icon name="chevron-forward-outline" class="badge-arrow"></ion-icon>
       } @else {
         <ion-icon name="close-outline"></ion-icon>
@@ -148,88 +111,40 @@
     </ion-refresher-content>
   </ion-refresher>
 
-  <!-- SUGERENCIAS: slot="fixed" → fijo debajo del input, no scrollea con el carrito -->
-  @if (buscarTexto && resultadosBusqueda.length > 0) {
-  <div class="search-results-wrapper" slot="fixed">
-    <ion-list class="search-results-list" lines="none">
-      @for (res of resultadosBusqueda; track (res.tipo === 'simple' ? res.producto.id : res.templateId); let i = $index) {
+  <!-- ══ VISTA LISTA (carrito) ══ -->
+  @if (vistaActual === 'lista') {
+  <div class="tab-animate">
 
-        @if (res.tipo === 'template') {
-          <!-- Grupo de variantes -->
-          <ion-item button (click)="seleccionarResultadoBusqueda(res)"
-            class="suggestion-item" [class.suggestion-active]="i === sugerenciaActiva">
-            <ion-label>
-              <h2>{{ res.templateNombre }}</h2>
-              <p>{{ res.variantes.length }} variantes disponibles</p>
-            </ion-label>
-            <div slot="end" class="suggestion-end">
-              <div class="suggestion-add-btn suggestion-add-btn--multi">
-                <ion-icon name="chevron-down-circle-outline"></ion-icon>
-              </div>
-            </div>
-          </ion-item>
-        } @else {
-          <!-- Producto simple -->
-          <ion-item button (click)="seleccionarResultadoBusqueda(res)"
-            class="suggestion-item" [class.suggestion-active]="i === sugerenciaActiva">
-            <ion-label>
-              <h2>{{ res.producto.nombre }}</h2>
-              <p>
-                @if (res.producto.tipo_venta === 'PESO') {
-                  Stock: {{ res.producto.stock_actual }} {{ res.producto.unidad_medida }}
-                } @else {
-                  Stock: {{ res.producto.stock_actual }}
-                }
-                @if (res.producto.presentaciones && res.producto.presentaciones.length > 0) {
-                  <span class="pres-hint">· {{ res.producto.presentaciones.length + 1 }} opciones</span>
-                }
-              </p>
-            </ion-label>
-            <div slot="end" class="suggestion-end">
-              <span class="suggestion-price">${{ currencyService.format(res.producto.precio_venta) }}</span>
-              <div class="suggestion-add-btn" [class.suggestion-add-btn--multi]="res.producto.presentaciones && res.producto.presentaciones.length > 0">
-                @if (res.producto.presentaciones && res.producto.presentaciones.length > 0) {
-                  <ion-icon name="chevron-down-circle-outline"></ion-icon>
-                } @else {
-                  <ion-icon name="add-outline"></ion-icon>
-                }
-              </div>
-            </div>
-          </ion-item>
-        }
+    <!-- Botón volver al catálogo — solo visible cuando vino desde el catálogo -->
+    @if (volvioDesdeCatalogo) {
+    <button class="volver-catalogo-btn" (click)="volverAlCatalogo()" type="button">
+      <ion-icon name="chevron-back-outline"></ion-icon>
+      <span>Volver al catálogo</span>
+    </button>
+    }
 
-      }
-    </ion-list>
-  </div>
-  }
-
-  <div class="p-md">
-
-    @if (carrito.length === 0) {
-    <!-- Estado vacío del carrito -->
+  @if (carrito().length === 0) {
     <app-empty-state
       icon="cart-outline"
       title="Sin productos"
       hint="Escanea un código o busca por nombre para agregar productos">
     </app-empty-state>
-    } @else {
-    <!-- Lista del Carrito -->
+  } @else {
+  <div class="cart-wrapper">
     <ion-list class="cart-list" lines="none">
-      @for (item of carrito; track (item.id + (item.presentacion_id ?? ''))) {
+      @for (item of carrito(); track (item.id + (item.presentacion_id ?? ''))) {
       <ion-item-sliding class="cart-sliding" [class.cart-item-enter]="lastAddedKey === (item.id + (item.presentacion_id ?? ''))">
 
-        <ion-item class="cart-item" lines="none">
+        <ion-item class="cart-item" lines="none" button detail="false" (click)="editarCantidad(item)">
 
-          <!-- Imagen producto -->
           <div slot="start" class="item-thumb">
             @if (item.imagen_url) {
               <img [src]="item.imagen_url" [alt]="item.nombre" />
             } @else {
-              <ion-icon name="image-outline"></ion-icon>
+              <ion-icon name="cube-outline"></ion-icon>
             }
           </div>
 
-          <!-- Nombre y precio unitario -->
           <div class="item-main">
             <p class="product-name">{{ item.nombre }}</p>
             @if (item.presentacion_nombre) {
@@ -248,34 +163,20 @@
             </div>
           </div>
 
-          <!-- Total + Stepper -->
           <div slot="end" class="item-actions">
             <span class="total-price">${{ currencyService.format(item.subtotal) }}</span>
-
-            @if (item.tipo_venta === 'PESO') {
-            <!-- PESO: solo muestra cantidad con UoM, click para editar -->
-            <div class="stepper-wrapper">
-              <span class="stepper-val peso-val" (click)="editarCantidad(item)">{{ item.cantidad }} {{ item.unidad_medida }}</span>
-            </div>
-            } @else {
-            <!-- UNIDAD / PADRE: stepper normal -->
-            <div class="stepper-wrapper">
-              <button class="stepper-btn" (click)="decrementar(item)" [disabled]="item.cantidad <= 1">
-                <ion-icon name="remove-outline"></ion-icon>
-              </button>
-              <span class="stepper-val"
-                [class.qty-bump]="lastIncrementedKey === (item.id + (item.presentacion_id ?? ''))"
-                (click)="editarCantidad(item)">{{ item.cantidad }}</span>
-              <button class="stepper-btn" (click)="incrementar(item)">
-                <ion-icon name="add-outline"></ion-icon>
-              </button>
-            </div>
-            }
+            <span class="item-qty-badge"
+              [class.qty-bump]="lastIncrementedKey === (item.id + (item.presentacion_id ?? ''))">
+              @if (item.tipo_venta === 'PESO') {
+                {{ item.cantidad }} {{ item.unidad_medida }}
+              } @else {
+                x{{ item.cantidad }}
+              }
+            </span>
           </div>
 
         </ion-item>
 
-        <!-- Swipe to delete -->
         <ion-item-options side="end">
           <ion-item-option color="danger" (click)="eliminar(item)" class="delete-option">
             <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
@@ -285,9 +186,176 @@
       </ion-item-sliding>
       }
     </ion-list>
+  </div>
+  }
+  </div>
+  }
+
+  <!-- ══ VISTA CATÁLOGO ══ -->
+  @if (vistaActual === 'catalogo') {
+  <div class="catalogo-wrapper tab-animate">
+
+    <!-- Barra de categorías + búsqueda -->
+    <div class="catalogo-cats-bar" [class.catalogo-cats-bar--searching]="catalogoSearchAbierto">
+
+      <!-- Capa 1: tabs de categorías + botón de búsqueda -->
+      <div class="cats-layer">
+        <button class="cat-search-btn" (click)="abrirCatalogoSearch()" type="button">
+          @if (modoBusqueda === 'codigo') {
+            <ion-icon name="barcode-outline"></ion-icon>
+          } @else {
+            <ion-icon name="search-outline"></ion-icon>
+          }
+        </button>
+        <button class="cat-tab" [class.cat-tab--active]="categoriaActivaId === null"
+          data-cat-id="__todos__"
+          (click)="seleccionarCategoriaCatalogo(null)">
+          Todos
+        </button>
+        @for (cat of categoriasCatalogo; track cat.id) {
+          <button class="cat-tab" [class.cat-tab--active]="categoriaActivaId === cat.id"
+            [attr.data-cat-id]="cat.id"
+            (click)="seleccionarCategoriaCatalogo(cat.id)">
+            {{ cat.nombre }}
+          </button>
+        }
+      </div>
+
+      <!-- Capa 2: input de búsqueda a ancho completo -->
+      <div class="search-layer">
+        <button class="cat-search-mode-btn"
+          (mousedown)="$event.preventDefault()"
+          (click)="toggleModoBusqueda()" type="button">
+          @if (modoBusqueda === 'codigo') {
+            <ion-icon name="barcode-outline"></ion-icon>
+          } @else {
+            <ion-icon name="search-outline"></ion-icon>
+          }
+        </button>
+        <div class="cat-search-field">
+          <input class="cat-search-input"
+            [ngModel]="buscarTexto()" (ngModelChange)="buscarTexto.set($event)"
+            [placeholder]="modoBusqueda === 'codigo' ? 'Código...' : 'Nombre...'"
+            inputmode="text"
+            (input)="onSearchInput($event)"
+            (keyup)="onSearchKeyup($event)"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false" />
+          @if (buscando) {
+            <ion-spinner name="crescent" class="cat-search-spinner" color="medium"></ion-spinner>
+          }
+          <button class="cat-search-close-btn"
+            (mousedown)="$event.preventDefault()"
+            (click)="cerrarCatalogoSearch()" type="button">
+            <ion-icon name="close-outline"></ion-icon>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Grid de productos -->
+    @if (cargandoCatalogo) {
+    <div class="catalogo-grid">
+      @for (i of [1,2,3,4,5,6,7,8,9]; track i) {
+        <div class="catalogo-card-skeleton">
+          <!-- Área imagen -->
+          <div class="ccs-img">
+            <ion-skeleton-text animated></ion-skeleton-text>
+          </div>
+          <!-- Franja info -->
+          <div class="ccs-info">
+            <ion-skeleton-text animated style="width: 80%; height: 11px; border-radius: 4px;"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 45%; height: 11px; border-radius: 4px;"></ion-skeleton-text>
+          </div>
+        </div>
+      }
+    </div>
+    } @else if (itemsCatalogo().length === 0) {
+    <app-empty-state
+      icon="cube-outline"
+      [title]="buscarTexto() ? 'Sin resultados' : 'Sin productos'"
+      [hint]="buscarTexto() ? 'Ningún producto coincide con la búsqueda' : 'No hay productos en esta categoría'"
+      style="min-height: auto; margin-top: 48px;">
+    </app-empty-state>
+    } @else {
+    <div class="catalogo-grid">
+      @for (item of itemsCatalogo(); track (item.tipo === 'simple' ? item.producto.id : item.templateId)) {
+
+        @if (item.tipo === 'simple') {
+          <!-- Card producto simple -->
+          <button class="catalogo-card" [class.catalogo-card--added]="catalogoCardAnimando === item.producto.id"
+            (click)="agregarDesdeCatalogo(item.producto, $event)" (contextmenu)="$event.preventDefault()" type="button">
+            @if (carritoCountMap()[item.producto.id]) {
+              @if (item.producto.presentaciones && item.producto.presentaciones.length > 0) {
+                <div class="catalogo-card-badge">
+                  {{ carritoCountMap()[item.producto.id] }}
+                </div>
+              } @else {
+                <button class="catalogo-card-badge"
+                  (click)="$event.stopPropagation(); editarCantidadDesdeCatalogo(item.producto)"
+                  type="button">
+                  {{ carritoCountMap()[item.producto.id] }}
+                </button>
+              }
+            }
+            <div class="catalogo-card-img">
+              @if (item.producto.imagen_url) {
+                <img [src]="item.producto.imagen_url" [alt]="item.producto.nombre" />
+              } @else {
+                <span class="catalogo-card-placeholder-nombre">{{ item.producto.nombre }}</span>
+              }
+            </div>
+            <div class="catalogo-card-info">
+              <span class="catalogo-card-nombre">{{ item.producto.nombre }}</span>
+              <span class="catalogo-card-precio">${{ currencyService.format(item.producto.precio_venta) }}</span>
+            </div>
+            @if (item.producto.tipo_venta === 'PESO') {
+              <div class="catalogo-card-multi">{{ item.producto.unidad_medida }}</div>
+            }
+          </button>
+        }
+
+        @if (item.tipo === 'template') {
+          <!-- Card template agrupado — muestra todas las variantes en un modal al tocar -->
+          <button class="catalogo-card" [class.catalogo-card--added]="catalogoCardAnimando === item.templateId"
+            (click)="abrirVariantesDesdeCatalogo(item)" (contextmenu)="$event.preventDefault()" type="button">
+            @if (templateCountMap()[item.templateId]) {
+              <div class="catalogo-card-badge catalogo-card-badge--template">
+                {{ templateCountMap()[item.templateId] }}
+              </div>
+            }
+            <div class="catalogo-card-img">
+              @if (item.templateImagenUrl) {
+                <img [src]="item.templateImagenUrl" [alt]="item.templateNombre" />
+              } @else {
+                <span class="catalogo-card-placeholder-nombre">{{ item.templateNombre }}</span>
+              }
+            </div>
+            <div class="catalogo-card-info">
+              <span class="catalogo-card-nombre">{{ item.templateNombre }}</span>
+            </div>
+          </button>
+        }
+
+      }
+    </div>
     }
 
   </div>
+  }
+
+  <!-- Pill flotante del carrito — slot="fixed" igual que el escáner, Ionic calcula el bottom automáticamente -->
+  @if (vistaActual === 'catalogo' && carrito().length > 0) {
+  <button class="catalogo-cart-pill" slot="fixed" (click)="irAListaDesdeCatalogo()" type="button">
+    <ion-icon name="cart-outline"></ion-icon>
+    <span class="pill-count" [class.qty-bump]="totalAmountAnimando">{{ totalArticulos() }}</span>
+    <span class="pill-label">Ver carrito</span>
+    <span class="pill-total" [class.total-amount--bump]="totalAmountAnimando">${{ currencyService.format(totalPagar()) }}</span>
+    <ion-icon name="chevron-forward-outline" class="pill-arrow"></ion-icon>
+  </button>
+  }
 
   @if (barcodeScanner.isAvailable) {
     <button class="scanner-corner-btn" slot="fixed" (click)="abrirEscanerCamara()">
@@ -297,57 +365,49 @@
 
 </ion-content>
 
-  <!-- Footer Fijo de Cobro — solo visible con items en el carrito -->
-  @if (carrito.length > 0) {
+  <!-- Footer Fijo de Cobro — solo en modo lista y con items en el carrito -->
+  @if (carrito().length > 0 && vistaActual === 'lista') {
   <ion-footer class="ion-no-border">
-    <div class="pos-footer p-md">
-      <!-- Desglose fiscal: solo visible en FACTURA -->
+    <div class="pos-footer p-md" style="padding-top: 6px;">
+      <!-- Desglose fiscal compacto: una sola línea horizontal — solo visible en FACTURA -->
       @if (mostrarDesglose) {
-      <div class="breakdown mb-xs">
-        @if (baseIva0 > 0) {
-        <div class="breakdown-row">
-          <span class="breakdown-label">Base 0%</span>
-          <span class="breakdown-value">${{ currencyService.format(baseIva0) }}</span>
-        </div>
+      <div class="breakdown-fiscal">
+        @if (baseIva0() > 0) {
+          <span class="bf-item">Base 0%: <strong>${{ currencyService.format(baseIva0()) }}</strong></span>
+          <span class="bf-sep">|</span>
         }
-        @if (baseIva15 > 0) {
-        <div class="breakdown-row">
-          <span class="breakdown-label">Base 15%</span>
-          <span class="breakdown-value">${{ currencyService.format(baseIva15) }}</span>
-        </div>
+        @if (baseIva15() > 0) {
+          <span class="bf-item">Base 15%: <strong>${{ currencyService.format(baseIva15()) }}</strong></span>
+          <span class="bf-sep">|</span>
         }
-        @if (ivaValor > 0) {
-        <div class="breakdown-row">
-          <span class="breakdown-label">IVA 15%</span>
-          <span class="breakdown-value">${{ currencyService.format(ivaValor) }}</span>
-        </div>
+        @if (ivaValor() > 0) {
+          <span class="bf-item">IVA: <strong>${{ currencyService.format(ivaValor()) }}</strong></span>
         }
-        <div class="breakdown-divider"></div>
       </div>
       }
 
       <!-- Descuento automático (solo visible cuando aplica) -->
-      @if (descuentoAplicado > 0) {
+      @if (descuentoAplicado() > 0) {
       <div class="breakdown mb-xs">
         @if (!mostrarDesglose) {
         <div class="breakdown-row">
           <span class="breakdown-label">Subtotal</span>
-          <span class="breakdown-value">${{ currencyService.format(subtotalBruto) }}</span>
+          <span class="breakdown-value">${{ currencyService.format(subtotalBruto()) }}</span>
         </div>
         }
         <div class="breakdown-row discount">
           <span class="breakdown-label">Descuento ({{ descuentoPct }}%)</span>
-          <span class="breakdown-value">-${{ currencyService.format(descuentoAplicado) }}</span>
+          <span class="breakdown-value">-${{ currencyService.format(descuentoAplicado()) }}</span>
         </div>
         <div class="breakdown-divider"></div>
       </div>
       }
 
       <!-- Upselling: falta poco para el descuento -->
-      @if (mostrarUpselling) {
+      @if (mostrarUpselling()) {
       <div class="upselling-hint">
         <ion-icon name="pricetag-outline"></ion-icon>
-        <span>${{ currencyService.format(faltaParaDescuento) }} más para -{{ descuentoPct }}%</span>
+        <span>${{ currencyService.format(faltaParaDescuento()) }} más para -{{ descuentoPct }}%</span>
       </div>
       }
 
@@ -356,19 +416,19 @@
         <div class="total-left">
           <span class="total-label">Total</span>
           <span class="total-articles">
-            {{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}
+            {{ totalArticulos() }} {{ totalArticulos() === 1 ? 'artículo' : 'artículos' }}
           </span>
         </div>
-        <span class="total-amount">${{ currencyService.format(totalPagar) }}</span>
+        <span class="total-amount" [class.total-amount--bump]="totalAmountAnimando">${{ currencyService.format(totalPagar()) }}</span>
       </div>
 
       <div class="btn-charge-row">
         <ion-button expand="block" fill="outline" color="medium" class="btn-charge-other" (click)="cobrar()"
-          [disabled]="carrito.length === 0 || cobroEnProceso">
+          [disabled]="carrito().length === 0 || cobroEnProceso">
           Otros métodos
         </ion-button>
         <ion-button expand="block" color="primary" class="btn-charge-main" (click)="cobrarEfectivo()"
-          [disabled]="carrito.length === 0 || cobroEnProceso">
+          [disabled]="carrito().length === 0 || cobroEnProceso">
           <ion-icon name="cash-outline" slot="start"></ion-icon>
           Cobrar Efectivo
         </ion-button>

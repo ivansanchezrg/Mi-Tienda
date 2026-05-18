@@ -169,6 +169,83 @@
     }
 }
 
+// ── Imagen de la presentación ──────────────────
+
+.imagen-pres-section {
+    display: flex;
+    align-items: center;
+}
+
+.imagen-pres-placeholder {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border: 1.5px dashed var(--ion-color-step-250);
+    border-radius: var(--radius-sm, 8px);
+    background: var(--ion-color-step-50);
+    color: var(--ion-color-step-500);
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+
+    ion-icon {
+        font-size: 20px;
+        color: var(--ion-color-primary);
+        flex-shrink: 0;
+    }
+
+    &:active {
+        border-color: var(--ion-color-primary);
+        background: rgba(var(--ion-color-primary-rgb), 0.05);
+    }
+}
+
+.imagen-pres-optional {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--ion-color-medium);
+    background: var(--ion-color-step-100);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 2px;
+}
+
+.imagen-pres-preview {
+    position: relative;
+    display: inline-flex;
+}
+
+.imagen-pres-img {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: var(--radius-sm, 8px);
+    border: 1.5px solid var(--ion-color-step-200);
+    display: block;
+}
+
+.imagen-pres-remove {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--ion-color-danger);
+    color: #fff;
+    border: 2px solid var(--ion-item-background, #fff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+
+    &:active { opacity: 0.7; }
+}
+
 // ── Margen de ganancia ─────────────────────────
 .margen-row {
     display: flex;

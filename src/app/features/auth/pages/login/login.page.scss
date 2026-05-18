@@ -37,14 +37,13 @@ ion-content {
   height: 88px;
   margin: 0 auto var(--spacing-xl);
   border-radius: var(--radius-xl);
-  background: rgba(var(--ion-color-primary-rgb), 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
 
-  ion-icon {
-    font-size: 44px;
-    color: var(--ion-color-primary);
+  .logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 }
 

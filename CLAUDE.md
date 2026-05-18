@@ -926,7 +926,7 @@ Cada opción usa `.fab-option` con `.fab-option-icon.<color>` para el círculo d
 
 Todo elemento que tenga **fondo propio y toque el borde inferior de la pantalla** debe compensar la barra de navegación de Android (botones físicos o gesto swipe).
 
-**Regla**: se aplica a `ion-footer`, FABs, tabs y cualquier panel anclado al fondo.
+**Regla**: se aplica a `ion-footer`, FABs, tabs, footers de modales y cualquier panel anclado al fondo.
 
 ```scss
 // Si el elemento ya tiene padding-bottom:
@@ -937,6 +937,20 @@ padding-bottom: env(safe-area-inset-bottom);
 ```
 
 `env(safe-area-inset-bottom)` vale `0` en dispositivos sin barra → no rompe el layout.
+
+**Modales con footer custom:** los modales que tienen su propio footer (botón de acción al fondo) también necesitan safe area, ya que se renderizan sobre el tab bar pero fuera de su flujo. Usar `calc()` con el spacing ya existente:
+
+```scss
+// ✅ Footer de modal con padding propio
+.vsm-footer {
+    padding: var(--spacing-sm) var(--spacing-md);
+    padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom));
+}
+
+// ✅ .modal-actions ya incluye env(safe-area-inset-bottom) en modals.scss — no agregar de nuevo
+```
+
+> Los modales que usan `.modal-actions` (patrón `bottom-sheet-modal`) ya tienen safe area en `modals.scss`. Solo los footers custom necesitan agregarlo manualmente.
 
 **Excepción — páginas dentro de tabs:** `ion-tab-bar` ya compensa el safe area internamente. Los footers de páginas que viven dentro de tabs **NO deben sumar** `env(safe-area-inset-bottom)` — se duplica el espacio. Solo usar `padding-bottom` normal. Los elementos `position: fixed` (overlays, scanners) sí lo necesitan porque están fuera del flujo del tab bar.
 
@@ -960,6 +974,8 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Tab bar principal | `main-layout.page.scss` | ✅ |
 | Sidebar footer | `sidebar.component.scss` | ✅ |
 | FAB global | `global.scss` | ✅ |
+| Footer modal variantes POS | `variante-selector-modal.component.scss` | ✅ |
+| `.modal-actions` (bottom-sheet-modal) | `theme/custom/modals.scss` | ✅ |
 
 ---
 

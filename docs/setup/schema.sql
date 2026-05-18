@@ -477,6 +477,7 @@ CREATE TABLE IF NOT EXISTS producto_presentaciones (
     precio_venta      DECIMAL(12,2) NOT NULL,
     precio_costo      DECIMAL(12,2) NOT NULL,
     codigo_barras     VARCHAR(50),             -- sin UNIQUE propio: unicidad real en codigos_barras
+    imagen_url        TEXT,
     es_principal      BOOLEAN DEFAULT FALSE,
     activo            BOOLEAN DEFAULT TRUE,
     created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()

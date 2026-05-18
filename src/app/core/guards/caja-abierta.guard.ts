@@ -1,6 +1,5 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
 import { TurnosCajaService } from '../../features/caja/services/turnos-caja.service';
 import { UiService } from '../services/ui.service';
 
@@ -11,8 +10,9 @@ import { UiService } from '../services/ui.service';
  * Solo el empleado que abrio el turno puede acceder al POS y al Cajon.
  * Los demas usuarios ven un toast explicativo y quedan en /caja.
  *
- * Usa TurnosCajaService.esMiTurnoValue (sincrono, O(1)) y cae al observable
- * como defensa si el estado aun no cargo.
+ * Espera a que inicializarEstadoReactivo() termine (esperarEstadoListo) antes
+ * de decidir — evita la race condition al hacer refresh donde el BehaviorSubject
+ * aun no tenia datos de BD cuando el guard corria.
  *
  * Uso en routes:
  *   canActivate: [cajaAbiertaGuard]
@@ -22,12 +22,11 @@ export const cajaAbiertaGuard: CanActivateFn = async () => {
   const ui = inject(UiService);
   const router = inject(Router);
 
-  if (turnosCaja.esMiTurnoValue) return true;
+  // Esperar a que la query de BD termine antes de leer el estado.
+  // Si ya estaba inicializado (navegacion normal), resuelve inmediatamente.
+  await turnosCaja.esperarEstadoListo();
 
-  // Defensa extra: si el BehaviorSubject aun no tiene valor (guard corre antes
-  // de que inicializarEstadoReactivo() resuelva), esperar el primer emit.
-  const esMio = await firstValueFrom(turnosCaja.esMiTurno$);
-  if (esMio) return true;
+  if (turnosCaja.esMiTurnoValue) return true;
 
   const turno = turnosCaja.turnoActivoValue;
   if (turno) {

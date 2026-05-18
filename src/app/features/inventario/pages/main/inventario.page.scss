@@ -49,13 +49,6 @@ ion-searchbar {
     &::-webkit-scrollbar { display: none; }
 }
 
-.category-chip-skeleton {
-    flex-shrink: 0;
-    height: 32px;
-    width: 72px;
-    border-radius: var(--radius-pill);
-}
-
 .category-chip {
     flex-shrink: 0;
     display: inline-flex;

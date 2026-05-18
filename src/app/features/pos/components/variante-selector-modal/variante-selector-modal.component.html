@@ -1,0 +1,171 @@
+<div class="vsm-wrapper">
+
+  <!-- Header -->
+  <div class="modal-header">
+    <span class="modal-header-title">{{ templateNombre }}</span>
+    <button class="modal-close-btn" (click)="cerrar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Subtitle -->
+  <p class="vsm-subtitle">{{ subtitle }}</p>
+
+  <!-- Lista -->
+  <div class="vsm-list">
+    @for (v of variantes; track v.id) {
+
+      <!-- Fila variante sin presentaciones -->
+      @if (!tienePresentaciones(v)) {
+        <div class="vsm-row" [class.vsm-row--active]="countVariante(v) > 0" [class.vsm-row--sin-stock]="sinStock(v) && countVariante(v) === 0">
+          <div class="vsm-row-thumb vsm-row-thumb--clickable" (click)="seleccionarVariante(v, $event)">
+            @if (v.imagen_url) {
+              <img [src]="v.imagen_url" [alt]="labelVariante(v)" class="vsm-row-img" loading="lazy">
+            } @else {
+              <ion-icon name="image-outline" class="vsm-row-img-placeholder"></ion-icon>
+            }
+          </div>
+          <div class="vsm-row-info" (click)="seleccionarVariante(v, $event)">
+            <span class="vsm-row-nombre">{{ labelVariante(v) }}</span>
+            <span class="vsm-row-precio">${{ currencyService.format(v.precio_venta) }}</span>
+          </div>
+          @if (countVariante(v) > 0) {
+            <div class="vsm-stepper" (click)="$event.stopPropagation()">
+              <button class="vsm-stepper-btn" (click)="decrementarItem(v)" [disabled]="procesando" type="button">
+                <ion-icon name="remove-outline"></ion-icon>
+              </button>
+              <span class="vsm-stepper-val" (click)="editarCantidadItem(v)">{{ countVariante(v) }}</span>
+              <button class="vsm-stepper-btn" (click)="incrementarItem(v)" [disabled]="procesando || sinStock(v)" type="button">
+                <ion-icon name="add-outline"></ion-icon>
+              </button>
+            </div>
+          } @else if (sinStock(v)) {
+            <span class="vsm-sin-stock-badge">Sin stock</span>
+          } @else {
+            <button class="vsm-add-btn" (click)="seleccionarVariante(v, $event)" [disabled]="procesando" type="button">
+              <ion-icon name="add-outline"></ion-icon>
+            </button>
+          }
+        </div>
+      }
+
+      <!-- Fila variante con presentaciones (expandible) -->
+      @if (tienePresentaciones(v)) {
+        <button class="vsm-row vsm-row--expandible" (click)="seleccionarVariante(v, $event)" type="button"
+          [class.vsm-row--active]="varianteActiva?.id === v.id"
+          [disabled]="procesando">
+          <div class="vsm-row-thumb">
+            @if (v.imagen_url) {
+              <img [src]="v.imagen_url" [alt]="labelVariante(v)" class="vsm-row-img" loading="lazy">
+            } @else {
+              <ion-icon name="image-outline" class="vsm-row-img-placeholder"></ion-icon>
+            }
+          </div>
+          <div class="vsm-row-info">
+            <span class="vsm-row-nombre">{{ labelVariante(v) }}</span>
+            <span class="vsm-row-precio vsm-row-precio--hint">Toca para ver presentaciones</span>
+          </div>
+          @if (countVariante(v) > 0) {
+            <span class="vsm-count-badge">{{ countVariante(v) }}</span>
+          } @else if (sinStock(v)) {
+            <span class="vsm-sin-stock-badge">Sin stock</span>
+          }
+          <ion-icon name="chevron-forward-outline" class="vsm-row-chevron"
+            [class.vsm-row-chevron--open]="varianteActiva?.id === v.id">
+          </ion-icon>
+        </button>
+
+        <!-- Presentaciones expandidas -->
+        @if (varianteActiva?.id === v.id) {
+          <div class="vsm-presentaciones">
+            <p class="vsm-pres-label">Elige la presentación</p>
+
+            <!-- Unidad suelta -->
+            <div class="vsm-row vsm-row--pres" [class.vsm-row--active]="(_contadores().get(v.id) ?? 0) > 0" [class.vsm-row--sin-stock]="sinStock(v) && (_contadores().get(v.id) ?? 0) === 0">
+              <div class="vsm-row-thumb vsm-row-thumb--clickable" (click)="seleccionarUnidadSuelta(v, $event)">
+                @if (v.imagen_url) {
+                  <img [src]="v.imagen_url" [alt]="labelVariante(v)" class="vsm-row-img" loading="lazy">
+                } @else {
+                  <ion-icon name="image-outline" class="vsm-row-img-placeholder"></ion-icon>
+                }
+              </div>
+              <div class="vsm-row-info" (click)="seleccionarUnidadSuelta(v, $event)">
+                <span class="vsm-row-nombre">Unidad suelta</span>
+                <span class="vsm-row-precio">${{ currencyService.format(v.precio_venta) }}</span>
+              </div>
+              @if ((_contadores().get(v.id) ?? 0) > 0) {
+                <div class="vsm-stepper" (click)="$event.stopPropagation()">
+                  <button class="vsm-stepper-btn" (click)="decrementarItem(v)" [disabled]="procesando" type="button">
+                    <ion-icon name="remove-outline"></ion-icon>
+                  </button>
+                  <span class="vsm-stepper-val" (click)="editarCantidadItem(v)">{{ _contadores().get(v.id) }}</span>
+                  <button class="vsm-stepper-btn" (click)="incrementarItem(v)" [disabled]="procesando || sinStock(v)" type="button">
+                    <ion-icon name="add-outline"></ion-icon>
+                  </button>
+                </div>
+              } @else if (sinStock(v)) {
+                <span class="vsm-sin-stock-badge">Sin stock</span>
+              } @else {
+                <button class="vsm-add-btn" (click)="seleccionarUnidadSuelta(v, $event)" [disabled]="procesando" type="button">
+                  <ion-icon name="add-outline"></ion-icon>
+                </button>
+              }
+            </div>
+
+            <!-- Cada presentación -->
+            @for (p of v.presentaciones; track p.id) {
+              <div class="vsm-row vsm-row--pres" [class.vsm-row--active]="countPresentacion(v, p) > 0" [class.vsm-row--sin-stock]="sinStock(v, p) && countPresentacion(v, p) === 0">
+                <div class="vsm-row-thumb vsm-row-thumb--clickable" (click)="seleccionarPresentacion(v, p, $event)">
+                  @if (p.imagen_url) {
+                    <img [src]="p.imagen_url" [alt]="p.nombre" class="vsm-row-img" loading="lazy">
+                  } @else {
+                    <ion-icon name="image-outline" class="vsm-row-img-placeholder"></ion-icon>
+                  }
+                </div>
+                <div class="vsm-row-info" (click)="seleccionarPresentacion(v, p, $event)">
+                  <span class="vsm-row-nombre">{{ p.nombre }}</span>
+                  <span class="vsm-row-precio">${{ currencyService.format(p.precio_venta) }}</span>
+                </div>
+                @if (countPresentacion(v, p) > 0) {
+                  <div class="vsm-stepper" (click)="$event.stopPropagation()">
+                    <button class="vsm-stepper-btn" (click)="decrementarItem(v, p)" [disabled]="procesando" type="button">
+                      <ion-icon name="remove-outline"></ion-icon>
+                    </button>
+                    <span class="vsm-stepper-val" (click)="editarCantidadItem(v, p)">{{ countPresentacion(v, p) }}</span>
+                    <button class="vsm-stepper-btn" (click)="incrementarItem(v, p)" [disabled]="procesando || sinStock(v, p)" type="button">
+                      <ion-icon name="add-outline"></ion-icon>
+                    </button>
+                  </div>
+                } @else if (sinStock(v, p)) {
+                  <span class="vsm-sin-stock-badge">Sin stock</span>
+                } @else {
+                  <button class="vsm-add-btn" (click)="seleccionarPresentacion(v, p, $event)" [disabled]="procesando" type="button">
+                    <ion-icon name="add-outline"></ion-icon>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+      }
+
+    }
+  </div>
+
+  <!-- Footer -->
+  <div class="vsm-footer">
+    <button #continuarBtn class="vsm-continuar-btn" (click)="continuar()" type="button"
+      [class.vsm-continuar-btn--activo]="totalArticulosCarrito() > 0"
+      [class.vsm-continuar-btn--bump]="footerAnimando">
+      <span class="vsm-continuar-label">{{ totalArticulosCarrito() > 0 ? 'Continuar venta' : 'Cancelar' }}</span>
+      @if (totalArticulosCarrito() > 0) {
+        <ion-icon name="arrow-forward-outline" class="vsm-continuar-arrow"></ion-icon>
+        <div class="vsm-continuar-resumen">
+          <span class="vsm-continuar-items" [class.vsm-continuar-items--bump]="footerAnimando">{{ totalArticulosCarrito() }} {{ totalArticulosCarrito() === 1 ? 'ítem' : 'ítems' }}</span>
+          <span class="vsm-continuar-total">${{ currencyService.format(totalCarrito()) }}</span>
+        </div>
+      }
+    </button>
+  </div>
+
+</div>

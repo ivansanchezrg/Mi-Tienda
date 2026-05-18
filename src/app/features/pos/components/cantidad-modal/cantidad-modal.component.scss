@@ -1,115 +1,62 @@
-// El .modal-wrapper, .modal-header, .modal-header-icon, .modal-header-title,
-// .modal-close-btn, .modal-actions vienen de src/theme/custom/modals.scss
+// El .modal-wrapper, .modal-header, .modal-actions vienen de src/theme/custom/modals.scss
 
-.cm-icon-wrapper {
-  background: rgba(var(--ion-color-primary-rgb), 0.1);
-  ion-icon { color: var(--ion-color-primary); }
+.cm-btn-quitar {
+    flex: 0.6;
 }
 
-// ── Info precio + stock ──
+.cm-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--ion-color-step-100);
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+  ion-icon { font-size: 22px; color: var(--ion-color-step-400); }
+}
+
+// ── Precio + stock ──
 .cm-meta {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  margin-top: calc(var(--spacing-xs) * -1); // acercar al título
+  margin-top: calc(var(--spacing-xs) * -1);
 }
 
 .cm-precio {
   color: var(--ion-color-primary);
-  font-weight: var(--font-weight-semibold, 600);
+  font-weight: 600;
 }
 
 .cm-sep { color: var(--ion-color-step-300); }
-
 .cm-stock { color: var(--ion-color-medium); }
 
-// ── Input ──
+// ── Sección cantidad ──
 .cm-input-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.cm-input-wrapper {
-  display: flex;
-  align-items: center;
-  background: var(--ion-color-step-50, #f8f8f8);
-  border: 2px solid var(--ion-color-step-150, #e0e0e0);
-  border-radius: var(--radius-md, 12px);
-  padding: 0 var(--spacing-md);
-  transition: border-color 0.15s;
-  flex: 1;
-
-  &:focus-within {
-    border-color: var(--ion-color-primary);
-    background: var(--ion-background-color);
-  }
-
-  &--error {
-    border-color: var(--ion-color-danger) !important;
-    background: rgba(var(--ion-color-danger-rgb), 0.04);
-  }
-}
-
-.cm-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-size: 36px;
-  font-weight: var(--font-weight-bold, 700);
-  color: var(--ion-text-color);
-  padding: var(--spacing-md) 0;
-  text-align: center;
-  outline: none;
-  min-width: 0;
-
-  &::placeholder { color: var(--ion-color-step-300); font-weight: 400; }
-
-  // Ocultar flechas
-  &::-webkit-inner-spin-button,
-  &::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-  -moz-appearance: textfield;
-}
-
-.cm-input-suffix {
-  font-size: 18px;
-  font-weight: var(--font-weight-semibold, 600);
-  color: var(--ion-color-medium);
-  margin-left: 8px;
-  flex-shrink: 0;
-}
-
-.cm-clear-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: none;
-  background: var(--ion-color-step-200, #d0d0d0);
-  color: var(--ion-color-step-700, #555);
-  cursor: pointer;
-  flex-shrink: 0;
-  margin-left: 4px;
-  padding: 0;
-
-  ion-icon { font-size: 16px; }
-
-  &:active { background: var(--ion-color-step-300); }
-}
-
-// ── Stepper (unidades) ──
-.cm-stepper-row {
-  display: flex;
   align-items: center;
   gap: var(--spacing-sm);
 }
 
+// Fila: botón − | input | botón +  (botones centrados con el input)
+.cm-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+}
+
+// Botones circulares — borde gris, icono con color
 .cm-step-btn {
   width: 52px;
   height: 52px;
+  min-width: 52px;
   border-radius: 50%;
   border: 2px solid var(--ion-color-step-200);
   background: var(--ion-background-color);
@@ -118,19 +65,58 @@
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  color: var(--ion-text-color);
-  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
 
-  ion-icon { font-size: 22px; }
+  ion-icon { font-size: 24px; }
 
-  &:active:not([disabled]) {
-    background: var(--ion-color-primary);
-    border-color: var(--ion-color-primary);
-    color: white;
-    transform: scale(0.95);
+  &:active:not([disabled]) { opacity: 0.7; }
+  &[disabled] { opacity: 0.3; cursor: not-allowed; }
+
+  &--minus {
+    ion-icon { color: var(--ion-color-danger); }
+    &:active:not([disabled]) { background: rgba(var(--ion-color-danger-rgb), 0.08); }
   }
 
-  &[disabled] { opacity: 0.35; cursor: not-allowed; }
+  &--plus {
+    ion-icon { color: var(--ion-color-primary); }
+    &:active:not([disabled]) { background: rgba(var(--ion-color-primary-rgb), 0.08); }
+  }
+}
+
+// Input tradicional con borde gris → azul al hacer foco
+.cm-input {
+  flex: 1;
+  min-width: 0;
+  border: 2px solid var(--ion-color-step-250, #d0d0d0);
+  border-radius: var(--radius-md, 12px);
+  background: var(--ion-color-step-50, #f8f8f8);
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--ion-text-color);
+  text-align: center;
+  padding: var(--spacing-sm) var(--spacing-xs);
+  outline: none;
+  caret-color: var(--ion-color-primary);
+  transition: border-color 0.15s, background 0.15s;
+
+  &::placeholder {
+    color: var(--ion-color-step-350, #b0b0b0);
+    font-weight: 400;
+  }
+
+  &:focus {
+    border-color: var(--ion-color-primary);
+    background: var(--ion-background-color);
+  }
+}
+
+// Etiqueta de unidad debajo del número
+.cm-unidad-label {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  letter-spacing: 0.3px;
+  text-transform: lowercase;
 }
 
 // ── Error ──
@@ -138,10 +124,10 @@
   font-size: 13px;
   color: var(--ion-color-danger);
   margin: 0;
-  padding-left: 4px;
+  text-align: center;
 }
 
-// ── Subtotal preview ──
+// ── Subtotal ──
 .cm-subtotal {
   display: flex;
   justify-content: space-between;
@@ -150,16 +136,17 @@
   background: rgba(var(--ion-color-primary-rgb), 0.06);
   border-radius: var(--radius-md, 12px);
   border: 1px solid rgba(var(--ion-color-primary-rgb), 0.15);
+  width: 100%;
 }
 
 .cm-subtotal-label {
   font-size: 14px;
   color: var(--ion-color-medium);
-  font-weight: var(--font-weight-medium, 500);
+  font-weight: 500;
 }
 
 .cm-subtotal-value {
   font-size: 22px;
-  font-weight: var(--font-weight-bold, 700);
+  font-weight: 700;
   color: var(--ion-color-primary);
 }

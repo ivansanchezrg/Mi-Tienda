@@ -94,6 +94,7 @@ CREATE TABLE producto_presentaciones (
     codigo_barras     VARCHAR(50) UNIQUE,
     es_principal      BOOLEAN DEFAULT FALSE,
     activo            BOOLEAN DEFAULT TRUE,
+    imagen_url        TEXT,
     created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ```
@@ -264,25 +265,27 @@ private centrarChip(chip: HTMLElement) {
 
 ## Busqueda dual por codigo de barras (POS)
 
-Cuando el POS escanea un codigo, busca en dos tablas:
+Cuando el POS escanea un codigo, busca en dos tablas en paralelo (`Promise.all()`):
 
 ```typescript
 // inventario.service.ts → buscarPorCodigoBarras(codigo)
-// 1. Buscar en productos
-const { data: prod } = await supabase.from('productos')
-    .select('id, nombre, ...')
-    .eq('codigo_barras', codigo)
-    .eq('activo', true)
-    .maybeSingle();
-if (prod) return { producto: prod };
+// Ambas queries se lanzan en paralelo — 1 round-trip
+const [{ data: prod }, { data: pres }] = await Promise.all([
+    supabase.from('productos')
+        .select('id, nombre, ...')
+        .eq('codigo_barras', codigo)
+        .eq('activo', true)
+        .maybeSingle(),
+    supabase.from('producto_presentaciones')
+        .select('id, nombre, factor_conversion, precio_venta, imagen_url, producto:producto_id(id, nombre, ...)')
+        .eq('codigo_barras', codigo)
+        .eq('activo', true)
+        .maybeSingle(),
+]);
 
-// 2. Buscar en presentaciones (con JOIN al producto padre)
-const { data: pres } = await supabase.from('producto_presentaciones')
-    .select('*, producto:producto_id(id, nombre, ...)')
-    .eq('codigo_barras', codigo)
-    .eq('activo', true)
-    .maybeSingle();
+if (prod) return { producto: prod };
 if (pres?.producto) return { producto: pres.producto, presentacion: pres };
+// presentacion incluye imagen_url
 ```
 
 ---
@@ -518,6 +521,7 @@ interface ProductoPresentacion {
     codigo_barras?: string;
     es_principal: boolean;
     activo: boolean;
+    imagen_url?: string | null;  // path en Storage — resuelto a signed URL por el POS
 }
 ```
 
@@ -574,8 +578,9 @@ const FORMATOS_DEFAULT = [
 | Metodo | Descripcion |
 |--------|-------------|
 | `obtenerProductos(buscar?, categoriaId?, page, pageSize)` | Paginado con join categoria |
-| `buscarProductosPOS(texto)` | Liviana, limit 10, para POS |
-| `buscarPorCodigoBarras(codigo)` | Busqueda dual: producto + presentaciones. Retorna `{ producto, presentacion? }` |
+| `buscarProductosPOS(texto)` | Liviana, limit 10, para POS. Incluye `imagen_url` y `precio_costo` en presentaciones |
+| `buscarPorCodigoBarras(codigo)` | Busqueda dual en paralelo: producto + presentaciones. Retorna `{ producto, presentacion? }`. `presentacion` incluye `imagen_url` |
+| `obtenerProductosCatalogoPOS()` | Carga el catalogo completo para el grid del POS. Incluye `imagen_url` y `precio_costo` en presentaciones |
 | `obtenerProductoPorCodigo(codigo)` | Por EAN exacto solo en productos. Usa `maybeSingle()` |
 | `obtenerProductoPorId(id)` | Con join categoria y `presentaciones:producto_presentaciones(id)` filtrado por `activo=true` |
 | `crearProducto(producto)` | INSERT + emite evento CREADO |
@@ -640,8 +645,18 @@ const FORMATOS_DEFAULT = [
 ### Imagenes de productos
 
 - Captura: `StorageService.capturarFoto()` — `quality: 70`, `width/height: 1280`, `resultType: Uri`. Retorna `{ previewUrl: SafeUrl, rawUrl: string }`. El preview se muestra inmediato con la URL nativa; el `rawUrl` se pasa a `uploadImage()` al guardar.
-- Upload: `StorageService.uploadImage(rawUrl, 'productos', subfolder, false)` — comprime a WebP máx 1200px antes de subir (~150–300KB)
+- Upload: `StorageService.uploadImage(rawUrl, subfolder, false)` — el subfolder es `'productos/<categoria>'`, comprime a WebP máx 1200px antes de subir (~150–300KB)
 - Bucket: `productos` (público) en Supabase Storage
 - Subfolder: nombre de la categoría sanitizado (`Bebidas` → `bebidas`)
 - Al cambiar imagen: se elimina la anterior del storage (`deleteFile`)
 - Al desactivar producto: la imagen se conserva (por si se reactiva)
+
+### Imagenes de presentaciones
+
+La tabla `producto_presentaciones` tiene la columna `imagen_url TEXT` (path en Storage, nullable).
+
+- El campo se incluye en los selects de `buscarProductosPOS()`, `obtenerProductosCatalogoPOS()` y `buscarPorCodigoBarras()`.
+- En el POS, `resolverImagen()` resuelve los paths a signed URLs en paralelo para todas las presentaciones del catalogo.
+- **Fallback chain** por item en el POS: `presentacion.imagen_url → producto.imagen_url (SKU) → producto_template.imagen_url`
+- En `VarianteSelectorModalComponent` las imágenes se muestran condicionalmente con `@if (p.imagen_url)` — si no hay imagen, se muestra el icono `cube-outline` como placeholder.
+- El path guardado en BD es el que retorna `uploadImage()`. Nunca guardar la URL firmada.

@@ -87,15 +87,18 @@ export class CobrarModalComponent {
 
     seleccionarMetodo(metodo: MetodoPago) {
         this.metodoSeleccionado = metodo;
+    }
+
+    confirmarMetodo() {
+        if (!this.metodoSeleccionado) return;
+        const metodo = this.metodoSeleccionado;
 
         if (metodo === 'EFECTIVO') {
             this.paso = 'monto';
             setTimeout(() => this.focusInput(), 50);
         } else if (metodo === 'FIADO' && this.descuento > 0) {
-            // FIADO con descuento activo → paso de confirmación sin descuento
             this.paso = 'confirmar-fiado';
         } else {
-            // Para los demás métodos, confirmar directo
             this.modalCtrl.dismiss({ metodoPago: metodo, confirmado: true });
         }
     }

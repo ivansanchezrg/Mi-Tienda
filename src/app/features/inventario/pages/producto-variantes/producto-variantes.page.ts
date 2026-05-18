@@ -1,8 +1,9 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import {
-    NavController, ModalController,
+    NavController, ModalController, AlertController,
     IonHeader, IonToolbar, IonButtons, IonButton, IonTitle, IonContent, IonFooter, IonIcon,
     IonInput, IonItem, IonCard, IonCardContent, IonSpinner, IonToggle
 } from '@ionic/angular/standalone';
@@ -11,13 +12,16 @@ import {
     arrowBackOutline, colorPaletteOutline, addOutline, closeOutline,
     checkmarkCircleOutline, checkmarkOutline, chevronForwardOutline, sparklesOutline,
     pricetagOutline, cubeOutline, createOutline, trashOutline,
-    informationCircleOutline, trendingUpOutline, warningOutline, barcodeOutline
+    informationCircleOutline, trendingUpOutline, warningOutline, barcodeOutline,
+    cameraOutline, imageOutline, closeCircle
 } from 'ionicons/icons';
+import { CameraSource } from '@capacitor/camera';
 import { calcularPrecioDesdeMargen, calcularMargenDesdePrecio } from '../../../../core/utils/margen.util';
 
 import { InventarioService } from '../../services/inventario.service';
 import { Atributo, AtributoOpcion } from '../../models/producto.model';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
+import { StorageService } from '../../../../core/services/storage.service';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
@@ -45,6 +49,8 @@ interface SKUGenerado {
     labels: string[];
     margen: number;
     codigo_barras: string;
+    imagenRawUrl?: string;
+    imagenPreviewUrl?: string;
 }
 
 @Component({
@@ -67,12 +73,18 @@ export class ProductoVariantesPage implements OnInit {
     private ui = inject(UiService);
     private logger = inject(LoggerService);
     private modalCtrl = inject(ModalController);
+    private alertCtrl = inject(AlertController);
     protected barcodeScanner = inject(BarcodeScannerService);
+    protected storageService = inject(StorageService);
 
     paso = 1;
     guardando = false;
     escaneando = false;
     categorias: CategoriaProducto[] = [];
+
+    // Imagen del template
+    templateFotoPreviewUrl: SafeUrl | null = null;
+    templateFotoRawUrl: string | null = null;
 
     // ── Margen de ganancia ──
     margenPct: number = 20;
@@ -102,7 +114,8 @@ export class ProductoVariantesPage implements OnInit {
             arrowBackOutline, colorPaletteOutline, addOutline, closeOutline,
             checkmarkCircleOutline, checkmarkOutline, chevronForwardOutline, sparklesOutline,
             pricetagOutline, cubeOutline, createOutline, trashOutline,
-            informationCircleOutline, trendingUpOutline, warningOutline, barcodeOutline
+            informationCircleOutline, trendingUpOutline, warningOutline, barcodeOutline,
+            cameraOutline, imageOutline, closeCircle
         });
         this.initForm();
     }
@@ -210,6 +223,42 @@ export class ProductoVariantesPage implements OnInit {
         const { data } = await modal.onDidDismiss();
         this.templateForm.get('categoria_id')?.markAsTouched();
         if (data) this.templateForm.patchValue({ categoria_id: data });
+    }
+
+    async seleccionarFotoTemplate() {
+        const buttons: any[] = [];
+        if (this.storageService.isNative) {
+            buttons.push({ text: 'Tomar foto', handler: () => this.tomarFotoTemplate(CameraSource.Camera) });
+        }
+        buttons.push({ text: 'Galeria', handler: () => this.tomarFotoTemplate(CameraSource.Photos) });
+        buttons.push({ text: 'Cancelar', role: 'cancel' });
+        const alert = await this.alertCtrl.create({ header: 'Imagen del producto', buttons });
+        await alert.present();
+    }
+
+    private async tomarFotoTemplate(source: CameraSource) {
+        const result = await this.storageService.capturarFoto(source);
+        if (!result) return;
+        this.templateFotoPreviewUrl = result.previewUrl;
+        this.templateFotoRawUrl = result.rawUrl;
+    }
+
+    removerFotoTemplate() {
+        this.templateFotoPreviewUrl = null;
+        this.templateFotoRawUrl = null;
+    }
+
+    async seleccionarFotoSku(sku: SKUGenerado) {
+        const source = this.storageService.isNative ? CameraSource.Camera : CameraSource.Photos;
+        const result = await this.storageService.capturarFoto(source);
+        if (!result) return;
+        sku.imagenRawUrl = result.rawUrl;
+        sku.imagenPreviewUrl = result.rawUrl;
+    }
+
+    removerFotoSku(sku: SKUGenerado) {
+        sku.imagenRawUrl = undefined;
+        sku.imagenPreviewUrl = undefined;
     }
 
     avanzarAlPaso2() {
@@ -468,8 +517,31 @@ export class ProductoVariantesPage implements OnInit {
         if (this.guardando) return;
         this.guardando = true;
 
+        const subfolder = this.sanitizarSubfolder(
+            this.categorias.find(c => c.id === this.templateForm.get('categoria_id')?.value)?.nombre || 'sin-categoria'
+        );
+        const uploadedPaths: string[] = [];
+
         try {
             const v = this.templateForm.value;
+
+            // Subir imagen del template
+            let templateImagenUrl: string | null = null;
+            if (this.templateFotoRawUrl) {
+                templateImagenUrl = await this.storageService.uploadImage(this.templateFotoRawUrl, `productos/${subfolder}`, false);
+                if (!templateImagenUrl) { this.guardando = false; return; }
+                uploadedPaths.push(templateImagenUrl);
+            }
+
+            // Subir imágenes de SKUs en paralelo
+            const skuImagenUrls = await Promise.all(
+                seleccionados.map(async sku => {
+                    if (!sku.imagenRawUrl) return null;
+                    const path = await this.storageService.uploadImage(sku.imagenRawUrl, `productos/${subfolder}`, false);
+                    if (path) uploadedPaths.push(path);
+                    return path;
+                })
+            );
 
             const resultado = await this.inventarioService.crearProductoConVariantes({
                 nombre: v.nombre,
@@ -477,28 +549,42 @@ export class ProductoVariantesPage implements OnInit {
                 tiene_iva: v.tiene_iva,
                 tipo_venta: v.tipo_venta,
                 unidad_medida: 'und',
+                imagen_url: templateImagenUrl || undefined,
                 atributos_template: this.atributosEditor.map(a => ({
                     atributo_nombre: a.atributo.nombre,
                     opcion_ids: a.opciones.map(o => o.id)
                 })),
-                variantes: seleccionados.map(sku => ({
+                variantes: seleccionados.map((sku, i) => ({
                     nombre: sku.nombre,
                     precio_costo: sku.precio_costo,
                     precio_venta: sku.precio_venta,
                     stock_actual: sku.stock_actual,
                     stock_minimo: sku.stock_minimo,
                     opcion_ids: sku.opcion_ids,
-                    codigo_barras: sku.codigo_barras.trim() || null
+                    codigo_barras: sku.codigo_barras.trim() || null,
+                    imagen_url: skuImagenUrls[i] || null
                 }))
             });
 
             if (resultado.ok) {
                 this.navCtrl.navigateBack(ROUTES.inventario.root);
+            } else {
+                // Rollback imágenes subidas si la RPC falló
+                await Promise.all(uploadedPaths.map(p => this.storageService.deleteFile(p)));
             }
         } catch (error) {
             this.logger.error('ProductoVariantesPage', 'Error guardando variantes', error);
+            await Promise.all(uploadedPaths.map(p => this.storageService.deleteFile(p)));
         } finally {
             this.guardando = false;
         }
+    }
+
+    private sanitizarSubfolder(nombre: string): string {
+        return nombre
+            .toLowerCase()
+            .normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
     }
 }

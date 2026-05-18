@@ -1,33 +1,34 @@
-import { Component, OnInit, OnDestroy, inject, HostListener, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, HostListener, ViewChild, signal, computed, Signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   IonContent, IonHeader, IonTitle, IonToolbar,
   IonButtons, IonMenuButton, IonButton, IonIcon,
-  IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
+  IonFooter, IonList, IonItem, IonBadge, IonSpinner, IonSkeletonText,
   IonItemSliding, IonItemOptions, IonItemOption,
   IonRefresher, IonRefresherContent,
   AlertController, ModalController, ViewDidLeave, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, pricetagOutline, chevronDownCircleOutline, gridOutline, listOutline } from 'ionicons/icons';
+import { CategoriaProducto } from '../../../inventario/models/categoria-producto.model';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
-import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
 import { ProductoPOS, ProductoPresentacion } from '../../../inventario/models/producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { PosService, VentaPayload } from '../../services/pos.service';
-import { CartItem, ResultadoBusquedaPOS } from '../../models/cart-item.model';
+import { CartItem, CatalogoItem, ResultadoBusquedaPOS } from '../../models/cart-item.model';
 import { ClientesService } from '../../../clientes/services/clientes.service';
 import { Cliente } from '../../../clientes/models/cliente.model';
 import { SeleccionarClienteModalComponent } from '../../../clientes/components/seleccionar-cliente-modal/seleccionar-cliente-modal.component';
 import { CobrarModalComponent } from '../../components/cobrar-modal/cobrar-modal.component';
 import { CantidadModalComponent, CantidadModalResult } from '../../components/cantidad-modal/cantidad-modal.component';
+import { VarianteSelectorModalComponent, VarianteSelectorResult } from '../../components/variante-selector-modal/variante-selector-modal.component';
 import { NetworkService } from '../../../../core/services/network.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
@@ -43,7 +44,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
   imports: [
     IonContent, IonHeader, IonTitle, IonToolbar,
     IonButtons, IonMenuButton, IonButton, IonIcon,
-    IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
+    IonFooter, IonList, IonItem, IonBadge, IonSpinner, IonSkeletonText,
     IonItemSliding, IonItemOptions, IonItemOption,
     IonRefresher, IonRefresherContent,
     CommonModule, FormsModule,
@@ -52,7 +53,6 @@ import { ROUTES } from '../../../../core/config/routes.config';
 })
 export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   @ViewChild(IonContent) content!: IonContent;
-  @ViewChild('searchInput') searchInputRef!: ElementRef<HTMLInputElement>;
 
   private inventarioService = inject(InventarioService);
   protected currencyService = inject(CurrencyService);
@@ -73,13 +73,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   lastAddedKey: string | null = null;
   lastIncrementedKey: string | null = null;
-  carrito: CartItem[] = [];
-  buscarTexto = '';
+  readonly carrito = signal<CartItem[]>([]);
+  readonly buscarTexto = signal('');
   productosBusqueda: ProductoPOS[] = [];
-  resultadosBusqueda: ResultadoBusquedaPOS[] = [];
-  sugerenciaActiva = -1;
   buscando = false;
-  modoBusqueda: 'codigo' | 'nombre' = 'codigo';
+  modoBusqueda: 'codigo' | 'nombre' = 'nombre';
   private searchVersion = 0;
   escaneando = false;
   cobroEnProceso = false;
@@ -91,10 +89,49 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   errorCliente = false;       // fallo de red / error inesperado
   sinConsumidorFinal = false; // la BD no tiene ningún consumidor final creado
 
+  // ==========================
+  // VISTA CATÁLOGO
+  // ==========================
+  vistaActual: 'lista' | 'catalogo' = 'catalogo';
+  // Recuerda si el usuario venía del catálogo al ir a lista (para volver tras cobrar)
+  protected volvioDesdeCatalogo = false;
+  categoriasCatalogo: CategoriaProducto[] = [];
+  categoriaActivaId: string | null = null;  // null = TODOS
+  readonly productosCatalogo = signal<ProductoPOS[]>([]);
+  cargandoCatalogo = false;
+  catalogoSearchAbierto = false;
+
+  // IDs de productos con animación activa en el catálogo
+  catalogoCardAnimando: string | null = null;
+  totalAmountAnimando = false;
+
+  private dispararAnimacionCatalogo(productoId: string) {
+    this.catalogoCardAnimando = productoId;
+    setTimeout(() => this.catalogoCardAnimando = null, 400);
+    // Pequeño delay para que el total ya esté actualizado al animarse
+    setTimeout(() => {
+      this.totalAmountAnimando = true;
+      setTimeout(() => this.totalAmountAnimando = false, 500);
+    }, 150);
+  }
+
+  abrirCatalogoSearch() {
+    this.catalogoSearchAbierto = true;
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('.cat-search-input');
+      input?.focus();
+    }, 260);
+  }
+
+  cerrarCatalogoSearch() {
+    this.catalogoSearchAbierto = false;
+    this.limpiarBusqueda();
+  }
+
   /** Tipo de comprobante — solo lectura, configurado por el superadmin */
   tipoComprobante: TipoComprobante = TipoComprobante.TICKET;
 
-  /** Opciones del menú ⋮ — solo Limpiar carrito */
+  /** Opciones del menú ⋮ */
   readonly ACCION_LIMPIAR = '__LIMPIAR__';
 
   comprobanteOptions: MenuOption[] = [
@@ -104,16 +141,155 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   /** Handler del menú ⋮ */
   async onComprobanteOption(option: MenuOption) {
     if (option.value === this.ACCION_LIMPIAR) {
-      if (this.carrito.length === 0) return;
+      if (this.carrito().length === 0) return;
       await this.confirmarLimpiarCarrito();
     }
+  }
+
+  /** Pill del catálogo → ir a lista para revisar y cobrar */
+  async irAListaDesdeCatalogo() {
+    this.volvioDesdeCatalogo = true;
+    this.vistaActual = 'lista';
+    this.catalogoSearchAbierto = false;
+    this.limpiarBusqueda();
+  }
+
+  /** Desde lista → volver al catálogo (botón atrás en modo lista cuando vino del catálogo) */
+  async volverAlCatalogo() {
+    this.volvioDesdeCatalogo = false;
+    this.vistaActual = 'catalogo';
+  }
+
+  async cargarCatalogo() {
+    this.cargandoCatalogo = true;
+    try {
+      const [categorias, productos] = await Promise.all([
+        this.inventarioService.obtenerCategorias(),
+        this.inventarioService.obtenerProductosCatalogoPOS()
+      ]);
+      this.categoriasCatalogo = categorias;
+      this.productosCatalogo.set(await this.resolverImagenesCatalogo(productos));
+      this.categoriaActivaId  = null;
+    } finally {
+      this.cargandoCatalogo = false;
+    }
+  }
+
+  async seleccionarCategoriaCatalogo(categoriaId: string | null) {
+    if (this.categoriaActivaId === categoriaId) return;
+    this.categoriaActivaId  = categoriaId;
+
+    // Scroll automático al tab activo dentro de la barra horizontal
+    setTimeout(() => {
+      const attrValue = categoriaId ?? '__todos__';
+      const tabEl = document.querySelector<HTMLElement>(`.catalogo-cats-bar [data-cat-id="${attrValue}"]`);
+      tabEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, 0);
+
+    this.cargandoCatalogo   = true;
+    try {
+      const productos = await this.inventarioService.obtenerProductosCatalogoPOS(categoriaId ?? undefined);
+      this.productosCatalogo.set(await this.resolverImagenesCatalogo(productos));
+    } finally {
+      this.cargandoCatalogo = false;
+    }
+  }
+
+  private async resolverImagenesCatalogo(productos: ProductoPOS[]): Promise<ProductoPOS[]> {
+    return Promise.all(productos.map(p => this.resolverImagen(p)));
+  }
+
+  async editarCantidadDesdeCatalogo(producto: ProductoPOS) {
+    // Toma el primer CartItem del carrito que corresponda a este producto
+    const item = this.carrito().find(i => i.id === producto.id);
+    if (!item) return;
+    await this.editarCantidad(item);
+  }
+
+  async abrirVariantesDesdeCatalogo(item: CatalogoItem & { tipo: 'template' }) {
+    const subtitle = item.templateAtributos.length > 0
+      ? `Selecciona el ${item.templateAtributos.join(' / ').toLowerCase()}`
+      : `Selecciona una opción de ${item.templateNombre}`;
+    await this.mostrarSelectorVariantes(item.templateNombre, item.variantes, subtitle);
+  }
+
+  async agregarDesdeCatalogo(producto: ProductoPOS, event?: MouseEvent | TouchEvent) {
+    // Capturar card y rect ANTES del await — tras el re-render el card puede reordenarse
+    const cardEl = event
+      ? ((event.currentTarget ?? event.target) as HTMLElement).closest('.catalogo-card') as HTMLElement | null
+      : null;
+    const cardRect  = cardEl?.getBoundingClientRect() ?? null;
+    const cardClone = cardEl?.cloneNode(true) as HTMLElement | null ?? null;
+
+    const tienePresentaciones = (producto.presentaciones?.length ?? 0) > 0;
+    const totalAntes = this.totalArticulos();
+    await this.seleccionarResultadoBusqueda({ tipo: 'simple', producto }, false);
+    const seAgrego = this.totalArticulos() > totalAntes;
+
+    // Solo animar en productos simples sin presentaciones — en presentaciones/variantes
+    // el flujo pasa por un modal y la animación se siente desfasada
+    if (seAgrego && !tienePresentaciones) {
+      this.dispararAnimacionCatalogo(producto.id);
+      if (cardRect && cardClone) setTimeout(() => this.flyToPillFromClone(cardClone, cardRect), 0);
+    }
+  }
+
+  /** Anima un clon visual exacto del card volando hacia el pill del carrito */
+  private flyToPillFromClone(cardClone: HTMLElement, cardRect: DOMRect) {
+    const pillEl = document.querySelector<HTMLElement>('.catalogo-cart-pill');
+    if (!pillEl) return;
+
+    const pillRect = pillEl.getBoundingClientRect();
+    const pillCx   = pillRect.left + pillRect.width  / 2;
+    const pillCy   = pillRect.top  + pillRect.height / 2;
+
+    cardClone.style.cssText = `
+      position: fixed;
+      left: ${cardRect.left}px;
+      top: ${cardRect.top}px;
+      width: ${cardRect.width}px;
+      height: ${cardRect.height}px;
+      margin: 0;
+      pointer-events: none;
+      z-index: 9999;
+      border-radius: 8px;
+      overflow: hidden;
+      outline: none;
+      border: none;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      opacity: 1;
+      transform: scale(1);
+      transition:
+        left      0.45s cubic-bezier(0.4, 0, 0.2, 1),
+        top       0.45s cubic-bezier(0.4, 0, 0.2, 1),
+        width     0.45s cubic-bezier(0.4, 0, 0.2, 1),
+        height    0.45s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity   0.35s ease 0.15s,
+        transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    `;
+    document.body.appendChild(cardClone);
+
+    // Forzar reflow para que la transición arranque desde el estado inicial
+    cardClone.getBoundingClientRect();
+
+    // Estado final: encoge hasta el centro del pill y desaparece
+    const size = 32;
+    cardClone.style.left      = `${pillCx - size / 2}px`;
+    cardClone.style.top       = `${pillCy - size / 2}px`;
+    cardClone.style.width     = `${size}px`;
+    cardClone.style.height    = `${size}px`;
+    cardClone.style.opacity   = '0';
+    cardClone.style.transform = 'scale(0.3)';
+
+    cardClone.addEventListener('transitionend', () => cardClone.remove(), { once: true });
   }
 
   /** Pide confirmación antes de vaciar el carrito */
   private async confirmarLimpiarCarrito() {
     const alert = await this.alertCtrl.create({
       header: 'Limpiar carrito',
-      message: `¿Descartas los ${this.totalArticulos} artículos del carrito?`,
+      message: `¿Descartas los ${this.totalArticulos()} artículos del carrito?`,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
         {
@@ -147,15 +323,16 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       addOutline, removeOutline, trashOutline,
       cubeOutline, searchOutline, addCircleOutline,
       cardOutline, phonePortraitOutline, handRightOutline,
-      receiptOutline, documentTextOutline, documentOutline,
-      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline
+      personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, pricetagOutline, chevronDownCircleOutline,
+      gridOutline, listOutline
     });
   }
 
   async ngOnInit() {
     await Promise.all([
       this.cargarCliente(),
-      this.cargarConfig()
+      this.cargarConfig(),
+      this.cargarCatalogo()
     ]);
   }
 
@@ -184,107 +361,129 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   // LÓGICA DEL CARRITO
   // ==========================
 
-  get totalArticulos(): number {
-    return this.carrito.reduce((sum, item) => sum + item.cantidad, 0);
+  readonly totalArticulos = computed(() => this.carrito().reduce((sum, item) => sum + item.cantidad, 0));
+
+  /** Productos del catálogo filtrados y agrupados por template (variantes). Computed: solo recalcula cuando cambia el catálogo o el texto de búsqueda. */
+  readonly itemsCatalogo = computed<CatalogoItem[]>(() => {
+    const texto = this.buscarTexto().trim().toLowerCase();
+    const fuente = texto
+      ? this.productosCatalogo().filter(p =>
+          p.nombre.toLowerCase().includes(texto) ||
+          (p.codigo_barras?.toLowerCase().includes(texto) ?? false)
+        )
+      : this.productosCatalogo();
+    return this.agruparParaCatalogo(fuente);
+  });
+
+  private agruparParaCatalogo(productos: ProductoPOS[]): CatalogoItem[] {
+    const items: CatalogoItem[] = [];
+    const templateMap = new Map<string, CatalogoItem & { tipo: 'template' }>();
+
+    for (const p of productos) {
+      if (!p.producto_template_id) {
+        items.push({ tipo: 'simple', producto: p });
+        continue;
+      }
+
+      const existing = templateMap.get(p.producto_template_id);
+      if (existing) {
+        existing.variantes.push(p);
+      } else {
+        const atributos = (p.producto_template?.template_atributos ?? [])
+          .map(ta => ta.atributo?.nombre)
+          .filter((n): n is string => !!n);
+
+        const item: CatalogoItem & { tipo: 'template' } = {
+          tipo: 'template',
+          templateId: p.producto_template_id,
+          templateNombre: p.producto_template?.nombre ?? p.nombre,
+          templateImagenUrl: p.producto_template?.imagen_url,
+          templateAtributos: atributos,
+          variantes: [p],
+        };
+        templateMap.set(p.producto_template_id, item);
+        items.push(item);
+      }
+    }
+
+    return items;
   }
 
-  /** Subtotal bruto = suma de subtotales del carrito (sin descuento). */
-  get subtotalBruto(): number {
-    return this.carrito.reduce((sum, item) => sum + item.subtotal, 0);
-  }
+  readonly carritoCountMap = computed(() =>
+    this.carrito().reduce((map, item) => {
+      map[item.id] = (map[item.id] || 0) + item.cantidad;
+      return map;
+    }, {} as Record<string, number>)
+  );
 
-  /**
-   * Descuento automático: se aplica si está habilitado en config
-   * y el subtotal bruto supera el umbral mínimo.
-   */
-  get descuentoAplicado(): number {
+  /** Suma de artículos en carrito agrupados por template_id — para el badge de cards de variantes. */
+  readonly templateCountMap = computed(() =>
+    this.carrito().reduce((map, item) => {
+      if (item.producto_template_id) {
+        map[item.producto_template_id] = (map[item.producto_template_id] || 0) + item.cantidad;
+      }
+      return map;
+    }, {} as Record<string, number>)
+  );
+
+  readonly subtotalBruto = computed(() =>
+    this.carrito().reduce((sum, item) => sum + item.subtotal, 0)
+  );
+
+  readonly descuentoAplicado = computed(() => {
     if (!this.appConfig?.pos_descuentos_habilitados) return 0;
-    if (this.subtotalBruto < this.appConfig.pos_umbral_monto_descuento) return 0;
-    const descuento = this.subtotalBruto * (this.appConfig.pos_descuento_maximo_pct / 100);
-    return Math.round(descuento * 100) / 100;
-  }
+    if (this.subtotalBruto() < this.appConfig.pos_umbral_monto_descuento) return 0;
+    return Math.round(this.subtotalBruto() * (this.appConfig.pos_descuento_maximo_pct / 100) * 100) / 100;
+  });
 
-  /** Porcentaje de descuento configurado (para mostrar en el template). */
-  get descuentoPct(): number {
-    return this.appConfig?.pos_descuento_maximo_pct ?? 0;
-  }
+  readonly totalPagar = computed(() =>
+    Math.round((this.subtotalBruto() - this.descuentoAplicado()) * 100) / 100
+  );
 
-  /** Descuentos habilitados en config — controla chip en header */
-  get descuentoActivo(): boolean {
-    return !!this.appConfig?.pos_descuentos_habilitados;
-  }
+  get descuentoPct(): number { return this.appConfig?.pos_descuento_maximo_pct ?? 0; }
+  get descuentoActivo(): boolean { return !!this.appConfig?.pos_descuentos_habilitados; }
 
-  /** Monto que falta para alcanzar el umbral de descuento (0 si ya lo superó o no aplica) */
-  get faltaParaDescuento(): number {
+  readonly faltaParaDescuento = computed(() => {
     if (!this.descuentoActivo) return 0;
-    const umbral = this.appConfig!.pos_umbral_monto_descuento;
-    const falta = umbral - this.subtotalBruto;
+    const falta = this.appConfig!.pos_umbral_monto_descuento - this.subtotalBruto();
     return falta > 0 ? Math.round(falta * 100) / 100 : 0;
-  }
+  });
 
-  /** Mostrar upselling: carrito con items, cerca del umbral (falta ≤30%) pero sin alcanzarlo */
-  get mostrarUpselling(): boolean {
-    if (!this.descuentoActivo || this.carrito.length === 0) return false;
+  readonly mostrarUpselling = computed(() => {
+    if (!this.descuentoActivo || this.carrito().length === 0) return false;
     const umbral = this.appConfig!.pos_umbral_monto_descuento;
-    const falta = this.faltaParaDescuento;
+    const falta = this.faltaParaDescuento();
     return falta > 0 && falta <= umbral * 0.3;
-  }
+  });
 
-  /**
-   * Total a cobrar = subtotal bruto - descuento.
-   * precio_venta YA incluye IVA → precio final al cliente.
-   */
-  get totalPagar(): number {
-    return Math.round((this.subtotalBruto - this.descuentoAplicado) * 100) / 100;
-  }
+  // ── Desglose fiscal (solo FACTURA) — un único reduce sobre el carrito ──
+  private readonly _ivaDivisor = computed(() => 1 + (this.appConfig?.pos_iva_porcentaje ?? 15) / 100);
+  private readonly _factorDescuento = computed(() =>
+    this.subtotalBruto() > 0 ? this.totalPagar() / this.subtotalBruto() : 1
+  );
+  private readonly _brutosDesglose = computed(() =>
+    this.carrito().reduce(
+      (acc, i) => {
+        if (i.tiene_iva) acc.conIva += i.subtotal;
+        else acc.sinIva += i.subtotal;
+        return acc;
+      },
+      { sinIva: 0, conIva: 0 }
+    )
+  );
 
-  // ── Getters de desglose fiscal (solo visibles en FACTURA) ────────────────
-  // El descuento se distribuye proporcionalmente entre base0 y base15.
+  readonly baseIva0 = computed(() =>
+    Math.round(this._brutosDesglose().sinIva * this._factorDescuento() * 100) / 100
+  );
+  readonly baseIva15 = computed(() =>
+    Math.round((this._brutosDesglose().conIva * this._factorDescuento() / this._ivaDivisor()) * 100) / 100
+  );
+  readonly ivaValor = computed(() =>
+    Math.round((this.totalPagar() - this.baseIva0() - this.baseIva15()) * 100) / 100
+  );
+  readonly subtotalNeto = computed(() => Math.round((this.baseIva0() + this.baseIva15()) * 100) / 100);
 
-  /** Montos brutos por grupo IVA (antes de descuento) — uso interno */
-  private get _brutoIva0(): number {
-    return this.carrito.filter(i => !i.tiene_iva).reduce((sum, i) => sum + i.subtotal, 0);
-  }
-  private get _brutoConIva(): number {
-    return this.carrito.filter(i => i.tiene_iva).reduce((sum, i) => sum + i.subtotal, 0);
-  }
-
-  /** Factor de descuento: proporción que queda tras aplicar descuento */
-  private get _factorDescuento(): number {
-    return this.subtotalBruto > 0 ? this.totalPagar / this.subtotalBruto : 1;
-  }
-
-  /** Base gravada 0% (productos sin IVA, con descuento proporcional) */
-  get baseIva0(): number {
-    return Math.round(this._brutoIva0 * this._factorDescuento * 100) / 100;
-  }
-
-  /** Base gravada según tarifa IVA configurada — (precio con IVA × factor descuento) ÷ divisor */
-  get baseIva15(): number {
-    const conIvaDescontado = this._brutoConIva * this._factorDescuento;
-    return Math.round((conIvaDescontado / this._ivaDivisor) * 100) / 100;
-  }
-
-  /** IVA extraído del precio (NO sumado encima) — usa tarifa de configuración */
-  get ivaValor(): number {
-    return Math.round((this.totalPagar - this.baseIva0 - this.baseIva15) * 100) / 100;
-  }
-
-  /** Divisor para extraer base sin IVA. Ej: iva=15% → divisor=1.15 */
-  private get _ivaDivisor(): number {
-    const pct = this.appConfig?.pos_iva_porcentaje ?? 15;
-    return 1 + pct / 100;
-  }
-
-  /** Subtotal neto = base0 + base15 (sin IVA) */
-  get subtotalNeto(): number {
-    return Math.round((this.baseIva0 + this.baseIva15) * 100) / 100;
-  }
-
-  /** Muestra desglose fiscal solo en FACTURA */
-  get mostrarDesglose(): boolean {
-    return this.tipoComprobante === TipoComprobante.FACTURA;
-  }
+  get mostrarDesglose(): boolean { return this.tipoComprobante === TipoComprobante.FACTURA && this.ivaValor() > 0; }
 
 
   async abrirSelectorCliente() {
@@ -329,34 +528,31 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  async agregarAlCarrito(producto: ProductoPOS, presentacion?: ProductoPresentacion) {
+  async agregarAlCarrito(producto: ProductoPOS, presentacion?: ProductoPresentacion): Promise<boolean> {
     // PESO: si ya está en carrito, editar; si no, agregar nuevo
     if (producto.tipo_venta === 'PESO') {
-      const existePeso = this.carrito.find(item => item.id === producto.id);
+      const existePeso = this.carrito().find(item => item.id === producto.id);
       if (existePeso) {
         await this.editarCantidad(existePeso);
       } else {
         await this.pedirCantidadPeso(producto);
       }
-      return;
+      return true;
     }
 
     const stockBase = producto.stock_actual;
     const factor = presentacion?.factor_conversion ?? 1;
     const precioVenta = presentacion?.precio_venta ?? producto.precio_venta;
-
-    // Cuantas unidades base ya estan comprometidas en el carrito para este producto
     const stockUsado = this.stockUsadoPorProducto(producto.id);
     const stockLibre = stockBase - stockUsado;
     const maxUnidades = Math.floor(stockLibre / factor);
 
-    const existe = this.carrito.find(item =>
+    const existe = this.carrito().find(item =>
         item.id === producto.id &&
         item.presentacion_id === (presentacion?.id ?? undefined)
     );
 
     if (existe) {
-      // Recalcular max considerando lo que ya tiene este item
       const stockLibreSinEste = stockBase - stockUsado + (existe.cantidad * factor);
       const maxParaEste = Math.floor(stockLibreSinEste / factor);
       if (existe.cantidad < maxParaEste) {
@@ -364,12 +560,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         this.triggerIncrementAnimation(existe);
         this.feedbackEscaneo(existe.id);
         this.scrollToBottom();
+        return true;
       } else {
         this.ui.showToast('Stock insuficiente', 'warning');
+        return false;
       }
     } else {
       if (maxUnidades > 0) {
-        const prod = await this.resolverImagen(producto);
+        const prod = await this.resolverImagen(producto, presentacion);
         const item: CartItem = {
           ...prod,
           precio_venta: precioVenta,
@@ -382,25 +580,48 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
             factor_conversion: presentacion.factor_conversion
           } : {})
         };
-        this.carrito.push(item);
+        this.carrito.update(c => [...c, item]);
         this.lastAddedKey = producto.id + (presentacion?.id ?? '');
         setTimeout(() => { this.lastAddedKey = null; }, 600);
         this.feedbackEscaneo(producto.id);
         this.scrollToBottom();
+        return true;
       } else {
         this.ui.showToast('Producto sin stock', 'danger');
+        return false;
       }
     }
   }
 
-  private async resolverImagen(producto: ProductoPOS): Promise<ProductoPOS> {
-    const url = await this.storageService.resolveImageUrl(producto.imagen_url);
-    return { ...producto, imagen_url: url ?? undefined };
+  private async resolverImagen(producto: ProductoPOS, presentacion?: ProductoPresentacion): Promise<ProductoPOS> {
+    // Fallback chain: presentacion.imagen_url → producto.imagen_url → template.imagen_url
+    const skuPath = presentacion?.imagen_url || producto.imagen_url || producto.producto_template?.imagen_url;
+    const templateRawPath = producto.producto_template?.imagen_url;
+    const presRawPaths = (producto.presentaciones ?? []).map(p => p.imagen_url ?? null);
+
+    // Resolve SKU, template and all presentation images in parallel
+    const [url, templateUrl, ...presUrls] = await Promise.all([
+      this.storageService.resolveImageUrl(skuPath),
+      templateRawPath ? this.storageService.resolveImageUrl(templateRawPath) : Promise.resolve(null),
+      ...presRawPaths.map(path => this.storageService.resolveImageUrl(path)),
+    ]);
+
+    const result: ProductoPOS = { ...producto, imagen_url: url ?? undefined };
+    if (result.producto_template) {
+      result.producto_template = { ...result.producto_template, imagen_url: templateUrl ?? undefined };
+    }
+    if (result.presentaciones?.length) {
+      result.presentaciones = result.presentaciones.map((p, i) => ({
+        ...p,
+        imagen_url: presUrls[i] ?? null,
+      }));
+    }
+    return result;
   }
 
   /** Calcula cuantas unidades base de un producto estan comprometidas en el carrito */
   private stockUsadoPorProducto(productoId: string): number {
-    return this.carrito
+    return this.carrito()
         .filter(i => i.id === productoId)
         .reduce((sum, i) => sum + i.cantidad * (i.factor_conversion ?? 1), 0);
   }
@@ -423,7 +644,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         esPeso: true,
         stockDisponible: disponible,
         cantidadActual: yaEnCarrito,
-        esEdicion: !!itemExistente
+        esEdicion: !!itemExistente,
+        imagenUrl: itemExistente?.imagen_url ?? producto.imagen_url
       },
       breakpoints: [0, 1],
       initialBreakpoint: 1,
@@ -437,16 +659,18 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     const cantRedondeada = data.cantidad;
     if (itemExistente) {
-      itemExistente.cantidad += cantRedondeada;
-      itemExistente.subtotal = Math.round(itemExistente.cantidad * itemExistente.precio_venta * 100) / 100;
+      this.carrito.update(c => c.map(i => i === itemExistente
+        ? { ...i, cantidad: i.cantidad + cantRedondeada, subtotal: Math.round((i.cantidad + cantRedondeada) * i.precio_venta * 100) / 100 }
+        : i
+      ));
     } else {
       const prod = await this.resolverImagen(producto);
-      this.carrito.push({
+      this.carrito.update(c => [...c, {
         ...prod,
         cantidad: cantRedondeada,
-        subtotal: Math.round(cantRedondeada * producto.precio_venta * 100) / 100,
+        subtotal: Math.round(cantRedondeada * (prod.precio_venta) * 100) / 100,
         stock_disponible: producto.stock_actual
-      });
+      }]);
       this.lastAddedKey = producto.id;
       setTimeout(() => { this.lastAddedKey = null; }, 600);
     }
@@ -455,6 +679,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   private scrollToBottom() {
+    if (this.vistaActual === 'catalogo') return;
     setTimeout(async () => {
       const content = this.content;
       if (!content) return;
@@ -478,12 +703,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
-    const existe = this.carrito.find(item =>
+    const existe = this.carrito().find(item =>
         item.id === producto.id &&
         item.presentacion_id === (presentacion?.id ?? undefined)
     );
 
-    // Recalcular max incluyendo lo que ya tiene este item
     const stockLibreConEste = existe ? stockLibre + (existe.cantidad * factor) : stockLibre;
     const maxParaEste = Math.floor(stockLibreConEste / factor);
     const yaEnCarrito = existe ? existe.cantidad : 0;
@@ -495,10 +719,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
 
     if (existe) {
-      existe.cantidad += cantidadReal;
-      existe.subtotal = Math.round(existe.cantidad * existe.precio_venta * 100) / 100;
+      this.carrito.update(c => c.map(i => i === existe
+        ? { ...i, cantidad: i.cantidad + cantidadReal, subtotal: Math.round((i.cantidad + cantidadReal) * i.precio_venta * 100) / 100 }
+        : i
+      ));
     } else {
-      const prod = await this.resolverImagen(producto);
+      const prod = await this.resolverImagen(producto, presentacion);
       const item: CartItem = {
         ...prod,
         precio_venta: precioVenta,
@@ -511,7 +737,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
           factor_conversion: presentacion.factor_conversion
         } : {})
       };
-      this.carrito.push(item);
+      this.carrito.update(c => [...c, item]);
       this.lastAddedKey = producto.id + (presentacion?.id ?? '');
       setTimeout(() => { this.lastAddedKey = null; }, 600);
     }
@@ -536,7 +762,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       this.barcodeScanner.feedback();
 
       // Mostrar preview del producto escaneado (2.5s)
-      const item = this.carrito.find(i => i.id === productoId);
+      const item = this.carrito().find(i => i.id === productoId);
       if (item) {
         clearTimeout(this.scanPreviewTimeout);
         this.scanPreview = { nombre: item.nombre, cantidad: item.cantidad, subtotal: item.subtotal, precioUnitario: item.precio_venta };
@@ -545,42 +771,42 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  incrementar(item: CartItem) {
-    if (item.tipo_venta === 'PESO') {
-      this.editarCantidad(item);
-      return;
-    }
+  incrementar(item: CartItem): boolean {
+    if (item.tipo_venta === 'PESO') { this.editarCantidad(item); return true; }
     const factor = item.factor_conversion ?? 1;
     const stockUsado = this.stockUsadoPorProducto(item.id);
-    const stockLibreSinEste = item.stock_disponible - stockUsado + (item.cantidad * factor);
-    const maxParaEste = Math.floor(stockLibreSinEste / factor);
+    const maxParaEste = Math.floor((item.stock_disponible - stockUsado + item.cantidad * factor) / factor);
     if (item.cantidad < maxParaEste) {
-      item.cantidad++;
-      item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
+      const nuevaCantidad = item.cantidad + 1;
+      this.carrito.update(c => c.map(i => i === item
+        ? { ...i, cantidad: nuevaCantidad, subtotal: Math.round(nuevaCantidad * i.precio_venta * 100) / 100 }
+        : i
+      ));
       this.triggerIncrementAnimation(item);
+      return true;
     } else {
       this.ui.showToast('Máximo stock alcanzado', 'warning');
+      return false;
     }
   }
 
   decrementar(item: CartItem) {
-    if (item.tipo_venta === 'PESO') {
-      this.editarCantidad(item);
-      return;
-    }
+    if (item.tipo_venta === 'PESO') { this.editarCantidad(item); return; }
     if (item.cantidad > 1) {
-      item.cantidad--;
-      item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
+      const nuevaCantidad = item.cantidad - 1;
+      this.carrito.update(c => c.map(i => i === item
+        ? { ...i, cantidad: nuevaCantidad, subtotal: Math.round(nuevaCantidad * i.precio_venta * 100) / 100 }
+        : i
+      ));
     } else {
       this.eliminar(item);
     }
   }
 
-  async editarCantidad(item: CartItem) {
+  async editarCantidad(item: CartItem): Promise<number | null> {
     const esPeso = item.tipo_venta === 'PESO';
     const factor = item.factor_conversion ?? 1;
-    // Stock libre para este item = stock total - usado por otros items del mismo producto
-    const stockUsadoOtros = this.carrito
+    const stockUsadoOtros = this.carrito()
         .filter(i => i.id === item.id && i !== item)
         .reduce((sum, i) => sum + i.cantidad * (i.factor_conversion ?? 1), 0);
     const maxStock = Math.floor((item.stock_disponible - stockUsadoOtros) / factor);
@@ -594,7 +820,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         esPeso,
         stockDisponible: maxStock,
         cantidadActual: item.cantidad,
-        esEdicion: true
+        esEdicion: true,
+        imagenUrl: item.imagen_url
       },
       breakpoints: [0, 1],
       initialBreakpoint: 1,
@@ -604,15 +831,26 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     await modal.present();
     const { data, role } = await modal.onDidDismiss<CantidadModalResult>();
-    if (role !== 'confirm' || !data) return;
 
-    item.cantidad = data.cantidad;
-    item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
+    if (role === 'quitar') {
+      this.eliminar(item);
+      return 0; // 0 indica al caller que el item fue eliminado — debe limpiar su contador
+    }
+
+    if (role !== 'confirm' || !data) return null;
+
+    const cantidad = data.cantidad;
+    this.carrito.update(c => c.map(i => i === item
+      ? { ...i, cantidad, subtotal: Math.round(cantidad * i.precio_venta * 100) / 100 }
+      : i
+    ));
+    return cantidad;
   }
 
   eliminar(item: CartItem) {
-    this.carrito = this.carrito.filter(i => i !== item);
+    this.carrito.update(c => c.filter(i => i !== item));
   }
+
 
   // ==========================
   // BÚSQUEDA Y ESCÁNER (MANUAL)
@@ -620,16 +858,17 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   toggleModoBusqueda() {
     this.modoBusqueda = this.modoBusqueda === 'codigo' ? 'nombre' : 'codigo';
-    this.buscarTexto = '';
+    this.buscarTexto.set('');
     this.productosBusqueda = [];
-    // Foco después del cambio para que Android abra el teclado correcto
-    setTimeout(() => this.searchInputRef?.nativeElement?.focus(), 50);
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('.cat-search-input');
+      input?.focus();
+    }, 50);
   }
 
   limpiarBusqueda() {
-    this.buscarTexto = '';
+    this.buscarTexto.set('');
     this.productosBusqueda = [];
-    this.resultadosBusqueda = [];
   }
 
   // Dispatcher: según el modo activo llama a la lógica correspondiente
@@ -637,19 +876,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   onSearchInput(event: Event) {
     const texto = (event.target as HTMLInputElement).value?.trim();
 
-    if (this.modoBusqueda === 'nombre') {
-      if (!texto || texto.length < 2) { this.productosBusqueda = []; this.sugerenciaActiva = -1; return; }
-      clearTimeout(this.searchDebounce);
-      this.searchDebounce = setTimeout(() => this.buscarPorNombre(texto), 600);
-    } else {
-      clearTimeout(this.searchDebounce);
-      if (!texto) return;
-      const esBulk = /^(\d+)\.(.+)$/.test(texto);
-      // Bulk (ej: 10.2): dispara con cualquier longitud de código
-      // Código solo: espera ≥8 chars para no disparar con dígitos sueltos
-      if (!esBulk && texto.length < 8) return;
-      this.searchDebounce = setTimeout(() => this.buscarPorCodigo(texto), 300);
-    }
+    if (this.modoBusqueda === 'nombre') return; // el grid filtra reactivamente via buscarTexto signal
+
+    clearTimeout(this.searchDebounce);
+    if (!texto) return;
+    const esBulk = /^(\d+)\.(.+)$/.test(texto);
+    if (!esBulk && texto.length < 8) return;
+    this.searchDebounce = setTimeout(() => this.buscarPorCodigo(texto), 300);
   }
 
   // Enter en modo código dispara búsqueda (pistola lectora envía Enter al final)
@@ -658,74 +891,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (this.modoBusqueda === 'codigo') {
       if (event.key === 'Enter') {
         clearTimeout(this.searchDebounce);
-        const texto = this.buscarTexto?.trim();
+        const texto = this.buscarTexto().trim();
         if (texto) this.buscarPorCodigo(texto);
       }
       return;
     }
 
-    // Modo nombre — navegación por teclado
-    const total = this.resultadosBusqueda.length;
-    if (total === 0) return;
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      this.sugerenciaActiva = Math.min(this.sugerenciaActiva + 1, total - 1);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      this.sugerenciaActiva = Math.max(this.sugerenciaActiva - 1, 0);
-    } else if (event.key === 'Enter') {
-      const idx = this.sugerenciaActiva >= 0 ? this.sugerenciaActiva : 0;
-      void this.seleccionarResultadoBusqueda(this.resultadosBusqueda[idx]);
-    }
   }
 
-  private async buscarPorNombre(texto: string) {
-    if (!this.network.isConnected()) {
-      this.ui.showToast('Sin conexión a internet', 'danger');
-      return;
-    }
-
-    const version = ++this.searchVersion;
-    this.buscando = true;
-    try {
-      const resultados = await this.inventarioService.buscarProductosPOS(texto);
-      if (version !== this.searchVersion) return;
-      this.productosBusqueda = resultados;
-      this.resultadosBusqueda = this.agruparResultados(resultados);
-    } finally {
-      if (version === this.searchVersion) this.buscando = false;
-    }
-  }
-
-  /** Agrupa productos por template. Productos sin template = 'simple'. */
-  private agruparResultados(productos: ProductoPOS[]): ResultadoBusquedaPOS[] {
-    const resultado: ResultadoBusquedaPOS[] = [];
-    const templatesVistos = new Map<string, number>(); // templateId → índice en resultado
-
-    for (const prod of productos) {
-      if (!prod.producto_template_id) {
-        resultado.push({ tipo: 'simple', producto: prod });
-        continue;
-      }
-
-      const idx = templatesVistos.get(prod.producto_template_id);
-      if (idx !== undefined) {
-        (resultado[idx] as { tipo: 'template'; variantes: ProductoPOS[] }).variantes.push(prod);
-      } else {
-        const templateNombre = prod.producto_template?.nombre ?? prod.nombre;
-        templatesVistos.set(prod.producto_template_id, resultado.length);
-        resultado.push({
-          tipo: 'template',
-          templateId: prod.producto_template_id,
-          templateNombre,
-          variantes: [prod]
-        });
-      }
-    }
-
-    return resultado;
-  }
 
   private async buscarPorCodigo(texto: string) {
     if (!this.network.isConnected()) {
@@ -744,7 +917,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
           const resultado = await this.inventarioService.buscarPorCodigoBarras(codigo);
           if (resultado) {
             await this.agregarAlCarritoConCantidad(resultado.producto, cantidad, resultado.presentacion);
-            this.buscarTexto = '';
+            this.buscarTexto.set('');
           } else {
             this.ui.showToast(`Código "${codigo}" no encontrado`, 'warning');
           }
@@ -756,7 +929,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       const resultado = await this.inventarioService.buscarPorCodigoBarras(texto);
       if (resultado) {
         await this.agregarAlCarrito(resultado.producto, resultado.presentacion);
-        this.buscarTexto = '';
+        this.buscarTexto.set('');
       } else {
         this.ui.showToast(`Código "${texto}" no encontrado`, 'warning');
       }
@@ -766,17 +939,18 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   // Clic en la lista de sugerencias — despacha según tipo de resultado
-  async seleccionarResultadoBusqueda(resultado: ResultadoBusquedaPOS) {
+  async seleccionarResultadoBusqueda(resultado: ResultadoBusquedaPOS, limpiar = true) {
     if (resultado.tipo === 'template') {
       await this.mostrarSelectorVariantes(resultado.templateNombre, resultado.variantes);
     } else {
-      await this.seleccionarProductoBusqueda(resultado.producto);
+      await this.seleccionarProductoBusqueda(resultado.producto, limpiar);
     }
-    this.limpiarBusqueda();
-    this.sugerenciaActiva = -1;
+    if (limpiar) {
+      this.limpiarBusqueda();
+    }
   }
 
-  async seleccionarProductoBusqueda(producto: ProductoPOS) {
+  async seleccionarProductoBusqueda(producto: ProductoPOS, limpiar = true) {
     const presentaciones = producto.presentaciones ?? [];
 
     if (presentaciones.length === 0) {
@@ -785,108 +959,75 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       await this.mostrarSelectorPresentacion(producto, presentaciones);
     }
 
-    this.buscarTexto = '';
-    this.productosBusqueda = [];
-    this.sugerenciaActiva = -1;
+    if (limpiar) {
+      this.limpiarBusqueda();
+    }
   }
 
-  /**
-   * Sheet único con lista plana: variante · unidad + variante · presentaciones.
-   * Cero queries extra — todo calculado en memoria desde los datos ya cargados.
-   * value codificado como "productoId" o "productoId::presentacionId".
-   */
-  private async mostrarSelectorVariantes(templateNombre: string, variantes: ProductoPOS[]) {
-    const prefijo = templateNombre.trim() + ' ';
+  /** Modal unificado de variantes con presentaciones inline y taps múltiples. */
+  private async mostrarSelectorVariantes(templateNombre: string, variantes: ProductoPOS[], subtitle?: string) {
+    const resolverItem = (data: VarianteSelectorResult) => {
+      const variante = variantes.find(v => v.id === data.varianteId);
+      if (!variante) return null;
+      const pres = data.presentacionId
+        ? variante.presentaciones?.find(p => p.id === data.presentacionId)
+        : undefined;
+      const item = this.carrito().find(i =>
+        i.id === data.varianteId && i.presentacion_id === (data.presentacionId ?? undefined)
+      );
+      return { variante, pres, item };
+    };
 
-    // Construir lista plana en memoria — O(n*m) donde n=variantes, m=presentaciones por variante
-    // En un POS real: máximo ~30 opciones totales → prácticamente instantáneo
-    const options: { label: string; subtitle: string; icon: string; value: string }[] = [];
+    const onAgregar = async (data: VarianteSelectorResult): Promise<boolean> => {
+      const r = resolverItem(data);
+      if (!r) return false;
+      return this.agregarAlCarrito(r.variante, r.pres);
+    };
 
-    for (const v of variantes) {
-      const labelBase = v.nombre.startsWith(prefijo) ? v.nombre.slice(prefijo.length) : v.nombre;
-      const stockStr = `Stock: ${v.stock_actual}${v.tipo_venta === 'PESO' ? ' ' + v.unidad_medida : ''}`;
-      const presentaciones: ProductoPresentacion[] = v.presentaciones ?? [];
+    const onIncrementar = async (data: VarianteSelectorResult): Promise<boolean> => {
+      const r = resolverItem(data);
+      if (!r?.item) return false;
+      return this.incrementar(r.item);
+    };
 
-      if (presentaciones.length === 0) {
-        options.push({ label: labelBase, subtitle: stockStr, icon: 'cube-outline', value: v.id });
-      } else {
-        options.push({
-          label: `${labelBase}  ·  Unidad`,
-          subtitle: `${stockStr}  ·  $${this.currencyService.format(v.precio_venta)}`,
-          icon: 'cube-outline',
-          value: v.id
-        });
-        for (const pres of presentaciones) {
-          options.push({
-            label: `${labelBase}  ·  ${pres.nombre}`,
-            subtitle: `$${this.currencyService.format(pres.precio_venta)}`,
-            icon: 'pricetag-outline',
-            value: `${v.id}::${pres.id}`
-          });
-        }
-      }
-    }
+    const onDecrementar = async (data: VarianteSelectorResult) => {
+      const r = resolverItem(data);
+      if (!r?.item) return;
+      this.decrementar(r.item);
+    };
+
+    const onEditarCantidad = async (data: VarianteSelectorResult): Promise<number | null> => {
+      const r = resolverItem(data);
+      if (!r?.item) return null;
+      return this.editarCantidad(r.item);
+    };
 
     const modal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
-      componentProps: { title: templateNombre, subtitle: 'Selecciona la variante', groups: [{ options }] },
-      cssClass: 'options-modal',
+      component: VarianteSelectorModalComponent,
+      componentProps: {
+        templateNombre,
+        subtitle: subtitle ?? `Selecciona una opción de ${templateNombre}`,
+        variantes,
+        onAgregar,
+        onIncrementar,
+        onDecrementar,
+        onEditarCantidad,
+        carritoActual: this.carrito(),
+        totalCarrito: this.totalPagar,
+        totalArticulosCarrito: this.totalArticulos
+      },
+      cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1
     });
 
     await modal.present();
-    const { data } = await modal.onDidDismiss<string>();
-    if (!data) return;
-
-    // Decodificar value: "productoId" o "productoId::presentacionId"
-    const [productoId, presentacionId] = data.split('::');
-    const variante = variantes.find(v => v.id === productoId);
-    if (!variante) return;
-
-    if (presentacionId) {
-      const pres = variante.presentaciones?.find(p => p.id === presentacionId);
-      if (pres) await this.agregarAlCarrito(variante, pres);
-    } else {
-      await this.agregarAlCarrito(variante);
-    }
+    await modal.onDidDismiss();
   }
 
-  /** OptionsModal: unidad suelta + una opción por presentación */
+  /** Modal de presentaciones para productos simples — reutiliza el mismo modal de variantes. */
   private async mostrarSelectorPresentacion(producto: ProductoPOS, presentaciones: ProductoPresentacion[]) {
-    const groups: ModalOptionGroup[] = [{
-      options: [
-        {
-          label: `Unidad suelta  ·  $${this.currencyService.format(producto.precio_venta)}`,
-          icon: 'cube-outline',
-          value: '__unidad__'
-        },
-        ...presentaciones.map(pres => ({
-          label: `${pres.nombre}  ·  $${this.currencyService.format(pres.precio_venta)}`,
-          icon: 'pricetag-outline',
-          value: pres.id
-        }))
-      ]
-    }];
-
-    const modal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
-      componentProps: { title: producto.nombre, subtitle: 'Selecciona cómo venderlo', groups },
-      cssClass: 'options-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-
-    await modal.present();
-    const { data } = await modal.onDidDismiss<string>();
-    if (!data) return;
-
-    if (data === '__unidad__') {
-      await this.agregarAlCarrito(producto);
-    } else {
-      const pres = presentaciones.find(p => p.id === data);
-      if (pres) await this.agregarAlCarrito(producto, pres);
-    }
+    await this.mostrarSelectorVariantes(producto.nombre, [producto], 'Selecciona cómo venderlo');
   }
 
   // ==========================
@@ -974,7 +1115,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   async cobrarEfectivo() {
-    if (this.carrito.length === 0 || this.cobroEnProceso) return;
+    if (this.carrito().length === 0 || this.cobroEnProceso) return;
 
     if (!this.clienteSeleccionado?.id) {
       this.ui.showToast('Cliente no cargado. Toca el cliente para actualizar.', 'warning');
@@ -996,11 +1137,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const modal = await this.modalCtrl.create({
       component: CobrarModalComponent,
       componentProps: {
-        total: this.totalPagar,
-        subtotal: this.subtotalBruto,
-        descuento: this.descuentoAplicado,
+        total: this.totalPagar(),
+        subtotal: this.subtotalBruto(),
+        descuento: this.descuentoAplicado(),
         descuentoPct: this.descuentoPct,
-        totalArticulos: this.totalArticulos,
+        totalArticulos: this.totalArticulos(),
         esConsumidorFinal: false,
         iniciarEnEfectivo: true
       },
@@ -1014,18 +1155,17 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   async cobrar() {
-    if (this.carrito.length === 0 || this.cobroEnProceso) return;
+    if (this.carrito().length === 0 || this.cobroEnProceso) return;
 
     if (!this.clienteSeleccionado?.id) {
       this.ui.showToast('Cliente no cargado. Toca el cliente para actualizar.', 'warning');
       return;
     }
 
-    // Si es consumidor final, forzar selección de cliente antes de abrir el modal
-    if (this.clienteSeleccionado.es_consumidor_final) {
-      this.ui.showToast('Selecciona un cliente para continuar', 'warning');
-      await this.abrirSelectorCliente();
-      if (this.clienteSeleccionado.es_consumidor_final) return; // canceló o no eligió
+    // FACTURA requiere cliente con identificación
+    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado.es_consumidor_final) {
+      this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
+      return;
     }
 
     // Verificar turno activo antes de abrir el modal de cobro
@@ -1035,20 +1175,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
-    // Validación FACTURA: requiere cliente con identificación
-    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado.es_consumidor_final) {
-      this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
-      return;
-    }
-
     const modal = await this.modalCtrl.create({
       component: CobrarModalComponent,
       componentProps: {
-        total: this.totalPagar,
-        subtotal: this.subtotalBruto,
-        descuento: this.descuentoAplicado,
+        total: this.totalPagar(),
+        subtotal: this.subtotalBruto(),
+        descuento: this.descuentoAplicado(),
         descuentoPct: this.descuentoPct,
-        totalArticulos: this.totalArticulos,
+        totalArticulos: this.totalArticulos(),
         esConsumidorFinal: false
       },
       backdropDismiss: false
@@ -1092,26 +1226,26 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       // 2. Armar el payload con todos los campos fiscales correctos
       //    FIADO no lleva descuento — son beneficios mutuamente excluyentes
       const esFiado = metodoPago === 'FIADO';
-      const descuento = esFiado ? 0 : this.descuentoAplicado;
+      const descuento = esFiado ? 0 : this.descuentoAplicado();
       const descuentoPct = esFiado ? 0 : this.descuentoPct;
-      const totalFinal = esFiado ? this.subtotalBruto : this.totalPagar;
+      const totalFinal = esFiado ? this.subtotalBruto() : this.totalPagar();
       const esFactura = this.tipoComprobante === TipoComprobante.FACTURA;
       const payload: VentaPayload = {
         total:             totalFinal,
-        subtotal:          esFactura ? this.subtotalNeto : this.subtotalBruto,
+        subtotal:          esFactura ? this.subtotalNeto() : this.subtotalBruto(),
         descuento,
         descuentoPct,
         metodoPago,
         tipoComprobante:   this.tipoComprobante,
         clienteId:         this.clienteSeleccionado?.id,
-        baseIva0:          esFactura ? this.baseIva0  : 0,
-        baseIva15:         esFactura ? this.baseIva15 : 0,
-        ivaValor:          esFactura ? this.ivaValor  : 0,
+        baseIva0:          esFactura ? this.baseIva0()  : 0,
+        baseIva15:         esFactura ? this.baseIva15() : 0,
+        ivaValor:          esFactura ? this.ivaValor()  : 0,
         idempotencyKey,
       };
 
       // 3. Procesar la venta en Supabase (RPC) — turno se valida dentro del servicio
-      const response = await this.posService.procesarVenta(this.carrito, payload);
+      const response = await this.posService.procesarVenta(this.carrito(), payload);
 
       await this.ui.hideLoading();
 
@@ -1137,12 +1271,16 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  async limpiarCarrito() {
-    this.carrito = [];
-    this.buscarTexto = '';
+  limpiarCarrito() {
+    this.carrito.set([]);
+    this.buscarTexto.set('');
     this.productosBusqueda = [];
-    // El tipo de comprobante no se resetea — viene de config y no cambia entre ventas
-    await this.cargarCliente();
+    if (this.volvioDesdeCatalogo) {
+      this.volvioDesdeCatalogo = false;
+      this.vistaActual = 'catalogo';
+    }
+    // Recarga del cliente en background — no bloquea el vaciado del carrito
+    this.cargarCliente();
   }
 
   // ==========================
@@ -1154,12 +1292,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (this.escaneando) this.cerrarEscaner();
     clearTimeout(this.barcodeTimeout);
     clearTimeout(this.searchDebounce);
+    clearTimeout(this.scanPreviewTimeout);
   }
 
   async ionViewWillEnter() {
     this.paginaActiva = true;
     this.productosBusqueda = [];
-    this.buscarTexto = '';
+    this.buscarTexto.set('');
     await Promise.all([
       this.recuperarVentaPendiente(),
       this.refrescarConfig(),

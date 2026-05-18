@@ -78,7 +78,10 @@
   background: var(--ion-item-background);
   box-shadow: var(--shadow-level-1);
   overflow: hidden;
+  transition: background var(--transition-fast);
+
 }
+
 
 
 // ── Fila de cierre ────────────────────────────────────────────────────────────

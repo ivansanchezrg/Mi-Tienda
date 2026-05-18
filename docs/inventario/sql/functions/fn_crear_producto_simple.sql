@@ -18,7 +18,7 @@ CREATE OR REPLACE FUNCTION public.fn_crear_producto_simple(
     p_precio_venta      NUMERIC DEFAULT 0,
     p_stock_actual      NUMERIC DEFAULT 0,
     p_stock_minimo      INTEGER DEFAULT 5,
-    -- Presentaciones: [{ nombre, factor_conversion, precio_venta, precio_costo, codigo_barras? }]
+    -- Presentaciones: [{ nombre, factor_conversion, precio_venta, precio_costo, codigo_barras?, imagen_url? }]
     p_presentaciones    JSON DEFAULT '[]'::JSON
 )
 RETURNS JSON
@@ -83,7 +83,7 @@ BEGIN
         LOOP
             INSERT INTO producto_presentaciones (
                 negocio_id, producto_id, nombre, factor_conversion,
-                precio_venta, precio_costo, codigo_barras, activo
+                precio_venta, precio_costo, codigo_barras, imagen_url, activo
             ) VALUES (
                 v_negocio_id,
                 v_producto_id,
@@ -92,6 +92,7 @@ BEGIN
                 (v_pres->>'precio_venta')::NUMERIC,
                 (v_pres->>'precio_costo')::NUMERIC,
                 NULLIF(TRIM(COALESCE(v_pres->>'codigo_barras', '')), ''),
+                NULLIF(TRIM(COALESCE(v_pres->>'imagen_url', '')), ''),
                 TRUE
             );
         END LOOP;

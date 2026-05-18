@@ -20,7 +20,7 @@ CREATE OR REPLACE FUNCTION public.fn_crear_producto_con_variantes(
     p_atributos_template JSON DEFAULT '[]'::JSON,
 
     -- Variantes (SKUs):
-    -- [{ nombre, precio_costo, precio_venta, stock_actual, stock_minimo, opcion_ids: [uuid], presentaciones?: [...] }]
+    -- [{ nombre, precio_costo, precio_venta, stock_actual, stock_minimo, imagen_url?, opcion_ids: [uuid], presentaciones?: [{ ..., imagen_url? }] }]
     p_variantes         JSON DEFAULT '[]'::JSON
 )
 RETURNS JSON
@@ -136,7 +136,7 @@ BEGIN
             producto_template_id,
             tiene_iva,
             nombre, precio_costo, precio_venta, stock_actual, stock_minimo,
-            codigo_barras, activo
+            codigo_barras, imagen_url, activo
         ) VALUES (
             v_producto_id, v_negocio_id,
             v_template_id,
@@ -147,6 +147,7 @@ BEGIN
             COALESCE((v_variante->>'stock_actual')::NUMERIC, 0),
             COALESCE((v_variante->>'stock_minimo')::INTEGER, 5),
             NULLIF(TRIM(COALESCE(v_variante->>'codigo_barras', '')), ''),
+            NULLIF(TRIM(COALESCE(v_variante->>'imagen_url', '')), ''),
             TRUE
         );
 
@@ -169,7 +170,7 @@ BEGIN
             LOOP
                 INSERT INTO producto_presentaciones (
                     negocio_id, producto_id, nombre, factor_conversion,
-                    precio_venta, precio_costo, codigo_barras, activo
+                    precio_venta, precio_costo, codigo_barras, imagen_url, activo
                 ) VALUES (
                     v_negocio_id,
                     v_producto_id,
@@ -178,6 +179,7 @@ BEGIN
                     (v_pres->>'precio_venta')::NUMERIC,
                     (v_pres->>'precio_costo')::NUMERIC,
                     NULLIF(TRIM(COALESCE(v_pres->>'codigo_barras', '')), ''),
+                    NULLIF(TRIM(COALESCE(v_pres->>'imagen_url', '')), ''),
                     TRUE
                 );
             END LOOP;

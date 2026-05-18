@@ -370,7 +370,7 @@ export class ShareVentaService {
     }
 
     private getLabelMetodo(metodo: string): string {
-        if (metodo === 'DEUNA')         return 'Tarjeta / DeUna';
+        if (metodo === 'DEUNA')         return 'Deuna';
         if (metodo === 'TRANSFERENCIA') return 'Transferencia';
         if (metodo === 'FIADO')         return 'Fiado';
         return 'Efectivo';

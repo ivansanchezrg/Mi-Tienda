@@ -356,7 +356,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
     }
 
     labelMetodoPago(metodo: string): string {
-        if (metodo === 'DEUNA') return 'Tarjeta';
+        if (metodo === 'DEUNA') return 'Deuna';
         if (metodo === 'TRANSFERENCIA') return 'Transfer.';
         if (metodo === 'FIADO') return 'Fiado';
         return 'Efectivo';

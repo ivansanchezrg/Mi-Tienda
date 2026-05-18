@@ -35,6 +35,7 @@ export class AppComponent implements OnDestroy {
       target.blur();
     }
   };
+
   private capacitorListeners: PluginListenerHandle[] = [];
 
   constructor() {
@@ -53,11 +54,10 @@ export class AppComponent implements OnDestroy {
 
   /**
    * Oculta el splash screen nativo solo cuando la primera ruta termina de
-   * renderizar. Evita el flash blanco entre el splash de Android y el primer
-   * paint de Angular. Requiere `launchAutoHide: false` en capacitor.config.ts
-   * — sin eso, Capacitor lo oculta automáticamente al montar el WebView.
+   * renderizar. Evita el flash gris entre el splash de Android y el primer
+   * paint de Angular. Requiere `launchAutoHide: false` en capacitor.config.ts.
    *
-   * Timeout de seguridad de 6s: si NavigationEnd nunca llega (guard que falla,
+   * Fallback de seguridad a 3s: si NavigationEnd nunca llega (guard que falla,
    * error de red en el bootstrap) el splash no queda bloqueado indefinidamente.
    */
   private setupSplashScreenHide() {
@@ -78,8 +78,8 @@ export class AppComponent implements OnDestroy {
       )
       .subscribe(() => hide());
 
-    // Fallback: si en 6s no llegó NavigationEnd, ocultar igualmente
-    setTimeout(() => hide(), 6000);
+    // Fallback: si en 3s no llegó NavigationEnd, ocultar igualmente
+    setTimeout(() => hide(), 3000);
   }
 
   private setupBlurOnNavigation() {

@@ -18,3 +18,12 @@ export interface CartItem extends ProductoPOS {
 export type ResultadoBusquedaPOS =
     | { tipo: 'simple';   producto: ProductoPOS }
     | { tipo: 'template'; templateNombre: string; templateId: string; variantes: ProductoPOS[] };
+
+/**
+ * Item del grid del catálogo POS.
+ * - tipo 'simple': producto individual (sin variantes)
+ * - tipo 'template': card agrupado que representa todas las variantes de un template
+ */
+export type CatalogoItem =
+    | { tipo: 'simple';   producto: ProductoPOS }
+    | { tipo: 'template'; templateId: string; templateNombre: string; templateImagenUrl?: string | null; templateAtributos: string[]; variantes: ProductoPOS[] };
