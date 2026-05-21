@@ -35,6 +35,7 @@ export class CantidadModalComponent implements OnInit, AfterViewInit {
     cantidad: number | null = null;
     cantidadStr = '';
     error = '';
+    stockBadgeAnimando = false;
 
     constructor() {
         addIcons({ closeOutline, addOutline, removeOutline, scaleOutline, cubeOutline, trashOutline });
@@ -49,9 +50,14 @@ export class CantidadModalComponent implements OnInit, AfterViewInit {
 
     ngAfterViewInit() { }
 
+    get stockRestante(): number {
+        const cantidadIngresada = this.cantidad ?? (this.esEdicion ? this.cantidadActual : 0);
+        return Math.max(0, this.maxPermitido - cantidadIngresada);
+    }
+
     get stockLabel(): string {
-        if (this.esPeso) return `${this.stockDisponible} ${this.unidadMedida}`;
-        return `${this.stockDisponible} und`;
+        if (this.esPeso) return `${this.stockRestante} ${this.unidadMedida}`;
+        return `${this.stockRestante} und`;
     }
 
     get precioLabel(): string {
@@ -68,12 +74,22 @@ export class CantidadModalComponent implements OnInit, AfterViewInit {
         return this.esEdicion ? this.stockDisponible : this.stockDisponible - this.cantidadActual;
     }
 
+    private dispararBounceStockBadge() {
+        if (this.stockBadgeAnimando) return;
+        this.stockBadgeAnimando = true;
+        setTimeout(() => this.stockBadgeAnimando = false, 450);
+    }
+
     onInput(event: Event) {
+        const prevRestante = this.stockRestante;
         const val = (event.target as HTMLInputElement).value;
         this.cantidadStr = val;
         const parsed = this.esPeso ? parseFloat(val) : parseInt(val, 10);
         this.cantidad = isNaN(parsed) ? null : parsed;
         this.error = '';
+        if (this.stockRestante <= 10 && this.stockRestante < prevRestante) {
+            this.dispararBounceStockBadge();
+        }
     }
 
     incrementar() {
@@ -84,6 +100,7 @@ export class CantidadModalComponent implements OnInit, AfterViewInit {
             this.cantidad = next;
             this.cantidadStr = next.toString();
             this.error = '';
+            if (this.stockRestante <= 10) this.dispararBounceStockBadge();
         }
     }
 
@@ -109,7 +126,8 @@ export class CantidadModalComponent implements OnInit, AfterViewInit {
             return;
         }
         if (cant > this.maxPermitido) {
-            this.error = `Máximo disponible: ${this.stockLabel}`;
+            const maxLabel = this.esPeso ? `${this.maxPermitido} ${this.unidadMedida}` : `${this.maxPermitido} und`;
+            this.error = `Máximo disponible: ${maxLabel}`;
             return;
         }
 

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { RecargasVirtualesService } from '../../features/recargas-virtuales/services/recargas-virtuales.service';
-import { ConfiguracionService } from '../../features/configuracion/services/configuracion.service';
+import { ConfigService } from './config.service';
 import { GananciasService } from '../../features/recargas-virtuales/services/ganancias.service';
 import { InventarioService } from '../../features/inventario/services/inventario.service';
 
@@ -21,14 +21,14 @@ export interface Notificacion {
 @Injectable({ providedIn: 'root' })
 export class NotificacionesService {
   private recargasVirtualesService = inject(RecargasVirtualesService);
-  private configuracionService     = inject(ConfiguracionService);
+  private configService            = inject(ConfigService);
   private gananciasService         = inject(GananciasService);
   private inventarioService        = inject(InventarioService);
 
   async getNotificaciones(): Promise<Notificacion[]> {
     const notifs: Notificacion[] = [];
 
-    const config = await this.configuracionService.get();
+    const config = await this.configService.get();
     const busActivo = config?.recargas_bus_habilitada ?? false;
 
     const [saldoBus, gananciaBusPendiente, productosStockBajo] = await Promise.all([
@@ -37,7 +37,7 @@ export class NotificacionesService {
       this.inventarioService.obtenerProductosStockBajo()
     ]);
 
-    const necesitaGananciaMesActual = busActivo && !gananciaBusPendiente && config &&
+    const necesitaGananciaMesActual = busActivo && !gananciaBusPendiente &&
       (() => {
         const hoy = new Date();
         const dias = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate() - hoy.getDate();
@@ -49,7 +49,7 @@ export class NotificacionesService {
       : 0;
 
     // ── Saldo bajo en BUS ────────────────────────────────────────────────────
-    if (busActivo && config && saldoBus !== Infinity && saldoBus <= config.bus_alerta_saldo_bajo) {
+    if (busActivo && saldoBus !== Infinity && saldoBus <= config.bus_alerta_saldo_bajo) {
       notifs.push({
         tipo: 'SALDO_BAJO_BUS',
         titulo: 'Saldo bajo en BUS',

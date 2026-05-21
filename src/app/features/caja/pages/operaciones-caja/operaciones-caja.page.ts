@@ -116,8 +116,8 @@ export class OperacionesCajaPage implements OnDestroy {
   // true si el ⋮ debe mostrarse según caja y rol
   get mostrarMenuOpciones(): boolean {
     if (this.cajaCodigo === 'CAJA_CHICA') return this.esMiTurno;
-    if (['CAJA_CELULAR', 'CAJA_BUS'].includes(this.cajaCodigo)) return this.esAdmin;
-    return true; // CAJA y VARIOS siempre
+    if (this.cajaCodigo === 'CAJA_BUS') return false;
+    return true; // CAJA, VARIOS y CAJA_CELULAR — cualquier usuario logueado
   }
 
   constructor() {

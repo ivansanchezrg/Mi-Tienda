@@ -85,24 +85,37 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 #### `validarUsuario()` — flujo v11 multi-tenant
 
 ```
-1.  getUser() → email del JWT
+1.  getSession() → email + JWT claims del token local (sin llamada de red)
 2.  FROM usuarios SELECT id, nombre, email, es_superadmin, activo WHERE email = $email
 3.  No existe → auto-registro (INSERT email + nombre, sin rol) → /onboarding/negocio
 4.  activo = false (y no es superadmin) → /auth/pending?motivo=usuario
 5.  Existe → iniciarRealtimeUsuario(id) tan pronto como se confirma identidad
-6.  Obtener TODAS las membresías (activas e inactivas) con JOIN a negocios(nombre, activo)
-7.  Cache hit (negocio_id en Preferences sigue en lista activa) → re-activar directo
+6.  FROM usuario_negocios WHERE usuario_id = $id → todas las membresías con JOIN negocios(nombre)
+7.  Cache hit (negocio_id en Preferences sigue en lista activa) → _reactivarNegocio()
+      fast path: JWT ya tiene negocio_id + rol correctos → salta fn_set_negocio_activo + refreshSession
+      slow path: JWT desactualizado → activarNegocio() completo
 8.  es_superadmin sin cache → guardar UsuarioActual mínimo → /admin
 9.  0 membresías activas + tiene membresías inactivas → /auth/pending?motivo=membresia
 10. 0 membresías en total → /onboarding/negocio (usuario nuevo)
-11. Todos los negocios suspendidos → negociosDisponibles = todos → /auth/seleccionar-negocio
-12. 1 negocio activo y es el único total → activarNegocio() directo → /caja
-13. N negocios (o mix activos+suspendidos) → negociosDisponibles = todos → /auth/seleccionar-negocio
+11. 1 negocio activo → activarNegocio() directo → /caja
+12. N negocios → negociosDisponibles = todos → /auth/seleccionar-negocio
 ```
 
-**Motivos del paso 11 vs 12:** el selector siempre muestra todos los negocios (activos y suspendidos) para que el usuario vea el estado. Solo activa directo cuando hay exactamente 1 negocio y está activo — así el usuario con un negocio suspendido llega al selector y ve el badge "Suspendido" en vez de recibir un error sin contexto.
-
 **Auto-registro v11:** solo inserta `{ nombre, email }` en `usuarios`. No inserta `rol` ni `activo` — el rol vive en `usuario_negocios` y la activación vive en el flujo de membresía.
+
+#### `_reactivarNegocio(negocio, session)` — fast path de re-apertura
+
+Llamado desde `validarUsuario()` cuando hay un negocio cacheado válido. Evita 2 round trips a Supabase en el 99% de re-aperturas normales:
+
+```
+JWT app_metadata tiene negocio_id + rol correctos?
+  ├─ SÍ (fast path) → construir UsuarioActual desde cache + iniciar Realtime
+  │    Sin llamadas de red extra — el JWT ya tiene los claims correctos
+  └─ NO (slow path) → activarNegocio() completo (fn_set_negocio_activo + refreshSession)
+       Ocurre en: primera apertura tras instalación, cambio de rol, JWT recién creado
+```
+
+El JWT persiste entre sesiones con `negocio_id` y `rol` en `app_metadata` — una vez establecido por `fn_set_negocio_activo`, Supabase lo conserva en todos los refreshes de token. El slow path cubre los casos donde los claims están desactualizados.
 
 #### `activarNegocio(negocio: NegocioDisponible)` — nuevo en v11
 
@@ -412,7 +425,7 @@ Protege el layout principal. Aplicado en `app.routes.ts`.
 
 | Escenario | Comportamiento |
 |---|---|
-| Online + sesión + primera navegación | `validarUsuario()` consulta BD, activa negocio, inicia Realtime (usuario + negocio), guarda en Preferences |
+| Online + sesión + primera navegación | `validarUsuario()` (2 queries BD) → `_reactivarNegocio()`: fast path si JWT correcto (0 RPC extra), slow path si JWT desactualizado. Inicia Realtime, guarda en Preferences |
 | Online + sesión + navegaciones siguientes | Skip — confía en cache + Realtime (cero queries extra) |
 | Online + sesión + usuario suspendido en BD | `validarUsuario()` redirige a `/auth/pending?motivo=usuario` |
 | Online + sesión + membresía desactivada | Canal Realtime detecta en segundos → `/auth/pending?motivo=membresia` |
@@ -609,7 +622,7 @@ Lo que conecta auth con usuarios:
 | `features/auth/pages/callback/callback.page.ts` | Procesa tokens web y Android, llama `validarUsuario()` |
 | `features/auth/pages/pending/pending.page.ts` | Pantalla de suspensión con UI contextual según `?motivo=usuario\|negocio\|membresia`. "Verificar estado" consulta BD directamente antes de llamar `validarUsuario()` — evita falso positivo "sigue suspendido" cuando ya fue reactivado. |
 | `features/auth/pages/seleccionar-negocio/` | Selector de negocio activo. Muestra todos (activos + suspendidos). Badge "Suspendido" en warning, bloqueo de tap en suspendidos. Inicia Realtime al cargar. |
-| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (multi-tenant + suspensión), `activarNegocio()`, `cambiarNegocio()`, `irAlPanelAdmin()`, `logout()`, `logoutSilent()`, `iniciarRealtimeUsuario()`, `iniciarRealtimeMembresia()`, `cerrarRealtimeUsuario()`, `handleUsuarioDesactivado()`, `getUsuarioActual()` (Preferences), `usuarioActual$` (BehaviorSubject reactivo), `negociosDisponibles` |
+| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (multi-tenant + suspensión), `_reactivarNegocio()` (fast/slow path de re-apertura), `activarNegocio()`, `cambiarNegocio()`, `irAlPanelAdmin()`, `logout()`, `logoutSilent()`, `iniciarRealtimeUsuario()`, `iniciarRealtimeMembresia()`, `cerrarRealtimeUsuario()`, `handleUsuarioDesactivado()`, `getUsuarioActual()` (Preferences), `usuarioActual$` (BehaviorSubject reactivo), `negociosDisponibles` |
 | `features/auth/services/negocio.service.ts` | `getMisNegocios()` — lista de negocios del usuario autenticado (para transferencias y cambio de negocio). Incluye `negocio_activo: boolean` |
 | `features/auth/auth.routes.ts` | Rutas `/auth/login` (publicGuard), `/auth/callback`, `/auth/pending`, `/auth/seleccionar-negocio` |
 | `shared/components/sidebar/sidebar.component.ts` | Muestra datos del usuario + nombre del negocio activo, filtra items por rol, suscripción reactiva a `usuarioActual$`, logout |

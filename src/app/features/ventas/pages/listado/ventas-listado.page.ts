@@ -336,9 +336,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         return 'receipt-outline';
     }
 
-    colorComprobante(tipo: string): string {
-        if (tipo === 'FACTURA') return 'tertiary';
-        if (tipo === 'NOTA_VENTA') return 'secondary';
+    colorComprobante(_tipo: string): string {
         return 'primary';
     }
 

@@ -115,15 +115,18 @@
   }
 }
 
-// Cards de resumen (Paso 2)
+// ==========================================
+// PASO 2 — Cards de resumen
+// ==========================================
+
 .resumen-card,
-.verificacion-card,
 .observaciones-card {
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-level-2);
+  margin-bottom: var(--spacing-md);
 
   ion-card-header {
-    padding-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
 
     ion-card-title {
       display: flex;
@@ -140,90 +143,22 @@
   }
 }
 
-// Secciones dentro de cards
-.seccion-titulo {
-  margin-bottom: var(--spacing-md);
-  padding-top: var(--spacing-md);
-  padding-bottom: var(--spacing-sm);
+// ─── Card 1: Conteo del Cajón ───────────────────────────────
 
-  border-bottom: 2px solid var(--ion-color-primary);
-
-  strong {
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--ion-color-primary);
-    font-weight: var(--font-weight-bold);
-  }
-}
-
-// Ventas del día
-.venta-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-md) 0;
-
-  &:last-child {
-    border-bottom: none;
-  }
-
-  .venta-header {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-
-    .venta-icon {
-      font-size: 24px;
-
-      &.celular { color: var(--ion-color-primary); }
-      &.bus { color: var(--ion-color-danger); }
-      &.efectivo { color: var(--ion-color-warning); }
-    }
-
-    .venta-nombre {
-      font-size: 14px;
-      font-weight: var(--font-weight-semibold);
-      color: var(--ion-text-color);
-    }
-  }
-
-  .venta-detalle {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: var(--spacing-xs);
-
-    .venta-monto {
-      font-size: 18px;
-      font-weight: var(--font-weight-bold);
-      color: var(--ion-text-color);
-    }
-  }
-}
-
-// Desglose del efectivo
 .desglose-efectivo {
-  margin-top: var(--spacing-sm);
-  padding: var(--spacing-md);
   background: var(--ion-color-step-50);
   border-radius: var(--radius-xs);
   border-left: 3px solid var(--ion-color-warning);
+  overflow: hidden;
 
   .desglose-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--spacing-sm) 0;
+    padding: 10px var(--spacing-md);
+    border-bottom: 1px solid var(--ion-color-step-100);
 
-    &:not(:last-child) {
-      border-bottom: 1px dashed var(--ion-color-step-300);
-    }
-
-    &.resultado {
-      margin-top: var(--spacing-xs);
-      padding-top: var(--spacing-md);
-    }
+    &:last-child { border-bottom: none; }
 
     .desglose-label {
       display: flex;
@@ -232,9 +167,7 @@
       font-size: 13px;
       color: var(--ion-color-medium);
 
-      .desglose-icon {
-        font-size: 16px;
-      }
+      ion-icon { font-size: 15px; }
     }
 
     .desglose-valor {
@@ -242,294 +175,331 @@
       font-weight: var(--font-weight-semibold);
       color: var(--ion-text-color);
 
-      &.resta {
-        color: var(--ion-color-danger);
+      &.resta  { color: var(--ion-color-danger); }
+      &.subtotal {
+        font-size: 15px;
         font-weight: var(--font-weight-bold);
+        color: var(--ion-color-primary);
       }
-
-      &.sobrante {
+      &.ok {
+        font-size: 15px;
+        font-weight: var(--font-weight-bold);
         color: var(--ion-color-success);
-        font-weight: var(--font-weight-bold);
       }
-
-      &.muted {
-        color: var(--ion-color-medium);
-      }
-
-      &.destacado {
+      &.deposito {
         font-size: 16px;
-        font-weight: var(--font-weight-bold);
-        color: var(--ion-color-success);
+        font-weight: var(--font-weight-extrabold);
+        color: var(--ion-color-primary);
       }
+      &.deficit { color: var(--ion-color-warning); }
     }
+  }
 
-    &.resultado .desglose-label {
-      color: var(--ion-color-success);
+  // Fila subtotal (saldo en cajón)
+  .desglose-subtotal {
+    background: rgba(var(--ion-color-primary-rgb), 0.04);
+
+    .desglose-label {
       font-weight: var(--font-weight-semibold);
+      color: var(--ion-color-primary);
     }
   }
-}
 
-// Verificación de cajas
-.caja-verificacion {
-  padding: var(--spacing-lg);
-  background: var(--ion-color-step-50);
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--spacing-md);
+  // Fila cajón cuadrado (ok)
+  .desglose-ok {
+    background: rgba(var(--ion-color-success-rgb), 0.06);
 
-  &:last-child {
-    margin-bottom: 0;
+    .desglose-label {
+      font-weight: var(--font-weight-semibold);
+      color: var(--ion-color-success);
+      ion-icon { color: var(--ion-color-success); font-size: 16px; }
+    }
   }
 
-  .caja-nombre {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-sm);
+  // Fila depósito final
+  .desglose-deposito {
+    background: rgba(var(--ion-color-primary-rgb), 0.06);
+    border-left: none;
 
-    .caja-icon-wrapper {
-      width: 32px;
-      height: 32px;
-      border-radius: 9px;
+    .desglose-label {
+      font-weight: var(--font-weight-semibold);
+      color: var(--ion-color-primary);
+      ion-icon { font-size: 14px; }
+    }
+  }
+
+  // Línea separadora entre secciones
+  .desglose-separador {
+    height: 1px;
+    background: var(--ion-color-step-200);
+    margin: 0;
+  }
+
+  // Bloque faltante/sobrante
+  .desglose-diferencia {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px var(--spacing-md);
+    border-bottom: 1px solid transparent;
+
+    .diferencia-izq {
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-size: 17px;
-      flex-shrink: 0;
-
-      &.primary   { background: rgba(var(--ion-color-primary-rgb), 0.12);   color: var(--ion-color-primary); }
-      &.success   { background: rgba(var(--ion-color-success-rgb), 0.12);   color: var(--ion-color-success); }
-      &.tertiary  { background: rgba(var(--ion-color-tertiary-rgb), 0.12);  color: var(--ion-color-tertiary); }
-      &.secondary { background: rgba(var(--ion-color-secondary-rgb), 0.12); color: var(--ion-color-secondary); }
-      &.warning   { background: rgba(var(--ion-color-warning-rgb), 0.12);   color: var(--ion-color-warning); }
-    }
-
-    strong {
+      gap: var(--spacing-xs);
       font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--ion-color-medium);
-    }
-  }
-
-  .caja-calculo {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-    font-size: 15px;
-
-    .saldo,
-    .operacion,
-    .resultado {
-      font-weight: var(--font-weight-bold);
-      padding: var(--spacing-xs) var(--spacing-md);
-      border-radius: var(--radius-xs);
-      background: var(--ion-item-background, var(--ion-background-color));
-    }
-
-    .saldo {
-      color: var(--ion-color-medium);
-    }
-
-    .operacion {
-      color: var(--ion-color-primary);
-    }
-
-    .resultado {
-      color: var(--ion-color-success);
-      font-size: 18px;
-      background: rgba(var(--ion-color-success-rgb), 0.10);
-      border: 1px solid rgba(var(--ion-color-success-rgb), 0.20);
-    }
-
-    .operador {
-      color: var(--ion-color-medium);
       font-weight: var(--font-weight-semibold);
-      font-size: 18px;
+
+      ion-icon { font-size: 16px; }
+    }
+
+    .diferencia-monto {
+      font-size: 15px;
+      font-weight: var(--font-weight-extrabold);
+    }
+
+    &.es-faltante {
+      background: rgba(var(--ion-color-danger-rgb), 0.07);
+      border-color: rgba(var(--ion-color-danger-rgb), 0.15);
+      .diferencia-izq { color: var(--ion-color-danger); }
+      .diferencia-monto { color: var(--ion-color-danger); }
+    }
+
+    &.es-sobrante {
+      background: rgba(var(--ion-color-success-rgb), 0.07);
+      border-color: rgba(var(--ion-color-success-rgb), 0.15);
+      .diferencia-izq { color: var(--ion-color-success); }
+      .diferencia-monto { color: var(--ion-color-success); }
     }
   }
 }
 
-// Alertas
-.alerta-simple {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  background: var(--ion-color-step-50);
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--spacing-md);
-
-  ion-icon {
-    font-size: 24px;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  > div {
-    flex: 1;
-  }
-
-  p {
-    margin: 0 0 var(--spacing-sm) 0;
-    font-size: 13px;
-    color: var(--ion-text-color);
-    line-height: 1.4;
-
-    strong {
-      color: var(--ion-color-primary);
-    }
-
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-
-  ul {
-    margin: 0;
-    padding-left: var(--spacing-xl);
-    list-style: disc;
-
-    li {
-      font-size: 13px;
-      color: var(--ion-text-color);
-      line-height: 1.6;
-      margin-bottom: var(--spacing-xs);
-
-      &:last-child {
-        margin-bottom: 0;
-      }
-
-      strong {
-        color: var(--ion-color-primary);
-        font-weight: var(--font-weight-bold);
-      }
-    }
-  }
-
-  &.success {
-    background: rgba(var(--ion-color-success-rgb), 0.10);
-    border: 1px solid rgba(var(--ion-color-success-rgb), 0.20);
-  }
-
-  &.info {
-    background: rgba(var(--ion-color-primary-rgb), 0.10);
-    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.20);
-  }
-
-  &.warning {
-    background: rgba(var(--ion-color-warning-rgb), 0.10);
-    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.20);
-  }
-
-  &.danger {
-    background: rgba(var(--ion-color-danger-rgb), 0.10);
-    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.20);
-  }
-
-  &.alerta-deficit {
-    margin-top: var(--spacing-md);
-    margin-bottom: 0;
-  }
-
-  &.alerta-inline {
-    margin: var(--spacing-sm) 0;
-  }
-}
-
-// Cajón verificado (cuadra exacto)
-.cajón-ok {
-  .desglose-label {
-    color: var(--ion-color-success) !important;
-    font-weight: var(--font-weight-bold) !important;
-
-    ion-icon {
-      color: var(--ion-color-success);
-      font-size: 18px;
-    }
-  }
-}
-
-// Fila de diferencia (faltante / sobrante)
-.diferencia-row {
-  border-radius: var(--radius-xs);
-  padding: var(--spacing-md) var(--spacing-sm) !important;
-  margin-top: var(--spacing-xs);
-
-  &.es-faltante {
-    background: rgba(var(--ion-color-danger-rgb), 0.08);
-    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.25);
-
-    .diferencia-label ion-icon { color: var(--ion-color-danger); font-size: 18px; }
-    .diferencia-valor { color: var(--ion-color-danger); font-size: 16px; font-weight: var(--font-weight-extrabold); }
-  }
-
-  &.es-sobrante {
-    background: rgba(var(--ion-color-success-rgb), 0.08);
-    border: 1px solid rgba(var(--ion-color-success-rgb), 0.20);
-
-    .diferencia-label ion-icon { color: var(--ion-color-success); font-size: 18px; }
-    .diferencia-valor { color: var(--ion-color-success); font-size: 16px; font-weight: var(--font-weight-bold); }
-  }
-
-  .diferencia-label {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-  }
-}
-
-// Badge de déficit (aparece en desglose y en verificación de Caja Chica)
-.deficit-badge {
-  display: inline-block;
+// Badge "vacío" dentro del label del fondo fijo
+.badge-vacio {
+  display: inline-flex;
+  align-items: center;
   font-size: 10px;
   font-weight: var(--font-weight-bold);
   color: var(--ion-color-warning-contrast);
   background: var(--ion-color-warning);
   border-radius: 4px;
-  padding: 1px 5px;
+  padding: 1px 6px;
   margin-left: 4px;
-  vertical-align: middle;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
-// Valor en déficit (color naranja en desglose)
-.desglose-efectivo .desglose-item .desglose-valor.deficit {
-  color: var(--ion-color-warning);
-}
+// ─── Card 2: Ventas de Recargas ─────────────────────────────
 
-// Fila de Caja Chica cuando hay déficit
-// Fila de caja sin movimiento en el día — muestra saldo + badge en lugar de ecuación
-.caja-sin-movimiento {
+.venta-item {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: var(--spacing-sm);
+  padding: var(--spacing-md) 0;
+  border-bottom: 1px solid var(--ion-color-step-100);
+
+  &:last-child { border-bottom: none; }
+
+  .venta-izq {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+  }
+
+  .venta-icono {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+
+    &.celular {
+      background: rgba(var(--ion-color-primary-rgb), 0.10);
+      color: var(--ion-color-primary);
+    }
+    &.bus {
+      background: rgba(var(--ion-color-danger-rgb), 0.10);
+      color: var(--ion-color-danger);
+    }
+  }
+
+  .venta-nombre {
+    font-size: 15px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+  }
+
+  .venta-monto {
+    font-size: 17px;
+    font-weight: var(--font-weight-extrabold);
+
+    &.celular { color: var(--ion-color-primary); }
+    &.bus     { color: var(--ion-color-danger); }
+  }
 }
 
-.caja-verificacion.con-deficit {
-  border-left: 3px solid var(--ion-color-warning);
-  padding-left: 8px;
+// ─── Card 3: Verificación de Saldos ────────────────────────
+
+.verificacion-content {
+  padding-top: var(--spacing-sm) !important;
+  padding-bottom: var(--spacing-lg) !important;
 }
 
-// Badge verde "ya recibió hoy" — mismo patrón que .deficit-badge (v4.7)
-.ya-hecha-badge {
-  @extend .deficit-badge;
-  color: var(--ion-color-success-contrast);
-  background: var(--ion-color-success);
+.sv-fila {
+  margin-bottom: var(--spacing-md);
+
+  &--last { margin-bottom: 0; }
+
+  // Nombre alineado a la izquierda como encabezado del bloque
+  .sv-caja-info {
+    text-align: left;
+    margin-bottom: var(--spacing-xs);
+
+    .sv-nombre {
+      font-size: 13px;
+      font-weight: var(--font-weight-bold);
+      color: var(--ion-color-medium);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  }
+
+  // Contenedor blanco que agrupa nombre + ecuación
+  .sv-ecuacion-wrapper {
+    background: var(--ion-background-color, #ffffff);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    padding: var(--spacing-md);
+
+    .sv-caja-info {
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .sv-ecuacion {
+      padding: 0;
+    }
+  }
+
+  // Ecuación de saldos: 3 columnas iguales (antes · operación · resultado)
+  .sv-ecuacion {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    align-items: center;
+    gap: var(--spacing-xs);
+
+    // Sin movimiento: misma grilla, badge ocupa las 4 columnas restantes
+    &.sv-sin-movimiento {
+      .sv-monto-actual {
+        grid-column: 1;
+      }
+      .sv-badge-neutral {
+        grid-column: 2 / 6;
+        justify-self: start;
+        align-self: center;
+      }
+    }
+
+    .sv-op {
+      font-size: 13px;
+      font-weight: var(--font-weight-bold);
+      color: var(--ion-color-medium);
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    // Saldo anterior — columna izquierda
+    .sv-monto-actual {
+      font-size: 14px;
+      font-weight: var(--font-weight-semibold);
+      color: var(--ion-text-color);
+      text-align: center;
+    }
+
+    // Monto de la operación (verde) — columna central
+    .sv-monto-ingreso {
+      font-size: 14px;
+      font-weight: var(--font-weight-bold);
+      color: var(--ion-color-success);
+      text-align: center;
+    }
+
+    // Resultado final (azul, sin background)
+    .sv-monto-resultado {
+      font-size: 20px;
+      font-weight: var(--font-weight-extrabold);
+      color: var(--ion-color-primary);
+      text-align: right;
+    }
+
+    // Badge neutral (sin movimiento / ya recibió hoy)
+    .sv-badge-neutral {
+      font-size: 10px;
+      font-weight: var(--font-weight-bold);
+      color: var(--ion-color-medium);
+      background: var(--ion-color-step-150);
+      border-radius: 4px;
+      padding: 2px 7px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+  }
 }
 
-// Nota explicativa al pie de los bloques de déficit
-.deficit-nota {
-  margin-top: var(--spacing-sm);
-  margin-bottom: 0;
-  font-size: 12px;
-  color: var(--ion-color-medium);
-  font-style: italic;
+// ─── Alertas (compartidas) ──────────────────────────────────
+
+.alerta-simple {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-md);
+
+  ion-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  > div { flex: 1; }
+
+  p {
+    margin: 0 0 var(--spacing-xs) 0;
+    font-size: 13px;
+    color: var(--ion-text-color);
+    line-height: 1.4;
+    strong { color: inherit; }
+    &:last-child { margin-bottom: 0; }
+  }
+
+  &.info {
+    background: rgba(var(--ion-color-primary-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.18);
+  }
+  &.warning {
+    background: rgba(var(--ion-color-warning-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.20);
+    p strong { color: var(--ion-color-warning-shade); }
+  }
+  &.danger {
+    background: rgba(var(--ion-color-danger-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.20);
+  }
+  &.alerta-deficit {
+    margin-top: var(--spacing-sm);
+    margin-bottom: 0;
+  }
+  &.alerta-inline {
+    margin: var(--spacing-sm) 0;
+  }
 }
 
-// Observaciones
+// ─── Observaciones ──────────────────────────────────────────
+
 .observaciones-card {
   ion-card-content {
     padding: var(--spacing-sm);

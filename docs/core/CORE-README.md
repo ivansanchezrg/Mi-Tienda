@@ -36,6 +36,12 @@ Para evitar lag visual o "Toasts fantasma", es **obligatorio** invocar `await th
 
 Manejo centralizado de consultas a la base de datos PostgreSQL. Existen dos patrones válidos según el caso de uso:
 
+> **`lock` override (Capacitor):** El cliente Supabase se inicializa con `auth.lock` sobrescrito para saltear el `Navigator LockManager` del browser. En un WebView de Capacitor (single-tab, sin pestañas) el LockManager no tiene sentido y genera errores `CHANNEL_ERROR` en Logcat. El override es un no-op que ejecuta `fn()` directamente:
+> ```typescript
+> lock: (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => fn()
+> ```
+> No eliminar — sin este override, `@supabase/auth-js` intenta adquirir un lock que nunca se libera correctamente en Capacitor.
+
 #### Patrón A: Mutaciones (Insert / Update / Delete)
 `supabase.call()` no muestra spinner por defecto. Habilítalo explícitamente pasando `{ showLoading: true }` en el tercer parámetro.
 

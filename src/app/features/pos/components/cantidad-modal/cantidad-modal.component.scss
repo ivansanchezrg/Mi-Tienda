@@ -36,6 +36,30 @@
 .cm-sep { color: var(--ion-color-step-300); }
 .cm-stock { color: var(--ion-color-medium); }
 
+.cm-stock-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(var(--ion-color-warning-rgb), 0.15);
+  color: var(--ion-color-warning-shade);
+  border: 1px solid rgba(var(--ion-color-warning-rgb), 0.45);
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 600;
+
+  &--bounce {
+    animation: cm-badge-bounce 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+}
+
+@keyframes cm-badge-bounce {
+  0%   { transform: scale(1); }
+  25%  { transform: scale(1.22); }
+  55%  { transform: scale(0.88); }
+  75%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
 // ── Sección cantidad ──
 .cm-input-section {
   display: flex;

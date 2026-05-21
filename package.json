@@ -11,7 +11,8 @@
     "test": "ng test",
     "lint": "ng lint",
     "android": "npm run build && npx cap sync android && npx cap run android --flavor production",
-    "android:test": "ng build --configuration=test && npx cap sync android && npx cap run android --flavor staging"
+    "android:test": "ng build --configuration=test && npx cap sync android && npx cap run android --flavor staging",
+    "android:test-device": "ng build --configuration=test-device && npx cap sync android && npx cap run android --flavor staging"
   },
   "private": true,
   "dependencies": {

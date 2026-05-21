@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { AlertController } from '@ionic/angular/standalone';
 import { Preferences } from '@capacitor/preferences';
 import { BehaviorSubject } from 'rxjs';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { RealtimeChannel, Session } from '@supabase/supabase-js';
 import { SupabaseService } from '@core/services/supabase.service';
 import { UiService } from '@core/services/ui.service';
 import { LoggerService } from '@core/services/logger.service';
@@ -174,9 +174,14 @@ export class AuthService {
    *  2. Existe, 0 negocios activos → /onboarding/negocio
    *  3. Existe, 1 negocio  → activarNegocio() directamente → /home
    *  4. Existe, N negocios → guardar lista → /auth/seleccionar-negocio
+   *
+   * Performance: una sola query (usuario + membresías embebidas) + fast-path
+   * que salta fn_set_negocio_activo + refreshSession cuando el JWT ya es correcto.
    */
   async validarUsuario(): Promise<boolean> {
-    const user = await this.getUser();
+    // Obtener sesión una vez — se reutiliza para el check de JWT claims en _reactivarNegocio
+    const { data: sessionData } = await this.supabase.client.auth.getSession();
+    const user = sessionData.session?.user;
     if (!user?.email) {
       this.logger.warn('AuthService', 'validarUsuario: no hay usuario o email en sesión');
       await this.forceLogout();
@@ -204,7 +209,6 @@ export class AuthService {
     }
 
     // Usuario no existe → auto-registro mínimo
-    // En v11: sin activo/rol → viven en usuario_negocios
     if (!data) {
       this.logger.info('AuthService', 'Auto-registro de nuevo usuario');
       const nombre = user.user_metadata?.['full_name']
@@ -227,7 +231,7 @@ export class AuthService {
       return false;
     }
 
-    // Guardar base del usuario para uso en activarNegocio()
+    // Guardar base del usuario para uso en activarNegocio() / _reactivarNegocio()
     this.usuarioBase = {
       id: data.id,
       nombre: data.nombre,
@@ -235,14 +239,12 @@ export class AuthService {
       es_superadmin: data.es_superadmin ?? false
     };
 
-    // Iniciar Realtime del usuario tan pronto como se confirma su identidad.
-    // Cubre pantallas intermedias (selector, onboarding) antes de activar un negocio.
-    // Es idempotente — si activarNegocio() lo vuelve a llamar con el mismo id, no abre segundo canal.
+    // Iniciar Realtime tan pronto como se confirma la identidad.
+    // Idempotente — si activarNegocio() lo llama de nuevo con el mismo id, no abre segundo canal.
     if (!data.es_superadmin) {
       this.iniciarRealtimeUsuario(data.id);
     }
 
-    // Obtener membresías activas del usuario
     // Obtener TODAS las membresías (activas e inactivas) para distinguir
     // "usuario nuevo sin negocios" de "usuario desactivado en todos sus negocios"
     const { data: membresias, error: errNegocios } = await this.supabase.client
@@ -266,36 +268,29 @@ export class AuthService {
         rol:            m.rol as 'ADMIN' | 'EMPLEADO'
       }));
 
-    // Recarga de página / app resume: si hay un UsuarioActual guardado en
-    // Preferences con un negocio que sigue siendo válido, re-activar directo
-    // sin mostrar el selector. En login fresco, Preferences está vacío (se
-    // limpió en handleExpiredSession) → siempre pasa por el flujo normal.
+    // Re-apertura con negocio cacheado: re-activar sin pasar por el selector.
+    // En login fresco, Preferences está vacío → siempre usa el flujo normal.
     const cached = await this.getUsuarioActual();
     if (cached?.negocio_id) {
-      // Para superadmin: puede tener negocio cacheado sin tener membresía en usuario_negocios.
-      // En ese caso yaActivo sería undefined aunque el negocio sea válido.
-      // Re-activar directo usando el cache si el negocio existe en la lista O si es superadmin.
       const yaActivo = negocios.find(n => n.negocio_id === cached.negocio_id);
       if (yaActivo) {
-        this.logger.info('AuthService', `Sesión previa detectada: ${yaActivo.negocio_nombre}. Re-activando directo.`);
-        await this.activarNegocio(yaActivo, false);
+        this.logger.info('AuthService', `Sesión previa: ${yaActivo.negocio_nombre}. Re-activando.`);
+        await this._reactivarNegocio(yaActivo, sessionData.session);
         return true;
       }
-      if (this.usuarioBase?.es_superadmin) {
-        this.logger.info('AuthService', `Superadmin con negocio cacheado sin membresía: ${cached.negocio_nombre}. Re-activando directo.`);
-        await this.activarNegocio({ negocio_id: cached.negocio_id, negocio_nombre: cached.negocio_nombre, rol: 'ADMIN' }, false);
+      if (this.usuarioBase.es_superadmin) {
+        this.logger.info('AuthService', `Superadmin con negocio cacheado sin membresía: ${cached.negocio_nombre}.`);
+        await this._reactivarNegocio(
+          { negocio_id: cached.negocio_id, negocio_nombre: cached.negocio_nombre, rol: 'ADMIN' },
+          sessionData.session
+        );
         return true;
       }
     }
 
-    // Superadmin sin negocio cacheado → SIEMPRE al panel admin,
-    // independientemente de cuántas membresías propias tenga.
-    // Desde /admin elige a qué negocio entrar.
-    if (this.usuarioBase?.es_superadmin) {
+    // Superadmin sin negocio cacheado → siempre al panel admin
+    if (this.usuarioBase.es_superadmin) {
       this.logger.info('AuthService', 'Superadmin en login fresco → panel admin');
-
-      // Guardar en Preferences para que superadminGuard pueda verificar es_superadmin
-      // (sin esto, getUsuarioActual() devuelve null y el guard bloquea el acceso)
       const usuarioAdmin: UsuarioActual = {
         id: this.usuarioBase.id,
         nombre: this.usuarioBase.nombre,
@@ -307,7 +302,6 @@ export class AuthService {
         negocio_nombre: ''
       };
       await this.saveUsuarioActual(usuarioAdmin);
-
       this.validadoEnEstaSesion = true;
       this.router.navigate([ROUTES.admin], { replaceUrl: true });
       return true;
@@ -315,11 +309,9 @@ export class AuthService {
 
     if (negocios.length === 0) {
       if (todasMembresias.length > 0) {
-        // Tiene membresías pero todas inactivas → fue desactivado manualmente o transferido
         this.logger.info('AuthService', 'Usuario con membresías todas inactivas → /auth/pending');
         this.router.navigate([ROUTES.auth.pending], { replaceUrl: true, queryParams: { motivo: 'membresia' } });
       } else {
-        // Nunca tuvo membresías → usuario nuevo sin negocio asignado
         this.logger.info('AuthService', 'Usuario sin negocios — redirigiendo a crear-negocio');
         this.router.navigate([ROUTES.onboarding.negocio], { replaceUrl: true });
       }
@@ -332,11 +324,50 @@ export class AuthService {
       return true;
     }
 
-    // Múltiples negocios → mostrar selector
     this.logger.info('AuthService', `${negocios.length} negocios encontrados. Redirigiendo a selector.`);
     this.negociosDisponibles = negocios;
     this.router.navigate([ROUTES.auth.seleccionarNegocio], { replaceUrl: true });
     return false;
+  }
+
+  /**
+   * Re-activa un negocio al re-abrir la app desde caché válido.
+   *
+   * Fast path: si el JWT ya tiene negocio_id + rol correctos, salta
+   * fn_set_negocio_activo + refreshSession (2 round trips). Esto ocurre en el
+   * 99% de re-aperturas normales — el JWT persiste y no cambia entre sesiones.
+   *
+   * Slow path: JWT desactualizado (ej: primera apertura tras cambio de rol,
+   * o tras una reinstalación) → delega a activarNegocio() que actualiza el JWT.
+   */
+  private async _reactivarNegocio(negocio: NegocioDisponible, session: Session | null): Promise<void> {
+    const jwtMeta = session?.user?.app_metadata;
+    const jwtCorrecto =
+      jwtMeta?.['negocio_id'] === negocio.negocio_id &&
+      jwtMeta?.['rol'] === negocio.rol;
+
+    if (jwtCorrecto) {
+      const usuarioCompleto: UsuarioActual = {
+        id: this.usuarioBase!.id,
+        nombre: this.usuarioBase!.nombre,
+        email: this.usuarioBase!.email,
+        activo: true,
+        rol: negocio.rol,
+        es_superadmin: this.usuarioBase!.es_superadmin,
+        negocio_id: negocio.negocio_id,
+        negocio_nombre: negocio.negocio_nombre
+      };
+      await this.saveUsuarioActual(usuarioCompleto);
+      this.iniciarRealtimeUsuario(this.usuarioBase!.id);
+      this.iniciarRealtimeMembresia(this.usuarioBase!.id, negocio.negocio_id);
+      this.validadoEnEstaSesion = true;
+      this.negociosDisponibles = [];
+      this.usuarioBase = null;
+    } else {
+      // JWT no coincide: actualizar claims vía RPC (flujo completo)
+      this.logger.info('AuthService', 'JWT desactualizado — actualizando claims');
+      await this.activarNegocio(negocio, false);
+    }
   }
 
   /**

@@ -90,7 +90,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
       cajaId: [cajaIdInicial, Validators.required],
       categoriaId: [null, Validators.required],
       monto: [null, [Validators.required, Validators.min(0.01)]],
-      descripcion: ['', this.tipo === 'EGRESO' ? Validators.required : []]
+      descripcion: ['']
     });
 
     // Si hay caja pre-seleccionada, actualizar el saldo y nombre
@@ -220,10 +220,6 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
     }
 
     if (this.montoExcedeSaldo) {
-      return;
-    }
-
-    if (!this.esIngreso && !this.fotoRawUrl) {
       return;
     }
 

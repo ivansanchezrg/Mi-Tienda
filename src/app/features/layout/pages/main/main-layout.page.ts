@@ -92,8 +92,6 @@ export class MainLayoutPage implements OnInit, OnDestroy {
     this.turnoSub?.unsubscribe();
   }
 
-  get showTabs() { return this.ui.tabsVisible(); }
-
   /**
    * Toggle del estado del FAB
    */

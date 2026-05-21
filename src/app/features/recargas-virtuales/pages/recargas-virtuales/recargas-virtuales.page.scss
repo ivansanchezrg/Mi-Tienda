@@ -3,41 +3,7 @@ ion-content {
 }
 
 
-// ── Tabs CELULAR / BUS ────────────────────────────────────────────────────────
-
-.recargas-tabs {
-  display: flex;
-  padding: 0 var(--spacing-md);
-  background: var(--ion-background-color);
-  gap: var(--spacing-xs);
-  border-bottom: 1px solid var(--ion-color-step-200);
-}
-
-.recargas-tab {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px var(--spacing-md);
-  font-size: 13px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--ion-color-step-600);
-  background: var(--ion-item-background);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
-
-  ion-icon {
-    font-size: 16px;
-  }
-
-  &.active {
-    background: var(--ion-item-background);
-    color: var(--ion-color-primary);
-    border-bottom-color: var(--ion-color-primary);
-  }
-}
+// Tabs — estilos en theme/custom/tabs.scss (.chrome-tabs / .chrome-tab)
 
 // ── Saldo header ──────────────────────────────────────────────────────────────
 
@@ -46,11 +12,12 @@ ion-content {
   flex-direction: column;
   align-items: center;
   padding: var(--spacing-lg) var(--spacing-lg);
-  margin: var(--spacing-md);
+  margin: 0;
   background: var(--ion-item-background);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-level-2);
-  border: 1px solid var(--ion-color-step-50);
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  border-bottom: 1px solid var(--ion-color-step-100);
   gap: var(--spacing-xs);
 
   .saldo-label {
@@ -250,6 +217,14 @@ ion-content {
           background: var(--ion-color-success);
         }
 
+        &.celular {
+          background: var(--ion-color-primary);
+        }
+
+        &.bus {
+          background: var(--ion-color-secondary);
+        }
+
         &.muted {
           background: var(--ion-color-medium);
         }
@@ -272,60 +247,6 @@ ion-content {
 }
 
 
-// ── Info card (sin deudas / éxito) ────────────────────────────────────────────
-
-.info-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 0 16px 12px;
-  padding: 14px 16px;
-  border-radius: 12px;
-
-  &.success {
-    background: rgba(var(--ion-color-success-rgb), 0.08);
-    border: 1px solid rgba(var(--ion-color-success-rgb), 0.25);
-
-    ion-icon { color: var(--ion-color-success); font-size: 20px; }
-    span { color: var(--ion-color-success); font-weight: 600; }
-  }
-
-  &.ganancia-mes {
-    background: rgba(var(--ion-color-primary-rgb), 0.07);
-    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.2);
-
-    ion-icon { color: var(--ion-color-primary); }
-  }
-
-  ion-icon {
-    font-size: 22px;
-    flex-shrink: 0;
-  }
-
-  span {
-    font-size: 14px;
-    color: var(--ion-text-color);
-    font-weight: 500;
-  }
-
-  .info-card-content {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-
-    .info-label {
-      font-size: 13px;
-      color: var(--ion-color-medium);
-      font-weight: 500;
-    }
-
-    .info-monto {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--ion-color-primary);
-    }
-  }
-}
 
 
 // ── Hint onboarding BUS ───────────────────────────────────────────────────────
@@ -362,205 +283,3 @@ ion-content {
 }
 
 
-// ── Card de liquidación con acordeón ─────────────────────────────────────────
-
-.liquidacion-card {
-  margin: 0 16px 12px;
-  border-radius: 14px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.07);
-  overflow: hidden;
-  transition: box-shadow 0.2s ease;
-
-  &.success {
-    border: 1.5px solid rgba(var(--ion-color-success-rgb), 0.4);
-    background: rgba(var(--ion-color-success-rgb), 0.03);
-  }
-
-  &.expandida {
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
-  }
-}
-
-.liquidacion-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-
-  &:active { opacity: 0.8; }
-
-  .action-content {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .chevron {
-    transition: transform 0.25s ease;
-    &.rotado { transform: rotate(90deg); }
-  }
-}
-
-// Tabla de desglose dentro del acordeón
-.liquidacion-detalle {
-  border-top: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
-  padding: 0 16px 12px;
-  animation: fadeInDown 0.2s ease;
-}
-
-@keyframes fadeInDown {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.detalle-header-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  padding: 10px 0 6px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--ion-color-medium);
-  border-bottom: 1px solid var(--ion-color-step-100);
-}
-
-.detalle-fila {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--ion-color-step-50);
-
-  &:last-of-type { border-bottom: none; }
-}
-
-.detalle-fecha {
-  font-size: 12px;
-  color: var(--ion-color-medium);
-}
-
-.detalle-monto {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ion-text-color);
-}
-
-.detalle-ganancia {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ion-color-success);
-}
-
-.detalle-total-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
-  padding: 10px 12px;
-  background: rgba(var(--ion-color-success-rgb), 0.08);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ion-color-success);
-}
-
-.liquidar-btn {
-  margin-top: 12px;
-}
-
-
-// ── Últimos movimientos ───────────────────────────────────────────────────────
-
-.ultimos-movimientos {
-  margin: 4px 16px var(--spacing-lg);
-  background: var(--ion-item-background);
-  border-radius: 14px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.07);
-  overflow: hidden;
-}
-
-.ultimos-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px 10px;
-  border-bottom: 1px solid var(--ion-color-step-50);
-
-  span {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--ion-color-medium);
-  }
-}
-
-.ver-todo-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ion-color-primary);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-
-  ion-icon { font-size: 14px; }
-}
-
-.movimiento-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 11px 16px;
-  border-bottom: 1px solid var(--ion-color-step-50);
-
-  &:last-child { border-bottom: none; }
-
-  .movimiento-left {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .movimiento-monto {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--ion-text-color);
-  }
-
-  .movimiento-fecha {
-    font-size: 12px;
-    color: var(--ion-color-medium);
-  }
-
-  .movimiento-badge {
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 20px;
-
-    &.pagado {
-      background: rgba(var(--ion-color-success-rgb), 0.1);
-      color: var(--ion-color-success);
-    }
-
-    &.pendiente {
-      background: rgba(var(--ion-color-warning-rgb), 0.12);
-      color: var(--ion-color-warning-shade);
-    }
-
-    &.liquidado {
-      background: rgba(var(--ion-color-success-rgb), 0.1);
-      color: var(--ion-color-success);
-    }
-
-    &.sin-liquidar {
-      background: rgba(var(--ion-color-secondary-rgb), 0.12);
-      color: var(--ion-color-secondary);
-    }
-  }
-}

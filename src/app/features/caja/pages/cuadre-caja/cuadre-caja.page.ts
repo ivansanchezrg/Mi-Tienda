@@ -37,8 +37,7 @@ export class CuadreCajaPage implements OnInit {
 
   form!: FormGroup;
 
-  // Saldo virtual actual del sistema (último cierre + recargas proveedor pendientes)
-  // Misma fórmula que en cierre-diario: getSaldoVirtualActual()
+  // Saldo virtual actual del sistema (último snapshot + recargas del proveedor posteriores)
   saldoVirtualActualCelular = 0;
   saldoVirtualActualBus = 0;
   loading = true;
@@ -68,8 +67,8 @@ export class CuadreCajaPage implements OnInit {
     this.form.disable();
     try {
       const [saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
-        this.recargasVirtualesService.getSaldoUltimoCierre('CELULAR'),
-        this.recargasVirtualesService.getSaldoUltimoCierre('BUS')
+        this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
+        this.recargasVirtualesService.getSaldoVirtualActual('BUS')
       ]);
       this.saldoVirtualActualCelular = saldoVirtualCelular;
       this.saldoVirtualActualBus = saldoVirtualBus;

@@ -79,11 +79,7 @@
       <div class="input-group">
         <label class="input-label">
           Descripción
-          @if (esIngreso) {
-            <span class="optional-badge">Opcional</span>
-          } @else {
-            <span class="required-badge">Obligatorio</span>
-          }
+          <span class="optional-badge">Opcional</span>
         </label>
         <textarea
           placeholder="{{ esIngreso ? 'Ej: Venta de productos' : 'Ej: Pago a proveedor' }}"
@@ -96,22 +92,13 @@
       <div class="input-group">
         <label class="input-label">
           Comprobante
-          @if (esIngreso) {
-            <span class="optional-badge">Opcional</span>
-          } @else {
-            <span class="required-badge">Obligatorio</span>
-          }
+          <span class="optional-badge">Opcional</span>
         </label>
 
         @if (!fotoPreviewUrl) {
-          <button type="button" class="upload-btn"
-            [class.upload-btn--required]="!esIngreso"
-            (click)="seleccionarFoto()">
+          <button type="button" class="upload-btn" (click)="seleccionarFoto()">
             <ion-icon name="camera-outline"></ion-icon>
             <span>{{ storageService.isNative ? 'Tomar foto o seleccionar de galería' : 'Seleccionar de galería' }}</span>
-            @if (!esIngreso) {
-              <span class="upload-required-hint">Requerido para egresos</span>
-            }
           </button>
         } @else {
           <div class="photo-preview">
@@ -130,7 +117,7 @@
           class="submit-btn"
           [class.ingreso]="esIngreso"
           [class.egreso]="!esIngreso"
-          [disabled]="form.invalid || montoExcedeSaldo || (!esIngreso && !fotoRawUrl)"
+          [disabled]="form.invalid || montoExcedeSaldo"
           (click)="confirmar()">
           @if (esIngreso) {
             <ion-icon name="arrow-down-outline"></ion-icon>
