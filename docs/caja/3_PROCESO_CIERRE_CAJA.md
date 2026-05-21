@@ -1,4 +1,4 @@
-# Cierre Diario — Referencia Técnica (v5.3 — 2026-03-12)
+# Cierre Diario — Referencia Técnica (v6.1 — 2026-05-21)
 
 ## 1. Arquitectura
 
@@ -120,11 +120,11 @@ depositoCaja        = efectivoFisico - transferenciaVarios - (fondoEnCajon ? fon
 
 ---
 
-## 3. Función SQL: `fn_ejecutar_cierre_diario` (v5)
+## 3. Función SQL: `fn_ejecutar_cierre_diario` (v6.1)
 
 > 📄 Código fuente completo: [`docs/caja/sql/functions/fn_ejecutar_cierre_diario_v5.sql`](./sql/functions/fn_ejecutar_cierre_diario_v5.sql)
 
-Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo en una transacción atómica.
+Llamada vía `supabase.rpc('fn_ejecutar_cierre_diario', params)`. Todo en una transacción atómica.
 
 ### Firma
 
@@ -133,44 +133,60 @@ Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo en una trans
 {
   p_turno_id,                    // UUID del turno activo
   p_fecha,                       // fecha local (getFechaLocal(), NO toISOString())
-  p_empleado_id,
+  p_empleado_id,                 // UUID — leído del JWT
   p_efectivo_fisico,             // efectivo contado físicamente en el cajón (incluye fondo)
   p_saldo_celular_final,
   p_saldo_bus_final,
-  p_saldo_anterior_celular,      // último saldo_virtual_actual en tabla recargas
-  p_saldo_anterior_bus,
+  p_saldo_anterior_celular,      // último saldo_virtual_actual en tabla recargas (CELULAR)
+  p_saldo_anterior_bus,          // último saldo_virtual_actual en tabla recargas (BUS)
   p_saldo_anterior_caja_celular,
   p_saldo_anterior_caja_bus,
   p_observaciones                // nullable
 }
 ```
 
+El `negocio_id` **no se pasa como parámetro** — la función lo lee internamente de `public.get_negocio_id()` (JWT). Todas las queries filtran por `negocio_id` porque `SECURITY DEFINER` no aplica RLS.
+
 ### Lo que ejecuta (en orden)
 
-1. Valida: turno existe, no tiene `hora_fecha_cierre`, `p_efectivo_fisico >= 0`
-2. Lee `caja_fondo_fijo_diario` y `caja_varios_transferencia_dia` de `configuraciones`
-3. Obtiene `MAX(hora_fecha_cierre)` de `turnos_caja` → filtra `recargas_virtuales` pendientes desde ese timestamp
-4. Lee saldos actuales de `CAJA_CHICA`, `CAJA` y `VARIOS` con `FOR UPDATE` (lock de consistencia en las 3 cajas que cambian por el cierre)
-5. **Detecta si VARIOS ya recibió su transferencia diaria hoy** — busca en `operaciones_cajas` para `p_fecha` cualquiera de:
-   - `tipo_operacion = 'TRANSFERENCIA_ENTRANTE'` en VARIOS (cierre normal anterior)
-   - `tipo_operacion = 'INGRESO'` + categoría `IN-004` en VARIOS (reparación de déficit al abrir)
-6. Calcula distribución en cascada con prioridad **VARIOS → Fondo → CAJA** (ver §2)
-7. Si diferencia de conteo ≠ 0 → `INSERT` ajuste (`INGRESO` o `EGRESO`) en `CAJA_CHICA` — categorías `IN-005` / `EG-013`
-8. Si `v_dinero_a_depositar > 0` → `INSERT INGRESO` en CAJA (depósito del cajón)
-9. Si `v_transferencia_efectiva > 0` → `INSERT TRANSFERENCIA_ENTRANTE` en VARIOS
-10. `UPDATE cajas` × 3 — CAJA, VARIOS y CAJA_CHICA → $0 (actualizadas juntas en un bloque)
-11. `INSERT INTO recargas` celular + si `venta_celular > 0` → `INSERT INGRESO` en `CAJA_CELULAR` + `UPDATE CAJA_CELULAR`
-12. `INSERT INTO recargas` bus (con `ON CONFLICT` para mini cierre) + si `venta_bus > 0` → `INSERT INGRESO` en `CAJA_BUS` + `UPDATE CAJA_BUS`
-13. `UPDATE turnos_caja SET hora_fecha_cierre = NOW(), fondo_cubierto = v_fondo_en_cajon`
-14. Retorna JSON con resultado detallado (ver §3.1)
+1. `PERFORM public.fn_assert_no_superadmin()` — bloquea ejecución si es superadmin
+2. Lee `negocio_id` del JWT (`get_negocio_id()`)
+3. Valida: turno existe para ese negocio, no tiene `hora_fecha_cierre`, empleado coincide, `p_efectivo_fisico >= 0`
+4. Obtiene IDs de cajas, categorías, tipos de servicio y referencia por código
+5. Lee configuración: `caja_fondo_fijo_diario`, `caja_varios_activa`, `caja_varios_transferencia_dia`
+6. **Cutoff de recargas virtuales (v6.1):** obtiene `MAX(recargas.created_at)` separado por servicio (`v_ultimo_snapshot_celular`, `v_ultimo_snapshot_bus`) — mismo cutoff que `getAgregadoVirtualHoy()` en frontend
+7. Suma `recargas_virtuales` pendientes desde ese cutoff para CELULAR y BUS (`v_agregado_celular`, `v_agregado_bus`)
+8. Lee saldos actuales de `CAJA_CHICA`, `CAJA` y `VARIOS` con `FOR UPDATE` (lock de consistencia)
+9. Ajuste de conteo físico — solo si hubo movimientos en `CAJA_CHICA` durante el turno:
+   - `diferencia > 0` → `INSERT INGRESO` ajuste (IN-005) en CAJA_CHICA
+   - `diferencia < 0` → `INSERT EGRESO` ajuste (EG-013) en CAJA_CHICA + `INSERT FALTANTE_CAJA` en `movimientos_empleados`
+10. **Detecta si VARIOS ya recibió hoy** — busca `TRANSFERENCIA_ENTRANTE` o `INGRESO IN-004` en VARIOS para `p_fecha`
+11. Calcula distribución en cascada **VARIOS → Fondo → CAJA** (ver §2)
+12. Calcula ventas virtuales: `venta = (saldo_anterior + agregado_pendiente) - saldo_final`
+    - Si cualquier venta < 0 → `RAISE EXCEPTION` (bloquea el cierre)
+13. Si `v_dinero_a_depositar > 0` → `INSERT CIERRE` en CAJA
+14. Si `v_transferencia_efectiva > 0` → `INSERT TRANSFERENCIA_ENTRANTE` en VARIOS
+15. `UPDATE cajas`: CAJA + depósito, VARIOS + transferencia, CAJA_CHICA → $0
+16. Si `venta_celular > 0` → `INSERT recargas` (CELULAR) + `INSERT INGRESO` en CAJA_CELULAR + `UPDATE CAJA_CELULAR`
+17. `INSERT recargas` BUS con `ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE` (soporta mini cierre previo) + si `venta_bus > 0` → `INSERT INGRESO` en CAJA_BUS + `UPDATE CAJA_BUS`
+18. `UPDATE turnos_caja SET hora_fecha_cierre = NOW(), fondo_cubierto = v_fondo_en_cajon`
+19. Retorna JSON con resultado detallado (ver §3.1)
+
+> **Por qué `MAX(recargas.created_at)` y no `MAX(hora_fecha_cierre)`:** el mini cierre de BUS (`fn_registrar_compra_saldo_bus`) inserta en `recargas` con `created_at = NOW()` y en `recargas_virtuales` con `created_at = clock_timestamp()` (ligeramente posterior). Si entre el mini cierre y el cierre final hubo un turno completo cerrado, `MAX(hora_fecha_cierre)` podía quedar entre esos dos timestamps → `v_agregado_bus = 0` → venta bus negativa. El snapshot por `recargas.created_at` es idéntico al cutoff del frontend y siempre es consistente.
 
 ### 3.1 Retorno del cierre
 
 ```json
 {
   "success": true,
+  "turno_id": "uuid",
+  "fecha": "2026-05-21",
   "turno_cerrado": true,
-  "version": "5.0",
+  "version": "6.0",
+  "configuracion": {
+    "fondo_fijo": 40.00,
+    "transferencia_diaria": 20.00
+  },
   "conteo_fisico": {
     "efectivo_fisico": 60.00,
     "saldo_digital_antes": 40.00,
@@ -186,12 +202,20 @@ Llamada vía `supabase.rpc('ejecutar_cierre_diario', params)`. Todo en una trans
     "turno_con_deficit": false,
     "monto_reposicion_apertura": 0
   },
+  "recargas_virtuales_dia": {
+    "celular": 150.00,
+    "bus": 80.00
+  },
   "saldos_finales": {
     "caja_chica": 0,
     "caja": 1020.00,
     "varios": 120.00,
     "caja_celular": 45.00,
     "caja_bus": 30.00
+  },
+  "ventas": {
+    "celular": 150.00,
+    "bus": 80.00
   }
 }
 ```

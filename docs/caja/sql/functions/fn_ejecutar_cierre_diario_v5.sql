@@ -11,8 +11,18 @@ DROP FUNCTION IF EXISTS public.fn_ejecutar_cierre_diario(
 );
 
 -- ==========================================
--- FUNCIÓN: fn_ejecutar_cierre_diario (v6.0 — multi-tenant UUID)
+-- FUNCIÓN: fn_ejecutar_cierre_diario (v6.1 — fix cutoff recargas virtuales)
 -- ==========================================
+-- CAMBIOS v6.1 respecto a v6.0:
+--   - Fix: cutoff para v_agregado_celular y v_agregado_bus ahora usa
+--     MAX(recargas.created_at) por servicio en lugar de MAX(turnos_caja.hora_fecha_cierre).
+--     Antes: si entre el mini cierre de BUS y el cierre final había un turno cerrado,
+--     hora_fecha_cierre podía quedar DESPUÉS del clock_timestamp() de la compra →
+--     v_agregado_bus = 0 → "Venta bus negativa".
+--     Ahora: mismo cutoff que getAgregadoVirtualHoy() en frontend → siempre consistente.
+--   - Variables nuevas: v_ultimo_snapshot_celular, v_ultimo_snapshot_bus (TIMESTAMP)
+--   - v_ultimo_cierre_at conservada en DECLARE pero ya no se usa en paso 5
+--
 -- CAMBIOS v6.0 respecto a v5.6:
 --   - p_empleado_id: INTEGER → UUID (schema v11 migró PKs a UUID)
 --   - v_negocio_id UUID: leído de public.get_negocio_id() (JWT)
@@ -25,13 +35,12 @@ DROP FUNCTION IF EXISTS public.fn_ejecutar_cierre_diario(
 -- HEREDA DE v5.6:
 --   - Distribución en cascada "todo o nada" por nivel
 --   - Ajuste de conteo físico (solo si hubo movimientos en CAJA_CHICA)
---   - Recargas virtuales por created_at > último cierre
 --   - ON CONFLICT en BUS para mini cierre
 --   - faltante de conteo → movimientos_empleados (FALTANTE_CAJA)
 --   - 1 sola transferencia a VARIOS por día
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v6.0
+CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v6.1
   p_turno_id               UUID,
   p_fecha                  DATE,
   p_empleado_id            UUID,
@@ -76,9 +85,11 @@ DECLARE
   v_varios_activa        BOOLEAN;
 
   -- Recargas virtuales pendientes
-  v_agregado_celular DECIMAL(12,2);
-  v_agregado_bus     DECIMAL(12,2);
-  v_ultimo_cierre_at TIMESTAMP;
+  v_agregado_celular        DECIMAL(12,2);
+  v_agregado_bus            DECIMAL(12,2);
+  v_ultimo_cierre_at        TIMESTAMP;  -- solo para lógica legacy, ya no se usa en paso 5
+  v_ultimo_snapshot_celular TIMESTAMP;  -- último recargas.created_at para CELULAR
+  v_ultimo_snapshot_bus     TIMESTAMP;  -- último recargas.created_at para BUS
 
   -- Saldos actuales de cajas (leídos de BD, no parámetros)
   v_saldo_caja_chica_digital DECIMAL(12,2);  -- CAJA_CHICA antes del ajuste
@@ -183,22 +194,44 @@ BEGIN
   END IF;
 
   -- ==========================================
-  -- 4. OBTENER TIMESTAMP DEL ÚLTIMO CIERRE
-  -- (para filtrar recargas virtuales no incorporadas en cierres previos)
+  -- 4. OBTENER TIMESTAMPS DE ÚLTIMOS SNAPSHOTS POR SERVICIO
+  -- Usa el último created_at de la tabla `recargas` para cada servicio.
+  -- Este cutoff es idéntico al que usa getAgregadoVirtualHoy() en el frontend
+  -- y garantiza consistencia entre lo que el frontend muestra y lo que el SQL calcula.
+  --
+  -- Por qué NO usar MAX(turnos_caja.hora_fecha_cierre):
+  --   El mini cierre de BUS (fn_registrar_compra_saldo_bus) inserta un snapshot
+  --   en `recargas` con created_at = NOW() y el registro en `recargas_virtuales`
+  --   con created_at = clock_timestamp() (ligeramente posterior).
+  --   Si entre el mini cierre y el cierre final hubo un turno completo cerrado,
+  --   MAX(hora_fecha_cierre) puede quedar entre esos dos timestamps, excluyendo
+  --   el registro de la compra de BUS → v_agregado_bus = 0 → venta negativa.
   -- ==========================================
 
-  v_ultimo_cierre_at := (
-    SELECT MAX(hora_fecha_cierre)
-    FROM turnos_caja
-    WHERE hora_fecha_cierre IS NOT NULL
-      AND negocio_id = v_negocio_id
+  v_ultimo_snapshot_celular := (
+    SELECT r.created_at
+    FROM recargas r
+    JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
+    WHERE ts.codigo = 'CELULAR'
+      AND r.negocio_id = v_negocio_id
+    ORDER BY r.created_at DESC
+    LIMIT 1
+  );
+
+  v_ultimo_snapshot_bus := (
+    SELECT r.created_at
+    FROM recargas r
+    JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
+    WHERE ts.codigo = 'BUS'
+      AND r.negocio_id = v_negocio_id
+    ORDER BY r.created_at DESC
+    LIMIT 1
   );
 
   -- ==========================================
   -- 5. RECARGAS VIRTUALES PENDIENTES
-  -- IMPORTANTE: Filtra por created_at > último cierre, NO por fecha = hoy.
-  -- Esto captura todas las recargas no incorporadas en cierres anteriores,
-  -- incluso si tienen fecha anterior (ej: recarga del lunes en un cierre del martes).
+  -- Filtra por created_at > último snapshot de cada servicio (misma lógica que frontend).
+  -- Captura todo lo no incorporado en cierres previos, incluso de fechas anteriores.
   -- ==========================================
 
   v_agregado_celular := (
@@ -206,7 +239,7 @@ BEGIN
     FROM recargas_virtuales rv
     WHERE rv.tipo_servicio_id = v_tipo_servicio_celular_id
       AND rv.negocio_id = v_negocio_id
-      AND (v_ultimo_cierre_at IS NULL OR rv.created_at > v_ultimo_cierre_at)
+      AND (v_ultimo_snapshot_celular IS NULL OR rv.created_at > v_ultimo_snapshot_celular)
   );
 
   v_agregado_bus := (
@@ -214,7 +247,7 @@ BEGIN
     FROM recargas_virtuales rv
     WHERE rv.tipo_servicio_id = v_tipo_servicio_bus_id
       AND rv.negocio_id = v_negocio_id
-      AND (v_ultimo_cierre_at IS NULL OR rv.created_at > v_ultimo_cierre_at)
+      AND (v_ultimo_snapshot_bus IS NULL OR rv.created_at > v_ultimo_snapshot_bus)
   );
 
   -- ==========================================
@@ -537,7 +570,8 @@ BEGIN
     ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
       venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
       saldo_virtual_actual = EXCLUDED.saldo_virtual_actual,
-      saldo_caja           = EXCLUDED.saldo_caja;
+      saldo_caja           = EXCLUDED.saldo_caja,
+      created_at           = NOW();
 
     v_recarga_bus_id := (SELECT id FROM recargas WHERE turno_id = p_turno_id AND tipo_servicio_id = v_tipo_servicio_bus_id AND negocio_id = v_negocio_id);
 

@@ -274,11 +274,19 @@ export class CierreDiarioPage implements HasPendingChanges {
   }
 
   get ventaCelular(): number {
-    return this.saldoVirtualActualCelular - this.saldoCelularFinal;
+    return this.saldoEsperadoCelular - this.saldoCelularFinal;
   }
 
   get ventaBus(): number {
-    return this.saldoVirtualActualBus - this.saldoBusFinal;
+    return this.saldoEsperadoBus - this.saldoBusFinal;
+  }
+
+  get saldoEsperadoCelular(): number {
+    return this.saldoVirtualActualCelular + this.agregadoCelularHoy;
+  }
+
+  get saldoEsperadoBus(): number {
+    return this.saldoVirtualActualBus + this.agregadoBusHoy;
   }
 
   get hayVentaNegativa(): boolean {

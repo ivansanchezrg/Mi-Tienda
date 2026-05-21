@@ -157,8 +157,8 @@
               }
               @if (item.stock_disponible <= item.cantidad * (item.factor_conversion ?? 1)) {
                 <ion-badge color="danger" class="stock-badge">¡Último!</ion-badge>
-              } @else if ((item.stock_disponible - item.cantidad * (item.factor_conversion ?? 1)) <= item.stock_minimo) {
-                <ion-badge color="warning" class="stock-badge">Quedan pocos</ion-badge>
+              } @else if ((item.stock_disponible - item.cantidad * (item.factor_conversion ?? 1)) <= 10) {
+                <ion-badge color="warning" class="stock-badge">Quedan {{ item.stock_disponible - item.cantidad * (item.factor_conversion ?? 1) }}</ion-badge>
               }
             </div>
           </div>
@@ -313,6 +313,10 @@
             </div>
             @if (item.producto.tipo_venta === 'PESO') {
               <div class="catalogo-card-multi">{{ item.producto.unidad_medida }}</div>
+            }
+            @let stockLibre = item.producto.stock_actual - (carritoCountMap()[item.producto.id] || 0);
+            @if (stockLibre <= 10) {
+              <div class="catalogo-card-stock-low">Quedan {{ stockLibre }}</div>
             }
           </button>
         }

@@ -24,59 +24,67 @@
 
       @if (historial.length > 0) {
         <ion-card class="historial-card">
-          @for (r of historial; track r.id; let last = $last) {
-            <div class="historial-row">
 
-              <!-- Icono según estado — nombres estáticos para Android -->
-              <div class="historial-icon"
+          <!-- Header de columnas -->
+          <div class="tabla-header">
+            <span>Fecha</span>
+            @if (tipo === 'CELULAR') {
+              <span>Saldo recibido</span>
+              <span>Tu ganancia</span>
+            } @else {
+              <span>Depósito</span>
+              <span>Ganancia</span>
+            }
+          </div>
+
+          <!-- Filas -->
+          @for (r of historial; track r.id) {
+          <div class="tabla-fila">
+            <div class="tabla-fecha">
+              <span>{{ formatearFecha(r.fecha) }}</span>
+              <span class="tabla-badge"
                 [class.pagado]="r.pagado_proveedor"
                 [class.pendiente]="!r.pagado_proveedor && tipo === 'CELULAR'"
-                [class.bus]="!r.pagado_proveedor && tipo === 'BUS'">
-                @if (r.pagado_proveedor) {
-                  <ion-icon name="checkmark-circle-outline"></ion-icon>
-                } @else if (tipo === 'CELULAR') {
-                  <ion-icon name="alert-circle-outline"></ion-icon>
-                } @else {
-                  <ion-icon name="bus-outline"></ion-icon>
-                }
-              </div>
-
-              <!-- Detalles -->
-              <div class="historial-details">
-                <div class="historial-fecha">{{ formatearFecha(r.fecha) }}</div>
+                [class.sin-liquidar]="!r.pagado_proveedor && tipo === 'BUS'">
                 @if (tipo === 'CELULAR') {
-                  <div class="historial-sub">
-                    Virtual: ${{ r.monto_virtual | number:'1.2-2' }} · Deuda: ${{ r.monto_a_pagar | number:'1.2-2' }}
-                  </div>
-                } @else {
-                  <div class="historial-sub">
-                    Depósito: ${{ r.monto_virtual | number:'1.2-2' }}
-                    @if (r.observaciones) { · {{ r.observaciones }} }
-                  </div>
-                }
-                <div class="historial-ganancia" [class.liquidada]="r.pagado_proveedor">
-                  Ganancia: ${{ gananciaDelRegistro(r) | number:'1.2-2' }}
-                  @if (!r.pagado_proveedor) { <span class="ganancia-pending">· pendiente</span> }
-                </div>
-                @if (r.empleado_nombre) {
-                  <div class="historial-sub">Por: {{ r.empleado_nombre }}</div>
-                }
-              </div>
-
-              <!-- Badge estado -->
-              @if (tipo === 'CELULAR') {
-                <div class="historial-badge" [class.pagado]="r.pagado_proveedor" [class.pendiente]="!r.pagado_proveedor">
                   {{ r.pagado_proveedor ? 'Pagado' : 'Pendiente' }}
-                </div>
-              } @else {
-                <div class="historial-badge" [class.pagado]="r.pagado_proveedor" [class.sin-liquidar]="!r.pagado_proveedor">
+                } @else {
                   {{ r.pagado_proveedor ? 'Liquidado' : 'Sin liquidar' }}
-                </div>
-              }
-
+                }
+              </span>
             </div>
-            @if (!last) { <div class="divider"></div> }
+            @if (tipo === 'CELULAR') {
+              <span class="tabla-monto">${{ r.monto_virtual | number:'1.2-2' }}</span>
+              <span class="tabla-ganancia" [class.celular]="r.pagado_proveedor" [class.muted]="!r.pagado_proveedor">
+                ${{ r.ganancia | number:'1.2-2' }}
+              </span>
+            } @else {
+              <span class="tabla-monto">${{ r.monto_a_pagar | number:'1.2-2' }}</span>
+              <span class="tabla-ganancia" [class.bus]="r.pagado_proveedor" [class.muted]="!r.pagado_proveedor">
+                ${{ r.ganancia | number:'1.2-2' }}
+              </span>
+            }
+          </div>
           }
+
+          <!-- Total -->
+          <div class="tabla-total" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'">
+            <span>Total ganancia</span>
+            <span>${{ totalGanancia | number:'1.2-2' }}</span>
+          </div>
+
+          <!-- Botón liquidar -->
+          @if (!esSuperadmin && puedeLiquidar) {
+          <ion-button
+            expand="block"
+            [color]="tipo === 'CELULAR' ? 'primary' : 'secondary'"
+            class="liquidar-btn"
+            (click)="confirmarLiquidacion()">
+            Transferir ganancia a {{ nombreCajaDestino }}
+            <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
+          </ion-button>
+          }
+
         </ion-card>
       } @else {
         @if (tipo === 'CELULAR') {

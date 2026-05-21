@@ -173,7 +173,10 @@
       "Bash(grep -oE '\\\\.\\([-a-zA-Z0-9_]+\\)\\\\s*[\\\\{,&]' \"c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/pos/pages/pos/pos.page.scss\")",
       "Bash(grep -v '^class$')",
       "Bash(grep -v \"computed\\\\|readonly\\\\|//\")",
-      "Bash(git status *)"
+      "Bash(git status *)",
+      "Bash(node -e \"const pkg = require\\('./node_modules/@supabase/supabase-js/package.json'\\); console.log\\(pkg.version\\)\")",
+      "Bash(node -e \"const pkg = require\\('./node_modules/@supabase/gotrue-js/package.json'\\); console.log\\(pkg.version\\)\")",
+      "Bash(node -e \"const pkg = require\\('c:/Users/ivan/Desktop/Proyectos/mi-tienda/node_modules/@supabase/auth-js/package.json'\\); console.log\\(pkg.version\\)\")"
     ]
   },
   "disableAllHooks": true

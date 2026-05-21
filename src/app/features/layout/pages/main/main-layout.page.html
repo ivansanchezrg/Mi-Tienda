@@ -12,12 +12,12 @@
   <ion-tabs>
 
     <!-- Overlay oscuro del FAB -->
-    @if (showTabs && fabAbierto) {
+    @if (fabAbierto) {
     <div class="fab-overlay" (click)="toggleFab()"></div>
     }
 
     <!-- Opciones del FAB -->
-    @if (showTabs && fabAbierto) {
+    @if (fabAbierto) {
     <div class="fab-options">
       <div class="fab-option" (click)="consultarPrecio()">
         <div class="fab-option-icon warning">
@@ -53,7 +53,7 @@
       la tab activa al volver de páginas secundarias.
       Se oculta con CSS en desktop y cuando tabs están ocultos.
     -->
-    <ion-tab-bar slot="bottom" [class.tabs-oculto]="!showTabs">
+    <ion-tab-bar slot="bottom">
       <ion-tab-button tab="caja">
         <ion-icon [icon]="homeIcon"></ion-icon>
         <ion-label>Inicio</ion-label>

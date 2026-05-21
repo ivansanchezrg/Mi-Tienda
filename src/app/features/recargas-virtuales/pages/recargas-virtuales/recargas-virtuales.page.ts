@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
-  IonContent, IonIcon, IonButton,
+  IonContent, IonIcon,
   IonRefresher, IonRefresherContent, IonSkeletonText,
   ModalController, AlertController
 } from '@ionic/angular/standalone';
@@ -11,9 +11,8 @@ import { ROUTES } from '@core/config/routes.config';
 import { addIcons } from 'ionicons';
 import {
   phonePortraitOutline, busOutline,
-  cashOutline, checkmarkCircleOutline,
-  chevronForwardOutline, lockClosedOutline,
-  walletOutline, informationCircleOutline, chevronDownOutline
+  chevronForwardOutline, timeOutline,
+  walletOutline, informationCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
@@ -32,7 +31,7 @@ type TabActivo = 'CELULAR' | 'BUS';
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
-    IonContent, IonIcon, IonButton,
+    IonContent, IonIcon,
     IonRefresher, IonRefresherContent, IonSkeletonText
   ]
 })
@@ -56,30 +55,21 @@ export class RecargasVirtualesPage {
   // CELULAR
   saldoVirtualCelular = 0;
   cajaCelularSaldo = 0;
-  /** Filas CELULAR pendientes de liquidar (pagado_proveedor=false) */
   pendientesCelular: RecargaVirtual[] = [];
-  ultimasRecargasCelular: RecargaVirtual[] = [];
+  totalMovimientosCelular = 0;
 
   // BUS
   saldoVirtualBus = 0;
   cajaBusSaldo = 0;
-  /** Filas BUS pendientes de liquidar (pagado_proveedor=false) */
   pendientesBus: RecargaVirtual[] = [];
-  ultimasRecargasBus: RecargaVirtual[] = [];
-
-  // Estado acordeón
-  liquidacionCelularExpandida = false;
-  liquidacionBusExpandida = false;
+  totalMovimientosBus = 0;
 
   constructor() {
     addIcons({
       phonePortraitOutline,
       busOutline,
-      cashOutline,
-      checkmarkCircleOutline,
       chevronForwardOutline,
-      chevronDownOutline,
-      lockClosedOutline,
+      timeOutline,
       walletOutline,
       informationCircleOutline,
     });
@@ -115,8 +105,6 @@ export class RecargasVirtualesPage {
 
   async cargarDatos(isRefresh = false) {
     if (!isRefresh) this.loading = true;
-    this.liquidacionCelularExpandida = false;
-    this.liquidacionBusExpandida = false;
     try {
       const loadCelular = this.recargasCelularHabilitada;
       const loadBus     = this.recargasBusHabilitada;
@@ -127,24 +115,24 @@ export class RecargasVirtualesPage {
         cajaCelular, cajaBus,
         historialCelular, historialBus,
       ] = await Promise.all([
-        loadCelular ? this.service.getSaldoVirtualActual('CELULAR')  : Promise.resolve(0),
-        loadBus     ? this.service.getSaldoVirtualActual('BUS')      : Promise.resolve(0),
-        loadCelular ? this.service.obtenerPendientes('CELULAR')      : Promise.resolve([] as RecargaVirtual[]),
-        loadBus     ? this.service.obtenerPendientes('BUS')          : Promise.resolve([] as RecargaVirtual[]),
-        loadCelular ? this.service.getSaldoCajaActual('CAJA_CELULAR'): Promise.resolve(0),
-        loadBus     ? this.service.getSaldoCajaActual('CAJA_BUS')    : Promise.resolve(0),
-        loadCelular ? this.service.obtenerHistorial('CELULAR')       : Promise.resolve([] as RecargaVirtual[]),
-        loadBus     ? this.service.obtenerHistorial('BUS')           : Promise.resolve([] as RecargaVirtual[]),
+        loadCelular ? this.service.getSaldoVirtualActual('CELULAR')   : Promise.resolve(0),
+        loadBus     ? this.service.getSaldoVirtualActual('BUS')       : Promise.resolve(0),
+        loadCelular ? this.service.obtenerPendientes('CELULAR')       : Promise.resolve([] as RecargaVirtual[]),
+        loadBus     ? this.service.obtenerPendientes('BUS')           : Promise.resolve([] as RecargaVirtual[]),
+        loadCelular ? this.service.getSaldoCajaActual('CAJA_CELULAR') : Promise.resolve(0),
+        loadBus     ? this.service.getSaldoCajaActual('CAJA_BUS')     : Promise.resolve(0),
+        loadCelular ? this.service.obtenerHistorial('CELULAR')        : Promise.resolve([] as RecargaVirtual[]),
+        loadBus     ? this.service.obtenerHistorial('BUS')            : Promise.resolve([] as RecargaVirtual[]),
       ]);
 
-      this.saldoVirtualCelular  = saldoCelular;
-      this.saldoVirtualBus      = saldoBus;
-      this.pendientesCelular    = pendientesCelular;
-      this.pendientesBus        = pendientesBus;
-      this.cajaCelularSaldo     = cajaCelular;
-      this.cajaBusSaldo         = cajaBus;
-      this.ultimasRecargasCelular = historialCelular.slice(0, 3);
-      this.ultimasRecargasBus     = historialBus.slice(0, 3);
+      this.saldoVirtualCelular    = saldoCelular;
+      this.saldoVirtualBus        = saldoBus;
+      this.pendientesCelular      = pendientesCelular;
+      this.pendientesBus          = pendientesBus;
+      this.cajaCelularSaldo       = cajaCelular;
+      this.cajaBusSaldo           = cajaBus;
+      this.totalMovimientosCelular = historialCelular.length;
+      this.totalMovimientosBus     = historialBus.length;
     } catch {
       await this.ui.showError('Error al cargar los datos');
     } finally {
@@ -172,38 +160,6 @@ export class RecargasVirtualesPage {
     return Math.round(this.pendientesBus.reduce((s, r) => s + r.ganancia, 0) * 100) / 100;
   }
 
-  get celularPuedeLiquidar(): boolean {
-    return this.gananciaCelularPendiente > 0
-        && this.cajaCelularSaldo >= this.gananciaCelularPendiente;
-  }
-
-  get celularBloqueadoPorSaldo(): boolean {
-    return this.gananciaCelularPendiente > 0
-        && this.cajaCelularSaldo < this.gananciaCelularPendiente;
-  }
-
-  get busPuedeLiquidar(): boolean {
-    return this.gananciasBusPendiente > 0
-        && this.cajaBusSaldo >= this.gananciasBusPendiente;
-  }
-
-  get busBloqueadoPorSaldo(): boolean {
-    return this.gananciasBusPendiente > 0
-        && this.cajaBusSaldo < this.gananciasBusPendiente;
-  }
-
-  // ==========================================
-  // ACORDEÓN
-  // ==========================================
-
-  toggleLiquidacionCelular() {
-    this.liquidacionCelularExpandida = !this.liquidacionCelularExpandida;
-  }
-
-  toggleLiquidacionBus() {
-    this.liquidacionBusExpandida = !this.liquidacionBusExpandida;
-  }
-
   // ==========================================
   // ACCIONES
   // ==========================================
@@ -213,13 +169,9 @@ export class RecargasVirtualesPage {
       component: RegistrarRecargaModalComponent,
       componentProps: { tipo: 'CELULAR' }
     });
-
     await modal.present();
     const { data } = await modal.onWillDismiss();
-
-    if (data?.success) {
-      await this.cargarDatos();
-    }
+    if (data?.success) await this.cargarDatos();
   }
 
   async abrirModalCompraBus() {
@@ -229,98 +181,41 @@ export class RecargasVirtualesPage {
         message: 'Para registrar un depósito necesitas tener efectivo en Caja Bus. Primero registra un ingreso manual desde la pantalla de inicio.',
         buttons: [
           { text: 'Cancelar', role: 'cancel' },
-          {
-            text: 'Ir a Caja',
-            handler: () => { this.router.navigate([ROUTES.home]); }
-          }
+          { text: 'Ir a Caja', handler: () => { this.router.navigate([ROUTES.home]); } }
         ]
       });
       await alert.present();
       return;
     }
-
     const modal = await this.modalCtrl.create({
       component: RegistrarRecargaModalComponent,
       componentProps: { tipo: 'BUS' }
     });
-
     await modal.present();
     const { data } = await modal.onWillDismiss();
-
-    if (data?.success) {
-      await this.cargarDatos();
-    }
+    if (data?.success) await this.cargarDatos();
   }
 
-  async abrirHistorial() {
+  async abrirHistorial(tipo: TabActivo) {
+    const esCelular = tipo === 'CELULAR';
     const modal = await this.modalCtrl.create({
       component: HistorialModalComponent,
-      componentProps: { tipo: this.tabActivo }
+      componentProps: {
+        tipo,
+        pendientes:       esCelular ? this.pendientesCelular : this.pendientesBus,
+        cajaSaldo:        esCelular ? this.cajaCelularSaldo   : this.cajaBusSaldo,
+        cajaVariosActiva: this.cajaVariosActiva,
+        esSuperadmin:     this.esSuperadmin,
+      }
     });
-
     await modal.present();
-  }
-
-  // ==========================================
-  // LIQUIDACIÓN
-  // ==========================================
-
-  async confirmarLiquidacion(servicio: 'CELULAR' | 'BUS') {
-    const esCelular = servicio === 'CELULAR';
-    const monto = esCelular ? this.gananciaCelularPendiente : this.gananciasBusPendiente;
-    const nombreCaja = esCelular ? 'Caja Celular' : 'Caja Bus';
-
-    const alert = await this.alertCtrl.create({
-      header: `Liquidar ganancia ${esCelular ? 'Celular' : 'Bus'}`,
-      message: `Vas a transferir $${monto.toFixed(2)} de ${nombreCaja} a ${this.nombreCajaDestino}.`,
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Confirmar',
-          handler: () => { this.ejecutarLiquidacion(servicio); }
-        }
-      ]
-    });
-    await alert.present();
-  }
-
-  private async ejecutarLiquidacion(servicio: 'CELULAR' | 'BUS') {
-    const empleado = await this.authService.getUsuarioActual();
-    if (!empleado) {
-      await this.ui.showError('No se pudo obtener el empleado');
-      return;
-    }
-    try {
-      const resultado = await this.service.liquidarGanancias(servicio, empleado.id);
-      await this.ui.showSuccess(resultado.message);
-      await this.cargarDatos();
-    } catch (err: any) {
-      await this.ui.showError(err?.message ?? 'Error al liquidar la ganancia');
-    }
-  }
-
-  async explicarLiquidacionSinSaldoCelular() {
-    await this.ui.showToast(
-      `Caja Celular tiene $${this.cajaCelularSaldo.toFixed(2)} y necesitas $${this.gananciaCelularPendiente.toFixed(2)}. Vende más recargas para acumular el efectivo.`,
-      'warning'
-    );
-  }
-
-  async explicarLiquidacionSinSaldoBus() {
-    await this.ui.showToast(
-      `Caja Bus tiene $${this.cajaBusSaldo.toFixed(2)} y necesitas $${this.gananciasBusPendiente.toFixed(2)}. Vende más pasajes para acumular el efectivo.`,
-      'warning'
-    );
+    const { data } = await modal.onWillDismiss();
+    if (data?.liquidado) await this.cargarDatos();
   }
 
   // ==========================================
   // HELPERS
   // ==========================================
-
-  formatearFecha(fecha: string): string {
-    const d = new Date(fecha + 'T00:00:00');
-    return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-  }
 
   async handleRefresh(event: CustomEvent) {
     await this.cargarDatos(true);

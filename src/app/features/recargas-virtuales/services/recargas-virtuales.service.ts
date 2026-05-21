@@ -55,6 +55,8 @@ export class RecargasVirtualesService {
   private supabase = inject(SupabaseService);
   private ui = inject(UiService);
 
+  private saldoInFlight = new Map<string, Promise<number>>();
+
   async getPorcentajeComision(servicio: 'CELULAR' | 'BUS'): Promise<number> {
     const response = await this.supabase.client
       .from('tipos_servicio')
@@ -132,7 +134,45 @@ export class RecargasVirtualesService {
   }
 
   async getSaldoVirtualActual(servicio: 'CELULAR' | 'BUS'): Promise<number> {
-    return this.getSaldoUltimoCierre(servicio);
+    if (this.saldoInFlight.has(servicio)) {
+      return this.saldoInFlight.get(servicio)!;
+    }
+
+    const promise = this._fetchSaldoVirtualActual(servicio).finally(() => {
+      this.saldoInFlight.delete(servicio);
+    });
+
+    this.saldoInFlight.set(servicio, promise);
+    return promise;
+  }
+
+  private async _fetchSaldoVirtualActual(servicio: 'CELULAR' | 'BUS'): Promise<number> {
+    const snapshot = await this.supabase.client
+      .from('recargas')
+      .select('saldo_virtual_actual, created_at, tipos_servicio!inner(codigo)')
+      .eq('tipos_servicio.codigo', servicio)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (snapshot.error) throw snapshot.error;
+
+    const saldoBase  = snapshot.data?.saldo_virtual_actual ?? 0;
+    const fechaCorte = snapshot.data?.created_at ?? '1900-01-01T00:00:00Z';
+
+    const postSnapshot = await this.supabase.client
+      .from('recargas_virtuales')
+      .select('monto_virtual, tipos_servicio!inner(codigo)')
+      .eq('tipos_servicio.codigo', servicio)
+      .gt('created_at', fechaCorte);
+
+    if (postSnapshot.error) throw postSnapshot.error;
+
+    const sumaPost = (postSnapshot.data ?? []).reduce(
+      (s: number, r: any) => s + (r.monto_virtual ?? 0), 0
+    );
+
+    return saldoBase + sumaPost;
   }
 
   async registrarRecargaProveedorCelular(params: {
@@ -198,6 +238,7 @@ export class RecargasVirtualesService {
 
       // Reemplazar mensaje técnico de turno por texto legible antes de que call() lo muestre
       if (response.error) {
+        console.error('[BUS debug] error raw:', response.error);
         const raw: string = response.error.message ?? '';
         if (raw.toLowerCase().includes('turno')) {
           response.error.message = 'Debes tener un turno abierto. Ve a Inicio y abre el turno primero.';

@@ -103,7 +103,7 @@ BEGIN
   v_ganancia             := ROUND(p_monto * v_comision_pct / 100.0, 2);
   v_tipo_ref_rv_id       := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas_virtuales');
   v_tipo_ref_recargas_id := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas');
-  v_categoria_eg011_id   := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-011');
+  v_categoria_eg011_id   := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-011' AND negocio_id = v_negocio_id);
 
   IF v_caja_bus_id IS NULL THEN
     RAISE EXCEPTION 'Caja CAJA_BUS no encontrada';

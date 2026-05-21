@@ -6,12 +6,12 @@
     <ion-title>Saldo Virtual</ion-title>
   </ion-toolbar>
   @if (recargasCelularHabilitada && recargasBusHabilitada) {
-  <div class="recargas-tabs">
-    <button class="recargas-tab" [class.active]="tabActivo === 'CELULAR'" (click)="cambiarTab('CELULAR')">
+  <div class="chrome-tabs">
+    <button class="chrome-tab" [class.active]="tabActivo === 'CELULAR'" (click)="cambiarTab('CELULAR')">
       <ion-icon name="phone-portrait-outline"></ion-icon>
       <span>Celular</span>
     </button>
-    <button class="recargas-tab" [class.active]="tabActivo === 'BUS'" (click)="cambiarTab('BUS')">
+    <button class="chrome-tab" [class.active]="tabActivo === 'BUS'" (click)="cambiarTab('BUS')">
       <ion-icon name="bus-outline"></ion-icon>
       <span>Bus</span>
     </button>
@@ -33,10 +33,12 @@
     @if (!loading) {
 
     <div class="saldo-header">
+      @if (!(recargasCelularHabilitada && recargasBusHabilitada)) {
       <div class="saldo-servicio-pill celular">
         <ion-icon name="phone-portrait-outline"></ion-icon>
         <span>Celular</span>
       </div>
+      }
       <div class="saldo-monto">${{ saldoVirtualCelular | number:'1.2-2' }}</div>
       <div class="saldo-label">Saldo para vender recargas</div>
       <div class="saldo-divider"></div>
@@ -60,89 +62,23 @@
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
+    }
 
-    <!-- Liquidar Ganancia CELULAR — 3 estados:
-         1. Activa (con acordeón)  → hay ganancia y CAJA_CELULAR cubre el total
-         2. Bloqueada por saldo    → hay ganancia pero CAJA_CELULAR no alcanza
-         3. Oculta                 → no hay recargas pendientes -->
-    @if (celularPuedeLiquidar) {
-    <div class="liquidacion-card success" [class.expandida]="liquidacionCelularExpandida" (click)="toggleLiquidacionCelular()">
-      <div class="liquidacion-header">
-        <div class="action-icon success">
-          <ion-icon name="cash-outline"></ion-icon>
-        </div>
-        <div class="action-content">
-          <h3>
-            Liquidar Ganancia
-            <span class="badge success">${{ gananciaCelularPendiente | number:'1.2-2' }}</span>
-          </h3>
-          <p>{{ pendientesCelular.length }} recarga{{ pendientesCelular.length === 1 ? '' : 's' }} · toca para ver el desglose</p>
-        </div>
-        <ion-icon name="chevron-forward-outline" class="chevron" [class.rotado]="liquidacionCelularExpandida"></ion-icon>
-      </div>
-      @if (liquidacionCelularExpandida) {
-      <div class="liquidacion-detalle" (click)="$event.stopPropagation()">
-        <div class="detalle-header-row">
-          <span>Fecha</span>
-          <span>Saldo recibido</span>
-          <span>Tu ganancia</span>
-        </div>
-        @for (fila of pendientesCelular; track fila.id) {
-        <div class="detalle-fila">
-          <span class="detalle-fecha">{{ formatearFecha(fila.fecha) }}</span>
-          <span class="detalle-monto">${{ fila.monto_virtual | number:'1.2-2' }}</span>
-          <span class="detalle-ganancia">${{ fila.ganancia | number:'1.2-2' }}</span>
-        </div>
-        }
-        <div class="detalle-total-row">
-          <span>Total</span>
-          <span>${{ gananciaCelularPendiente | number:'1.2-2' }}</span>
-        </div>
-        <ion-button expand="block" color="success" class="liquidar-btn" (click)="confirmarLiquidacion('CELULAR')">
-          Liquidar ganancia · transferir a {{ nombreCajaDestino }}
-        </ion-button>
-      </div>
-      }
-    </div>
-
-    } @else if (celularBloqueadoPorSaldo) {
-    <div class="action-card-large disabled" (click)="explicarLiquidacionSinSaldoCelular()">
-      <div class="action-icon disabled">
-        <ion-icon name="lock-closed-outline"></ion-icon>
+    @if (totalMovimientosCelular > 0) {
+    <div class="action-card-large" (click)="abrirHistorial('CELULAR')">
+      <div class="action-icon celular">
+        <ion-icon name="time-outline"></ion-icon>
       </div>
       <div class="action-content">
         <h3>
-          Liquidar Ganancia
-          <span class="badge muted">${{ gananciaCelularPendiente | number:'1.2-2' }}</span>
+          Movimientos
+          @if (gananciaCelularPendiente > 0) {
+            <span class="badge celular">${{ gananciaCelularPendiente | number:'1.2-2' }}</span>
+          }
         </h3>
-        <p>Caja Celular tiene ${{ cajaCelularSaldo | number:'1.2-2' }} — necesitas ${{ gananciaCelularPendiente | number:'1.2-2' }}</p>
+        <p>{{ totalMovimientosCelular }} recarga{{ totalMovimientosCelular === 1 ? '' : 's' }} registrada{{ totalMovimientosCelular === 1 ? '' : 's' }}</p>
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
-    </div>
-    }
-    }
-
-    @if (ultimasRecargasCelular.length > 0) {
-    <div class="ultimos-movimientos">
-      <div class="ultimos-header">
-        <span>Últimos movimientos</span>
-        <button class="ver-todo-btn" (click)="abrirHistorial()">
-          Ver todo <ion-icon name="chevron-forward-outline"></ion-icon>
-        </button>
-      </div>
-      @for (recarga of ultimasRecargasCelular; track recarga.id) {
-      <div class="movimiento-item">
-        <div class="movimiento-left">
-          <span class="movimiento-monto">${{ recarga.monto_virtual | number:'1.2-2' }}</span>
-          <span class="movimiento-fecha">{{ formatearFecha(recarga.fecha) }}</span>
-        </div>
-        @if (recarga.pagado_proveedor) {
-        <span class="movimiento-badge pagado">Liquidado</span>
-        } @else {
-        <span class="movimiento-badge pendiente">Pendiente</span>
-        }
-      </div>
-      }
     </div>
     }
 
@@ -185,10 +121,12 @@
     @if (!loading) {
 
     <div class="saldo-header">
+      @if (!(recargasCelularHabilitada && recargasBusHabilitada)) {
       <div class="saldo-servicio-pill bus">
         <ion-icon name="bus-outline"></ion-icon>
         <span>Bus</span>
       </div>
+      }
       <div class="saldo-monto">${{ saldoVirtualBus | number:'1.2-2' }}</div>
       <div class="saldo-label">Saldo para vender pasajes</div>
       <div class="saldo-divider"></div>
@@ -199,7 +137,7 @@
       </div>
     </div>
 
-    @if (ultimasRecargasBus.length === 0 && saldoVirtualBus === 0) {
+    @if (totalMovimientosBus === 0 && saldoVirtualBus === 0) {
     <div class="onboarding-hint-card">
       <ion-icon name="information-circle-outline"></ion-icon>
       <div>
@@ -222,89 +160,23 @@
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
+    }
 
-    <!-- Liquidar Ganancia BUS — 3 estados:
-         1. Activa (con acordeón)  → hay ganancia y CAJA_BUS cubre el total
-         2. Bloqueada por saldo    → hay ganancia pero CAJA_BUS no alcanza
-         3. Oculta                 → no hay depósitos pendientes -->
-    @if (busPuedeLiquidar) {
-    <div class="liquidacion-card success" [class.expandida]="liquidacionBusExpandida" (click)="toggleLiquidacionBus()">
-      <div class="liquidacion-header">
-        <div class="action-icon success">
-          <ion-icon name="cash-outline"></ion-icon>
-        </div>
-        <div class="action-content">
-          <h3>
-            Liquidar Ganancia
-            <span class="badge success">${{ gananciasBusPendiente | number:'1.2-2' }}</span>
-          </h3>
-          <p>{{ pendientesBus.length }} depósito{{ pendientesBus.length === 1 ? '' : 's' }} · toca para ver el desglose</p>
-        </div>
-        <ion-icon name="chevron-forward-outline" class="chevron" [class.rotado]="liquidacionBusExpandida"></ion-icon>
-      </div>
-      @if (liquidacionBusExpandida) {
-      <div class="liquidacion-detalle" (click)="$event.stopPropagation()">
-        <div class="detalle-header-row">
-          <span>Fecha</span>
-          <span>Depósito</span>
-          <span>Ganancia</span>
-        </div>
-        @for (fila of pendientesBus; track fila.id) {
-        <div class="detalle-fila">
-          <span class="detalle-fecha">{{ formatearFecha(fila.fecha) }}</span>
-          <span class="detalle-monto">${{ fila.monto_a_pagar | number:'1.2-2' }}</span>
-          <span class="detalle-ganancia">${{ fila.ganancia | number:'1.2-2' }}</span>
-        </div>
-        }
-        <div class="detalle-total-row">
-          <span>Total</span>
-          <span>${{ gananciasBusPendiente | number:'1.2-2' }}</span>
-        </div>
-        <ion-button expand="block" color="success" class="liquidar-btn" (click)="confirmarLiquidacion('BUS')">
-          Liquidar ganancia · transferir a {{ nombreCajaDestino }}
-        </ion-button>
-      </div>
-      }
-    </div>
-
-    } @else if (busBloqueadoPorSaldo) {
-    <div class="action-card-large disabled" (click)="explicarLiquidacionSinSaldoBus()">
-      <div class="action-icon disabled">
-        <ion-icon name="lock-closed-outline"></ion-icon>
+    @if (totalMovimientosBus > 0) {
+    <div class="action-card-large" (click)="abrirHistorial('BUS')">
+      <div class="action-icon bus">
+        <ion-icon name="time-outline"></ion-icon>
       </div>
       <div class="action-content">
         <h3>
-          Liquidar Ganancia
-          <span class="badge muted">${{ gananciasBusPendiente | number:'1.2-2' }}</span>
+          Movimientos
+          @if (gananciasBusPendiente > 0) {
+            <span class="badge bus">${{ gananciasBusPendiente | number:'1.2-2' }}</span>
+          }
         </h3>
-        <p>Caja Bus tiene ${{ cajaBusSaldo | number:'1.2-2' }} — necesitas ${{ gananciasBusPendiente | number:'1.2-2' }}</p>
+        <p>{{ totalMovimientosBus }} depósito{{ totalMovimientosBus === 1 ? '' : 's' }} registrado{{ totalMovimientosBus === 1 ? '' : 's' }}</p>
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
-    </div>
-    }
-    }
-
-    @if (ultimasRecargasBus.length > 0) {
-    <div class="ultimos-movimientos">
-      <div class="ultimos-header">
-        <span>Últimos movimientos</span>
-        <button class="ver-todo-btn" (click)="abrirHistorial()">
-          Ver todo <ion-icon name="chevron-forward-outline"></ion-icon>
-        </button>
-      </div>
-      @for (recarga of ultimasRecargasBus; track recarga.id) {
-      <div class="movimiento-item">
-        <div class="movimiento-left">
-          <span class="movimiento-monto">${{ recarga.monto_virtual | number:'1.2-2' }}</span>
-          <span class="movimiento-fecha">{{ formatearFecha(recarga.fecha) }}</span>
-        </div>
-        @if (recarga.pagado_proveedor) {
-        <span class="movimiento-badge liquidado">Liquidado</span>
-        } @else {
-        <span class="movimiento-badge sin-liquidar">Sin liquidar</span>
-        }
-      </div>
-      }
     </div>
     }
 

@@ -22,7 +22,11 @@ export class SupabaseService {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: false // lo manejamos manualmente en callback.page.ts
+      detectSessionInUrl: false, // lo manejamos manualmente en callback.page.ts
+      // Capacitor WebView no necesita sincronización multi-pestaña.
+      // Sin este override, navigator.locks puede quedar bloqueado tras un kill
+      // abrupto en Android (especialmente Xiaomi), congelando el flujo de auth.
+      lock: (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => fn()
     }
   });
 

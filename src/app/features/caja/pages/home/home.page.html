@@ -160,7 +160,7 @@
             <span class="virtual-badge">Virtual: {{ montosOcultos ? '••••' : ('$' + (saldoVirtualCelular | number:'1.2-2')) }}</span>
           </div>
           }
-          @if (esAdmin && !esSuperadmin) {
+          @if (!esSuperadmin) {
             <app-options-menu triggerId="menu-celular" [options]="cajaOptions"
               (optionSelected)="onCajaMenuOption($event, 'celular')">
             </app-options-menu>
@@ -189,11 +189,6 @@
             <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoBus | number:'1.2-2')) }}</span>
             <span class="virtual-badge">Virtual: {{ montosOcultos ? '••••' : ('$' + (saldoVirtualBus | number:'1.2-2')) }}</span>
           </div>
-          }
-          @if (esAdmin && !esSuperadmin) {
-            <app-options-menu triggerId="menu-bus" [options]="cajaOptions"
-              (optionSelected)="onCajaMenuOption($event, 'bus')">
-            </app-options-menu>
           }
         </div>
       </div>

@@ -21,7 +21,13 @@
   <div class="cm-meta">
     <span class="cm-precio">{{ precioLabel }}</span>
     <span class="cm-sep">·</span>
-    <span class="cm-stock">Disponible: {{ stockLabel }}</span>
+    @if (stockRestante > 10) {
+      <span class="cm-stock">Disponible: {{ stockLabel }}</span>
+    } @else {
+      <span class="cm-stock-badge" [class.cm-stock-badge--bounce]="stockBadgeAnimando">
+        Disponible: {{ stockLabel }}
+      </span>
+    }
   </div>
 
   <!-- Input de cantidad -->

@@ -1084,6 +1084,22 @@ ion-toolbar {
     backdrop-filter: blur(4px);
 }
 
+// Indicador stock bajo — bottom-left de la imagen, mismo patrón que catalogo-card-multi
+.catalogo-card-stock-low {
+    position: absolute;
+    bottom: 48px;
+    left: 5px;
+    z-index: 3;
+    padding: 2px 6px;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--ion-color-warning-rgb), 0.92);
+    color: var(--ion-color-warning-contrast);
+    font-size: 9px;
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.2px;
+    backdrop-filter: blur(4px);
+}
+
 // ─────────────────────────────────────────
 // PILL FLOTANTE DEL CARRITO (modo catálogo)
 // ─────────────────────────────────────────

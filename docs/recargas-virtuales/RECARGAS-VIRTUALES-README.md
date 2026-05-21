@@ -166,8 +166,8 @@ Muestra las últimas 50 recargas del servicio activo (CELULAR o BUS). Cada fila 
 
 | Método | Fórmula | Usar en |
 |---|---|---|
-| `getSaldoVirtualActual(servicio)` | Último snapshot + recargas posteriores al snapshot | Dashboard home, cierre diario, notificaciones, modal de compra BUS |
-| `getSaldoUltimoCierre(servicio)` | Solo el `saldo_virtual_actual` del último snapshot en `recargas` | Cuadre (`CuadreCajaPage`) — muestra el valor base del último cierre/mini cierre sin acumular recargas del día |
+| `getSaldoVirtualActual(servicio)` | Último snapshot + recargas posteriores al snapshot | Dashboard home, cierre diario, cuadre de caja, notificaciones, modal de compra BUS |
+| `getSaldoUltimoCierre(servicio)` | Solo el `saldo_virtual_actual` del último snapshot en `recargas` | Uso interno — base de cálculo para `getSaldoVirtualActual()`. No usar directamente en UI. |
 
 > Ambos servicios viven en el feature `recargas-virtuales/services/` — fueron movidos desde `core/` porque solo los usa este módulo y el dashboard de caja los accede via `inject()`.
 
@@ -384,6 +384,7 @@ Si no hay FACTURACION_BUS_PENDIENTE y diasHastaFinMes <= bus_dias_antes_facturac
 ## Notas de implementación
 
 - `RecargasVirtualesService` usa `throw response.error` en métodos de lectura directa (`getPorcentajeComision`, `getSaldoVirtualActual`, `obtenerPendientes()`, etc.). Los callers tienen try/catch.
+- `getSaldoVirtualActual(servicio)` tiene in-flight dedup: si home y `NotificacionesService` llaman simultáneamente con el mismo servicio, solo se lanza una query — ambos awaitan la misma `Promise`. El mapa `saldoInFlight` se limpia al resolver (`.finally()`). Mismo patrón que `ConfigService.loadingPromise`.
 - `registrarRecargaProveedorCelular()` lanza `Error('respuesta vacía')` si `supabase.call()` retorna null. El `confirmar()` en `RegistrarRecargaModalComponent` tiene try/catch que lo captura y muestra `error.message`.
 - El porcentaje de comisión viene de la tabla `tipos_servicio` (`porcentaje_comision`). Nunca está hardcodeado en el código TypeScript ni en las funciones SQL. Esto permite cambiar la comisión BUS sin tocar código.
 
