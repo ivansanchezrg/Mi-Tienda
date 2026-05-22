@@ -4,9 +4,9 @@ import { FormsModule } from '@angular/forms';
 import {
   AlertController, NavController,
   IonHeader, IonToolbar, IonButtons, IonMenuButton, IonTitle, IonButton, IonIcon,
-  IonSearchbar, IonContent, IonRefresher, IonRefresherContent,
+  IonContent, IonRefresher, IonRefresherContent,
   IonCard, IonCardContent, IonSkeletonText,
-  IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton
+  IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton, IonSpinner
 } from '@ionic/angular/standalone';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Subscription } from 'rxjs';
@@ -18,10 +18,12 @@ import {
   alertCircleOutline,
   cubeOutline,
   scanOutline,
+  searchOutline,
   closeOutline,
   layersOutline,
   pricetagOutline,
-  colorPaletteOutline
+  colorPaletteOutline,
+  arrowUpOutline
 } from 'ionicons/icons';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
@@ -42,7 +44,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
   imports: [
     CommonModule, FormsModule,
     IonHeader, IonToolbar, IonButtons, IonMenuButton, IonTitle, IonButton, IonIcon,
-    IonSearchbar, IonContent, IonRefresher, IonRefresherContent,
+    IonSpinner, IonContent, IonRefresher, IonRefresherContent,
     IonCard, IonCardContent, IonSkeletonText,
     IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton,
     EmptyStateComponent, ScannerOverlayComponent
@@ -88,6 +90,8 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   private searchDebounce: ReturnType<typeof setTimeout> | undefined;
   private productoChangeSub?: Subscription;
 
+  searchAbierto = false;
+
   constructor() {
     super();
     addIcons({
@@ -97,11 +101,36 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       alertCircleOutline,
       cubeOutline,
       scanOutline,
+      searchOutline,
       closeOutline,
       layersOutline,
       pricetagOutline,
-      colorPaletteOutline
+      colorPaletteOutline,
+      arrowUpOutline
     });
+  }
+
+  abrirSearch() {
+    this.searchAbierto = true;
+    setTimeout(() => {
+      const input = document.querySelector('.inv-search-input') as HTMLInputElement;
+      input?.focus();
+    }, 280);
+  }
+
+  cerrarSearch() {
+    this.searchAbierto = false;
+    if (this.buscarTexto) {
+      this.buscarTexto = '';
+      clearTimeout(this.searchDebounce);
+      this.cargar();
+    }
+  }
+
+  onSearchInputNativo(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.buscarTexto = input.value ?? '';
+    this.aplicarFiltro();
   }
 
   async ngOnInit() {

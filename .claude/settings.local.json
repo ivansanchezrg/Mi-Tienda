@@ -176,7 +176,11 @@
       "Bash(git status *)",
       "Bash(node -e \"const pkg = require\\('./node_modules/@supabase/supabase-js/package.json'\\); console.log\\(pkg.version\\)\")",
       "Bash(node -e \"const pkg = require\\('./node_modules/@supabase/gotrue-js/package.json'\\); console.log\\(pkg.version\\)\")",
-      "Bash(node -e \"const pkg = require\\('c:/Users/ivan/Desktop/Proyectos/mi-tienda/node_modules/@supabase/auth-js/package.json'\\); console.log\\(pkg.version\\)\")"
+      "Bash(node -e \"const pkg = require\\('c:/Users/ivan/Desktop/Proyectos/mi-tienda/node_modules/@supabase/auth-js/package.json'\\); console.log\\(pkg.version\\)\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\" -Directory)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const p='src/app/features/recargas-virtuales/components/pagar-proveedor-modal/pagar-proveedor-modal.component.ts'; console.log\\('exists:', fs.existsSync\\(p\\)\\);\")",
+      "Bash(dir /s \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\")",
+      "Bash(not exist *)"
     ]
   },
   "disableAllHooks": true

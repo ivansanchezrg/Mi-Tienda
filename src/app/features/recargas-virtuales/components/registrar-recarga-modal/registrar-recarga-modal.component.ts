@@ -51,7 +51,16 @@ export class RegistrarRecargaModalComponent implements OnInit {
   // BUS
   saldoCajaBus: number = 0;
   saldoVirtualSistemaBus: number = 0; // último cierre + recargas post-cierre
-  saldoVirtualMaquina: number | null = null; // lo que muestra la máquina ahora
+
+  private _saldoVirtualMaquina: number | null = null;
+  get saldoVirtualMaquina(): number | null { return this._saldoVirtualMaquina; }
+  set saldoVirtualMaquina(value: number | null) {
+    this._saldoVirtualMaquina = value;
+    if (value !== null && value >= 0) {
+      const disponible = this.saldoCajaBus + Math.max(0, this.saldoVirtualSistemaBus - value);
+      this.montoVirtual = disponible > 0 ? disponible : null;
+    }
+  }
 
   constructor() {
     addIcons({

@@ -12,24 +12,6 @@
 <ion-content>
   <div class="modal-content">
 
-    <!-- Hint -->
-    <div class="hint-card">
-      <div class="hint-icon" [class.bus]="tipo === 'BUS'">
-        @if (tipo === 'CELULAR') {
-          <ion-icon name="phone-portrait-outline"></ion-icon>
-        } @else {
-          <ion-icon name="bus-outline"></ion-icon>
-        }
-      </div>
-      <p>
-        @if (tipo === 'CELULAR') {
-          Registra cuando el proveedor agregó saldo virtual a tu cuenta
-        } @else {
-          Registra cuando compras saldo virtual mediante depósito bancario
-        }
-      </p>
-    </div>
-
     <!-- ── SECCIÓN BUS: saldo en máquina (paso previo) ── -->
     @if (tipo === 'BUS') {
       <div class="input-group">
@@ -83,26 +65,6 @@
       </div>
     </div>
 
-    <!-- Botones -->
-    <div class="modal-actions">
-      <button
-        class="secondary-btn"
-        (click)="cerrar()">
-        Cancelar
-      </button>
-      <button
-        class="primary-btn"
-        [disabled]="!montoVirtual || montoVirtual <= 0 || saldoBusInsuficiente || guardando"
-        (click)="confirmar()">
-        <ion-icon name="add-circle-outline"></ion-icon>
-        @if (tipo === 'CELULAR') {
-          Registrar deuda
-        } @else {
-          Confirmar depósito
-        }
-      </button>
-    </div>
-
     <!-- Cálculos (solo CELULAR) -->
     @if (mostrarCalculos) {
       <div class="calculo-preview">
@@ -139,6 +101,26 @@
         </div>
       }
     }
+
+    <!-- Botones -->
+    <div class="modal-actions">
+      <button
+        class="secondary-btn"
+        (click)="cerrar()">
+        Cancelar
+      </button>
+      <button
+        class="primary-btn"
+        [disabled]="!montoVirtual || montoVirtual <= 0 || saldoBusInsuficiente || guardando"
+        (click)="confirmar()">
+        <ion-icon name="add-circle-outline"></ion-icon>
+        @if (tipo === 'CELULAR') {
+          Registrar deuda
+        } @else {
+          Confirmar depósito
+        }
+      </button>
+    </div>
 
   </div>
 </ion-content>

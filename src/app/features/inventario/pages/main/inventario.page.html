@@ -17,42 +17,69 @@
     </ion-buttons>
   </ion-toolbar>
 
-  <ion-toolbar>
-    <ion-searchbar [value]="buscarTexto" (ionInput)="onSearchInput($event)"
-      placeholder="Buscar por nombre o EAN..." [animated]="false" mode="md" [debounce]="0"></ion-searchbar>
-  </ion-toolbar>
+  <div class="inv-filter-bar" [class.inv-filter-bar--searching]="searchAbierto">
 
-  <div class="categories-bar">
-    <div class="categories-scroll" #categoriaScroll>
-      @if (templateSeleccionado) {
-        <button class="category-chip active template-chip" (click)="limpiarFiltroTemplate()">
-          <ion-icon name="color-palette-outline"></ion-icon>
-          {{ templateSeleccionado.nombre }}
-          <ion-icon name="close-outline"></ion-icon>
-        </button>
-      } @else {
-        <button
-          class="category-chip"
-          [class.active]="filtroSeleccionado === 'todas'"
-          (click)="seleccionarCategoria('todas', $event)">
-          Todas
-        </button>
-        @for (cat of categorias; track cat.id) {
+    <!-- Capa 1: chips de categorías + botón búsqueda -->
+    <div class="inv-chips-layer">
+      <button class="inv-search-btn" (click)="abrirSearch()" type="button">
+        <ion-icon name="search-outline"></ion-icon>
+      </button>
+      <div class="inv-chips-scroll" #categoriaScroll>
+        @if (templateSeleccionado) {
+          <button class="category-chip active template-chip" (click)="limpiarFiltroTemplate()">
+            <ion-icon name="color-palette-outline"></ion-icon>
+            {{ templateSeleccionado.nombre }}
+            <ion-icon name="close-outline"></ion-icon>
+          </button>
+        } @else {
           <button
             class="category-chip"
-            [class.active]="filtroSeleccionado === 'cat-' + cat.id"
-            (click)="seleccionarCategoria('cat-' + cat.id, $event)">
-            {{ cat.nombre }}
+            [class.active]="filtroSeleccionado === 'todas'"
+            (click)="seleccionarCategoria('todas', $event)">
+            Todas
+          </button>
+          @for (cat of categorias; track cat.id) {
+            <button
+              class="category-chip"
+              [class.active]="filtroSeleccionado === 'cat-' + cat.id"
+              (click)="seleccionarCategoria('cat-' + cat.id, $event)">
+              {{ cat.nombre }}
+            </button>
+          }
+          <button
+            class="category-chip desactivados"
+            [class.active]="filtroSeleccionado === 'desactivados'"
+            (click)="seleccionarCategoria('desactivados', $event)">
+            Desactivados
           </button>
         }
-        <button
-          class="category-chip desactivados"
-          [class.active]="filtroSeleccionado === 'desactivados'"
-          (click)="seleccionarCategoria('desactivados', $event)">
-          Desactivados
-        </button>
-      }
+      </div>
     </div>
+
+    <!-- Capa 2: input de búsqueda -->
+    <div class="inv-search-layer">
+      <div class="inv-search-field">
+        <ion-icon name="search-outline" class="inv-search-icon"></ion-icon>
+        <input
+          class="inv-search-input"
+          [value]="buscarTexto"
+          placeholder="Buscar por nombre o EAN..."
+          inputmode="search"
+          (input)="onSearchInputNativo($event)"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false" />
+        @if (loading && searchAbierto) {
+          <ion-spinner name="crescent" class="inv-search-spinner" color="medium"></ion-spinner>
+        }
+        <button class="inv-search-close-btn"
+          (mousedown)="$event.preventDefault()"
+          (click)="cerrarSearch()" type="button">
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+      </div>
+    </div>
+
   </div>
 </ion-header>
 

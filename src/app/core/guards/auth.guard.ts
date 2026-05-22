@@ -42,10 +42,37 @@ export const authGuard: CanActivateFn = async (_route, state) => {
       return router.createUrlTree(['/auth/login']);
     }
 
-    // Primera navegación de la sesión: validar contra BD para detectar
-    // desactivaciones que ocurrieron mientras la app estaba cerrada.
-    // Navegaciones siguientes: confiar en cache + Realtime (cero queries extra).
     if (!auth.yaValidadoEnEstaSesion) {
+      // Fast path: JWT válido + UsuarioActual en cache → acceso inmediato.
+      // La validación contra BD corre en background para detectar suspensiones
+      // ocurridas mientras la app estaba cerrada. Si detecta algo, los canales
+      // Realtime (ya abiertos por iniciarRealtimeUsuario) redirigen al usuario.
+      const cachedUsuario = await auth.getUsuarioActual();
+
+      if (cachedUsuario) {
+        logger.info('authGuard', 'Fast path: JWT + cache válidos — acceso inmediato');
+        // Iniciar Realtime antes de soltar el guard para que la protección
+        // por desactivación esté activa desde el primer render.
+        auth.iniciarRealtimeDesdeCache(cachedUsuario);
+
+        // Validación background: no bloquea la navegación
+        auth.validarUsuarioBackground();
+
+        // Superadmin sin negocio activo: redirigir al panel admin
+        if (cachedUsuario.es_superadmin && !cachedUsuario.negocio_id) {
+          const url = state.url;
+          const rutasPermitidas = url.startsWith('/admin') || url.startsWith('/crear-negocio');
+          if (!rutasPermitidas) {
+            logger.info('authGuard', `Superadmin sin negocio activo → panel admin`);
+            return router.createUrlTree(['/admin']);
+          }
+        }
+
+        return true;
+      }
+
+      // Sin cache: flujo completo síncrono (primera instalación, logout, JWT expirado)
+      logger.info('authGuard', 'Sin cache — validación completa contra BD');
       const isValid = await auth.validarUsuario();
       if (!isValid) {
         // validarUsuario() ya redirigió a /auth/pending o /auth/login según el caso
@@ -53,8 +80,7 @@ export const authGuard: CanActivateFn = async (_route, state) => {
       }
     }
 
-    // Superadmin sin negocio activo no debe navegar por la app de negocio.
-    // Si llega aquí directamente (ej: escribe /caja en la URL), mandarlo al panel admin.
+    // Sesión ya validada en esta sesión (navegaciones posteriores al arranque)
     const usuario = await auth.getUsuarioActual();
 
     // Preferences vacío con sesión activa → reconstruir estado via validarUsuario()

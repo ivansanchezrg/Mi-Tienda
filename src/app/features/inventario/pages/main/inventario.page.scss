@@ -15,38 +15,134 @@ ion-toolbar {
 
 }
 
-ion-searchbar {
-    --background: var(--ion-item-background);
-    --border-radius: var(--radius-md);
-    --box-shadow: none;
-    --placeholder-color: var(--ion-color-step-400);
-    --placeholder-opacity: 1;
-    --color: var(--ion-text-color);
-    --icon-color: var(--ion-color-step-400);
-    --clear-button-color: var(--ion-color-step-400);
-    padding-inline: var(--spacing-md);
-    padding-top: 0;
-    padding-bottom: var(--spacing-xs);
+// ── Barra de filtros animada (estilo POS) ──
+.inv-filter-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--ion-color-step-100);
+    background: var(--ion-item-background);
+    min-height: 50px;
+    overflow: hidden;
 }
 
-// ── Barra de categorías scrollable ──
-.categories-bar {
-    background: var(--bg-soft);
-    padding-bottom: var(--spacing-sm);
+// Capa 1 — chips de categorías
+.inv-chips-layer {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    gap: var(--spacing-xs);
+    transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+    .inv-filter-bar--searching & {
+        opacity: 0;
+        transform: translateY(-6px);
+        pointer-events: none;
+    }
 }
 
-.categories-scroll {
+.inv-search-btn {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--ion-color-step-200);
+    background: transparent;
+    color: var(--ion-color-medium);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    ion-icon { font-size: 18px; }
+    &:active { background: rgba(var(--ion-color-primary-rgb), 0.08); }
+}
+
+.inv-chips-scroll {
     display: flex;
     flex-direction: row;
     gap: var(--spacing-xs);
     overflow-x: auto;
-    padding: var(--spacing-xs) var(--spacing-md);
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
-
-    // Ocultar scrollbar en todas las plataformas
     scrollbar-width: none;
     &::-webkit-scrollbar { display: none; }
+}
+
+// Capa 2 — input de búsqueda
+.inv-search-layer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--ion-item-background);
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+    .inv-filter-bar--searching & {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+}
+
+.inv-search-field {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    height: 38px;
+    border: 1px solid var(--ion-color-step-200);
+    border-radius: var(--radius-md);
+    background: var(--ion-color-step-50, var(--ion-background-color));
+    padding: 0 4px 0 10px;
+    gap: 6px;
+}
+
+.inv-search-icon {
+    flex-shrink: 0;
+    font-size: 17px;
+    color: var(--ion-color-medium);
+}
+
+.inv-search-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: none;
+    background: transparent;
+    font-size: 15px;
+    color: var(--ion-text-color);
+    outline: none;
+    caret-color: var(--ion-color-primary);
+
+    &::placeholder { color: var(--ion-color-medium); }
+}
+
+.inv-search-spinner {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.inv-search-close-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    color: var(--ion-color-medium);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    ion-icon { font-size: 20px; --ionicon-stroke-width: 56; }
+    &:active { color: var(--ion-color-danger); }
 }
 
 .category-chip {

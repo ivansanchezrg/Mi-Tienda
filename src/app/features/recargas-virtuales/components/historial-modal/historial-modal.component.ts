@@ -30,7 +30,6 @@ type TipoServicio = 'CELULAR' | 'BUS';
 })
 export class HistorialModalComponent implements OnInit {
   @Input() tipo: TipoServicio = 'CELULAR';
-  @Input() pendientes: RecargaVirtual[] = [];
   @Input() cajaSaldo = 0;
   @Input() cajaVariosActiva = false;
   @Input() esSuperadmin = false;
@@ -72,8 +71,16 @@ export class HistorialModalComponent implements OnInit {
     return Math.round(this.historial.reduce((s, r) => s + (r.ganancia ?? 0), 0) * 100) / 100;
   }
 
+  get totalLiquidado(): number {
+    return Math.round(this.historial.filter(r => r.ganancia_liquidada).reduce((s, r) => s + (r.ganancia ?? 0), 0) * 100) / 100;
+  }
+
+  get totalPorLiquidar(): number {
+    return Math.round(this.historial.filter(r => !r.ganancia_liquidada).reduce((s, r) => s + (r.ganancia ?? 0), 0) * 100) / 100;
+  }
+
   get gananciasPendiente(): number {
-    return Math.round(this.pendientes.reduce((s, r) => s + (r.ganancia ?? 0), 0) * 100) / 100;
+    return this.totalPorLiquidar;
   }
 
   get puedeLiquidar(): boolean {

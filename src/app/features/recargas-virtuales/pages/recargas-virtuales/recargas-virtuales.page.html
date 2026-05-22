@@ -57,11 +57,24 @@
         <ion-icon name="phone-portrait-outline"></ion-icon>
       </div>
       <div class="action-content">
-        <h3>El proveedor me cargó saldo</h3>
+        <h3>Recarga de proveedor</h3>
         <p>Registra el saldo virtual que te acreditó el proveedor</p>
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
+
+    @if (deudasCelular.length > 0) {
+    <div class="action-card-large" (click)="abrirModalPagarProveedor()">
+      <div class="action-icon danger">
+        <ion-icon name="card-outline"></ion-icon>
+      </div>
+      <div class="action-content">
+        <h3>Pagar al proveedor</h3>
+        <p>Debes <span class="badge danger">${{ totalDeudaCelular | number:'1.2-2' }}</span> · {{ deudasCelular.length }} recarga{{ deudasCelular.length === 1 ? '' : 's' }} pendiente{{ deudasCelular.length === 1 ? '' : 's' }}</p>
+      </div>
+      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
+    </div>
+    }
     }
 
     @if (totalMovimientosCelular > 0) {
@@ -70,13 +83,12 @@
         <ion-icon name="time-outline"></ion-icon>
       </div>
       <div class="action-content">
-        <h3>
-          Movimientos
-          @if (gananciaCelularPendiente > 0) {
-            <span class="badge celular">${{ gananciaCelularPendiente | number:'1.2-2' }}</span>
-          }
-        </h3>
-        <p>{{ totalMovimientosCelular }} recarga{{ totalMovimientosCelular === 1 ? '' : 's' }} registrada{{ totalMovimientosCelular === 1 ? '' : 's' }}</p>
+        <h3>Movimientos</h3>
+        @if (gananciaCelularPendiente > 0) {
+          <p>Tienes <span class="badge celular">${{ gananciaCelularPendiente | number:'1.2-2' }}</span> por liquidar · Ver movimientos</p>
+        } @else {
+          <p>Ver movimientos</p>
+        }
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
@@ -155,8 +167,8 @@
         <ion-icon name="bus-outline"></ion-icon>
       </div>
       <div class="action-content">
-        <h3>Registrar depósito bancario</h3>
-        <p>Ya deposité en el banco, registrar el saldo recibido</p>
+        <h3>Recargar saldo máquina</h3>
+        <p>Consulta tu efectivo disponible antes de ir al banco</p>
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
@@ -168,13 +180,12 @@
         <ion-icon name="time-outline"></ion-icon>
       </div>
       <div class="action-content">
-        <h3>
-          Movimientos
-          @if (gananciasBusPendiente > 0) {
-            <span class="badge bus">${{ gananciasBusPendiente | number:'1.2-2' }}</span>
-          }
-        </h3>
-        <p>{{ totalMovimientosBus }} depósito{{ totalMovimientosBus === 1 ? '' : 's' }} registrado{{ totalMovimientosBus === 1 ? '' : 's' }}</p>
+        <h3>Movimientos</h3>
+        @if (gananciasBusPendiente > 0) {
+          <p>Tienes <span class="badge bus">${{ gananciasBusPendiente | number:'1.2-2' }}</span> por liquidar · Ver movimientos</p>
+        } @else {
+          <p>Ver movimientos</p>
+        }
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>

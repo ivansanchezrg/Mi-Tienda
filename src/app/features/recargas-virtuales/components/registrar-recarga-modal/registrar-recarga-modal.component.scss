@@ -249,6 +249,7 @@ ion-content {
 // Acciones
 .modal-actions {
   display: flex;
+  flex-direction: row;
   gap: var(--spacing-md);
 }
 

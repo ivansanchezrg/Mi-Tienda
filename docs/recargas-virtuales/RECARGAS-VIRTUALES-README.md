@@ -38,9 +38,9 @@ La tienda vende recargas de celular y pasajes de bus usando **saldo virtual** de
 |---|---|---|
 | **Cómo funciona** | El proveedor carga saldo virtual a la cuenta. La tienda lo usa para vender recargas. Después le paga al proveedor. | La tienda deposita plata en la cuenta del proveedor y recibe saldo virtual equivalente. |
 | **Modelo** | Crédito — primero se usa, después se paga | Compra directa — se deposita primero |
-| **Flujo de caja** | Sin movimiento inmediato al registrar la deuda | EGRESO inmediato de CAJA_BUS |
-| **Estado en BD** | `pagado_proveedor=false` (deuda) → `pagado_proveedor=true, ganancia_liquidada=false` (pagué al proveedor) → `ganancia_liquidada=true` (moví la ganancia) | `pagado_proveedor=false, ganancia_liquidada=false` al comprar → `pagado_proveedor=true, ganancia_liquidada=true` al liquidar (en una sola operación) |
-| **Ganancia** | 5% — `monto_virtual - monto_a_pagar` | % configurable — calculada al liquidar: `ROUND(SUM(monto_a_pagar) * comision%, 2)` |
+| **Flujo de caja** | Sin movimiento inmediato al registrar. EGRESO al pagar al proveedor via `fn_pagar_proveedor_celular` | EGRESO inmediato de CAJA_BUS al registrar la compra |
+| **Estado en BD** | `pagado_proveedor=false` (deuda) → `pagado_proveedor=true` via `fn_pagar_proveedor_celular` → `ganancia_liquidada=true` via `fn_liquidar_ganancias` | `pagado_proveedor=true` desde el registro → `ganancia_liquidada=true` via `fn_liquidar_ganancias` |
+| **Ganancia** | 5% — `monto_virtual * 0.05` (calculada al registrar) | % configurable — `ROUND(monto_a_pagar * comision%, 2)` (calculada al registrar) |
 | **Caja involucrada** | CAJA_CELULAR | CAJA_BUS |
 
 ---
@@ -124,23 +124,33 @@ Lista deudas CELULAR pendientes con selección múltiple, integrada directamente
 
 CELULAR y BUS ya **no usan modales** para liquidar — la decisión es 100% automática. Al tocar la card "Liquidar Ganancia" se muestra un `AlertController` de confirmación tipo *"¿Confirmas transferir $X de Caja Bus → Varios?"*. Si confirma, se llama al RPC correspondiente.
 
-| Servicio | RPC | Origen | Destino |
-|---|---|---|---|
-| CELULAR | `fn_liquidar_ganancias('CELULAR', p_empleado_id)` (v1.0) | CAJA_CELULAR | VARIOS o CAJA según `caja_varios_activa` |
-| BUS | `fn_liquidar_ganancias('BUS', p_empleado_id)` (v1.0) | CAJA_BUS | VARIOS o CAJA según `caja_varios_activa` |
+| Servicio | RPC | Filtro BD | Origen | Destino |
+|---|---|---|---|---|
+| CELULAR | `fn_liquidar_ganancias('CELULAR', p_empleado_id)` (v2.2) | `pagado_proveedor=true AND ganancia_liquidada=false` | CAJA_CELULAR | VARIOS o CAJA según `caja_varios_activa` |
+| BUS | `fn_liquidar_ganancias('BUS', p_empleado_id)` (v2.2) | `pagado_proveedor=true AND ganancia_liquidada=false` | CAJA_BUS | VARIOS o CAJA según `caja_varios_activa` |
 
-Una sola función unificada maneja ambos servicios. Valida saldo origen suficiente, calcula la caja destino internamente y marca las filas correspondientes como liquidadas. Operación atómica todo-o-nada.
+Una sola función unificada maneja ambos servicios con el mismo filtro. Valida saldo origen suficiente, calcula la caja destino internamente y marca `ganancia_liquidada=true`. Operación atómica todo-o-nada.
 
 ---
 
 ### Historial Modal (`components/historial-modal/`)
 
-Muestra las últimas 50 recargas del servicio activo (CELULAR o BUS). Cada fila incluye:
+Muestra las últimas 50 recargas del servicio activo (CELULAR o BUS). Tabla de 5 columnas:
 
-- **Icono de estado con color**: ✅ verde (pagado/liquidado), ⚠️ amarillo (CELULAR pendiente de cobro), 🚌 azul (BUS sin liquidar)
-- **Fecha** + detalles del monto
-- **Empleado** que realizó el registro (`por: nombre`)
-- **Badge de estado**: "Pagado"/"Pendiente" para CELULAR · "Liquidado"/"Sin liquidar" para BUS
+| Columna | Contenido |
+|---|---|
+| Fecha | Fecha del registro |
+| Saldo recibido / Depósito | `monto_virtual` (CELULAR) o `monto_a_pagar` (BUS) |
+| Ganancia | `ganancia` en color si ya pagó proveedor, gris si pendiente |
+| Proveedor | Badge "Pagado"/"Pendiente" (CELULAR) · "Comprado"/"Pendiente" (BUS) |
+| Ganancia | Badge "Liquidado" (verde) / "Pendiente" (gris) |
+
+**Totales en fila horizontal** al pie de la tabla:
+- **Ya transferido** (verde) — suma de `ganancia` donde `ganancia_liquidada=true`
+- **Por liquidar** (azul/naranja) — suma donde `ganancia_liquidada=false`
+- **Total ganancia** (gris) — solo aparece si hay ambos tipos
+
+El botón **"Transferir $X a Varios/Tienda"** muestra el monto exacto por liquidar y se habilita solo si `cajaSaldo >= totalPorLiquidar`. El monto se calcula directamente desde el historial cargado en el modal (no desde datos del padre) para garantizar sincronía con la BD.
 
 ---
 
@@ -189,12 +199,12 @@ Muestra las últimas 50 recargas del servicio activo (CELULAR o BUS). Cada fila 
 |---|---|---|
 | `monto_virtual` | Saldo que cargó el proveedor | Monto del depósito |
 | `monto_a_pagar` | `monto_virtual * 0.95` (lo que se le paga al proveedor) | Igual a `monto_virtual` |
-| `ganancia` | `monto_virtual * 0.05` | `0` — ganancia real: `ROUND(SUM(monto_a_pagar) * comision%, 2)` al liquidar |
-| `pagado_proveedor` | `false` al crear → `true` al pagar al proveedor | `false` al comprar → `true` al liquidar |
-| `fecha_pago_proveedor` | NULL → se llena al pagar al proveedor | NULL → se llena al liquidar |
-| `operacion_pago_id` | NULL → FK a `operaciones_cajas` al pagar | NULL → FK a la operación de liquidación al liquidar |
-| `ganancia_liquidada` | `false` al crear y al pagar → `true` cuando se llama a `fn_liquidar_ganancias('CELULAR', ...)` | `false` al comprar → `true` al liquidar (en la misma operación que `pagado_proveedor`) |
-| `fecha_liquidacion_ganancia` | NULL → se llena al ejecutar `fn_liquidar_ganancias('CELULAR', ...)` | NULL → se llena al ejecutar `fn_liquidar_ganancias('BUS', ...)` |
+| `ganancia` | `monto_virtual * 0.05` | `ROUND(monto_a_pagar * comision%, 2)` — calculada al insertar |
+| `pagado_proveedor` | `false` al crear → `true` via `fn_pagar_proveedor_celular` | `true` desde el momento del registro (ya se pagó al banco) |
+| `fecha_pago_proveedor` | NULL → se llena al ejecutar `fn_pagar_proveedor_celular` | Se llena al registrar la compra |
+| `operacion_pago_id` | NULL → FK a `operaciones_cajas` al pagar al proveedor | NULL (no aplica — el EGRESO está en la operación de compra) |
+| `ganancia_liquidada` | `false` → `true` al ejecutar `fn_liquidar_ganancias('CELULAR', ...)` | `false` al comprar → `true` al ejecutar `fn_liquidar_ganancias('BUS', ...)` |
+| `fecha_liquidacion_ganancia` | NULL → se llena al liquidar | NULL → se llena al liquidar |
 
 ---
 
@@ -237,20 +247,23 @@ RegistrarRecargaModalComponent (tipo='CELULAR')
 
 ### CELULAR — Pagar al proveedor
 
-Cuando se le paga en efectivo al proveedor, el dinero sale de CAJA_CELULAR como un **egreso manual** desde la pantalla de operaciones de caja. El usuario selecciona la categoría **"Pago Proveedor Celular"** (`seleccionable=true`). Este paso **solo mueve el efectivo** — la ganancia queda en CAJA_CELULAR hasta que se liquide.
+Cuando se le paga en efectivo al proveedor, el usuario abre el modal **"Pagar al proveedor"** desde la card de acción en la tab CELULAR. Puede seleccionar individualmente qué recargas pagar (o todas). Este paso **solo mueve el efectivo** — la ganancia queda en CAJA_CELULAR hasta que se liquide.
 
 ```
-Home → Caja Celular → Egreso manual
-  └─ OperacionModalComponent (tipo='EGRESO')
-       ├─ Categoría: "Pago Proveedor Celular"
-       ├─ Monto: lo que corresponde pagar al proveedor
+RecargasVirtualesPage (tab CELULAR) → card "Pagar al proveedor"
+  └─ PagarProveedorModalComponent
+       ├─ Lista de deudas con IonCheckbox (selección individual o todas)
+       ├─ Valida: cajaCelularSaldo >= totalSeleccionado
        └─ confirmar()
-            └─ RPC: fn_registrar_operacion_manual(caja_id=CAJA_CELULAR, tipo='EGRESO', ...)
-                 ├─ EGRESO CAJA_CELULAR por el monto ingresado
+            └─ RPC: fn_pagar_proveedor_celular(empleado_id, ids_recargas[])
+                 ├─ Calcula total = SUM(monto_a_pagar) de las filas seleccionadas
+                 ├─ Valida CAJA_CELULAR.saldo >= total
+                 ├─ INSERT operaciones_cajas EGRESO CAJA_CELULAR
+                 ├─ UPDATE recargas_virtuales: pagado_proveedor=true, fecha_pago_proveedor=hoy, operacion_pago_id=FK
                  └─ UPDATE saldo CAJA_CELULAR
 ```
 
-> No hay función SQL dedicada para este paso — se usa el egreso manual genérico. Las filas de `recargas_virtuales` no se marcan automáticamente como `pagado_proveedor=true` en este flujo. El marcado de `pagado_proveedor` ocurre al liquidar la ganancia (`fn_liquidar_ganancias`).
+> Función SQL dedicada: `fn_pagar_proveedor_celular`. La categoría usada es `'Pago Proveedor Recargas'` (creada en `fn_completar_onboarding`, `seleccionable=false`). La ganancia se queda en CAJA_CELULAR y se transfiere solo al ejecutar `fn_liquidar_ganancias('CELULAR')`.
 
 ### CELULAR — Liquidar ganancia
 
@@ -305,24 +318,22 @@ RegistrarRecargaModalComponent (tipo='BUS')
 
 ### BUS — Liquidación de ganancia
 
-Cuando el proveedor BUS acredita la ganancia, el dueño la liquida desde la card "Liquidar Ganancia" (visible si hay registros `pagado_proveedor=false` y CAJA_BUS tiene saldo suficiente). En BUS el `pagado_proveedor` y el `ganancia_liquidada` se setean **en la misma operación** porque la ganancia se materializa solo al liquidar:
+Cuando el proveedor BUS acredita la ganancia, el dueño la liquida desde el modal "Movimientos Bus" → botón "Transferir $X a Varios". En BUS `pagado_proveedor=true` desde el momento del registro (al comprar el saldo ya se pagó al banco), por lo que solo falta marcar `ganancia_liquidada=true`:
 
 ```
-recargas-virtuales.page.ts → confirmarLiquidacion('BUS')
+HistorialModalComponent (tipo='BUS') → botón "Transferir $X a {Varios|Tienda}"
   └─ AlertController: "¿Transferir $X de Caja Bus a {Varios|Tienda}?"
-       └─ Confirma → ejecutarLiquidacion('BUS')
+       └─ Confirma → ejecutarLiquidacion()
             └─ RPC: fn_liquidar_ganancias('BUS', p_empleado_id)
-                 ├─ Calcula total = SUM(ganancia) WHERE tipo=BUS AND pagado_proveedor=false
-                 ├─ Valida CAJA_BUS.saldo >= total → si no, EXCEPTION (defensa: el frontend ya bloqueó la card)
+                 ├─ Calcula total = SUM(ganancia) WHERE tipo=BUS AND pagado_proveedor=true AND ganancia_liquidada=false
+                 ├─ Valida CAJA_BUS.saldo >= total → si no, EXCEPTION
                  ├─ Calcula caja destino: VARIOS si caja_varios_activa=true, sino CAJA
                  ├─ TRANSFERENCIA_SALIENTE CAJA_BUS → TRANSFERENCIA_ENTRANTE caja destino
-                 └─ UPDATE recargas_virtuales:
-                      pagado_proveedor=true, fecha_pago_proveedor=hoy,
-                      ganancia_liquidada=true, fecha_liquidacion_ganancia=hoy
-                      WHERE tipo=BUS AND pagado_proveedor=false
+                 └─ UPDATE recargas_virtuales: ganancia_liquidada=true, fecha_liquidacion_ganancia=hoy
+                      WHERE tipo=BUS AND pagado_proveedor=true AND ganancia_liquidada=false
 ```
 
-> Atómico todo-o-nada. La card en el frontend ya valida el saldo antes de habilitarse.
+> Atómico todo-o-nada. El botón en el frontend ya valida el saldo antes de habilitarse.
 
 ---
 
@@ -375,9 +386,11 @@ Si no hay FACTURACION_BUS_PENDIENTE y diasHastaFinMes <= bus_dias_antes_facturac
 
 > 📄 `fn_registrar_recarga_proveedor_celular` → [sql/functions/fn_registrar_recarga_proveedor_celular.sql](sql/functions/fn_registrar_recarga_proveedor_celular.sql)
 
+> 📄 `fn_pagar_proveedor_celular` → [sql/functions/fn_pagar_proveedor_celular.sql](sql/functions/fn_pagar_proveedor_celular.sql)
+
 > 📄 `fn_registrar_compra_saldo_bus` → [sql/functions/fn_registrar_compra_saldo_bus.sql](sql/functions/fn_registrar_compra_saldo_bus.sql)
 
-> 📄 `fn_liquidar_ganancias` → [sql/functions/fn_liquidar_ganancias.sql](sql/functions/fn_liquidar_ganancias.sql)
+> 📄 `fn_liquidar_ganancias` (v2.2) → [sql/functions/fn_liquidar_ganancias.sql](sql/functions/fn_liquidar_ganancias.sql) — ambos servicios filtran `pagado_proveedor=true AND ganancia_liquidada=false`
 
 ---
 
@@ -392,10 +405,10 @@ Si no hay FACTURACION_BUS_PENDIENTE y diasHastaFinMes <= bus_dias_antes_facturac
 
 ## Estado del Proyecto
 
-- ✅ Registro de recargas CELULAR (con deuda pendiente)
-- ✅ Pago al proveedor CELULAR (selección múltiple)
-- ✅ Compra de saldo BUS (modo básico y extendido con mini cierre)
-- ✅ Liquidación mensual de ganancia BUS (RPC atómico, comisión dinámica desde DB)
-- ✅ Historial de recargas por servicio (con estado de color, empleado y badges CELULAR/BUS diferenciados)
-- ✅ Card BUS con 3 estados: liquidar / bloqueado (mes en curso) / oculto
+- ✅ Registro de recargas CELULAR (con deuda pendiente, `pagado_proveedor=false`)
+- ✅ Pago al proveedor CELULAR — modal `PagarProveedorModalComponent` con selección múltiple via `IonCheckbox`, EGRESO atómico via `fn_pagar_proveedor_celular`
+- ✅ Liquidación ganancia CELULAR — desde historial modal, filtra `pagado_proveedor=true AND ganancia_liquidada=false`
+- ✅ Compra de saldo BUS (modo básico y extendido con mini cierre), `pagado_proveedor=true` desde el registro
+- ✅ Liquidación ganancia BUS — desde historial modal, filtra `pagado_proveedor=true AND ganancia_liquidada=false`
+- ✅ Historial modal con tabla de 5 columnas, totales en fila horizontal (ya transferido / por liquidar / total)
 - ✅ Badge de notificación en Home cuando hay ganancia BUS pendiente

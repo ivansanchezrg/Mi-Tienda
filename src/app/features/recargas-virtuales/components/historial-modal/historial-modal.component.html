@@ -30,9 +30,13 @@
             <span>Fecha</span>
             @if (tipo === 'CELULAR') {
               <span>Saldo recibido</span>
-              <span>Tu ganancia</span>
+              <span>Ganancia</span>
+              <span>Proveedor</span>
+              <span>Ganancia</span>
             } @else {
               <span>Depósito</span>
+              <span>Ganancia</span>
+              <span>Compra</span>
               <span>Ganancia</span>
             }
           </div>
@@ -40,19 +44,8 @@
           <!-- Filas -->
           @for (r of historial; track r.id) {
           <div class="tabla-fila">
-            <div class="tabla-fecha">
-              <span>{{ formatearFecha(r.fecha) }}</span>
-              <span class="tabla-badge"
-                [class.pagado]="r.pagado_proveedor"
-                [class.pendiente]="!r.pagado_proveedor && tipo === 'CELULAR'"
-                [class.sin-liquidar]="!r.pagado_proveedor && tipo === 'BUS'">
-                @if (tipo === 'CELULAR') {
-                  {{ r.pagado_proveedor ? 'Pagado' : 'Pendiente' }}
-                } @else {
-                  {{ r.pagado_proveedor ? 'Liquidado' : 'Sin liquidar' }}
-                }
-              </span>
-            </div>
+            <span class="tabla-fecha">{{ formatearFecha(r.fecha) }}</span>
+
             @if (tipo === 'CELULAR') {
               <span class="tabla-monto">${{ r.monto_virtual | number:'1.2-2' }}</span>
               <span class="tabla-ganancia" [class.celular]="r.pagado_proveedor" [class.muted]="!r.pagado_proveedor">
@@ -64,13 +57,58 @@
                 ${{ r.ganancia | number:'1.2-2' }}
               </span>
             }
+
+            <!-- Columna: estado pago proveedor -->
+            <span class="tabla-badge"
+              [class.pagado]="r.pagado_proveedor"
+              [class.pendiente]="!r.pagado_proveedor && tipo === 'CELULAR'"
+              [class.sin-liquidar]="!r.pagado_proveedor && tipo === 'BUS'">
+              @if (tipo === 'CELULAR') {
+                {{ r.pagado_proveedor ? 'Pagado' : 'Pendiente' }}
+              } @else {
+                {{ r.pagado_proveedor ? 'Comprado' : 'Pendiente' }}
+              }
+            </span>
+
+            <!-- Columna: estado ganancia liquidada -->
+            <span class="tabla-badge"
+              [class.liquidado]="r.ganancia_liquidada"
+              [class.sin-liquidar]="!r.ganancia_liquidada">
+              {{ r.ganancia_liquidada ? 'Liquidado' : 'Pendiente' }}
+            </span>
           </div>
           }
 
-          <!-- Total -->
-          <div class="tabla-total" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'">
-            <span>Total ganancia</span>
-            <span>${{ totalGanancia | number:'1.2-2' }}</span>
+          <!-- Totales -->
+          <div class="totales-section">
+            @if (totalLiquidado > 0) {
+              <div class="total-col">
+                <div class="total-col-label">
+                  <span class="total-dot liquidado"></span>
+                  <span>Ya transferido</span>
+                </div>
+                <span class="total-col-monto liquidado">${{ totalLiquidado | number:'1.2-2' }}</span>
+              </div>
+            }
+            @if (totalPorLiquidar > 0) {
+              <div class="total-col">
+                <div class="total-col-label">
+                  <span class="total-dot" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'"></span>
+                  <span>Por liquidar</span>
+                </div>
+                <span class="total-col-monto" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'">
+                  ${{ totalPorLiquidar | number:'1.2-2' }}
+                </span>
+              </div>
+            }
+            @if (totalLiquidado > 0 && totalPorLiquidar > 0) {
+              <div class="total-col">
+                <div class="total-col-label">
+                  <span>Total ganancia</span>
+                </div>
+                <span class="total-col-monto total">${{ totalGanancia | number:'1.2-2' }}</span>
+              </div>
+            }
           </div>
 
           <!-- Botón liquidar -->
@@ -80,7 +118,7 @@
             [color]="tipo === 'CELULAR' ? 'primary' : 'secondary'"
             class="liquidar-btn"
             (click)="confirmarLiquidacion()">
-            Transferir ganancia a {{ nombreCajaDestino }}
+            Transferir ${{ totalPorLiquidar | number:'1.2-2' }} a {{ nombreCajaDestino }}
             <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
           </ion-button>
           }

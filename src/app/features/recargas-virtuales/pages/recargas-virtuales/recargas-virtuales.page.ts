@@ -12,7 +12,8 @@ import { addIcons } from 'ionicons';
 import {
   phonePortraitOutline, busOutline,
   chevronForwardOutline, timeOutline,
-  walletOutline, informationCircleOutline
+  walletOutline, informationCircleOutline,
+  cardOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
@@ -20,6 +21,7 @@ import { AuthService } from '../../../auth/services/auth.service';
 import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { RegistrarRecargaModalComponent } from '../../components/registrar-recarga-modal/registrar-recarga-modal.component';
 import { HistorialModalComponent } from '../../components/historial-modal/historial-modal.component';
+import { PagarProveedorModalComponent } from '../../components/pagar-proveedor-modal/pagar-proveedor-modal.component';
 
 type TabActivo = 'CELULAR' | 'BUS';
 
@@ -55,7 +57,8 @@ export class RecargasVirtualesPage {
   // CELULAR
   saldoVirtualCelular = 0;
   cajaCelularSaldo = 0;
-  pendientesCelular: RecargaVirtual[] = [];
+  pendientesCelular: RecargaVirtual[] = [];   // para liquidar (pagado_proveedor=true)
+  deudasCelular: RecargaVirtual[] = [];       // para pagar al proveedor (pagado_proveedor=false)
   totalMovimientosCelular = 0;
 
   // BUS
@@ -72,6 +75,7 @@ export class RecargasVirtualesPage {
       timeOutline,
       walletOutline,
       informationCircleOutline,
+      cardOutline,
     });
   }
 
@@ -112,6 +116,7 @@ export class RecargasVirtualesPage {
       const [
         saldoCelular, saldoBus,
         pendientesCelular, pendientesBus,
+        deudasCelular,
         cajaCelular, cajaBus,
         historialCelular, historialBus,
       ] = await Promise.all([
@@ -119,18 +124,20 @@ export class RecargasVirtualesPage {
         loadBus     ? this.service.getSaldoVirtualActual('BUS')       : Promise.resolve(0),
         loadCelular ? this.service.obtenerPendientes('CELULAR')       : Promise.resolve([] as RecargaVirtual[]),
         loadBus     ? this.service.obtenerPendientes('BUS')           : Promise.resolve([] as RecargaVirtual[]),
+        loadCelular ? this.service.obtenerDeudasCelular()             : Promise.resolve([] as RecargaVirtual[]),
         loadCelular ? this.service.getSaldoCajaActual('CAJA_CELULAR') : Promise.resolve(0),
         loadBus     ? this.service.getSaldoCajaActual('CAJA_BUS')     : Promise.resolve(0),
         loadCelular ? this.service.obtenerHistorial('CELULAR')        : Promise.resolve([] as RecargaVirtual[]),
         loadBus     ? this.service.obtenerHistorial('BUS')            : Promise.resolve([] as RecargaVirtual[]),
       ]);
 
-      this.saldoVirtualCelular    = saldoCelular;
-      this.saldoVirtualBus        = saldoBus;
-      this.pendientesCelular      = pendientesCelular;
-      this.pendientesBus          = pendientesBus;
-      this.cajaCelularSaldo       = cajaCelular;
-      this.cajaBusSaldo           = cajaBus;
+      this.saldoVirtualCelular     = saldoCelular;
+      this.saldoVirtualBus         = saldoBus;
+      this.pendientesCelular       = pendientesCelular;
+      this.pendientesBus           = pendientesBus;
+      this.deudasCelular           = deudasCelular;
+      this.cajaCelularSaldo        = cajaCelular;
+      this.cajaBusSaldo            = cajaBus;
       this.totalMovimientosCelular = historialCelular.length;
       this.totalMovimientosBus     = historialBus.length;
     } catch {
@@ -152,6 +159,10 @@ export class RecargasVirtualesPage {
     return this.cajaVariosActiva ? 'Varios' : 'Tienda';
   }
 
+  get totalDeudaCelular(): number {
+    return Math.round(this.deudasCelular.reduce((s, r) => s + r.monto_a_pagar, 0) * 100) / 100;
+  }
+
   get gananciaCelularPendiente(): number {
     return Math.round(this.pendientesCelular.reduce((s, r) => s + r.ganancia, 0) * 100) / 100;
   }
@@ -163,6 +174,19 @@ export class RecargasVirtualesPage {
   // ==========================================
   // ACCIONES
   // ==========================================
+
+  async abrirModalPagarProveedor() {
+    const modal = await this.modalCtrl.create({
+      component: PagarProveedorModalComponent,
+      componentProps: {
+        deudas: this.deudasCelular,
+        cajaCelularSaldo: this.cajaCelularSaldo,
+      }
+    });
+    await modal.present();
+    const { data } = await modal.onWillDismiss();
+    if (data?.success) await this.cargarDatos();
+  }
 
   async abrirModalRecarga() {
     const modal = await this.modalCtrl.create({
@@ -202,8 +226,7 @@ export class RecargasVirtualesPage {
       component: HistorialModalComponent,
       componentProps: {
         tipo,
-        pendientes:       esCelular ? this.pendientesCelular : this.pendientesBus,
-        cajaSaldo:        esCelular ? this.cajaCelularSaldo   : this.cajaBusSaldo,
+        cajaSaldo:        esCelular ? this.cajaCelularSaldo : this.cajaBusSaldo,
         cajaVariosActiva: this.cajaVariosActiva,
         esSuperadmin:     this.esSuperadmin,
       }

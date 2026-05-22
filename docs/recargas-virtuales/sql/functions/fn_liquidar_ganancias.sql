@@ -14,6 +14,10 @@
 --   - Caja destino automatica: VARIOS si caja_varios_activa=true, sino CAJA
 --   - Atomico todo-o-nada: si la caja origen no cubre la ganancia total,
 --     RAISE EXCEPTION (el frontend ya bloquea el boton en ese caso).
+--
+-- v2.2 — Ambos servicios filtran pagado_proveedor=true AND ganancia_liquidada=false:
+--   - CELULAR: pagado_proveedor=true via fn_pagar_proveedor_celular
+--   - BUS: pagado_proveedor=true desde el momento del registro (fn_registrar_compra_saldo_bus)
 -- ==========================================
 
 DROP FUNCTION IF EXISTS public.fn_liquidar_ganancias_celular(UUID, TEXT, NUMERIC);
@@ -63,15 +67,16 @@ BEGIN
     WHEN 'BUS'     THEN 'CAJA_BUS'
   END;
 
-  -- Ganancia pendiente: SUM(ganancia) para ambos servicios.
-  -- CELULAR: ganancia guardada por fila al registrar la recarga del proveedor.
-  -- BUS: ganancia guardada por fila al registrar la compra de saldo (ROUND(monto * comision%, 2)).
+  -- Ganancia pendiente:
+  -- CELULAR: pagado_proveedor=true (via fn_pagar_proveedor_celular) AND ganancia_liquidada=false
+  -- BUS: pagado_proveedor=true (se marca al registrar la compra) AND ganancia_liquidada=false
   v_total_ganancia := (
     SELECT COALESCE(SUM(ganancia), 0)
     FROM recargas_virtuales
     WHERE negocio_id       = v_negocio_id
       AND tipo_servicio_id = v_tipo_id
-      AND pagado_proveedor = false
+      AND pagado_proveedor   = true
+      AND ganancia_liquidada = false
   );
 
   IF v_total_ganancia <= 0 THEN
@@ -114,15 +119,14 @@ BEGIN
     RAISE EXCEPTION '%', v_transfer_result->>'error';
   END IF;
 
-  -- Marcar todas las filas pendientes como pagadas y liquidadas
+  -- Marcar filas como liquidadas (mismo filtro que el cálculo de arriba)
   UPDATE recargas_virtuales
-  SET pagado_proveedor           = true,
-      fecha_pago_proveedor       = CURRENT_DATE,
-      ganancia_liquidada         = true,
+  SET ganancia_liquidada         = true,
       fecha_liquidacion_ganancia = CURRENT_DATE
-  WHERE negocio_id       = v_negocio_id
-    AND tipo_servicio_id = v_tipo_id
-    AND pagado_proveedor = false;
+  WHERE negocio_id         = v_negocio_id
+    AND tipo_servicio_id   = v_tipo_id
+    AND pagado_proveedor   = true
+    AND ganancia_liquidada = false;
 
   GET DIAGNOSTICS v_filas_afectadas = ROW_COUNT;
 
@@ -142,8 +146,10 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.fn_liquidar_ganancias(TEXT, UUID) IS
-'v2.0 - Liquida toda la ganancia pendiente de CELULAR o BUS (atomico).
-Ambos servicios: filtra pagado_proveedor=false, marca pagado+liquidado en un paso.
+'v2.2 - Liquida ganancia pendiente de CELULAR o BUS (atomico).
+Ambos servicios: pagado_proveedor=true AND ganancia_liquidada=false.
+CELULAR: pagado_proveedor=true via fn_pagar_proveedor_celular.
+BUS: pagado_proveedor=true desde fn_registrar_compra_saldo_bus.
 Caja origen: CAJA_CELULAR o CAJA_BUS segun el servicio.
 Caja destino automatica: VARIOS si esta activa, sino CAJA (Tienda).
 Si la caja origen no cubre el total, RAISE EXCEPTION.';

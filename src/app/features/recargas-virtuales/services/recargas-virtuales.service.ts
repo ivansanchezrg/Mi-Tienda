@@ -41,6 +41,14 @@ export interface RegistroRecargaCompletoResult {
   };
 }
 
+export interface PagoProveedorResult {
+  success: boolean;
+  total_pagado: number;
+  filas_afectadas: number;
+  saldo_caja_celular_nuevo: number;
+  message: string;
+}
+
 /** Retorno de fn_liquidar_ganancias. */
 export interface LiquidacionResult {
   success: boolean;
@@ -69,16 +77,43 @@ export class RecargasVirtualesService {
   }
 
   /**
-   * Filas pendientes de liquidar (pagado_proveedor=false) de un servicio.
-   * Usadas para el acordeón de desglose en la card "Liquidar Ganancia".
+   * Deudas sin pagar al proveedor CELULAR (pagado_proveedor=false).
+   * Usadas para la acción "Pagar al proveedor".
+   * BUS: sin paso intermedio, no tiene deudas en este sentido.
    */
-  async obtenerPendientes(servicio: 'CELULAR' | 'BUS'): Promise<RecargaVirtual[]> {
+  async obtenerDeudasCelular(): Promise<RecargaVirtual[]> {
     const response = await this.supabase.client
       .from('recargas_virtuales')
       .select('*, tipos_servicio!inner(codigo)')
-      .eq('tipos_servicio.codigo', servicio)
+      .eq('tipos_servicio.codigo', 'CELULAR')
       .eq('pagado_proveedor', false)
       .order('fecha', { ascending: true });
+
+    if (response.error) throw response.error;
+
+    return (response.data || []).map((r: any) => ({
+      ...r,
+      servicio: r.tipos_servicio.codigo
+    }));
+  }
+
+  /**
+   * Filas pendientes de liquidar ganancia de un servicio.
+   * CELULAR: pagado_proveedor=true AND ganancia_liquidada=false
+   * BUS:     pagado_proveedor=false (no tiene paso intermedio)
+   */
+  async obtenerPendientes(servicio: 'CELULAR' | 'BUS'): Promise<RecargaVirtual[]> {
+    const query = this.supabase.client
+      .from('recargas_virtuales')
+      .select('*, tipos_servicio!inner(codigo)')
+      .eq('tipos_servicio.codigo', servicio)
+      .eq('ganancia_liquidada', false);
+
+    const filtrado = servicio === 'CELULAR'
+      ? query.eq('pagado_proveedor', true)
+      : query.eq('pagado_proveedor', false);
+
+    const response = await filtrado.order('fecha', { ascending: true });
 
     if (response.error) throw response.error;
 
@@ -192,6 +227,23 @@ export class RecargasVirtualesService {
 
     if (!result) {
       throw new Error('Error al registrar recarga: respuesta vacía del servidor');
+    }
+
+    return result;
+  }
+
+  async pagarProveedorCelular(empleadoId: string, idsRecargas: string[]): Promise<PagoProveedorResult> {
+    const result = await this.supabase.call<PagoProveedorResult>(
+      this.supabase.client.rpc('fn_pagar_proveedor_celular', {
+        p_empleado_id:  empleadoId,
+        p_ids_recargas: idsRecargas
+      }),
+      undefined,
+      { showLoading: true }
+    );
+
+    if (!result) {
+      throw new Error('Error al registrar pago al proveedor: respuesta vacía del servidor');
     }
 
     return result;

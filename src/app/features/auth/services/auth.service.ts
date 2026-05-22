@@ -188,18 +188,20 @@ export class AuthService {
       return false;
     }
 
-    const { data, error } = await this.supabase.client
-      .from('usuarios')
-      .select('id, nombre, email, es_superadmin, activo')
-      .eq('email', user.email)
-      .maybeSingle();
+    // Un único RPC reemplaza las 2 queries secuenciales anteriores (usuarios + usuario_negocios).
+    // La función SQL lee el email del JWT internamente via get_email().
+    const { data: rpcData, error: rpcError } = await this.supabase.client
+      .rpc('fn_validar_sesion');
 
-    if (error) {
-      this.logger.error('AuthService', 'Error al consultar usuario en BD', error);
+    if (rpcError) {
+      this.logger.error('AuthService', 'Error en fn_validar_sesion', rpcError);
       await this.ui.showError('Error al verificar tu cuenta. Intentá de nuevo.');
       await this.forceLogout();
       return false;
     }
+
+    const data       = rpcData?.usuario   ?? null;
+    const membresias = rpcData?.membresias ?? [];
 
     // Usuario suspendido globalmente (activo = false) — excepto superadmin
     if (data && data.activo === false && !data.es_superadmin) {
@@ -245,26 +247,12 @@ export class AuthService {
       this.iniciarRealtimeUsuario(data.id);
     }
 
-    // Obtener TODAS las membresías (activas e inactivas) para distinguir
-    // "usuario nuevo sin negocios" de "usuario desactivado en todos sus negocios"
-    const { data: membresias, error: errNegocios } = await this.supabase.client
-      .from('usuario_negocios')
-      .select('negocio_id, rol, activo, negocio:negocios(nombre)')
-      .eq('usuario_id', data.id);
-
-    if (errNegocios) {
-      this.logger.error('AuthService', 'Error al obtener negocios del usuario', errNegocios);
-      await this.ui.showError('Error al cargar tus negocios. Intentá de nuevo.');
-      await this.forceLogout();
-      return false;
-    }
-
-    const todasMembresias = membresias || [];
+    const todasMembresias: any[] = Array.isArray(membresias) ? membresias : [];
     const negocios: NegocioDisponible[] = todasMembresias
       .filter((m: any) => m.activo)
       .map((m: any) => ({
         negocio_id:     m.negocio_id,
-        negocio_nombre: m.negocio?.nombre ?? 'Sin nombre',
+        negocio_nombre: m.negocio_nombre ?? 'Sin nombre',
         rol:            m.rol as 'ADMIN' | 'EMPLEADO'
       }));
 
@@ -621,6 +609,36 @@ export class AuthService {
     this.validadoEnEstaSesion = false;
     this._usuarioActual$.next(null);
     this.logger.info('AuthService', 'Canales Realtime cerrados');
+  }
+
+  /**
+   * Fast path del authGuard: abre los canales Realtime usando el cache local
+   * sin esperar a validarUsuario(). Idempotente — si ya están abiertos no hace nada.
+   * Garantiza que la protección por desactivación esté activa desde el primer render.
+   */
+  iniciarRealtimeDesdeCache(usuario: UsuarioActual): void {
+    if (!usuario.id) return;
+    this._usuarioActual$.next(usuario);
+    this.iniciarRealtimeUsuario(usuario.id);
+    if (usuario.negocio_id) {
+      this.iniciarRealtimeMembresia(usuario.id, usuario.negocio_id);
+    }
+  }
+
+  /**
+   * Valida el usuario contra la BD en background sin bloquear la navegación.
+   * Si detecta suspensión o inconsistencia, redirige via los mismos mecanismos
+   * que el flujo síncrono (validarUsuario → handleUsuarioDesactivado → /auth/pending).
+   * Se llama desde authGuard cuando el fast path (JWT + cache) ya autorizó el acceso.
+   */
+  validarUsuarioBackground(): void {
+    this.validarUsuario().then(isValid => {
+      if (!isValid) {
+        this.logger.warn('AuthService', 'Background validation: sesión inválida — redirigiendo');
+      }
+    }).catch(err => {
+      this.logger.error('AuthService', 'Background validation falló silenciosamente', err);
+    });
   }
 
   /**

@@ -112,86 +112,129 @@
       </div>
     </div>
 
-    @if (variosActiva) {
-    <div class="flat-item">
-      <div class="flat-item-body" (click)="onSaldoClick('varios')">
-        <div class="icon-wrapper tertiary">
-          <ion-icon name="archive-outline"></ion-icon>
-        </div>
-        <div class="content">
-          <span class="title">{{ cajaNombreFor('VARIOS') }}</span>
-          <span class="subtitle">Fondo emergencia</span>
-        </div>
-      </div>
-      <div class="amount-group">
-        @if (cargando) {
-        <ion-skeleton-text animated
-          style="width: 60px; height: 16px; border-radius: var(--radius-xs);"></ion-skeleton-text>
-        } @else {
-        <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoVarios | number:'1.2-2')) }}</span>
-        }
-        @if (!esSuperadmin) {
-          <app-options-menu triggerId="menu-varios" [options]="cajaOptions"
-            (optionSelected)="onCajaMenuOption($event, 'varios')">
-          </app-options-menu>
-        }
-      </div>
-    </div>
-    }
-
-    @if (recargasCelularHabilitada) {
+    @defer (on idle) {
+      @if (variosActiva) {
       <div class="flat-item">
-        <div class="flat-item-body" (click)="onSaldoClick('celular')">
-          <div class="icon-wrapper secondary">
-            <ion-icon name="phone-portrait-outline"></ion-icon>
+        <div class="flat-item-body" (click)="onSaldoClick('varios')">
+          <div class="icon-wrapper tertiary">
+            <ion-icon name="archive-outline"></ion-icon>
           </div>
           <div class="content">
-            <span class="title">{{ cajaNombreFor('CAJA_CELULAR') }}</span>
-            <span class="subtitle">Efectivo acum.</span>
+            <span class="title">{{ cajaNombreFor('VARIOS') }}</span>
+            <span class="subtitle">Fondo emergencia</span>
           </div>
         </div>
         <div class="amount-group">
           @if (cargando) {
           <ion-skeleton-text animated
-            style="width: 70px; height: 32px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+            style="width: 60px; height: 16px; border-radius: var(--radius-xs);"></ion-skeleton-text>
           } @else {
-          <div class="amount-col">
-            <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCelular | number:'1.2-2')) }}</span>
-            <span class="virtual-badge">Virtual: {{ montosOcultos ? '••••' : ('$' + (saldoVirtualCelular | number:'1.2-2')) }}</span>
-          </div>
+          <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoVarios | number:'1.2-2')) }}</span>
           }
           @if (!esSuperadmin) {
-            <app-options-menu triggerId="menu-celular" [options]="cajaOptions"
-              (optionSelected)="onCajaMenuOption($event, 'celular')">
+            <app-options-menu triggerId="menu-varios" [options]="cajaOptions"
+              (optionSelected)="onCajaMenuOption($event, 'varios')">
             </app-options-menu>
           }
         </div>
       </div>
-
-    }
-    @if (recargasBusHabilitada) {
+      }
+    } @placeholder {
+      @if (variosActiva) {
       <div class="flat-item">
-        <div class="flat-item-body" (click)="onSaldoClick('bus')">
-          <div class="icon-wrapper warning">
-            <ion-icon name="bus-outline"></ion-icon>
-          </div>
+        <div class="flat-item-body">
+          <div class="icon-wrapper tertiary"></div>
           <div class="content">
-            <span class="title">{{ cajaNombreFor('CAJA_BUS') }}</span>
-            <span class="subtitle">Efectivo acum.</span>
+            <ion-skeleton-text animated style="width: 60px; height: 14px; border-radius: var(--radius-xs);"></ion-skeleton-text>
           </div>
         </div>
         <div class="amount-group">
-          @if (cargando) {
-          <ion-skeleton-text animated
-            style="width: 70px; height: 32px; border-radius: var(--radius-xs);"></ion-skeleton-text>
-          } @else {
-          <div class="amount-col">
-            <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoBus | number:'1.2-2')) }}</span>
-            <span class="virtual-badge">Virtual: {{ montosOcultos ? '••••' : ('$' + (saldoVirtualBus | number:'1.2-2')) }}</span>
-          </div>
-          }
+          <ion-skeleton-text animated style="width: 60px; height: 16px; border-radius: var(--radius-xs);"></ion-skeleton-text>
         </div>
       </div>
+      }
+    }
+
+    @defer (on idle) {
+      @if (recargasCelularHabilitada) {
+        <div class="flat-item">
+          <div class="flat-item-body" (click)="onSaldoClick('celular')">
+            <div class="icon-wrapper secondary">
+              <ion-icon name="phone-portrait-outline"></ion-icon>
+            </div>
+            <div class="content">
+              <span class="title">{{ cajaNombreFor('CAJA_CELULAR') }}</span>
+              <span class="subtitle">Efectivo acum.</span>
+            </div>
+          </div>
+          <div class="amount-group">
+            @if (cargando) {
+            <ion-skeleton-text animated
+              style="width: 70px; height: 32px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+            } @else {
+            <div class="amount-col">
+              <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoCelular | number:'1.2-2')) }}</span>
+              <span class="virtual-badge">Virtual: {{ montosOcultos ? '••••' : ('$' + (saldoVirtualCelular | number:'1.2-2')) }}</span>
+            </div>
+            }
+          </div>
+        </div>
+      }
+    } @placeholder {
+      @if (recargasCelularHabilitada) {
+      <div class="flat-item">
+        <div class="flat-item-body">
+          <div class="icon-wrapper secondary"></div>
+          <div class="content">
+            <ion-skeleton-text animated style="width: 70px; height: 14px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+          </div>
+        </div>
+        <div class="amount-group">
+          <ion-skeleton-text animated style="width: 70px; height: 32px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+        </div>
+      </div>
+      }
+    }
+
+    @defer (on idle) {
+      @if (recargasBusHabilitada) {
+        <div class="flat-item">
+          <div class="flat-item-body" (click)="onSaldoClick('bus')">
+            <div class="icon-wrapper warning">
+              <ion-icon name="bus-outline"></ion-icon>
+            </div>
+            <div class="content">
+              <span class="title">{{ cajaNombreFor('CAJA_BUS') }}</span>
+              <span class="subtitle">Efectivo acum.</span>
+            </div>
+          </div>
+          <div class="amount-group">
+            @if (cargando) {
+            <ion-skeleton-text animated
+              style="width: 70px; height: 32px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+            } @else {
+            <div class="amount-col">
+              <span class="value">{{ montosOcultos ? '••••' : ('$' + (saldoBus | number:'1.2-2')) }}</span>
+              <span class="virtual-badge">Virtual: {{ montosOcultos ? '••••' : ('$' + (saldoVirtualBus | number:'1.2-2')) }}</span>
+            </div>
+            }
+          </div>
+        </div>
+      }
+    } @placeholder {
+      @if (recargasBusHabilitada) {
+      <div class="flat-item">
+        <div class="flat-item-body">
+          <div class="icon-wrapper warning"></div>
+          <div class="content">
+            <ion-skeleton-text animated style="width: 70px; height: 14px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+          </div>
+        </div>
+        <div class="amount-group">
+          <ion-skeleton-text animated style="width: 70px; height: 32px; border-radius: var(--radius-xs);"></ion-skeleton-text>
+        </div>
+      </div>
+      }
     }
   </div>
 

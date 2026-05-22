@@ -12,6 +12,8 @@ ion-content {
   flex-direction: column;
   align-items: center;
   padding: var(--spacing-lg) var(--spacing-lg);
+  padding-top: calc(var(--spacing-lg) + var(--spacing-md));
+  padding-bottom: var(--spacing-md);
   margin: 0;
   background: var(--ion-item-background);
   border-radius: 0;
@@ -24,6 +26,7 @@ ion-content {
     font-size: 11px;
     font-weight: var(--font-weight-medium);
     color: var(--ion-color-medium);
+    padding-bottom: var(--spacing-lg);
   }
 
   .saldo-monto {
@@ -176,6 +179,11 @@ ion-content {
       ion-icon { color: var(--ion-color-danger); }
     }
 
+    &.danger {
+      background: rgba(var(--ion-color-danger-rgb), 0.1);
+      ion-icon { color: var(--ion-color-danger); }
+    }
+
     &.success {
       background: rgba(var(--ion-color-success-rgb), 0.1);
       ion-icon { color: var(--ion-color-success); }
@@ -191,6 +199,40 @@ ion-content {
     flex: 1;
     min-width: 0;
 
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
+      background: var(--ion-color-danger);
+      color: white;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+
+      &.success {
+        background: var(--ion-color-success);
+      }
+
+      &.celular {
+        background: var(--ion-color-primary);
+      }
+
+      &.bus {
+        background: var(--ion-color-secondary);
+      }
+
+      &.muted {
+        background: var(--ion-color-medium);
+      }
+
+      &.danger {
+        background: var(--ion-color-danger);
+      }
+    }
+
     h3 {
       margin: 0 0 3px;
       font-size: 15px;
@@ -199,36 +241,6 @@ ion-content {
       display: flex;
       align-items: center;
       gap: 6px;
-
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 22px;
-        height: 22px;
-        padding: 0 6px;
-        background: var(--ion-color-danger);
-        color: white;
-        border-radius: 99px;
-        font-size: 11px;
-        font-weight: 700;
-
-        &.success {
-          background: var(--ion-color-success);
-        }
-
-        &.celular {
-          background: var(--ion-color-primary);
-        }
-
-        &.bus {
-          background: var(--ion-color-secondary);
-        }
-
-        &.muted {
-          background: var(--ion-color-medium);
-        }
-      }
     }
 
     p {

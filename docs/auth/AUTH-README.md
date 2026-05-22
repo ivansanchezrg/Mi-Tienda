@@ -86,22 +86,24 @@ Registradas en `app.routes.ts` **fuera** del layout (sin sidebar ni tabs).
 
 ```
 1.  getSession() → email + JWT claims del token local (sin llamada de red)
-2.  FROM usuarios SELECT id, nombre, email, es_superadmin, activo WHERE email = $email
+2.  RPC fn_validar_sesion() → usuario + todas sus membresías en un solo round-trip
+      (reemplaza las 2 queries secuenciales anteriores: usuarios + usuario_negocios JOIN negocios)
 3.  No existe → auto-registro (INSERT email + nombre, sin rol) → /onboarding/negocio
 4.  activo = false (y no es superadmin) → /auth/pending?motivo=usuario
 5.  Existe → iniciarRealtimeUsuario(id) tan pronto como se confirma identidad
-6.  FROM usuario_negocios WHERE usuario_id = $id → todas las membresías con JOIN negocios(nombre)
-7.  Cache hit (negocio_id en Preferences sigue en lista activa) → _reactivarNegocio()
+6.  Cache hit (negocio_id en Preferences sigue en lista activa) → _reactivarNegocio()
       fast path: JWT ya tiene negocio_id + rol correctos → salta fn_set_negocio_activo + refreshSession
       slow path: JWT desactualizado → activarNegocio() completo
-8.  es_superadmin sin cache → guardar UsuarioActual mínimo → /admin
-9.  0 membresías activas + tiene membresías inactivas → /auth/pending?motivo=membresia
-10. 0 membresías en total → /onboarding/negocio (usuario nuevo)
-11. 1 negocio activo → activarNegocio() directo → /caja
-12. N negocios → negociosDisponibles = todos → /auth/seleccionar-negocio
+7.  es_superadmin sin cache → guardar UsuarioActual mínimo → /admin
+8.  0 membresías activas + tiene membresías inactivas → /auth/pending?motivo=membresia
+9.  0 membresías en total → /onboarding/negocio (usuario nuevo)
+10. 1 negocio activo → activarNegocio() directo → /caja
+11. N negocios → negociosDisponibles = todos → /auth/seleccionar-negocio
 ```
 
 **Auto-registro v11:** solo inserta `{ nombre, email }` en `usuarios`. No inserta `rol` ni `activo` — el rol vive en `usuario_negocios` y la activación vive en el flujo de membresía.
+
+> **Nota de performance (2026-05-22):** `validarUsuario()` es el slow path. En el 95% de los arranques (JWT válido + `UsuarioActual` en Preferences), el `authGuard` usa el fast path y nunca llama a esta función de forma bloqueante — ver sección 10.
 
 #### `_reactivarNegocio(negocio, session)` — fast path de re-apertura
 
@@ -161,6 +163,8 @@ Para cambiar de negocio sin necesidad de re-login (desde el panel admin o select
 - `iniciarRealtimeUsuario(id: string)` → abre canal websocket para escuchar cambios del usuario actual en tabla `usuarios`. Idempotente. (ver sección 11)
 - `iniciarRealtimeMembresia(usuarioId: string, negocioId: string)` → abre canal para detectar desactivación de la membresía del usuario en el negocio activo (tabla `usuario_negocios`). Se abre en `activarNegocio()`. (ver sección 11)
 - `cerrarRealtimeUsuario()` → cierra canal de usuario Y canal de membresía. Se llama automáticamente via hook `registerBeforeCleanup`
+- `iniciarRealtimeDesdeCache(usuario: UsuarioActual)` → abre ambos canales Realtime usando el cache local (sin esperar a `validarUsuario()`). Llamado por `authGuard` en el fast path para garantizar protección por desactivación activa desde el primer render. Idempotente.
+- `validarUsuarioBackground()` → ejecuta `validarUsuario()` en background (fire-and-forget, sin bloquear la UI). Llamado por `authGuard` tras el fast path para detectar suspensiones ocurridas mientras la app estaba cerrada.
 
 #### Métodos de Usuario Actual (Capacitor Preferences)
 
@@ -421,14 +425,32 @@ App vuelve del background
 
 Protege el layout principal. Aplicado en `app.routes.ts`.
 
-**Comportamiento con soporte offline + validación por sesión:**
+**Dos paths de ejecución (desde 2026-05-22):**
+
+```
+authGuard — primera navegación (cold start):
+  ├─ JWT válido + UsuarioActual en Preferences (caso 95%)
+  │   ├─ iniciarRealtimeDesdeCache()   → canales Realtime activos antes del primer render
+  │   ├─ validarUsuarioBackground()    → validación contra BD sin bloquear la UI
+  │   └─ return true INMEDIATO         → home se renderiza sin esperar red
+  │
+  └─ Sin cache o JWT expirado (primera instalación, logout, reinstalación)
+      └─ validarUsuario() síncrono → fn_validar_sesion() RPC → redirige según resultado
+
+authGuard — navegaciones posteriores (yaValidadoEnEstaSesion = true):
+  └─ Skip completo — confía en cache + Realtime (cero queries)
+```
+
+**Comportamiento completo por escenario:**
 
 | Escenario | Comportamiento |
 |---|---|
-| Online + sesión + primera navegación | `validarUsuario()` (2 queries BD) → `_reactivarNegocio()`: fast path si JWT correcto (0 RPC extra), slow path si JWT desactualizado. Inicia Realtime, guarda en Preferences |
-| Online + sesión + navegaciones siguientes | Skip — confía en cache + Realtime (cero queries extra) |
-| Online + sesión + usuario suspendido en BD | `validarUsuario()` redirige a `/auth/pending?motivo=usuario` |
-| Online + sesión + membresía desactivada | Canal Realtime detecta en segundos → `/auth/pending?motivo=membresia` |
+| Cold start con JWT + cache válidos | Fast path: `return true` inmediato + validación background. Sin queries bloqueantes |
+| Cold start sin cache (primera instalación, logout) | Slow path: `fn_validar_sesion()` RPC → `_reactivarNegocio()` |
+| Navegaciones siguientes al arranque | Skip total — `yaValidadoEnEstaSesion = true` |
+| Usuario suspendido (detectado en background) | Canal Realtime o background validation → `/auth/pending?motivo=usuario` |
+| Membresía desactivada | Canal Realtime detecta en segundos → `/auth/pending?motivo=membresia` |
+| Sin cache + sesión OAuth sin `hasActiveAuth()` | Redirige a `/auth/login` (reinstalación, primera instalación) |
 | Offline + sesión local + usuario activo | Permite acceso + toast "Sin conexión" |
 | Offline + sesión local + usuario inactivo | Redirige a `/auth/pending` (lee Preferences) |
 | Offline + sin sesión | Redirige a `/auth/login` |
@@ -622,12 +644,13 @@ Lo que conecta auth con usuarios:
 | `features/auth/pages/callback/callback.page.ts` | Procesa tokens web y Android, llama `validarUsuario()` |
 | `features/auth/pages/pending/pending.page.ts` | Pantalla de suspensión con UI contextual según `?motivo=usuario\|negocio\|membresia`. "Verificar estado" consulta BD directamente antes de llamar `validarUsuario()` — evita falso positivo "sigue suspendido" cuando ya fue reactivado. |
 | `features/auth/pages/seleccionar-negocio/` | Selector de negocio activo. Muestra todos (activos + suspendidos). Badge "Suspendido" en warning, bloqueo de tap en suspendidos. Inicia Realtime al cargar. |
-| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (multi-tenant + suspensión), `_reactivarNegocio()` (fast/slow path de re-apertura), `activarNegocio()`, `cambiarNegocio()`, `irAlPanelAdmin()`, `logout()`, `logoutSilent()`, `iniciarRealtimeUsuario()`, `iniciarRealtimeMembresia()`, `cerrarRealtimeUsuario()`, `handleUsuarioDesactivado()`, `getUsuarioActual()` (Preferences), `usuarioActual$` (BehaviorSubject reactivo), `negociosDisponibles` |
+| `features/auth/services/auth.service.ts` | `hasLocalSession()`, `getSession()`, `getUser()`, `validarUsuario()` (usa `fn_validar_sesion` RPC), `validarUsuarioBackground()` (fire-and-forget para fast path), `_reactivarNegocio()` (fast/slow path de re-apertura), `activarNegocio()`, `cambiarNegocio()`, `irAlPanelAdmin()`, `logout()`, `logoutSilent()`, `iniciarRealtimeUsuario()`, `iniciarRealtimeMembresia()`, `iniciarRealtimeDesdeCache()` (fast path del guard), `cerrarRealtimeUsuario()`, `handleUsuarioDesactivado()`, `getUsuarioActual()` (Preferences), `usuarioActual$` (BehaviorSubject reactivo), `negociosDisponibles` |
 | `features/auth/services/negocio.service.ts` | `getMisNegocios()` — lista de negocios del usuario autenticado (para transferencias y cambio de negocio). Incluye `negocio_activo: boolean` |
 | `features/auth/auth.routes.ts` | Rutas `/auth/login` (publicGuard), `/auth/callback`, `/auth/pending`, `/auth/seleccionar-negocio` |
 | `shared/components/sidebar/sidebar.component.ts` | Muestra datos del usuario + nombre del negocio activo, filtra items por rol, suscripción reactiva a `usuarioActual$`, logout |
 | `docs/setup/02_rls.sql` | Script SQL idempotente con TODAS las políticas RLS del proyecto, incluidas `usuarios`, `usuario_negocios`, `negocios`. Ejecutar tras cada `schema.sql` |
 | `docs/auth/sql/setup/realtime_usuarios.sql` | Publicación Realtime para tabla `usuarios` (suspensión + cambios en tiempo real) |
+| `docs/auth/sql/functions/fn_validar_sesion.sql` | Función SQL que retorna usuario + membresías en un solo round-trip. Ejecutar en Supabase. |
 | `docs/usuarios/sql/setup/realtime_usuario_negocios.sql` | Publicación Realtime para tabla `usuario_negocios` (detección de membresía desactivada en tiempo real) |
 | `docs/auth/sql/setup/trigger_proteger_superadmin.sql` | Trigger + política DELETE que blinda al superadmin contra UPDATE/DELETE accidentales |
 | `docs/setup/03_functions.sql` | Incluye `fn_set_negocio_activo`. Bloquea acceso si `usuarios.activo=false` o `negocios.activo=false` (excepto superadmin) |
@@ -665,3 +688,4 @@ Se agregó manualmente el siguiente `intent-filter` dentro del `<activity>` prin
 - **Panel de superadmin (gestión de negocios, suspensión):** [`docs/admin/ADMIN-README.md`](../admin/ADMIN-README.md)
 - **Gestión del equipo (empleados, roles):** [`docs/usuarios/USUARIOS-README.md`](../usuarios/USUARIOS-README.md)
 - **Configuración Google OAuth:** [`docs/guides/GOOGLE_OAUTH_SETUP.md`](../guides/GOOGLE_OAUTH_SETUP.md)
+- **Optimización de startup (fast path, @defer, fn_validar_sesion):** [`docs/guides/PERFORMANCE-STARTUP.md`](../guides/PERFORMANCE-STARTUP.md)

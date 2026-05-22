@@ -1,0 +1,74 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-title>Pagar al proveedor</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cerrar()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <div class="modal-content">
+
+    <!-- Resumen saldo -->
+    <div class="saldo-row">
+      <span class="saldo-label">Caja Celular disponible</span>
+      <span class="saldo-valor">${{ cajaCelularSaldo | number:'1.2-2' }}</span>
+    </div>
+
+    <!-- Toggle seleccionar todas -->
+    <div class="select-all-row">
+      <ion-checkbox
+        [checked]="todasSeleccionadas"
+        [indeterminate]="indeterminate"
+        (ionChange)="onToggleTodas($event.detail.checked)">
+      </ion-checkbox>
+      <span>Seleccionar todas ({{ deudas.length }})</span>
+    </div>
+
+    <!-- Lista de deudas -->
+    <div class="deudas-list">
+      @for (deuda of deudas; track deuda.id) {
+        <div class="deuda-item">
+          <ion-checkbox
+            [checked]="checked[deuda.id]"
+            (ionChange)="onItemChange(deuda.id, $event.detail.checked)">
+          </ion-checkbox>
+          <div class="deuda-info">
+            <span class="deuda-fecha">{{ formatearFecha(deuda.fecha) }}</span>
+            <span class="deuda-virtual">Virtual: ${{ deuda.monto_virtual | number:'1.2-2' }}</span>
+          </div>
+          <div class="deuda-monto">
+            <span class="monto-pagar">${{ deuda.monto_a_pagar | number:'1.2-2' }}</span>
+            <span class="ganancia-label">ganancia ${{ deuda.ganancia | number:'1.2-2' }}</span>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Total + alerta saldo insuficiente -->
+    <div class="total-row" [class.insuficiente]="!saldoSuficiente && algunaSeleccionada">
+      <span>Total a pagar</span>
+      <span class="total-valor">${{ totalSeleccionado | number:'1.2-2' }}</span>
+    </div>
+
+    @if (!saldoSuficiente && algunaSeleccionada) {
+      <div class="alerta-saldo">
+        <ion-icon name="card-outline"></ion-icon>
+        <p>Caja Celular no tiene fondos suficientes para pagar ${{ totalSeleccionado | number:'1.2-2' }}</p>
+      </div>
+    }
+
+    <!-- Botones -->
+    <div class="modal-actions">
+      <button class="secondary-btn" (click)="cerrar()">Cancelar</button>
+      <button class="primary-btn" [disabled]="!puedePagar" (click)="confirmar()">
+        <ion-icon name="card-outline"></ion-icon>
+        Registrar pago
+      </button>
+    </div>
+
+  </div>
+</ion-content>
