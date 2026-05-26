@@ -2,53 +2,83 @@ import { Injectable, inject } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { AuthService } from '../../auth/services/auth.service';
-import { Producto, ProductoPOS, ProductoPresentacion, ProductoTemplate, Atributo, AtributoOpcion, ProductoAtributo } from '../models/producto.model';
+import { Producto, ProductoPOS, ProductoPresentacion } from '../models/producto.model';
 import { CategoriaProducto } from '../models/categoria-producto.model';
 import { KardexInventario } from '../models/kardex.model';
+import { ProductoService } from './producto.service';
+import { PresentacionService } from './presentacion.service';
+import { AtributoService } from './atributo.service';
 
 export interface ProductoChangeEvent {
     tipo: 'CREADO' | 'ACTUALIZADO' | 'DESACTIVADO' | 'RECARGA';
     producto: Producto;
 }
 
-@Injectable({
-    providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class InventarioService {
-    private supabase = inject(SupabaseService);
-    private auth = inject(AuthService);
+    private supabase          = inject(SupabaseService);
+    private auth              = inject(AuthService);
+    private productoService   = inject(ProductoService);
+    private presentacionSvc   = inject(PresentacionService);
+    private atributoSvc       = inject(AtributoService);
 
     private productoChange$ = new Subject<ProductoChangeEvent>();
     readonly onProductoChange$ = this.productoChange$.asObservable();
+
+    constructor() {
+        // Conectar el bus de eventos a los servicios hijos para que sus
+        // mutaciones también actualicen el grid de inventario.page.
+        const emit = (e: ProductoChangeEvent) => this.productoChange$.next(e);
+        this.productoService.setChangeEmitter(emit);
+        this.presentacionSvc.setChangeEmitter(emit);
+    }
 
     emitirCambio(event: ProductoChangeEvent): void {
         this.productoChange$.next(event);
     }
 
     // ==========================================
-    // PRODUCTOS
+    // LISTADO Y BÚSQUEDA DE PRODUCTOS
     // ==========================================
 
     async obtenerProductos(buscar?: string, categoriaId?: string, templateId?: string, page = 0, pageSize = 25): Promise<Producto[]> {
         const from = page * pageSize;
-        const to = from + pageSize - 1;
-
+        const to   = from + pageSize - 1;
         const data = await this.supabase.call<Producto[]>(
             this.supabase.client.rpc('fn_listar_productos', {
-                p_buscar: buscar || null,
+                p_buscar:       buscar      || null,
                 p_categoria_id: categoriaId || null,
-                p_template_id: templateId || null,
-                p_from: from,
-                p_to: to
+                p_template_id:  templateId  || null,
+                p_from:         from,
+                p_to:           to
             })
         );
         return data || [];
     }
 
-    /**
-     * Busqueda para POS — trae presentaciones activas en el mismo query (JOIN).
-     * Permite al POS mostrar el selector de presentacion sin query extra al seleccionar.
-     */
+    async obtenerProductosDesactivados(): Promise<Producto[]> {
+        return this.productoService.obtenerProductosDesactivados();
+    }
+
+    async obtenerProductoPorId(id: string): Promise<Producto | null> {
+        return this.productoService.obtenerPorId(id);
+    }
+
+    async obtenerProductoPorCodigo(codigoBarras: string): Promise<Producto | null> {
+        const { data } = await this.supabase.client
+            .from('productos')
+            .select('*, categoria:categorias_productos(*)')
+            .eq('codigo_barras', codigoBarras)
+            .eq('activo', true)
+            .maybeSingle();
+        if (!data || !data.activo) return null;
+        return data;
+    }
+
+    // ==========================================
+    // BÚSQUEDA POS
+    // ==========================================
+
     async buscarProductosPOS(texto: string): Promise<ProductoPOS[]> {
         const { data } = await this.supabase.client
             .from('productos')
@@ -66,7 +96,6 @@ export class InventarioService {
         return (data || []) as unknown as ProductoPOS[];
     }
 
-    /** Carga productos activos para el catálogo POS, opcionalmente filtrados por categoría. */
     async obtenerProductosCatalogoPOS(categoriaId?: string): Promise<ProductoPOS[]> {
         let query = this.supabase.client
             .from('productos')
@@ -79,36 +108,12 @@ export class InventarioService {
             .eq('activo', true)
             .eq('producto_presentaciones.activo', true)
             .order('nombre');
-
-        if (categoriaId) {
-            query = query.eq('categoria_id', categoriaId);
-        }
-
+        if (categoriaId) query = query.eq('categoria_id', categoriaId);
         const { data } = await query;
         return (data || []) as unknown as ProductoPOS[];
     }
 
-    async obtenerProductoPorCodigo(codigoBarras: string): Promise<Producto | null> {
-        const { data } = await this.supabase.client
-            .from('productos')
-            .select('*, categoria:categorias_productos(*)')
-            .eq('codigo_barras', codigoBarras)
-            .eq('activo', true)
-            .maybeSingle();
-
-        if (!data || !data.activo) return null;
-        return data;
-    }
-
-    /**
-     * Busca por codigo de barras en productos Y en presentaciones.
-     * Retorna el producto base + la presentacion (si el codigo corresponde a una).
-     * Usado por el POS para resolver escaneos de cajetillas, cubetas, etc.
-     */
-    async buscarPorCodigoBarras(codigo: string): Promise<{
-        producto: ProductoPOS;
-        presentacion?: ProductoPresentacion;
-    } | null> {
+    async buscarPorCodigoBarras(codigo: string): Promise<{ producto: ProductoPOS; presentacion?: ProductoPresentacion } | null> {
         type PresRow = {
             id: string; producto_id: string; nombre: string;
             factor_conversion: number; precio_venta: number; precio_costo: number;
@@ -116,7 +121,6 @@ export class InventarioService {
             es_principal: boolean; activo: boolean; producto: ProductoPOS;
         };
 
-        // Buscar en productos y presentaciones en paralelo — el código pertenece a uno o al otro
         const [prod, pres] = await Promise.all([
             this.supabase.call<ProductoPOS>(
                 this.supabase.client
@@ -137,91 +141,22 @@ export class InventarioService {
         ]);
 
         if (prod) return { producto: prod };
-
         if (pres?.producto) {
             return {
                 producto: pres.producto,
                 presentacion: {
-                    id: pres.id,
-                    producto_id: pres.producto_id,
-                    nombre: pres.nombre,
-                    factor_conversion: pres.factor_conversion,
-                    precio_venta: pres.precio_venta,
-                    precio_costo: pres.precio_costo,
-                    codigo_barras: pres.codigo_barras ?? undefined,
-                    imagen_url: pres.imagen_url,
-                    es_principal: pres.es_principal,
-                    activo: pres.activo
+                    id: pres.id, producto_id: pres.producto_id, nombre: pres.nombre,
+                    factor_conversion: pres.factor_conversion, precio_venta: pres.precio_venta,
+                    precio_costo: pres.precio_costo, codigo_barras: pres.codigo_barras ?? undefined,
+                    imagen_url: pres.imagen_url, es_principal: pres.es_principal, activo: pres.activo
                 }
             };
         }
-
         return null;
     }
 
-    async crearProducto(producto: Partial<Producto>): Promise<Producto> {
-        const res = await this.supabase.call<Producto[]>(
-            this.supabase.client.from('productos').insert([{ ...producto, negocio_id: this.auth.usuarioActualValue?.negocio_id }]).select('*, categoria:categorias_productos(*)'),
-            'Producto creado exitosamente',
-            { showLoading: true }
-        );
-        const created = res ? res[0] : ({} as Producto);
-        if (created.id) this.productoChange$.next({ tipo: 'CREADO', producto: created });
-        return created;
-    }
-
-    async actualizarProducto(id: string, producto: Partial<Producto>): Promise<Producto> {
-        const res = await this.supabase.call<Producto[]>(
-            this.supabase.client.from('productos').update(producto).eq('id', id).select('*, categoria:categorias_productos(*), producto_template:producto_templates(*, categoria:categorias_productos(*))'),
-            'Producto actualizado exitosamente',
-            { showLoading: true }
-        );
-        const updated = res ? res[0] : ({} as Producto);
-        if (updated.id) this.productoChange$.next({ tipo: 'ACTUALIZADO', producto: updated });
-        return updated;
-    }
-
-    async desactivarProducto(id: string): Promise<void> {
-        await this.supabase.call(
-            this.supabase.client.from('productos').update({ activo: false }).eq('id', id),
-            'Producto desactivado del inventario',
-            { showLoading: true }
-        );
-        this.productoChange$.next({ tipo: 'DESACTIVADO', producto: { id } as Producto });
-    }
-
-    async reactivarProducto(id: string): Promise<Producto> {
-        const res = await this.supabase.call<Producto[]>(
-            this.supabase.client.from('productos').update({ activo: true }).eq('id', id).select('*, categoria:categorias_productos(*), producto_template:producto_templates(*, categoria:categorias_productos(*))'),
-            'Producto reactivado exitosamente',
-            { showLoading: true }
-        );
-        const updated = res ? res[0] : ({} as Producto);
-        if (updated.id) this.productoChange$.next({ tipo: 'ACTUALIZADO', producto: updated });
-        return updated;
-    }
-
-    async obtenerProductosDesactivados(): Promise<Producto[]> {
-        const { data } = await this.supabase.client
-            .from('productos')
-            .select('*, categoria:categorias_productos(*)')
-            .eq('activo', false)
-            .order('nombre');
-        return data || [];
-    }
-
-    async obtenerProductoPorId(id: string): Promise<Producto | null> {
-        const { data } = await this.supabase.client
-            .from('productos')
-            .select('*, categoria:categorias_productos(*), producto_template:producto_templates(id, nombre, categoria_id, tipo_venta, unidad_medida, imagen_url, activo), presentaciones:producto_presentaciones(id)')
-            .eq('id', id)
-            .eq('producto_presentaciones.activo', true)
-            .maybeSingle();
-        return data;
-    }
-
     // ==========================================
-    // CATEGORIAS
+    // CATEGORÍAS
     // ==========================================
 
     async obtenerCategorias(): Promise<CategoriaProducto[]> {
@@ -233,7 +168,10 @@ export class InventarioService {
 
     async crearCategoria(nombre: string): Promise<CategoriaProducto | null> {
         const res = await this.supabase.call<CategoriaProducto[]>(
-            this.supabase.client.from('categorias_productos').insert({ nombre, negocio_id: this.auth.usuarioActualValue?.negocio_id }).select(),
+            this.supabase.client
+                .from('categorias_productos')
+                .insert({ nombre, negocio_id: this.auth.usuarioActualValue?.negocio_id })
+                .select(),
             'Categoría creada',
             { showLoading: true }
         );
@@ -250,21 +188,10 @@ export class InventarioService {
 
     async contarProductosPorCategoria(categoriaId: string): Promise<{ activos: number; inactivos: number }> {
         const [activosRes, inactivosRes] = await Promise.all([
-            this.supabase.client
-                .from('productos')
-                .select('*', { count: 'exact', head: true })
-                .eq('categoria_id', categoriaId)
-                .eq('activo', true),
-            this.supabase.client
-                .from('productos')
-                .select('*', { count: 'exact', head: true })
-                .eq('categoria_id', categoriaId)
-                .eq('activo', false)
+            this.supabase.client.from('productos').select('*', { count: 'exact', head: true }).eq('categoria_id', categoriaId).eq('activo', true),
+            this.supabase.client.from('productos').select('*', { count: 'exact', head: true }).eq('categoria_id', categoriaId).eq('activo', false),
         ]);
-        return {
-            activos: activosRes.count || 0,
-            inactivos: inactivosRes.count || 0
-        };
+        return { activos: activosRes.count || 0, inactivos: inactivosRes.count || 0 };
     }
 
     async desactivarCategoria(id: string): Promise<void> {
@@ -276,7 +203,7 @@ export class InventarioService {
     }
 
     // ==========================================
-    // KARDEX
+    // KARDEX Y STOCK
     // ==========================================
 
     async obtenerKardexProducto(productoId: string, limit = 100): Promise<KardexInventario[]> {
@@ -303,309 +230,123 @@ export class InventarioService {
     async ajustarStock(productoId: string, tipoMovimiento: string, cantidad: number, observaciones: string): Promise<{ stock_nuevo: number }> {
         const res = await this.supabase.call<{ stock_nuevo: number }>(
             this.supabase.client.rpc('fn_ajustar_stock_inventario', {
-                p_producto_id: productoId,
+                p_producto_id:    productoId,
                 p_tipo_movimiento: tipoMovimiento,
-                p_cantidad: cantidad,
-                p_observaciones: observaciones
+                p_cantidad:       cantidad,
+                p_observaciones:  observaciones
             }),
             'Stock ajustado correctamente',
             { showLoading: true }
         );
         const resultado = res || { stock_nuevo: 0 };
-
-        // Refrescar el producto en el grid de inventario
-        const productoActualizado = await this.obtenerProductoPorId(productoId);
-        if (productoActualizado) {
-            this.productoChange$.next({ tipo: 'ACTUALIZADO', producto: productoActualizado });
-        }
-
+        const productoActualizado = await this.productoService.obtenerPorId(productoId);
+        if (productoActualizado) this.productoChange$.next({ tipo: 'ACTUALIZADO', producto: productoActualizado });
         return resultado;
     }
 
     // ==========================================
-    // PRESENTACIONES
+    // DELEGADOS — mantienen retrocompatibilidad
+    // con los consumidores actuales mientras no
+    // se migren a los servicios específicos.
     // ==========================================
 
-    async obtenerPresentaciones(productoId: string): Promise<ProductoPresentacion[]> {
-        const { data } = await this.supabase.client
-            .from('producto_presentaciones')
-            .select('*')
-            .eq('producto_id', productoId)
-            .eq('activo', true)
-            .order('factor_conversion');
-        return data || [];
+    /** @deprecated Usar ProductoService.actualizar() */
+    async actualizarProducto(id: string, producto: Partial<Producto>): Promise<Producto> {
+        return this.productoService.actualizar(id, producto);
     }
 
-    async crearPresentacion(presentacion: Partial<ProductoPresentacion>, silencioso = false): Promise<ProductoPresentacion> {
-        const res = await this.supabase.call<ProductoPresentacion[]>(
-            this.supabase.client.from('producto_presentaciones').insert([{ ...presentacion, negocio_id: this.auth.usuarioActualValue?.negocio_id }]).select(),
-            silencioso ? undefined : 'Presentación creada',
-            silencioso ? undefined : { showLoading: true }
-        );
-        const creada = res ? res[0] : ({} as ProductoPresentacion);
-        if (creada?.producto_id) await this.emitirCambioPorPresentacion(creada.producto_id);
-        return creada;
+    /** @deprecated Usar ProductoService.desactivar() */
+    async desactivarProducto(id: string): Promise<void> {
+        return this.productoService.desactivar(id);
     }
 
-    async actualizarPresentacion(id: string, presentacion: Partial<ProductoPresentacion>): Promise<void> {
-        const res = await this.supabase.call<ProductoPresentacion[]>(
-            this.supabase.client.from('producto_presentaciones').update(presentacion).eq('id', id).select(),
-            'Presentación actualizada',
-            { showLoading: true }
-        );
-        const productoId = res?.[0]?.producto_id;
-        if (productoId) await this.emitirCambioPorPresentacion(productoId);
+    /** @deprecated Usar ProductoService.reactivar() */
+    async reactivarProducto(id: string): Promise<Producto> {
+        return this.productoService.reactivar(id);
     }
 
-    async desactivarPresentacion(id: string): Promise<void> {
-        const res = await this.supabase.call<ProductoPresentacion[]>(
-            this.supabase.client.from('producto_presentaciones').update({ activo: false }).eq('id', id).select(),
-            'Presentación quitada',
-            { showLoading: true }
-        );
-        const productoId = res?.[0]?.producto_id;
-        if (productoId) await this.emitirCambioPorPresentacion(productoId);
+    /** @deprecated Usar ProductoService.crearSimple() */
+    async crearProductoSimple(params: Parameters<ProductoService['crearSimple']>[0]): Promise<{ ok: boolean; producto_id?: string }> {
+        return this.productoService.crearSimple(params);
     }
 
-    async obtenerPresentacionesInactivas(productoId: string): Promise<ProductoPresentacion[]> {
-        const { data } = await this.supabase.client
-            .from('producto_presentaciones')
-            .select('*')
-            .eq('producto_id', productoId)
-            .eq('activo', false)
-            .order('factor_conversion');
-        return data || [];
+    /** @deprecated Usar ProductoService.crearConVariantes() */
+    async crearProductoConVariantes(params: Parameters<ProductoService['crearConVariantes']>[0]): Promise<{ ok: boolean; template_id?: string; skus_creados?: number }> {
+        return this.productoService.crearConVariantes(params);
     }
 
-    async reactivarPresentacion(id: string): Promise<void> {
-        const res = await this.supabase.call<ProductoPresentacion[]>(
-            this.supabase.client.from('producto_presentaciones').update({ activo: true }).eq('id', id).select(),
-            'Presentación reactivada',
-            { showLoading: true }
-        );
-        const productoId = res?.[0]?.producto_id;
-        if (productoId) await this.emitirCambioPorPresentacion(productoId);
+    /** @deprecated Usar ProductoService.obtenerTemplatePorId() */
+    async obtenerTemplatePorId(id: string) {
+        return this.productoService.obtenerTemplatePorId(id);
     }
 
-    private async emitirCambioPorPresentacion(productoId: string): Promise<void> {
-        const producto = await this.obtenerProductoPorId(productoId);
-        if (producto) this.productoChange$.next({ tipo: 'ACTUALIZADO', producto });
+    /** @deprecated Usar ProductoService.obtenerSKUsDelTemplate() */
+    async obtenerSKUsDelTemplate(templateId: string, excluirProductoId?: string) {
+        return this.productoService.obtenerSKUsDelTemplate(templateId, excluirProductoId);
     }
 
-    // ==========================================
-    // TEMPLATES DE PRODUCTO (v10)
-    // ==========================================
-
-    async obtenerTemplatePorId(id: string): Promise<ProductoTemplate | null> {
-        const data = await this.supabase.call<ProductoTemplate>(
-            this.supabase.client
-                .from('producto_templates')
-                .select('*, categoria:categorias_productos(*)')
-                .eq('id', id)
-                .single()
-        );
-        return data;
+    /** @deprecated Usar PresentacionService.obtenerPresentaciones() */
+    async obtenerPresentaciones(productoId: string) {
+        return this.presentacionSvc.obtenerPresentaciones(productoId);
     }
 
-    async obtenerSKUsDelTemplate(templateId: string, excluirProductoId?: string): Promise<Producto[]> {
-        let query = this.supabase.client
-            .from('productos')
-            .select('id, nombre, stock_actual, precio_venta, codigo_barras, imagen_url')
-            .eq('producto_template_id', templateId)
-            .eq('activo', true)
-            .order('nombre');
-        if (excluirProductoId) query = query.neq('id', excluirProductoId);
-        const { data } = await query;
-        return (data || []) as Producto[];
+    /** @deprecated Usar PresentacionService.obtenerPresentacionesInactivas() */
+    async obtenerPresentacionesInactivas(productoId: string) {
+        return this.presentacionSvc.obtenerPresentacionesInactivas(productoId);
     }
 
-    // ==========================================
-    // ATRIBUTOS (v10)
-    // ==========================================
-
-    /** Busca atributos por nombre (autocompletado: "SABOR", "COLOR", etc.) */
-    async buscarAtributos(texto: string): Promise<Atributo[]> {
-        const data = await this.supabase.call<Atributo[]>(
-            this.supabase.client
-                .from('atributos')
-                .select('*')
-                .ilike('nombre', `%${texto}%`)
-                .order('nombre')
-                .limit(5)
-        );
-        return data || [];
+    /** @deprecated Usar PresentacionService.crearPresentacion() */
+    async crearPresentacion(presentacion: Partial<ProductoPresentacion>, silencioso = false) {
+        return this.presentacionSvc.crearPresentacion(presentacion, silencioso);
     }
 
-    /** Crea el atributo si no existe, o devuelve el existente. Upsert silencioso. */
-    async crearOObtenerAtributo(nombre: string): Promise<Atributo | null> {
-        const nombreNorm = nombre.toUpperCase().trim();
-        const negocioId = this.auth.usuarioActualValue?.negocio_id;
-        await this.supabase.call(
-            this.supabase.client
-                .from('atributos')
-                .upsert({ negocio_id: negocioId, nombre: nombreNorm }, { onConflict: 'negocio_id,nombre', ignoreDuplicates: true })
-        );
-        const data = await this.supabase.call<Atributo>(
-            this.supabase.client.from('atributos').select('*').eq('nombre', nombreNorm).single()
-        );
-        return data;
+    /** @deprecated Usar PresentacionService.actualizarPresentacion() */
+    async actualizarPresentacion(id: string, presentacion: Partial<ProductoPresentacion>) {
+        return this.presentacionSvc.actualizarPresentacion(id, presentacion);
     }
 
-    /** Busca opciones de un atributo (autocompletado de valores) */
-    async buscarOpcionesAtributo(atributoId: string, texto?: string): Promise<AtributoOpcion[]> {
-        let query = this.supabase.client
-            .from('atributo_opciones')
-            .select('*, atributo:atributos(*)')
-            .eq('atributo_id', atributoId)
-            .order('valor')
-            .limit(10);
-        if (texto) query = query.ilike('valor', `%${texto}%`);
-        const data = await this.supabase.call<AtributoOpcion[]>(query);
-        return data || [];
+    /** @deprecated Usar PresentacionService.desactivarPresentacion() */
+    async desactivarPresentacion(id: string) {
+        return this.presentacionSvc.desactivarPresentacion(id);
     }
 
-    /** Obtiene TODAS las opciones de un atributo (para mostrar chips seleccionables) */
-    async obtenerOpcionesAtributo(atributoId: string): Promise<AtributoOpcion[]> {
-        const data = await this.supabase.call<AtributoOpcion[]>(
-            this.supabase.client
-                .from('atributo_opciones')
-                .select('*, atributo:atributos(*)')
-                .eq('atributo_id', atributoId)
-                .order('valor')
-        );
-        return data || [];
+    /** @deprecated Usar PresentacionService.reactivarPresentacion() */
+    async reactivarPresentacion(id: string) {
+        return this.presentacionSvc.reactivarPresentacion(id);
     }
 
-    /** Crea la opcion si no existe, o devuelve la existente. */
-    async crearOObtenerOpcionAtributo(atributoId: string, valor: string): Promise<AtributoOpcion | null> {
-        const valorNorm = valor.toUpperCase().trim();
-        const negocioId = this.auth.usuarioActualValue?.negocio_id;
-        await this.supabase.call(
-            this.supabase.client
-                .from('atributo_opciones')
-                .upsert(
-                    { negocio_id: negocioId, atributo_id: atributoId, valor: valorNorm },
-                    { onConflict: 'atributo_id,valor', ignoreDuplicates: true }
-                )
-        );
-        const data = await this.supabase.call<AtributoOpcion>(
-            this.supabase.client
-                .from('atributo_opciones')
-                .select('*, atributo:atributos(*)')
-                .eq('atributo_id', atributoId)
-                .eq('valor', valorNorm)
-                .single()
-        );
-        return data;
+    /** @deprecated Usar AtributoService */
+    async buscarAtributos(texto: string) {
+        return this.atributoSvc.buscarAtributos(texto);
     }
 
-    /** Obtiene todos los atributos de un producto (para mostrar en form y tarjeta) */
-    async obtenerAtributosProducto(productoId: string): Promise<ProductoAtributo[]> {
-        const data = await this.supabase.call<ProductoAtributo[]>(
-            this.supabase.client
-                .from('producto_atributos')
-                .select('*, atributo_opcion:atributo_opciones(*, atributo:atributos(*))')
-                .eq('producto_id', productoId)
-        );
-        return data || [];
+    /** @deprecated Usar AtributoService */
+    async crearOObtenerAtributo(nombre: string) {
+        return this.atributoSvc.crearOObtenerAtributo(nombre);
     }
 
-    /** Reemplaza TODOS los atributos de un producto (delete + insert) */
-    async guardarAtributosProducto(productoId: string, opcionIds: string[]): Promise<void> {
-        // Borrar los existentes
-        await this.supabase.client
-            .from('producto_atributos')
-            .delete()
-            .eq('producto_id', productoId);
-        // Insertar los nuevos (si hay)
-        if (opcionIds.length === 0) return;
-        const rows = opcionIds.map(id => ({ producto_id: productoId, atributo_opcion_id: id }));
-        await this.supabase.call(
-            this.supabase.client.from('producto_atributos').insert(rows)
-        );
+    /** @deprecated Usar AtributoService */
+    async buscarOpcionesAtributo(atributoId: string, texto?: string) {
+        return this.atributoSvc.buscarOpcionesAtributo(atributoId, texto);
     }
 
-    // ==========================================
-    // CREACION ATOMICA DE PRODUCTO (RPC)
-    // ==========================================
-
-    /**
-     * Crea un producto simple (sin variantes) via RPC atomica.
-     * Incluye presentaciones opcionales.
-     */
-    async crearProductoSimple(params: {
-        nombre: string;
-        categoria_id: string;
-        tiene_iva: boolean;
-        tipo_venta: string;
-        unidad_medida: string;
-        codigo_barras?: string;
-        imagen_url?: string;
-        precio_costo: number;
-        precio_venta: number;
-        stock_actual: number;
-        stock_minimo: number;
-        presentaciones?: { nombre: string; factor_conversion: number; precio_venta: number; precio_costo: number; codigo_barras?: string; imagen_url?: string }[];
-    }): Promise<{ ok: boolean; producto_id?: string }> {
-        const res = await this.supabase.call<{ ok: boolean; producto_id?: string }>(
-            this.supabase.client.rpc('fn_crear_producto_simple', {
-                p_nombre: params.nombre,
-                p_categoria_id: params.categoria_id,
-                p_tiene_iva: params.tiene_iva,
-                p_tipo_venta: params.tipo_venta,
-                p_unidad_medida: params.unidad_medida,
-                p_codigo_barras: params.codigo_barras || null,
-                p_imagen_url: params.imagen_url || null,
-                p_precio_costo: params.precio_costo,
-                p_precio_venta: params.precio_venta,
-                p_stock_actual: params.stock_actual,
-                p_stock_minimo: params.stock_minimo,
-                p_presentaciones: params.presentaciones || []
-            }),
-            'Producto creado exitosamente',
-            { showLoading: true }
-        );
-        const result = res || { ok: false };
-        if (result.ok && result.producto_id) {
-            const producto = await this.obtenerProductoPorId(result.producto_id);
-            if (producto) this.productoChange$.next({ tipo: 'CREADO', producto });
-        }
-        return result;
+    /** @deprecated Usar AtributoService */
+    async obtenerOpcionesAtributo(atributoId: string) {
+        return this.atributoSvc.obtenerOpcionesAtributo(atributoId);
     }
 
-    /**
-     * Crea un producto con variantes via RPC atomica.
-     * Crea template + atributos + SKUs + presentaciones por SKU.
-     */
-    async crearProductoConVariantes(params: {
-        nombre: string;
-        categoria_id: string;
-        tiene_iva: boolean;
-        tipo_venta: string;
-        unidad_medida: string;
-        imagen_url?: string;
-        atributos_template: { atributo_nombre: string; opcion_ids: string[] }[];
-        variantes: { nombre: string; precio_costo: number; precio_venta: number; stock_actual: number; stock_minimo: number; opcion_ids: string[]; codigo_barras?: string | null; imagen_url?: string | null; presentaciones?: { nombre: string; factor_conversion: number; precio_venta: number; precio_costo: number; codigo_barras?: string; imagen_url?: string }[] }[];
-    }): Promise<{ ok: boolean; template_id?: string; skus_creados?: number }> {
-        const res = await this.supabase.call<{ ok: boolean; template_id?: string; skus_creados?: number }>(
-            this.supabase.client.rpc('fn_crear_producto_con_variantes', {
-                p_nombre: params.nombre,
-                p_categoria_id: params.categoria_id,
-                p_tiene_iva: params.tiene_iva,
-                p_tipo_venta: params.tipo_venta,
-                p_unidad_medida: params.unidad_medida,
-                p_imagen_url: params.imagen_url || null,
-                p_atributos_template: params.atributos_template,
-                p_variantes: params.variantes
-            }),
-            `${params.variantes.length} variantes creadas`,
-            { showLoading: true }
-        );
-        const result = res || { ok: false };
-        if (result.ok) {
-            this.productoChange$.next({ tipo: 'RECARGA', producto: {} as Producto });
-        }
-        return result;
+    /** @deprecated Usar AtributoService */
+    async crearOObtenerOpcionAtributo(atributoId: string, valor: string) {
+        return this.atributoSvc.crearOObtenerOpcionAtributo(atributoId, valor);
     }
 
+    /** @deprecated Usar AtributoService */
+    async obtenerAtributosProducto(productoId: string) {
+        return this.atributoSvc.obtenerAtributosProducto(productoId);
+    }
+
+    /** @deprecated Usar AtributoService */
+    async guardarAtributosProducto(productoId: string, opcionIds: string[]) {
+        return this.atributoSvc.guardarAtributosProducto(productoId, opcionIds);
+    }
 }

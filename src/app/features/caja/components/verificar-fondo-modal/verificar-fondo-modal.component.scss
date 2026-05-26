@@ -1,312 +1,281 @@
-ion-header {
-  &::after { display: none; }
+// ── Ícono del header — verde por defecto (abrir caja) ───────────────────────
+.bs-header__icon {
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    ion-icon { color: var(--ion-color-success); }
+
+    // Paso 1 con déficit → primary (coherente con la paleta)
+    &--warning {
+        background: rgba(var(--ion-color-primary-rgb), 0.1);
+        ion-icon { color: var(--ion-color-primary); }
+    }
 }
 
-ion-toolbar {
-  --border-width: 0 !important;
+// ── Subtítulo del header ─────────────────────────────────────────────────────
+.vfm-header-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
-ion-content {
-  --background: var(--ion-background-color);
+.vfm-header-subtitle {
+    font-size: 12px;
+    color: var(--app-text-soft);
 }
 
-.modal-content {
-  padding: var(--spacing-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-lg);
+// ── Stepper ──────────────────────────────────────────────────────────────────
+.vfm-stepper {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 8px;
 }
 
-// ── Indicador de pasos ───────────────────────────────────────────────────────
+.vfm-stepper-track {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
 
-.paso-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-sm) var(--spacing-2xl) 0;
-
-  .paso-dot {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-full);
-    background: var(--ion-color-step-100);
-    border: 2px solid var(--ion-color-step-300);
+.vfm-stepper-node {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--app-surface-tint);
+    border: 2px solid var(--app-divider);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: var(--font-weight-bold);
-    color: var(--ion-color-step-400);
+    color: var(--app-text-muted);
     flex-shrink: 0;
     transition: all var(--transition-slow);
 
-    ion-icon { font-size: 18px; }
+    ion-icon { font-size: 15px; }
 
-    &.activo {
-      background: var(--ion-color-warning);
-      border-color: var(--ion-color-warning);
-      color: var(--ion-color-warning-contrast);
+    &.active {
+        background: var(--ion-color-primary);
+        border-color: var(--ion-color-primary);
+        color: var(--ion-color-primary-contrast);
     }
 
-    &.completado {
-      background: var(--ion-color-success);
-      border-color: var(--ion-color-success);
-      color: var(--ion-color-success-contrast);
+    &.done {
+        background: rgba(var(--ion-color-primary-rgb), 0.15);
+        border-color: var(--ion-color-primary);
+        color: var(--ion-color-primary);
     }
-  }
+}
 
-  .paso-linea {
+.vfm-stepper-line {
     flex: 1;
     height: 2px;
-    background: var(--ion-color-step-150);
+    background: var(--app-divider);
     max-width: 80px;
     transition: background var(--transition-slow);
 
-    &.completada { background: var(--ion-color-success); }
-  }
+    &.done { background: var(--ion-color-primary); }
 }
 
-.paso-labels {
-  display: flex;
-  justify-content: space-around;
-  padding: var(--spacing-xs) var(--spacing-sm) 0;
-
-  span {
-    font-size: 11px;
-    color: var(--ion-color-medium);
-    transition: color var(--transition-slow);
-
-    &.activo { color: var(--ion-color-warning-shade); font-weight: var(--font-weight-semibold); }
-    &.completado { color: var(--ion-color-success); font-weight: var(--font-weight-semibold); }
-  }
-}
-
-// ── Section card ─────────────────────────────────────────────────────────────
-
-.section-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xl);
-  padding: var(--spacing-xl);
-  background: var(--ion-item-background);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-level-1);
-}
-
-// ── Paso 1: Deficit ──────────────────────────────────────────────────────────
-
-.deficit-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--spacing-xs);
-
-  .deficit-icon-grande {
-    font-size: 40px;
-    color: var(--ion-color-warning);
-  }
-
-  .deficit-titulo {
-    font-size: 17px;
-    font-weight: var(--font-weight-bold);
-    color: var(--ion-text-color);
-    margin: 0;
-  }
-
-  .deficit-subtitulo {
-    font-size: 13px;
-    color: var(--ion-color-medium);
-    margin: 0;
-  }
-}
-
-.instrucciones-pasos {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.instruccion-paso {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--ion-color-step-50);
-  border-radius: var(--radius-sm);
-
-  .paso-numero {
-    width: 22px;
-    height: 22px;
-    border-radius: var(--radius-full);
-    background: var(--ion-color-warning);
-    color: var(--ion-color-warning-contrast);
-    font-size: 12px;
-    font-weight: var(--font-weight-bold);
+.vfm-stepper-labels {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-top: 1px;
-  }
+    justify-content: space-between;
+    padding: 0 2px;
 
-  p {
-    font-size: 14px;
-    color: var(--ion-text-color);
-    margin: 0;
-    line-height: 1.4;
-  }
+    span {
+        font-size: 11px;
+        color: var(--app-text-muted);
+        font-weight: var(--font-weight-medium);
+        transition: color var(--transition-slow);
+
+        &.active {
+            color: var(--ion-color-primary);
+            font-weight: var(--font-weight-semibold);
+        }
+
+        &.done {
+            color: var(--ion-color-primary);
+            font-weight: var(--font-weight-semibold);
+        }
+    }
 }
 
-// ── Error banner ─────────────────────────────────────────────────────────────
-
-.error-banner {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: rgba(var(--ion-color-danger-rgb), 0.08);
-  border: 1px solid var(--ion-color-danger);
-  border-radius: var(--radius-xs);
-  font-size: 13px;
-  color: var(--ion-color-danger);
-
-  ion-icon { font-size: 18px; flex-shrink: 0; }
-}
-
-// ── Repuesto OK (paso 2 con deficit) ─────────────────────────────────────────
-
-.repuesto-ok {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: rgba(var(--ion-color-success-rgb), 0.08);
-  border: 1px solid rgba(var(--ion-color-success-rgb), 0.3);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  color: var(--ion-color-medium);
-
-  > ion-icon {
-    font-size: 20px;
-    color: var(--ion-color-success);
-    flex-shrink: 0;
-  }
-
-  strong { color: var(--ion-text-color); }
-}
-
-// ── Fondo display ────────────────────────────────────────────────────────────
-
-.fondo-display {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-lg) var(--spacing-xl);
-  background: var(--ion-color-step-50);
-  border-radius: var(--radius-sm);
-
-  .fondo-icon-wrapper {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
-    background: rgba(var(--ion-color-success-rgb), 0.12);
-    color: var(--ion-color-success);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    flex-shrink: 0;
-  }
-
-  .fondo-info {
+// ── Lista de instrucciones ───────────────────────────────────────────────────
+.vfm-instructions {
     display: flex;
     flex-direction: column;
+    gap: 8px;
+}
 
-    .fondo-label {
-      font-size: 12px;
-      color: var(--ion-color-medium);
+.vfm-instruction-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--app-surface-tint);
+    border-radius: var(--radius-sm);
+
+    .vfm-instruction-num {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: transparent;
+        border: 1.5px solid var(--app-divider);
+        color: var(--app-text-soft);
+        font-size: 11px;
+        font-weight: var(--font-weight-bold);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
     }
 
-    .fondo-value {
-      font-size: 26px;
-      font-weight: var(--font-weight-bold);
-      color: var(--ion-text-color);
-      line-height: 1.1;
+    .vfm-instruction-text {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        font-size: 14px;
+        color: var(--app-text);
+        line-height: 1.4;
+
+        strong { font-weight: var(--font-weight-bold); }
     }
-  }
 }
 
-// ── Checkbox ─────────────────────────────────────────────────────────────────
+.vfm-instruction-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.2px;
 
-.confirm-row {
-  ion-checkbox {
-    --size: 20px;
-    width: 100%;
-    font-size: 14px;
-  }
+    &--primary {
+        background: rgba(var(--ion-color-primary-rgb), 0.1);
+        color: var(--ion-color-primary-shade);
+    }
+
+    &--tertiary {
+        background: rgba(var(--ion-color-tertiary-rgb), 0.12);
+        color: var(--ion-color-tertiary-shade);
+    }
+
+    &--success {
+        background: rgba(var(--ion-color-success-rgb), 0.1);
+        color: var(--ion-color-success-shade);
+    }
 }
 
-// ── Botones ──────────────────────────────────────────────────────────────────
+// ── Banners ──────────────────────────────────────────────────────────────────
+.vfm-error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: rgba(var(--ion-color-danger-rgb), 0.07);
+    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.25);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--ion-color-danger-shade);
 
-.actions-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
+    ion-icon { font-size: 18px; flex-shrink: 0; }
 }
 
-.primary-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-lg);
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 15px;
-  font-weight: var(--font-weight-bold);
-  cursor: pointer;
-  transition: all var(--transition-fast);
+.vfm-ok-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    background: rgba(var(--ion-color-primary-rgb), 0.06);
+    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.18);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--app-text-soft);
+    line-height: 1.4;
 
-  ion-icon { font-size: 20px; }
+    ion-icon {
+        font-size: 18px;
+        color: var(--ion-color-primary);
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
 
-  &:active { transform: scale(0.98); }
-
-  &:disabled {
-    opacity: var(--opacity-disabled);
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  &.success {
-    background: var(--ion-color-success);
-    color: var(--ion-color-success-contrast);
-    box-shadow: var(--shadow-level-2);
-  }
-
-  &.warning {
-    background: var(--ion-color-warning);
-    color: var(--ion-color-warning-contrast);
-    box-shadow: var(--shadow-level-2);
-  }
+    strong { color: var(--app-text); font-weight: var(--font-weight-semibold); }
 }
 
-.secondary-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-md);
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  font-size: 14px;
-  font-weight: var(--font-weight-medium);
-  color: var(--ion-color-medium);
-  cursor: pointer;
+// ── Card fondo del cajón ─────────────────────────────────────────────────────
+.vfm-fondo-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: var(--app-surface-tint);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--app-divider);
+}
 
-  &:active {
-    background: var(--ion-color-step-100);
-  }
+.vfm-fondo-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.vfm-fondo-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    color: var(--ion-color-success);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+.vfm-fondo-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    .vfm-fondo-label {
+        font-size: 11px;
+        font-weight: var(--font-weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: var(--app-text-soft);
+    }
+
+    .vfm-fondo-value {
+        font-size: 28px;
+        font-weight: var(--font-weight-extrabold);
+        color: var(--app-text);
+        line-height: 1.1;
+        letter-spacing: -1px;
+    }
+}
+
+.vfm-fondo-badge {
+    font-size: 11px;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--ion-color-success-shade);
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+}
+
+// ── Checkbox de confirmación ─────────────────────────────────────────────────
+.vfm-confirm-row {
+    ion-checkbox {
+        --size: 20px;
+        width: 100%;
+        font-size: 14px;
+        color: var(--app-text);
+        --checkbox-background-checked: var(--ion-color-success);
+        --border-color-checked: var(--ion-color-success);
+    }
 }

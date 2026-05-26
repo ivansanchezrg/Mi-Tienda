@@ -1,83 +1,89 @@
-<div class="modal-wrapper">
+<div class="bs-root">
 
-    <div class="modal-header">
-        <div class="modal-header-icon">
+    <div class="bs-header">
+        <div class="bs-header__icon">
             @if (esIngreso) {
                 <ion-icon name="trending-up-outline"></ion-icon>
             } @else {
                 <ion-icon name="remove-outline"></ion-icon>
             }
         </div>
-        <span class="modal-header-title">Ajuste de Stock</span>
-        <button class="modal-close-btn" (click)="cerrar()">
+        <span class="bs-header__title">Ajuste de Stock</span>
+        <button class="bs-header__close" (click)="cerrar()">
             <ion-icon name="close-outline"></ion-icon>
         </button>
     </div>
 
-    <!-- Selector de tipo -->
-    <div class="tipo-selector">
-        <button class="tipo-btn" [class.active]="tipoAjuste === 'COMPRA'"
-            [class.ingreso]="tipoAjuste === 'COMPRA'"
-            (click)="seleccionarTipo('COMPRA')">
-            @if (tipoAjuste === 'COMPRA') {
-                <ion-icon name="trending-up-outline"></ion-icon>
-            } @else {
-                <ion-icon name="trending-up-outline"></ion-icon>
+    <div class="bs-content">
+        <div class="bs-body">
+
+            <!-- Selector de tipo -->
+            <div class="tipo-selector">
+                <button class="tipo-btn" [class.active]="tipoAjuste === 'COMPRA'"
+                    [class.ingreso]="tipoAjuste === 'COMPRA'"
+                    (click)="seleccionarTipo('COMPRA')">
+                    @if (tipoAjuste === 'COMPRA') {
+                        <ion-icon name="trending-up-outline"></ion-icon>
+                    } @else {
+                        <ion-icon name="trending-up-outline"></ion-icon>
+                    }
+                    Compra
+                </button>
+                <button class="tipo-btn" [class.active]="tipoAjuste === 'AJUSTE_POSITIVO'"
+                    [class.ingreso]="tipoAjuste === 'AJUSTE_POSITIVO'"
+                    (click)="seleccionarTipo('AJUSTE_POSITIVO')">
+                    <ion-icon name="add-outline"></ion-icon>
+                    Ajuste +
+                </button>
+                <button class="tipo-btn" [class.active]="tipoAjuste === 'AJUSTE_NEGATIVO'"
+                    [class.egreso]="tipoAjuste === 'AJUSTE_NEGATIVO'"
+                    (click)="seleccionarTipo('AJUSTE_NEGATIVO')">
+                    <ion-icon name="remove-outline"></ion-icon>
+                    Ajuste -
+                </button>
+            </div>
+
+            <!-- Cantidad -->
+            <div class="campo">
+                <label class="campo-label">Cantidad *</label>
+                <ion-item class="campo-ion-input flat-item" lines="none">
+                    <ion-input
+                        [(ngModel)]="cantidad"
+                        type="number"
+                        [inputmode]="esPeso ? 'decimal' : 'numeric'"
+                        [min]="esPeso ? 0.001 : 1"
+                        [step]="esPeso ? 0.001 : 1"
+                        [placeholder]="esPeso ? 'Ej. 2.5 ' + unidadMedida : 'Ej. 10'">
+                    </ion-input>
+                    @if (unidadMedida !== 'und') {
+                        <span slot="end" class="campo-unidad">{{ unidadMedida }}</span>
+                    }
+                </ion-item>
+            </div>
+
+            <!-- Observaciones -->
+            <div class="campo">
+                <label class="campo-label">Observaciones *</label>
+                <textarea class="campo-textarea" [(ngModel)]="observaciones"
+                    rows="2" placeholder="Ej. Llegó pedido proveedor, producto dañado..."></textarea>
+            </div>
+
+            <!-- Preview -->
+            @if (cantidad && cantidad > 0) {
+            <div class="preview-resultado" [class.ingreso]="esIngreso" [class.egreso]="!esIngreso">
+                <span class="preview-antes">{{ stockActual }}{{ esPeso ? ' ' + unidadMedida : '' }}</span>
+                <ion-icon [name]="esIngreso ? 'add-outline' : 'remove-outline'" class="preview-op"></ion-icon>
+                <span class="preview-delta">{{ cantidad }}{{ esPeso ? ' ' + unidadMedida : '' }}</span>
+                <span class="preview-sep">=</span>
+                <span class="preview-resultado-valor">{{ stockResultante }}{{ esPeso ? ' ' + unidadMedida : '' }}</span>
+            </div>
             }
-            Compra
-        </button>
-        <button class="tipo-btn" [class.active]="tipoAjuste === 'AJUSTE_POSITIVO'"
-            [class.ingreso]="tipoAjuste === 'AJUSTE_POSITIVO'"
-            (click)="seleccionarTipo('AJUSTE_POSITIVO')">
-            <ion-icon name="add-outline"></ion-icon>
-            Ajuste +
-        </button>
-        <button class="tipo-btn" [class.active]="tipoAjuste === 'AJUSTE_NEGATIVO'"
-            [class.egreso]="tipoAjuste === 'AJUSTE_NEGATIVO'"
-            (click)="seleccionarTipo('AJUSTE_NEGATIVO')">
-            <ion-icon name="remove-outline"></ion-icon>
-            Ajuste -
-        </button>
-    </div>
 
-    <!-- Cantidad -->
-    <div class="campo">
-        <label class="campo-label">Cantidad *</label>
-        <ion-item class="campo-ion-input flat-item" lines="none">
-            <ion-input
-                [(ngModel)]="cantidad"
-                type="number"
-                [inputmode]="esPeso ? 'decimal' : 'numeric'"
-                [min]="esPeso ? 0.001 : 1"
-                [step]="esPeso ? 0.001 : 1"
-                [placeholder]="esPeso ? 'Ej. 2.5 ' + unidadMedida : 'Ej. 10'">
-            </ion-input>
-            @if (unidadMedida !== 'und') {
-                <span slot="end" class="campo-unidad">{{ unidadMedida }}</span>
-            }
-        </ion-item>
+        </div>
     </div>
-
-    <!-- Observaciones -->
-    <div class="campo">
-        <label class="campo-label">Observaciones *</label>
-        <textarea class="campo-textarea" [(ngModel)]="observaciones"
-            rows="2" placeholder="Ej. Llegó pedido proveedor, producto dañado..."></textarea>
-    </div>
-
-    <!-- Preview -->
-    @if (cantidad && cantidad > 0) {
-    <div class="preview-resultado" [class.ingreso]="esIngreso" [class.egreso]="!esIngreso">
-        <span class="preview-antes">{{ stockActual }}{{ esPeso ? ' ' + unidadMedida : '' }}</span>
-        <ion-icon [name]="esIngreso ? 'add-outline' : 'remove-outline'" class="preview-op"></ion-icon>
-        <span class="preview-delta">{{ cantidad }}{{ esPeso ? ' ' + unidadMedida : '' }}</span>
-        <span class="preview-sep">=</span>
-        <span class="preview-resultado-valor">{{ stockResultante }}{{ esPeso ? ' ' + unidadMedida : '' }}</span>
-    </div>
-    }
 
     <!-- Acciones -->
-    <div class="modal-actions modal-actions--row">
+    <div class="bs-actions bs-actions--row">
         <ion-button fill="clear" color="medium" (click)="cerrar()">
             Cancelar
         </ion-button>

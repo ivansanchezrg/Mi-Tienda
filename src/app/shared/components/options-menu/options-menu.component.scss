@@ -1,33 +1,114 @@
-// Botón trigger ⋮ — sin padding lateral para pegarse al borde
+// Botón trigger ⋮
 ion-button {
     --padding-start: 0px;
     --padding-end: 4px;
 }
 
-// Estado deshabilitado — cursor prohibido, icono atenuado
 ion-button.disabled-menu {
     cursor: not-allowed;
     pointer-events: auto;
     opacity: 0.35;
 }
 
-.options-separator {
-    margin: 4px 0;
-    border: none;
-    border-top: 1px solid var(--ion-color-light-shade);
+// Contenedor principal
+.menu-popover {
+    background: var(--ion-item-background);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    padding: 6px 0;
 }
 
-.options-list {
-    min-width: 180px;
+// Separador
+.menu-divider {
+    height: 1px;
+    background: var(--ion-color-step-100);
+    margin: 4px 0;
+}
 
-    ion-item {
-        --padding-start: 14px;
-        --inner-padding-end: 14px;
-        font-size: 15px;
+// Opciones
+.menu-options {
+    display: flex;
+    flex-direction: column;
+}
 
-        ion-icon[slot='start'] {
-            font-size: 18px;
-            margin-inline-end: 10px;
+.menu-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--transition-fast);
+
+    &:active { background: var(--ion-color-step-50); }
+
+    &__icon {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--ion-color-step-100);
+
+        ion-icon { font-size: 13px; color: var(--ion-color-step-600); }
+
+        &--danger {
+            background: rgba(var(--ion-color-danger-rgb), 0.10);
+            ion-icon { color: var(--ion-color-danger); }
         }
+    }
+
+    &__label {
+        flex: 1;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--ion-text-color);
+        white-space: nowrap;
+    }
+
+    &__check {
+        font-size: 13px;
+        color: var(--ion-color-primary);
+    }
+
+    &--danger &__label {
+        color: var(--ion-color-danger);
+    }
+}
+
+// Tablet y desktop — texto e íconos un poco más grandes
+@media (min-width: 768px) {
+    .menu-option {
+        gap: 10px;
+        padding: 10px 14px;
+
+        &__icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            ion-icon { font-size: 15px; }
+        }
+
+        &__label { font-size: 13px; }
+        &__check { font-size: 15px; }
+    }
+}
+
+@media (min-width: 992px) {
+    .menu-option {
+        padding: 10px 16px;
+
+        &__icon {
+            width: 30px;
+            height: 30px;
+            ion-icon { font-size: 16px; }
+        }
+
+        &__label { font-size: 14px; }
     }
 }

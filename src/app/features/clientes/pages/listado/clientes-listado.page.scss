@@ -1,3 +1,32 @@
+:host {
+    --clientes-bg:         var(--app-bg);
+    --clientes-card-bg:    var(--app-surface);
+    --clientes-surface:    var(--app-surface-tint);
+    --clientes-divider:    var(--app-divider);
+    --clientes-text:       var(--app-text);
+    --clientes-text-soft:  var(--app-text-soft);
+    --clientes-text-muted: var(--app-text-muted);
+}
+
+ion-content {
+    --background: var(--clientes-bg);
+}
+
+ion-toolbar {
+    --background: var(--clientes-bg);
+    --border-width: 0;
+    --color: var(--clientes-text);
+
+    ion-searchbar {
+        --background: var(--clientes-card-bg);
+        --box-shadow: none;
+        --border-radius: var(--radius-sm);
+        --color: var(--clientes-text);
+        --placeholder-color: var(--clientes-text-muted);
+        --icon-color: var(--clientes-text-soft);
+    }
+}
+
 .list-container {
     padding: var(--spacing-md) var(--spacing-md);
 }
@@ -9,22 +38,22 @@
 }
 
 .client-item {
-    --background: var(--ion-item-background);
+    --background: var(--clientes-card-bg);
     --padding-start: 12px;
     --inner-padding-end: 12px;
     --padding-top: 10px;
     --padding-bottom: 10px;
     --min-height: 64px;
-    border-radius: 12px;
+    border-radius: var(--radius-md);
 
     margin-bottom: var(--spacing-sm);
-    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0,0,0,.08));
+    box-shadow: var(--shadow-level-1);
 
     h3 {
         font-size: 15px;
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
         margin: 0 0 3px 0;
-        color: var(--ion-text-color);
+        color: var(--clientes-text);
     }
 
     .client-meta {
@@ -39,14 +68,14 @@
         align-items: center;
         gap: 4px;
         font-size: 12px;
-        color: var(--ion-color-medium);
+        color: var(--clientes-text-soft);
 
         ion-icon { font-size: 12px; flex-shrink: 0; }
     }
 
     .deuda-meta {
         font-size: 11px;
-        color: var(--ion-color-medium);
+        color: var(--clientes-text-soft);
         margin: 2px 0 0 0;
     }
 }
@@ -55,19 +84,19 @@
 .client-avatar {
     width: 40px;
     height: 40px;
-    border-radius: 50%;
-    background: rgba(var(--ion-color-medium-rgb), 0.12);
+    border-radius: var(--radius-full);
+    background: var(--clientes-surface);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     margin-right: 10px;
-    transition: background 0.2s ease;
+    transition: background var(--transition-fast);
 
     .avatar-text {
         font-size: 15px;
-        font-weight: 700;
-        color: var(--ion-color-medium);
+        font-weight: var(--font-weight-bold);
+        color: var(--clientes-text-soft);
         text-transform: uppercase;
     }
 
@@ -88,15 +117,14 @@
 
     .deuda-badge {
         font-size: 15px;
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
         color: var(--ion-color-danger);
         letter-spacing: -0.3px;
     }
 
     .chevron-icon {
         font-size: 16px;
-        color: var(--ion-color-medium);
-        opacity: 0.4;
+        color: var(--clientes-text-muted);
     }
 }
 

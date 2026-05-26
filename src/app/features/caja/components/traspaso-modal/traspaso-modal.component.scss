@@ -1,0 +1,226 @@
+// Layout completo viene de theme/custom/modals.scss (clases bs-*).
+// Color del bs-header__icon es el default (primary) — no necesita override.
+
+// Override del gap del bs-body para este modal (cards de cajas necesitan menos espacio)
+.bs-body { gap: 16px; }
+
+// ── Campo genérico ────────────────────────────────────────────────────────────
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-required {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--ion-color-danger);
+  background: rgba(var(--ion-color-danger-rgb), 0.10);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.badge-optional {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--app-text-muted);
+  background: var(--app-surface-tint);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.field-error {
+  font-size: 12px;
+  color: var(--ion-color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+// ── Cards de caja ─────────────────────────────────────────────────────────────
+
+.caja-list {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.caja-list__hint {
+  font-size: 13px;
+  color: var(--app-text-muted);
+  font-style: italic;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.caja-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--app-divider);
+  background: var(--app-surface);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+
+  &--selected {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.05);
+  }
+
+  &--dimmed {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  &:active { transform: scale(0.99); }
+
+  &__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    ion-icon {
+      font-size: 20px;
+      color: #fff;
+    }
+
+    // Color por tipo de caja
+    &[data-codigo="CAJA"]       { background: var(--ion-color-primary); }
+    &[data-codigo="CAJA_CHICA"] { background: var(--ion-color-success); }
+    &[data-codigo="VARIOS"]     { background: var(--ion-color-tertiary); }
+  }
+
+  &__info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__nombre {
+    font-size: 15px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--app-text);
+  }
+
+  &__saldo {
+    font-size: 13px;
+    color: var(--app-text-muted);
+  }
+
+  &__check {
+    font-size: 22px;
+    color: var(--ion-color-primary);
+    flex-shrink: 0;
+  }
+}
+
+// ── Flecha separadora ─────────────────────────────────────────────────────────
+
+.transfer-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: -4px 0;
+
+  ion-icon {
+    font-size: 20px;
+    color: var(--app-text-muted);
+  }
+}
+
+// ── Monto ─────────────────────────────────────────────────────────────────────
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 14px 16px;
+  border: 1.5px solid var(--app-divider);
+  border-radius: var(--radius-md);
+  background: var(--app-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:focus-within {
+    border-color: var(--ion-color-primary);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.10);
+  }
+
+  &--error {
+    border-color: var(--ion-color-danger);
+    background: rgba(var(--ion-color-danger-rgb), 0.04);
+  }
+}
+
+.amount-currency {
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text-muted);
+}
+
+.amount-row input {
+  flex: 1;
+  border: none;
+  padding: 0;
+  font-size: 28px;
+  font-weight: var(--font-weight-extrabold);
+  background: transparent;
+  color: var(--app-text);
+  outline: none;
+  letter-spacing: -0.5px;
+
+  &::placeholder {
+    color: var(--app-text-muted);
+    opacity: 0.5;
+  }
+}
+
+// ── Descripción ───────────────────────────────────────────────────────────────
+
+textarea {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 15px;
+  border: 1.5px solid var(--app-divider);
+  border-radius: var(--radius-md);
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+  line-height: 1.5;
+
+  &:focus { border-color: var(--ion-color-primary); }
+
+  &::placeholder {
+    color: var(--app-text-muted);
+    opacity: 0.6;
+  }
+}

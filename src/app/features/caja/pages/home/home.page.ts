@@ -2,27 +2,32 @@ import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef } from '@angula
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-  IonIcon, IonButton, ModalController, IonSkeletonText
+  IonHeader, IonToolbar, IonContent, IonMenuButton, IonRefresher, IonRefresherContent,
+  IonIcon, ModalController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  walletOutline, archiveOutline, cashOutline, fileTrayOutline, phonePortraitOutline, busOutline,
-  chevronForward, notificationsOutline, cloudOfflineOutline,
-  alertCircleOutline, eyeOutline, eyeOffOutline,
+  archiveOutline, cashOutline, fileTrayOutline, phonePortraitOutline, busOutline,
+  notificationsOutline,
+  eyeOutline, eyeOffOutline,
   arrowUpOutline, arrowDownOutline,
-  lockClosedOutline, lockOpenOutline
+  lockClosedOutline, lockOpenOutline,
+  createOutline, documentTextOutline,
+  trendingUpOutline, trendingDownOutline,
+  addOutline, removeOutline, swapHorizontalOutline,
+  imageOutline,
+  walletOutline, cardOutline, bagOutline, storefrontOutline, homeOutline,
+  briefcaseOutline, giftOutline, shieldCheckmarkOutline
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
 import { UiService } from '@core/services/ui.service';
-import { NetworkService } from '@core/services/network.service';
 import { RecargasService } from '../../services/recargas.service';
 import { CajasService, Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { ConfigService } from '@core/services/config.service';
+import { StorageService } from '@core/services/storage.service';
 import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { EstadoCaja } from '../../models/turno-caja.model';
@@ -30,9 +35,11 @@ import { NotificacionesService, Notificacion } from '@core/services/notificacion
 import { NotificacionesModalComponent } from '../../components/notificaciones-modal/notificaciones-modal.component';
 import { VerificarFondoModalComponent } from '../../components/verificar-fondo-modal/verificar-fondo-modal.component';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
-import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
-import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
+import { TraspasoModalComponent, TraspasoModalResult } from '../../components/traspaso-modal/traspaso-modal.component';
+import { NuevaCajaModalComponent } from '../../components/nueva-caja-modal/nueva-caja-modal.component';
 import { ROUTES } from '@core/config/routes.config';
+import { OperacionCaja } from '../../models/operacion-caja.model';
+import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 @Component({
   selector: 'app-home',
@@ -41,10 +48,9 @@ import { ROUTES } from '@core/config/routes.config';
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton, IonRefresher, IonRefresherContent,
-    IonIcon, IonButton, IonSkeletonText,
-    OptionsMenuComponent
+    IonHeader, IonToolbar, IonContent, IonMenuButton, IonRefresher, IonRefresherContent,
+    IonIcon, IonSkeletonText,
+    EmptyStateComponent
   ]
 })
 export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
@@ -59,12 +65,10 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private turnosCajaService = inject(TurnosCajaService);
   private notificacionesService = inject(NotificacionesService);
   private modalCtrl = inject(ModalController);
-  private networkService = inject(NetworkService);
   private configService  = inject(ConfigService);
+  private storageService = inject(StorageService);
   private cdr = inject(ChangeDetectorRef);
 
-  nombreNegocio = 'Mi Tienda';
-  private networkSub?: Subscription;
   private queryParamsSub?: Subscription;
   private turnoSub?: Subscription;
 
@@ -89,9 +93,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   // Estado de carga local (para Skeletons UI)
   cargando = true;
-
-  // Estado de conexión
-  isOnline = true;
 
   // Saldos de cajas (v5: 5 cajas)
   saldoCaja = 0;
@@ -118,12 +119,10 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   // Usuario
   nombreUsuario = '';
   empleadoActualId: string | null = null;
-  esAdmin = false;
   esSuperadmin = false;
 
   // Fechas
   fechaUltimoCierre = '';
-  fechaActual = '';
 
   // Notificaciones
   notificaciones: Notificacion[] = [];
@@ -137,30 +136,30 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   recargasCelularHabilitada = false;
   recargasBusHabilitada = false;
 
-  // Opciones del menú ⋮ — compartidas por todas las cajas
-  readonly cajaOptions: MenuOption[] = [
-    { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'ingreso', color: 'success' },
-    { label: 'Registrar Egreso', icon: 'arrow-up-outline', value: 'egreso', color: 'danger' },
-  ];
 
+
+  // Movimientos recientes
+  ultimosMovimientos: OperacionCaja[] = [];
+  cargandoMovimientos = true;
 
   constructor() {
     super();
     addIcons({
-      walletOutline, archiveOutline, cashOutline, fileTrayOutline, phonePortraitOutline, busOutline,
-      chevronForward, notificationsOutline, cloudOfflineOutline,
-      alertCircleOutline, eyeOutline, eyeOffOutline,
+      archiveOutline, cashOutline, fileTrayOutline, phonePortraitOutline, busOutline,
+      notificationsOutline,
+      eyeOutline, eyeOffOutline,
       arrowUpOutline, arrowDownOutline,
-      lockClosedOutline, lockOpenOutline
+      lockClosedOutline, lockOpenOutline,
+      createOutline, documentTextOutline,
+      trendingUpOutline, trendingDownOutline,
+      addOutline, removeOutline, swapHorizontalOutline,
+      imageOutline,
+      walletOutline, cardOutline, bagOutline, storefrontOutline, homeOutline,
+      briefcaseOutline, giftOutline, shieldCheckmarkOutline
     });
   }
 
   async ngOnInit() {
-    this.configService.getNombreNegocio().then(n => this.nombreNegocio = n);
-
-    this.networkSub = this.networkService.getNetworkStatus().subscribe(isOnline => {
-      this.isOnline = isOnline;
-    });
 
     this.queryParamsSub = this.route.queryParams.subscribe(async params => {
       const action = params['action'];
@@ -196,7 +195,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    this.networkSub?.unsubscribe();
     this.queryParamsSub?.unsubscribe();
     this.turnoSub?.unsubscribe();
   }
@@ -218,7 +216,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   async cargarDatos() {
     this.cargando = true;
     try {
-      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones, empleado, appConfig] = await Promise.all([
+      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones, empleado, appConfig, movimientos] = await Promise.all([
         this.turnosCajaService.obtenerEstadoCaja(),
         this.cajasService.obtenerSaldosCajas(),
         this.cajasService.obtenerFechaUltimoCierre(),
@@ -226,7 +224,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
         this.recargasVirtualesService.getSaldoVirtualActual('BUS'),
         this.notificacionesService.getNotificaciones(),
         this.authService.getUsuarioActual(),
-        this.configService.get()
+        this.configService.get(),
+        this.operacionesCajaService.obtenerUltimosMovimientos()
       ]);
 
       this.estadoCaja = { ...estadoCaja };
@@ -252,19 +251,20 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
       this.nombreUsuario = empleado?.nombre || 'Usuario';
       this.empleadoActualId = empleado?.id ?? null;
-      this.esAdmin       = empleado?.rol === 'ADMIN';
       this.esSuperadmin  = empleado?.es_superadmin ?? false;
-      this.fechaActual = this.formatearFecha(new Date());
 
       this.notificaciones = notificaciones;
       this.notificacionesPendientes = notificaciones.length;
       this.variosActiva              = appConfig.caja_varios_activa;
       this.recargasCelularHabilitada = appConfig.recargas_celular_habilitada;
       this.recargasBusHabilitada     = appConfig.recargas_bus_habilitada;
+
+      this.ultimosMovimientos = movimientos;
     } catch (error: any) {
       await this.ui.showError('Error al cargar los datos. Verifica tu conexión e intenta de nuevo.');
     } finally {
       this.cargando = false;
+      this.cargandoMovimientos = false;
       this.cdr.detectChanges();
     }
   }
@@ -277,10 +277,54 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   get totalEfectivo(): number {
-    // Si no hay turno activo, el cajon (CAJA_CHICA) no se muestra en el home
+    // Si no hay turno activo, el cajón (CAJA_CHICA) no se muestra en el home
     // → excluirlo del total para que la cifra mostrada coincida con las cards visibles.
     if (!this.cajaAbierta) return this.totalSaldos - this.saldoCajaChica;
     return this.totalSaldos;
+  }
+
+  /** Saludo dinamico segun hora local */
+  get saludo(): string {
+    const h = new Date().getHours();
+    if (h < 12) return 'Buenos días';
+    if (h < 19) return 'Buenas tardes';
+    return 'Buenas noches';
+  }
+
+  /** Fecha tipo "Sábado, 23 de mayo" */
+  get fechaLarga(): string {
+    const f = new Date();
+    const dia = f.toLocaleDateString('es-ES', { weekday: 'long' });
+    const num = f.getDate();
+    const mes = f.toLocaleDateString('es-ES', { month: 'long' });
+    return `${dia.charAt(0).toUpperCase() + dia.slice(1)}, ${num} de ${mes}`;
+  }
+
+  get totalIngresosHoy(): number {
+    return this.ultimosMovimientos
+      .filter(m => this.esMovIngreso(m.tipo_operacion))
+      .reduce((acc, m) => acc + Number(m.monto), 0);
+  }
+
+  get totalEgresosHoy(): number {
+    return this.ultimosMovimientos
+      .filter(m => this.esMovEgreso(m.tipo_operacion))
+      .reduce((acc, m) => acc + Number(m.monto), 0);
+  }
+
+  /** Cajas personalizadas creadas por el negocio (código CUSTOM_N) */
+  get cajasCustom(): Caja[] {
+    return this.cajas.filter(c => c.codigo.startsWith('CUSTOM_'));
+  }
+
+  /** Cuenta de cajas visibles en el grid según flags activas */
+  get cajasVisibles(): number {
+    let n = 2; // CAJA + CAJA_CHICA siempre
+    if (this.variosActiva) n++;
+    if (this.recargasCelularHabilitada) n++;
+    if (this.recargasBusHabilitada) n++;
+    n += this.cajasCustom.length;
+    return n;
   }
 
   async handleRefresh(event: CustomEvent) {
@@ -294,6 +338,29 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   cajaNombreFor(codigo: string): string {
     return this.cajas.find(c => c.codigo === codigo)?.nombre ?? '';
+  }
+
+  /** Devuelve los 2 dígitos de centavos de un monto para el formato bancario. */
+  centavos(monto: number): string {
+    return monto.toFixed(2).split('.')[1];
+  }
+
+  async onNuevaCuenta() {
+    const modal = await this.modalCtrl.create({
+      component: NuevaCajaModalComponent,
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
+    });
+    await modal.present();
+    const { role } = await modal.onDidDismiss();
+    if (role === 'confirm') await this.cargarDatos();
+  }
+
+  onSaldoClickCustom(caja: Caja) {
+    this.router.navigate([ROUTES.caja.operacionesCaja], {
+      queryParams: { cajaId: caja.id, cajaNombre: caja.nombre, cajaCodigo: caja.codigo }
+    });
   }
 
   onSaldoClick(tipo: string) {
@@ -313,21 +380,16 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     });
   }
 
-  /** Handler del menú ⋮ en cards de Tienda y Cajón */
-  async onCajaMenuOption(option: MenuOption, tipoCaja: string) {
-    if (option.value === 'ver') {
-      this.onSaldoClick(tipoCaja);
-    } else {
-      await this.onOperacion(option.value, tipoCaja);
-    }
-  }
 
   async onOperacion(tipo: string, tipoCaja?: string) {
     if (tipo === 'gasto') tipo = 'egreso';
-    if (tipo !== 'ingreso' && tipo !== 'egreso') {
-      await this.ui.showToast('Función no disponible aún', 'warning');
+
+    if (tipo === 'traspaso') {
+      await this.abrirTraspaso();
       return;
     }
+
+    if (tipo !== 'ingreso' && tipo !== 'egreso') return;
 
     const tipoOperacion = tipo.toUpperCase() as 'INGRESO' | 'EGRESO';
     const cajaIdPreseleccionada = tipoCaja
@@ -336,12 +398,53 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     const modal = await this.modalCtrl.create({
       component: OperacionModalComponent,
-      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada }
+      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
     });
 
     await modal.present();
     const { data, role } = await modal.onDidDismiss<OperacionModalResult>();
     if (role === 'confirm' && data) await this.ejecutarOperacion(tipoOperacion, data);
+  }
+
+  private async abrirTraspaso() {
+    await this.ui.showLoading('Cargando cajas...');
+    let cajasFrescas: Caja[] = [];
+    try {
+      cajasFrescas = await this.cajasService.obtenerCajasDirecto();
+    } catch {
+      await this.ui.hideLoading();
+      await this.ui.showError('No se pudo cargar la información. Verifica tu conexión.');
+      return;
+    }
+    await this.ui.hideLoading();
+
+    if (cajasFrescas.length < 2) {
+      await this.ui.showError('Se necesitan al menos 2 cajas para realizar un traspaso.');
+      return;
+    }
+
+    const modal = await this.modalCtrl.create({
+      component: TraspasoModalComponent,
+      componentProps: { cajas: cajasFrescas, cajaAbierta: this.cajaAbierta },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
+    });
+    await modal.present();
+
+    const { data, role } = await modal.onDidDismiss<TraspasoModalResult>();
+    if (role === 'confirm' && data) {
+      const success = await this.operacionesCajaService.registrarTransferencia(
+        data.codigoOrigen,
+        data.codigoDestino,
+        data.monto,
+        data.descripcion
+      );
+      if (success) await this.cargarDatos();
+    }
   }
 
   private async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModalResult) {
@@ -350,73 +453,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     );
     if (success) await this.cargarDatos();
   }
-
-  async onChipTurnoClick() {
-    // Superadmin solo observa — sin acciones operativas
-    if (this.esSuperadmin) return;
-
-    if (this.esMiTurno) {
-      const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
-      const groups: ModalOptionGroup[] = [{
-        options: [
-          { label: 'Cerrar Turno', icon: 'lock-closed-outline', value: 'cerrar', color: 'danger' }
-        ]
-      }];
-      const modal = await this.modalCtrl.create({
-        component: OptionsModalComponent,
-        componentProps: {
-          title: 'Turno Activo',
-          subtitle: `${cajaNombre} abierto · Desde ${this.estadoCaja.horaApertura}`,
-          groups
-        },
-        cssClass: 'options-modal',
-        breakpoints: [0, 1],
-        initialBreakpoint: 1
-      });
-      await modal.present();
-      const { data } = await modal.onDidDismiss();
-      if (data === 'cerrar') await this.onCerrarCaja();
-
-    } else if (this.cajaAbierta) {
-      const nombre = this.estadoCaja.empleadoNombre || 'otro empleado';
-      const hora = this.estadoCaja.horaApertura ? ` desde las ${this.estadoCaja.horaApertura}` : '';
-      const modal = await this.modalCtrl.create({
-        component: OptionsModalComponent,
-        componentProps: {
-          title: 'Turno activo',
-          subtitle: `Turno abierto por ${nombre}${hora}.\nSolo él puede operar el Cajón — las demás cajas están disponibles.`,
-          groups: []
-        },
-        cssClass: 'options-modal',
-        breakpoints: [0, 1],
-        initialBreakpoint: 1
-      });
-      await modal.present();
-
-    } else {
-      const cajaNombre = this.cajaNombreFor('CAJA_CHICA') || 'Cajón';
-      const groups: ModalOptionGroup[] = [{
-        options: [
-          { label: 'Abrir Turno', icon: 'lock-open-outline', value: 'abrir' }
-        ]
-      }];
-      const modal = await this.modalCtrl.create({
-        component: OptionsModalComponent,
-        componentProps: {
-          title: 'Caja Cerrada',
-          subtitle: `${cajaNombre} sin turno activo`,
-          groups
-        },
-        cssClass: 'options-modal',
-        breakpoints: [0, 1],
-        initialBreakpoint: 1
-      });
-      await modal.present();
-      const { data } = await modal.onDidDismiss();
-      if (data === 'abrir') await this.onAbrirCaja();
-    }
-  }
-
 
   async onAbrirCaja() {
     if (this.estadoCaja.estado === 'TURNO_EN_CURSO') {
@@ -508,6 +544,56 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     if (data?.reload) await this.cargarDatos();
   }
 
+  async onVerComprobante(mov: OperacionCaja) {
+    if (!mov.comprobante_url) return;
+    const url = await this.storageService.resolveImageUrl(mov.comprobante_url);
+    if (!url) {
+      await this.ui.showError('No se pudo cargar el comprobante');
+      return;
+    }
+    window.open(url, '_blank');
+  }
+
+  getMovColor(tipo: string): string {
+    const map: Record<string, string> = {
+      INGRESO: 'success',
+      EGRESO: 'danger',
+      TRANSFERENCIA_ENTRANTE: 'success',
+      TRANSFERENCIA_SALIENTE: 'danger',
+      AJUSTE: 'warning',
+      APERTURA: 'primary',
+      CIERRE: 'primary'
+    };
+    return map[tipo] ?? 'medium';
+  }
+
+  getMovLabel(tipo: string): string {
+    const map: Record<string, string> = {
+      INGRESO: 'Ingreso',
+      EGRESO: 'Egreso',
+      TRANSFERENCIA_ENTRANTE: 'Transferencia recibida',
+      TRANSFERENCIA_SALIENTE: 'Transferencia enviada',
+      AJUSTE: 'Ajuste',
+      APERTURA: 'Apertura',
+      CIERRE: 'Cierre de turno'
+    };
+    return map[tipo] ?? tipo;
+  }
+
+  esMovIngreso(tipo: string): boolean {
+    return ['INGRESO', 'TRANSFERENCIA_ENTRANTE'].includes(tipo);
+  }
+
+  esMovEgreso(tipo: string): boolean {
+    return ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(tipo);
+  }
+
+  formatMovHora(fecha: string): string {
+    return new Date(fecha).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   async mostrarModalVerificacionFondo(): Promise<{ turnoId: string | null } | null> {
     try {
       await this.ui.showLoading('Verificando...');
@@ -524,7 +610,10 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
           fondoFijo,
           deficitVarios: deficit?.deficitVarios ?? 0,
           fondoFaltante: deficit?.fondoFaltante ?? 0
-        }
+        },
+        cssClass: 'bottom-sheet-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1,
       });
 
       await modal.present();

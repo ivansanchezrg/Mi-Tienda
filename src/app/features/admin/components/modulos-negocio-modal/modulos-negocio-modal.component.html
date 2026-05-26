@@ -1,121 +1,127 @@
-<div class="modal-wrapper">
+<div class="bs-root">
 
-  <div class="modal-header">
-    <div class="modal-header-icon">
+  <div class="bs-header">
+    <div class="bs-header__icon">
       <ion-icon name="phone-portrait-outline"></ion-icon>
     </div>
-    <span class="modal-header-title">Módulos</span>
-    <button class="modal-close-btn" (click)="cerrar()">
+    <span class="bs-header__title">Módulos</span>
+    <button class="bs-header__close" (click)="cerrar()">
       <ion-icon name="close-outline"></ion-icon>
     </button>
   </div>
 
-  <p class="modal-negocio-nombre">{{ negocio.nombre }}</p>
+  <div class="bs-content">
+    <div class="bs-body">
 
-  <div class="modulos-list">
+      <p class="modal-negocio-nombre">{{ negocio.nombre }}</p>
 
-    <div class="modulo-row">
-      <div class="modulo-info">
-        <div class="modulo-icon modulo-icon--celular">
-          <ion-icon name="phone-portrait-outline"></ion-icon>
+      <div class="modulos-list">
+
+        <div class="modulo-row">
+          <div class="modulo-info">
+            <div class="modulo-icon modulo-icon--celular">
+              <ion-icon name="phone-portrait-outline"></ion-icon>
+            </div>
+            <div class="modulo-text">
+              <span class="modulo-label">Recargas Celular</span>
+              <span class="modulo-desc">Habilita caja, historial y deudas con proveedor</span>
+            </div>
+          </div>
+          <button
+            class="toggle-btn"
+            [class.toggle-btn--on]="celular"
+            (click)="celular = !celular"
+            [disabled]="guardando">
+            <span class="toggle-knob"></span>
+          </button>
         </div>
-        <div class="modulo-text">
-          <span class="modulo-label">Recargas Celular</span>
-          <span class="modulo-desc">Habilita caja, historial y deudas con proveedor</span>
+
+        <div class="modulo-row">
+          <div class="modulo-info">
+            <div class="modulo-icon modulo-icon--bus">
+              <ion-icon name="bus-outline"></ion-icon>
+            </div>
+            <div class="modulo-text">
+              <span class="modulo-label">Recargas Bus</span>
+              <span class="modulo-desc">Habilita caja, saldo virtual y liquidación mensual</span>
+            </div>
+          </div>
+          <button
+            class="toggle-btn"
+            [class.toggle-btn--on]="bus"
+            (click)="bus = !bus"
+            [disabled]="guardando">
+            <span class="toggle-knob"></span>
+          </button>
         </div>
+
+        <div class="modulo-row">
+          <div class="modulo-info">
+            <div class="modulo-icon modulo-icon--varios">
+              <ion-icon name="archive-outline"></ion-icon>
+            </div>
+            <div class="modulo-text">
+              <span class="modulo-label">Caja Varios</span>
+              <span class="modulo-desc">Fondo de emergencia · Una vez activa no se puede desactivar</span>
+            </div>
+          </div>
+          <button
+            class="toggle-btn"
+            [class.toggle-btn--on]="varios"
+            (click)="!varios && (varios = true)"
+            [disabled]="guardando || varios">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+
+        @if (varios) {
+        <div class="varios-monto-group">
+          <label class="varios-monto-label">Monto diario a separar</label>
+          <div class="varios-monto-input">
+            <span class="varios-monto-prefix">$</span>
+            <input
+              type="number"
+              inputmode="decimal"
+              min="0.01"
+              step="0.01"
+              placeholder="0.00"
+              [(ngModel)]="variosMonto"
+              [disabled]="guardando"
+              autocomplete="off">
+          </div>
+          @if (variosMontoInvalido) {
+          <span class="varios-monto-error">Ingresa un monto mayor a $0</span>
+          } @else {
+          <span class="varios-monto-hint">Se descuenta del cajón automáticamente al cerrar el día</span>
+          }
+        </div>
+        }
+
       </div>
-      <button
-        class="toggle-btn"
-        [class.toggle-btn--on]="celular"
-        (click)="celular = !celular"
-        [disabled]="guardando">
-        <span class="toggle-knob"></span>
-      </button>
-    </div>
 
-    <div class="modulo-row">
-      <div class="modulo-info">
-        <div class="modulo-icon modulo-icon--bus">
-          <ion-icon name="bus-outline"></ion-icon>
+      <div class="comprobante-section">
+        <div class="comprobante-section-label">Tipo de comprobante</div>
+        <div class="comprobante-options">
+          <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'TICKET'"
+            (click)="tipoComprobante = 'TICKET'" [disabled]="guardando" type="button">
+            Ticket
+          </button>
+          <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'NOTA_VENTA'"
+            (click)="tipoComprobante = 'NOTA_VENTA'" [disabled]="guardando" type="button">
+            Nota de Venta
+          </button>
+          <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'FACTURA'"
+            (click)="tipoComprobante = 'FACTURA'" [disabled]="guardando" type="button">
+            Factura
+          </button>
         </div>
-        <div class="modulo-text">
-          <span class="modulo-label">Recargas Bus</span>
-          <span class="modulo-desc">Habilita caja, saldo virtual y liquidación mensual</span>
-        </div>
+        <span class="comprobante-hint">Según el régimen tributario del negocio (SRI)</span>
       </div>
-      <button
-        class="toggle-btn"
-        [class.toggle-btn--on]="bus"
-        (click)="bus = !bus"
-        [disabled]="guardando">
-        <span class="toggle-knob"></span>
-      </button>
-    </div>
 
-    <div class="modulo-row">
-      <div class="modulo-info">
-        <div class="modulo-icon modulo-icon--varios">
-          <ion-icon name="archive-outline"></ion-icon>
-        </div>
-        <div class="modulo-text">
-          <span class="modulo-label">Caja Varios</span>
-          <span class="modulo-desc">Fondo de emergencia · Una vez activa no se puede desactivar</span>
-        </div>
-      </div>
-      <button
-        class="toggle-btn"
-        [class.toggle-btn--on]="varios"
-        (click)="!varios && (varios = true)"
-        [disabled]="guardando || varios">
-        <span class="toggle-knob"></span>
-      </button>
     </div>
-
-    @if (varios) {
-    <div class="varios-monto-group">
-      <label class="varios-monto-label">Monto diario a separar</label>
-      <div class="varios-monto-input">
-        <span class="varios-monto-prefix">$</span>
-        <input
-          type="number"
-          inputmode="decimal"
-          min="0.01"
-          step="0.01"
-          placeholder="0.00"
-          [(ngModel)]="variosMonto"
-          [disabled]="guardando"
-          autocomplete="off">
-      </div>
-      @if (variosMontoInvalido) {
-      <span class="varios-monto-error">Ingresa un monto mayor a $0</span>
-      } @else {
-      <span class="varios-monto-hint">Se descuenta del cajón automáticamente al cerrar el día</span>
-      }
-    </div>
-    }
-
   </div>
 
-  <div class="comprobante-section">
-    <div class="comprobante-section-label">Tipo de comprobante</div>
-    <div class="comprobante-options">
-      <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'TICKET'"
-        (click)="tipoComprobante = 'TICKET'" [disabled]="guardando" type="button">
-        Ticket
-      </button>
-      <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'NOTA_VENTA'"
-        (click)="tipoComprobante = 'NOTA_VENTA'" [disabled]="guardando" type="button">
-        Nota de Venta
-      </button>
-      <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'FACTURA'"
-        (click)="tipoComprobante = 'FACTURA'" [disabled]="guardando" type="button">
-        Factura
-      </button>
-    </div>
-    <span class="comprobante-hint">Según el régimen tributario del negocio (SRI)</span>
-  </div>
-
-  <div class="modal-actions modal-actions--row">
+  <div class="bs-actions bs-actions--row">
     <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()" [disabled]="guardando">
       Cancelar
     </ion-button>

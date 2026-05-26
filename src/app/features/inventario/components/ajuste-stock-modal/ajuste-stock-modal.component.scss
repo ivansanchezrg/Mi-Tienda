@@ -1,10 +1,4 @@
-// Color del icono del header según tipo (ingreso/egreso)
-// Todo lo demás viene de theme/custom/modals.scss (bottom-sheet-modal)
-
-.modal-header-icon {
-    background: rgba(var(--ion-color-primary-rgb), 0.1);
-    ion-icon { color: var(--ion-color-primary); }
-}
+// El bs-header__icon usa primary por defecto desde modals.scss — no necesita override.
 
 // ── Selector de tipo ──
 .tipo-selector {

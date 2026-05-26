@@ -177,7 +177,7 @@ ion-toolbar {
 
         &.active {
             background: var(--ion-color-medium);
-            color: white;
+            color: var(--ion-color-medium-contrast);
             border-color: var(--ion-color-medium);
         }
     }
@@ -273,7 +273,7 @@ ion-toolbar {
 
         &.danger {
             background: var(--ion-color-danger);
-            color: white;
+            color: var(--ion-color-danger-contrast);
             animation: pulse 2s infinite;
         }
 
@@ -283,13 +283,13 @@ ion-toolbar {
         }
 
         &.success {
-            background: rgba(0, 0, 0, 0.6);
-            color: white;
+            background: rgba(0, 0, 0, 0.55);
+            color: rgba(255, 255, 255, 0.92);
         }
 
         &.info {
             background: var(--ion-color-primary);
-            color: white;
+            color: var(--ion-color-primary-contrast);
         }
     }
 }
@@ -409,7 +409,7 @@ ion-toolbar {
         padding: 2px 8px;
         border-radius: var(--radius-pill);
         background: var(--ion-color-medium);
-        color: white;
+        color: var(--ion-color-medium-contrast);
         font-size: 10px;
         font-weight: var(--font-weight-bold);
         letter-spacing: 0.5px;

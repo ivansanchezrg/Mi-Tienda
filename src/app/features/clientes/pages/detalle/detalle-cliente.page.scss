@@ -1,19 +1,22 @@
-// ==========================================
-// Detalle Cliente — Cuentas por Cobrar
-// ==========================================
-
 :host {
-    --bg-soft: var(--ion-background-color, #f8f9fa);
+    --clientes-bg:           var(--app-bg);
+    --clientes-card-bg:      var(--app-surface);
+    --clientes-surface:      var(--app-surface-tint);
+    --clientes-surface-soft: var(--app-surface-tint);
+    --clientes-divider:      var(--app-divider);
+    --clientes-text:         var(--app-text);
+    --clientes-text-soft:    var(--app-text-soft);
+    --clientes-text-muted:   var(--app-text-muted);
 }
 
 ion-content {
-    --background: var(--bg-soft);
+    --background: var(--clientes-bg);
 }
 
 ion-toolbar {
-    --background: var(--bg-soft);
+    --background: var(--clientes-bg);
     --border-width: 0;
-
+    --color: var(--clientes-text);
 }
 
 // ─────────────────────────────────────────
@@ -25,11 +28,11 @@ ion-toolbar {
     flex-direction: column;
     gap: var(--spacing-md);
     padding: var(--spacing-lg);
-    background: var(--ion-item-background);
+    background: var(--clientes-card-bg);
     margin: var(--spacing-md);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-level-2);
-    border: 1px solid var(--ion-color-step-50);
+    border: 1px solid var(--clientes-divider);
 }
 
 .cliente-identidad {
@@ -42,14 +45,14 @@ ion-toolbar {
     .cliente-nombre {
         font-size: 19px;
         font-weight: var(--font-weight-extrabold);
-        color: var(--ion-text-color);
+        color: var(--clientes-text);
         margin: 0;
         letter-spacing: -0.3px;
     }
 
     .cliente-cedula {
         font-size: 13px;
-        color: var(--ion-color-medium);
+        color: var(--clientes-text-soft);
         margin: 0;
     }
 
@@ -58,7 +61,7 @@ ion-toolbar {
         align-items: center;
         gap: 4px;
         font-size: 13px;
-        color: var(--ion-color-medium);
+        color: var(--clientes-text-soft);
         margin: 0;
 
         ion-icon { font-size: 13px; }
@@ -75,7 +78,7 @@ ion-toolbar {
     justify-content: space-between;
     width: 100%;
     padding: var(--spacing-md);
-    background: var(--ion-color-step-50);
+    background: var(--clientes-surface);
     border-radius: var(--radius-sm);
     gap: var(--spacing-xs);
 
@@ -88,7 +91,7 @@ ion-toolbar {
         .deuda-label {
             font-size: 10px;
             font-weight: var(--font-weight-bold);
-            color: var(--ion-color-medium);
+            color: var(--clientes-text-soft);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: var(--spacing-xs);
@@ -97,19 +100,19 @@ ion-toolbar {
         .deuda-valor {
             font-size: 15px;
             font-weight: var(--font-weight-extrabold);
-            color: var(--ion-text-color);
+            color: var(--clientes-text);
         }
     }
 
     .deuda-divider {
         width: 1px;
         height: 24px;
-        background: var(--ion-color-step-200);
+        background: var(--clientes-divider);
     }
 }
 
 // Color modifiers — at component scope for correct specificity
-.deuda-pagado   { color: var(--ion-color-success) !important; }
+.deuda-pagado    { color: var(--ion-color-success) !important; }
 .deuda-pendiente { color: var(--ion-color-danger) !important; }
 
 // ─────────────────────────────────────────
@@ -119,7 +122,7 @@ ion-toolbar {
 .section-title {
     font-size: 12px;
     font-weight: var(--font-weight-bold);
-    color: var(--ion-color-medium);
+    color: var(--clientes-text-soft);
     text-transform: uppercase;
     letter-spacing: 1px;
     padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-sm);
@@ -132,15 +135,15 @@ ion-toolbar {
 // ─────────────────────────────────────────
 
 .venta-card {
-    background: var(--ion-item-background, #fff);
-    border-radius: var(--radius-md, 10px);
-    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, .08));
+    background: var(--clientes-card-bg);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-level-1);
     padding: var(--spacing-md);
-    margin-bottom: var(--spacing-sm, 8px);
-    transition: box-shadow 0.18s ease, transform 0.18s ease;
+    margin-bottom: var(--spacing-sm);
+    transition: box-shadow var(--transition-fast), transform var(--transition-fast);
 
     &:hover {
-        box-shadow: var(--shadow-level-2, 0 4px 12px rgba(0, 0, 0, .12));
+        box-shadow: var(--shadow-level-2);
         transform: translateY(-1px);
     }
 
@@ -162,18 +165,18 @@ ion-toolbar {
 
             ion-icon {
                 font-size: 15px;
-                color: var(--ion-color-medium);
+                color: var(--clientes-text-soft);
             }
 
             .venta-tipo-label {
                 font-size: 13px;
-                font-weight: 600;
-                color: var(--ion-text-color);
+                font-weight: var(--font-weight-semibold);
+                color: var(--clientes-text);
             }
 
             .venta-numero {
                 font-size: 13px;
-                font-weight: 700;
+                font-weight: var(--font-weight-bold);
                 color: var(--ion-color-primary);
             }
         }
@@ -184,19 +187,19 @@ ion-toolbar {
             justify-content: center;
             width: 32px;
             height: 32px;
-            border-radius: 50%;
+            border-radius: var(--radius-full);
             background: none;
             border: none;
             cursor: pointer;
-            color: var(--ion-color-medium);
-            transition: background 0.15s ease, color 0.15s ease;
+            color: var(--clientes-text-soft);
+            transition: background var(--transition-fast), color var(--transition-fast);
 
             &:hover {
-                background: var(--ion-color-step-100);
+                background: var(--clientes-surface);
                 color: var(--ion-color-primary);
             }
 
-            &:active { background: var(--ion-color-step-150, var(--ion-color-step-100)); }
+            &:active { background: var(--clientes-divider); }
 
             ion-icon { font-size: 20px; }
         }
@@ -204,7 +207,7 @@ ion-toolbar {
 
     .venta-fecha-line {
         font-size: 12px;
-        color: var(--ion-color-medium);
+        color: var(--clientes-text-soft);
         margin: 0 0 var(--spacing-sm);
     }
 
@@ -217,17 +220,17 @@ ion-toolbar {
 
             .monto-label {
                 font-size: 13px;
-                color: var(--ion-color-medium);
+                color: var(--clientes-text-soft);
             }
 
             .monto-valor {
                 font-size: 14px;
-                font-weight: 600;
-                color: var(--ion-text-color);
+                font-weight: var(--font-weight-semibold);
+                color: var(--clientes-text);
             }
 
-            .monto-pagado   { color: var(--ion-color-success); }
-            .monto-pendiente { color: var(--ion-color-danger); font-weight: 700; }
+            .monto-pagado    { color: var(--ion-color-success); }
+            .monto-pendiente { color: var(--ion-color-danger); font-weight: var(--font-weight-bold); }
 
             &--descuento {
                 .monto-label,
@@ -235,7 +238,7 @@ ion-toolbar {
             }
 
             &--total {
-                border-top: 1px solid var(--ion-color-step-100);
+                border-top: 1px solid var(--clientes-divider);
                 padding-top: 8px;
                 margin-top: 4px;
             }
@@ -254,8 +257,8 @@ ion-toolbar {
     gap: var(--spacing-md);
     padding: var(--spacing-md);
     padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
-    background: var(--ion-item-background, #fff);
-    border-top: 1px solid var(--ion-color-step-100);
+    background: var(--clientes-card-bg);
+    border-top: 1px solid var(--clientes-divider);
 
     .cobrar-info {
         display: flex;
@@ -263,14 +266,14 @@ ion-toolbar {
 
         .cobrar-count {
             font-size: 12px;
-            color: var(--ion-color-medium);
-            font-weight: 500;
+            color: var(--clientes-text-soft);
+            font-weight: var(--font-weight-medium);
         }
 
         .cobrar-total {
             font-size: 22px;
-            font-weight: 800;
-            color: var(--ion-text-color);
+            font-weight: var(--font-weight-extrabold);
+            color: var(--clientes-text);
             letter-spacing: -0.5px;
         }
     }
@@ -283,12 +286,12 @@ ion-toolbar {
         background: var(--ion-color-primary);
         color: var(--ion-color-primary-contrast);
         border: none;
-        border-radius: var(--radius-md, 10px);
+        border-radius: var(--radius-md);
         font-size: 16px;
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
         font-family: inherit;
         cursor: pointer;
-        transition: opacity var(--transition-normal), transform 0.15s ease;
+        transition: opacity var(--transition-normal), transform var(--transition-fast);
 
         &:hover  { opacity: 0.9; transform: scale(1.02); }
         &:active { opacity: 0.8; transform: scale(0.98); }
@@ -298,7 +301,7 @@ ion-toolbar {
 }
 
 // ─────────────────────────────────────────
-// SKELETON — patrón operaciones-caja
+// SKELETON
 // ─────────────────────────────────────────
 
 .sk-date-header {
@@ -310,7 +313,7 @@ ion-toolbar {
 .venta-card-sk {
     margin: 0 var(--spacing-md) var(--spacing-sm);
     border-radius: var(--radius-md);
-    background: var(--ion-item-background);
+    background: var(--clientes-card-bg);
     box-shadow: var(--shadow-level-1);
     overflow: hidden;
 }
@@ -326,7 +329,7 @@ ion-toolbar {
         height: 36px;
         flex-shrink: 0;
         border-radius: var(--radius-sm);
-        background: var(--ion-color-step-100);
+        background: var(--clientes-surface);
     }
 
     .sk-details {
@@ -338,5 +341,5 @@ ion-toolbar {
 .sk-divider {
     height: 1px;
     margin: 0 var(--spacing-lg) 0 calc(var(--spacing-lg) + 36px + var(--spacing-md));
-    background: var(--ion-color-step-150);
+    background: var(--clientes-divider);
 }

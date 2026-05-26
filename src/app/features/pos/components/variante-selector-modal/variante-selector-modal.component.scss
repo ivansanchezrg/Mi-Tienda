@@ -1,15 +1,7 @@
-.vsm-wrapper {
-    display: flex;
-    flex-direction: column;
-    max-height: 80vh;
-    overflow: hidden;
-    background: var(--ion-item-background);
-    padding-top: 28px;
-}
+// Layout viene de modals.scss — bs-root/bs-header/bs-content/bs-actions.
 
-.modal-header {
-    padding: 0 var(--spacing-xl);
-    margin-bottom: var(--spacing-xs);
+.vsm-content {
+    padding: 0;
 }
 
 .vsm-subtitle {
@@ -19,11 +11,10 @@
     color: var(--ion-color-medium);
 }
 
-// ── Lista scrollable ──
+// ── Lista — el scroll lo maneja ion-content (bs-content) ──
 .vsm-list {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
 }
 
 // ── Fila base ──

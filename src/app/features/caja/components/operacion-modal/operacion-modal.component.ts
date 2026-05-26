@@ -3,13 +3,15 @@ import { CommonModule } from '@angular/common';
 import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonSpinner,
+  IonIcon, IonSpinner, IonButton,
   ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, chevronDownOutline, businessOutline } from 'ionicons/icons';
-import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component'; // usado en ModalController.create()
+import {
+  closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle,
+  chevronDownOutline, cashOutline, fileTrayOutline, archiveOutline
+} from 'ionicons/icons';
+import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 import { Subscription } from 'rxjs';
 import { CameraSource } from '@capacitor/camera';
 import { StorageService } from '@core/services/storage.service';
@@ -33,6 +35,13 @@ export interface OperacionModalResult {
   fotoComprobante: string | null;
 }
 
+// Iconos por código de caja
+const CAJA_ICONOS: Record<string, string> = {
+  CAJA:       'cash-outline',
+  CAJA_CHICA: 'file-tray-outline',
+  VARIOS:     'archive-outline',
+};
+
 @Component({
   selector: 'app-operacion-modal',
   templateUrl: './operacion-modal.component.html',
@@ -41,20 +50,19 @@ export interface OperacionModalResult {
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonSpinner,
+    IonIcon, IonSpinner, IonButton,
     CurrencyInputDirective,
     NumbersOnlyDirective
   ]
 })
 export class OperacionModalComponent implements OnInit, OnDestroy {
-  private modalCtrl = inject(ModalController);
-  private alertCtrl = inject(AlertController);
-  private fb = inject(FormBuilder);
-  private cdr = inject(ChangeDetectorRef);
+  private modalCtrl   = inject(ModalController);
+  private alertCtrl   = inject(AlertController);
+  private fb          = inject(FormBuilder);
+  private cdr         = inject(ChangeDetectorRef);
   private operacionesService = inject(OperacionesCajaService);
-  private ui = inject(UiService);
-  protected storageService = inject(StorageService);
+  private ui          = inject(UiService);
+  protected storageService   = inject(StorageService);
 
   @Input() tipo!: 'INGRESO' | 'EGRESO';
   @Input() cajas: Caja[] = [];
@@ -64,59 +72,65 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   cajasFiltradas: Caja[] = [];
   categorias: CategoriaOperacion[] = [];
   cargandoCategorias = true;
-  saldoCajaSeleccionada: number = 0;
-  nombreCajaSeleccionada: string = '';
-  fotoPreviewUrl: SafeUrl | null = null;  // para <img [src]>
-  fotoRawUrl: string | null = null;       // para uploadImage() al confirmar
+  saldoCajaSeleccionada = 0;
+  fotoPreviewUrl: SafeUrl | null = null;
+  fotoRawUrl: string | null = null;
   private cajaIdSub?: Subscription;
 
   constructor() {
-    addIcons({ closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle, chevronDownOutline, businessOutline });
+    addIcons({
+      closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle,
+      chevronDownOutline, cashOutline, fileTrayOutline, archiveOutline
+    });
   }
 
   async ngOnInit() {
-    // Filtrar solo cajas donde se permite ingreso/egreso manual
-    // v5: CAJA (vault), CAJA_CHICA (cajón diario), VARIOS (fondo emergencia)
     this.cajasFiltradas = this.cajas.filter(c =>
       ['CAJA', 'CAJA_CHICA', 'VARIOS'].includes(c.codigo)
     );
 
-    // Pre-seleccionar caja si se especificó
-    const cajaIdInicial = this.cajaIdPreseleccionada || null;
+    // Preseleccionar: si viene cajaIdPreseleccionada, usarla;
+    // si solo hay una caja disponible, seleccionarla automáticamente
+    const cajaIdInicial =
+      this.cajaIdPreseleccionada ??
+      (this.cajasFiltradas.length === 1 ? this.cajasFiltradas[0].id : null);
 
-    // ⚠️ IMPORTANTE: Crear el form PRIMERO (síncronamente)
-    // para evitar error "formGroup expects a FormGroup instance"
     this.form = this.fb.group({
-      cajaId: [cajaIdInicial, Validators.required],
+      cajaId:      [cajaIdInicial, Validators.required],
       categoriaId: [null, Validators.required],
-      monto: [null, [Validators.required, Validators.min(0.01)]],
+      monto:       [null, [Validators.required, Validators.min(0.01)]],
       descripcion: ['']
     });
 
-    // Si hay caja pre-seleccionada, actualizar el saldo y nombre
     if (cajaIdInicial) {
       const caja = this.cajas.find(c => c.id === cajaIdInicial);
-      this.saldoCajaSeleccionada = caja?.saldo_actual || 0;
-      this.nombreCajaSeleccionada = caja?.nombre || '';
+      this.saldoCajaSeleccionada = caja?.saldo_actual ?? 0;
     }
 
-    // Escuchar cambios en caja seleccionada
     this.cajaIdSub = this.form.get('cajaId')?.valueChanges.subscribe(cajaId => {
       const caja = this.cajas.find(c => c.id === cajaId);
-      this.saldoCajaSeleccionada = caja?.saldo_actual || 0;
-      this.nombreCajaSeleccionada = caja?.nombre || '';
+      this.saldoCajaSeleccionada = caja?.saldo_actual ?? 0;
     });
 
-    // Cargar categorías según el tipo de operación (asíncronamente)
     try {
       this.cargandoCategorias = true;
       this.categorias = await this.operacionesService.obtenerCategorias(this.tipo);
-    } catch (error: any) {
+    } catch {
       this.categorias = [];
       await this.ui.showError('Error al cargar las categorías. Cierra e intenta de nuevo.');
     } finally {
       this.cargandoCategorias = false;
     }
+  }
+
+  ngOnDestroy() {
+    this.cajaIdSub?.unsubscribe();
+  }
+
+  // ── Getters ────────────────────────────────────────────────────────────────
+
+  get cajaPreseleccionada() {
+    return this.cajas.find(c => c.id === this.cajaIdPreseleccionada);
   }
 
   get esIngreso(): boolean {
@@ -127,50 +141,48 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
     return this.esIngreso ? 'Registrar Ingreso' : 'Registrar Egreso';
   }
 
-  get iconoTipo(): string {
-    return this.esIngreso ? 'arrow-down-outline' : 'arrow-up-outline';
-  }
-
-  get colorTipo(): string {
-    return this.esIngreso ? 'success' : 'danger';
-  }
-
   get montoExcedeSaldo(): boolean {
     if (this.esIngreso) return false;
-    const monto = this.form.get('monto')?.value || 0;
-    return monto > this.saldoCajaSeleccionada;
-  }
-
-  ngOnDestroy() {
-    this.cajaIdSub?.unsubscribe();
-  }
-
-  cancelar() {
-    this.modalCtrl.dismiss(null, 'cancel');
+    return (this.form.get('monto')?.value ?? 0) > this.saldoCajaSeleccionada;
   }
 
   get categoriaLabel(): string {
     const id = this.form?.get('categoriaId')?.value;
     if (!id) return 'Seleccionar categoría';
-    return this.categorias.find(c => c.id === id)?.nombre || 'Seleccionar categoría';
+    return this.categorias.find(c => c.id === id)?.nombre ?? 'Seleccionar categoría';
+  }
+
+  get requiereDescripcion(): boolean {
+    const id = this.form?.get('categoriaId')?.value;
+    if (!id) return false;
+    const nombre = this.categorias.find(c => c.id === id)?.nombre ?? '';
+    return /otros?/i.test(nombre);
+  }
+
+  iconoCaja(codigo: string, icono?: string): string {
+    return icono || CAJA_ICONOS[codigo] || 'cash-outline';
+  }
+
+  // ── Acciones ───────────────────────────────────────────────────────────────
+
+  seleccionarCaja(caja: Caja) {
+    this.form.patchValue({ cajaId: caja.id });
+    this.form.get('cajaId')?.markAsTouched();
   }
 
   async abrirSelectorCategoria() {
     const groups: ModalOptionGroup[] = [{
-      options: this.categorias.map(cat => ({
-        label: cat.nombre,
-        value: String(cat.id)
-      }))
+      options: this.categorias.map(cat => ({ label: cat.nombre, value: String(cat.id) }))
     }];
-
-    const currentId = this.form.get('categoriaId')?.value;
 
     const modal = await this.modalCtrl.create({
       component: OptionsModalComponent,
       componentProps: {
         title: 'Categoría',
         groups,
-        selectedValue: currentId ? String(currentId) : undefined
+        selectedValue: this.form.get('categoriaId')?.value
+          ? String(this.form.get('categoriaId')!.value)
+          : undefined
       },
       cssClass: 'options-modal',
       breakpoints: [0, 1],
@@ -179,11 +191,22 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
 
     await modal.present();
     const { data } = await modal.onDidDismiss();
-
     if (data) {
-      this.form.patchValue({ categoriaId: data });
+      this.form.patchValue({ categoriaId: data, descripcion: '' });
       this.form.get('categoriaId')?.markAsTouched();
+      this.actualizarValidadorDescripcion();
     }
+  }
+
+  private actualizarValidadorDescripcion() {
+    const ctrl = this.form.get('descripcion');
+    if (!ctrl) return;
+    if (this.requiereDescripcion) {
+      ctrl.setValidators([Validators.required, Validators.minLength(3)]);
+    } else {
+      ctrl.clearValidators();
+    }
+    ctrl.updateValueAndValidity();
   }
 
   async seleccionarFoto() {
@@ -202,32 +225,32 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
     const result = await this.storageService.capturarFoto(source);
     if (result) {
       this.fotoPreviewUrl = result.previewUrl;
-      this.fotoRawUrl = result.rawUrl;
+      this.fotoRawUrl     = result.rawUrl;
     }
     this.cdr.detectChanges();
   }
 
   removerFoto() {
     this.fotoPreviewUrl = null;
-    this.fotoRawUrl = null;
+    this.fotoRawUrl     = null;
     this.cdr.detectChanges();
   }
 
+  cancelar() {
+    this.modalCtrl.dismiss(null, 'cancel');
+  }
+
   confirmar() {
-    if (this.form.invalid) {
+    if (this.form.invalid || this.montoExcedeSaldo) {
       this.form.markAllAsTouched();
       return;
     }
 
-    if (this.montoExcedeSaldo) {
-      return;
-    }
-
     const result: OperacionModalResult = {
-      cajaId: this.form.value.cajaId,
-      categoriaId: this.form.value.categoriaId,
-      monto: this.form.value.monto,
-      descripcion: this.form.value.descripcion || '',
+      cajaId:          this.form.value.cajaId,
+      categoriaId:     this.form.value.categoriaId,
+      monto:           this.form.value.monto,
+      descripcion:     this.form.value.descripcion ?? '',
       fotoComprobante: this.fotoRawUrl
     };
 

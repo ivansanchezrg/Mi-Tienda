@@ -36,12 +36,10 @@ export const ROUTES = {
   pos: '/pos',
 
   inventario: {
-    root:          '/inventario',
-    nuevo:         '/inventario/nuevo',
-    nuevoSimple:   '/inventario/nuevo-simple',
-    nuevoVariantes:'/inventario/nuevo-variantes',
-    editar:  (id: string) => `/inventario/editar/${id}`,
-    kardex:  (id: string) => `/inventario/kardex/${id}`,
+    root:   '/inventario',
+    nuevo:  '/inventario/nuevo',
+    editar: (id: string) => `/inventario/editar/${id}`,
+    kardex: (id: string) => `/inventario/kardex/${id}`,
   },
 
   ventas: {

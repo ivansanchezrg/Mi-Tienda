@@ -1,9 +1,20 @@
+:host {
+    --modal-bg:         var(--app-bg);
+    --modal-card-bg:    var(--app-surface);
+    --modal-surface:    var(--app-surface-tint);
+    --modal-divider:    var(--app-divider);
+    --modal-text:       var(--app-text);
+    --modal-text-soft:  var(--app-text-soft);
+    --modal-text-muted: var(--app-text-muted);
+}
+
 ion-toolbar {
-    --background: var(--ion-item-background);
+    --background: var(--modal-card-bg);
+    --color: var(--modal-text);
 }
 
 ion-content {
-    --background: var(--ion-background-color, #f8f9fa);
+    --background: var(--modal-bg);
 }
 
 .modal-content {
@@ -20,8 +31,8 @@ ion-content {
 
     .field-label {
         font-size: 12px;
-        font-weight: 600;
-        color: var(--ion-color-medium);
+        font-weight: var(--font-weight-semibold);
+        color: var(--modal-text-soft);
         text-transform: uppercase;
         letter-spacing: 0.3px;
     }
@@ -29,27 +40,26 @@ ion-content {
     .field-input {
         width: 100%;
         padding: 10px 12px;
-        border: 1.5px solid var(--ion-color-step-200, #ddd);
-        border-radius: 8px;
+        border: 1.5px solid var(--modal-divider);
+        border-radius: var(--radius-sm);
         font-size: 15px;
-        color: var(--ion-text-color);
-        background: var(--ion-background-color, #f8f9fa);
+        color: var(--modal-text);
+        background: var(--modal-bg);
         outline: none;
         box-sizing: border-box;
-        transition: border-color 0.15s;
+        transition: border-color var(--transition-fast);
 
         &:focus {
             border-color: var(--ion-color-primary);
         }
 
         &::placeholder {
-            color: var(--ion-color-medium);
-            opacity: 0.6;
+            color: var(--modal-text-muted);
         }
 
         &.readonly {
-            background: var(--ion-color-step-50, #f0f0f0);
-            color: var(--ion-color-medium);
+            background: var(--modal-surface);
+            color: var(--modal-text-soft);
             cursor: default;
         }
     }
@@ -89,12 +99,12 @@ ion-content {
 .duplicate-card {
     background: rgba(var(--ion-color-warning-rgb), 0.08);
     border: 1px solid var(--ion-color-warning);
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     padding: 12px;
 
     .duplicate-label {
         font-size: 12px;
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
         color: var(--ion-color-warning-shade);
         margin: 0 0 8px 0;
     }
@@ -104,7 +114,7 @@ ion-content {
         align-items: center;
         justify-content: space-between;
         padding: 8px;
-        border-radius: 8px;
+        border-radius: var(--radius-sm);
         cursor: pointer;
 
         &:active {
@@ -119,18 +129,18 @@ ion-content {
 
         strong {
             font-size: 14px;
-            color: var(--ion-text-color);
+            color: var(--modal-text);
         }
 
         span {
             font-size: 12px;
-            color: var(--ion-color-medium);
+            color: var(--modal-text-soft);
         }
     }
 
     .duplicate-action {
         font-size: 13px;
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
         color: var(--ion-color-primary);
     }
 }
@@ -143,16 +153,16 @@ ion-content {
     .btn-cancel {
         flex: 1;
         padding: 12px;
-        border: 1.5px solid var(--ion-color-step-200, #ddd);
-        border-radius: 8px;
+        border: 1.5px solid var(--modal-divider);
+        border-radius: var(--radius-sm);
         background: transparent;
-        color: var(--ion-color-medium);
+        color: var(--modal-text-soft);
         font-size: 15px;
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
         cursor: pointer;
 
         &:active {
-            background: var(--ion-color-step-50);
+            background: var(--modal-surface);
         }
     }
 
@@ -160,19 +170,19 @@ ion-content {
         flex: 2;
         padding: 12px;
         border: none;
-        border-radius: 8px;
+        border-radius: var(--radius-sm);
         background: var(--ion-color-primary);
-        color: white;
+        color: var(--ion-color-primary-contrast);
         font-size: 15px;
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: opacity 0.15s;
+        transition: opacity var(--transition-fast);
 
         &:disabled {
-            opacity: 0.6;
+            opacity: var(--opacity-muted);
             cursor: not-allowed;
         }
 

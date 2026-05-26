@@ -1,0 +1,120 @@
+<div class="bs-root">
+
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="swap-horizontal-outline"></ion-icon>
+    </div>
+    <span class="bs-header__title">Traspaso entre cajas</span>
+    <button class="bs-header__close" (click)="cancelar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <form class="bs-body" [formGroup]="form">
+
+      <!-- Desde -->
+      <div class="field-group">
+        <span class="field-label">Desde <span class="badge-required">Obligatorio</span></span>
+        <div class="caja-list">
+          @for (caja of cajasDisponibles; track caja.id) {
+            <button
+              type="button"
+              class="caja-card"
+              [class.caja-card--selected]="form.get('origenId')?.value === caja.id"
+              [class.caja-card--dimmed]="form.get('destinoId')?.value === caja.id"
+              (click)="seleccionarOrigen(caja)">
+              <div class="caja-card__icon" [attr.data-codigo]="caja.codigo">
+                <ion-icon [name]="iconoCaja(caja.codigo, caja.icono)"></ion-icon>
+              </div>
+              <div class="caja-card__info">
+                <span class="caja-card__nombre">{{ caja.nombre }}</span>
+                <span class="caja-card__saldo">Saldo: ${{ caja.saldo_actual | number:'1.2-2' }}</span>
+              </div>
+              @if (form.get('origenId')?.value === caja.id) {
+                <ion-icon name="checkmark-circle" class="caja-card__check"></ion-icon>
+              }
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Flecha separadora -->
+      <div class="transfer-arrow">
+        <ion-icon name="arrow-down-outline"></ion-icon>
+      </div>
+
+      <!-- Hacia -->
+      <div class="field-group">
+        <span class="field-label">Hacia <span class="badge-required">Obligatorio</span></span>
+        <div class="caja-list">
+          @if (!form.get('origenId')?.value) {
+            <p class="caja-list__hint">Elige primero la caja origen</p>
+          } @else {
+            @for (caja of cajasDestino; track caja.id) {
+              <button
+                type="button"
+                class="caja-card"
+                [class.caja-card--selected]="form.get('destinoId')?.value === caja.id"
+                (click)="seleccionarDestino(caja)">
+                <div class="caja-card__icon" [attr.data-codigo]="caja.codigo">
+                  <ion-icon [name]="iconoCaja(caja.codigo, caja.icono)"></ion-icon>
+                </div>
+                <div class="caja-card__info">
+                  <span class="caja-card__nombre">{{ caja.nombre }}</span>
+                  <span class="caja-card__saldo">Saldo: ${{ caja.saldo_actual | number:'1.2-2' }}</span>
+                </div>
+                @if (form.get('destinoId')?.value === caja.id) {
+                  <ion-icon name="checkmark-circle" class="caja-card__check"></ion-icon>
+                }
+              </button>
+            }
+          }
+        </div>
+      </div>
+
+      <!-- Monto -->
+      <div class="field-group">
+        <span class="field-label">Monto <span class="badge-required">Obligatorio</span></span>
+        <div class="amount-row" [class.amount-row--error]="montoExcedeSaldo">
+          <span class="amount-currency">$</span>
+          <input
+            type="number"
+            inputmode="decimal"
+            placeholder="0.00"
+            formControlName="monto"
+            appCurrencyInput
+            appNumbersOnly>
+        </div>
+        @if (montoExcedeSaldo) {
+          <span class="field-error">
+            Saldo insuficiente en origen (${{ saldoOrigen | number:'1.2-2' }})
+          </span>
+        }
+      </div>
+
+      <!-- Descripción -->
+      <div class="field-group">
+        <span class="field-label">Descripción <span class="badge-optional">Opcional</span></span>
+        <textarea
+          placeholder="¿Por qué realizas este traspaso?"
+          formControlName="descripcion"
+          rows="2">
+        </textarea>
+      </div>
+
+    </form>
+  </div>
+
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">Cancelar</ion-button>
+    <ion-button
+      expand="block"
+      color="primary"
+      [disabled]="form.invalid || montoExcedeSaldo"
+      (click)="confirmar()">
+      Traspasar
+    </ion-button>
+  </div>
+
+</div>

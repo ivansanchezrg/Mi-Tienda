@@ -1,10 +1,6 @@
-.modal-header-icon {
+.bs-header__icon {
     background: rgba(var(--ion-color-tertiary-rgb), 0.12);
     ion-icon { color: var(--ion-color-tertiary); }
-}
-
-.modal-body {
-    padding-top: var(--spacing-sm);
 }
 
 // ── Grupos de input ────────────────────────────

@@ -1,0 +1,133 @@
+<div class="form-section">
+
+  <!-- Código de barras (solo en crear) -->
+  @if (modo === 'crear') {
+  <div class="input-group mb-md">
+    <ion-item class="custom-input flat-item" lines="none">
+      <ion-input [formControl]="$any(formGroup.get('codigo_barras'))"
+        label="EAN / Codigo de Barras"
+        labelPlacement="floating"
+        type="text"
+        placeholder="Escanea o digita el codigo...">
+      </ion-input>
+      @if (barcodeScanner.isAvailable) {
+        <ion-button fill="clear" slot="end" (click)="escanearCodigo()">
+          <ion-icon slot="icon-only" name="barcode-outline" color="primary"></ion-icon>
+        </ion-button>
+      }
+    </ion-item>
+    @if (formGroup.get('codigo_barras')?.value?.trim()) {
+    <p class="auto-code-hint auto-code-hint--ok">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+      Se usara este codigo para identificar el producto en el POS.
+    </p>
+    } @else {
+    <p class="auto-code-hint">
+      <ion-icon name="sparkles-outline"></ion-icon>
+      Si lo dejas vacio, se generara un codigo automaticamente.
+    </p>
+    }
+  </div>
+  }
+
+  <!-- Código de barras readonly (editar) -->
+  @if (modo === 'editar') {
+  <div class="input-group mb-md">
+    <p class="field-label mb-xs">EAN / Codigo de Barras</p>
+    <p class="readonly-value">{{ formGroup.get('codigo_barras')?.value || 'Sin codigo' }}</p>
+  </div>
+  }
+
+  <!-- Nombre -->
+  <div class="input-group mb-md">
+    <ion-item class="custom-input flat-item" lines="none"
+      [class.ion-invalid]="esCampoInvalido('nombre')">
+      <ion-input [formControl]="$any(formGroup.get('nombre'))"
+        label="Nombre del Producto *"
+        labelPlacement="floating"
+        type="text"
+        placeholder="Ej. Funda Grande">
+      </ion-input>
+    </ion-item>
+    @if (esCampoInvalido('nombre')) {
+    <span class="error-text">
+      @if (formGroup.get('nombre')?.errors?.['required']) { El nombre es requerido }
+      @else if (formGroup.get('nombre')?.errors?.['minlength']) { Minimo 3 caracteres }
+      @else if (formGroup.get('nombre')?.errors?.['maxlength']) { Maximo 100 caracteres }
+    </span>
+    }
+  </div>
+
+  <!-- Categoría -->
+  <div class="input-group mb-md">
+    <p class="field-label mb-xs">Categoria *</p>
+    <button type="button" class="filter-selector"
+      [class.filter-selector--invalid]="esCampoInvalido('categoria_id')"
+      (click)="abrirSelectorCategoria()">
+      <span class="filter-selector-label"
+        [class.filter-selector-label--placeholder]="!formGroup.get('categoria_id')?.value">
+        {{ categoriaLabel }}
+      </span>
+      <ion-icon name="chevron-down-outline" class="filter-selector-arrow"></ion-icon>
+    </button>
+    @if (esCampoInvalido('categoria_id')) {
+    <span class="error-text">La categoria es requerida</span>
+    }
+  </div>
+
+  <!-- Imagen -->
+  <div class="input-group mb-md">
+    <div class="section-header">
+      <p class="field-label field-label--inline">Imagen</p>
+      <span class="optional-badge">Opcional</span>
+    </div>
+    @if (!fotoPreviewUrl && !imagenUrlExistente) {
+    <button type="button" class="upload-btn" (click)="seleccionarFoto()">
+      <ion-icon name="camera-outline"></ion-icon>
+      <span>{{ storageService.isNative ? 'Tomar foto o seleccionar de galeria' : 'Seleccionar de galeria' }}</span>
+    </button>
+    } @else {
+    <div class="photo-preview">
+      <img [src]="fotoPreviewUrl || imagenUrlExistente" alt="Imagen del producto">
+      <button type="button" class="remove-photo" (click)="removerFoto()">
+        <ion-icon name="close-circle"></ion-icon>
+      </button>
+    </div>
+    }
+  </div>
+
+  <!-- Tipo de venta (oculto para variantes — heredan del template) -->
+  @if (!esVariante) {
+  <div class="input-group m-0">
+    <p class="field-label mb-xs">Tipo de venta</p>
+    <div class="tipo-venta-selector">
+      <button type="button" class="tipo-venta-btn"
+        [class.tipo-venta-btn--active]="formGroup.get('tipo_venta')?.value === 'UNIDAD'"
+        (click)="onTipoVentaChange('UNIDAD')">
+        <ion-icon name="cube-outline"></ion-icon>
+        <span>Unidad</span>
+      </button>
+      <button type="button" class="tipo-venta-btn"
+        [class.tipo-venta-btn--active]="formGroup.get('tipo_venta')?.value === 'PESO'"
+        (click)="onTipoVentaChange('PESO')">
+        <ion-icon name="scale-outline"></ion-icon>
+        <span>Peso / Granel</span>
+      </button>
+    </div>
+    @if (formGroup.get('tipo_venta')?.value === 'PESO') {
+    <div class="um-selector mt-sm">
+      @for (um of ['lb']; track um) {
+      <button type="button" class="um-chip"
+        [class.um-chip--active]="formGroup.get('unidad_medida')?.value === um"
+        (click)="formGroup.patchValue({ unidad_medida: um })">
+        {{ um }}
+      </button>
+      }
+    </div>
+    }
+  </div>
+  }
+
+</div>
+
+<app-scanner-overlay [visible]="escaneando" (cerrar)="cerrarEscaner()"></app-scanner-overlay>

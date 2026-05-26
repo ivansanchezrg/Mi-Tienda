@@ -41,7 +41,7 @@
     border: none;
     border-radius: 10px;
     background: var(--ion-color-primary);
-    color: white;
+    color: var(--ion-color-primary-contrast);
     font-size: 13px;
     font-weight: var(--font-weight-semibold);
     cursor: pointer;
@@ -349,7 +349,7 @@ ion-accordion-group {
     font-weight: var(--font-weight-bold);
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    color: white;
+    color: var(--ion-color-danger-contrast);
     background: var(--ion-color-danger);
     border-radius: 4px;
     flex-shrink: 0;

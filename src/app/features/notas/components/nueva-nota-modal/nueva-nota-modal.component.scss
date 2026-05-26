@@ -1,11 +1,10 @@
-.modal-header-icon {
+.bs-header__icon {
     background: rgba(var(--ion-color-secondary-rgb), 0.1);
     ion-icon { color: var(--ion-color-secondary); }
 }
 
 // ── Textarea ───────────────────────────────────
 .textarea-section {
-    padding: var(--spacing-md) var(--spacing-lg) 0;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);

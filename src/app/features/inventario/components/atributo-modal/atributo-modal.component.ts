@@ -6,7 +6,7 @@ import { IonButton, IonIcon, IonSpinner, ModalController } from '@ionic/angular/
 import { addIcons } from 'ionicons';
 import { closeOutline, colorPaletteOutline, pricetagOutline, addOutline, checkmarkOutline } from 'ionicons/icons';
 import { UppercaseInputDirective } from '../../../../shared/directives/uppercase-input.directive';
-import { InventarioService } from '../../services/inventario.service';
+import { AtributoService } from '../../services/atributo.service';
 import { Atributo, AtributoOpcion } from '../../models/producto.model';
 
 export interface AtributoModalResult {
@@ -36,7 +36,7 @@ export class AtributoModalComponent implements OnInit, OnDestroy {
     @Input() nombreProducto = '';
 
     private modalCtrl = inject(ModalController);
-    private inventarioService = inject(InventarioService);
+    private atributoService = inject(AtributoService);
 
     // Paso 1 — tipo de atributo
     textoAtributo = '';
@@ -100,7 +100,7 @@ export class AtributoModalComponent implements OnInit, OnDestroy {
     }
 
     private async ejecutarBusquedaAtributos(texto: string) {
-        this.atributosSugeridos = await this.inventarioService.buscarAtributos(texto);
+        this.atributosSugeridos = await this.atributoService.buscarAtributos(texto);
         this.buscandoAtributos = false;
     }
 
@@ -108,12 +108,12 @@ export class AtributoModalComponent implements OnInit, OnDestroy {
         this.atributoSeleccionado = atributo;
         this.atributosSugeridos = [];
         this.textoAtributo = atributo.nombre;
-        this.opcionesSugeridas = await this.inventarioService.obtenerOpcionesAtributo(atributo.id);
+        this.opcionesSugeridas = await this.atributoService.obtenerOpcionesAtributo(atributo.id);
     }
 
     async crearYSeleccionarTipo(nombre: string) {
         if (!nombre || nombre.trim().length < 2) return;
-        const atributo = await this.inventarioService.crearOObtenerAtributo(nombre);
+        const atributo = await this.atributoService.crearOObtenerAtributo(nombre);
         if (atributo) await this.seleccionarTipo(atributo);
     }
 
@@ -136,7 +136,7 @@ export class AtributoModalComponent implements OnInit, OnDestroy {
 
     private async ejecutarBusquedaOpciones(texto: string) {
         if (!this.atributoSeleccionado?.id) return;
-        this.opcionesSugeridas = await this.inventarioService.buscarOpcionesAtributo(
+        this.opcionesSugeridas = await this.atributoService.buscarOpcionesAtributo(
             this.atributoSeleccionado.id, texto
         );
         this.buscandoOpciones = false;
@@ -155,7 +155,7 @@ export class AtributoModalComponent implements OnInit, OnDestroy {
         if (!this.atributoSeleccionado?.id || !valor || valor.trim().length < 1 || this.guardando) return;
         this.guardando = true;
         try {
-            const opcion = await this.inventarioService.crearOObtenerOpcionAtributo(
+            const opcion = await this.atributoService.crearOObtenerOpcionAtributo(
                 this.atributoSeleccionado.id, valor
             );
             if (opcion) await this.confirmarOpcion(opcion);

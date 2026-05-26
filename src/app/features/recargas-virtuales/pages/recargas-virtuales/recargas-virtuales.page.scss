@@ -118,15 +118,15 @@ ion-content {
   gap: 14px;
   margin: 0 16px 12px;
   padding: 16px;
-  background: var(--ion-item-background, #fff);
+  background: var(--ion-item-background);
   border-radius: 14px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.07);
+  box-shadow: var(--shadow-level-1);
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 
   &:active {
     transform: scale(0.97);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-none);
   }
 
   &.danger {
@@ -145,7 +145,7 @@ ion-content {
 
     &:active {
       transform: none;
-      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.07);
+      box-shadow: var(--shadow-level-1);
     }
   }
 
@@ -207,7 +207,7 @@ ion-content {
       height: 22px;
       padding: 0 6px;
       background: var(--ion-color-danger);
-      color: white;
+      color: var(--ion-color-danger-contrast);
       border-radius: 99px;
       font-size: 11px;
       font-weight: 700;

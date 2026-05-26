@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
+import { AuthService } from '../../auth/services/auth.service';
 import { getFechaLocal, getInicioDiaSiguienteISO } from '@core/utils/date.util';
 
 /**
@@ -11,6 +12,9 @@ export interface Caja {
   nombre: string;
   saldo_actual: number;
   activo: boolean;
+  icono?: string;
+  color?: string;
+  descripcion?: string;
   created_at?: string;
 }
 
@@ -35,6 +39,7 @@ export interface SaldosCajas {
 })
 export class CajasService {
   private supabase = inject(SupabaseService);
+  private auth     = inject(AuthService);
 
   /**
    * Obtiene todas las cajas activas ordenadas por ID
@@ -44,7 +49,7 @@ export class CajasService {
     const cajas = await this.supabase.call<Caja[]>(
       this.supabase.client
         .from('cajas')
-        .select('id, codigo, nombre, saldo_actual, activo')
+        .select('id, codigo, nombre, saldo_actual, activo, icono, color, descripcion')
         .eq('activo', true)
         .order('id')
     );
@@ -58,7 +63,7 @@ export class CajasService {
   async obtenerCajasDirecto(): Promise<Caja[]> {
     const { data, error } = await this.supabase.client
       .from('cajas')
-      .select('id, codigo, nombre, saldo_actual, activo')
+      .select('id, codigo, nombre, saldo_actual, activo, icono, color, descripcion')
       .eq('activo', true)
       .order('id');
     if (error) return [];
@@ -80,7 +85,10 @@ export class CajasService {
     const varios = cajas.find(c => c.codigo === 'VARIOS')?.saldo_actual ?? 0;
     const cajaCelular = cajas.find(c => c.codigo === 'CAJA_CELULAR')?.saldo_actual ?? 0;
     const cajaBus = cajas.find(c => c.codigo === 'CAJA_BUS')?.saldo_actual ?? 0;
-    const total = cajaPrincipal + cajaChica + varios + cajaCelular + cajaBus;
+    const totalCustom = cajas
+      .filter(c => c.codigo.startsWith('CUSTOM_'))
+      .reduce((sum, c) => sum + c.saldo_actual, 0);
+    const total = cajaPrincipal + cajaChica + varios + cajaCelular + cajaBus + totalCustom;
 
     return {
       cajaPrincipal,
@@ -218,6 +226,29 @@ export class CajasService {
    * @param params.descripcion   - Descripción de la transferencia
    * @throws Error si la función PostgreSQL devuelve success=false
    */
+  async crearCaja(nombre: string, icono: string, color: string, descripcion: string, saldoInicial: number): Promise<Caja | null> {
+    const negocioId = this.auth.usuarioActualValue?.negocio_id;
+    if (!negocioId) return null;
+
+    // Genera código único CUSTOM_N basado en las cajas custom existentes
+    const { data: existentes } = await this.supabase.client
+      .from('cajas')
+      .select('codigo')
+      .like('codigo', 'CUSTOM_%');
+
+    const n = (existentes?.length ?? 0) + 1;
+    const codigo = `CUSTOM_${n}`;
+
+    return this.supabase.call<Caja>(
+      this.supabase.client
+        .from('cajas')
+        .insert({ negocio_id: negocioId, codigo, nombre, icono, color, descripcion: descripcion || null, saldo_actual: saldoInicial })
+        .select('id, codigo, nombre, saldo_actual, activo, icono, color, descripcion')
+        .single(),
+      'Caja creada correctamente'
+    );
+  }
+
   async crearTransferencia(params: {
     codigoOrigen: string;
     codigoDestino: string;

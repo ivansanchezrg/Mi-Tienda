@@ -96,7 +96,7 @@ ion-content { --background: var(--ion-background-color); }
   height: 44px;
   border-radius: 50%;
   background: var(--ion-color-primary);
-  color: white;
+  color: var(--ion-color-primary-contrast);
   font-size: 18px;
   font-weight: 800;
   display: flex;
@@ -235,7 +235,7 @@ input {
   border-radius: 10px;
   border: none;
   background: var(--ion-color-primary);
-  color: white;
+  color: var(--ion-color-primary-contrast);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -254,7 +254,7 @@ input {
   ion-spinner {
     width: 16px;
     height: 16px;
-    --color: white;
+    --color: var(--ion-color-primary-contrast);
   }
 }
 

@@ -7,19 +7,11 @@ export const INVENTARIO_ROUTES: Routes = [
   },
   {
     path: 'nuevo',
-    loadComponent: () => import('./pages/selector-tipo/selector-tipo.page').then(m => m.SelectorTipoPage)
-  },
-  {
-    path: 'nuevo-simple',
-    loadComponent: () => import('./pages/producto-form/producto-form.page').then(m => m.ProductoFormPage)
-  },
-  {
-    path: 'nuevo-variantes',
-    loadComponent: () => import('./pages/producto-variantes/producto-variantes.page').then(m => m.ProductoVariantesPage)
+    loadComponent: () => import('./pages/producto-crear/producto-crear.page').then(m => m.ProductoCrearPage)
   },
   {
     path: 'editar/:id',
-    loadComponent: () => import('./pages/producto-form/producto-form.page').then(m => m.ProductoFormPage)
+    loadComponent: () => import('./pages/producto-editar/producto-editar.page').then(m => m.ProductoEditarPage)
   },
   {
     path: 'kardex/:id',

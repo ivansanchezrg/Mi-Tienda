@@ -1,67 +1,75 @@
-<ion-header class="ion-no-border">
-  <ion-toolbar [class.toolbar-ingreso]="esIngreso" [class.toolbar-egreso]="!esIngreso">
-    <ion-title>
-      <div class="toolbar-title">
-        @if (esIngreso) {
-          <ion-icon name="arrow-down-outline" class="toolbar-tipo-icon ingreso"></ion-icon>
-        } @else {
-          <ion-icon name="arrow-up-outline" class="toolbar-tipo-icon egreso"></ion-icon>
-        }
-        <span class="toolbar-title-main">{{ titulo }}</span>
-      </div>
-    </ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="cancelar()">
-        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
-</ion-header>
+<div class="bs-root">
 
-<ion-content>
-  <form [formGroup]="form">
-
-    <!-- Contexto: caja y saldo -->
-    <div class="context-bar" [class.ingreso]="esIngreso" [class.egreso]="!esIngreso">
-      <p class="context-caja-name">{{ nombreCajaSeleccionada }}</p>
-      <p class="context-saldo-value">${{ saldoCajaSeleccionada | number:'1.2-2' }}</p>
-      <p class="context-saldo-label">Saldo disponible</p>
+  <!-- Header -->
+  <div class="bs-header">
+    <div class="bs-header__icon" [class.ingreso]="esIngreso" [class.egreso]="!esIngreso">
+      @if (esIngreso) {
+        <ion-icon name="arrow-down-outline"></ion-icon>
+      } @else {
+        <ion-icon name="arrow-up-outline"></ion-icon>
+      }
     </div>
+    <span class="bs-header__title">{{ titulo }}</span>
+    <button class="bs-header__close" (click)="cancelar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
 
-    <!-- Form Content -->
-    <div class="form-content">
+  <div class="bs-content">
+    <form class="bs-body" [formGroup]="form">
 
-      <!-- Categoría -->
-      <div class="input-group">
-        <label class="input-label">
-          Categoría
-          <span class="required-badge">Obligatorio</span>
-        </label>
-
-        @if (cargandoCategorias) {
-          <div class="loading-categorias">
-            <ion-spinner name="crescent" color="primary"></ion-spinner>
-            <span>Cargando categorías...</span>
+      <!-- Paso 1: Caja -->
+      <div class="field-group">
+        <span class="field-label">Caja <span class="badge-required">Obligatorio</span></span>
+        @if (cajaIdPreseleccionada) {
+          <div class="caja-chips">
+            <div class="caja-chip caja-chip--selected caja-chip--fixed">
+              <ion-icon [name]="iconoCaja(cajaPreseleccionada?.codigo ?? '')"></ion-icon>
+              <span>{{ cajaPreseleccionada?.nombre }}</span>
+            </div>
           </div>
         } @else {
-          <button type="button" class="filter-selector" (click)="abrirSelectorCategoria()">
-            <span class="filter-selector-label"
-              [class.filter-selector-label--placeholder]="!form.get('categoriaId')?.value">
+          <div class="caja-chips">
+            @for (caja of cajasFiltradas; track caja.id) {
+              <button
+                type="button"
+                class="caja-chip"
+                [class.caja-chip--selected]="form.get('cajaId')?.value === caja.id"
+                (click)="seleccionarCaja(caja)">
+                <ion-icon [name]="iconoCaja(caja.codigo, caja.icono)"></ion-icon>
+                <span>{{ caja.nombre }}</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Paso 2: Categoría -->
+      <div class="field-group">
+        <span class="field-label">Categoría <span class="badge-required">Obligatorio</span></span>
+        @if (cargandoCategorias) {
+          <div class="loading-row">
+            <ion-spinner name="crescent"></ion-spinner>
+            <span>Cargando...</span>
+          </div>
+        } @else {
+          <button type="button" class="selector-btn" (click)="abrirSelectorCategoria()">
+            <span class="selector-btn__label" [class.selector-btn__label--placeholder]="!form.get('categoriaId')?.value">
               {{ categoriaLabel }}
             </span>
-            <ion-icon name="chevron-down-outline" class="filter-selector-arrow"></ion-icon>
+            <ion-icon name="chevron-down-outline"></ion-icon>
           </button>
         }
       </div>
 
-      <!-- Monto -->
-      <div class="input-group">
-        <label class="input-label">
+      <!-- Paso 3: Monto -->
+      <div class="field-group">
+        <span class="field-label">
           {{ esIngreso ? 'Monto a ingresar' : 'Monto a retirar' }}
-          <span class="required-badge">Obligatorio</span>
-        </label>
-        <div class="amount-wrapper" [class.error]="montoExcedeSaldo">
-          <span class="currency">$</span>
+          <span class="badge-required">Obligatorio</span>
+        </span>
+        <div class="amount-row" [class.amount-row--error]="montoExcedeSaldo">
+          <span class="amount-currency">$</span>
           <input
             type="number"
             inputmode="decimal"
@@ -71,64 +79,53 @@
             appNumbersOnly>
         </div>
         @if (montoExcedeSaldo) {
-          <span class="error-text">El monto excede el saldo disponible</span>
+          <span class="field-error">El monto excede el saldo disponible (${{ saldoCajaSeleccionada | number:'1.2-2' }})</span>
         }
       </div>
 
-      <!-- Descripción -->
-      <div class="input-group">
-        <label class="input-label">
-          Descripción
-          <span class="optional-badge">Opcional</span>
-        </label>
-        <textarea
-          placeholder="{{ esIngreso ? 'Ej: Venta de productos' : 'Ej: Pago a proveedor' }}"
-          formControlName="descripcion"
-          rows="3">
-        </textarea>
-      </div>
+      <!-- Paso 4: Descripción — solo si categoría es "Otros" -->
+      @if (requiereDescripcion) {
+        <div class="field-group">
+          <span class="field-label">Descripción <span class="badge-required">Obligatorio</span></span>
+          <textarea
+            placeholder="¿De qué se trata este {{ esIngreso ? 'ingreso' : 'egreso' }}?"
+            formControlName="descripcion"
+            rows="2">
+          </textarea>
+        </div>
+      }
 
-      <!-- Comprobante -->
-      <div class="input-group">
-        <label class="input-label">
-          Comprobante
-          <span class="optional-badge">Opcional</span>
-        </label>
-
+      <!-- Paso 5: Comprobante compacto -->
+      <div class="comprobante-row">
+        <span class="field-label">Comprobante <span class="badge-optional">Opcional</span></span>
         @if (!fotoPreviewUrl) {
-          <button type="button" class="upload-btn" (click)="seleccionarFoto()">
+          <button type="button" class="comprobante-btn" (click)="seleccionarFoto()">
             <ion-icon name="camera-outline"></ion-icon>
-            <span>{{ storageService.isNative ? 'Tomar foto o seleccionar de galería' : 'Seleccionar de galería' }}</span>
+            <span>Adjuntar foto</span>
           </button>
         } @else {
-          <div class="photo-preview">
+          <div class="comprobante-preview">
             <img [src]="fotoPreviewUrl" alt="Comprobante">
-            <button type="button" class="remove-photo" (click)="removerFoto()">
+            <button type="button" class="comprobante-remove" (click)="removerFoto()">
               <ion-icon name="close-circle"></ion-icon>
             </button>
           </div>
         }
       </div>
 
-      <!-- Botón -->
-      <div class="submit-wrapper">
-        <button
-          type="button"
-          class="submit-btn"
-          [class.ingreso]="esIngreso"
-          [class.egreso]="!esIngreso"
-          [disabled]="form.invalid || montoExcedeSaldo"
-          (click)="confirmar()">
-          @if (esIngreso) {
-            <ion-icon name="arrow-down-outline"></ion-icon>
-            Confirmar Ingreso
-          } @else {
-            <ion-icon name="arrow-up-outline"></ion-icon>
-            Confirmar Egreso
-          }
-        </button>
-      </div>
-    </div>
+    </form>
+  </div>
 
-  </form>
-</ion-content>
+  <!-- Acciones -->
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">Cancelar</ion-button>
+    <ion-button
+      expand="block"
+      [color]="esIngreso ? 'success' : 'danger'"
+      [disabled]="form.invalid || montoExcedeSaldo"
+      (click)="confirmar()">
+      {{ esIngreso ? 'Ingresar' : 'Retirar' }}
+    </ion-button>
+  </div>
+
+</div>

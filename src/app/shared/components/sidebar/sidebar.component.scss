@@ -1,5 +1,6 @@
 // ============================================================================
-// SIDEBAR — Layout flex: header fijo | body scroll | footer fijo
+// SIDEBAR — todos los colores vienen de tokens en variables.scss
+// Nunca hardcodear colores aquí — cambiar siempre desde variables.scss
 // ============================================================================
 
 :host {
@@ -11,11 +12,11 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--ion-background-color);
+  background: var(--app-sidebar-bg);
 }
 
 // ============================================================================
-// HEADER — Nombre del negocio (fijo)
+// HEADER
 // ============================================================================
 .sidebar-header {
   flex-shrink: 0;
@@ -25,8 +26,8 @@
   gap: var(--spacing-md);
   padding: var(--spacing-lg);
   padding-top: calc(var(--spacing-lg) + env(safe-area-inset-top));
-  background: var(--ion-item-background);
-  border-bottom: 1px solid var(--ion-color-step-100);
+  background: var(--app-sidebar-header-bg);
+  border-bottom: 1px solid var(--app-sidebar-border);
 }
 
 .sidebar-logo {
@@ -72,34 +73,33 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--ion-text-color);
+  color: var(--app-sidebar-text);
 }
 
 .sidebar-subtitle {
   font-size: 10px;
   font-weight: var(--font-weight-medium);
-  color: var(--ion-color-medium);
+  color: var(--app-sidebar-text-soft);
   text-transform: uppercase;
   letter-spacing: 0.8px;
 }
 
-// Variante clickeable — el admin puede cambiar de negocio
 .sidebar-header--clickable {
   cursor: pointer;
   transition: background var(--transition-fast);
 
   &:active {
-    background: var(--ion-color-step-50);
+    background: var(--app-sidebar-item-hover-bg);
   }
 }
 
 .sidebar-header-chevron {
   font-size: 16px;
-  color: var(--ion-color-medium);
+  color: var(--app-sidebar-text-soft);
   flex-shrink: 0;
 }
 
-// Variante superadmin — borde izquierdo warning para distinguir visualmente
+// Variante superadmin — borde izquierdo warning
 .sidebar-header--superadmin {
   border-left: 3px solid var(--ion-color-warning);
 }
@@ -125,13 +125,13 @@
 }
 
 // ============================================================================
-// BODY — Scrolleable (acciones rápidas + grupos de nav)
+// BODY — scrolleable
 // ============================================================================
 .sidebar-body {
   flex: 1;
   overflow-y: auto;
   padding-bottom: var(--spacing-md);
-  background: var(--ion-item-background);
+  background: var(--app-sidebar-bg);
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -142,24 +142,25 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--ion-color-step-200);
+    background: var(--app-sidebar-border);
     border-radius: var(--radius-pill);
 
     &:hover {
-      background: var(--ion-color-step-300);
+      background: var(--app-sidebar-text-soft);
     }
   }
 }
 
 // ============================================================================
-// ACCIONES RÁPIDAS — toolbar minimalista, solo desktop
+// ACCIONES RÁPIDAS — solo desktop
 // ============================================================================
 .quick-actions {
   flex-shrink: 0;
   display: none;
   padding: var(--spacing-sm) var(--spacing-md);
   gap: 2px;
-  border-bottom: 1px solid var(--ion-color-step-100);
+  border-bottom: 1px solid var(--app-sidebar-border);
+  background: var(--app-sidebar-bg);
 }
 
 @media (min-width: 992px) {
@@ -179,10 +180,10 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--ion-color-step-650);
+  color: var(--app-sidebar-text-soft);
   cursor: pointer;
   outline: none;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--transition-fast), color var(--transition-fast);
 
   ion-icon {
     font-size: 18px;
@@ -190,12 +191,12 @@
   }
 
   &:hover {
-    background: var(--ion-color-step-100);
-    color: var(--ion-color-primary);
+    background: var(--app-sidebar-item-hover-bg);
+    color: var(--app-sidebar-item-active-color);
   }
 
   &:active {
-    background: var(--ion-color-step-150);
+    background: var(--app-sidebar-item-active-bg);
   }
 }
 
@@ -206,26 +207,29 @@
   white-space: nowrap;
 }
 
-// Grupos de navegación
+// ============================================================================
+// GRUPOS DE NAVEGACIÓN
+// ============================================================================
 .menu-group {
   &:first-child {
     padding-top: var(--spacing-xs);
   }
 
   &:not(:first-child) {
-    border-top: 1px solid var(--ion-color-step-100);
+    border-top: 1px solid var(--app-sidebar-border);
     margin-top: var(--spacing-xs);
     padding-top: var(--spacing-xs);
   }
 }
 
 .menu-group-label {
-  padding: var(--spacing-sm) var(--spacing-2xl) var(--spacing-xs) var(--spacing-2xl);
-  font-size: 11px;
+  padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-xs) var(--spacing-lg);
+  font-size: 10px;
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--ion-color-medium);
+  letter-spacing: 1px;
+  color: var(--app-sidebar-text-soft);
+  opacity: 0.6;
 }
 
 .menu-list {
@@ -234,30 +238,39 @@
 }
 
 .menu-item {
-  --padding-start: var(--spacing-2xl);
-  --padding-end: var(--spacing-2xl);
-  --min-height: 48px;
-  font-size: 15px;
-  margin: var(--spacing-xs) var(--spacing-md);
+  --background: transparent;
+  --background-hover: var(--app-sidebar-item-hover-bg);
+  --background-activated: var(--app-sidebar-item-active-bg);
+  --color: var(--app-sidebar-text);
+  --padding-start: var(--spacing-lg);
+  --padding-end: var(--spacing-lg);
+  --min-height: 44px;
+  --border-radius: var(--radius-sm);
+  --inner-border-width: 0;
+  font-size: 14px;
+  margin: 2px var(--spacing-sm);
   border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
 
   ion-icon {
-    margin-right: var(--spacing-lg);
-    font-size: 22px;
-    color: var(--ion-color-medium);
+    margin-right: var(--spacing-md);
+    font-size: 20px;
+    color: var(--app-sidebar-text-soft);
+    opacity: 0.75;
   }
 
   ion-label {
     font-weight: var(--font-weight-medium);
+    color: var(--app-sidebar-text);
   }
 
   &:hover {
-    --background: var(--ion-color-step-100);
-  }
+    --background: var(--app-sidebar-item-hover-bg);
 
-  &:active {
-    --background: var(--ion-color-step-100);
+    ion-icon {
+      opacity: 1;
+      color: var(--app-sidebar-text);
+    }
   }
 }
 
@@ -275,7 +288,7 @@
 
   ion-icon:first-child {
     font-size: 22px;
-    color: var(--ion-color-medium);
+    color: var(--app-sidebar-text-soft);
   }
 }
 
@@ -284,27 +297,30 @@
   bottom: -3px;
   right: -6px;
   font-size: 10px;
-  color: var(--ion-color-medium);
-  background: var(--ion-background-color);
+  color: var(--app-sidebar-text-soft);
+  background: var(--app-sidebar-bg);
   border-radius: 50%;
   padding: 1px;
 }
 
+// ── Item activo ───────────────────────────────────────────────────────────────
+// routerLinkActive aplica la clase .active-item automáticamente
 .active-item {
-  --background: rgba(var(--ion-color-primary-rgb), var(--opacity-subtle));
+  --background: var(--app-sidebar-item-active-bg);
 
   ion-icon {
-    color: var(--ion-color-primary);
+    color: var(--app-sidebar-item-active-color);
+    opacity: 1;
   }
 
   ion-label {
-    color: var(--ion-color-primary);
+    color: var(--app-sidebar-item-active-color);
     font-weight: var(--font-weight-semibold);
   }
 }
 
 // ============================================================================
-// FOOTER — Info del usuario + acciones de cuenta (fijo)
+// FOOTER
 // ============================================================================
 .sidebar-footer {
   flex-shrink: 0;
@@ -314,8 +330,8 @@
   gap: var(--spacing-sm);
   padding: var(--spacing-md) var(--spacing-lg);
   padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
-  background: var(--ion-background-color);
-  border-top: 1px solid var(--ion-color-step-150);
+  background: var(--app-sidebar-bg);
+  border-top: 1px solid var(--app-sidebar-border);
 }
 
 .footer-user {
@@ -329,7 +345,7 @@
   width: 38px;
   height: 38px;
   flex-shrink: 0;
-  background: var(--ion-color-step-100);
+  background: var(--app-sidebar-item-active-bg);
   border-radius: var(--radius-full);
   display: flex;
   align-items: center;
@@ -338,7 +354,7 @@
   span {
     font-size: 15px;
     font-weight: var(--font-weight-bold);
-    color: var(--ion-color-step-900);
+    color: var(--app-sidebar-item-active-color);
     text-transform: uppercase;
   }
 }
@@ -353,7 +369,7 @@
 .footer-nombre {
   font-size: 14px;
   font-weight: var(--font-weight-semibold);
-  color: var(--ion-text-color);
+  color: var(--app-sidebar-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -361,7 +377,7 @@
 
 .footer-rol {
   font-size: 11px;
-  color: var(--ion-color-medium);
+  color: var(--app-sidebar-text-soft);
   font-weight: var(--font-weight-medium);
 
   &--superadmin {
@@ -425,12 +441,16 @@
 
     ion-icon {
       font-size: 19px;
-      color: var(--ion-color-medium);
+      color: var(--app-sidebar-text-soft);
       transition: color var(--transition-fast);
     }
 
-    &:hover ion-icon { color: var(--ion-text-color); }
+    &:hover ion-icon {
+      color: var(--app-sidebar-text);
+    }
   }
 
-  .btn-logout:hover ion-icon { color: var(--ion-color-danger); }
+  .btn-logout:hover ion-icon {
+    color: var(--ion-color-danger);
+  }
 }

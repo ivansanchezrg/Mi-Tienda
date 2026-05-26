@@ -647,9 +647,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         esEdicion: !!itemExistente,
         imagenUrl: itemExistente?.imagen_url ?? producto.imagen_url
       },
+      cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
-      cssClass: 'bottom-sheet-modal',
       backdropDismiss: false
     });
 
@@ -823,9 +823,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         esEdicion: true,
         imagenUrl: item.imagen_url
       },
+      cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
-      cssClass: 'bottom-sheet-modal',
       backdropDismiss: false
     });
 
@@ -1018,7 +1018,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       },
       cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
-      initialBreakpoint: 1
+      initialBreakpoint: 1,
     });
 
     await modal.present();

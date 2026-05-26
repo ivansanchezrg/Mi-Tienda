@@ -12,6 +12,8 @@ import {
 } from '../models/operacion-caja.model';
 import { CategoriaOperacion } from '../models/categoria-operacion.model';
 
+const HOME_MOVIMIENTOS_LIMIT = 10;
+
 @Injectable({
   providedIn: 'root'
 })
@@ -21,6 +23,30 @@ export class OperacionesCajaService {
   private ui = inject(UiService);
   private authService = inject(AuthService);
   private pageSize = PAGINATION_CONFIG.operacionesCaja.pageSize;
+
+  /**
+   * Últimos movimientos de todas las cajas del negocio — para el widget del home.
+   * Excluye APERTURA y CIERRE (operaciones del sistema) para mostrar solo
+   * movimientos de dinero reales (ingresos, egresos, transferencias, ajustes).
+   */
+  async obtenerUltimosMovimientos(): Promise<OperacionCaja[]> {
+    const { data, error } = await this.supabase.client
+      .from('operaciones_cajas')
+      .select(`
+        id, fecha, tipo_operacion, monto, descripcion, comprobante_url,
+        caja:cajas!inner(id, nombre, codigo),
+        empleado:usuarios(id, nombre),
+        categoria:categorias_operaciones(id, nombre, codigo, tipo)
+      `)
+      .not('tipo_operacion', 'in', '(APERTURA,CIERRE)')
+      .gte('fecha', getInicioHaceNDiasISO(0))
+      .lt('fecha', getInicioDiaSiguienteISO())
+      .order('fecha', { ascending: false })
+      .limit(HOME_MOVIMIENTOS_LIMIT);
+
+    if (error) throw new Error(`Error al cargar movimientos: ${error.message}`);
+    return (data as unknown as OperacionCaja[]) ?? [];
+  }
 
   async obtenerCategorias(tipo?: 'INGRESO' | 'EGRESO'): Promise<CategoriaOperacion[]> {
     let query = this.supabase.client
@@ -107,6 +133,52 @@ export class OperacionesCajaService {
     }
 
     return true;
+  }
+
+  async registrarTransferencia(
+    codigoOrigen:  string,
+    codigoDestino: string,
+    monto:         number,
+    descripcion:   string
+  ): Promise<boolean> {
+    try {
+      const empleado = await this.authService.getUsuarioActual();
+      if (!empleado) {
+        await this.ui.showError('No se pudo obtener información del empleado');
+        return false;
+      }
+
+      await this.ui.showLoading('Realizando traspaso...');
+
+      const { data, error } = await this.supabase.client.rpc('fn_crear_transferencia', {
+        p_codigo_origen:  codigoOrigen,
+        p_codigo_destino: codigoDestino,
+        p_monto:          monto,
+        p_empleado_id:    empleado.id,
+        p_descripcion:    descripcion || null,
+      });
+
+      await this.ui.hideLoading();
+
+      if (error) {
+        const rawMsg = error.message ?? '';
+        const superadminMatch = rawMsg.match(/superadmin_blocked:\s*(.+)/i);
+        await this.ui.showError(superadminMatch ? superadminMatch[1].trim() : 'Error al realizar el traspaso');
+        return false;
+      }
+
+      if (!data || !data.success) {
+        await this.ui.showError(data?.error || 'Error al realizar el traspaso');
+        return false;
+      }
+
+      await this.ui.showSuccess('Traspaso realizado correctamente');
+      return true;
+    } catch {
+      await this.ui.hideLoading();
+      await this.ui.showError('Error inesperado');
+      return false;
+    }
   }
 
   async registrarOperacion(

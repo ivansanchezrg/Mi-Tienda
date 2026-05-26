@@ -1,23 +1,26 @@
-// ==========================================
-// Modal: Pago de Fiado (FIFO)
-// ==========================================
-
 :host {
-    --bg-soft: var(--ion-background-color, #f8f9fa);
+    --modal-bg:         var(--app-bg);
+    --modal-card-bg:    var(--app-surface);
+    --modal-surface:    var(--app-surface-tint);
+    --modal-divider:    var(--app-divider);
+    --modal-text:       var(--app-text);
+    --modal-text-soft:  var(--app-text-soft);
+    --modal-text-muted: var(--app-text-muted);
 }
 
 ion-toolbar {
-    --background: var(--ion-item-background, #fff);
+    --background: var(--modal-card-bg);
     --border-width: 0;
+    --color: var(--modal-text);
 
     ion-title {
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
         letter-spacing: -0.3px;
     }
 }
 
 ion-content {
-    --background: var(--bg-soft);
+    --background: var(--modal-bg);
 }
 
 // ─────────────────────────────────────────
@@ -25,19 +28,19 @@ ion-content {
 // ─────────────────────────────────────────
 
 .cliente-card {
-    background: var(--ion-item-background, #fff);
-    border-radius: var(--radius-md, 10px);
+    background: var(--modal-card-bg);
+    border-radius: var(--radius-md);
     padding: var(--spacing-md);
     margin-bottom: var(--spacing-lg);
-    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, .08));
+    box-shadow: var(--shadow-level-1);
     display: flex;
     justify-content: space-between;
     align-items: center;
 
     .cliente-nombre {
         font-size: 15px;
-        font-weight: 600;
-        color: var(--ion-text-color);
+        font-weight: var(--font-weight-semibold);
+        color: var(--modal-text);
         margin: 0;
     }
 
@@ -48,14 +51,14 @@ ion-content {
 
         .saldo-label {
             font-size: 11px;
-            color: var(--ion-color-medium);
+            color: var(--modal-text-soft);
             text-transform: uppercase;
             letter-spacing: 0.3px;
         }
 
         .saldo-valor {
             font-size: 18px;
-            font-weight: 800;
+            font-weight: var(--font-weight-extrabold);
             color: var(--ion-color-danger);
             letter-spacing: -0.5px;
         }
@@ -70,16 +73,16 @@ ion-content {
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: var(--ion-item-background, #fff);
-    border-radius: var(--radius-md, 10px);
+    background: var(--modal-card-bg);
+    border-radius: var(--radius-md);
     padding: var(--spacing-xl) var(--spacing-lg);
     margin-bottom: var(--spacing-lg);
-    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, .08));
+    box-shadow: var(--shadow-level-1);
 
     .cobro-total-nombre {
         font-size: 14px;
-        font-weight: 600;
-        color: var(--ion-color-medium);
+        font-weight: var(--font-weight-semibold);
+        color: var(--modal-text-soft);
         margin: 0 0 var(--spacing-sm);
     }
 
@@ -90,21 +93,21 @@ ion-content {
 
         .cobro-total-prefix {
             font-size: 24px;
-            font-weight: 700;
+            font-weight: var(--font-weight-bold);
             color: var(--ion-color-primary);
         }
 
         .cobro-total-valor {
             font-size: 36px;
-            font-weight: 800;
-            color: var(--ion-text-color);
+            font-weight: var(--font-weight-extrabold);
+            color: var(--modal-text);
             letter-spacing: -1px;
         }
     }
 
     .cobro-total-desc {
         font-size: 14px;
-        color: var(--ion-color-medium);
+        color: var(--modal-text-soft);
         margin: 4px 0 var(--spacing-md);
     }
 
@@ -116,7 +119,7 @@ ion-content {
         border: none;
         color: var(--ion-color-primary);
         font-size: 14px;
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
         font-family: inherit;
         cursor: pointer;
         padding: 6px 0;
@@ -143,7 +146,7 @@ ion-content {
             border: none;
             color: var(--ion-color-primary);
             font-size: 13px;
-            font-weight: 600;
+            font-weight: var(--font-weight-semibold);
             font-family: inherit;
             cursor: pointer;
             padding: 4px 0;
@@ -157,15 +160,15 @@ ion-content {
     .monto-input-wrap {
         display: flex;
         align-items: center;
-        background: var(--ion-item-background, #fff);
-        border-radius: var(--radius-sm, 6px);
+        background: var(--modal-card-bg);
+        border-radius: var(--radius-sm);
         padding: 12px 16px;
         border: 2px solid var(--ion-color-primary);
         box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.12);
 
         .monto-prefix {
             font-size: 26px;
-            font-weight: 700;
+            font-weight: var(--font-weight-bold);
             color: var(--ion-color-primary);
             margin-right: 4px;
         }
@@ -175,8 +178,8 @@ ion-content {
             border: none;
             outline: none;
             font-size: 26px;
-            font-weight: 700;
-            color: var(--ion-text-color);
+            font-weight: var(--font-weight-bold);
+            color: var(--modal-text);
             background: transparent;
             font-family: inherit;
             width: 100%;
@@ -190,10 +193,10 @@ ion-content {
             background: rgba(var(--ion-color-primary-rgb), 0.1);
             color: var(--ion-color-primary);
             border: none;
-            border-radius: var(--radius-xs, 4px);
+            border-radius: var(--radius-xs);
             padding: 6px 12px;
             font-size: 13px;
-            font-weight: 600;
+            font-weight: var(--font-weight-semibold);
             font-family: inherit;
             cursor: pointer;
 
@@ -213,16 +216,16 @@ ion-content {
 // ─────────────────────────────────────────
 
 .preview-card {
-    background: var(--ion-item-background, #fff);
-    border-radius: var(--radius-md, 10px);
+    background: var(--modal-card-bg);
+    border-radius: var(--radius-md);
     padding: var(--spacing-md);
     margin-bottom: var(--spacing-lg);
-    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, .08));
+    box-shadow: var(--shadow-level-1);
 
     .preview-titulo {
         font-size: 11px;
-        font-weight: 600;
-        color: var(--ion-color-medium);
+        font-weight: var(--font-weight-semibold);
+        color: var(--modal-text-soft);
         text-transform: uppercase;
         letter-spacing: 0.4px;
         margin: 0 0 var(--spacing-sm);
@@ -233,7 +236,7 @@ ion-content {
         align-items: center;
         gap: var(--spacing-sm);
         padding: 8px 0;
-        border-bottom: 1px solid var(--ion-color-step-50);
+        border-bottom: 1px solid var(--modal-divider);
 
         &:last-child { border-bottom: none; }
 
@@ -242,7 +245,7 @@ ion-content {
 
             ion-icon {
                 font-size: 20px;
-                color: var(--ion-color-medium);
+                color: var(--modal-text-soft);
             }
         }
 
@@ -257,26 +260,26 @@ ion-content {
 
             .preview-desc {
                 font-size: 13px;
-                font-weight: 600;
-                color: var(--ion-text-color);
+                font-weight: var(--font-weight-semibold);
+                color: var(--modal-text);
             }
 
             .preview-detalle {
                 font-size: 12px;
-                color: var(--ion-color-medium);
+                color: var(--modal-text-soft);
                 margin-top: 1px;
 
                 strong {
-                    color: var(--ion-color-warning, #ffa600);
-                    font-weight: 700;
+                    color: var(--ion-color-warning);
+                    font-weight: var(--font-weight-bold);
                 }
             }
         }
 
         .preview-monto {
             font-size: 14px;
-            font-weight: 700;
-            color: var(--ion-text-color);
+            font-weight: var(--font-weight-bold);
+            color: var(--modal-text);
         }
 
         &.completa .preview-monto {
@@ -284,7 +287,7 @@ ion-content {
         }
 
         &.sin-cambios {
-            opacity: 0.4;
+            opacity: var(--opacity-muted);
         }
     }
 
@@ -294,17 +297,17 @@ ion-content {
         align-items: center;
         margin-top: var(--spacing-sm);
         padding-top: var(--spacing-sm);
-        border-top: 1px dashed var(--ion-color-step-200);
+        border-top: 1px dashed var(--modal-divider);
 
         span {
             font-size: 12px;
-            color: var(--ion-color-medium);
-            font-weight: 500;
+            color: var(--modal-text-soft);
+            font-weight: var(--font-weight-medium);
         }
 
         .resumen-valor {
             font-size: 14px;
-            font-weight: 700;
+            font-weight: var(--font-weight-bold);
             color: var(--ion-color-danger);
         }
     }
@@ -317,13 +320,13 @@ ion-content {
 .campo-label {
     display: block;
     font-size: 13px;
-    font-weight: 600;
-    color: var(--ion-text-color);
+    font-weight: var(--font-weight-semibold);
+    color: var(--modal-text);
     margin-bottom: 6px;
 
     .campo-opcional {
-        font-weight: 400;
-        color: var(--ion-color-medium);
+        font-weight: var(--font-weight-regular);
+        color: var(--modal-text-soft);
     }
 }
 
@@ -336,39 +339,39 @@ ion-content {
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    background: var(--ion-item-background, #fff);
-    border: 1px solid var(--ion-color-step-200);
-    border-radius: var(--radius-sm, 6px);
+    background: var(--modal-card-bg);
+    border: 1px solid var(--modal-divider);
+    border-radius: var(--radius-sm);
     padding: 12px 16px;
     font-size: 15px;
-    font-weight: 500;
-    color: var(--ion-text-color);
+    font-weight: var(--font-weight-medium);
+    color: var(--modal-text);
     font-family: inherit;
     cursor: pointer;
 
     ion-icon {
         font-size: 18px;
-        color: var(--ion-color-medium);
+        color: var(--modal-text-soft);
     }
 
-    &:active { background: var(--ion-color-step-50); }
+    &:active { background: var(--modal-surface); }
 }
 
 .campo-textarea {
     width: 100%;
-    background: var(--ion-item-background, #fff);
-    border: 1px solid var(--ion-color-step-200);
-    border-radius: var(--radius-sm, 6px);
+    background: var(--modal-card-bg);
+    border: 1px solid var(--modal-divider);
+    border-radius: var(--radius-sm);
     padding: 12px 16px;
     font-size: 14px;
-    color: var(--ion-text-color);
+    color: var(--modal-text);
     font-family: inherit;
     resize: none;
     outline: none;
     box-sizing: border-box;
 
     &:focus { border-color: var(--ion-color-primary); }
-    &::placeholder { color: var(--ion-color-medium); }
+    &::placeholder { color: var(--modal-text-muted); }
 }
 
 // ─────────────────────────────────────────
@@ -378,12 +381,12 @@ ion-content {
 .modal-footer {
     padding: var(--spacing-sm) var(--spacing-xl);
     padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
-    background: var(--ion-item-background, #fff);
-    border-top: 1px solid var(--ion-color-step-100);
+    background: var(--modal-card-bg);
+    border-top: 1px solid var(--modal-divider);
 
     .progreso-text {
         font-size: 13px;
-        color: var(--ion-color-medium);
+        color: var(--modal-text-soft);
         text-align: center;
         margin: 0 0 var(--spacing-xs);
     }
@@ -398,15 +401,15 @@ ion-content {
         background: var(--ion-color-primary);
         color: var(--ion-color-primary-contrast);
         border: none;
-        border-radius: var(--radius-md, 10px);
+        border-radius: var(--radius-md);
         font-size: 16px;
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
         font-family: inherit;
         cursor: pointer;
         transition: opacity var(--transition-normal);
 
         &:active:not(:disabled) { opacity: 0.8; }
-        &:disabled { opacity: 0.4; cursor: not-allowed; }
+        &:disabled { opacity: var(--opacity-disabled); cursor: not-allowed; }
 
         ion-icon { font-size: 20px; }
     }

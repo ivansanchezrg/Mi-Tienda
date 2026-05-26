@@ -1,8 +1,4 @@
-// Color del ícono del header — primario (inventario)
-.modal-header-icon {
-    background: rgba(var(--ion-color-primary-rgb), 0.1);
-    ion-icon { color: var(--ion-color-primary); }
-}
+// El bs-header__icon usa primary por defecto desde modals.scss — no necesita override.
 
 // Apila título + subtítulo en columna dentro del header
 .modal-header-text {
@@ -27,11 +23,8 @@
     max-width: 100%;
 }
 
-// ── Formulario ─────────────────────────────────
+// ── Formulario — usa bs-body (clase global de modals.scss), aquí solo override del gap ────
 .modal-form {
-    padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg);
-    display: flex;
-    flex-direction: column;
     gap: var(--spacing-md);
 }
 
@@ -165,7 +158,7 @@
     }
 
     &--ok {
-        color: #2e7d32;
+        color: var(--ion-color-success-shade);
     }
 }
 
@@ -234,8 +227,8 @@
     height: 24px;
     border-radius: 50%;
     background: var(--ion-color-danger);
-    color: #fff;
-    border: 2px solid var(--ion-item-background, #fff);
+    color: var(--ion-color-danger-contrast);
+    border: 2px solid var(--ion-item-background);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -270,8 +263,8 @@
     padding: 5px 12px 5px 8px;
     border-radius: 20px;
     font-weight: var(--font-weight-semibold, 600);
-    background: #2e7d32;
-    color: #fff;
+    background: var(--ion-color-success-shade);
+    color: var(--ion-color-success-contrast);
 
     ion-icon {
         font-size: 15px;

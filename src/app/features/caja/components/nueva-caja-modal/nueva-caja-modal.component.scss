@@ -1,0 +1,216 @@
+// ── Layout completo: viene de theme/custom/modals.scss (clases bs-*) ─────────
+// Solo CSS específico del componente abajo.
+
+// ── Campos del formulario ─────────────────────────────────────────────────────
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-required {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--ion-color-danger);
+  background: rgba(var(--ion-color-danger-rgb), 0.10);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.badge-optional {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--app-text-muted);
+  background: var(--app-surface-tint);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.field-error {
+  font-size: 12px;
+  color: var(--ion-color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.text-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 15px;
+  border: 1.5px solid var(--app-divider);
+  border-radius: var(--radius-md);
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+
+  &:focus { border-color: var(--ion-color-primary); }
+
+  &::placeholder {
+    color: var(--app-text-muted);
+    opacity: 0.6;
+  }
+}
+
+// ── Apariencia — preview + color + ícono ─────────────────────────────────────
+
+.appearance-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--app-surface-tint);
+  border-radius: var(--radius-md);
+  margin-bottom: 4px;
+}
+
+.preview-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+
+  ion-icon {
+    font-size: 22px;
+    color: #fff;
+  }
+}
+
+.preview-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preview-name {
+  font-size: 15px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text);
+}
+
+.preview-sub {
+  font-size: 11px;
+  color: var(--app-text-muted);
+}
+
+// ── Selector de color ─────────────────────────────────────────────────────────
+
+.color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.color-option {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  padding: 0;
+
+  &--selected {
+    border-color: var(--app-text);
+    transform: scale(1.15);
+  }
+
+  &:active { transform: scale(0.90); }
+}
+
+// ── Selector de ícono ─────────────────────────────────────────────────────────
+
+.icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.icon-option {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--app-divider);
+  background: var(--app-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  ion-icon {
+    font-size: 22px;
+    color: var(--app-text-soft);
+  }
+
+  &--selected {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.08);
+
+    ion-icon { color: var(--ion-color-primary); }
+  }
+
+  &:active { transform: scale(0.93); }
+}
+
+// ── Monto ─────────────────────────────────────────────────────────────────────
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 14px 16px;
+  border: 1.5px solid var(--app-divider);
+  border-radius: var(--radius-md);
+  background: var(--app-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:focus-within {
+    border-color: var(--ion-color-primary);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.10);
+  }
+}
+
+.amount-currency {
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text-muted);
+}
+
+.amount-row input {
+  flex: 1;
+  border: none;
+  padding: 0;
+  font-size: 28px;
+  font-weight: var(--font-weight-extrabold);
+  background: transparent;
+  color: var(--app-text);
+  outline: none;
+  letter-spacing: -0.5px;
+
+  &::placeholder {
+    color: var(--app-text-muted);
+    opacity: 0.5;
+  }
+}

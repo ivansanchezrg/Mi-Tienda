@@ -482,37 +482,47 @@ src/theme/custom/
 
 > **Convención Sass:** `@forward` en `index.scss` para agrupar, `@use` en `global.scss` para consumir. No usar `@import` (deprecated en Dart Sass 3.0).
 
-### `bottom-sheet-modal` — clase genérica para modales compactos
+### `bottom-sheet-modal` — clase estándar para todos los modales bottom sheet
 
-Usar en cualquier modal sin scroll interno que deba abrirse desde abajo:
+Única clase para todos los modales que se abren desde abajo. Se adapta al contenido (`--height: auto`) y activa scroll automáticamente cuando el contenido supera el 90% de la pantalla.
+
+#### Apertura (TS)
 
 ```typescript
 const modal = await this.modalCtrl.create({
   component: MiModalComponent,
   cssClass: 'bottom-sheet-modal',
   breakpoints: [0, 1],
-  initialBreakpoint: 1
+  initialBreakpoint: 1,
+  // componentProps: { ... }
 });
+await modal.present();
 ```
 
-**Estructura HTML obligatoria** (sin `ion-content` — div directo):
+Agregar `backdropDismiss: false` solo cuando el modal tiene operaciones destructivas que no deben cancelarse por accidente.
+
+#### Template HTML obligatorio
 
 ```html
-<div class="modal-wrapper">
+<div class="bs-root">
 
-  <div class="modal-header">
-    <div class="modal-header-icon">   <!-- color específico en SCSS local -->
+  <div class="bs-header">
+    <div class="bs-header__icon">
       <ion-icon name="mi-icono"></ion-icon>
     </div>
-    <span class="modal-header-title">Título</span>
-    <button class="modal-close-btn" (click)="cerrar()">
+    <span class="bs-header__title">Título del modal</span>
+    <button class="bs-header__close" (click)="cerrar()">
       <ion-icon name="close-outline"></ion-icon>
     </button>
   </div>
 
-  <!-- contenido específico del modal -->
+  <div class="bs-content">
+    <div class="bs-body">
+      <!-- campos del formulario, listas, etc. -->
+    </div>
+  </div>
 
-  <div class="modal-actions">
+  <div class="bs-actions bs-actions--row">
     <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
     <ion-button expand="block" color="primary" (click)="confirmar()">Confirmar</ion-button>
   </div>
@@ -520,17 +530,36 @@ const modal = await this.modalCtrl.create({
 </div>
 ```
 
-**SCSS local** — solo el color del icono (todo lo demás viene de `modals.scss`):
+**Reglas críticas del template:**
+- **Nunca usar `ion-content`** dentro del modal — colapsa a 0px con `--height: auto` porque no tiene referencia de altura. Usar `div.bs-content` con `overflow-y: auto` (ya definido en `modals.scss`).
+- **No importar `IonContent`** en el componente (ni en el `import` TS ni en `imports[]` del decorador).
+- `div.bs-content` es el área scrollable. `div.bs-body` es el wrapper de padding interno.
+
+#### SCSS local — solo el color del icono
 
 ```scss
-.modal-header-icon {
-  background: rgba(var(--ion-color-primary-rgb), 0.1);
+// Solo esto en el .scss del componente. Todo lo demás viene de modals.scss.
+.bs-header__icon {
+  background: rgba(var(--ion-color-primary-rgb), 0.10);
   ion-icon { color: var(--ion-color-primary); }
 }
 ```
 
-> **NO usar** `breakpoints` en modales con scroll interno largo → bloquea el swipe en Android.
-> Ejemplos actuales: `NuevaNotaModalComponent`, `CuadreCajaPage`.
+#### Variantes de `.bs-actions`
+
+| Clase | Layout | Cuándo usar |
+|---|---|---|
+| `bs-actions` | Columna (apilados) | 3+ botones o textos largos |
+| `bs-actions bs-actions--row` | Fila lado a lado | **Default para 2 botones** (Cancelar/Confirmar) |
+| `bs-actions bs-actions--compact` | Fila centrada, botones chicos | Modales de herramienta (calculadora, cuadre) |
+
+#### Comportamiento en desktop (≥768px)
+
+El modal se centra en pantalla con `max-width: 520px` y `border-radius: 16px` en las 4 esquinas (flotante). En móvil se ancla al fondo con esquinas redondeadas solo arriba.
+
+#### Modales actuales con este patrón
+
+`OperacionModalComponent`, `NuevaCajaModalComponent`, `TraspasoModalComponent`, `VerificarFondoModalComponent`, `NuevaNotaModalComponent`, `CuadreCajaPage`, `CalculadoraMargenComponent`, `ConsultaPrecioModalComponent`, `ModulosNegocioModalComponent`, `AjusteStockModalComponent`, `CantidadModalComponent`, `VarianteSelectorModalComponent`, `PresentacionModalComponent`.
 
 ---
 

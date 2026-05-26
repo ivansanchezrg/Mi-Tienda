@@ -314,77 +314,74 @@ const modal = await this.modalCtrl.create({
   - **Confirmaciones simples (texto plano)**: usar `AlertController`. Los alerts NO renderizan HTML custom en Android — Ionic sanitiza el `message` y muestra las etiquetas como texto. `IonicSafeString` tampoco funciona de forma confiable. **Si necesitas UI custom (estilos, layout, tipografía grande), usar un `ModalController` con componente dedicado.**
   - **Overlays que SÍ funcionan**: `AlertController`, `ModalController`, `LoadingController`, `ToastController`.
 
-### `bottom-sheet-modal` — patrón para modales compactos sin scroll
+### `bottom-sheet-modal` — patrón estándar para todos los modales
 
-Para modales compactos (formularios cortos, confirmaciones con UI custom) que deben abrirse desde abajo y ajustarse al contenido:
+Única clase para todos los modales que se abren desde abajo. Se adapta al contenido (`--height: auto`) y activa scroll automáticamente cuando supera el 90% de la pantalla.
 
 ```typescript
 const modal = await this.modalCtrl.create({
   component: MiModalComponent,
-  cssClass: 'bottom-sheet-modal',   // ← clase global en theme/custom/modals.scss
+  cssClass: 'bottom-sheet-modal',
   breakpoints: [0, 1],
-  initialBreakpoint: 1
+  initialBreakpoint: 1,
+  // backdropDismiss: false  ← solo si la operación es destructiva
 });
+await modal.present();
 ```
 
-**Template del componente** — `div` directo, sin `ion-content`:
+**Template del componente** — estructura `bs-*`, **nunca `ion-content`**:
 ```html
-<div class="modal-wrapper">
-  <div class="modal-header">
-    <div class="modal-header-icon">  <!-- color en SCSS local del componente -->
+<div class="bs-root">
+  <div class="bs-header">
+    <div class="bs-header__icon">  <!-- color en SCSS local del componente -->
       <ion-icon name="mi-icono"></ion-icon>
     </div>
-    <span class="modal-header-title">Título</span>
-    <button class="modal-close-btn" (click)="cerrar()">
+    <span class="bs-header__title">Título</span>
+    <button class="bs-header__close" (click)="cerrar()">
       <ion-icon name="close-outline"></ion-icon>
     </button>
   </div>
-  <!-- contenido -->
-  <div class="modal-actions">
+  <div class="bs-content">
+    <div class="bs-body">
+      <!-- campos, listas, formulario... -->
+    </div>
+  </div>
+  <div class="bs-actions bs-actions--row">
     <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
     <ion-button expand="block" color="primary" (click)="confirmar()">Confirmar</ion-button>
   </div>
 </div>
 ```
 
+**Por qué `div` y no `ion-content`:** `ion-content` colapsa a 0px con `--height: auto` porque necesita una altura de referencia. `div.bs-content` con `overflow-y: auto` resuelve el scroll sin ese problema.
+
 **SCSS local** — solo el color del icono, todo lo demás viene de `modals.scss`:
 ```scss
-.modal-header-icon {
+.bs-header__icon {
   background: rgba(var(--ion-color-primary-rgb), 0.1);
   ion-icon { color: var(--ion-color-primary); }
 }
 ```
 
-> **NO usar** en modales con scroll largo — bloquea el swipe en Android (misma regla de `breakpoints`).
-> Ejemplos actuales: `NuevaNotaModalComponent`, `CuadreCajaPage`, `CrearNegocioModalComponent`.
+**No importar `IonContent`** en el componente del modal — ni en el `import` TS ni en `imports[]` del decorador.
 
-### `modal-actions` — variantes de layout de botones
+### `bs-actions` — variantes de layout de botones
 
-La clase `.modal-actions` tiene 3 variantes según el contexto del modal:
-
-| Variante | Clase | Layout | Uso |
-|----------|-------|--------|-----|
-| Default | `modal-actions` | Columna (apilados) | Modales con botones de texto largo o 3+ botones |
-| Fila | `modal-actions modal-actions--row` | Fila (lado a lado) | **Default para 2 botones cortos** (Cancelar/Confirmar) |
-| Compacto | `modal-actions modal-actions--compact` | Fila centrada, botones chicos | Modales de herramienta/info (calculadora, cuadre) |
-
-**Regla:** Si el modal tiene exactamente 2 botones (Cancelar + Accion), usar `modal-actions--row`. Los botones apilados verticalmente solo se justifican cuando hay 3+ acciones o textos largos que no caben en una fila.
+| Clase | Layout | Cuándo usar |
+|-------|--------|-------------|
+| `bs-actions` | Columna (apilados) | 3+ botones o textos largos |
+| `bs-actions bs-actions--row` | Fila lado a lado | **Default para 2 botones** (Cancelar/Confirmar) |
+| `bs-actions bs-actions--compact` | Fila centrada, botones chicos | Modales de herramienta (calculadora, cuadre) |
 
 ```html
-<!-- ✅ 2 botones cortos — fila horizontal -->
-<div class="modal-actions modal-actions--row">
-  <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
-  <ion-button expand="block" color="primary" (click)="confirmar()">Confirmar</ion-button>
-</div>
-
-<!-- ❌ 2 botones cortos apilados — desperdicia espacio vertical -->
-<div class="modal-actions">
+<!-- ✅ 2 botones — fila horizontal -->
+<div class="bs-actions bs-actions--row">
   <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
   <ion-button expand="block" color="primary" (click)="confirmar()">Confirmar</ion-button>
 </div>
 ```
 
-Definido en `src/theme/custom/modals.scss`. Ejemplos: `CrearNegocioModalComponent` (row), `CuadreCajaPage` (compact).
+Definido en `src/theme/custom/modals.scss`. Safe area ya incluida en `.bs-actions` — no agregar `env(safe-area-inset-bottom)` manualmente.
 
 ### `OptionsModalComponent` — componente estándar para selects y action sheets
 
@@ -947,10 +944,10 @@ padding-bottom: env(safe-area-inset-bottom);
     padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom));
 }
 
-// ✅ .modal-actions ya incluye env(safe-area-inset-bottom) en modals.scss — no agregar de nuevo
+// ✅ .bs-actions ya incluye env(safe-area-inset-bottom) en modals.scss — no agregar de nuevo
 ```
 
-> Los modales que usan `.modal-actions` (patrón `bottom-sheet-modal`) ya tienen safe area en `modals.scss`. Solo los footers custom necesitan agregarlo manualmente.
+> Los modales que usan `.bs-actions` (patrón `bottom-sheet-modal`) ya tienen safe area en `modals.scss`. Solo los footers custom necesitan agregarlo manualmente.
 
 **Excepción — páginas dentro de tabs:** `ion-tab-bar` ya compensa el safe area internamente. Los footers de páginas que viven dentro de tabs **NO deben sumar** `env(safe-area-inset-bottom)` — se duplica el espacio. Solo usar `padding-bottom` normal. Los elementos `position: fixed` (overlays, scanners) sí lo necesitan porque están fuera del flujo del tab bar.
 
@@ -975,7 +972,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Sidebar footer | `sidebar.component.scss` | ✅ |
 | FAB global | `global.scss` | ✅ |
 | Footer modal variantes POS | `variante-selector-modal.component.scss` | ✅ |
-| `.modal-actions` (bottom-sheet-modal) | `theme/custom/modals.scss` | ✅ |
+| `.bs-actions` (bottom-sheet-modal) | `theme/custom/modals.scss` | ✅ |
 
 ---
 

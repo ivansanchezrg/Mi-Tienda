@@ -26,7 +26,7 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content #content color="light" [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
+<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>

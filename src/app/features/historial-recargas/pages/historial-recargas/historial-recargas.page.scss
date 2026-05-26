@@ -172,11 +172,5 @@
 .op-divider {
   height: 1px;
   margin: 0 var(--spacing-lg) 0 68px;
-  background: #d1d5db;
-
-  .ios &, .md & {
-    @media (prefers-color-scheme: dark) {
-      background: #333639;
-    }
-  }
+  background: var(--ion-color-step-150);
 }

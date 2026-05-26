@@ -245,7 +245,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   }
 
   private irACrearSimple(codigoBarras: string) {
-    this.navCtrl.navigateForward(ROUTES.inventario.nuevoSimple, { queryParams: { codigo: codigoBarras } });
+    this.navCtrl.navigateForward(ROUTES.inventario.nuevo, { queryParams: { tipo: 'simple', codigo: codigoBarras } });
   }
 
   private async resolverImagenUrl(producto: Producto): Promise<Producto> {

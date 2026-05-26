@@ -1,10 +1,5 @@
-// Oculta el sheet mientras el escáner está activo
-.modal-wrapper--oculto {
-  visibility: hidden;
-}
-
-// Solo el color del icono — todo lo demás viene de modals.scss
-.modal-header-icon {
+// Color del icono — layout viene de modals.scss (clases bs-*)
+.bs-header__icon {
   background: rgba(var(--ion-color-warning-rgb), 0.12);
   ion-icon { color: var(--ion-color-warning-shade); }
 }
@@ -130,7 +125,7 @@
 
 .stock-alerta {
   background: var(--ion-color-danger);
-  color: white;
+  color: var(--ion-color-danger-contrast);
   font-size: 10px;
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;

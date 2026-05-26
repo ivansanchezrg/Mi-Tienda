@@ -24,7 +24,7 @@ import { NetworkService } from '@core/services/network.service';
 import { CajasService } from '../../services/cajas.service';
 import { StorageService } from '@core/services/storage.service';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
-import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
+import { OptionsMenuComponent, MenuOption } from '@shared/components/options-menu/options-menu.component';
 import { AuthService } from '../../../auth/services/auth.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { PeriodFilterComponent, PeriodOption } from '../../../../shared/components/period-filter/period-filter.component';
@@ -50,7 +50,8 @@ interface OperacionAgrupada {
     IonInfiniteScroll, IonInfiniteScrollContent, IonSkeletonText,
     IonRefresher, IonRefresherContent,
     EmptyStateComponent,
-    PeriodFilterComponent
+    PeriodFilterComponent,
+    OptionsMenuComponent
   ]
 })
 export class OperacionesCajaPage implements OnDestroy {
@@ -120,6 +121,11 @@ export class OperacionesCajaPage implements OnDestroy {
     return true; // CAJA, VARIOS y CAJA_CELULAR — cualquier usuario logueado
   }
 
+  readonly opcionesMenu: MenuOption[] = [
+    { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'INGRESO' },
+    { label: 'Registrar Egreso',  icon: 'arrow-up-outline',   value: 'EGRESO',  color: 'danger' },
+  ];
+
   constructor() {
     addIcons({
       chevronBackOutline, arrowDownOutline, arrowUpOutline,
@@ -127,7 +133,6 @@ export class OperacionesCajaPage implements OnDestroy {
       cashOutline, documentTextOutline, walletOutline,
       documentAttachOutline, closeOutline, ellipsisVertical, close
     });
-
   }
 
   async ionViewWillEnter() {
@@ -347,38 +352,12 @@ export class OperacionesCajaPage implements OnDestroy {
     this.showHeaderBalance = event.detail.scrollTop > 150;
   }
 
-  async mostrarMenuOperaciones(event: Event) {
-    event.stopPropagation();
-
-    if (this.turnoAjeno) return;
-
-    // Verificar conexión
+  async onMenuOpcion(option: MenuOption) {
     if (!this.isOnline) {
       await this.ui.showError('Sin conexión a internet. No puedes realizar operaciones.');
       return;
     }
-
-    const groups: ModalOptionGroup[] = [{
-      options: [
-        { label: 'Ingreso', icon: 'arrow-down-outline', value: 'INGRESO', color: 'success' },
-        { label: 'Egreso', icon: 'arrow-up-outline', value: 'EGRESO', color: 'danger' },
-      ]
-    }];
-
-    const modal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
-      componentProps: { title: this.cajaNombre, groups },
-      cssClass: 'options-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-
-    await modal.present();
-    const { data } = await modal.onDidDismiss();
-
-    if (data === 'INGRESO' || data === 'EGRESO') {
-      this.abrirModalOperacion(data);
-    }
+    this.abrirModalOperacion(option.value as 'INGRESO' | 'EGRESO');
   }
 
   async abrirModalOperacion(tipo: 'INGRESO' | 'EGRESO') {
@@ -392,7 +371,10 @@ export class OperacionesCajaPage implements OnDestroy {
           tipo: tipo,
           cajas: cajas,
           cajaIdPreseleccionada: this.cajaId
-        }
+        },
+        cssClass: 'bottom-sheet-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1
       });
 
       await modal.present();

@@ -133,6 +133,41 @@ body.scanner-active .scanner-overlay {
   visibility: visible;
 }
 
+// ============================================================================
+// ION-TAB-BAR — Estilos globales
+// Los colores se controlan desde :root en variables.scss usando las variables
+// nativas de Ionic (--ion-tab-bar-background, --ion-tab-bar-color, etc.)
+// que Ionic recoge automáticamente en su cadena de fallback del Shadow DOM.
+// Aquí solo van propiedades que no tienen variable nativa equivalente.
+// ============================================================================
+
+ion-tab-bar {
+  --background: var(--app-tab-bg);
+  --border: 1px solid var(--app-tab-border);
+  --color: var(--app-tab-color);
+  --color-selected: var(--app-tab-color-active);
+  box-shadow: var(--app-tab-shadow);
+  height: 56px;
+}
+
+ion-tab-button {
+  --ripple-color: transparent;
+  --color: var(--app-tab-color);
+  --color-selected: var(--app-tab-color-active);
+}
+
+// Oculta el tab-bar sin eliminarlo del DOM
+ion-tab-bar.tabs-oculto {
+  display: none;
+}
+
+// Desktop — la navegación está en el sidebar
+@media (min-width: 992px) {
+  ion-tab-bar {
+    display: none !important;
+  }
+}
+
 // Ocultar el tab bar durante el escaneo y colapsar su altura para que el scanner ocupe toda la pantalla
 body.scanner-active ion-tab-bar {
   visibility: hidden;

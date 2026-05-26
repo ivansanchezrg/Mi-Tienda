@@ -3,302 +3,337 @@
 
 /**
  * ============================================================================
- * SISTEMA DE DISEÑO - FLAT DESIGN MODERNO v2.0
+ * SISTEMA DE DISEÑO — FLAT DESIGN MODERNO v3.0
  * ============================================================================
  *
  * FILOSOFÍA:
- * Flat Design moderno con superficies planas, sombras sutiles, bordes
- * redondeados suaves y espaciado consistente.
- * Compatible con modo claro/oscuro usando variables CSS de Ionic.
+ * Una sola paleta neutra para toda la app. Fondo gris sutil, cards blancas,
+ * sombras mínimas. Los colores semánticos (primary, success, danger, warning)
+ * se reservan para acciones e indicadores, nunca para fondos de página.
  *
  * CAPAS VISUALES:
  * ┌──────────────────────────────────────────────────────────────────────────┐
- * │ Fondo General   --ion-background-color  → #f4f5f8  / dark: #121212      │
+ * │ Fondo de página   --app-bg          → #f4f5f8  / dark: #111111          │
  * │   ┌──────────────────────────────────────────────────────────────────┐   │
- * │   │ Cards/Items  --ion-item-background  → #ffffff  / dark: #1e1e1e  │   │
- * │   │   • Texto    --ion-text-color       → Ionic nativo (auto dark)  │   │
- * │   │   • Sombras sutiles para profundidad                             │   │
+ * │   │ Cards / Items  --app-surface    → #ffffff  / dark: #1a1a1a      │   │
+ * │   │   ┌──────────────────────────────────────────────────────────┐   │   │
+ * │   │   │ Superficies elevadas  --app-surface-raised               │   │   │
+ * │   │   │ (popovers, modales)   → #ffffff  / dark: #222222         │   │   │
+ * │   │   └──────────────────────────────────────────────────────────┘   │   │
  * │   └──────────────────────────────────────────────────────────────────┘   │
  * └──────────────────────────────────────────────────────────────────────────┘
  *
- * VARIABLES IONIC NATIVAS (no redefinidas aquí — Ionic las gestiona):
- *   --ion-text-color        Texto principal (negro/blanco según modo)
- *   --ion-color-light       Fondo gris claro para ion-content y modales
- *   --ion-color-medium      Texto secundario / placeholders
- *   --ion-color-primary     Color de marca
- *   --ion-color-success     Verde (ingresos, estados positivos)
- *   --ion-color-danger      Rojo (egresos, errores, destrucción)
- *   --ion-color-warning     Amarillo (alertas, advertencias)
+ * TOKENS PRINCIPALES:
+ *   --app-bg             Fondo general de páginas
+ *   --app-bg-rgb         Versión RGB de --app-bg (para rgba())
+ *   --app-surface        Cards, items, superficies elevadas
+ *   --app-surface-raised Nivel superior: modales, popovers
+ *   --app-surface-tint   Tint sutil: icon wrappers, quick actions, hover
+ *   --app-surface-tint-rgb Versión RGB
+ *   --app-divider        Líneas separadoras
+ *   --app-text           Texto principal
+ *   --app-text-soft      Texto secundario
+ *   --app-text-muted     Texto deshabilitado / placeholder
  *
- * PRINCIPIOS DE USO:
- * 1. NUNCA hardcodear colores (#fff, #000, rgba literales) en componentes
- * 2. Usar siempre design tokens de este archivo o variables Ionic nativas
- * 3. Usar --ion-color-step-* para grises y variaciones sutiles
- * 4. Excepción documentada: --shadow-level-* usan rgba() porque CSS no
- *    permite construir box-shadow desde variables separadas
- * 5. Mantener consistencia de spacing y radios en toda la app
+ * HERO (card oscura del home):
+ *   --app-hero-bg        Fondo del hero (verde oscuro en light, elevado en dark)
+ *   --app-hero-bg-rgb    Versión RGB
+ *   --app-hero-accent    Color de acento sobre el hero (verde brillante)
+ *   --app-hero-accent-rgb Versión RGB
+ *   --app-hero-danger    Rojo suave para egresos sobre el hero
+ *   --app-hero-text-muted Texto muy secundario sobre el hero
+ *
+ * REGLAS DE USO:
+ * 1. NUNCA hardcodear colores en componentes — siempre usar tokens
+ * 2. Para texto: --app-text / --app-text-soft / --app-text-muted
+ * 3. Para fondos de página: --app-bg (o --ion-background-color, son el mismo valor)
+ * 4. Para cards: --app-surface (o --ion-item-background, son el mismo valor)
+ * 5. Para separadores: --app-divider
+ * 6. Sombras: --shadow-level-* (única excepción con rgba() literal — CSS lo requiere)
  * ============================================================================
  */
 
 
 :root {
   // ============================================================================
-  // COLORES BASE (Ionic Nativo - Adaptativo al modo oscuro)
+  // FONDOS IONIC — base del sistema (Ionic nativo, adaptativo al modo oscuro)
   // ============================================================================
 
-  // Fondo principal de páginas — gris sutil para que los cards resalten
-  // NOTA: valor literal obligatorio aquí porque es la definición del token
-  --ion-background-color: #f4f5f8;
+  // Fondo general de páginas — gris neutro sutil
+  --ion-background-color:     #f4f5f8;
   --ion-background-color-rgb: 244, 245, 248;
 
   // Fondo de cards, items y superficies elevadas
   --ion-item-background: #ffffff;
 
   // ============================================================================
+  // PALETA DE LA APP — tokens semánticos únicos
+  // ============================================================================
+  //
+  // Estos tokens son los que deben usarse en todos los componentes y features.
+  // --ion-background-color e --ion-item-background son aliases de los mismos
+  // valores para compatibilidad con Ionic — no usarlos directamente en features,
+  // preferir --app-bg y --app-surface para mayor claridad semántica.
+
+  // ── Fondos de página ─────────────────────────────────────────────────────────
+  --app-bg:                 #f4f5f8;
+  --app-bg-rgb:             244, 245, 248;
+
+  // ── Superficies (cards, items, paneles) ──────────────────────────────────────
+  --app-surface:            #ffffff;
+  --app-surface-raised:     #ffffff;   // modales, popovers — mismo nivel en light
+
+  // ── Tint sutil (icon wrappers, hover, quick actions, skeleton bg) ────────────
+  --app-surface-tint:       #f0f1f5;
+  --app-surface-tint-rgb:   240, 241, 245;
+
+  // ── Divisores / separadores ──────────────────────────────────────────────────
+  --app-divider:            #e6e6e6;   // = ion-color-step-100
+
+  // ── Texto ─────────────────────────────────────────────────────────────────────
+  --app-text:               #1a1a1a;   // = ion-color-step-900
+  --app-text-soft:          #666666;   // = ion-color-step-600
+  --app-text-muted:         #999999;   // = ion-color-step-400
+
+  // ── Overlay (FAB menu, drawers, modales) ─────────────────────────────────────
+  --app-overlay-bg:         rgba(0, 0, 0, 0.16);
+
+  // ============================================================================
+  // HERO — card principal del home
+  // ============================================================================
+  //
+  // El hero usa el color primary de la app como fondo — coherente con botones,
+  // tabs activos y FAB. El accent es blanco para contraste máximo sobre el azul.
+  // En dark mode mantiene el primary pero con sombra diferente.
+
+  --app-hero-bg:            var(--ion-color-primary);
+  --app-hero-bg-rgb:        var(--ion-color-primary-rgb);
+  --app-hero-accent:        rgba(255, 255, 255, 0.92);
+  --app-hero-accent-rgb:    255, 255, 255;
+  --app-hero-danger:        #fca5a5;
+  --app-hero-text-muted:    rgba(255, 255, 255, 0.50);
+
+  // ============================================================================
+  // SIDEBAR
+  // ============================================================================
+
+  --app-sidebar-bg:               var(--app-surface);
+  --app-sidebar-header-bg:        var(--app-bg);
+  --app-sidebar-border:           var(--app-divider);
+  --app-sidebar-item-active-bg:   var(--app-surface-tint);
+  --app-sidebar-item-active-color: var(--ion-color-primary);
+  --app-sidebar-item-hover-bg:    rgba(var(--app-surface-tint-rgb), 0.60);
+  --app-sidebar-text:             var(--app-text);
+  --app-sidebar-text-soft:        var(--app-text-soft);
+
+  // ============================================================================
   // TAB BAR
   // ============================================================================
-  --tab-bar-background:      #ffffff;
-  --tab-bar-border:          #E5E7EB;
-  --tab-bar-color-active:    #0054E9;
-  --tab-bar-color-inactive:  #6B7280;
+
+  --app-tab-bg:             var(--app-surface);
+  --app-tab-border:         var(--app-divider);
+  --app-tab-color:          var(--app-text-soft);
+  --app-tab-color-active:   var(--ion-color-primary);
+  --app-tab-shadow:         0 -1px 0 var(--app-divider);
 
   // ============================================================================
-  // BORDER RADIUS (Bordes Redondeados)
+  // BORDER RADIUS
   // ============================================================================
 
-  /**
-   * Escala de border-radius consistente
-   * USO:
-   * - xs: Botones pequeños, badges, inputs
-   * - sm: Icon wrappers, botones medianos
-   * - md: Cards pequeños, items de lista
-   * - lg: Cards grandes, modales, secciones hero
-   * - xl: Elementos especiales muy redondeados
-   * - pill: Pills, chips, tags (totalmente redondeado)
-   * - full: Elementos circulares (avatares, dots, badges)
-   */
-  --radius-xs: 8px;      // Botones pequeños, badges, inputs
-  --radius-sm: 12px;     // Icon wrappers, botones medianos
-  --radius-md: 16px;     // Cards pequeños, items de lista
-  --radius-lg: 24px;     // Cards grandes, modales, secciones hero
-  --radius-xl: 32px;     // Elementos especiales muy redondeados
-  --radius-pill: 100px;  // Pills, chips, tags
-  --radius-full: 50%;    // Elementos circulares
+  --radius-xs:   8px;     // Badges, inputs pequeños
+  --radius-sm:   12px;    // Icon wrappers, botones
+  --radius-md:   16px;    // Cards, items de lista
+  --radius-lg:   24px;    // Cards grandes, hero
+  --radius-xl:   32px;    // Elementos especiales
+  --radius-pill: 100px;   // Pills, chips, tags
+  --radius-full: 50%;     // Círculos
 
   // ============================================================================
-  // BOX SHADOW (Elevación y Profundidad)
+  // BOX SHADOW
   // ============================================================================
+  //
+  // EXCEPCIÓN JUSTIFICADA: box-shadow requiere color concreto.
+  // rgba() literal es la única excepción al principio de no hardcodear colores.
 
-  /**
-   * Escala de sombras para crear profundidad visual
-   * USO:
-   * - none:    Elementos completamente planos
-   * - level-1: Elevación mínima (chips, badges, dividers)
-   * - level-2: Elevación suave (cards, items de lista)
-   * - level-3: Elevación media (modales, bottom sheets)
-   * - level-4: Elevación alta (dialogs, overlays)
-   *
-   * EXCEPCIÓN JUSTIFICADA: box-shadow requiere un color concreto — CSS no
-   * permite construirlo desde variables separadas. Se usan rgba() literales
-   * aquí (única excepción al principio de no hardcodear colores).
-   * En dark mode se redefinen con opacidades más altas para compensar
-   * el fondo oscuro.
-   */
-  --shadow-none: none;
-  --shadow-level-1: 0 1px 4px rgba(0, 0, 0, 0.06);    // Mínima
-  --shadow-level-2: 0 2px 8px rgba(0, 0, 0, 0.08);    // Suave
-  --shadow-level-3: 0 4px 16px rgba(0, 0, 0, 0.10);   // Media
-  --shadow-level-4: 0 8px 24px rgba(0, 0, 0, 0.14);   // Alta
+  --shadow-none:    none;
+  --shadow-level-1: 0 1px 4px rgba(0, 0, 0, 0.06);
+  --shadow-level-2: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-level-3: 0 4px 16px rgba(0, 0, 0, 0.10);
+  --shadow-level-4: 0 8px 24px rgba(0, 0, 0, 0.14);
 
   // ============================================================================
-  // SPACING (Espaciado Consistente)
+  // SPACING
   // ============================================================================
 
-  /**
-   * Escala de espaciado basada en múltiplos de 4px
-   * USO:
-   * - xs (4px): Gaps pequeños entre elementos hermanos
-   * - sm (8px): Espaciado entre íconos y texto, gaps medianos
-   * - md (12px): Márgenes entre items, padding de botones
-   * - lg (16px): Padding de items, márgenes de secciones
-   * - xl (20px): Padding de cards, márgenes de páginas
-   * - 2xl (24px): Padding de secciones grandes
-   * - 3xl (32px): Padding de hero sections, modales
-   * - 4xl (40px): Espaciado especial muy grande
-   *
-   * EJEMPLO:
-   * .card { padding: var(--spacing-xl); margin-bottom: var(--spacing-md); }
-   */
-  --spacing-xs: 4px;    // 0.25rem
-  --spacing-sm: 8px;    // 0.5rem
-  --spacing-md: 12px;   // 0.75rem
-  --spacing-lg: 16px;   // 1rem
-  --spacing-xl: 20px;   // 1.25rem
-  --spacing-2xl: 24px;  // 1.5rem
-  --spacing-3xl: 32px;  // 2rem
-  --spacing-4xl: 40px;  // 2.5rem
+  --spacing-xs:  4px;
+  --spacing-sm:  8px;
+  --spacing-md:  12px;
+  --spacing-lg:  16px;
+  --spacing-xl:  20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+  --spacing-4xl: 40px;
 
   // ============================================================================
-  // FONT WEIGHTS (Pesos de Fuente)
+  // FONT WEIGHTS
   // ============================================================================
 
-  /**
-   * Escala de pesos tipográficos
-   * USO:
-   * - regular: Texto normal, párrafos
-   * - medium: Subtítulos, labels
-   * - semibold: Títulos de sección
-   * - bold: Títulos principales, montos
-   * - extrabold: Hero titles, números destacados
-   */
-  --font-weight-regular: 400;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  --font-weight-regular:   400;
+  --font-weight-medium:    500;
+  --font-weight-semibold:  600;
+  --font-weight-bold:      700;
   --font-weight-extrabold: 800;
 
   // ============================================================================
-  // TRANSITIONS (Animaciones Suaves)
+  // TRANSITIONS
   // ============================================================================
 
-  /**
-   * Tiempos de transición estándar
-   * USO:
-   * - fast: Hover states, botones
-   * - normal: Transiciones generales
-   * - slow: Animaciones complejas
-   */
-  --transition-fast: 0.15s ease;
+  --transition-fast:   0.15s ease;
   --transition-normal: 0.2s ease;
-  --transition-slow: 0.3s ease;
+  --transition-slow:   0.3s ease;
 
   // ============================================================================
-  // OPACITIES (Transparencias)
+  // OPACIDADES
   // ============================================================================
 
-  /**
-   * Niveles de opacidad estándar para overlays, backgrounds, etc.
-   * USO:
-   * - disabled: Estados deshabilitados
-   * - muted: Elementos secundarios
-   * - subtle: Backgrounds ligeros
-   * - medium: Overlays moderados
-   * - strong: Overlays prominentes
-   */
   --opacity-disabled: 0.3;
-  --opacity-muted: 0.6;
-  --opacity-subtle: 0.08;
-  --opacity-medium: 0.12;
-  --opacity-strong: 0.16;
+  --opacity-muted:    0.6;
+  --opacity-subtle:   0.08;
+  --opacity-medium:   0.12;
+  --opacity-strong:   0.16;
 
   // ============================================================================
-  // STEP COLORS (Escala de Grises - Light Mode)
+  // STEP COLORS — escala de grises (light mode)
   // ============================================================================
+  //
+  // Ionic 8 NO genera estos steps automáticamente.
+  // Solo se declaran los que realmente se usan.
+  //
+  // PATRÓN CONTRASTE INVERTIDO (tab activo, filtro activo):
+  //   background: var(--ion-color-step-900)  → oscuro en light, claro en dark
+  //   color:      var(--ion-color-step-50)   → claro en light, oscuro en dark
 
-  /**
-   * Escala de grises desde casi blanco (50) hasta casi negro (950).
-   * NOTA: Ionic 8 NO genera estos steps automáticamente — se declaran aquí.
-   * Solo se definen los pasos que realmente se usan en la app (no todos
-   * los 20 posibles), para mantener el archivo limpio.
-   *
-   * USO POR PASO:
-   *   step-50  → Fondos de hover, superficies casi blancas
-   *   step-100 → Bordes sutiles, dividers, fondos de skeleton
-   *   step-150 → Bordes de inputs, separadores visibles
-   *   step-300 → Iconos inactivos, placeholders
-   *   step-400 → Texto deshabilitado
-   *   step-600 → Texto secundario (similar a --ion-color-medium)
-   *   step-900 → Texto casi negro, fondos oscuros
-   *   step-950 → Texto negro puro, máximo contraste
-   *
-   * PATRÓN CONTRASTE INVERTIDO (elemento activo — tab/filtro/chip):
-   *   background: var(--ion-color-step-900)  → oscuro en light, claro en dark
-   *   color:      var(--ion-color-step-50)   → claro en light, oscuro en dark
-   * Se invierte automáticamente en dark mode. Sin ningún valor hardcodeado.
-   */
-  --ion-color-step-50: #f2f2f2;    // Casi blanco
-  --ion-color-step-100: #e6e6e6;   // Muy claro
-  --ion-color-step-150: #d9d9d9;   // Claro
-  --ion-color-step-200: #cccccc;   // Bordes de contenedores, divisores entre secciones
-  --ion-color-step-300: #b3b3b3;   // Gris claro
-  --ion-color-step-400: #999999;   // Gris medio-claro
-  --ion-color-step-600: #666666;   // Gris medio-oscuro
-  --ion-color-step-900: #1a1a1a;   // Muy oscuro
-  --ion-color-step-950: #0d0d0d;   // Casi negro
-
-  
+  --ion-color-step-50:  #f2f2f2;
+  --ion-color-step-100: #e6e6e6;
+  --ion-color-step-150: #d9d9d9;
+  --ion-color-step-200: #cccccc;
+  --ion-color-step-300: #b3b3b3;
+  --ion-color-step-400: #999999;
+  --ion-color-step-500: #808080;
+  --ion-color-step-600: #666666;
+  --ion-color-step-900: #1a1a1a;
+  --ion-color-step-950: #0d0d0d;
 }
 
 // ============================================================================
-// DESKTOP (Split pane activo — pantallas ≥992px)
+// DESKTOP (split pane activo — ≥992px)
 // ============================================================================
-// Solo se sobreescriben los tokens que deben escalar en pantallas grandes.
-// El resto (colores, sombras, radios) se mantienen igual.
 
 @media (min-width: 992px) {
   :root {
-    // Spacing ligeramente más generoso
-    --spacing-sm: 10px;
-    --spacing-md: 14px;
-    --spacing-lg: 18px;
-    --spacing-xl: 24px;
+    --spacing-sm:  10px;
+    --spacing-md:  14px;
+    --spacing-lg:  18px;
+    --spacing-xl:  24px;
     --spacing-2xl: 28px;
 
-    // Tipografía base más legible en pantalla grande
     --font-size-base: 16px;
-    --font-size-sm: 14px;
-    --font-size-lg: 18px;
+    --font-size-sm:   14px;
+    --font-size-lg:   18px;
   }
 }
 
 // ============================================================================
-// DARK MODE (Modo Oscuro)
+// DARK MODE
 // ============================================================================
+//
+// Filosofía: jerarquía por elevación, no por color.
+//
+// ESCALA DE SUPERFICIES (de más profundo a más elevado):
+//   #111111 → fondo de página       (nivel 1 — app-bg)
+//   #1a1a1a → cards, items          (nivel 2 — app-surface)
+//   #222222 → modales, popovers     (nivel 3 — app-surface-raised)
+//   #2a2a2a → divisores, contornos
 
 @media (prefers-color-scheme: dark) {
   :root {
-    // Fondos adaptados a modo oscuro
-    --ion-background-color: #121212;
-    --ion-background-color-rgb: 18, 18, 18;
-    --ion-item-background: #1e1e1e;
+    // ── Fondos Ionic ──────────────────────────────────────────────────────────
+    --ion-background-color:     #111111;
+    --ion-background-color-rgb: 17, 17, 17;
+    --ion-item-background:      #1a1a1a;
 
-    // Tab bar dark mode
-    --tab-bar-background:      #1e1e1e;
-    --tab-bar-border:          #2a2a2a;
-    --tab-bar-color-active:    #4F8CFF;
-    --tab-bar-color-inactive:  #94A3B8;
+    // ── Fondos de la app ──────────────────────────────────────────────────────
+    --app-bg:                 #111111;
+    --app-bg-rgb:             17, 17, 17;
 
-    // Sombras con mayor opacidad en dark mode — el fondo oscuro absorbe
-    // sombras sutiles y necesitan más contraste para percibirse
-    --shadow-level-1: 0 1px 4px rgba(0, 0, 0, 0.25);
-    --shadow-level-2: 0 2px 8px rgba(0, 0, 0, 0.35);
-    --shadow-level-3: 0 4px 16px rgba(0, 0, 0, 0.45);
-    --shadow-level-4: 0 8px 24px rgba(0, 0, 0, 0.55);
+    // ── Superficies ───────────────────────────────────────────────────────────
+    --app-surface:            #1a1a1a;
+    --app-surface-raised:     #222222;
 
-    // Steps invertidos en dark mode — los valores "claros" se vuelven oscuros
-    // y viceversa, manteniendo la semántica de contraste de cada variable
-    --ion-color-step-50: #0d0d0d;    // Casi negro  (← era casi blanco)
-    --ion-color-step-100: #1a1a1a;   // Muy oscuro
-    --ion-color-step-150: #262626;   // Oscuro
-    --ion-color-step-200: #333333;   // Bordes de contenedores, divisores entre secciones
-    --ion-color-step-300: #4d4d4d;   // Gris oscuro
-    --ion-color-step-400: #666666;   // Gris medio
-    --ion-color-step-600: #999999;   // Gris medio-claro
-    --ion-color-step-900: #e6e6e6;   // Muy claro
-    --ion-color-step-950: #f2f2f2;   // Casi blanco (← era casi negro)
+    // ── Tint ──────────────────────────────────────────────────────────────────
+    --app-surface-tint:       #222222;
+    --app-surface-tint-rgb:   34, 34, 34;
+
+    // ── Divisores ─────────────────────────────────────────────────────────────
+    --app-divider:            #2a2a2a;
+
+    // ── Texto ─────────────────────────────────────────────────────────────────
+    --app-text:               #e0e0e0;
+    --app-text-soft:          #888888;
+    --app-text-muted:         #555555;
+
+    // ── Overlay ───────────────────────────────────────────────────────────────
+    --app-overlay-bg:         rgba(0, 0, 0, 0.60);
+
+    // ── Hero ──────────────────────────────────────────────────────────────────
+    --app-hero-bg:            #1e1e1e;
+    --app-hero-bg-rgb:        30, 30, 30;
+    --app-hero-accent:        var(--app-text);
+    --app-hero-accent-rgb:    224, 224, 224;
+    --app-hero-danger:        #f87171;
+    --app-hero-text-muted:    rgba(255, 255, 255, 0.40);
+
+    // ── Sidebar ───────────────────────────────────────────────────────────────
+    --app-sidebar-bg:               #1a1a1a;
+    --app-sidebar-header-bg:        #111111;
+    --app-sidebar-border:           #2a2a2a;
+    --app-sidebar-item-active-bg:   #222222;
+    --app-sidebar-item-active-color: var(--ion-color-primary);
+    --app-sidebar-item-hover-bg:    rgba(255, 255, 255, 0.04);
+    --app-sidebar-text:             #e0e0e0;
+    --app-sidebar-text-soft:        #888888;
+
+    // ── Tab bar ───────────────────────────────────────────────────────────────
+    --app-tab-bg:             #1a1a1a;
+    --app-tab-border:         #2a2a2a;
+    --app-tab-color:          #555555;
+    --app-tab-color-active:   var(--ion-color-primary);
+    --app-tab-shadow:         0 -1px 0 #2a2a2a;
+
+    // ── Sombras (más opacas en dark) ──────────────────────────────────────────
+    --shadow-level-1: 0 1px 3px rgba(0, 0, 0, 0.40);
+    --shadow-level-2: 0 2px 8px rgba(0, 0, 0, 0.50);
+    --shadow-level-3: 0 4px 16px rgba(0, 0, 0, 0.60);
+    --shadow-level-4: 0 8px 24px rgba(0, 0, 0, 0.70);
+
+    // ── Steps (invertidos en dark) ────────────────────────────────────────────
+    --ion-color-step-50:  #0f0f0f;
+    --ion-color-step-100: #1a1a1a;
+    --ion-color-step-150: #222222;
+    --ion-color-step-200: #2a2a2a;
+    --ion-color-step-300: #3d3d3d;
+    --ion-color-step-400: #555555;
+    --ion-color-step-500: #707070;
+    --ion-color-step-600: #888888;
+    --ion-color-step-900: #e0e0e0;
+    --ion-color-step-950: #f0f0f0;
   }
 }
 
 // ============================================================================
-// UTILITY CLASSES (Clases de Utilidad)
+// UTILITY CLASSES
 // ============================================================================
 
-/**
- * Clases helper para aplicar design tokens rápidamente
- * NOTA: Úsalas con moderación, prefiere componentes semánticos
- */
-
-// Spacing utilities
 .p-xs { padding: var(--spacing-xs); }
 .p-sm { padding: var(--spacing-sm); }
 .p-md { padding: var(--spacing-md); }
@@ -323,16 +358,14 @@
 .mb-lg { margin-bottom: var(--spacing-lg); }
 .mb-xl { margin-bottom: var(--spacing-xl); }
 
-// Border radius utilities
-.rounded-sm { border-radius: var(--radius-sm); }
-.rounded-md { border-radius: var(--radius-md); }
-.rounded-lg { border-radius: var(--radius-lg); }
+.rounded-sm   { border-radius: var(--radius-sm); }
+.rounded-md   { border-radius: var(--radius-md); }
+.rounded-lg   { border-radius: var(--radius-lg); }
 .rounded-pill { border-radius: var(--radius-pill); }
 .rounded-full { border-radius: var(--radius-full); }
 
-// Shadow utilities
-.shadow-1 { box-shadow: var(--shadow-level-1); }
-.shadow-2 { box-shadow: var(--shadow-level-2); }
-.shadow-3 { box-shadow: var(--shadow-level-3); }
-.shadow-4 { box-shadow: var(--shadow-level-4); }
+.shadow-1    { box-shadow: var(--shadow-level-1); }
+.shadow-2    { box-shadow: var(--shadow-level-2); }
+.shadow-3    { box-shadow: var(--shadow-level-3); }
+.shadow-4    { box-shadow: var(--shadow-level-4); }
 .shadow-none { box-shadow: none; }

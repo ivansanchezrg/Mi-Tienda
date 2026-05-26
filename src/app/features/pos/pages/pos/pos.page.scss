@@ -312,7 +312,7 @@ ion-toolbar {
         position: relative;
         width: 260px;
         height: 160px;
-        border: 2px solid white;
+        border: 2px solid rgba(255, 255, 255, 0.90);
         border-radius: var(--radius-lg);
         box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
         overflow: hidden;
@@ -322,8 +322,8 @@ ion-toolbar {
             left: 10%;
             width: 80%;
             height: 2px;
-            background: #00ff88;
-            box-shadow: 0 0 8px #00ff88;
+            background: var(--app-hero-accent);
+            box-shadow: 0 0 8px var(--app-hero-accent);
             border-radius: 2px;
             animation: scanMove 2s ease-in-out infinite;
         }
@@ -335,7 +335,7 @@ ion-toolbar {
     }
 
     .scanner-hint {
-        color: white;
+        color: rgba(255, 255, 255, 0.92);
         font-size: 14px;
         text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
         margin: 0;
@@ -368,7 +368,7 @@ ion-toolbar {
         .sp-name {
             font-size: 16px;
             font-weight: var(--font-weight-bold);
-            color: white;
+            color: rgba(255, 255, 255, 0.96);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -427,7 +427,7 @@ ion-toolbar {
         border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: var(--radius-pill);
         padding: 10px var(--spacing-lg);
-        color: white;
+        color: rgba(255, 255, 255, 0.92);
         font-size: 14px;
         font-weight: var(--font-weight-semibold);
         backdrop-filter: blur(8px);

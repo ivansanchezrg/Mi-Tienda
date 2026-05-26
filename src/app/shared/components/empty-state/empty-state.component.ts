@@ -37,22 +37,22 @@ import {
 
     .empty-icon {
       font-size: 64px;
-      color: var(--ion-color-primary);
-      opacity: 0.18;
+      color: var(--app-hero-bg);
+      opacity: 0.28;
       margin-bottom: var(--spacing-sm);
     }
 
     .empty-title {
       font-size: 17px;
       font-weight: 700;
-      color: var(--ion-text-color);
-      opacity: 0.4;
+      color: var(--ion-color-step-900);
+      opacity: 0.45;
       margin: 0;
     }
 
     .empty-hint {
       font-size: 13px;
-      color: var(--ion-color-medium);
+      color: var(--ion-color-step-600);
       max-width: 240px;
       line-height: 1.4;
       margin: 0;

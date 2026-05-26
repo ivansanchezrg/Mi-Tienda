@@ -2,12 +2,10 @@
 
 <ion-split-pane contentId="main-content" when="lg">
 
-  <!-- Sidebar (overlay en móvil, fijo en desktop — ion-split-pane maneja el tipo automáticamente) -->
   <ion-menu contentId="main-content">
     <app-sidebar (accionRapida)="onAccionRapida($event)"></app-sidebar>
   </ion-menu>
 
-  <!-- Wrapper principal — ion-split-pane lo identifica por id, ion-tabs maneja el routing interno -->
   <div id="main-content" class="main-content-wrapper">
   <ion-tabs>
 
@@ -39,7 +37,7 @@
         <span class="fab-option-label">Nueva nota</span>
       </div>
       }
-      <div class="fab-option" (click)="irACuadre()">
+<div class="fab-option" (click)="irACuadre()">
         <div class="fab-option-icon tertiary">
           <ion-icon [icon]="scaleIcon"></ion-icon>
         </div>
@@ -68,11 +66,15 @@
       <app-disabled-tab [icon]="posIcon" label="POS" [disabledMessage]="posDisabledMessage"></app-disabled-tab>
       }
 
-      <!-- FAB integrado como tab -->
-      <ion-tab-button class="fab-tab-container">
-        <ion-fab-button color="dark" (click)="toggleFab()" [class.fab-abierto]="fabAbierto">
-          <ion-icon [icon]="fabAbierto ? closeIcon : addIcon"></ion-icon>
-        </ion-fab-button>
+      <!-- Botón FAB central — integrado en el tab bar -->
+      <ion-tab-button class="fab-tab-btn" (click)="toggleFab()" [class.fab-abierto]="fabAbierto">
+        <div class="fab-tab-circle">
+          @if (fabAbierto) {
+            <ion-icon [icon]="closeIcon"></ion-icon>
+          } @else {
+            <ion-icon [icon]="addIcon"></ion-icon>
+          }
+        </div>
       </ion-tab-button>
 
       <ion-tab-button tab="inventario">
@@ -80,7 +82,6 @@
         <ion-label>Inventario</ion-label>
       </ion-tab-button>
 
-      <!-- Ventas: siempre visible (es el historial, tambien cuando la caja esta cerrada) -->
       <ion-tab-button tab="ventas">
         <ion-icon [icon]="ventasIcon"></ion-icon>
         <ion-label>Ventas</ion-label>

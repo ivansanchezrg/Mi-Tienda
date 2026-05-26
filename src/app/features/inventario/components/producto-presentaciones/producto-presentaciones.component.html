@@ -1,0 +1,124 @@
+<div class="presentaciones-wrapper">
+
+  <div class="presentaciones-header">
+    <p class="field-label">
+      Presentaciones
+      @if (modo === 'crear') {
+      <span class="optional-badge">Opcional</span>
+      }
+    </p>
+    @if (modo === 'crear') {
+    <button type="button" class="pres-add-btn" (click)="agregarNueva()">
+      <ion-icon name="add-outline"></ion-icon> Agregar
+    </button>
+    } @else {
+    <button type="button" class="pres-add-btn" (click)="agregar()">
+      <ion-icon name="add-outline"></ion-icon> Agregar
+    </button>
+    }
+  </div>
+
+  <!-- ── MODO CREAR (en memoria) ── -->
+  @if (modo === 'crear') {
+    @if (presentacionesNuevas.length === 0) {
+    <p class="help-text">
+      <ion-icon name="information-circle-outline" class="icon-inline"></ion-icon>
+      Si este producto se vende en paquetes (ej. cajetilla x10), agregalos aqui. Opcional.
+    </p>
+    } @else {
+    <div class="presentaciones-list">
+      @for (pres of presentacionesNuevas; track pres.nombre; let i = $index) {
+      <div class="pres-item" [class.pres-item-enter]="presentacionRecienAgregada === pres.nombre">
+        @if (pres.previewUrl) {
+        <img [src]="pres.previewUrl" class="pres-thumb" alt="">
+        } @else {
+        <div class="pres-thumb pres-thumb--empty">
+          <ion-icon name="image-outline"></ion-icon>
+        </div>
+        }
+        <div class="pres-info" (click)="editarNueva(i)">
+          <span class="pres-nombre">{{ pres.nombre }}</span>
+          <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
+          @if (pres.codigo_barras) {
+          <span class="pres-codigo">{{ pres.codigo_barras }}</span>
+          }
+        </div>
+        <button type="button" class="pres-quitar-btn" (click)="eliminarNueva(i)">
+          <ion-icon name="trash-outline"></ion-icon>
+        </button>
+      </div>
+      }
+    </div>
+    }
+  }
+
+  <!-- ── MODO EDITAR (persistido) ── -->
+  @if (modo === 'editar') {
+    @if (presentaciones.length === 0 && presentacionesInactivas.length === 0) {
+    <p class="help-text">
+      <ion-icon name="information-circle-outline" class="icon-inline"></ion-icon>
+      Sin presentaciones. Si este producto se vende en paquetes (ej. cajetilla x10), agrega una.
+    </p>
+    } @else {
+    <div class="presentaciones-list">
+      @for (pres of presentaciones; track pres.id) {
+      <div class="pres-item" [class.pres-item-enter]="presentacionRecienAgregada === pres.nombre">
+        @if (presentacionesImagenUrls.get(pres.id)) {
+        <img [src]="presentacionesImagenUrls.get(pres.id)" class="pres-thumb" alt="">
+        } @else {
+        <div class="pres-thumb pres-thumb--empty">
+          <ion-icon name="image-outline"></ion-icon>
+        </div>
+        }
+        <div class="pres-info" (click)="editar(pres)">
+          <span class="pres-nombre">{{ pres.nombre }}</span>
+          <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
+          @if (pres.codigo_barras) {
+          <span class="pres-codigo">{{ pres.codigo_barras }}</span>
+          }
+        </div>
+        <button type="button" class="pres-quitar-btn" (click)="desactivar(pres)">
+          <ion-icon name="close-outline"></ion-icon>
+          <span>Quitar</span>
+        </button>
+      </div>
+      }
+
+      @if (presentacionesInactivas.length > 0) {
+      <button type="button" class="pres-inactivas-toggle" (click)="mostrarInactivas = !mostrarInactivas">
+        <div class="pres-inactivas-toggle-line"></div>
+        <span>Inactivas ({{ presentacionesInactivas.length }})</span>
+        @if (mostrarInactivas) {
+        <ion-icon name="chevron-up-outline"></ion-icon>
+        } @else {
+        <ion-icon name="chevron-down-outline"></ion-icon>
+        }
+        <div class="pres-inactivas-toggle-line"></div>
+      </button>
+
+      @if (mostrarInactivas) {
+        @for (pres of presentacionesInactivas; track pres.id) {
+        <div class="pres-item pres-item--inactiva">
+          <div class="pres-info">
+            <div class="pres-nombre-row">
+              <span class="pres-nombre">{{ pres.nombre }}</span>
+              <span class="pres-badge-inactiva">INACTIVA</span>
+            </div>
+            <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
+            @if (pres.codigo_barras) {
+            <span class="pres-codigo">{{ pres.codigo_barras }}</span>
+            }
+          </div>
+          <button type="button" class="pres-reactivar-btn" (click)="reactivar(pres)">
+            <ion-icon name="refresh-outline"></ion-icon>
+            <span>Activar</span>
+          </button>
+        </div>
+        }
+      }
+      }
+    </div>
+    }
+  }
+
+</div>

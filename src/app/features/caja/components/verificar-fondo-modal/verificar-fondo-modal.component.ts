@@ -2,14 +2,13 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCheckbox,
+  IonButton, IonIcon, IonCheckbox,
   ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   closeOutline, alertCircleOutline, checkmarkCircle, checkmarkCircleOutline,
-  fileTrayOutline, lockOpenOutline
+  checkmarkOutline, fileTrayOutline, lockOpenOutline
 } from 'ionicons/icons';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { UiService } from '@core/services/ui.service';
@@ -22,8 +21,7 @@ import { UiService } from '@core/services/ui.service';
   imports: [
     CommonModule,
     FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonCheckbox
+    IonButton, IonIcon, IonCheckbox
   ]
 })
 export class VerificarFondoModalComponent {
@@ -45,7 +43,7 @@ export class VerificarFondoModalComponent {
   constructor() {
     addIcons({
       closeOutline, alertCircleOutline, checkmarkCircle, checkmarkCircleOutline,
-      fileTrayOutline, lockOpenOutline
+      checkmarkOutline, fileTrayOutline, lockOpenOutline
     });
   }
 

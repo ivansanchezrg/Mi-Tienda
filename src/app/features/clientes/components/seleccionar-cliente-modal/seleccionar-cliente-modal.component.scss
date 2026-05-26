@@ -1,10 +1,21 @@
+:host {
+    --modal-bg:         var(--app-bg);
+    --modal-card-bg:    var(--app-surface);
+    --modal-surface:    var(--app-surface-tint);
+    --modal-divider:    var(--app-divider);
+    --modal-text:       var(--app-text);
+    --modal-text-soft:  var(--app-text-soft);
+    --modal-text-muted: var(--app-text-muted);
+}
+
 ion-toolbar {
-    --background: var(--ion-item-background);
+    --background: var(--modal-card-bg);
+    --color: var(--modal-text);
 }
 
 ion-content {
-    --background: var(--ion-background-color, #f8f9fa);
-    --overflow: auto; // fuerza scroll en sheet modals con breakpoints
+    --background: var(--modal-bg);
+    --overflow: auto;
 }
 
 .modal-content {
@@ -22,11 +33,11 @@ ion-content {
     padding: 10px 14px;
     background: rgba(var(--ion-color-warning-rgb), 0.1);
     border: 1px solid var(--ion-color-warning);
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     margin-bottom: 8px;
     font-size: 13px;
     color: var(--ion-color-warning-shade);
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
 
     ion-icon {
         font-size: 18px;
@@ -37,23 +48,23 @@ ion-content {
 // ── Labels de sección ──────────────────────────
 .section-label {
     font-size: 11px;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--ion-color-medium);
+    color: var(--modal-text-soft);
     margin: 12px 4px 6px;
 }
 
 // ── Lista de clientes ──────────────────────────
 .client-list {
     background: transparent;
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     overflow: hidden;
-    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0,0,0,.08));
+    box-shadow: var(--shadow-level-1);
     margin-bottom: 4px;
 
     ion-item {
-        --background: var(--ion-item-background);
+        --background: var(--modal-card-bg);
         --padding-start: 12px;
         --inner-padding-end: 12px;
         --padding-top: 10px;
@@ -65,20 +76,20 @@ ion-content {
 
             h3 {
                 color: var(--ion-color-primary);
-                font-weight: 700;
+                font-weight: var(--font-weight-bold);
             }
         }
 
         h3 {
             font-size: 15px;
-            font-weight: 600;
+            font-weight: var(--font-weight-semibold);
             margin: 0 0 2px 0;
-            color: var(--ion-text-color);
+            color: var(--modal-text);
         }
 
         p {
             font-size: 12px;
-            color: var(--ion-color-medium);
+            color: var(--modal-text-soft);
             margin: 0;
         }
     }
@@ -87,8 +98,8 @@ ion-content {
 .client-avatar {
     width: 38px;
     height: 38px;
-    border-radius: 50%;
-    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    border-radius: var(--radius-full);
+    background: var(--modal-surface);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -107,8 +118,8 @@ ion-content {
 
     ion-searchbar {
         --box-shadow: none;
-        --border-radius: 10px;
-        --background: var(--ion-item-background);
+        --border-radius: var(--radius-sm);
+        --background: var(--modal-card-bg);
         padding: 0;
         margin: 0 0 8px 0;
         height: 44px;
@@ -126,7 +137,7 @@ ion-content {
 .no-results {
     text-align: center;
     font-size: 13px;
-    color: var(--ion-color-medium);
+    color: var(--modal-text-soft);
     padding: 12px 0;
     margin: 0;
 }
@@ -138,14 +149,14 @@ ion-content {
     gap: 10px;
     width: 100%;
     padding: 14px 16px;
-    background: var(--ion-item-background);
+    background: var(--modal-card-bg);
     border: 1.5px dashed var(--ion-color-primary);
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     color: var(--ion-color-primary);
     font-size: 15px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background var(--transition-fast);
 
     ion-icon {
         font-size: 20px;
@@ -159,13 +170,13 @@ ion-content {
 
 // ── Formulario nuevo cliente ───────────────────
 .new-client-form {
-    background: var(--ion-item-background);
-    border-radius: 12px;
+    background: var(--modal-card-bg);
+    border-radius: var(--radius-md);
     padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 14px;
-    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0,0,0,.08));
+    box-shadow: var(--shadow-level-1);
 }
 
 .form-field {
@@ -175,8 +186,8 @@ ion-content {
 
     .field-label {
         font-size: 12px;
-        font-weight: 600;
-        color: var(--ion-color-medium);
+        font-weight: var(--font-weight-semibold);
+        color: var(--modal-text-soft);
         text-transform: uppercase;
         letter-spacing: 0.3px;
 
@@ -188,22 +199,21 @@ ion-content {
     .field-input {
         width: 100%;
         padding: 10px 12px;
-        border: 1.5px solid var(--ion-color-step-200, #ddd);
-        border-radius: 8px;
+        border: 1.5px solid var(--modal-divider);
+        border-radius: var(--radius-sm);
         font-size: 15px;
-        color: var(--ion-text-color);
-        background: var(--ion-background-color, #f8f9fa);
+        color: var(--modal-text);
+        background: var(--modal-bg);
         outline: none;
         box-sizing: border-box;
-        transition: border-color 0.15s;
+        transition: border-color var(--transition-fast);
 
         &:focus {
             border-color: var(--ion-color-primary);
         }
 
         &::placeholder {
-            color: var(--ion-color-medium);
-            opacity: 0.6;
+            color: var(--modal-text-muted);
         }
     }
 }
@@ -215,7 +225,7 @@ ion-content {
     align-items: center;
 
     .field-input {
-        padding-right: 38px; // espacio para el ícono
+        padding-right: 38px;
     }
 
     .cedula-spinner,
@@ -242,12 +252,12 @@ ion-content {
 .duplicate-card {
     background: rgba(var(--ion-color-warning-rgb), 0.08);
     border: 1px solid var(--ion-color-warning);
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     padding: 10px 12px;
 
     .duplicate-label {
         font-size: 12px;
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
         color: var(--ion-color-warning-shade);
         margin: 0 0 8px 0;
     }
@@ -259,17 +269,17 @@ ion-content {
         --padding-top: 4px;
         --padding-bottom: 4px;
         --min-height: 48px;
-        border-radius: 8px;
+        border-radius: var(--radius-sm);
 
         h3 {
             font-size: 14px;
-            font-weight: 600;
-            color: var(--ion-text-color);
+            font-weight: var(--font-weight-semibold);
+            color: var(--modal-text);
         }
 
         p {
             font-size: 12px;
-            color: var(--ion-color-medium);
+            color: var(--modal-text-soft);
         }
     }
 }
@@ -282,16 +292,16 @@ ion-content {
     .btn-cancel {
         flex: 1;
         padding: 12px;
-        border: 1.5px solid var(--ion-color-step-200, #ddd);
-        border-radius: 8px;
+        border: 1.5px solid var(--modal-divider);
+        border-radius: var(--radius-sm);
         background: transparent;
-        color: var(--ion-color-medium);
+        color: var(--modal-text-soft);
         font-size: 15px;
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
         cursor: pointer;
 
         &:active {
-            background: var(--ion-color-step-50);
+            background: var(--modal-surface);
         }
     }
 
@@ -299,19 +309,19 @@ ion-content {
         flex: 2;
         padding: 12px;
         border: none;
-        border-radius: 8px;
+        border-radius: var(--radius-sm);
         background: var(--ion-color-primary);
-        color: white;
+        color: var(--ion-color-primary-contrast);
         font-size: 15px;
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: opacity 0.15s;
+        transition: opacity var(--transition-fast);
 
         &:disabled {
-            opacity: 0.6;
+            opacity: var(--opacity-muted);
             cursor: not-allowed;
         }
 

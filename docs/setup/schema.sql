@@ -234,6 +234,8 @@ CREATE TABLE IF NOT EXISTS cajas (
     codigo      VARCHAR(50)   NOT NULL,
     nombre      VARCHAR(100)  NOT NULL,
     descripcion TEXT,
+    icono       VARCHAR(50)   NOT NULL DEFAULT 'cash-outline',
+    color       VARCHAR(20)   NOT NULL DEFAULT '#6c757d',
     saldo_actual DECIMAL(12,2) DEFAULT 0,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     activo      BOOLEAN DEFAULT TRUE,

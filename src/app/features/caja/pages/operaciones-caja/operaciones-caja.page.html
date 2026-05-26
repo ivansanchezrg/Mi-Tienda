@@ -11,9 +11,12 @@
         <span class="header-balance">${{ cajaSaldo | number:'1.2-2' }}</span>
       }
       @if (mostrarMenuOpciones) {
-        <ion-button (click)="mostrarMenuOperaciones($event)">
-          <ion-icon slot="icon-only" name="ellipsis-vertical"></ion-icon>
-        </ion-button>
+        <app-options-menu
+          triggerId="caja-ops-menu"
+          triggerColor="medium"
+          [options]="opcionesMenu"
+          (optionSelected)="onMenuOpcion($event)">
+        </app-options-menu>
       }
     </ion-buttons>
   </ion-toolbar>

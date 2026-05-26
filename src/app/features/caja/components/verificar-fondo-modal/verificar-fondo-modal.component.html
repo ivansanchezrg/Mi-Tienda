@@ -1,131 +1,143 @@
-<ion-header class="ion-no-border">
-  <ion-toolbar>
-    <ion-title>Abrir Caja</ion-title>
-    <ion-buttons slot="end">
-      @if (!hayDeficit || pasoActual === 2) {
-        <ion-button (click)="cancelar()">
-          <ion-icon slot="icon-only" name="close-outline"></ion-icon>
-        </ion-button>
+<div class="bs-root">
+
+  <!-- ── Header ───────────────────────────────────────────────────────────── -->
+  <div class="bs-header">
+    <div class="bs-header__icon" [class.bs-header__icon--warning]="hayDeficit && pasoActual === 1">
+      @if (hayDeficit && pasoActual === 1) {
+        <ion-icon name="alert-circle-outline"></ion-icon>
+      } @else {
+        <ion-icon name="lock-open-outline"></ion-icon>
       }
-    </ion-buttons>
-  </ion-toolbar>
-</ion-header>
-
-<ion-content>
-  <div class="modal-content">
-
-    <!-- INDICADOR DE PASOS (solo si hay deficit) -->
-    @if (hayDeficit) {
-      <div class="paso-indicator">
-        <div class="paso-dot" [class.activo]="pasoActual === 1" [class.completado]="pasoActual === 2">
-          @if (pasoActual === 2) {
-            <ion-icon name="checkmark-circle"></ion-icon>
-          } @else {
-            1
-          }
-        </div>
-        <div class="paso-linea" [class.completada]="pasoActual === 2"></div>
-        <div class="paso-dot" [class.activo]="pasoActual === 2">2</div>
-      </div>
-      <div class="paso-labels">
-        <span [class.activo]="pasoActual === 1" [class.completado]="pasoActual === 2">Reponer faltante</span>
-        <span [class.activo]="pasoActual === 2">Confirmar y abrir</span>
-      </div>
+    </div>
+    <div class="vfm-header-text">
+      <span class="bs-header__title">
+        @if (hayDeficit && pasoActual === 1) { Faltante pendiente } @else { Abrir caja }
+      </span>
+      @if (hayDeficit && pasoActual === 1) {
+        <span class="vfm-header-subtitle">Mueve el dinero antes de continuar</span>
+      }
+    </div>
+    @if (!hayDeficit || pasoActual === 2) {
+      <button class="bs-header__close" (click)="cancelar()" type="button">
+        <ion-icon name="close-outline"></ion-icon>
+      </button>
+    } @else {
+      <div style="width:36px;flex-shrink:0"></div>
     }
+  </div>
 
-    <!-- ====== PASO 1: REPONER DEFICIT ====== -->
-    @if (hayDeficit && pasoActual === 1) {
-      <div class="section-card">
+  <div class="bs-content">
+    <div class="bs-body">
 
-        <div class="deficit-header">
-          <ion-icon name="alert-circle-outline" class="deficit-icon-grande"></ion-icon>
-          <h2 class="deficit-titulo">Hay un faltante del día anterior</h2>
-          <p class="deficit-subtitulo">Antes de abrir, mueve el dinero físicamente</p>
+      <!-- ── Stepper (solo con déficit) ────────────────────────────────────────── -->
+      @if (hayDeficit) {
+        <div class="vfm-stepper">
+          <div class="vfm-stepper-track">
+            <div class="vfm-stepper-node" [class.active]="pasoActual === 1" [class.done]="pasoActual === 2">
+              @if (pasoActual === 2) { <ion-icon name="checkmark-outline"></ion-icon> } @else { <span>1</span> }
+            </div>
+            <div class="vfm-stepper-line" [class.done]="pasoActual === 2"></div>
+            <div class="vfm-stepper-node" [class.active]="pasoActual === 2">
+              <span>2</span>
+            </div>
+          </div>
+          <div class="vfm-stepper-labels">
+            <span [class.active]="pasoActual === 1" [class.done]="pasoActual === 2">Reponer faltante</span>
+            <span [class.active]="pasoActual === 2">Confirmar y abrir</span>
+          </div>
         </div>
+      }
 
-        <div class="instrucciones-pasos">
-          <div class="instruccion-paso">
-            <div class="paso-numero">1</div>
-            <p>Toma <strong>${{ totalAReponer | number:'1.2-2' }}</strong> de la funda <strong>Tienda</strong></p>
+      <!-- ── PASO 1: Reponer déficit ─────────────────────────────────────────── -->
+      @if (hayDeficit && pasoActual === 1) {
+        <div class="vfm-instructions">
+          <div class="vfm-instruction-item">
+            <div class="vfm-instruction-num">1</div>
+            <div class="vfm-instruction-text">
+              <span>Toma <strong>${{ totalAReponer | number:'1.2-2' }}</strong> de la funda</span>
+              <span class="vfm-instruction-tag vfm-instruction-tag--primary">Tienda</span>
+            </div>
           </div>
           @if (deficitVarios > 0) {
-            <div class="instruccion-paso">
-              <div class="paso-numero">2</div>
-              <p>Pon <strong>${{ deficitVarios | number:'1.2-2' }}</strong> en la funda <strong>Varios</strong></p>
+            <div class="vfm-instruction-item">
+              <div class="vfm-instruction-num">2</div>
+              <div class="vfm-instruction-text">
+                <span>Pon <strong>${{ deficitVarios | number:'1.2-2' }}</strong> en la funda</span>
+                <span class="vfm-instruction-tag vfm-instruction-tag--tertiary">Varios</span>
+              </div>
             </div>
           }
           @if (fondoFaltante > 0) {
-            <div class="instruccion-paso">
-              <div class="paso-numero">{{ deficitVarios > 0 ? 3 : 2 }}</div>
-              <p>Pon <strong>${{ fondoFaltante | number:'1.2-2' }}</strong> en el <strong>cajón</strong> como fondo del día</p>
+            <div class="vfm-instruction-item">
+              <div class="vfm-instruction-num">{{ deficitVarios > 0 ? 3 : 2 }}</div>
+              <div class="vfm-instruction-text">
+                <span>Pon <strong>${{ fondoFaltante | number:'1.2-2' }}</strong> en el</span>
+                <span class="vfm-instruction-tag vfm-instruction-tag--success">Cajón</span>
+              </div>
             </div>
           }
         </div>
+      }
 
-        <div class="actions-section">
-          <button class="primary-btn warning" (click)="avanzarPaso2()">
-            <ion-icon name="checkmark-circle-outline"></ion-icon>
-            Ya lo hice — Continuar
-          </button>
-          <button class="secondary-btn" (click)="cancelar()">
-            Cancelar
-          </button>
-        </div>
-
-      </div>
-    }
-
-    <!-- ====== PASO 2: CONFIRMAR Y ABRIR ====== -->
-    @if (!hayDeficit || pasoActual === 2) {
-      <div class="section-card">
+      <!-- ── PASO 2 / Sin déficit: Confirmar y abrir ───────────────────────────── -->
+      @if (!hayDeficit || pasoActual === 2) {
 
         @if (errorMsg) {
-          <div class="error-banner">
+          <div class="vfm-error">
             <ion-icon name="alert-circle-outline"></ion-icon>
             <span>{{ errorMsg }}</span>
           </div>
         }
 
-        <!-- Faltante repuesto (solo cuando viene del paso 1) -->
         @if (hayDeficit && pasoActual === 2) {
-          <div class="repuesto-ok">
-            <ion-icon name="checkmark-circle"></ion-icon>
-            <span>Se transferirá <strong>${{ totalAReponer | number:'1.2-2' }}</strong> de Tienda — el sistema lo registra al abrir</span>
+          <div class="vfm-ok-banner">
+            <ion-icon name="checkmark-circle-outline"></ion-icon>
+            <span>Se tomará <strong>${{ totalAReponer | number:'1.2-2' }}</strong> de Tienda al registrar la apertura</span>
           </div>
         }
 
-        <!-- Fondo del día -->
-        <div class="fondo-display">
-          <div class="fondo-icon-wrapper">
-            <ion-icon name="file-tray-outline"></ion-icon>
+        <!-- Fondo del cajón -->
+        <div class="vfm-fondo-card">
+          <div class="vfm-fondo-left">
+            <div class="vfm-fondo-icon">
+              <ion-icon name="file-tray-outline"></ion-icon>
+            </div>
+            <div class="vfm-fondo-info">
+              <span class="vfm-fondo-label">Fondo del cajón</span>
+              <span class="vfm-fondo-value">${{ fondoFijo | number:'1.2-2' }}</span>
+            </div>
           </div>
-          <div class="fondo-info">
-            <span class="fondo-label">Fondo en el cajón</span>
-            <span class="fondo-value">${{ fondoFijo | number:'1.2-2' }}</span>
-          </div>
+          <span class="vfm-fondo-badge">Hoy</span>
         </div>
 
-        <label class="confirm-row">
+        <!-- Confirmación -->
+        <label class="vfm-confirm-row">
           <ion-checkbox [(ngModel)]="confirmado" labelPlacement="end">
             Tengo este monto en el cajón físico
           </ion-checkbox>
         </label>
+      }
 
-        <div class="actions-section">
-          <button
-            class="primary-btn success"
-            [disabled]="!confirmado || abriendo"
-            (click)="abrirCaja()">
-            <ion-icon name="lock-open-outline"></ion-icon>
-            Abrir Caja
-          </button>
-          <button class="secondary-btn" (click)="cancelar()">
-            Cancelar
-          </button>
-        </div>
-
-      </div>
-    }
-
+    </div>
   </div>
-</ion-content>
+
+  <!-- ── Acciones según paso ──────────────────────────────────────────────── -->
+  @if (hayDeficit && pasoActual === 1) {
+    <div class="bs-actions bs-actions--row">
+      <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">Cancelar</ion-button>
+      <ion-button expand="block" color="primary" (click)="avanzarPaso2()">
+        <ion-icon slot="start" name="checkmark-outline"></ion-icon>
+        Ya lo hice
+      </ion-button>
+    </div>
+  } @else {
+    <div class="bs-actions bs-actions--row">
+      <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">Cancelar</ion-button>
+      <ion-button expand="block" color="success" [disabled]="!confirmado || abriendo" (click)="abrirCaja()">
+        <ion-icon slot="start" name="lock-open-outline"></ion-icon>
+        Abrir caja
+      </ion-button>
+    </div>
+  }
+
+</div>

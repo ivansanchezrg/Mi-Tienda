@@ -3,7 +3,7 @@ import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import {
   IonMenu, IonTabs, IonTabBar,
-  IonTabButton, IonIcon, IonLabel, IonFabButton,
+  IonTabButton, IonIcon, IonLabel,
   IonSplitPane, ModalController
 } from '@ionic/angular/standalone';
 import { SidebarComponent } from 'src/app/shared/components/sidebar/sidebar.component';
@@ -29,7 +29,7 @@ import { ScannerOverlayComponent } from 'src/app/shared/components/scanner-overl
   imports: [
     CommonModule,
     IonSplitPane, IonMenu, IonTabs, IonTabBar,
-    IonTabButton, IonIcon, IonLabel, IonFabButton,
+    IonTabButton, IonIcon, IonLabel,
     SidebarComponent, DisabledTabComponent, ScannerOverlayComponent
   ]
 })
