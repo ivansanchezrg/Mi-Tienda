@@ -51,16 +51,41 @@
   font-weight: var(--font-weight-medium);
 }
 
-// ── Cards de caja ─────────────────────────────────────────────────────────────
+// ── Mini-cards de caja con scroll horizontal ──────────────────────────────────
 
-.caja-list {
+.caja-scroll {
   display: flex;
-  flex-direction: row;
   gap: 8px;
-  flex-wrap: wrap;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 3px 2px 4px;
+
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 }
 
-.caja-list__hint {
+// Hint "← →" — solo desktop con mouse, solo cuando hay overflow real
+@media (pointer: fine) {
+  .has-h-overflow .scroll-hint {
+    display: flex;
+  }
+}
+
+.scroll-hint {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--app-text-muted);
+  opacity: 0.7;
+  margin-top: -2px;
+  user-select: none;
+  pointer-events: none;
+
+}
+
+.caja-scroll__hint {
   font-size: 13px;
   color: var(--app-text-muted);
   font-style: italic;
@@ -68,75 +93,85 @@
   padding: 4px 0;
 }
 
-.caja-card {
+.caja-mini-card {
+  flex-shrink: 0;
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 10px;
+  padding: 10px 14px 10px 10px;
   border-radius: var(--radius-md);
   border: 1.5px solid var(--app-divider);
   background: var(--app-surface);
   cursor: pointer;
-  transition: all 0.15s ease;
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-
-  &--selected {
-    border-color: var(--ion-color-primary);
-    background: rgba(var(--ion-color-primary-rgb), 0.05);
-  }
-
-  &--dimmed {
-    opacity: 0.4;
-    pointer-events: none;
-  }
-
-  &:active { transform: scale(0.99); }
+  scroll-snap-align: start;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 
   &__icon {
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-sm);
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 
     ion-icon {
-      font-size: 20px;
+      font-size: 17px;
       color: #fff;
     }
-
-    // Color por tipo de caja
-    &[data-codigo="CAJA"]       { background: var(--ion-color-primary); }
-    &[data-codigo="CAJA_CHICA"] { background: var(--ion-color-success); }
-    &[data-codigo="VARIOS"]     { background: var(--ion-color-tertiary); }
   }
 
   &__info {
-    flex: 1;
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 2px;
     min-width: 0;
   }
 
-  &__nombre {
-    font-size: 15px;
-    font-weight: var(--font-weight-semibold);
+  &__name {
+    font-size: 13px;
+    font-weight: var(--font-weight-bold);
     color: var(--app-text);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
   }
 
   &__saldo {
-    font-size: 13px;
-    color: var(--app-text-muted);
+    font-size: 12px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--app-text-soft);
+    letter-spacing: -0.2px;
+    line-height: 1;
+    white-space: nowrap;
   }
 
-  &__check {
-    font-size: 22px;
-    color: var(--ion-color-primary);
-    flex-shrink: 0;
+  &--selected {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.05);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.10);
+
+    .caja-mini-card__name  { color: var(--ion-color-primary); }
+    .caja-mini-card__saldo { color: var(--ion-color-primary); }
+  }
+
+  &--dimmed {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  &:active { transform: scale(0.96); }
+}
+
+@media (pointer: fine) {
+  .caja-mini-card:not(.caja-mini-card--selected):not(.caja-mini-card--dimmed):hover {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.03);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.08);
   }
 }
 

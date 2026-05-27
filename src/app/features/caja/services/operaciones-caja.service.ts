@@ -12,7 +12,7 @@ import {
 } from '../models/operacion-caja.model';
 import { CategoriaOperacion } from '../models/categoria-operacion.model';
 
-const HOME_MOVIMIENTOS_LIMIT = 10;
+const HOME_MOVIMIENTOS_LIMIT = 5;
 
 @Injectable({
   providedIn: 'root'
@@ -24,28 +24,61 @@ export class OperacionesCajaService {
   private authService = inject(AuthService);
   private pageSize = PAGINATION_CONFIG.operacionesCaja.pageSize;
 
-  /**
-   * Últimos movimientos de todas las cajas del negocio — para el widget del home.
-   * Excluye APERTURA y CIERRE (operaciones del sistema) para mostrar solo
-   * movimientos de dinero reales (ingresos, egresos, transferencias, ajustes).
-   */
+  /** Últimos 5 movimientos del día para el widget del home. Excluye APERTURA y CIERRE. */
   async obtenerUltimosMovimientos(): Promise<OperacionCaja[]> {
-    const { data, error } = await this.supabase.client
+    const data = await this.supabase.call<OperacionCaja[]>(
+      this.supabase.client
+        .from('operaciones_cajas')
+        .select(`
+          id, fecha, tipo_operacion, monto, descripcion, comprobante_url,
+          caja:cajas!inner(id, nombre, codigo),
+          empleado:usuarios(id, nombre),
+          categoria:categorias_operaciones(id, nombre, codigo, tipo)
+        `)
+        .not('tipo_operacion', 'in', '(APERTURA,CIERRE)')
+        .gte('fecha', getInicioHaceNDiasISO(0))
+        .lt('fecha', getInicioDiaSiguienteISO())
+        .order('fecha', { ascending: false })
+        .limit(HOME_MOVIMIENTOS_LIMIT)
+    );
+    return data ?? [];
+  }
+
+  async contarMovimientosHoy(): Promise<number> {
+    const { count } = await this.supabase.client
+      .from('operaciones_cajas')
+      .select('id', { count: 'exact', head: true })
+      .not('tipo_operacion', 'in', '(APERTURA,CIERRE)')
+      .gte('fecha', getInicioHaceNDiasISO(0))
+      .lt('fecha', getInicioDiaSiguienteISO());
+    return count ?? 0;
+  }
+
+  /** Todos los movimientos del día (todas las cajas), paginados. Para el modal de historial del home. */
+  async obtenerMovimientosHoy(page: number = 0): Promise<OperacionesPaginadas> {
+    const from = page * this.pageSize;
+    const to   = from + this.pageSize - 1;
+    const result = await this.supabase.client
       .from('operaciones_cajas')
       .select(`
         id, fecha, tipo_operacion, monto, descripcion, comprobante_url,
         caja:cajas!inner(id, nombre, codigo),
         empleado:usuarios(id, nombre),
         categoria:categorias_operaciones(id, nombre, codigo, tipo)
-      `)
+      `, { count: 'exact' })
       .not('tipo_operacion', 'in', '(APERTURA,CIERRE)')
       .gte('fecha', getInicioHaceNDiasISO(0))
       .lt('fecha', getInicioDiaSiguienteISO())
       .order('fecha', { ascending: false })
-      .limit(HOME_MOVIMIENTOS_LIMIT);
-
-    if (error) throw new Error(`Error al cargar movimientos: ${error.message}`);
-    return (data as unknown as OperacionCaja[]) ?? [];
+      .range(from, to);
+    const total = result.count ?? 0;
+    return {
+      operaciones: (result.data ?? []) as unknown as OperacionCaja[],
+      total,
+      page,
+      pageSize: this.pageSize,
+      hasMore: from + this.pageSize < total
+    };
   }
 
   async obtenerCategorias(tipo?: 'INGRESO' | 'EGRESO'): Promise<CategoriaOperacion[]> {
@@ -140,12 +173,12 @@ export class OperacionesCajaService {
     codigoDestino: string,
     monto:         number,
     descripcion:   string
-  ): Promise<boolean> {
+  ): Promise<{ ok: boolean; saldoInsuficiente?: boolean; errorMsg?: string }> {
     try {
       const empleado = await this.authService.getUsuarioActual();
       if (!empleado) {
         await this.ui.showError('No se pudo obtener información del empleado');
-        return false;
+        return { ok: false };
       }
 
       await this.ui.showLoading('Realizando traspaso...');
@@ -164,20 +197,22 @@ export class OperacionesCajaService {
         const rawMsg = error.message ?? '';
         const superadminMatch = rawMsg.match(/superadmin_blocked:\s*(.+)/i);
         await this.ui.showError(superadminMatch ? superadminMatch[1].trim() : 'Error al realizar el traspaso');
-        return false;
+        return { ok: false };
       }
 
       if (!data || !data.success) {
-        await this.ui.showError(data?.error || 'Error al realizar el traspaso');
-        return false;
+        const msg: string = data?.error || 'Error al realizar el traspaso';
+        const esSaldoInsuficiente = msg.toLowerCase().includes('saldo insuficiente');
+        if (!esSaldoInsuficiente) await this.ui.showError(msg);
+        return { ok: false, saldoInsuficiente: esSaldoInsuficiente, errorMsg: msg };
       }
 
       await this.ui.showSuccess('Traspaso realizado correctamente');
-      return true;
+      return { ok: true };
     } catch {
       await this.ui.hideLoading();
       await this.ui.showError('Error inesperado');
-      return false;
+      return { ok: false };
     }
   }
 

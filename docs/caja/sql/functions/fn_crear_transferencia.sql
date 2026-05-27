@@ -5,7 +5,7 @@ DROP FUNCTION IF EXISTS public.fn_crear_transferencia(TEXT, TEXT, NUMERIC, INTEG
 DROP FUNCTION IF EXISTS public.fn_crear_transferencia(TEXT, TEXT, NUMERIC, UUID, TEXT);
 
 -- =============================================================================
--- FUNCIÓN: fn_crear_transferencia (v2.0 — multi-tenant UUID)
+-- FUNCIÓN: fn_crear_transferencia (v2.1 — descripción contextual)
 -- =============================================================================
 -- Crea una transferencia atómica entre dos cajas usando códigos.
 -- Busca las cajas por código, valida saldo suficiente en el origen,
@@ -17,6 +17,11 @@ DROP FUNCTION IF EXISTS public.fn_crear_transferencia(TEXT, TEXT, NUMERIC, UUID,
 --   - v_caja_origen_id, v_caja_destino_id: INTEGER → UUID
 --   - Negocio leído del JWT (get_negocio_id()); cajas filtran por negocio_id
 --   - operaciones_cajas INSERT incluye negocio_id
+--
+-- CAMBIOS v2.1:
+--   - descripcion SALIENTE: "hacia [destino] · [motivo]"
+--   - descripcion ENTRANTE: "desde [origen] · [motivo]"
+--   - El frontend usa estos prefijos para construir el label contextual en el home
 --
 -- Llamada desde: CajasService.crearTransferencia()
 -- =============================================================================
@@ -91,7 +96,8 @@ BEGIN
     monto, saldo_anterior, saldo_actual, descripcion
   ) VALUES (
     v_negocio_id, v_caja_origen_id, p_empleado_id, 'TRANSFERENCIA_SALIENTE',
-    p_monto, v_saldo_origen, v_nuevo_saldo_origen, p_descripcion
+    p_monto, v_saldo_origen, v_nuevo_saldo_origen,
+    'hacia ' || v_nombre_destino || CASE WHEN TRIM(COALESCE(p_descripcion, '')) != '' THEN ' · ' || p_descripcion ELSE '' END
   );
 
   -- 6. Insertar operación ENTRANTE en caja destino
@@ -101,7 +107,7 @@ BEGIN
   ) VALUES (
     v_negocio_id, v_caja_destino_id, p_empleado_id, 'TRANSFERENCIA_ENTRANTE',
     p_monto, v_saldo_destino, v_nuevo_saldo_destino,
-    p_descripcion || ' desde ' || v_nombre_origen
+    'desde ' || v_nombre_origen || CASE WHEN TRIM(COALESCE(p_descripcion, '')) != '' THEN ' · ' || p_descripcion ELSE '' END
   );
 
   -- 7. Actualizar saldo origen
@@ -123,5 +129,5 @@ GRANT  EXECUTE ON FUNCTION public.fn_crear_transferencia(TEXT, TEXT, NUMERIC, UU
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_crear_transferencia(TEXT, TEXT, NUMERIC, UUID, TEXT) IS
-  'v2.0 (multi-tenant UUID) — Transfiere monto entre dos cajas por código. '
-  'Operación atómica con validación de saldo. Negocio leído del JWT.';
+  'v2.1 — Transfiere monto entre dos cajas por código. Operación atómica. '
+  'descripcion SALIENTE: "hacia [destino] · [motivo]", ENTRANTE: "desde [origen] · [motivo]".';

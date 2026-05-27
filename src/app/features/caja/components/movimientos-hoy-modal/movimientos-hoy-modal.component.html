@@ -1,0 +1,108 @@
+<div class="bs-root">
+
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="document-text-outline"></ion-icon>
+    </div>
+    <div class="mhm-header-text">
+      <span class="bs-header__title">Movimientos de hoy</span>
+      @if (totalMovimientosHoy > 0) {
+        <span class="mhm-header-count">{{ totalMovimientosHoy }} registros</span>
+      }
+    </div>
+    <button class="bs-header__close" (click)="cerrar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <div class="mhm-card">
+
+      @if (loading) {
+        @for (i of [1,2,3,4,5]; track i) {
+          <div class="mhm-row">
+            <div class="mhm-icon skeleton-icon"></div>
+            <div class="mhm-details">
+              <ion-skeleton-text animated style="width: 55%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+              <ion-skeleton-text animated style="width: 40%; height: 11px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text>
+            </div>
+            <ion-skeleton-text animated style="width: 60px; height: 14px; border-radius: 4px; flex-shrink: 0;"></ion-skeleton-text>
+          </div>
+          @if (i < 5) { <div class="mhm-divider"></div> }
+        }
+
+      } @else if (movimientos.length === 0) {
+        <app-empty-state
+          icon="document-text-outline"
+          title="Sin movimientos"
+          hint="No hubo ingresos ni egresos hoy."
+          style="min-height: auto;">
+        </app-empty-state>
+
+      } @else {
+        @for (mov of movimientos; track mov.id; let last = $last) {
+          <div class="mhm-row">
+
+            <div class="mhm-icon" [attr.data-type]="mov.tipo_operacion | operacionLabel:'color'">
+              @switch (mov.tipo_operacion | operacionLabel:'signo') {
+                @case ('+') { <ion-icon name="arrow-down-outline"></ion-icon> }
+                @case ('-') { <ion-icon name="arrow-up-outline"></ion-icon> }
+                @default {
+                  @if (mov.tipo_operacion === 'AJUSTE') {
+                    <ion-icon name="create-outline"></ion-icon>
+                  } @else {
+                    <ion-icon name="cash-outline"></ion-icon>
+                  }
+                }
+              }
+            </div>
+
+            <div class="mhm-details">
+              <span class="mhm-title">{{ mov.categoria?.nombre || (mov.tipo_operacion | operacionLabel:mov.descripcion) }}</span>
+              <div class="mhm-meta">
+                <span class="mhm-caja">{{ mov.caja?.nombre }}</span>
+                @if (mov.descripcion | operacionLabel:'motivo') {
+                  <span class="mhm-dot">·</span>
+                  <span class="mhm-desc">{{ mov.descripcion | operacionLabel:'motivo' }}</span>
+                }
+              </div>
+              @if (mov.empleado?.nombre) {
+                <span class="mhm-empleado">
+                  {{ mov.empleado!.nombre }}
+                  <span class="mhm-hora">· {{ formatHora(mov.fecha) }}</span>
+                </span>
+              } @else {
+                <span class="mhm-empleado">
+                  <span class="mhm-hora">{{ formatHora(mov.fecha) }}</span>
+                </span>
+              }
+            </div>
+
+            <div class="mhm-right">
+              @if (mov.comprobante_url) {
+                <button class="mhm-comprobante-btn" type="button" (click)="onVerComprobante(mov)">
+                  <ion-icon name="image-outline"></ion-icon>
+                </button>
+              }
+              <span class="mhm-amount" [attr.data-type]="mov.tipo_operacion | operacionLabel:'color'">
+                {{ mov.tipo_operacion | operacionLabel:'signo' }}${{ mov.monto | number:'1.2-2' }}
+              </span>
+            </div>
+
+          </div>
+          @if (!last) { <div class="mhm-divider"></div> }
+        }
+
+        @if (hasMore) {
+          <div class="mhm-load-more">
+            <button type="button" class="mhm-load-more__btn" [disabled]="cargandoMas" (click)="cargarMas()">
+              {{ cargandoMas ? 'Cargando...' : 'Cargar más' }}
+            </button>
+          </div>
+        }
+      }
+
+    </div>
+  </div>
+
+</div>

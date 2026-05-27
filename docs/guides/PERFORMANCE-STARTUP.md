@@ -151,6 +151,42 @@ Total: ~800-1600ms bloqueando la navegación en cada primera instalación o logi
 
 ---
 
+---
+
+## Cambios aplicados el 2026-05-26
+
+### 5. Guard espera el resume-refresh en curso (warm restart tras inactividad larga)
+
+**Archivos:** `src/app/core/guards/auth.guard.ts`, `src/app/core/services/supabase.service.ts`
+
+**Problema:** Cuando el usuario volvía a la app después de 1+ hora en background, ocurría esto casi en paralelo:
+
+```
+appStateChange → refreshSessionOnResume() [fire-and-forget]
+                   └── getSession() → token expirado → refreshSession()
+
+Angular router   → authGuard
+                   └── auth.getSession() → token expirado → SEGUNDO refresh interno
+                         └── Supabase serializa ambos con su lock interno = 4-5s visibles
+```
+
+Dos llamadas independientes con token expirado hacen que Supabase encole el segundo refresh detrás del primero — el usuario ve un freeze de 4-5 segundos al volver del background.
+
+**Solución:** `resumeRefreshInFlight` pasó de `private` a público en `SupabaseService`. El guard lo espera antes de llamar `getSession()` si hay uno en curso — el refresh se paga una sola vez.
+
+```typescript
+// auth.guard.ts — antes de getSession()
+if (supabase.resumeRefreshInFlight) {
+  await supabase.resumeRefreshInFlight;
+}
+```
+
+**Impacto estimado:** warm restart tras 1+ hora de inactividad: de 4-5s → ~2s (igual que cold start).
+
+**Sin cambio de comportamiento** cuando `resumeRefreshInFlight` es null (el 95% del tiempo — token sano o throttle activo).
+
+---
+
 ## Deuda técnica / próximos pasos
 
 - **Cache de `ConfigService` persistido:** actualmente el `ConfigService` recarga configuraciones de BD en cada arranque. Persistir en Preferences con TTL de 1h reduciría otra query en el home.

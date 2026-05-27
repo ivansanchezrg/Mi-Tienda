@@ -2,13 +2,13 @@ import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef } from '@angula
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonContent, IonMenuButton, IonRefresher, IonRefresherContent,
+  IonHeader, IonToolbar, IonContent, IonMenuButton,
   IonIcon, ModalController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   archiveOutline, cashOutline, fileTrayOutline, phonePortraitOutline, busOutline,
-  notificationsOutline,
+  notificationsOutline, refreshOutline, arrowForwardOutline,
   eyeOutline, eyeOffOutline,
   arrowUpOutline, arrowDownOutline,
   lockClosedOutline, lockOpenOutline,
@@ -17,7 +17,24 @@ import {
   addOutline, removeOutline, swapHorizontalOutline,
   imageOutline,
   walletOutline, cardOutline, bagOutline, storefrontOutline, homeOutline,
-  briefcaseOutline, giftOutline, shieldCheckmarkOutline
+  briefcaseOutline, giftOutline, shieldCheckmarkOutline,
+  // Todos los iconos del picker de cajas custom — necesarios para que
+  // el binding dinámico [name]="caja.icono" funcione con optimization:true
+  diamondOutline, trophyOutline, ribbonOutline, medalOutline,
+  statsChartOutline, pieChartOutline, analyticsOutline, calculatorOutline,
+  cartOutline, pricetagOutline, barcodeOutline, qrCodeOutline,
+  receiptOutline, ticketOutline, basketOutline,
+  businessOutline, libraryOutline, schoolOutline, buildOutline,
+  hammerOutline, constructOutline, flagOutline, bookmarkOutline, keyOutline,
+  carOutline, bicycleOutline, boatOutline, airplaneOutline, trainOutline, walkOutline,
+  desktopOutline, laptopOutline, watchOutline, tvOutline, cameraOutline,
+  restaurantOutline, pizzaOutline, beerOutline, wineOutline, cafeOutline,
+  iceCreamOutline, fastFoodOutline, nutritionOutline,
+  leafOutline, flowerOutline, earthOutline, sunnyOutline, moonOutline,
+  waterOutline, flameOutline,
+  starOutline, heartOutline, flashOutline,
+  alarmOutline, peopleOutline, personOutline, settingsOutline,
+  cubeOutline, layersOutline,
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
@@ -35,11 +52,13 @@ import { NotificacionesService, Notificacion } from '@core/services/notificacion
 import { NotificacionesModalComponent } from '../../components/notificaciones-modal/notificaciones-modal.component';
 import { VerificarFondoModalComponent } from '../../components/verificar-fondo-modal/verificar-fondo-modal.component';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
-import { TraspasoModalComponent, TraspasoModalResult } from '../../components/traspaso-modal/traspaso-modal.component';
+import { TraspasoModalComponent } from '../../components/traspaso-modal/traspaso-modal.component';
 import { NuevaCajaModalComponent } from '../../components/nueva-caja-modal/nueva-caja-modal.component';
+import { MovimientosHoyModalComponent } from '../../components/movimientos-hoy-modal/movimientos-hoy-modal.component';
 import { ROUTES } from '@core/config/routes.config';
 import { OperacionCaja } from '../../models/operacion-caja.model';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { OperacionLabelPipe } from '../../../../shared/pipes/operacion-label.pipe';
 
 @Component({
   selector: 'app-home',
@@ -48,9 +67,10 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonContent, IonMenuButton, IonRefresher, IonRefresherContent,
+    IonHeader, IonToolbar, IonContent, IonMenuButton,
     IonIcon, IonSkeletonText,
-    EmptyStateComponent
+    EmptyStateComponent,
+    OperacionLabelPipe
   ]
 })
 export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
@@ -71,6 +91,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   private queryParamsSub?: Subscription;
   private turnoSub?: Subscription;
+  private cajasSub?: Subscription;
 
   // Estado del turno de caja
   estadoCaja: EstadoCaja = {
@@ -78,17 +99,21 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     turnoActivo: null,
     empleadoNombre: '',
     horaApertura: '',
-    turnosHoy: 0
+    turnosHoy: 0,
+    fechaUltimoCierre: null
   };
 
   get cajaAbierta(): boolean {
     return this.estadoCaja.estado === 'TURNO_EN_CURSO';
   }
 
+  cajaPorCodigo(codigo: string): Caja | undefined {
+    return this.cajas.find(c => c.codigo === codigo);
+  }
+
   /** true si el turno activo fue abierto por el usuario actual */
   get esMiTurno(): boolean {
-    if (!this.cajaAbierta) return false;
-    return this.estadoCaja.turnoActivo?.empleado_id === this.empleadoActualId;
+    return this.turnosCajaService.esMiTurnoValue;
   }
 
   // Estado de carga local (para Skeletons UI)
@@ -136,17 +161,16 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   recargasCelularHabilitada = false;
   recargasBusHabilitada = false;
 
-
-
   // Movimientos recientes
   ultimosMovimientos: OperacionCaja[] = [];
+  totalMovimientosHoy = 0;
   cargandoMovimientos = true;
 
   constructor() {
     super();
     addIcons({
       archiveOutline, cashOutline, fileTrayOutline, phonePortraitOutline, busOutline,
-      notificationsOutline,
+      notificationsOutline, refreshOutline, arrowForwardOutline,
       eyeOutline, eyeOffOutline,
       arrowUpOutline, arrowDownOutline,
       lockClosedOutline, lockOpenOutline,
@@ -155,7 +179,22 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       addOutline, removeOutline, swapHorizontalOutline,
       imageOutline,
       walletOutline, cardOutline, bagOutline, storefrontOutline, homeOutline,
-      briefcaseOutline, giftOutline, shieldCheckmarkOutline
+      briefcaseOutline, giftOutline, shieldCheckmarkOutline,
+      diamondOutline, trophyOutline, ribbonOutline, medalOutline,
+      statsChartOutline, pieChartOutline, analyticsOutline, calculatorOutline,
+      cartOutline, pricetagOutline, barcodeOutline, qrCodeOutline,
+      receiptOutline, ticketOutline, basketOutline,
+      businessOutline, libraryOutline, schoolOutline, buildOutline,
+      hammerOutline, constructOutline, flagOutline, bookmarkOutline, keyOutline,
+      carOutline, bicycleOutline, boatOutline, airplaneOutline, trainOutline, walkOutline,
+      desktopOutline, laptopOutline, watchOutline, tvOutline, cameraOutline,
+      restaurantOutline, pizzaOutline, beerOutline, wineOutline, cafeOutline,
+      iceCreamOutline, fastFoodOutline, nutritionOutline,
+      leafOutline, flowerOutline, earthOutline, sunnyOutline, moonOutline,
+      waterOutline, flameOutline,
+      starOutline, heartOutline, flashOutline,
+      alarmOutline, peopleOutline, personOutline, settingsOutline,
+      cubeOutline, layersOutline,
     });
   }
 
@@ -170,6 +209,20 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     });
 
     await this.cargarDatos();
+
+    // Sincronizar saldos de cajas via Realtime — actualiza cards sin reload
+    this.cajasSub = this.cajasService.cajas$.subscribe(cajas => {
+      if (!cajas.length) return;
+      const saldos = this.cajasService.saldosValue;
+      this.saldoCaja      = saldos.cajaPrincipal;
+      this.saldoCajaChica = saldos.cajaChica;
+      this.saldoVarios    = saldos.varios;
+      this.saldoCelular   = saldos.cajaCelular;
+      this.saldoBus       = saldos.cajaBus;
+      this.totalSaldos    = saldos.total;
+      this.cajas          = cajas;
+      this.cdr.markForCheck();
+    });
 
     // Sincronizar estado del chip via Realtime — cubre apertura y cierre desde otros dispositivos
     this.turnoSub = this.turnosCajaService.turnoActivo$.subscribe(turno => {
@@ -197,6 +250,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.queryParamsSub?.unsubscribe();
     this.turnoSub?.unsubscribe();
+    this.cajasSub?.unsubscribe();
   }
 
   private async manejarAccion(action: string) {
@@ -206,50 +260,40 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   override async ionViewWillEnter(): Promise<void> {
     super.ionViewWillEnter();
     this.ui.showTabs();
-    const refresh = this.route.snapshot.queryParams['refresh'];
-    if (refresh) {
-      await this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
-      await this.cargarDatos();
+    if (!this.cargando) {
+      // Al volver desde cualquier subpágina — refrescar movimientos sin skeleton
+      // Los saldos ya se actualizan en tiempo real vía cajas$
+      await this.refrescarMovimientos();
     }
   }
 
   async cargarDatos() {
     this.cargando = true;
+    this.cargandoMovimientos = true;
     try {
-      const [estadoCaja, saldos, fechaUltimoCierre, saldoVirtualCelular, saldoVirtualBus, notificaciones, empleado, appConfig, movimientos] = await Promise.all([
+      const [estadoCaja, saldoVirtualCelular, saldoVirtualBus, notificaciones, empleado, appConfig, movimientos, totalMov] = await Promise.all([
         this.turnosCajaService.obtenerEstadoCaja(),
-        this.cajasService.obtenerSaldosCajas(),
-        this.cajasService.obtenerFechaUltimoCierre(),
         this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
         this.recargasVirtualesService.getSaldoVirtualActual('BUS'),
         this.notificacionesService.getNotificaciones(),
         this.authService.getUsuarioActual(),
         this.configService.get(),
-        this.operacionesCajaService.obtenerUltimosMovimientos()
+        this.operacionesCajaService.obtenerUltimosMovimientos(),
+        this.operacionesCajaService.contarMovimientosHoy()
       ]);
 
       this.estadoCaja = { ...estadoCaja };
 
-      if (saldos) {
-        this.saldoCaja = saldos.cajaPrincipal;
-        this.saldoCajaChica = saldos.cajaChica;
-        this.saldoVarios = saldos.varios;
-        this.saldoCelular = saldos.cajaCelular;
-        this.saldoBus = saldos.cajaBus;
-        this.totalSaldos = saldos.total;
-        this.cajas = saldos.cajas;
-      }
-
       this.saldoVirtualCelular = saldoVirtualCelular;
       this.saldoVirtualBus = saldoVirtualBus;
 
-      if (fechaUltimoCierre) {
-        this.fechaUltimoCierre = this.formatearFecha(new Date(fechaUltimoCierre + 'T00:00:00'));
+      if (estadoCaja.fechaUltimoCierre) {
+        this.fechaUltimoCierre = this.formatearFecha(new Date(estadoCaja.fechaUltimoCierre + 'T00:00:00'));
       } else {
         this.fechaUltimoCierre = 'Hoy es tu primer turno';
       }
 
-      this.nombreUsuario = empleado?.nombre || 'Usuario';
+      this.nombreUsuario = empleado?.nombre?.split(' ')[0] || 'Usuario';
       this.empleadoActualId = empleado?.id ?? null;
       this.esSuperadmin  = empleado?.es_superadmin ?? false;
 
@@ -259,8 +303,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       this.recargasCelularHabilitada = appConfig.recargas_celular_habilitada;
       this.recargasBusHabilitada     = appConfig.recargas_bus_habilitada;
 
-      this.ultimosMovimientos = movimientos;
-    } catch (error: any) {
+      this.ultimosMovimientos  = movimientos;
+      this.totalMovimientosHoy = totalMov;
+    } catch {
       await this.ui.showError('Error al cargar los datos. Verifica tu conexión e intenta de nuevo.');
     } finally {
       this.cargando = false;
@@ -302,13 +347,13 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   get totalIngresosHoy(): number {
     return this.ultimosMovimientos
-      .filter(m => this.esMovIngreso(m.tipo_operacion))
+      .filter(m => ['INGRESO', 'TRANSFERENCIA_ENTRANTE'].includes(m.tipo_operacion))
       .reduce((acc, m) => acc + Number(m.monto), 0);
   }
 
   get totalEgresosHoy(): number {
     return this.ultimosMovimientos
-      .filter(m => this.esMovEgreso(m.tipo_operacion))
+      .filter(m => ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(m.tipo_operacion))
       .reduce((acc, m) => acc + Number(m.monto), 0);
   }
 
@@ -327,9 +372,32 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     return n;
   }
 
-  async handleRefresh(event: CustomEvent) {
-    await this.cargarDatos();
-    (event.target as HTMLIonRefresherElement).complete();
+  async refrescarMovimientos() {
+    this.cargandoMovimientos = true;
+    try {
+      const [movimientos, totalMov, estadoCaja] = await Promise.all([
+        this.operacionesCajaService.obtenerUltimosMovimientos(),
+        this.operacionesCajaService.contarMovimientosHoy(),
+        this.turnosCajaService.obtenerEstadoCaja()
+      ]);
+      this.ultimosMovimientos  = movimientos;
+      this.totalMovimientosHoy = totalMov;
+      this.estadoCaja          = { ...estadoCaja };
+    } finally {
+      this.cargandoMovimientos = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  async verTodosLosMovimientos() {
+    const modal = await this.modalCtrl.create({
+      component: MovimientosHoyModalComponent,
+      componentProps: { totalMovimientosHoy: this.totalMovimientosHoy },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
+    });
+    await modal.present();
   }
 
   toggleMontosOcultos() {
@@ -351,6 +419,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
+      componentProps: { cajasExistentes: this.cajas },
     });
     await modal.present();
     const { role } = await modal.onDidDismiss();
@@ -380,7 +449,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     });
   }
 
-
   async onOperacion(tipo: string, tipoCaja?: string) {
     if (tipo === 'gasto') tipo = 'egreso';
 
@@ -398,7 +466,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     const modal = await this.modalCtrl.create({
       component: OperacionModalComponent,
-      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada },
+      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada, excluirCajaChica: !this.cajaAbierta },
       cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
@@ -410,48 +478,29 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   private async abrirTraspaso() {
-    await this.ui.showLoading('Cargando cajas...');
-    let cajasFrescas: Caja[] = [];
-    try {
-      cajasFrescas = await this.cajasService.obtenerCajasDirecto();
-    } catch {
-      await this.ui.hideLoading();
-      await this.ui.showError('No se pudo cargar la información. Verifica tu conexión.');
-      return;
-    }
-    await this.ui.hideLoading();
-
-    if (cajasFrescas.length < 2) {
+    if (this.cajas.length < 2) {
       await this.ui.showError('Se necesitan al menos 2 cajas para realizar un traspaso.');
       return;
     }
 
     const modal = await this.modalCtrl.create({
       component: TraspasoModalComponent,
-      componentProps: { cajas: cajasFrescas, cajaAbierta: this.cajaAbierta },
+      componentProps: { cajas: this.cajas, cajaAbierta: this.cajaAbierta },
       cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
     });
     await modal.present();
 
-    const { data, role } = await modal.onDidDismiss<TraspasoModalResult>();
-    if (role === 'confirm' && data) {
-      const success = await this.operacionesCajaService.registrarTransferencia(
-        data.codigoOrigen,
-        data.codigoDestino,
-        data.monto,
-        data.descripcion
-      );
-      if (success) await this.cargarDatos();
-    }
+    const { role } = await modal.onDidDismiss();
+    if (role === 'confirm') await this.refrescarMovimientos();
   }
 
   private async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModalResult) {
     const success = await this.operacionesCajaService.registrarOperacion(
       data.cajaId, tipo, data.categoriaId, data.monto, data.descripcion, data.fotoComprobante
     );
-    if (success) await this.cargarDatos();
+    if (success) await this.refrescarMovimientos();
   }
 
   async onAbrirCaja() {
@@ -554,45 +603,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     window.open(url, '_blank');
   }
 
-  getMovColor(tipo: string): string {
-    const map: Record<string, string> = {
-      INGRESO: 'success',
-      EGRESO: 'danger',
-      TRANSFERENCIA_ENTRANTE: 'success',
-      TRANSFERENCIA_SALIENTE: 'danger',
-      AJUSTE: 'warning',
-      APERTURA: 'primary',
-      CIERRE: 'primary'
-    };
-    return map[tipo] ?? 'medium';
-  }
-
-  getMovLabel(tipo: string): string {
-    const map: Record<string, string> = {
-      INGRESO: 'Ingreso',
-      EGRESO: 'Egreso',
-      TRANSFERENCIA_ENTRANTE: 'Transferencia recibida',
-      TRANSFERENCIA_SALIENTE: 'Transferencia enviada',
-      AJUSTE: 'Ajuste',
-      APERTURA: 'Apertura',
-      CIERRE: 'Cierre de turno'
-    };
-    return map[tipo] ?? tipo;
-  }
-
-  esMovIngreso(tipo: string): boolean {
-    return ['INGRESO', 'TRANSFERENCIA_ENTRANTE'].includes(tipo);
-  }
-
-  esMovEgreso(tipo: string): boolean {
-    return ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(tipo);
-  }
-
   formatMovHora(fecha: string): string {
     return new Date(fecha).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
 
   async mostrarModalVerificacionFondo(): Promise<{ turnoId: string | null } | null> {
     try {
@@ -620,7 +633,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       const { data, role } = await modal.onWillDismiss();
       if (role !== 'confirm' || !data?.confirmado) return null;
       return { turnoId: data?.turnoId ?? null };
-    } catch (error: any) {
+    } catch {
       await this.ui.hideLoading();
       await this.ui.showError('Error al cargar los datos de verificación. Intentá de nuevo.');
       return null;

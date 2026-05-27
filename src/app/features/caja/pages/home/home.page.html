@@ -26,15 +26,12 @@
 </ion-header>
 
 <ion-content>
-  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
-    <ion-refresher-content></ion-refresher-content>
-  </ion-refresher>
 
   <!-- ── Hero oscuro: efectivo en cajas ─────────────────────────────────── -->
   <div class="hero-section">
     <div class="hero-card">
       <div class="hero-card__label">
-        EFECTIVO EN CAJAS
+        EFECTIVO TOTAL
       </div>
 
       @if (cargando) {
@@ -80,7 +77,7 @@
   <!-- ── Header sección Cajas ───────────────────────────────────────────── -->
   <div class="cuentas-header">
     <span class="cuentas-header__title">
-      CAJAS @if (!cargando) { ({{ cajasVisibles }}) }
+      MIS CUENTAS @if (!cargando) { ({{ cajasVisibles }}) }
     </span>
     @if (!esSuperadmin) {
       <button class="cuentas-header__action" (click)="onNuevaCuenta()">+ Nueva</button>
@@ -93,8 +90,8 @@
     <!-- ── Tienda (CAJA) ────────────────────────────────────────────────── -->
     <div class="cuenta-card cuenta-card--tienda" (click)="onSaldoClick('caja')">
       <div class="cuenta-card__top">
-        <div class="cuenta-card__icon primary">
-          <ion-icon name="cash-outline"></ion-icon>
+        <div class="cuenta-card__icon" [style.background]="cajaPorCodigo('CAJA')?.color || 'var(--ion-color-primary)'">
+          <ion-icon [name]="cajaPorCodigo('CAJA')?.icono || 'cash-outline'"></ion-icon>
         </div>
         <div class="cuenta-card__info">
           <span class="cuenta-card__name">{{ cajaNombreFor('CAJA') }}</span>
@@ -118,8 +115,8 @@
     <div class="cuenta-card cuenta-card--cajon" [class.cuenta-card--idle]="!cajaAbierta && !cargando"
       (click)="cajaAbierta && onSaldoClick('cajaChica')">
       <div class="cuenta-card__top">
-        <div class="cuenta-card__icon success">
-          <ion-icon name="file-tray-outline"></ion-icon>
+        <div class="cuenta-card__icon" [style.background]="cajaPorCodigo('CAJA_CHICA')?.color || 'var(--ion-color-success)'">
+          <ion-icon [name]="cajaPorCodigo('CAJA_CHICA')?.icono || 'file-tray-outline'"></ion-icon>
         </div>
         <div class="cuenta-card__info">
           <span class="cuenta-card__name">{{ cajaNombreFor('CAJA_CHICA') }}</span>
@@ -148,8 +145,8 @@
       @if (variosActiva) {
         <div class="cuenta-card cuenta-card--varios" (click)="onSaldoClick('varios')">
           <div class="cuenta-card__top">
-            <div class="cuenta-card__icon tertiary">
-              <ion-icon name="archive-outline"></ion-icon>
+            <div class="cuenta-card__icon" [style.background]="cajaPorCodigo('VARIOS')?.color || 'var(--ion-color-tertiary)'">
+              <ion-icon [name]="cajaPorCodigo('VARIOS')?.icono || 'archive-outline'"></ion-icon>
             </div>
             <div class="cuenta-card__info">
               <span class="cuenta-card__name">{{ cajaNombreFor('VARIOS') }}</span>
@@ -186,8 +183,8 @@
       @if (recargasCelularHabilitada) {
         <div class="cuenta-card cuenta-card--has-virtual cuenta-card--celular" (click)="onSaldoClick('celular')">
           <div class="cuenta-card__top">
-            <div class="cuenta-card__icon secondary">
-              <ion-icon name="phone-portrait-outline"></ion-icon>
+            <div class="cuenta-card__icon" [style.background]="cajaPorCodigo('CAJA_CELULAR')?.color || 'var(--ion-color-secondary)'">
+              <ion-icon [name]="cajaPorCodigo('CAJA_CELULAR')?.icono || 'phone-portrait-outline'"></ion-icon>
             </div>
             <div class="cuenta-card__info">
               <span class="cuenta-card__name">{{ cajaNombreFor('CAJA_CELULAR') }}</span>
@@ -229,8 +226,8 @@
       @if (recargasBusHabilitada) {
         <div class="cuenta-card cuenta-card--has-virtual cuenta-card--bus" (click)="onSaldoClick('bus')">
           <div class="cuenta-card__top">
-            <div class="cuenta-card__icon warning">
-              <ion-icon name="bus-outline"></ion-icon>
+            <div class="cuenta-card__icon" [style.background]="cajaPorCodigo('CAJA_BUS')?.color || 'var(--ion-color-warning)'">
+              <ion-icon [name]="cajaPorCodigo('CAJA_BUS')?.icono || 'bus-outline'"></ion-icon>
             </div>
             <div class="cuenta-card__info">
               <span class="cuenta-card__name">{{ cajaNombreFor('CAJA_BUS') }}</span>
@@ -300,20 +297,21 @@
     <span class="section-header__title">ACCIONES RÁPIDAS</span>
   </div>
 
-  <div class="quick-actions">
-    <button class="quick-action" type="button" [disabled]="!cajaAbierta || !esMiTurno" (click)="onOperacion('ingreso')">
+  <div class="quick-actions-card">
+    <div class="quick-actions">
+    <button class="quick-action quick-action--ingreso" type="button" [disabled]="cajas.length === 0" (click)="onOperacion('ingreso')">
       <span class="quick-action__icon">
         <ion-icon name="add-outline"></ion-icon>
       </span>
       <span class="quick-action__label">Ingreso</span>
     </button>
-    <button class="quick-action" type="button" [disabled]="!cajaAbierta || !esMiTurno" (click)="onOperacion('egreso')">
+    <button class="quick-action quick-action--egreso" type="button" [disabled]="cajas.length === 0" (click)="onOperacion('egreso')">
       <span class="quick-action__icon">
         <ion-icon name="remove-outline"></ion-icon>
       </span>
       <span class="quick-action__label">Gasto</span>
     </button>
-    <button class="quick-action" type="button" [disabled]="!cajaAbierta || !esMiTurno" (click)="onOperacion('traspaso')">
+    <button class="quick-action quick-action--traspaso" type="button" [disabled]="cajas.length === 0" (click)="onOperacion('traspaso')">
       <span class="quick-action__icon">
         <ion-icon name="swap-horizontal-outline"></ion-icon>
       </span>
@@ -343,16 +341,21 @@
         </button>
       }
     }
+    </div>
   </div>
 
   <!-- ── Movimientos de hoy ─────────────────────────────────────────────── -->
   <div class="section-header">
-    <span class="section-header__title">MOVIMIENTOS DE HOY</span>
-    @if (!cargandoMovimientos) {
-      <span class="section-header__count">{{ ultimosMovimientos.length }}</span>
+    <div class="section-header__left">
+      <span class="section-header__title">MOVIMIENTOS DE HOY</span>
+      <button type="button" class="icon-btn icon-btn--sm" [class.spinning]="cargandoMovimientos" (click)="refrescarMovimientos()">
+        <ion-icon name="refresh-outline"></ion-icon>
+      </button>
+    </div>
+    @if (!cargandoMovimientos && totalMovimientosHoy > 0) {
+      <span class="section-header__count">{{ totalMovimientosHoy }}</span>
     }
   </div>
-
 
   @if (cargandoMovimientos) {
     <div class="movements-card">
@@ -381,25 +384,27 @@
       @for (mov of ultimosMovimientos; track mov.id; let last = $last) {
         <div class="mov-row">
 
-          <div class="mov-icon-wrap" [attr.data-type]="getMovColor(mov.tipo_operacion)">
-            @if (mov.tipo_operacion === 'INGRESO' || mov.tipo_operacion === 'TRANSFERENCIA_ENTRANTE') {
-              <ion-icon name="arrow-down-outline"></ion-icon>
-            } @else if (mov.tipo_operacion === 'EGRESO' || mov.tipo_operacion === 'TRANSFERENCIA_SALIENTE') {
-              <ion-icon name="arrow-up-outline"></ion-icon>
-            } @else if (mov.tipo_operacion === 'AJUSTE') {
-              <ion-icon name="create-outline"></ion-icon>
-            } @else {
-              <ion-icon name="cash-outline"></ion-icon>
+          <div class="mov-icon-wrap" [attr.data-type]="mov.tipo_operacion | operacionLabel:'color'">
+            @switch (mov.tipo_operacion | operacionLabel:'signo') {
+              @case ('+') { <ion-icon name="arrow-down-outline"></ion-icon> }
+              @case ('-') { <ion-icon name="arrow-up-outline"></ion-icon> }
+              @default {
+                @if (mov.tipo_operacion === 'AJUSTE') {
+                  <ion-icon name="create-outline"></ion-icon>
+                } @else {
+                  <ion-icon name="cash-outline"></ion-icon>
+                }
+              }
             }
           </div>
 
           <div class="mov-details">
-            <span class="mov-title">{{ mov.categoria?.nombre || getMovLabel(mov.tipo_operacion) }}</span>
+            <span class="mov-title">{{ mov.categoria?.nombre || (mov.tipo_operacion | operacionLabel:mov.descripcion) }}</span>
             <div class="mov-meta">
               <span class="mov-caja">{{ mov.caja?.nombre }}</span>
-              @if (mov.descripcion) {
+              @if (mov.descripcion | operacionLabel:'motivo') {
                 <span class="mov-dot">·</span>
-                <span class="mov-desc">{{ mov.descripcion }}</span>
+                <span class="mov-desc">{{ mov.descripcion | operacionLabel:'motivo' }}</span>
               }
             </div>
             @if (mov.empleado?.nombre) {
@@ -421,13 +426,22 @@
               (click)="mov.comprobante_url && onVerComprobante(mov)">
               <ion-icon name="image-outline"></ion-icon>
             </button>
-            <span class="mov-amount" [attr.data-type]="getMovColor(mov.tipo_operacion)">
-              {{ esMovIngreso(mov.tipo_operacion) ? '+' : (esMovEgreso(mov.tipo_operacion) ? '-' : '') }}${{ mov.monto | number:'1.2-2' }}
+            <span class="mov-amount" [attr.data-type]="mov.tipo_operacion | operacionLabel:'color'">
+              {{ mov.tipo_operacion | operacionLabel:'signo' }}${{ mov.monto | number:'1.2-2' }}
             </span>
           </div>
 
         </div>
         @if (!last) { <div class="mov-divider"></div> }
+      }
+
+      @if (totalMovimientosHoy > 5) {
+        <div class="mov-footer">
+          <button type="button" class="mov-footer__btn" (click)="verTodosLosMovimientos()">
+            <span>Ver los {{ totalMovimientosHoy }} movimientos</span>
+            <ion-icon name="arrow-forward-outline"></ion-icon>
+          </button>
+        </div>
       }
     </div>
   }

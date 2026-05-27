@@ -21,6 +21,14 @@ Panel principal con 4 secciones:
 
 **Estado "caja abierta"** se lee de `TurnosCajaService.cajaAbierta$` (derivado reactivo de `turnoActivo$`). Cuando no hay turno activo: oculta la fila de Caja Chica y la excluye del cálculo de Total Efectivo. Ver [Estado reactivo de turno](#estado-reactivo-de-turno--single-source-of-truth) más abajo.
 
+**Saldos en tiempo real:** Los saldos de las cards de cajas se actualizan automáticamente vía Supabase Realtime (`CajasService.cajas$`) — sin recargar la página ni emitir queries adicionales. Ver [Realtime — tabla cajas](#realtime--tabla-cajas) más abajo.
+
+**Widget de movimientos del día:**
+- Muestra los **últimos 5 movimientos** del día (todas las cajas, excluye APERTURA/CIERRE).
+- Botón de refresh `↺` junto al título recarga solo esa sección (skeleton parcial, sin afectar el resto del home).
+- Si `totalMovimientosHoy > 5`, aparece un footer **"Ver los N movimientos →"** que abre `MovimientosHoyModalComponent` con el historial completo paginado.
+- Al volver de cualquier subpágina (`ionViewWillEnter`), los movimientos se refrescan automáticamente. Los saldos no se re-fetchean — Realtime ya los mantiene actualizados.
+
 **Datos:** Conectado a Supabase mediante servicios.
 
 **Notificaciones:** `NotificacionesService.getNotificaciones()` se llama al cargar y muestra un badge con el total de alertas activas. Tipos posibles: `DEUDA_CELULAR`, `SALDO_BAJO_BUS`, `FACTURACION_BUS_PENDIENTE`, `FACTURACION_BUS_PROXIMA`, `STOCK_BAJO`. Ver detalle en [RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md#notificaciones-bus-en-home).
@@ -150,6 +158,34 @@ Historial de movimientos por caja con diseño híbrido (Home pattern + empresari
 
 ---
 
+### Movimientos Hoy Modal (`components/movimientos-hoy-modal/`)
+
+Modal de historial completo de movimientos del día (todas las cajas). Se abre desde el footer del widget "MOVIMIENTOS DE HOY" cuando hay más de 5 movimientos.
+
+**Características:**
+- Lista paginada con botón "Cargar más" (sin `ion-infinite-scroll` — no funciona fuera de `ion-content`)
+- Mismo estilo visual que el widget del home: iconos de color por tipo, meta-info (caja, motivo, empleado, hora)
+- Botón de comprobante visible solo si el movimiento tiene imagen adjunta
+- Skeleton de 5 filas en primera carga
+- Empty state si no hay movimientos
+- `totalMovimientosHoy` se pasa como `@Input()` desde el home (sin re-fetch)
+
+**Apertura desde home:**
+```typescript
+const modal = await this.modalCtrl.create({
+  component: MovimientosHoyModalComponent,
+  componentProps: { totalMovimientosHoy: this.totalMovimientosHoy },
+  cssClass: 'bottom-sheet-modal',
+  breakpoints: [0, 1],
+  initialBreakpoint: 1,
+});
+await modal.present();
+```
+
+**Servicio usado:** `OperacionesCajaService.obtenerMovimientosHoy(page)` — método dedicado sin filtro de caja, paginado con `pageSize` de `PAGINATION_CONFIG.operacionesCaja`.
+
+---
+
 ### Operación Modal (`components/operacion-modal/`)
 
 Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
@@ -238,6 +274,53 @@ canActivate: [cajaAbiertaGuard]
 
 ---
 
+## Realtime — tabla `cajas`
+
+Los saldos del home se sincronizan en tiempo real via Supabase Realtime. Cualquier cambio en `saldo_actual` (ingreso, egreso, traspaso, cierre) se propaga a todos los dispositivos conectados sin query adicional.
+
+### Setup SQL (ejecutar una sola vez en Supabase)
+
+Archivo: [`sql/setup/realtime_cajas.sql`](./sql/setup/realtime_cajas.sql)
+
+```sql
+-- 1. Publicar tabla en el canal Realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE cajas;
+
+-- 2. REPLICA IDENTITY FULL — entrega la fila completa en UPDATE (no solo columnas modificadas)
+ALTER TABLE cajas REPLICA IDENTITY FULL;
+
+-- 3. Política RLS SELECT para que Realtime respete aislamiento multi-tenant
+CREATE POLICY "authenticated puede leer cajas" ON cajas FOR SELECT TO authenticated USING (true);
+```
+
+> **Nota:** Si se re-ejecuta `schema.sql` (reset completo), hay que volver a ejecutar este archivo — `DROP TABLE ... CASCADE` elimina la publicación y la política RLS automáticamente.
+
+### Flujo en el cliente (`CajasService`)
+
+```
+Supabase Realtime UPDATE en cajas
+  → CajasService recibe el evento
+  → Actualiza cajas$ (BehaviorSubject)
+  → HomePage.ngOnInit() está suscrito a cajas$
+  → Actualiza saldoCaja, saldoCajaChica, etc. + totalSaldos
+  → cdr.markForCheck() — Angular re-renderiza las cards
+```
+
+**Qué eventos propaga:**
+| Evento | Cuándo ocurre |
+|--------|---------------|
+| `UPDATE` | Ingreso, egreso, traspaso, apertura de turno, cierre diario |
+| `INSERT` | Creación de caja custom desde `NuevaCajaModalComponent` |
+| `UPDATE (activo=false)` | Desactivación de caja (aún no implementado en UI) |
+
+**Por qué `REPLICA IDENTITY FULL`:** sin esto, Supabase solo envía las columnas que cambiaron en el UPDATE. `CajasService` necesita la fila completa (id, nombre, código, saldo_actual, color, icono) para reconstruir el estado.
+
+### Limpieza de canales
+
+`CajasService` cierra el canal Realtime en `ngOnDestroy` del componente que lo usa, o via `SupabaseService.registerBeforeCleanup()` al hacer sign out.
+
+---
+
 ## Servicios
 
 | Servicio                 | Archivo                                                | Descripción                                         |
@@ -261,10 +344,10 @@ canActivate: [cajaAbiertaGuard]
 | `core/services/currency.service.ts`             | Parseo y formato de montos                    |
 | `core/services/storage.service.ts`              | Subida de imágenes a Supabase Storage         |
 | `core/guards/pending-changes.guard.ts`          | Protege cierre-diario de salidas accidentales |
-| `shared/directives/scroll-reset.directive.ts`   | Resetea scroll al top entre pasos de wizards  |
-| `shared/directives/currency-input.directive.ts` | Formato automático en inputs de moneda        |
-| `shared/directives/numbers-only.directive.ts`   | Solo permite números en inputs                |
-| `shared/directives/scroll-reset.directive.ts`   | Scroll al top entre pasos de wizards          |
+| `shared/directives/scroll-reset.directive.ts`      | Resetea scroll al top entre pasos de wizards  |
+| `shared/directives/currency-input.directive.ts`    | Formato automático en inputs de moneda        |
+| `shared/directives/numbers-only.directive.ts`      | Solo permite números en inputs                |
+| `shared/directives/horizontal-scroll.directive.ts` | Wheel vertical → scroll horizontal en grid de cajas (desktop) |
 
 ---
 
@@ -357,7 +440,7 @@ canActivate: [cajaAbiertaGuard]
 
 ## Estado del Proyecto
 
-**Última actualización:** 2026-04-11 — **v5.5** (POS habilitado se deriva de turno abierto; `pos_habilitado` eliminado de BD — Single Source of Truth)
+**Última actualización:** 2026-05-26 — **v5.6** (Realtime en tabla `cajas`; widget movimientos rediseñado — 5 ítems + modal historial completo; directiva `appHorizontalScroll` en grid de cajas)
 
 **Módulos completados:**
 

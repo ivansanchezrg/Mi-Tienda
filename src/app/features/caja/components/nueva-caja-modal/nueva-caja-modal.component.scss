@@ -50,7 +50,7 @@
 
 .text-input {
   width: 100%;
-  padding: 14px 16px;
+  padding: 11px 14px;
   font-size: 15px;
   border: 1.5px solid var(--app-divider);
   border-radius: var(--radius-md);
@@ -74,25 +74,25 @@
 .appearance-preview {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   padding: 14px 16px;
   background: var(--app-surface-tint);
   border-radius: var(--radius-md);
-  margin-bottom: 4px;
 }
 
 .preview-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 
   ion-icon {
-    font-size: 22px;
+    font-size: 26px;
     color: #fff;
   }
 }
@@ -100,32 +100,42 @@
 .preview-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .preview-name {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: var(--font-weight-bold);
   color: var(--app-text);
 }
 
 .preview-sub {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--app-text-muted);
+}
+
+.picker-label {
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  color: var(--app-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: -2px;
 }
 
 // ── Selector de color ─────────────────────────────────────────────────────────
 
 .color-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 30px));
+  gap: 8px;
+  justify-content: space-between;
 }
 
 .color-option {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: var(--radius-md);
   border: 2.5px solid transparent;
   cursor: pointer;
   transition: transform 0.15s ease, border-color 0.15s ease;
@@ -133,7 +143,7 @@
 
   &--selected {
     border-color: var(--app-text);
-    transform: scale(1.15);
+    transform: scale(1.12);
   }
 
   &:active { transform: scale(0.90); }
@@ -142,14 +152,14 @@
 // ── Selector de ícono ─────────────────────────────────────────────────────────
 
 .icon-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
 }
 
 .icon-option {
-  width: 48px;
-  height: 48px;
+  aspect-ratio: 1;
+  width: 100%;
   border-radius: var(--radius-md);
   border: 1.5px solid var(--app-divider);
   background: var(--app-surface);
@@ -160,7 +170,7 @@
   transition: all 0.15s ease;
 
   ion-icon {
-    font-size: 22px;
+    font-size: 18px;
     color: var(--app-text-soft);
   }
 
@@ -172,6 +182,21 @@
   }
 
   &:active { transform: scale(0.93); }
+}
+
+.toggle-icons-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  color: var(--ion-color-primary);
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+
+  ion-icon { font-size: 14px; }
 }
 
 // ── Monto ─────────────────────────────────────────────────────────────────────

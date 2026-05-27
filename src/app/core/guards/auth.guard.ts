@@ -4,12 +4,22 @@ import { Network } from '@capacitor/network';
 import { AuthService } from '../../features/auth/services/auth.service';
 import { UiService } from '../services/ui.service';
 import { LoggerService } from '../services/logger.service';
+import { SupabaseService } from '../services/supabase.service';
 
 export const authGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
   const ui = inject(UiService);
   const logger = inject(LoggerService);
+  const supabase = inject(SupabaseService);
+
+  // Si hay un resume-refresh en curso (token expirado al volver del background),
+  // esperarlo antes de llamar getSession() — evita que Supabase serialice dos
+  // refresh en paralelo, que es lo que causa el freeze de 4-5s tras inactividad larga.
+  if (supabase.resumeRefreshInFlight) {
+    logger.info('authGuard', 'Esperando resume-refresh en curso...');
+    await supabase.resumeRefreshInFlight;
+  }
 
   const status = await Network.getStatus();
 

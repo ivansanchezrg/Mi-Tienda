@@ -16,13 +16,6 @@
   // Sombra de cards
   --shadow-soft:     0 6px 16px rgba(var(--ion-color-primary-rgb), 0.08);
 
-  // Íconos de cajas
-  --icon-primary:    var(--ion-color-primary);
-  --icon-success:    var(--ion-color-success);
-  --icon-tertiary:   var(--ion-color-tertiary);
-  --icon-secondary:  var(--ion-color-secondary);
-  --icon-warning:    var(--ion-color-warning);
-
   // Movimientos
   --mov-ingreso:     var(--ion-color-success-shade);
   --mov-egreso:      var(--ion-color-danger);
@@ -113,6 +106,16 @@ ion-content {
   &:active {
     background: rgba(var(--app-surface-tint-rgb), 0.6);
     transform: scale(0.92);
+  }
+
+  &--sm {
+    width: 30px;
+    height: 30px;
+    ion-icon { font-size: 17px; }
+  }
+
+  &.spinning ion-icon {
+    animation: spin 0.7s linear infinite;
   }
 
   &__badge {
@@ -345,7 +348,6 @@ ion-content {
   transition: opacity var(--transition-fast), transform var(--transition-fast);
 
   &:active { opacity: 0.85; transform: scale(0.985); }
-  &--disabled { opacity: var(--opacity-disabled); pointer-events: none; }
   &--skeleton { cursor: default; }
 
   &--idle {
@@ -415,11 +417,6 @@ ion-content {
 
     ion-icon { font-size: 16px; color: var(--ion-color-primary-contrast, #fff); }
 
-    &.primary   { background: var(--icon-primary); }
-    &.success   { background: var(--icon-success); }
-    &.tertiary  { background: var(--icon-tertiary); }
-    &.secondary { background: var(--icon-secondary); }
-    &.warning   { background: var(--icon-warning); }
   }
 
   &__bottom {
@@ -486,12 +483,17 @@ ion-content {
 //   tablet  (≥768px)  — fila: ícono + label en línea, botones de ancho natural
 //   desktop (≥992px)  — igual que tablet pero con max-width para no estirarse
 
+.quick-actions-card {
+  margin: 4px 18px 0;
+  background: var(--home-card-bg);
+}
+
 .quick-actions {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  padding: 8px 0 14px;
-  margin: 0 18px;
+  padding: 8px 12px 14px;
+  margin: 0;
 
   // Tablet y desktop: fila de botones de ancho natural, alineados a la izquierda
   @media (min-width: 768px) {
@@ -538,6 +540,18 @@ ion-content {
       ion-icon { color: var(--ion-color-danger); }
     }
     .quick-action__label { color: var(--ion-color-danger); }
+  }
+
+  &--ingreso {
+    .quick-action__icon ion-icon { color: var(--ion-color-success); font-size: 18px; }
+  }
+
+  &--egreso {
+    .quick-action__icon ion-icon { color: var(--ion-color-danger); font-size: 18px; }
+  }
+
+  &--traspaso {
+    .quick-action__icon ion-icon { color: var(--ion-color-primary); font-size: 18px; }
   }
 
   // Tablet y desktop: layout horizontal — ícono + label en fila
@@ -597,6 +611,12 @@ ion-content {
     letter-spacing: 0.9px;
     color: var(--home-text-soft);
     text-transform: uppercase;
+  }
+
+  &__left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
   &__count {
@@ -750,9 +770,40 @@ ion-content {
   background: var(--home-divider);
 }
 
+.mov-footer {
+  border-top: 1px solid var(--home-divider);
+
+  &__btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 13px 16px;
+    background: none;
+    border: none;
+    color: var(--ion-color-primary);
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    ion-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    &:active { background: rgba(var(--ion-color-primary-rgb), 0.06); }
+  }
+}
+
 .bottom-spacer { height: 32px; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.4; transform: scale(0.75); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }

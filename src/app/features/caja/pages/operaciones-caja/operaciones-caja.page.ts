@@ -24,9 +24,11 @@ import { NetworkService } from '@core/services/network.service';
 import { CajasService } from '../../services/cajas.service';
 import { StorageService } from '@core/services/storage.service';
 import { OperacionModalComponent, OperacionModalResult } from '../../components/operacion-modal/operacion-modal.component';
+import { NuevaCajaModalComponent } from '../../components/nueva-caja-modal/nueva-caja-modal.component';
 import { OptionsMenuComponent, MenuOption } from '@shared/components/options-menu/options-menu.component';
 import { AuthService } from '../../../auth/services/auth.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { OperacionLabelPipe } from '../../../../shared/pipes/operacion-label.pipe';
 import { PeriodFilterComponent, PeriodOption } from '../../../../shared/components/period-filter/period-filter.component';
 import { ROUTES } from '@core/config/routes.config';
 
@@ -51,7 +53,8 @@ interface OperacionAgrupada {
     IonRefresher, IonRefresherContent,
     EmptyStateComponent,
     PeriodFilterComponent,
-    OptionsMenuComponent
+    OptionsMenuComponent,
+    OperacionLabelPipe
   ]
 })
 export class OperacionesCajaPage implements OnDestroy {
@@ -66,6 +69,7 @@ export class OperacionesCajaPage implements OnDestroy {
   private route = inject(ActivatedRoute);
   private authService = inject(AuthService);
   private networkSub?: Subscription;
+  private cajasSub?: Subscription;
 
   @ViewChild(IonInfiniteScroll) infiniteScroll!: IonInfiniteScroll;
 
@@ -99,9 +103,6 @@ export class OperacionesCajaPage implements OnDestroy {
   // Estado de conexión
   isOnline = true;
 
-  // Flag para saber si hubo cambios y refrescar home al volver
-  hayCambios = false;
-
   // true si el turno activo de Caja Chica pertenece a otro empleado
   turnoAjeno = false;
 
@@ -117,14 +118,20 @@ export class OperacionesCajaPage implements OnDestroy {
   // true si el ⋮ debe mostrarse según caja y rol
   get mostrarMenuOpciones(): boolean {
     if (this.cajaCodigo === 'CAJA_CHICA') return this.esMiTurno;
-    if (this.cajaCodigo === 'CAJA_BUS') return false;
-    return true; // CAJA, VARIOS y CAJA_CELULAR — cualquier usuario logueado
+    return true;
   }
 
-  readonly opcionesMenu: MenuOption[] = [
-    { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'INGRESO' },
-    { label: 'Registrar Egreso',  icon: 'arrow-up-outline',   value: 'EGRESO',  color: 'danger' },
-  ];
+  get opcionesMenu(): MenuOption[] {
+    const soloEditar = this.cajaCodigo === 'CAJA_CELULAR' || this.cajaCodigo === 'CAJA_BUS';
+    if (soloEditar) {
+      return [{ label: 'Editar caja', icon: 'create-outline', value: 'EDITAR' }];
+    }
+    return [
+      { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'INGRESO' },
+      { label: 'Registrar Egreso',  icon: 'arrow-up-outline',   value: 'EGRESO',  color: 'danger' },
+      { label: 'Editar caja',       icon: 'create-outline',     value: 'EDITAR' },
+    ];
+  }
 
   constructor() {
     addIcons({
@@ -161,15 +168,25 @@ export class OperacionesCajaPage implements OnDestroy {
       this.isOnline = isOnline;
     });
 
+    // Actualizar cajaSaldo en tiempo real cuando cambia desde otro dispositivo
+    this.cajasSub?.unsubscribe();
+    this.cajasSub = this.cajasService.cajas$.subscribe(cajas => {
+      const caja = cajas.find(c => c.id === this.cajaId);
+      if (caja) this.cajaSaldo = caja.saldo_actual;
+    });
+
     await this.cargarOperaciones(true);
   }
 
   ionViewWillLeave() {
     this.ui.showTabs();
+    this.cajasSub?.unsubscribe();
+    this.cajasSub = undefined;
   }
 
   ngOnDestroy() {
     this.networkSub?.unsubscribe();
+    this.cajasSub?.unsubscribe();
   }
 
   async cargarOperaciones(reset = false, isRefresh = false) {
@@ -187,13 +204,10 @@ export class OperacionesCajaPage implements OnDestroy {
     }
 
     try {
-      // Carga saldo y operaciones en paralelo con un único spinner local
-      const [cajas, resultado] = await Promise.all([
-        this.cajasService.obtenerCajasDirecto(),
-        this.service.obtenerOperacionesCaja(this.cajaId, this.filtro, this.page)
-      ]);
+      const resultado = await this.service.obtenerOperacionesCaja(this.cajaId, this.filtro, this.page);
 
-      const caja = cajas.find(c => c.id === this.cajaId);
+      // cajaSaldo ya se actualiza via cajasSub (Realtime) — solo asignar en carga inicial
+      const caja = this.cajasService.cajasValue.find(c => c.id === this.cajaId);
       if (caja) this.cajaSaldo = caja.saldo_actual;
 
       if (reset) {
@@ -257,15 +271,6 @@ export class OperacionesCajaPage implements OnDestroy {
     this.operacionesAgrupadas = Array.from(grupos.values());
   }
 
-  // Visual: flecha + signo en la lista de operaciones
-  esIngreso(tipo: string): boolean {
-    return ['INGRESO', 'TRANSFERENCIA_ENTRANTE', 'CIERRE'].includes(tipo);
-  }
-
-  esEgreso(tipo: string): boolean {
-    return ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(tipo);
-  }
-
   // Resumen del período: incluye todo lo que sumó/restó al saldo de la caja.
   // CIERRE cuenta como ingreso porque es dinero que entró a la caja.
   // APERTURA y AJUSTE son neutros (no suman a ingresos ni egresos).
@@ -294,38 +299,10 @@ export class OperacionesCajaPage implements OnDestroy {
   }
 
   volver() {
-    if (this.hayCambios) {
-      this.router.navigate([ROUTES.home], { queryParams: { refresh: true } });
-    } else {
-      this.router.navigate([ROUTES.home]);
-    }
+    this.router.navigate([ROUTES.home]);
   }
 
-  getOperacionColor(tipo: string): string {
-    const colors: Record<string, string> = {
-      'INGRESO': 'success',
-      'EGRESO': 'danger',
-      'TRANSFERENCIA_ENTRANTE': 'success',
-      'TRANSFERENCIA_SALIENTE': 'danger',
-      'APERTURA': 'primary',
-      'CIERRE': 'success',
-      'AJUSTE': 'warning'
-    };
-    return colors[tipo] || 'medium';
-  }
 
-  getOperacionLabel(tipo: string): string {
-    const labels: Record<string, string> = {
-      'INGRESO': 'Ingreso',
-      'EGRESO': 'Egreso',
-      'TRANSFERENCIA_ENTRANTE': 'Transferencia recibida',
-      'TRANSFERENCIA_SALIENTE': 'Transferencia enviada',
-      'APERTURA': 'Apertura',
-      'CIERRE': 'Cierre de turno',
-      'AJUSTE': 'Ajuste'
-    };
-    return labels[tipo] || tipo;
-  }
 
   formatFechaGrupo(fecha: Date): string {
     return fecha.toLocaleDateString('es', {
@@ -353,11 +330,38 @@ export class OperacionesCajaPage implements OnDestroy {
   }
 
   async onMenuOpcion(option: MenuOption) {
+    if (option.value === 'EDITAR') {
+      this.abrirModalEditar();
+      return;
+    }
     if (!this.isOnline) {
       await this.ui.showError('Sin conexión a internet. No puedes realizar operaciones.');
       return;
     }
     this.abrirModalOperacion(option.value as 'INGRESO' | 'EGRESO');
+  }
+
+  async abrirModalEditar() {
+    const cajas = await this.cajasService.obtenerCajas();
+    const cajaActual = cajas.find(c => c.id === this.cajaId);
+    if (!cajaActual) return;
+
+    const modal = await this.modalCtrl.create({
+      component: NuevaCajaModalComponent,
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
+      componentProps: {
+        cajasExistentes: cajas,
+        cajaEditar: cajaActual,
+      },
+    });
+    await modal.present();
+    const { data, role } = await modal.onDidDismiss();
+    if (role === 'confirm' && data) {
+      this.cajaNombre = data.nombre;
+      await this.cargarOperaciones(true);
+    }
   }
 
   async abrirModalOperacion(tipo: 'INGRESO' | 'EGRESO') {
@@ -399,7 +403,6 @@ export class OperacionesCajaPage implements OnDestroy {
     );
 
     if (success) {
-      this.hayCambios = true;
       await this.cargarOperaciones(true);
     }
   }

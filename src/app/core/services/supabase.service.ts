@@ -42,8 +42,12 @@ export class SupabaseService {
   /** Timestamp del último intento de refresh on-resume (ms). Usado para throttle. */
   private lastResumeRefreshAt = 0;
 
-  /** Promesa del refresh en curso, para evitar refreshes concurrentes. */
-  private resumeRefreshInFlight: Promise<void> | null = null;
+  /**
+   * Promesa del refresh en curso — pública para que authGuard la espere
+   * si llega mientras el resume-refresh aún no terminó, evitando un segundo
+   * getSession() paralelo que Supabase serializa internamente (~4-5s extra).
+   */
+  resumeRefreshInFlight: Promise<void> | null = null;
 
   /**
    * Hooks que se ejecutan antes de limpiar la sesión en handleExpiredSession().

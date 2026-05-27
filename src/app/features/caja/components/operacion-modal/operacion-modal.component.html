@@ -22,25 +22,53 @@
       <div class="field-group">
         <span class="field-label">Caja <span class="badge-required">Obligatorio</span></span>
         @if (cajaIdPreseleccionada) {
-          <div class="caja-chips">
-            <div class="caja-chip caja-chip--selected caja-chip--fixed">
-              <ion-icon [name]="iconoCaja(cajaPreseleccionada?.codigo ?? '')"></ion-icon>
-              <span>{{ cajaPreseleccionada?.nombre }}</span>
+          <div class="caja-scroll">
+            <div class="caja-mini-card caja-mini-card--selected caja-mini-card--fixed">
+              <div class="caja-mini-card__icon" [style.background]="cajaPreseleccionada?.color || 'var(--ion-color-primary)'">
+                @if (cajaPreseleccionada?.codigo === 'CAJA_CHICA') {
+                  <ion-icon name="file-tray-outline"></ion-icon>
+                } @else if (cajaPreseleccionada?.codigo === 'VARIOS') {
+                  <ion-icon name="archive-outline"></ion-icon>
+                } @else if (cajaPreseleccionada?.icono) {
+                  <ion-icon [name]="cajaPreseleccionada!.icono"></ion-icon>
+                } @else {
+                  <ion-icon name="cash-outline"></ion-icon>
+                }
+              </div>
+              <div class="caja-mini-card__info">
+                <span class="caja-mini-card__name">{{ cajaPreseleccionada?.nombre }}</span>
+                <span class="caja-mini-card__saldo">${{ (cajaPreseleccionada?.saldo_actual ?? 0) | number:'1.2-2' }}</span>
+              </div>
             </div>
           </div>
         } @else {
-          <div class="caja-chips">
+          <div class="caja-scroll" appHorizontalScroll #cajaScrollRef>
             @for (caja of cajasFiltradas; track caja.id) {
               <button
                 type="button"
-                class="caja-chip"
-                [class.caja-chip--selected]="form.get('cajaId')?.value === caja.id"
+                class="caja-mini-card"
+                [class.caja-mini-card--selected]="form.get('cajaId')?.value === caja.id"
+                [attr.data-caja-id]="caja.id"
                 (click)="seleccionarCaja(caja)">
-                <ion-icon [name]="iconoCaja(caja.codigo, caja.icono)"></ion-icon>
-                <span>{{ caja.nombre }}</span>
+                <div class="caja-mini-card__icon" [style.background]="caja.color || 'var(--ion-color-primary)'">
+                  @if (caja.codigo === 'CAJA_CHICA') {
+                    <ion-icon name="file-tray-outline"></ion-icon>
+                  } @else if (caja.codigo === 'VARIOS') {
+                    <ion-icon name="archive-outline"></ion-icon>
+                  } @else if (caja.icono) {
+                    <ion-icon [name]="caja.icono"></ion-icon>
+                  } @else {
+                    <ion-icon name="cash-outline"></ion-icon>
+                  }
+                </div>
+                <div class="caja-mini-card__info">
+                  <span class="caja-mini-card__name">{{ caja.nombre }}</span>
+                  <span class="caja-mini-card__saldo">${{ caja.saldo_actual | number:'1.2-2' }}</span>
+                </div>
               </button>
             }
           </div>
+          <div class="scroll-hint">🖱 Scroll para ver más</div>
         }
       </div>
 

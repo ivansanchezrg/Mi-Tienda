@@ -19,4 +19,5 @@ export interface EstadoCaja {
   empleadoNombre: string;
   horaApertura: string;
   turnosHoy: number;
+  fechaUltimoCierre: string | null;
 }

@@ -105,29 +105,26 @@
       @for (op of grupo.operaciones; track op.id; let last = $last) {
       <div class="op-row">
 
-        <!-- Icono — nombres estáticos para Android -->
-        <div class="op-icon-wrap" [attr.data-type]="getOperacionColor(op.tipo_operacion)">
-          @if (op.tipo_operacion === 'INGRESO' || op.tipo_operacion === 'TRANSFERENCIA_ENTRANTE') {
-            <ion-icon name="arrow-down-outline"></ion-icon>
-          } @else if (op.tipo_operacion === 'EGRESO' || op.tipo_operacion === 'TRANSFERENCIA_SALIENTE') {
-            <ion-icon name="arrow-up-outline"></ion-icon>
-          } @else if (op.tipo_operacion === 'APERTURA') {
-            <ion-icon name="lock-open-outline"></ion-icon>
-          } @else if (op.tipo_operacion === 'CIERRE') {
-            <ion-icon name="lock-closed-outline"></ion-icon>
-          } @else if (op.tipo_operacion === 'AJUSTE') {
-            <ion-icon name="create-outline"></ion-icon>
-          } @else {
-            <ion-icon name="cash-outline"></ion-icon>
+        <!-- Icono — nombres estáticos para Android (tree-shaking safe) -->
+        <div class="op-icon-wrap" [attr.data-type]="op.tipo_operacion | operacionLabel:'color'">
+          @switch (op.tipo_operacion) {
+            @case ('INGRESO')                { <ion-icon name="arrow-down-outline"></ion-icon> }
+            @case ('TRANSFERENCIA_ENTRANTE') { <ion-icon name="arrow-down-outline"></ion-icon> }
+            @case ('EGRESO')                 { <ion-icon name="arrow-up-outline"></ion-icon> }
+            @case ('TRANSFERENCIA_SALIENTE') { <ion-icon name="arrow-up-outline"></ion-icon> }
+            @case ('APERTURA')               { <ion-icon name="lock-open-outline"></ion-icon> }
+            @case ('CIERRE')                 { <ion-icon name="lock-closed-outline"></ion-icon> }
+            @case ('AJUSTE')                 { <ion-icon name="create-outline"></ion-icon> }
+            @default                         { <ion-icon name="cash-outline"></ion-icon> }
           }
         </div>
 
         <div class="op-details">
           <div class="op-title-row">
-            <span class="op-title">{{ op.categoria?.nombre || getOperacionLabel(op.tipo_operacion) }}</span>
+            <span class="op-title">{{ op.categoria?.nombre || (op.tipo_operacion | operacionLabel:op.descripcion) }}</span>
           </div>
-          @if (op.descripcion) {
-            <p class="op-desc">{{ op.descripcion }}</p>
+          @if (op.descripcion | operacionLabel:'motivo') {
+            <p class="op-desc">{{ op.descripcion | operacionLabel:'motivo' }}</p>
           }
           <div class="op-footer">
             <span class="op-time">{{ formatHora(op.fecha) }}</span>
@@ -144,8 +141,8 @@
               <ion-icon name="document-attach-outline"></ion-icon>
             </button>
           }
-          <span class="op-amount" [attr.data-type]="getOperacionColor(op.tipo_operacion)">
-            {{ esIngreso(op.tipo_operacion) ? '+' : (esEgreso(op.tipo_operacion) ? '-' : '') }}${{ op.monto | number:'1.2-2' }}
+          <span class="op-amount" [attr.data-type]="op.tipo_operacion | operacionLabel:'color'">
+            {{ op.tipo_operacion | operacionLabel:'signo' }}${{ op.monto | number:'1.2-2' }}
           </span>
         </div>
 

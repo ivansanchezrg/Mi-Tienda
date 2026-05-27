@@ -525,23 +525,33 @@ export class TurnosCajaService {
     const inicioDia = new Date(`${getFechaLocal()}T00:00:00`).toISOString();
     const inicioMana = getInicioDiaSiguienteISO();
 
-    const turnoActivo = await this.supabase.call<TurnoCajaConEmpleado>(
+    const [turnoActivo, countResult, ultimoCierre] = await Promise.all([
+      this.supabase.call<TurnoCajaConEmpleado>(
+        this.supabase.client
+          .from('turnos_caja')
+          .select('*, empleado:usuarios(id, nombre)')
+          .is('hora_fecha_cierre', null)
+          .maybeSingle(),
+        undefined,
+        { showLoading: false }
+      ),
       this.supabase.client
         .from('turnos_caja')
-        .select('*, empleado:usuarios(id, nombre)')
-        .is('hora_fecha_cierre', null)
-        .maybeSingle(),
-      undefined,
-      { showLoading: false }
-    );
+        .select('id', { count: 'exact', head: true })
+        .gte('hora_fecha_apertura', inicioDia)
+        .lt('hora_fecha_apertura', inicioMana),
+      this.supabase.call<{ hora_fecha_cierre: string }>(
+        this.supabase.client
+          .from('turnos_caja')
+          .select('hora_fecha_cierre')
+          .not('hora_fecha_cierre', 'is', null)
+          .order('hora_fecha_cierre', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )
+    ]);
 
-    const { count } = await this.supabase.client
-      .from('turnos_caja')
-      .select('id', { count: 'exact', head: true })
-      .gte('hora_fecha_apertura', inicioDia)
-      .lt('hora_fecha_apertura', inicioMana);
-
-    const turnosHoy = count ?? 0;
+    const turnosHoy = countResult.count ?? 0;
 
     let estado: EstadoCajaTipo;
     let empleadoNombre = '';
@@ -561,12 +571,20 @@ export class TurnosCajaService {
       estado = 'SIN_ABRIR';
     }
 
+    const fechaUltimoCierre = ultimoCierre?.hora_fecha_cierre
+      ? (() => {
+          const d = new Date(ultimoCierre.hora_fecha_cierre);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        })()
+      : null;
+
     return {
       estado,
       turnoActivo,
       empleadoNombre,
       horaApertura,
-      turnosHoy
+      turnosHoy,
+      fechaUltimoCierre
     };
   }
 }

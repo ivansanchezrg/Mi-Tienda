@@ -21,6 +21,7 @@ import { OperacionesCajaService } from '../../services/operaciones-caja.service'
 import { UiService } from '@core/services/ui.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
+import { HorizontalScrollDirective } from '@shared/directives/horizontal-scroll.directive';
 
 export interface OperacionModalData {
   tipo: 'INGRESO' | 'EGRESO';
@@ -52,7 +53,8 @@ const CAJA_ICONOS: Record<string, string> = {
     ReactiveFormsModule,
     IonIcon, IonSpinner, IonButton,
     CurrencyInputDirective,
-    NumbersOnlyDirective
+    NumbersOnlyDirective,
+    HorizontalScrollDirective,
   ]
 })
 export class OperacionModalComponent implements OnInit, OnDestroy {
@@ -67,6 +69,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   @Input() tipo!: 'INGRESO' | 'EGRESO';
   @Input() cajas: Caja[] = [];
   @Input() cajaIdPreseleccionada?: string;
+  @Input() excluirCajaChica = false;
 
   form!: FormGroup;
   cajasFiltradas: Caja[] = [];
@@ -85,9 +88,10 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
-    this.cajasFiltradas = this.cajas.filter(c =>
-      ['CAJA', 'CAJA_CHICA', 'VARIOS'].includes(c.codigo)
-    );
+    this.cajasFiltradas = this.cajas.filter(c => {
+      if (this.excluirCajaChica && c.codigo === 'CAJA_CHICA') return false;
+      return ['CAJA', 'CAJA_CHICA', 'VARIOS'].includes(c.codigo) || c.codigo.startsWith('CUSTOM_');
+    });
 
     // Preseleccionar: si viene cajaIdPreseleccionada, usarla;
     // si solo hay una caja disponible, seleccionarla automáticamente
@@ -168,6 +172,10 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   seleccionarCaja(caja: Caja) {
     this.form.patchValue({ cajaId: caja.id });
     this.form.get('cajaId')?.markAsTouched();
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`.caja-scroll [data-caja-id="${caja.id}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, 0);
   }
 
   async abrirSelectorCategoria() {

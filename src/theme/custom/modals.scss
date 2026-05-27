@@ -98,7 +98,7 @@ ion-modal.bottom-sheet-modal {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--ion-color-light);
+  background: var(--app-bg);
   overflow: hidden;
 }
 
@@ -177,7 +177,7 @@ ion-modal.bottom-sheet-modal {
   padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom));
   border-top: 1px solid var(--app-divider);
   flex-shrink: 0;
-  background: var(--ion-color-light);
+  background: var(--app-bg);
 
   ion-button {
     --border-radius: var(--radius-sm, 14px);
@@ -221,7 +221,7 @@ ion-modal.bottom-sheet-modal {
   gap: var(--spacing-lg);
   padding: var(--spacing-xl);
   padding-top: 28px;
-  background: var(--ion-color-light);
+  background: var(--app-bg);
 }
 
 .modal-header {

@@ -534,8 +534,7 @@ export class CierreDiarioPage implements HasPendingChanges {
       this.cierreForm.markAsPristine();
       this.resetState();
 
-      await new Promise(resolve => setTimeout(resolve, 100));
-      await this.router.navigate([ROUTES.home], { queryParams: { refresh: Date.now() } });
+      await this.router.navigate([ROUTES.home]);
     } catch (error: any) {
       await this.ui.hideLoading();
       await this.ui.showError(error?.message || 'Error al guardar el cierre');

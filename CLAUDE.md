@@ -168,7 +168,7 @@ src/app/
 ├── features/              # Módulos (cada uno tiene pages/, services/, models/, components/)
 ├── shared/
 │   ├── components/        # sidebar, under-construction, options-menu, options-modal, empty-state
-│   ├── directives/        # currency-input, numbers-only, scroll-reset
+│   ├── directives/        # currency-input, numbers-only, scroll-reset, uppercase-input, horizontal-scroll
 │   └── pages/             # paginated-list.page.ts (clase base listas paginadas)
 └── environments/
     ├── environment.example.ts   # Plantilla (en git)
@@ -494,6 +494,48 @@ Ubicación: `shared/components/empty-state/`. Usar siempre que una lista no teng
 - Estilos encapsulados en el componente — **no agregar `.empty-state` en el SCSS de la página**
 - Para estados vacíos dentro de modales o contenedores pequeños: `style="min-height: auto"` inline
 - Los iconos usados frecuentemente ya están registrados en el componente. Si necesitas uno nuevo, agrégalo en `empty-state.component.ts`
+
+### `OperacionLabelPipe` — Display de operaciones de caja
+
+**Archivo:** `src/app/shared/pipes/operacion-label.pipe.ts`
+
+Pipe standalone centralizado para mostrar registros de `operaciones_cajas`. Reemplaza toda la lógica duplicada de label/color/signo que antes vivía en cada página.
+
+```typescript
+import { OperacionLabelPipe } from '@shared/pipes/operacion-label.pipe';
+// En imports[] del componente:  OperacionLabelPipe
+```
+
+**Modos:**
+
+| Expresión | Retorna |
+|---|---|
+| `(tipo \| operacionLabel:descripcion)` | Label legible — traspasos muestran contraparte: `"Traspaso hacia Cajón"` |
+| `(descripcion \| operacionLabel:'motivo')` | Texto tras el `·`, o `''` si no hay |
+| `(tipo \| operacionLabel:'color')` | Color Ionic: `'success'`, `'danger'`, `'warning'`, `'primary'`, `'medium'` |
+| `(tipo \| operacionLabel:'signo')` | `'+'`, `'-'`, o `''` |
+
+**Patrón completo:**
+```html
+<!-- Label: categoría si existe, label contextual si no -->
+{{ op.categoria?.nombre || (op.tipo_operacion | operacionLabel:op.descripcion) }}
+
+<!-- Motivo — solo renderizar si hay texto -->
+@if (op.descripcion | operacionLabel:'motivo') {
+  <p>{{ op.descripcion | operacionLabel:'motivo' }}</p>
+}
+
+<!-- Color en data-attribute + monto con signo -->
+<span [attr.data-type]="op.tipo_operacion | operacionLabel:'color'">
+  {{ op.tipo_operacion | operacionLabel:'signo' }}${{ op.monto | number:'1.2-2' }}
+</span>
+```
+
+**Cómo se genera la descripción:** `fn_crear_transferencia` escribe `"hacia Cajón · motivo"` (SALIENTE) y `"desde Tienda · motivo"` (ENTRANTE). El pipe parsea el `·` para separar contraparte de motivo. Registros sin descripción retornan los labels genéricos sin error.
+
+Ver documentación completa en `docs/shared/SHARED-README.md` → sección **Pipes**.
+
+---
 
 ### Loading + Pull-to-Refresh sin doble spinner
 ```typescript
@@ -1090,6 +1132,8 @@ WITH CHECK (
 - No llamar a `Camera.getPhoto` directamente — usar siempre `StorageService.capturarFoto()`
 - No pasar `bucket` ni `negocio_id` a los métodos de `StorageService` — el bucket es `mi-tienda` (constante interna) y el `negocio_id` se inyecta automáticamente. Solo pasar el `subfolder` descriptivo
 - No guardar URLs firmadas ni URLs públicas en la BD — guardar siempre el `path` que retorna `uploadImage()`
+- No usar `IonInfiniteScroll` fuera de `ion-content` — lanza error en runtime. En modales bottom-sheet (que usan `div.bs-content` con `overflow-y: auto`), reemplazar por un botón "Cargar más" nativo
+- No agregar scroll horizontal manual con `wheel` en desktop — usar la directiva `appHorizontalScroll` de `shared/directives/horizontal-scroll.directive.ts`
 
 ---
 

@@ -456,6 +456,55 @@ Convierte automáticamente el valor de un `ion-input` a mayúsculas mientras el 
 
 ---
 
+### `appHorizontalScroll` — Scroll horizontal con wheel + hint de overflow
+
+**Archivo:** `directives/horizontal-scroll.directive.ts`
+
+Mejora el UX de cualquier contenedor con `overflow-x: auto` en desktop:
+
+1. **Redirige el wheel vertical al scroll horizontal** — en mouse sin trackpad 2D, la rueda solo hace scroll vertical. Esta directiva intercepta el evento `wheel` y lo convierte en `scrollLeft` cuando el contenedor tiene overflow horizontal.
+2. **Agrega la clase `has-h-overflow` al padre** cuando el contenido desborda — permite mostrar un hint visual `← →` en CSS solo cuando hay algo que desplazar. La clase se actualiza en tiempo real con `ResizeObserver`.
+
+#### Uso
+
+```html
+<div class="mi-scroll-wrapper">
+  <div class="mi-contenedor-horizontal" appHorizontalScroll>
+    <!-- items que desbordan el ancho -->
+  </div>
+</div>
+```
+
+```scss
+// El padre recibe has-h-overflow cuando hay overflow
+.mi-scroll-wrapper.has-h-overflow::after {
+  content: '← →';
+  // hint visual para el usuario
+}
+```
+
+#### Importar
+
+```typescript
+import { HorizontalScrollDirective } from '@shared/directives/horizontal-scroll.directive';
+
+@Component({
+  standalone: true,
+  imports: [HorizontalScrollDirective, ...]
+})
+```
+
+#### Comportamiento detallado
+
+- **Trackpad 2D**: si `Math.abs(deltaX) > Math.abs(deltaY)` el usuario ya está scrolleando horizontal con dos dedos — la directiva no interfiere.
+- **Mouse con rueda**: `deltaX === 0` siempre → la directiva redirige `deltaY` a `scrollLeft`.
+- **`ResizeObserver`**: se desconecta en `ngOnDestroy` para evitar memory leaks.
+- La directiva actúa sobre el **elemento donde se aplica** (`[appHorizontalScroll]`), y añade/quita la clase en su **padre inmediato**.
+
+> Actualmente usado en el grid de cajas del home (`cuentas-grid`) para permitir scroll horizontal con mouse en desktop cuando hay muchas cajas.
+
+---
+
 ---
 
 ## Estilos globales — `src/theme/custom/`
@@ -563,8 +612,102 @@ El modal se centra en pantalla con `max-width: 520px` y `border-radius: 16px` en
 
 ---
 
+---
+
+## Pipes
+
+### `OperacionLabelPipe` — Display de operaciones de caja
+
+**Archivo:** `src/app/shared/pipes/operacion-label.pipe.ts`
+
+Pipe standalone centralizado para mostrar registros de `operaciones_cajas` de forma legible. Reemplaza todos los métodos duplicados que antes vivían en `home.page.ts` y `operaciones-caja.page.ts` (`getMovLabel`, `getMovColor`, `esMovIngreso`, `getOperacionLabel`, `getOperacionColor`, `esIngreso` visual, etc.).
+
+#### Importar
+
+```typescript
+import { OperacionLabelPipe } from '@shared/pipes/operacion-label.pipe';
+
+@Component({
+  standalone: true,
+  imports: [OperacionLabelPipe, ...],
+})
+```
+
+#### Modos (segundo argumento)
+
+| Modo | Expresión en template | Retorna | Ejemplo |
+|---|---|---|---|
+| **Label** (default) | `(tipo \| operacionLabel:descripcion)` | Texto legible del tipo, con contraparte en traspasos | `"Traspaso hacia Cajón"` |
+| **`'motivo'`** | `(descripcion \| operacionLabel:'motivo')` | Texto tras el `·` en la descripción, o `''` si no hay | `"pago proveedores"` |
+| **`'color'`** | `(tipo \| operacionLabel:'color')` | Color Ionic del tipo | `"success"`, `"danger"` |
+| **`'signo'`** | `(tipo \| operacionLabel:'signo')` | `"+"`, `"-"`, o `""` | `"+"` para INGRESO |
+
+#### Tabla de valores por tipo
+
+| `tipo_operacion` | Label default | Color | Signo |
+|---|---|---|---|
+| `INGRESO` | Ingreso | `success` | `+` |
+| `EGRESO` | Egreso | `danger` | `-` |
+| `APERTURA` | Apertura de turno | `primary` | — |
+| `CIERRE` | Cierre de turno | `success` | `+` |
+| `AJUSTE` | Ajuste | `warning` | — |
+| `TRANSFERENCIA_SALIENTE` | Traspaso enviado *(o "Traspaso hacia X" si hay descripción)* | `danger` | `-` |
+| `TRANSFERENCIA_ENTRANTE` | Traspaso recibido *(o "Traspaso desde X" si hay descripción)* | `success` | `+` |
+
+#### Uso completo en template
+
+```html
+<!-- Ícono — @switch con nombres estáticos (requerido para Android tree-shaking) -->
+<div class="op-icon-wrap" [attr.data-type]="op.tipo_operacion | operacionLabel:'color'">
+  @switch (op.tipo_operacion) {
+    @case ('INGRESO')                { <ion-icon name="arrow-down-outline"></ion-icon> }
+    @case ('TRANSFERENCIA_ENTRANTE') { <ion-icon name="arrow-down-outline"></ion-icon> }
+    @case ('EGRESO')                 { <ion-icon name="arrow-up-outline"></ion-icon> }
+    @case ('TRANSFERENCIA_SALIENTE') { <ion-icon name="arrow-up-outline"></ion-icon> }
+    @case ('APERTURA')               { <ion-icon name="lock-open-outline"></ion-icon> }
+    @case ('CIERRE')                 { <ion-icon name="lock-closed-outline"></ion-icon> }
+    @case ('AJUSTE')                 { <ion-icon name="create-outline"></ion-icon> }
+    @default                         { <ion-icon name="cash-outline"></ion-icon> }
+  }
+</div>
+
+<!-- Título: categoría si existe, label contextual si no -->
+<span class="op-title">
+  {{ op.categoria?.nombre || (op.tipo_operacion | operacionLabel:op.descripcion) }}
+</span>
+
+<!-- Motivo: solo muestra si hay texto tras el "·" -->
+@if (op.descripcion | operacionLabel:'motivo') {
+  <p class="op-desc">{{ op.descripcion | operacionLabel:'motivo' }}</p>
+}
+
+<!-- Monto con signo y color -->
+<span class="op-amount" [attr.data-type]="op.tipo_operacion | operacionLabel:'color'">
+  {{ op.tipo_operacion | operacionLabel:'signo' }}${{ op.monto | number:'1.2-2' }}
+</span>
+```
+
+#### Cómo funciona el label contextual de traspasos
+
+`fn_crear_transferencia` escribe la descripción con el formato `"hacia Cajón · motivo"` (SALIENTE) y `"desde Tienda · motivo"` (ENTRANTE). El pipe detecta este formato y construye el label completo:
+
+```
+tipo = 'TRANSFERENCIA_SALIENTE', descripcion = 'hacia Cajón · pago proveedores'
+→ label:  "Traspaso hacia Cajón"   (split por '·', toma parte 0 → "hacia Cajón")
+→ motivo: "pago proveedores"        (split por '·', toma parte 1 → "pago proveedores")
+```
+
+Registros históricos sin descripción (o con formato antiguo sin `·`) retornan los labels genéricos `"Traspaso enviado"` / `"Traspaso recibido"` sin error.
+
+#### Páginas que lo usan
+
+`home.page.html` (caja dashboard), `operaciones-caja.page.html` (historial de operaciones por caja).
+
+---
+
 ## Convenciones
 
 - Todos los elementos son **standalone** — importar directamente en el `imports[]` del componente.
 - Los **enums** de dominio específico de un feature van en `features/<feature>/models/` con sufijo `.enum.ts` (ej: `tipo-comprobante.enum.ts`).
 - Los **enums compartidos** entre múltiples features irían en `shared/models/` (aún no hay ninguno).
+- Los **pipes standalone** van en `shared/pipes/` — importar directamente en el `imports[]` del componente que los use.
