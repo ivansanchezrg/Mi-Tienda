@@ -8,7 +8,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   walletOutline, arrowForwardOutline, arrowBackOutline,
-  cashOutline, shieldCheckmarkOutline, peopleOutline
+  shieldCheckmarkOutline, peopleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { OnboardingService } from '../../services/onboarding.service';
@@ -42,17 +42,15 @@ export class OnboardingCajaPage {
   guardando = false;
 
   form = this.fb.group({
-    fondoFijo:        [0,     [Validators.required, Validators.min(0)]],
     variosActiva:     [false],
     montoVarios:      [null as number | null, [Validators.min(0.01)]],
     nominaSueldoBase: [0,     [Validators.required, Validators.min(0)]]
   }, { validators: variosMontoValidator });
 
   constructor() {
-    addIcons({ walletOutline, arrowForwardOutline, arrowBackOutline, cashOutline, shieldCheckmarkOutline, peopleOutline });
+    addIcons({ walletOutline, arrowForwardOutline, arrowBackOutline, shieldCheckmarkOutline, peopleOutline });
     // Restaurar borrador si el usuario volvió
     const d = this.onboardingService.draft;
-    if (d.fondoFijo        !== undefined) this.form.patchValue({ fondoFijo: d.fondoFijo });
     if (d.variosActiva     !== undefined) this.form.patchValue({ variosActiva: d.variosActiva });
     if (d.montoVarios      !== undefined) this.form.patchValue({ montoVarios: d.montoVarios });
     if (d.nominaSueldoBase !== undefined) this.form.patchValue({ nominaSueldoBase: d.nominaSueldoBase });
@@ -80,7 +78,6 @@ export class OnboardingCajaPage {
     const montoVarios  = variosActiva ? Number(this.form.value.montoVarios) : 0;
 
     this.onboardingService.guardarPaso2({
-      fondoFijo:        Number(this.form.value.fondoFijo),
       variosActiva,
       montoVarios,
       nominaSueldoBase: Number(this.form.value.nominaSueldoBase)

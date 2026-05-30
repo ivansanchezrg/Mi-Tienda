@@ -75,5 +75,6 @@ export const ROUTES = {
   caja: {
     operacionesCaja: '/caja/operaciones-caja',
     cierreDiario:    '/caja/cierre-diario',
+    historialTurnos: '/caja/historial-turnos',
   },
 } as const;

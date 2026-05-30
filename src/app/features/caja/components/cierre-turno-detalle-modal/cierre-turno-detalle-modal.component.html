@@ -1,0 +1,272 @@
+<div class="bs-root">
+
+  <!-- Header del bottom sheet -->
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="document-text-outline"></ion-icon>
+    </div>
+    <div class="bs-header__titlewrap">
+      <span class="bs-header__title">Turno #{{ cierre.numero_turno }}</span>
+      <span class="bs-header__subtitle">{{ cierre.empleado_nombre }} · {{ fechaCierre }}</span>
+    </div>
+    <button class="bs-header__close" (click)="cerrar()" aria-label="Cerrar">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Contenido scrollable -->
+  <div class="bs-content">
+    <div class="bs-body">
+
+      <!-- Apertura y cierre -->
+      <div class="turno-times">
+        <div class="turno-times__col">
+          <span class="turno-times__label">Apertura</span>
+          <span class="turno-times__value">{{ horaApertura }}</span>
+        </div>
+        <div class="turno-times__divider"></div>
+        <div class="turno-times__col">
+          <span class="turno-times__label">Cierre</span>
+          <span class="turno-times__value">{{ horaCierre }}</span>
+        </div>
+      </div>
+
+      <!-- ── Card 1: Cajón Físico ─────────────────────────────────── -->
+      <section class="resumen-card">
+        <div class="resumen-card__header">
+          <ion-icon name="file-tray-outline"></ion-icon>
+          <h3>Cajón Físico</h3>
+        </div>
+        <div class="resumen-card__body">
+
+          @if (tieneMovimientos) {
+            <p class="cajon-section-label">Movimientos del turno</p>
+            @if (cierre.ventas_pos_efectivo > 0) {
+              <div class="cajon-row">
+                <span class="cajon-row-label">Ventas POS en efectivo</span>
+                <span class="cajon-row-valor">+${{ cierre.ventas_pos_efectivo | number:'1.2-2' }}</span>
+              </div>
+            }
+            @if (cierre.otros_ingresos > 0) {
+              <div class="cajon-row">
+                <span class="cajon-row-label">Ingresos manuales</span>
+                <span class="cajon-row-valor">+${{ cierre.otros_ingresos | number:'1.2-2' }}</span>
+              </div>
+            }
+            @if (cierre.egresos > 0) {
+              <div class="cajon-row">
+                <span class="cajon-row-label">Gastos del turno</span>
+                <span class="cajon-row-valor negativo">−${{ cierre.egresos | number:'1.2-2' }}</span>
+              </div>
+            }
+            <div class="cajon-divider"></div>
+          }
+
+          <p class="cajon-section-label">Conteo esperado</p>
+          <div class="cajon-row">
+            <span class="cajon-row-label">Acumulado en cajón</span>
+            <span class="cajon-row-valor">${{ saldoCajonDigital | number:'1.2-2' }}</span>
+          </div>
+          <div class="cajon-row">
+            <span class="cajon-row-label">Fondo de apertura</span>
+            <span class="cajon-row-valor">${{ cierre.fondo_apertura | number:'1.2-2' }}</span>
+          </div>
+          <div class="cajon-row cajon-row--total">
+            <span class="cajon-row-label">Debía tener</span>
+            <span class="cajon-row-valor primary">${{ efectivoEsperado | number:'1.2-2' }}</span>
+          </div>
+
+          <!-- Resultado del conteo -->
+          @if (!hasDiferencia) {
+            <div class="cajon-resultado cajon-resultado--ok">
+              <ion-icon name="checkmark-circle-outline"></ion-icon>
+              <div>
+                <span class="cajon-resultado-titulo">Cajón cuadrado</span>
+                <span class="cajon-resultado-sub">Contó exactamente lo esperado</span>
+              </div>
+              <span class="cajon-resultado-monto">${{ cierre.efectivo_fisico | number:'1.2-2' }}</span>
+            </div>
+          } @else if (cierre.diferencia < 0) {
+            <div class="cajon-resultado cajon-resultado--faltante">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+              <div>
+                <span class="cajon-resultado-titulo">Faltante de ${{ (cierre.diferencia * -1) | number:'1.2-2' }}</span>
+                <span class="cajon-resultado-sub">Contó ${{ cierre.efectivo_fisico | number:'1.2-2' }}</span>
+              </div>
+            </div>
+          } @else {
+            <div class="cajon-resultado cajon-resultado--sobrante">
+              <ion-icon name="information-circle-outline"></ion-icon>
+              <div>
+                <span class="cajon-resultado-titulo">Sobrante de +${{ cierre.diferencia | number:'1.2-2' }}</span>
+                <span class="cajon-resultado-sub">Contó ${{ cierre.efectivo_fisico | number:'1.2-2' }}</span>
+              </div>
+            </div>
+          }
+
+        </div>
+      </section>
+
+      <!-- ── Card 2: Saldos al Cierre ─────────────────────────────── -->
+      <section class="resumen-card">
+        <div class="resumen-card__header">
+          <ion-icon name="calculator-outline"></ion-icon>
+          <h3>Saldos al Cierre</h3>
+        </div>
+        <div class="resumen-card__body saldos-content">
+
+          <!-- TIENDA -->
+          <div class="saldo-fila">
+            <div class="saldo-icono tienda">
+              <ion-icon name="storefront-outline"></ion-icon>
+            </div>
+            <div class="saldo-info">
+              <span class="saldo-nombre">Tienda</span>
+              @if (cierre.deposito_caja > 0) {
+                <span class="saldo-detalle">+ ${{ cierre.deposito_caja | number:'1.2-2' }} del cajón</span>
+              }
+            </div>
+            <div class="saldo-resultado">
+              @if (cierre.deposito_caja === 0) {
+                <span class="saldo-monto">${{ cierre.saldo_anterior_caja | number:'1.2-2' }}</span>
+                <span class="saldo-badge-neutral">sin cambio</span>
+              } @else {
+                <span class="saldo-monto highlight">${{ cierre.saldo_final_caja | number:'1.2-2' }}</span>
+              }
+            </div>
+          </div>
+
+          @if (cierre.varios_activa) {
+            <div class="saldo-fila">
+              <div class="saldo-icono varios">
+                <ion-icon name="shield-checkmark-outline"></ion-icon>
+              </div>
+              <div class="saldo-info">
+                <span class="saldo-nombre">Varios</span>
+                @if (cierre.transferencia_varios > 0) {
+                  <span class="saldo-detalle">+ ${{ cierre.transferencia_varios | number:'1.2-2' }} transferencia</span>
+                }
+              </div>
+              <div class="saldo-resultado">
+                @if (cierre.transferencia_varios === 0) {
+                  <span class="saldo-monto">${{ cierre.saldo_anterior_varios | number:'1.2-2' }}</span>
+                  <span class="saldo-badge-neutral">sin cambio</span>
+                } @else {
+                  <span class="saldo-monto highlight">${{ cierre.saldo_final_varios | number:'1.2-2' }}</span>
+                }
+              </div>
+            </div>
+          }
+
+          @if (cierre.celular_habilitado) {
+            <div class="saldo-fila">
+              <div class="saldo-icono celular">
+                <ion-icon name="phone-portrait-outline"></ion-icon>
+              </div>
+              <div class="saldo-info">
+                <span class="saldo-nombre">Celular</span>
+                @if (cierre.venta_celular > 0) {
+                  <span class="saldo-detalle">+ ${{ cierre.venta_celular | number:'1.2-2' }} en ventas</span>
+                }
+              </div>
+              <div class="saldo-resultado">
+                @if (cierre.venta_celular === 0) {
+                  <span class="saldo-monto">${{ cierre.saldo_anterior_celular | number:'1.2-2' }}</span>
+                  <span class="saldo-badge-neutral">sin cambio</span>
+                } @else {
+                  <span class="saldo-monto highlight">${{ cierre.saldo_final_celular | number:'1.2-2' }}</span>
+                }
+              </div>
+            </div>
+          }
+
+          @if (cierre.bus_habilitado) {
+            <div class="saldo-fila saldo-fila--last">
+              <div class="saldo-icono bus">
+                <ion-icon name="bus-outline"></ion-icon>
+              </div>
+              <div class="saldo-info">
+                <span class="saldo-nombre">Bus</span>
+                @if (tieneDepositoAnticipadoBus) {
+                  <span class="saldo-detalle">Depósito anticipado · ventas ${{ cierre.venta_bus | number:'1.2-2' }}</span>
+                } @else if (cierre.venta_bus > 0) {
+                  <span class="saldo-detalle">+ ${{ cierre.venta_bus | number:'1.2-2' }} en ventas</span>
+                }
+              </div>
+              <div class="saldo-resultado">
+                @if (cierre.venta_bus === 0 && !tieneDepositoAnticipadoBus) {
+                  <span class="saldo-monto">${{ cierre.saldo_anterior_bus | number:'1.2-2' }}</span>
+                  <span class="saldo-badge-neutral">sin cambio</span>
+                } @else {
+                  <span class="saldo-monto highlight">${{ cierre.saldo_final_bus | number:'1.2-2' }}</span>
+                }
+              </div>
+            </div>
+          }
+
+        </div>
+      </section>
+
+      <!-- ── Card 3: Saldos virtuales (si aplica) ─────────────────── -->
+      @if (cierre.celular_habilitado || cierre.bus_habilitado) {
+        <section class="resumen-card">
+          <div class="resumen-card__header">
+            <ion-icon name="cellular-outline"></ion-icon>
+            <h3>Saldos Virtuales</h3>
+          </div>
+          <div class="resumen-card__body">
+
+            @if (cierre.celular_habilitado) {
+              <div class="virtual-row">
+                <span class="virtual-row__nombre">Celular</span>
+                <span class="virtual-row__valor">
+                  ${{ cierre.saldo_virtual_anterior_celular | number:'1.2-2' }}
+                  <span class="virtual-row__arrow">→</span>
+                  <strong>${{ cierre.saldo_virtual_final_celular | number:'1.2-2' }}</strong>
+                </span>
+              </div>
+            }
+
+            @if (cierre.bus_habilitado) {
+              <div class="virtual-row">
+                <span class="virtual-row__nombre">Bus</span>
+                <span class="virtual-row__valor">
+                  ${{ cierre.saldo_virtual_anterior_bus | number:'1.2-2' }}
+                  <span class="virtual-row__arrow">→</span>
+                  <strong>${{ cierre.saldo_virtual_final_bus | number:'1.2-2' }}</strong>
+                </span>
+              </div>
+            }
+
+          </div>
+        </section>
+      }
+
+      <!-- ── Card 4: Observaciones (si existen) ───────────────────── -->
+      @if (cierre.observaciones && cierre.observaciones !== 'Sin novedad') {
+        <section class="resumen-card">
+          <div class="resumen-card__header">
+            <ion-icon name="document-text-outline"></ion-icon>
+            <h3>Observaciones</h3>
+          </div>
+          <div class="resumen-card__body">
+            <p class="observaciones-text">{{ cierre.observaciones }}</p>
+          </div>
+        </section>
+      }
+
+    </div>
+  </div>
+
+  <!-- Acciones -->
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">
+      Cerrar
+    </ion-button>
+    <ion-button expand="block" color="success" (click)="compartirWhatsApp()">
+      <ion-icon slot="start" name="logo-whatsapp"></ion-icon>
+      Compartir
+    </ion-button>
+  </div>
+
+</div>

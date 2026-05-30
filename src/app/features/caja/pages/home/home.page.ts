@@ -521,9 +521,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       return;
     }
 
-    // Caso sin déficit: abre el turno normalmente
+    // Caso sin déficit: abre el turno con el fondo que declaró el empleado
     await this.ui.showLoading('Abriendo caja...');
-    const success = await this.turnosCajaService.abrirTurno();
+    const success = await this.turnosCajaService.abrirTurno(resultado.fondoApertura ?? 0);
     await this.ui.hideLoading();
 
     if (success) {
@@ -607,22 +607,16 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     return new Date(fecha).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
   }
 
-  async mostrarModalVerificacionFondo(): Promise<{ turnoId: string | null } | null> {
+  async mostrarModalVerificacionFondo(): Promise<{ turnoId: string | null; fondoApertura: number } | null> {
     try {
       await this.ui.showLoading('Verificando...');
-      this.configService.invalidar(); // Fuerza lectura fresca de BD (fondo puede haber cambiado)
-      const [fondoFijo, deficit] = await Promise.all([
-        this.turnosCajaService.obtenerFondoFijo(),
-        this.turnosCajaService.obtenerDeficitTurnoAnterior()
-      ]);
+      const deficit = await this.turnosCajaService.obtenerDeficitTurnoAnterior();
       await this.ui.hideLoading();
 
       const modal = await this.modalCtrl.create({
         component: VerificarFondoModalComponent,
         componentProps: {
-          fondoFijo,
           deficitVarios: deficit?.deficitVarios ?? 0,
-          fondoFaltante: deficit?.fondoFaltante ?? 0
         },
         cssClass: 'bottom-sheet-modal',
         breakpoints: [0, 1],
@@ -632,10 +626,10 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       await modal.present();
       const { data, role } = await modal.onWillDismiss();
       if (role !== 'confirm' || !data?.confirmado) return null;
-      return { turnoId: data?.turnoId ?? null };
+      return { turnoId: data?.turnoId ?? null, fondoApertura: data?.fondoApertura ?? 0 };
     } catch {
       await this.ui.hideLoading();
-      await this.ui.showError('Error al cargar los datos de verificación. Intentá de nuevo.');
+      await this.ui.showError('Error al cargar los datos de verificación. Intenta de nuevo.');
       return null;
     }
   }

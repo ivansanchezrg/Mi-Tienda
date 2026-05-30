@@ -12,7 +12,7 @@ import {
 import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only.directive';
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
 import { CurrencyService } from '../../../../core/services/currency.service';
-import { calcularMargenDesdePrecio } from '../../../../core/utils/margen.util';
+import { calcularMargenDesdePrecio, calcularPrecioDesdeMargen } from '../../../../core/utils/margen.util';
 
 @Component({
     selector: 'app-producto-precios-form',
@@ -34,8 +34,9 @@ export class ProductoPreciosFormComponent implements OnInit, OnDestroy {
 
     protected currencyService = inject(CurrencyService);
 
-    margenPct     = 20;
+    margenPct      = 20;
     margenAbsoluto = 0;
+    private _precioEditadoManualmente = false;
 
     private costoSub!: Subscription;
     private ventaSub!: Subscription;
@@ -45,19 +46,41 @@ export class ProductoPreciosFormComponent implements OnInit, OnDestroy {
     }
 
     ngOnInit() {
-        this.costoSub = this.formGroup.get('precio_costo')!.valueChanges.subscribe(() => {
-            this._recalcularMargen();
-            this.costoChange.emit(this.costoActual);
-        });
-        this.ventaSub = this.formGroup.get('precio_venta')!.valueChanges.subscribe(() => {
-            this._recalcularMargen();
-            this.ventaChange.emit(this.ventaActual);
-        });
-
-        // Inicializar margen si ya hay valores (modo editar)
+        // En modo editar los valores ya están cargados — el precio fue ingresado por el usuario
         if (this.costoActual > 0 && this.ventaActual > 0) {
+            this._precioEditadoManualmente = true;
             this._recalcularMargen();
         }
+
+        this.costoSub = this.formGroup.get('precio_costo')!.valueChanges.subscribe(() => {
+            const costo = this.costoActual;
+            if (costo <= 0) {
+                // Costo borrado: limpiar precio siempre y resetear margen
+                this.formGroup.get('precio_venta')!.setValue('', { emitEvent: false });
+                this._precioEditadoManualmente = false;
+                this.margenPct = 20;
+                this.margenAbsoluto = 0;
+                return;
+            }
+            if (!this._precioEditadoManualmente) {
+                // Precio no tocado: calcular automáticamente con el margen actual
+                const precio = calcularPrecioDesdeMargen(costo, this.margenPct);
+                this.formGroup.get('precio_venta')!.setValue(
+                    this.currencyService.format(precio),
+                    { emitEvent: false }
+                );
+            }
+            this._recalcularMargen();
+            this.costoChange.emit(costo);
+        });
+
+        this.ventaSub = this.formGroup.get('precio_venta')!.valueChanges.subscribe(() => {
+            const venta = this.ventaActual;
+            // Usuario borró el precio: volver a modo automático
+            this._precioEditadoManualmente = venta > 0;
+            this._recalcularMargen();
+            this.ventaChange.emit(venta);
+        });
     }
 
     get costoActual(): number {

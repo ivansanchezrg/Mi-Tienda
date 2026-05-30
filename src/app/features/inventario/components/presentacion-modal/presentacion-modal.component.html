@@ -29,12 +29,11 @@
         <div class="field-group">
           <label class="field-label">Nombre *</label>
           <input
-            appUppercaseInput
             formControlName="nombre"
             type="text"
             class="text-input"
             [class.text-input--invalid]="esCampoInvalido('nombre')"
-            placeholder="Ej. CAJETILLA"
+            placeholder="Ej. Cajetilla"
             maxlength="60"
             autocomplete="off">
           @if (esCampoInvalido('nombre')) {
@@ -42,8 +41,6 @@
               <span class="error-text">Requerido</span>
             } @else if (form.get('nombre')?.errors?.['minlength']) {
               <span class="error-text">Mínimo 2 caracteres</span>
-            } @else if (form.get('nombre')?.errors?.['nombreDuplicado']) {
-              <span class="error-text">Nombre duplicado</span>
             }
           }
         </div>
@@ -156,21 +153,16 @@
             placeholder="Escanea o digita el código..."
             maxlength="50"
             autocomplete="off">
+          @if (barcodeScanner.isAvailable) {
           <button type="button" class="scan-btn-inline" (click)="escanearCodigo()">
             <ion-icon name="barcode-outline"></ion-icon>
           </button>
+          }
         </div>
-        @if (form.get('codigo_barras')?.value?.trim()) {
-        <span class="barcode-hint barcode-hint--ok">
-          <ion-icon name="checkmark-circle-outline"></ion-icon>
-          Se usará este código para identificar la presentación en el POS.
-        </span>
-        } @else {
         <span class="barcode-hint">
           <ion-icon name="sparkles-outline"></ion-icon>
-          Si lo dejas vacío, se generará un código automáticamente. También puedes escanear o ingresar uno manualmente.
+          {{ barcodeHint }}
         </span>
-        }
       </div>
       } @else {
       <div class="field-group">

@@ -1,14 +1,8 @@
-ion-content {
-    --background: var(--ion-background-color, #f8f9fa);
-}
+// Layout viene de modals.scss — bs-root/bs-header/bs-content/bs-actions.
 
-.cobrar-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100%;
-    padding: var(--spacing-lg);
+.bs-header__icon {
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    ion-icon { color: var(--ion-color-primary); }
 }
 
 // ── Total a cobrar ────────────────────────────
@@ -31,7 +25,7 @@ ion-content {
     }
 
     .total-label {
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 600;
         color: var(--ion-color-medium);
         text-transform: uppercase;
@@ -43,6 +37,7 @@ ion-content {
         font-weight: 800;
         color: var(--ion-text-color);
         letter-spacing: -1.5px;
+        line-height: 1.1;
     }
 
     .total-articulos {
@@ -62,8 +57,11 @@ ion-content {
         font-weight: 600;
         color: var(--ion-color-primary);
 
-        ion-icon {
-            font-size: 16px;
+        ion-icon { font-size: 16px; }
+
+        &--fiado {
+            background: rgba(var(--ion-color-danger-rgb), 0.1);
+            color: var(--ion-color-danger);
         }
     }
 }
@@ -92,9 +90,9 @@ ion-content {
     gap: var(--spacing-md);
     width: 100%;
     padding: var(--spacing-md) var(--spacing-lg);
-    background: var(--ion-item-background, #fff);
-    border: 2px solid var(--ion-color-light-shade, #e0e0e0);
-    border-radius: var(--radius-md, 12px);
+    background: var(--ion-item-background);
+    border: 2px solid var(--ion-color-light-shade);
+    border-radius: var(--radius-md);
     font-size: 16px;
     font-weight: 600;
     color: var(--ion-text-color);
@@ -118,32 +116,14 @@ ion-content {
     }
 
     &.metodo-fiado {
-        ion-icon {
-            color: var(--ion-color-danger);
-        }
-
-        span {
-            color: var(--ion-color-danger);
-        }
+        ion-icon { color: var(--ion-color-danger); }
+        span     { color: var(--ion-color-danger); }
 
         &.metodo-btn--activo {
             border-color: var(--ion-color-danger);
             background: rgba(var(--ion-color-danger-rgb), 0.07);
         }
     }
-}
-
-// ── Card — engloba todo el contenido ─────────
-.cobro-card {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--spacing-lg);
-    background: var(--ion-item-background, #fff);
-    border-radius: var(--radius-lg, 16px);
-    padding: var(--spacing-xl);
-    box-shadow: var(--shadow-level-1);
 }
 
 // ── Input monto recibido ──────────────────────
@@ -167,7 +147,7 @@ ion-content {
         align-items: center;
         background: var(--ion-item-background);
         border: 2px solid var(--ion-color-primary);
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         padding: var(--spacing-md) var(--spacing-lg);
         box-shadow: 0 0 0 4px rgba(var(--ion-color-primary-rgb), 0.1);
 
@@ -202,7 +182,7 @@ ion-content {
     }
 }
 
-// ── Vuelto en tiempo real — protagonista fuera del card ──
+// ── Vuelto en tiempo real ─────────────────────
 .vuelto-section {
     display: flex;
     flex-direction: column;
@@ -219,7 +199,7 @@ ion-content {
     }
 
     .vuelto-monto {
-        font-size: 56px;
+        font-size: 48px;
         font-weight: 800;
         color: var(--ion-color-danger);
         letter-spacing: -2px;
@@ -227,13 +207,8 @@ ion-content {
     }
 
     &.vuelto-valido {
-        .vuelto-label {
-            color: var(--ion-color-success);
-        }
-
-        .vuelto-monto {
-            color: var(--ion-color-primary);
-        }
+        .vuelto-label { color: var(--ion-color-success); }
+        .vuelto-monto { color: var(--ion-color-primary); }
     }
 }
 
@@ -242,7 +217,7 @@ ion-content {
     to   { opacity: 1; transform: translateY(0); }
 }
 
-// ── Aviso fiado sin descuento ────────────────
+// ── Aviso fiado sin descuento ─────────────────
 .fiado-aviso {
     display: flex;
     align-items: center;
@@ -250,7 +225,7 @@ ion-content {
     padding: var(--spacing-md) var(--spacing-lg);
     background: rgba(var(--ion-color-warning-rgb), 0.1);
     border: 1.5px solid rgba(var(--ion-color-warning-rgb), 0.3);
-    border-radius: var(--radius-md, 12px);
+    border-radius: var(--radius-md);
     width: 100%;
 
     ion-icon {
@@ -264,24 +239,5 @@ ion-content {
         font-weight: 600;
         color: var(--ion-text-color);
         line-height: 1.3;
-    }
-}
-
-.metodo-chip--fiado {
-    background: rgba(var(--ion-color-danger-rgb), 0.1) !important;
-    color: var(--ion-color-danger) !important;
-}
-
-.acciones {
-    width: 100%;
-    display: flex;
-    gap: var(--spacing-sm);
-
-    ion-button {
-        flex: 1;
-        --border-radius: var(--radius-lg, 16px);
-        font-weight: 700;
-        font-size: 16px;
-        height: 54px;
     }
 }

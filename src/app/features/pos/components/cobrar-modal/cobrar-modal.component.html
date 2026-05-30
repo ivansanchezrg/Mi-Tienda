@@ -1,153 +1,148 @@
-<ion-content [scrollY]="true">
-  <div class="cobrar-wrapper">
+<div class="bs-root">
 
-    <!-- ══════════════════════════════════════════ -->
-    <!-- PASO 1: Seleccionar método de pago        -->
-    <!-- ══════════════════════════════════════════ -->
-    @if (paso === 'metodo') {
-    <div class="cobro-card">
-
-      <div class="total-section">
-        @if (descuento > 0) {
-        <span class="total-subtotal">${{ currencyService.format(subtotal) }}</span>
-        <span class="total-descuento">-${{ currencyService.format(descuento) }} ({{ descuentoPct }}% dto.)</span>
-        }
-        <span class="total-label">Total a cobrar</span>
-        <span class="total-monto">${{ currencyService.format(total) }}</span>
-        <span class="total-articulos">{{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}</span>
-      </div>
-
-      <div class="metodos-section">
-        <span class="metodos-label">Método de pago</span>
-
-        <button class="metodo-btn" [class.metodo-btn--activo]="metodoSeleccionado === 'DEUNA'" (click)="seleccionarMetodo('DEUNA')">
-          <ion-icon name="card-outline"></ion-icon>
-          <span>Deuna</span>
-        </button>
-
-        <button class="metodo-btn" [class.metodo-btn--activo]="metodoSeleccionado === 'TRANSFERENCIA'" (click)="seleccionarMetodo('TRANSFERENCIA')">
-          <ion-icon name="phone-portrait-outline"></ion-icon>
-          <span>Transferencia</span>
-        </button>
-
-        <button class="metodo-btn metodo-fiado" [class.metodo-btn--activo]="metodoSeleccionado === 'FIADO'" (click)="seleccionarMetodo('FIADO')">
-          <ion-icon name="hand-right-outline"></ion-icon>
-          <span>Fiado</span>
-        </button>
-      </div>
-
-      <div class="acciones">
-        <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">
-          Cancelar
-        </ion-button>
-        <ion-button expand="block" color="primary" [disabled]="!metodoSeleccionado" (click)="confirmarMetodo()">
-          <ion-icon name="checkmark-outline" slot="start"></ion-icon>
-          Confirmar
-        </ion-button>
-      </div>
-
+  <!-- Header -->
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="cash-outline"></ion-icon>
     </div>
-    }
+    <span class="bs-header__title">
+      @if (paso === 'metodo') { Cobrar }
+      @else if (paso === 'monto') { Efectivo }
+      @else if (paso === 'confirmar-fiado') { Confirmar Fiado }
+    </span>
+    <button class="bs-header__close" (click)="cancelar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
 
-    <!-- ══════════════════════════════════════════ -->
-    <!-- PASO 2: Monto recibido (solo EFECTIVO)    -->
-    <!-- ══════════════════════════════════════════ -->
-    @if (paso === 'monto') {
-    <div class="cobro-card">
+  <div class="bs-content">
+    <div class="bs-body">
 
+      <!-- Total siempre visible -->
       <div class="total-section">
-        @if (descuento > 0) {
-        <span class="total-subtotal">${{ currencyService.format(subtotal) }}</span>
-        <span class="total-descuento">-${{ currencyService.format(descuento) }} ({{ descuentoPct }}% dto.)</span>
+        @if (descuento > 0 && paso !== 'confirmar-fiado') {
+          <span class="total-subtotal">${{ currencyService.format(subtotal) }}</span>
+          <span class="total-descuento">-${{ currencyService.format(descuento) }} ({{ descuentoPct }}% dto.)</span>
         }
         <span class="total-label">Total a cobrar</span>
-        <span class="total-monto">${{ currencyService.format(total) }}</span>
-        <div class="metodo-chip">
-          <ion-icon name="cash-outline"></ion-icon>
-          <span>Efectivo</span>
-        </div>
+        <span class="total-monto">${{ currencyService.format(paso === 'confirmar-fiado' ? totalFiado : total) }}</span>
+        <span class="total-articulos">{{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}</span>
+        @if (paso === 'monto') {
+          <div class="metodo-chip">
+            <ion-icon name="cash-outline"></ion-icon>
+            <span>Efectivo</span>
+          </div>
+        }
+        @if (paso === 'confirmar-fiado') {
+          <div class="metodo-chip metodo-chip--fiado">
+            <ion-icon name="hand-right-outline"></ion-icon>
+            <span>Fiado</span>
+          </div>
+        }
       </div>
 
-      <div class="input-section">
-        <label class="input-label">Monto recibido</label>
-        <div class="input-wrap">
-          <span class="input-prefix">$</span>
-          <input #montoInput class="monto-input"
-            [(ngModel)]="montoRecibido"
-            type="number"
-            inputmode="decimal"
-            placeholder="0.00"
-            autocomplete="off" />
-        </div>
-      </div>
+      <!-- ══ PASO 1: Método de pago ══ -->
+      @if (paso === 'metodo') {
+        <div class="metodos-section">
+          <span class="metodos-label">Método de pago</span>
 
-      @if (recibido > 0) {
-      <div class="vuelto-section" [class.vuelto-valido]="montoValido">
-        <span class="vuelto-label">{{ montoValido ? 'Vuelto' : 'Falta' }}</span>
-        <span class="vuelto-monto">
-          @if (montoValido) {
-            ${{ currencyService.format(vuelto) }}
-          } @else {
-            ${{ currencyService.format(total - recibido) }}
-          }
-        </span>
-      </div>
+          <button class="metodo-btn" [class.metodo-btn--activo]="metodoSeleccionado === 'DEUNA'"
+            (click)="seleccionarMetodo('DEUNA')" type="button">
+            <ion-icon name="card-outline"></ion-icon>
+            <span>Deuna</span>
+          </button>
+
+          <button class="metodo-btn" [class.metodo-btn--activo]="metodoSeleccionado === 'TRANSFERENCIA'"
+            (click)="seleccionarMetodo('TRANSFERENCIA')" type="button">
+            <ion-icon name="phone-portrait-outline"></ion-icon>
+            <span>Transferencia</span>
+          </button>
+
+          <button class="metodo-btn metodo-fiado" [class.metodo-btn--activo]="metodoSeleccionado === 'FIADO'"
+            (click)="seleccionarMetodo('FIADO')" type="button">
+            <ion-icon name="hand-right-outline"></ion-icon>
+            <span>Fiado</span>
+          </button>
+        </div>
       }
 
-      <div class="acciones">
-        @if (!iniciarEnEfectivo) {
-          <ion-button expand="block" fill="outline" color="medium" (click)="volverAMetodos()">
-            <ion-icon name="arrow-back-outline" slot="start"></ion-icon>
-            Atrás
-          </ion-button>
-        } @else {
-          <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">
-            Cancelar
-          </ion-button>
+      <!-- ══ PASO 2: Monto efectivo ══ -->
+      @if (paso === 'monto') {
+        <div class="input-section">
+          <label class="input-label">Monto recibido</label>
+          <div class="input-wrap">
+            <span class="input-prefix">$</span>
+            <input #montoInput class="monto-input"
+              [(ngModel)]="montoRecibido"
+              type="number"
+              inputmode="decimal"
+              placeholder="0.00"
+              autocomplete="off" />
+          </div>
+        </div>
+
+        @if (recibido > 0) {
+          <div class="vuelto-section" [class.vuelto-valido]="montoValido">
+            <span class="vuelto-label">{{ montoValido ? 'Vuelto' : 'Falta' }}</span>
+            <span class="vuelto-monto">
+              @if (montoValido) {
+                ${{ currencyService.format(vuelto) }}
+              } @else {
+                ${{ currencyService.format(total - recibido) }}
+              }
+            </span>
+          </div>
         }
-        <ion-button expand="block" color="primary" [disabled]="!montoValido" (click)="confirmarEfectivo()">
-          <ion-icon name="checkmark-outline" slot="start"></ion-icon>
-          Cobrar
-        </ion-button>
-      </div>
+      }
+
+      <!-- ══ PASO FIADO: aviso sin descuento ══ -->
+      @if (paso === 'confirmar-fiado') {
+        <div class="fiado-aviso">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>El descuento no aplica para ventas fiadas</span>
+        </div>
+      }
 
     </div>
+  </div>
+
+  <!-- Acciones -->
+  <div class="bs-actions bs-actions--row">
+
+    @if (paso === 'metodo') {
+      <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">Cancelar</ion-button>
+      <ion-button expand="block" color="primary" [disabled]="!metodoSeleccionado" (click)="confirmarMetodo()">
+        <ion-icon name="checkmark-outline" slot="start"></ion-icon>
+        Confirmar
+      </ion-button>
     }
 
-    <!-- ══════════════════════════════════════════ -->
-    <!-- PASO FIADO: confirmar sin descuento       -->
-    <!-- ══════════════════════════════════════════ -->
-    @if (paso === 'confirmar-fiado') {
-    <div class="cobro-card">
-
-      <div class="total-section">
-        <span class="total-label">Total a cobrar (fiado)</span>
-        <span class="total-monto">${{ currencyService.format(totalFiado) }}</span>
-        <span class="total-articulos">{{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}</span>
-        <div class="metodo-chip metodo-chip--fiado">
-          <ion-icon name="hand-right-outline"></ion-icon>
-          <span>Fiado</span>
-        </div>
-      </div>
-
-      <div class="fiado-aviso">
-        <ion-icon name="alert-circle-outline"></ion-icon>
-        <span>El descuento no aplica para ventas fiadas</span>
-      </div>
-
-      <div class="acciones">
+    @if (paso === 'monto') {
+      @if (!iniciarEnEfectivo) {
         <ion-button expand="block" fill="outline" color="medium" (click)="volverAMetodos()">
           <ion-icon name="arrow-back-outline" slot="start"></ion-icon>
           Atrás
         </ion-button>
-        <ion-button expand="block" color="primary" (click)="confirmarFiado()">
-          <ion-icon name="checkmark-outline" slot="start"></ion-icon>
-          Confirmar Fiado
-        </ion-button>
-      </div>
+      } @else {
+        <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">Cancelar</ion-button>
+      }
+      <ion-button expand="block" color="primary" [disabled]="!montoValido" (click)="confirmarEfectivo()">
+        <ion-icon name="checkmark-outline" slot="start"></ion-icon>
+        Cobrar
+      </ion-button>
+    }
 
-    </div>
+    @if (paso === 'confirmar-fiado') {
+      <ion-button expand="block" fill="outline" color="medium" (click)="volverAMetodos()">
+        <ion-icon name="arrow-back-outline" slot="start"></ion-icon>
+        Atrás
+      </ion-button>
+      <ion-button expand="block" color="primary" (click)="confirmarFiado()">
+        <ion-icon name="checkmark-outline" slot="start"></ion-icon>
+        Confirmar Fiado
+      </ion-button>
     }
 
   </div>
-</ion-content>
+
+</div>

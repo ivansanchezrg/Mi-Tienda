@@ -5,7 +5,8 @@ import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonProgressBar, IonContent, IonList, IonItem, IonLabel,
   IonInput, IonIcon, IonNote, IonCard, IonCardHeader, IonCardTitle,
-  IonCardContent, IonTextarea, AlertController, IonSkeletonText
+  IonCardContent, IonTextarea, AlertController, IonSkeletonText,
+  ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -22,7 +23,11 @@ import {
   informationCircleOutline,
   alertCircleOutline,
   receiptOutline,
-  fileTrayOutline
+  fileTrayOutline,
+  storefrontOutline,
+  shieldCheckmarkOutline,
+  logoWhatsapp,
+  closeOutline
 } from 'ionicons/icons';
 import { CommonModule } from '@angular/common';
 import { UiService } from '@core/services/ui.service';
@@ -37,6 +42,8 @@ import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { getFechaLocal } from '@core/utils/date.util';
+import { ShareCierreService, DatosCierreParaCompartir } from '../../services/share-cierre.service';
+import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive';
 import { TurnoCajaConEmpleado } from '../../models/turno-caja.model';
 import { ROUTES } from '@core/config/routes.config';
@@ -70,6 +77,8 @@ export class CierreDiarioPage implements HasPendingChanges {
   private alertCtrl = inject(AlertController);
   private currencyService = inject(CurrencyService);
   private configService = inject(ConfigService);
+  private shareCierreService = inject(ShareCierreService);
+  private modalCtrl = inject(ModalController);
 
   // ==========================================
   // ESTADO DEL WIZARD (v5: 2 pasos)
@@ -100,7 +109,8 @@ export class CierreDiarioPage implements HasPendingChanges {
 
   // Datos del cajón físico (CAJA_CHICA)
   saldoCajaChicaDigital = 0;
-  fondoFijo = 40;
+  /** Fondo declarado por el empleado al abrir el turno (turnoActivo.fondo_apertura) */
+  fondoApertura = 0;
 
   // Datos para preview de distribución
   transferenciaDiariaVarios = 20;
@@ -144,7 +154,11 @@ export class CierreDiarioPage implements HasPendingChanges {
       informationCircleOutline,
       alertCircleOutline,
       receiptOutline,
-      fileTrayOutline
+      fileTrayOutline,
+      storefrontOutline,
+      shieldCheckmarkOutline,
+      logoWhatsapp,
+      closeOutline
     });
 
     this.cierreForm = this.fb.group({
@@ -228,7 +242,10 @@ export class CierreDiarioPage implements HasPendingChanges {
 
       // Cajón físico
       this.saldoCajaChicaDigital = datos.saldoCajaChicaDigital;
-      this.fondoFijo             = datos.fondoFijo;
+      // Turno activo — guardarlo para reutilizar en ejecutarCierre()
+      this.turnoActivo = estadoCaja.turnoActivo;
+      // El fondo viene del turno abierto (declarado libremente por el empleado al abrir)
+      this.fondoApertura = estadoCaja.turnoActivo?.fondo_apertura ?? 0;
 
       // Preview distribución
       this.transferenciaDiariaVarios     = datos.transferenciaDiariaVarios;
@@ -237,9 +254,6 @@ export class CierreDiarioPage implements HasPendingChanges {
       // Saldos para verificación antes→después (Paso 2)
       this.saldoAnteriorCaja   = saldosCajas?.cajaPrincipal ?? 0;
       this.saldoAnteriorVarios = saldosCajas?.varios ?? 0;
-
-      // Turno activo — guardarlo para reutilizar en ejecutarCierre()
-      this.turnoActivo = estadoCaja.turnoActivo;
 
       // Lote 2: resumen del turno (necesita turnoId del lote 1)
       if (this.turnoActivo?.id) {
@@ -301,9 +315,9 @@ export class CierreDiarioPage implements HasPendingChanges {
     return this.currencyService.parse(this.cierreForm.get('efectivoFisico')?.value);
   }
 
-  /** Efectivo esperado = saldo digital CAJA_CHICA + fondo fijo */
+  /** Efectivo esperado = saldo digital CAJA_CHICA + fondo declarado al abrir */
   get efectivoEsperado(): number {
-    return this.saldoCajaChicaDigital + this.fondoFijo;
+    return this.saldoCajaChicaDigital + this.fondoApertura;
   }
 
   /** Diferencia = conteo físico - esperado (+ sobrante, - faltante) */
@@ -330,16 +344,16 @@ export class CierreDiarioPage implements HasPendingChanges {
 
   // ==========================================
   // GETTERS — Paso 2: Preview distribución
-  // Lógica de cascada (todo o nada en cada nivel):
-  //   1° VARIOS     — recibe si efectivo >= transferenciaDiaria completa
-  //   2° Fondo fijo — queda en cajón si (efectivo - transferenciaVarios) >= fondoFijo
-  //   3° Tienda     — recibe el resto (siempre >= 0)
+  // Cascada simplificada (fondo libre — sin nivel "fondo en cajón"):
+  //   1° VARIOS  — recibe si efectivo >= transferenciaDiaria completa
+  //   2° Tienda  — recibe todo el resto (siempre >= 0)
+  // El fondo del próximo turno lo declara el empleado al abrir, no proviene del cierre.
   // ==========================================
 
   /**
-   * Transferencia que recibirá VARIOS (prioridad 1).
+   * Transferencia que recibirá VARIOS.
    * Si Varios está inactiva → $0 (todo va a Tienda).
-   * Recibe si efectivo >= transferenciaDiaria completa.
+   * Recibe solo si efectivo >= transferenciaDiaria completa.
    * Si ya recibió hoy (2do turno) → $0.
    */
   get transferenciaPreviewVarios(): number {
@@ -350,19 +364,9 @@ export class CierreDiarioPage implements HasPendingChanges {
       : 0;
   }
 
-  /**
-   * Fondo que efectivamente queda en el cajón (prioridad 2).
-   * Queda solo si (efectivo - transferenciaVarios) >= fondoFijo.
-   */
-  get fondoDistribuidoPreview(): number {
-    return (this.efectivoFisico - this.transferenciaPreviewVarios) >= this.fondoFijo
-      ? this.fondoFijo
-      : 0;
-  }
-
-  /** Depósito a CAJA: todo lo que no es VARIOS ni fondo */
+  /** Depósito a CAJA: todo lo que no va a VARIOS */
   get depositoPreviewCaja(): number {
-    return Math.max(0, this.efectivoFisico - this.transferenciaPreviewVarios - this.fondoDistribuidoPreview);
+    return Math.max(0, this.efectivoFisico - this.transferenciaPreviewVarios);
   }
 
   /** ¿VARIOS no recibirá hoy? (efectivo < transferenciaDiaria). Siempre false si Varios está inactiva. */
@@ -370,25 +374,6 @@ export class CierreDiarioPage implements HasPendingChanges {
     if (!this.variosActiva) return false;
     if (this.transferenciaCajaChicaYaHecha) return false;
     return this.efectivoFisico < this.transferenciaDiariaVarios;
-  }
-
-  /** ¿El cajón quedará sin fondo? (efectivo - transferenciaVarios) < fondoFijo */
-  get hayDeficitFondo(): boolean {
-    return (this.efectivoFisico - this.transferenciaPreviewVarios) < this.fondoFijo;
-  }
-
-  /**
-   * Monto a reponer desde Tienda en la próxima apertura.
-   * - Déficit solo fondo → reponer fondoFijo
-   * - Déficit fondo + VARIOS → reponer fondoFijo + transferenciaDiaria
-   */
-  get montoReposicionApertura(): number {
-    let monto = 0;
-    if (this.variosActiva && !this.transferenciaCajaChicaYaHecha && this.hayDeficitPreview) {
-      monto += this.transferenciaDiariaVarios;
-    }
-    if (this.hayDeficitFondo) monto += this.fondoFijo;
-    return monto;
   }
 
   // ==========================================
@@ -527,17 +512,75 @@ export class CierreDiarioPage implements HasPendingChanges {
       await this.ui.hideLoading();
       await this.ui.showSuccess('Cierre guardado correctamente');
 
-      // Sincroniza turnoActivo$ inmediatamente para que el layout deshabilite el
-      // tab POS sin esperar al round-trip del evento Realtime UPDATE.
+      // Capturar todos los valores del paso 2 ANTES de resetState(),
+      // porque resetState() llama cierreForm.reset() y los getters que
+      // leen el formulario (efectivoFisico, saldoCelularFinal, etc.) devolverían 0.
+      const datosCierre: DatosCierreParaCompartir = {
+        numeroTurno:       this.turnoActivo.numero_turno,
+        cajeroNombre:      this.turnoActivo.empleado?.nombre ?? empleado.nombre,
+        horaApertura:      this.turnoActivo.hora_fecha_apertura,
+        fondoApertura:     this.fondoApertura,
+        ventasPosEfectivo: this.ventasPosEfectivo,
+        otrosIngresos:     this.otrosIngresos,
+        egresos:           this.egresos,
+        efectivoFisico:    this.efectivoFisico,
+        diferencia:        this.diferencia,
+        depositoTienda:    this.depositoPreviewCaja,
+        saldoAnteriorCaja:    this.saldoAnteriorCaja,
+        saldoFinalCaja:       this.saldoFinalCaja,
+        variosActiva:         this.variosActiva,
+        saldoAnteriorVarios:  this.saldoAnteriorVarios,
+        saldoFinalVarios:     this.saldoFinalVarios,
+        transferenciaVarios:  this.transferenciaPreviewVarios,
+        celularHabilitado:    this.recargasCelularHabilitada,
+        saldoAnteriorCelular: this.saldoAnteriorCajaCelular,
+        saldoFinalCelular:    this.saldoFinalCajaCelular,
+        ventaCelular:         this.ventaCelular,
+        busHabilitado:        this.recargasBusHabilitada,
+        saldoAnteriorBus:     this.saldoAnteriorCajaBus,
+        saldoFinalBus:        this.saldoFinalCajaBus,
+        ventaBus:             this.ventaBus,
+      };
+
+      // Sincroniza turnoActivo$ inmediatamente
       await this.turnosCajaService.refrescarTurnoActivo();
 
       this.cierreForm.markAsPristine();
       this.resetState();
 
+      await this.ofrecerCompartirCierre(datosCierre);
+
       await this.router.navigate([ROUTES.home]);
     } catch (error: any) {
       await this.ui.hideLoading();
       await this.ui.showError(error?.message || 'Error al guardar el cierre');
+    }
+  }
+
+  private async ofrecerCompartirCierre(datos: DatosCierreParaCompartir): Promise<void> {
+    const groups: ModalOptionGroup[] = [{
+      options: [
+        { label: 'Enviar resumen', icon: 'logo-whatsapp', value: 'enviar' },
+        { label: 'Omitir',         icon: 'close-outline',  value: 'omitir' },
+      ]
+    }];
+
+    const modal = await this.modalCtrl.create({
+      component: OptionsModalComponent,
+      componentProps: {
+        title: 'Cierre registrado',
+        subtitle: `Cajero: ${datos.cajeroNombre}`,
+        groups
+      },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
+    });
+    await modal.present();
+    const { data } = await modal.onDidDismiss();
+
+    if (data === 'enviar') {
+      await this.shareCierreService.enviarResumenWhatsApp(datos);
     }
   }
 }

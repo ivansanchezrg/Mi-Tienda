@@ -188,3 +188,15 @@ body.scanner-active ion-modal .scanner-overlay * {
   visibility: visible;
 }
 
+// Fade-in de imágenes — evita el salto visual al cargar.
+// El contenedor ya tiene fondo gris (step-100) que actúa como placeholder.
+// Agregar (load)="onImgLoad($event)" en el <img> y la clase aparece automáticamente.
+img.img-fade {
+  opacity: 0;
+  transition: opacity 0.25s ease;
+
+  &.img-loaded {
+    opacity: 1;
+  }
+}
+

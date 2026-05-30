@@ -4,7 +4,8 @@ import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
     AlertController, NavController, IonHeader, IonToolbar, IonButtons, IonButton,
-    IonTitle, IonContent, IonIcon, IonCard, IonCardContent, IonSkeletonText, IonSpinner
+    IonTitle, IonContent, IonIcon, IonCard, IonCardContent, IonSkeletonText, IonSpinner,
+    ViewWillEnter
 } from '@ionic/angular/standalone';
 import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
@@ -46,7 +47,7 @@ interface AtributoSeleccionado {
         ProductoPresentacionesComponent,
     ]
 })
-export class ProductoEditarPage implements OnInit {
+export class ProductoEditarPage implements OnInit, ViewWillEnter {
     private navCtrl         = inject(NavController);
     private route           = inject(ActivatedRoute);
     private fb              = inject(FormBuilder);
@@ -130,6 +131,14 @@ export class ProductoEditarPage implements OnInit {
         this.cargando = false;
         this._initForm();
         this.cdr.detectChanges();
+    }
+
+    async ionViewWillEnter() {
+        if (!this.producto || !this.productoForm) return;
+        const actualizado = await this.productoSvc.obtenerPorId(this.producto.id);
+        if (!actualizado) return;
+        this.producto.stock_actual = actualizado.stock_actual;
+        this.productoForm.patchValue({ stock_actual: actualizado.stock_actual }, { emitEvent: false });
     }
 
     private _initForm() {

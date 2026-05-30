@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, HostListener, ViewChild, signal, computed, Signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, HostListener, ViewChild, ElementRef, signal, computed, Signal, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -41,6 +41,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
   templateUrl: './pos.page.html',
   styleUrls: ['./pos.page.scss'],
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     IonContent, IonHeader, IonTitle, IonToolbar,
     IonButtons, IonMenuButton, IonButton, IonIcon,
@@ -53,6 +54,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
 })
 export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   @ViewChild(IonContent) content!: IonContent;
+  @ViewChild('panelItems') panelItemsRef!: ElementRef<HTMLElement>;
 
   private inventarioService = inject(InventarioService);
   protected currencyService = inject(CurrencyService);
@@ -67,12 +69,15 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private storageService = inject(StorageService);
   private configService = inject(ConfigService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   // Exponer enum al template (para el @if de mostrarDesglose)
   readonly TipoComprobante = TipoComprobante;
 
   lastAddedKey: string | null = null;
   lastIncrementedKey: string | null = null;
+  // ID del item cuyo modal de cantidad está cargando (consulta stock fresco de BD)
+  editandoItemKey: string | null = null;
   readonly carrito = signal<CartItem[]>([]);
   readonly buscarTexto = signal('');
   productosBusqueda: ProductoPOS[] = [];
@@ -95,6 +100,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   vistaActual: 'lista' | 'catalogo' = 'catalogo';
   // Recuerda si el usuario venía del catálogo al ir a lista (para volver tras cobrar)
   protected volvioDesdeCatalogo = false;
+
+  // En desktop (≥992px) el panel lateral muestra el carrito — no se alterna vista
+  get esDesktop(): boolean { return window.innerWidth >= 992; }
   categoriasCatalogo: CategoriaProducto[] = [];
   categoriaActivaId: string | null = null;  // null = TODOS
   readonly productosCatalogo = signal<ProductoPOS[]>([]);
@@ -105,18 +113,34 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   catalogoCardAnimando: string | null = null;
   totalAmountAnimando = false;
 
+  private dispararAnimacionPanel(itemKey: string) {
+    if (!this.esDesktop) return;
+    setTimeout(() => {
+      const panel = this.panelItemsRef?.nativeElement;
+      if (!panel) return;
+      const itemEl = panel.querySelector<HTMLElement>(`[data-item-key="${CSS.escape(itemKey)}"]`);
+      if (itemEl) {
+        itemEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else {
+        panel.scrollTo({ top: panel.scrollHeight, behavior: 'smooth' });
+      }
+    }, 30);
+  }
+
   private dispararAnimacionCatalogo(productoId: string) {
     this.catalogoCardAnimando = productoId;
-    setTimeout(() => this.catalogoCardAnimando = null, 400);
-    // Pequeño delay para que el total ya esté actualizado al animarse
+    this.cdr.markForCheck();
+    setTimeout(() => { this.catalogoCardAnimando = null; this.cdr.markForCheck(); }, 400);
     setTimeout(() => {
       this.totalAmountAnimando = true;
-      setTimeout(() => this.totalAmountAnimando = false, 500);
+      this.cdr.markForCheck();
+      setTimeout(() => { this.totalAmountAnimando = false; this.cdr.markForCheck(); }, 500);
     }, 150);
   }
 
   abrirCatalogoSearch() {
     this.catalogoSearchAbierto = true;
+    this.cdr.markForCheck();
     setTimeout(() => {
       const input = document.querySelector<HTMLInputElement>('.cat-search-input');
       input?.focus();
@@ -126,6 +150,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   cerrarCatalogoSearch() {
     this.catalogoSearchAbierto = false;
     this.limpiarBusqueda();
+    this.cdr.markForCheck();
   }
 
   /** Tipo de comprobante — solo lectura, configurado por el superadmin */
@@ -146,8 +171,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  /** Pill del catálogo → ir a lista para revisar y cobrar */
+  /** Pill del catálogo → ir a lista para revisar y cobrar (solo mobile) */
   async irAListaDesdeCatalogo() {
+    if (this.esDesktop) return;
     this.volvioDesdeCatalogo = true;
     this.vistaActual = 'lista';
     this.catalogoSearchAbierto = false;
@@ -162,6 +188,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   async cargarCatalogo() {
     this.cargandoCatalogo = true;
+    this.cdr.markForCheck();
     try {
       const [categorias, productos] = await Promise.all([
         this.inventarioService.obtenerCategorias(),
@@ -172,12 +199,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       this.categoriaActivaId  = null;
     } finally {
       this.cargandoCatalogo = false;
+      this.cdr.markForCheck();
     }
   }
 
   async seleccionarCategoriaCatalogo(categoriaId: string | null) {
     if (this.categoriaActivaId === categoriaId) return;
     this.categoriaActivaId  = categoriaId;
+    this.cdr.markForCheck();
 
     // Scroll automático al tab activo dentro de la barra horizontal
     setTimeout(() => {
@@ -186,12 +215,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       tabEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }, 0);
 
-    this.cargandoCatalogo   = true;
+    this.cargandoCatalogo = true;
+    this.cdr.markForCheck();
     try {
       const productos = await this.inventarioService.obtenerProductosCatalogoPOS(categoriaId ?? undefined);
       this.productosCatalogo.set(await this.resolverImagenesCatalogo(productos));
     } finally {
       this.cargandoCatalogo = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -229,14 +260,22 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     // Solo animar en productos simples sin presentaciones — en presentaciones/variantes
     // el flujo pasa por un modal y la animación se siente desfasada
     if (seAgrego && !tienePresentaciones) {
+      navigator.vibrate?.(30);
       this.dispararAnimacionCatalogo(producto.id);
+      this.dispararAnimacionPanel(producto.id);
       if (cardRect && cardClone) setTimeout(() => this.flyToPillFromClone(cardClone, cardRect), 0);
     }
   }
 
-  /** Anima un clon visual exacto del card volando hacia el pill del carrito */
+  /** Anima un clon visual exacto del card volando hacia el pill (mobile) o el total del panel (desktop) */
   private flyToPillFromClone(cardClone: HTMLElement, cardRect: DOMRect) {
-    const pillEl = document.querySelector<HTMLElement>('.catalogo-cart-pill');
+    const esVisible = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
+    const pill   = document.querySelector<HTMLElement>('.catalogo-cart-pill');
+    const panel  = document.querySelector<HTMLElement>('.panel-total-monto');
+    const pillEl = (pill && esVisible(pill)) ? pill : (panel && esVisible(panel)) ? panel : null;
     if (!pillEl) return;
 
     const pillRect = pillEl.getBoundingClientRect();
@@ -252,7 +291,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       margin: 0;
       pointer-events: none;
       z-index: 9999;
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       overflow: hidden;
       outline: none;
       border: none;
@@ -339,12 +378,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private async cargarConfig() {
     this.appConfig = await this.configService.get();
     this.tipoComprobante = this.appConfig.pos_tipo_comprobante as TipoComprobante;
+    this.cdr.markForCheck();
   }
 
   async cargarCliente() {
     this.cargandoCliente = true;
     this.errorCliente = false;
     this.sinConsumidorFinal = false;
+    this.cdr.markForCheck();
     try {
       this.clienteSeleccionado = await this.clientesService.obtenerConsumidorFinal();
       if (!this.clienteSeleccionado) {
@@ -354,6 +395,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       this.errorCliente = true;
     } finally {
       this.cargandoCliente = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -556,8 +598,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       const stockLibreSinEste = stockBase - stockUsado + (existe.cantidad * factor);
       const maxParaEste = Math.floor(stockLibreSinEste / factor);
       if (existe.cantidad < maxParaEste) {
+        navigator.vibrate?.(18);
         this.incrementar(existe);
         this.triggerIncrementAnimation(existe);
+        this.dispararAnimacionPanel(existe.id + (presentacion?.id ?? ''));
         this.feedbackEscaneo(existe.id);
         this.scrollToBottom();
         return true;
@@ -581,8 +625,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
           } : {})
         };
         this.carrito.update(c => [...c, item]);
-        this.lastAddedKey = producto.id + (presentacion?.id ?? '');
-        setTimeout(() => { this.lastAddedKey = null; }, 600);
+        const addedKey = producto.id + (presentacion?.id ?? '');
+        this.lastAddedKey = addedKey;
+        this.cdr.markForCheck();
+        setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
+        this.dispararAnimacionPanel(addedKey);
         this.feedbackEscaneo(producto.id);
         this.scrollToBottom();
         return true;
@@ -672,7 +719,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         stock_disponible: producto.stock_actual
       }]);
       this.lastAddedKey = producto.id;
-      setTimeout(() => { this.lastAddedKey = null; }, 600);
+      this.cdr.markForCheck();
+      setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
     }
     this.feedbackEscaneo(producto.id);
     this.scrollToBottom();
@@ -739,7 +787,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       };
       this.carrito.update(c => [...c, item]);
       this.lastAddedKey = producto.id + (presentacion?.id ?? '');
-      setTimeout(() => { this.lastAddedKey = null; }, 600);
+      this.cdr.markForCheck();
+      setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
     }
 
     if (cantidadReal < cantidad) {
@@ -753,7 +802,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private triggerIncrementAnimation(item: CartItem) {
     const key = item.id + (item.presentacion_id ?? '');
     this.lastIncrementedKey = key;
-    setTimeout(() => { this.lastIncrementedKey = null; }, 350);
+    this.cdr.markForCheck();
+    setTimeout(() => { this.lastIncrementedKey = null; this.cdr.markForCheck(); }, 350);
   }
 
   /** Vibración + beep + preview efímero al agregar producto (feedback para escáner) */
@@ -766,7 +816,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       if (item) {
         clearTimeout(this.scanPreviewTimeout);
         this.scanPreview = { nombre: item.nombre, cantidad: item.cantidad, subtotal: item.subtotal, precioUnitario: item.precio_venta };
-        this.scanPreviewTimeout = setTimeout(() => this.scanPreview = null, 2500);
+        this.cdr.markForCheck();
+        this.scanPreviewTimeout = setTimeout(() => { this.scanPreview = null; this.cdr.markForCheck(); }, 2500);
       }
     }
   }
@@ -804,11 +855,31 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   async editarCantidad(item: CartItem): Promise<number | null> {
+    const itemKey = item.id + (item.presentacion_id ?? '');
+    if (this.editandoItemKey === itemKey) return null; // evitar doble tap
+    this.editandoItemKey = itemKey;
+    this.cdr.markForCheck();
+
     const esPeso = item.tipo_venta === 'PESO';
     const factor = item.factor_conversion ?? 1;
     const stockUsadoOtros = this.carrito()
         .filter(i => i.id === item.id && i !== item)
         .reduce((sum, i) => sum + i.cantidad * (i.factor_conversion ?? 1), 0);
+
+    try {
+      // Consultar stock fresco de BD — garantiza número correcto aunque haya latencia
+      const stockFresco = await this.inventarioService.obtenerStockActual(item.id);
+      if (stockFresco !== null && stockFresco !== item.stock_disponible) {
+        this.carrito.update(items =>
+          items.map(i => i === item ? { ...i, stock_disponible: stockFresco } : i)
+        );
+        item = { ...item, stock_disponible: stockFresco };
+      }
+    } finally {
+      this.editandoItemKey = null;
+      this.cdr.markForCheck();
+    }
+
     const maxStock = Math.floor((item.stock_disponible - stockUsadoOtros) / factor);
 
     const modal = await this.modalCtrl.create({
@@ -860,6 +931,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.modoBusqueda = this.modoBusqueda === 'codigo' ? 'nombre' : 'codigo';
     this.buscarTexto.set('');
     this.productosBusqueda = [];
+    this.cdr.markForCheck();
     setTimeout(() => {
       const input = document.querySelector<HTMLInputElement>('.cat-search-input');
       input?.focus();
@@ -869,6 +941,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   limpiarBusqueda() {
     this.buscarTexto.set('');
     this.productosBusqueda = [];
+    this.cdr.markForCheck();
   }
 
   // Dispatcher: según el modo activo llama a la lógica correspondiente
@@ -886,17 +959,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   // Enter en modo código dispara búsqueda (pistola lectora envía Enter al final)
-  // En modo nombre: ↑/↓ navegan sugerencias, Enter selecciona la activa (o la primera)
   onSearchKeyup(event: KeyboardEvent) {
-    if (this.modoBusqueda === 'codigo') {
-      if (event.key === 'Enter') {
-        clearTimeout(this.searchDebounce);
-        const texto = this.buscarTexto().trim();
-        if (texto) this.buscarPorCodigo(texto);
-      }
-      return;
+    if (this.modoBusqueda === 'codigo' && event.key === 'Enter') {
+      clearTimeout(this.searchDebounce);
+      const texto = this.buscarTexto().trim();
+      if (texto) this.buscarPorCodigo(texto);
     }
-
   }
 
 
@@ -906,7 +974,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
+    const version = ++this.searchVersion;
     this.buscando = true;
+    this.cdr.markForCheck();
     try {
       // Patrón cantidad.codigo (ej: 20.7891234 = 20 unidades del código "7891234")
       const matchRapido = texto.match(/^(\d+)\.(.+)$/);
@@ -915,6 +985,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         const codigo = matchRapido[2].trim();
         if (cantidad > 0 && codigo) {
           const resultado = await this.inventarioService.buscarPorCodigoBarras(codigo);
+          if (version !== this.searchVersion) return;
           if (resultado) {
             await this.agregarAlCarritoConCantidad(resultado.producto, cantidad, resultado.presentacion);
             this.buscarTexto.set('');
@@ -927,6 +998,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
       // Código exacto — se agrega directo sin confirmación
       const resultado = await this.inventarioService.buscarPorCodigoBarras(texto);
+      if (version !== this.searchVersion) return;
       if (resultado) {
         await this.agregarAlCarrito(resultado.producto, resultado.presentacion);
         this.buscarTexto.set('');
@@ -934,7 +1006,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         this.ui.showToast(`Código "${texto}" no encontrado`, 'warning');
       }
     } finally {
-      this.buscando = false;
+      if (version === this.searchVersion) {
+        this.buscando = false;
+        this.cdr.markForCheck();
+      }
     }
   }
 
@@ -1084,12 +1159,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   async abrirEscanerCamara() {
     this.escaneando = true;
+    this.cdr.markForCheck();
     const iniciado = await this.barcodeScanner.startContinuous((codigo) => {
       if (this.procesandoEscaneo) return;
 
-      // Anti-duplicados: ignora el mismo código dentro de 1.5s
+      // Anti-duplicados: ignora el mismo código dentro de 800ms
       const ahora = Date.now();
-      if (codigo === this.ultimoCodigoEscaneado && ahora - this.ultimoTiempoEscaneado < 1500) return;
+      if (codigo === this.ultimoCodigoEscaneado && ahora - this.ultimoTiempoEscaneado < 800) return;
 
       this.procesandoEscaneo = true;
       this.ultimoCodigoEscaneado = codigo;
@@ -1104,7 +1180,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       })();
     });
 
-    if (!iniciado) this.escaneando = false;
+    if (!iniciado) { this.escaneando = false; this.cdr.markForCheck(); }
   }
 
   async cerrarEscaner() {
@@ -1112,49 +1188,18 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.escaneando = false;
     this.scanPreview = null;
     clearTimeout(this.scanPreviewTimeout);
+    this.cdr.markForCheck();
   }
 
   async cobrarEfectivo() {
-    if (this.carrito().length === 0 || this.cobroEnProceso) return;
-
-    if (!this.clienteSeleccionado?.id) {
-      this.ui.showToast('Cliente no cargado. Toca el cliente para actualizar.', 'warning');
-      return;
-    }
-
-    // FACTURA requiere cliente con identificación
-    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado.es_consumidor_final) {
-      this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
-      return;
-    }
-
-    const turnoActivo = await this.posService.hayTurnoActivo();
-    if (!turnoActivo) {
-      await this.mostrarAlertSinTurno();
-      return;
-    }
-
-    const modal = await this.modalCtrl.create({
-      component: CobrarModalComponent,
-      componentProps: {
-        total: this.totalPagar(),
-        subtotal: this.subtotalBruto(),
-        descuento: this.descuentoAplicado(),
-        descuentoPct: this.descuentoPct,
-        totalArticulos: this.totalArticulos(),
-        esConsumidorFinal: false,
-        iniciarEnEfectivo: true
-      },
-      backdropDismiss: false
-    });
-
-    await modal.present();
-    const { data } = await modal.onDidDismiss();
-    if (!data) return;
-    if (data.confirmado) this.ejecutarCobro(data.metodoPago);
+    await this.abrirModalCobro(true);
   }
 
   async cobrar() {
+    await this.abrirModalCobro(false);
+  }
+
+  private async abrirModalCobro(iniciarEnEfectivo: boolean) {
     if (this.carrito().length === 0 || this.cobroEnProceso) return;
 
     if (!this.clienteSeleccionado?.id) {
@@ -1162,18 +1207,15 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
-    // FACTURA requiere cliente con identificación
     if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado.es_consumidor_final) {
       this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
       return;
     }
 
-    // Verificar turno activo antes de abrir el modal de cobro
-    const turnoActivo = await this.posService.hayTurnoActivo();
-    if (!turnoActivo) {
-      await this.mostrarAlertSinTurno();
-      return;
-    }
+    const onSeleccionarCliente = async (): Promise<Cliente | null> => {
+      await this.abrirSelectorCliente();
+      return this.clienteSeleccionado;
+    };
 
     const modal = await this.modalCtrl.create({
       component: CobrarModalComponent,
@@ -1183,17 +1225,19 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         descuento: this.descuentoAplicado(),
         descuentoPct: this.descuentoPct,
         totalArticulos: this.totalArticulos(),
-        esConsumidorFinal: false
+        esConsumidorFinal: this.clienteSeleccionado?.es_consumidor_final ?? true,
+        iniciarEnEfectivo,
+        onSeleccionarCliente
       },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
       backdropDismiss: false
     });
 
     await modal.present();
     const { data } = await modal.onDidDismiss();
-
-    if (data?.confirmado) {
-      this.ejecutarCobro(data.metodoPago);
-    }
+    if (data?.confirmado) this.ejecutarCobro(data.metodoPago);
   }
 
   private async mostrarAlertSinTurno() {
@@ -1216,6 +1260,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private async ejecutarCobro(metodoPago: string) {
     if (this.cobroEnProceso) return;
     this.cobroEnProceso = true;
+    this.cdr.markForCheck();
     await this.ui.showLoading();
 
     try {
@@ -1261,6 +1306,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       await this.ui.hideLoading();
       if (error instanceof Error && error.message === 'SIN_TURNO') {
         await this.mostrarAlertSinTurno();
+      } else if (error instanceof Error && /stock insuficiente/i.test(error.message)) {
+        this.ui.showToast('Stock insuficiente — el catálogo se actualizó con los valores reales', 'warning');
+        this.refrescarCatalogo();
+        this.logger.warn('PosPage', 'Venta rechazada por stock insuficiente en BD');
       } else {
         const mensaje = error instanceof Error ? error.message : 'Error inesperado al procesar la venta';
         this.ui.showToast(mensaje, 'danger');
@@ -1268,6 +1317,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       }
     } finally {
       this.cobroEnProceso = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -1275,12 +1325,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.carrito.set([]);
     this.buscarTexto.set('');
     this.productosBusqueda = [];
-    if (this.volvioDesdeCatalogo) {
+    if (this.volvioDesdeCatalogo && !this.esDesktop) {
       this.volvioDesdeCatalogo = false;
       this.vistaActual = 'catalogo';
     }
-    // Recarga del cliente en background — no bloquea el vaciado del carrito
+    // Ambos en background — no bloquean el vaciado del carrito
     this.cargarCliente();
+    this.refrescarCatalogo();
   }
 
   // ==========================
@@ -1289,6 +1340,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   ionViewDidLeave() {
     this.paginaActiva = false;
+    this.cobroEnProceso = false;
+    this.procesandoEscaneo = false;
     if (this.escaneando) this.cerrarEscaner();
     clearTimeout(this.barcodeTimeout);
     clearTimeout(this.searchDebounce);
@@ -1299,9 +1352,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.paginaActiva = true;
     this.productosBusqueda = [];
     this.buscarTexto.set('');
+    this.cdr.markForCheck();
     await Promise.all([
       this.recuperarVentaPendiente(),
       this.refrescarConfig(),
+      this.refrescarCatalogo(),
     ]);
   }
 
@@ -1309,11 +1364,74 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private async refrescarConfig() {
     this.configService.invalidar();
     this.appConfig = await this.configService.get();
+    this.cdr.markForCheck();
   }
 
-  /** Pull-to-refresh: recarga config sin perder el carrito */
+  /** Refresca el catálogo silenciosamente sin spinner ni pérdida del carrito.
+   *  Paso 1: actualiza el signal de stock inmediatamente (con imágenes ya cacheadas).
+   *  Paso 2: resuelve URLs de imágenes en background sin bloquear la actualización de stock. */
+  private async refrescarCatalogo() {
+    try {
+      const [categorias, productos] = await Promise.all([
+        this.inventarioService.obtenerCategorias(),
+        this.inventarioService.obtenerProductosCatalogoPOS(this.categoriaActivaId ?? undefined)
+      ]);
+      this.categoriasCatalogo = categorias;
+
+      // Paso 1: publicar stock fresco inmediatamente reutilizando imágenes ya resueltas
+      const catalogoActual = this.productosCatalogo();
+      const imagenesCacheadas = new Map(catalogoActual.map(p => [p.id, p.imagen_url]));
+      const templateImagenesCacheadas = new Map(
+        catalogoActual
+          .filter(p => p.producto_template_id && p.producto_template?.imagen_url?.startsWith('http'))
+          .map(p => [p.producto_template_id!, p.producto_template!.imagen_url!])
+      );
+      const productosConImagenCacheada = productos.map(p => {
+        const result = { ...p, imagen_url: imagenesCacheadas.get(p.id) ?? p.imagen_url };
+        if (result.producto_template && templateImagenesCacheadas.has(p.producto_template_id!)) {
+          result.producto_template = {
+            ...result.producto_template,
+            imagen_url: templateImagenesCacheadas.get(p.producto_template_id!)
+          };
+        }
+        return result;
+      });
+      this.productosCatalogo.set(productosConImagenCacheada);
+      this.sincronizarStockCarrito(productos);
+      this.cdr.markForCheck();
+
+      // Paso 2: resolver URLs nuevas en background (no bloquea la UI)
+      this.resolverImagenesCatalogo(productos).then(productosConImg => {
+        this.productosCatalogo.set(productosConImg);
+        this.cdr.markForCheck();
+      }).catch(() => { /* imagen fallida no rompe el flujo */ });
+
+    } catch {
+      // Silencioso — si falla la red el catálogo anterior sigue visible
+    }
+  }
+
+  /** Actualiza stock_disponible de los ítems del carrito con el stock fresco de BD.
+   *  Garantiza que CantidadModal y la vista lista muestren el número correcto. */
+  private sincronizarStockCarrito(productosFrescos: ProductoPOS[]) {
+    const stockMap = new Map(productosFrescos.map(p => [p.id, p.stock_actual]));
+    const carritoActual = this.carrito();
+    const hayDiferencia = carritoActual.some(
+      item => stockMap.has(item.id) && stockMap.get(item.id) !== item.stock_disponible
+    );
+    if (!hayDiferencia) return;
+    this.carrito.update(items =>
+      items.map(item => {
+        const stockFresco = stockMap.get(item.id);
+        if (stockFresco === undefined || stockFresco === item.stock_disponible) return item;
+        return { ...item, stock_disponible: stockFresco };
+      })
+    );
+  }
+
+  /** Pull-to-refresh: recarga config y catálogo sin perder el carrito */
   async handleRefresh(event: CustomEvent) {
-    await this.refrescarConfig();
+    await Promise.all([this.refrescarConfig(), this.refrescarCatalogo()]);
     (event.target as HTMLIonRefresherElement).complete();
   }
 

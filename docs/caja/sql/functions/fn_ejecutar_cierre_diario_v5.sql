@@ -11,17 +11,19 @@ DROP FUNCTION IF EXISTS public.fn_ejecutar_cierre_diario(
 );
 
 -- ==========================================
--- FUNCIÓN: fn_ejecutar_cierre_diario (v6.1 — fix cutoff recargas virtuales)
+-- FUNCIÓN: fn_ejecutar_cierre_diario (v6.3 — todo el efectivo a CAJA/VARIOS)
 -- ==========================================
+-- CAMBIOS v6.3 respecto a v6.2:
+--   - Distribución simplificada: el fondo declarado al abrir (v_fondo_fijo) ya no se
+--     retiene en el cajón al cerrar. Todo el efectivo contado se deposita completo.
+--     VARIOS recibe su transferencia si alcanza; el resto va íntegro a CAJA.
+--   - El fondo del próximo turno lo declara el empleado al abrir — no proviene del cierre.
+--   - v_fondo_fijo sigue leyéndose de turnos_caja.fondo_apertura (útil para efectivo_esperado).
+--   - Cascada reducida de 4 casos a 3 (eliminado "CASO DÉFICIT FONDO").
+--
 -- CAMBIOS v6.1 respecto a v6.0:
---   - Fix: cutoff para v_agregado_celular y v_agregado_bus ahora usa
---     MAX(recargas.created_at) por servicio en lugar de MAX(turnos_caja.hora_fecha_cierre).
---     Antes: si entre el mini cierre de BUS y el cierre final había un turno cerrado,
---     hora_fecha_cierre podía quedar DESPUÉS del clock_timestamp() de la compra →
---     v_agregado_bus = 0 → "Venta bus negativa".
---     Ahora: mismo cutoff que getAgregadoVirtualHoy() en frontend → siempre consistente.
---   - Variables nuevas: v_ultimo_snapshot_celular, v_ultimo_snapshot_bus (TIMESTAMP)
---   - v_ultimo_cierre_at conservada en DECLARE pero ya no se usa en paso 5
+--   - Fix cutoff de recargas virtuales: usa MAX(recargas.created_at) por servicio
+--     en lugar de MAX(turnos_caja.hora_fecha_cierre).
 --
 -- CAMBIOS v6.0 respecto a v5.6:
 --   - p_empleado_id: INTEGER → UUID (schema v11 migró PKs a UUID)
@@ -40,7 +42,7 @@ DROP FUNCTION IF EXISTS public.fn_ejecutar_cierre_diario(
 --   - 1 sola transferencia a VARIOS por día
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v6.1
+CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v6.3
   p_turno_id               UUID,
   p_fecha                  DATE,
   p_empleado_id            UUID,
@@ -79,7 +81,7 @@ DECLARE
   v_tipo_ref_recargas_id     INTEGER;
   v_tipo_ref_turnos_id       INTEGER;
 
-  -- Configuración
+  -- Fondo declarado al abrir (leído de turnos_caja.fondo_apertura, no de configuraciones)
   v_fondo_fijo           DECIMAL(12,2);
   v_transferencia_diaria DECIMAL(12,2);
   v_varios_activa        BOOLEAN;
@@ -87,7 +89,6 @@ DECLARE
   -- Recargas virtuales pendientes
   v_agregado_celular        DECIMAL(12,2);
   v_agregado_bus            DECIMAL(12,2);
-  v_ultimo_cierre_at        TIMESTAMP;  -- solo para lógica legacy, ya no se usa en paso 5
   v_ultimo_snapshot_celular TIMESTAMP;  -- último recargas.created_at para CELULAR
   v_ultimo_snapshot_bus     TIMESTAMP;  -- último recargas.created_at para BUS
 
@@ -97,16 +98,14 @@ DECLARE
   v_saldo_varios             DECIMAL(12,2);  -- VARIOS (fondo emergencia)
 
   -- Ajuste por diferencia de conteo físico
-  v_efectivo_esperado          DECIMAL(12,2);  -- saldo_digital + fondo_fijo
+  v_efectivo_esperado          DECIMAL(12,2);  -- saldo_digital + fondo_apertura
   v_diferencia                 DECIMAL(12,2);  -- p_efectivo_fisico - efectivo_esperado
-  v_saldo_caja_chica_post_ajuste DECIMAL(12,2); -- saldo_digital + diferencia
 
   -- Distribución de efectivo
   v_transferencia_efectiva    DECIMAL(12,2);   -- Lo que va a VARIOS
   v_deficit_varios            DECIMAL(12,2);   -- Déficit de VARIOS (0 si turno normal)
   v_dinero_a_depositar        DECIMAL(12,2);   -- Lo que va a CAJA (bóveda)
-  v_fondo_en_cajon            BOOLEAN;         -- TRUE si el fondo completo queda en cajón
-  v_monto_reposicion_apertura DECIMAL(12,2) := 0;  -- Lo que Tienda debe reponer al abrir mañana
+  v_monto_reposicion_apertura DECIMAL(12,2) := 0;  -- Informativo: lo que va a Tienda
   v_transferencia_ya_hecha    BOOLEAN := FALSE;  -- ¿VARIOS ya recibió hoy?
 
   -- Ventas y saldos finales recargas
@@ -179,10 +178,12 @@ BEGIN
   v_cat_ajuste_egreso_id  := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-013' AND negocio_id = v_negocio_id);
 
   -- ==========================================
-  -- 3. OBTENER CONFIGURACIÓN
+  -- 3. OBTENER CONFIGURACIÓN Y FONDO DE APERTURA
+  -- El fondo ya no es un parámetro global — es el monto que el empleado
+  -- declaró al abrir su turno (turnos_caja.fondo_apertura).
   -- ==========================================
 
-  v_fondo_fijo           := (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_fondo_fijo_diario'          AND negocio_id = v_negocio_id);
+  v_fondo_fijo           := (SELECT fondo_apertura FROM turnos_caja WHERE id = p_turno_id AND negocio_id = v_negocio_id);
   v_varios_activa        := (SELECT valor = 'true'  FROM configuraciones WHERE clave = 'caja_varios_activa'             AND negocio_id = v_negocio_id);
   v_transferencia_diaria := CASE
     WHEN v_varios_activa THEN (SELECT valor::DECIMAL FROM configuraciones WHERE clave = 'caja_varios_transferencia_dia' AND negocio_id = v_negocio_id)
@@ -190,7 +191,7 @@ BEGIN
   END;
 
   IF v_fondo_fijo IS NULL THEN
-    RAISE EXCEPTION 'No se encontró configuración del sistema';
+    RAISE EXCEPTION 'No se pudo leer el fondo de apertura del turno';
   END IF;
 
   -- ==========================================
@@ -267,7 +268,7 @@ BEGIN
   -- Solo aplica si hubo movimientos reales en CAJA_CHICA durante el turno
   -- (ventas POS, ingresos o egresos manuales).
   --
-  -- efectivo_esperado = saldo_digital + fondo_fijo
+  -- efectivo_esperado = saldo_digital + fondo_apertura (declarado al abrir)
   -- diferencia = p_efectivo_fisico - efectivo_esperado
   --   > 0 → encontró más de lo esperado  → INGRESO de ajuste
   --   < 0 → encontró menos de lo esperado → EGRESO de ajuste + deuda empleado
@@ -352,17 +353,15 @@ BEGIN
     );
   END IF;
 
-  v_saldo_caja_chica_post_ajuste := v_saldo_caja_chica_digital + v_diferencia;
-
   -- ==========================================
-  -- 8. DISTRIBUCIÓN EN CASCADA (v5.2)
+  -- 8. DISTRIBUCIÓN (v6.3 — todo el efectivo se deposita al cerrar)
   --
-  -- Regla "todo o nada" en cada nivel — sin montos parciales:
-  --   1° VARIOS     → recibe si efectivo >= transferencia_diaria completa
-  --   2° Fondo fijo → queda en cajón solo si efectivo >= transferencia_diaria + fondo_fijo
-  --   3° CAJA       → recibe el resto (siempre >= 0)
+  --   1° VARIOS → recibe la transferencia diaria si efectivo >= transferencia_diaria
+  --   2° CAJA   → recibe el resto completo (sin retención de fondo en cajón)
   --
-  -- Si el efectivo no alcanza para un nivel, ese monto va a CAJA.
+  -- v_fondo_fijo (= fondo_apertura del turno) solo intervino arriba para
+  -- calcular efectivo_esperado. No retiene nada en el cajón al cerrar.
+  -- El fondo del próximo turno lo declara el empleado al abrir.
   -- Regla adicional: solo 1 transferencia a VARIOS por día.
   -- ==========================================
 
@@ -385,37 +384,31 @@ BEGIN
       )
   );
 
+  -- Distribución simplificada (v6.3 — fondo libre, sin retención en cajón):
+  -- El fondo declarado al abrir (v_fondo_fijo) solo sirve para calcular efectivo_esperado.
+  -- Al cierre, TODO el efectivo se deposita: VARIOS primero, resto completo a CAJA.
+  -- El fondo del próximo turno lo declara el empleado al abrir — no proviene del cierre.
+
   IF v_transferencia_ya_hecha THEN
-    -- 2do turno del día: VARIOS ya recibió, no hay déficit
+    -- 2do turno del día: VARIOS ya recibió, todo va a CAJA
     v_transferencia_efectiva    := 0;
     v_deficit_varios            := 0;
-    v_fondo_en_cajon            := (p_efectivo_fisico >= v_fondo_fijo);
-    v_dinero_a_depositar        := p_efectivo_fisico - CASE WHEN v_fondo_en_cajon THEN v_fondo_fijo ELSE 0 END;
-    v_monto_reposicion_apertura := 0;
-
-  ELSIF p_efectivo_fisico >= (v_transferencia_diaria + v_fondo_fijo) THEN
-    -- CASO NORMAL: VARIOS completo + fondo completo → resto a CAJA
-    v_fondo_en_cajon            := TRUE;
-    v_transferencia_efectiva    := v_transferencia_diaria;
-    v_deficit_varios            := 0;
-    v_dinero_a_depositar        := p_efectivo_fisico - v_transferencia_diaria - v_fondo_fijo;
+    v_dinero_a_depositar        := p_efectivo_fisico;
     v_monto_reposicion_apertura := 0;
 
   ELSIF p_efectivo_fisico >= v_transferencia_diaria THEN
-    -- CASO DÉFICIT FONDO: VARIOS completo pero no alcanza para fondo → fondo = $0, resto a CAJA
-    v_fondo_en_cajon            := FALSE;
+    -- CASO NORMAL: VARIOS recibe su transferencia, resto a CAJA
     v_transferencia_efectiva    := v_transferencia_diaria;
     v_deficit_varios            := 0;
     v_dinero_a_depositar        := p_efectivo_fisico - v_transferencia_diaria;
-    v_monto_reposicion_apertura := v_fondo_fijo;
+    v_monto_reposicion_apertura := 0;
 
   ELSE
-    -- CASO DÉFICIT TOTAL: ni VARIOS ni fondo alcanza → todo a CAJA, cajón queda vacío
-    v_fondo_en_cajon            := FALSE;
+    -- CASO DÉFICIT VARIOS: no alcanza para la transferencia → todo a CAJA
     v_transferencia_efectiva    := 0;
     v_deficit_varios            := v_transferencia_diaria;
     v_dinero_a_depositar        := p_efectivo_fisico;
-    v_monto_reposicion_apertura := v_fondo_fijo + v_transferencia_diaria;
+    v_monto_reposicion_apertura := v_transferencia_diaria;
   END IF;
 
   -- ==========================================
@@ -495,7 +488,7 @@ BEGIN
   -- VARIOS (fondo emergencia): recibe la transferencia
   UPDATE cajas SET saldo_actual = v_saldo_varios + v_transferencia_efectiva WHERE id = v_varios_id AND negocio_id = v_negocio_id;
 
-  -- CAJA_CHICA (cajón): queda en $0 digital (el fondo_fijo queda físicamente pero no digitalmente)
+  -- CAJA_CHICA (cajón): queda en $0 digital — todo el efectivo fue depositado en CAJA/VARIOS
   UPDATE cajas SET saldo_actual = 0 WHERE id = v_caja_chica_id AND negocio_id = v_negocio_id;
 
   -- ==========================================
@@ -602,8 +595,7 @@ BEGIN
   -- ==========================================
 
   UPDATE turnos_caja
-     SET hora_fecha_cierre = NOW(),
-         fondo_cubierto    = v_fondo_en_cajon
+     SET hora_fecha_cierre = NOW()
    WHERE id = p_turno_id
      AND negocio_id = v_negocio_id;
   v_turno_cerrado := TRUE;
@@ -617,9 +609,9 @@ BEGIN
     'turno_id',      p_turno_id,
     'fecha',         p_fecha,
     'turno_cerrado', v_turno_cerrado,
-    'version',       '6.0',
+    'version',       '6.3',
     'configuracion', json_build_object(
-      'fondo_fijo',           v_fondo_fijo,
+      'fondo_apertura',       v_fondo_fijo,
       'transferencia_diaria', v_transferencia_diaria
     ),
     'conteo_fisico', json_build_object(
@@ -630,7 +622,6 @@ BEGIN
       'ajuste_aplicado',     (v_diferencia <> 0)
     ),
     'distribucion_efectivo', json_build_object(
-      'fondo_en_cajon',            v_fondo_en_cajon,
       'transferencia_varios',      v_transferencia_efectiva,
       'deposito_tienda',           v_dinero_a_depositar,
       'deficit_varios',            v_deficit_varios,
@@ -656,7 +647,7 @@ BEGIN
 
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error en cierre diario v6.0: %', SQLERRM;
+    RAISE EXCEPTION 'Error en cierre diario v6.3: %', SQLERRM;
 END;
 $function$;
 
@@ -677,10 +668,11 @@ GRANT EXECUTE ON FUNCTION public.fn_ejecutar_cierre_diario(
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_ejecutar_cierre_diario IS
-'Cierre diario v6.0 (multi-tenant UUID) — Distribución en cascada "todo o nada" por nivel. '
+'Cierre diario v6.3 — todo el efectivo se deposita al cerrar (sin retención en cajón). '
+'v_fondo_fijo leído de turnos_caja.fondo_apertura solo para calcular efectivo_esperado. '
+'Distribución: VARIOS recibe su transferencia si hay suficiente efectivo; resto íntegro a CAJA. '
+'El fondo del próximo turno lo declara el empleado al abrir, no viene del cierre. '
 'Ajuste de conteo solo si hubo movimientos reales en CAJA_CHICA durante el turno. '
 'Negocio leído del JWT (get_negocio_id()); todas las queries filtran por negocio_id. '
 'Inserta en movimientos_empleados (FALTANTE_CAJA) cuando efectivo_fisico < efectivo_esperado. '
-'El déficit de VARIOS y del fondo son costos operacionales — NO se registran como faltante del empleado. '
-'CAJA_CHICA.saldo_actual queda en $0 digital al finalizar. '
-'Retorna monto_reposicion_apertura para informar al siguiente turno cuánto reponer.';
+'CAJA_CHICA.saldo_actual queda en $0 digital al finalizar.';

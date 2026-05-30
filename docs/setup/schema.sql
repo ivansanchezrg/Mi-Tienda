@@ -228,18 +228,22 @@ CREATE TABLE IF NOT EXISTS tipos_referencia (
 
 -- 6. cajas — UUID (antes SERIAL). 5 cajas por negocio.
 -- CAJA | CAJA_CHICA | VARIOS | CAJA_CELULAR | CAJA_BUS
+-- puede_tener_turno: true solo en cajones con cajero (CAJA_CHICA y futuros cajones operativos).
+--   false en vault (CAJA), fondos (VARIOS) y cajas digitales (CAJA_CELULAR, CAJA_BUS).
+--   Preparado para multicaja: al implementarlo, este flag controla qué cajas aparecen en el selector de apertura de turno.
 CREATE TABLE IF NOT EXISTS cajas (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    negocio_id  UUID NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
-    codigo      VARCHAR(50)   NOT NULL,
-    nombre      VARCHAR(100)  NOT NULL,
-    descripcion TEXT,
-    icono       VARCHAR(50)   NOT NULL DEFAULT 'cash-outline',
-    color       VARCHAR(20)   NOT NULL DEFAULT '#6c757d',
-    saldo_actual DECIMAL(12,2) DEFAULT 0,
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    activo      BOOLEAN DEFAULT TRUE,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    negocio_id        UUID NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
+    codigo            VARCHAR(50)   NOT NULL,
+    nombre            VARCHAR(100)  NOT NULL,
+    descripcion       TEXT,
+    icono             VARCHAR(50)   NOT NULL DEFAULT 'cash-outline',
+    color             VARCHAR(20)   NOT NULL DEFAULT '#6c757d',
+    saldo_actual      DECIMAL(12,2) DEFAULT 0,
+    puede_tener_turno BOOLEAN       NOT NULL DEFAULT false,
+    updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    activo            BOOLEAN DEFAULT TRUE,
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (negocio_id, codigo)
 );
 
@@ -269,14 +273,17 @@ CREATE TABLE IF NOT EXISTS categorias_operaciones (
 );
 
 -- 9. turnos_caja
+-- caja_id: nullable ahora (se puebla automáticamente con CAJA_CHICA en fn_abrir_turno).
+--   Al implementar multicaja: hacer NOT NULL y actualizar fn_abrir_turno para recibir p_caja_id.
 CREATE TABLE IF NOT EXISTS turnos_caja (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    negocio_id          UUID     NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
-    numero_turno        SMALLINT NOT NULL DEFAULT 1,
-    empleado_id         UUID     NOT NULL REFERENCES usuarios(id),
+    negocio_id          UUID         NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
+    caja_id             UUID         REFERENCES cajas(id) ON DELETE RESTRICT,
+    numero_turno        SMALLINT     NOT NULL DEFAULT 1,
+    empleado_id         UUID         NOT NULL REFERENCES usuarios(id),
     hora_fecha_apertura TIMESTAMP WITH TIME ZONE NOT NULL,
     hora_fecha_cierre   TIMESTAMP WITH TIME ZONE,
-    fondo_cubierto      BOOLEAN NOT NULL DEFAULT TRUE
+    fondo_apertura      DECIMAL(12,2) NOT NULL DEFAULT 0  -- monto libre declarado por el empleado al abrir
 );
 
 -- 10. recargas — control de saldo virtual por servicio y turno
@@ -475,7 +482,7 @@ CREATE TABLE IF NOT EXISTS producto_presentaciones (
     negocio_id        UUID        NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
     producto_id       UUID        NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
     nombre            VARCHAR(100) NOT NULL,
-    factor_conversion INTEGER      NOT NULL CHECK (factor_conversion > 0),
+    factor_conversion DECIMAL(12,4) NOT NULL CHECK (factor_conversion > 0),
     precio_venta      DECIMAL(12,2) NOT NULL,
     precio_costo      DECIMAL(12,2) NOT NULL,
     codigo_barras     VARCHAR(50),             -- sin UNIQUE propio: unicidad real en codigos_barras
@@ -487,9 +494,9 @@ CREATE TABLE IF NOT EXISTS producto_presentaciones (
 -- Solo una presentacion principal por producto
 CREATE UNIQUE INDEX IF NOT EXISTS uq_presentaciones_principal
     ON producto_presentaciones(producto_id) WHERE es_principal = TRUE;
--- Nombres normalizados unicos por producto
+-- Nombre + factor unicos por producto (mismo nombre con distinto factor es valido)
 CREATE UNIQUE INDEX IF NOT EXISTS uq_presentaciones_nombre
-    ON producto_presentaciones(producto_id, LOWER(TRIM(nombre)));
+    ON producto_presentaciones(producto_id, LOWER(TRIM(nombre)), factor_conversion);
 
 -- 22b. codigos_barras — registro central de unicidad cross-table
 -- UNIQUE (negocio_id, codigo): garantia atomica de PostgreSQL, elimina race condition.
@@ -671,8 +678,15 @@ CREATE INDEX IF NOT EXISTS idx_notas_negocio                ON notas(negocio_id)
 
 -- Indices compuestos por tenant (patrones de acceso frecuentes)
 CREATE INDEX IF NOT EXISTS idx_turnos_negocio_empleado          ON turnos_caja(negocio_id, empleado_id);
+CREATE INDEX IF NOT EXISTS idx_turnos_caja_id                   ON turnos_caja(caja_id) WHERE caja_id IS NOT NULL;
+-- Índice único parcial: 1 turno abierto por caja (hora_fecha_cierre IS NULL = abierto).
+-- Hoy solo aplica cuando caja_id es NOT NULL (poblado por fn_abrir_turno).
+-- Al implementar multicaja este índice reemplaza el guard por negocio_id en fn_abrir_turno.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_un_turno_abierto_por_caja
+    ON turnos_caja(caja_id)
+    WHERE hora_fecha_cierre IS NULL AND caja_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_turnos_caja_fecha_turno
-    ON turnos_caja(negocio_id, (CAST(hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS date)), numero_turno);
+    ON turnos_caja(negocio_id, caja_id, (CAST(hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS date)), numero_turno);
 CREATE INDEX IF NOT EXISTS idx_recargas_negocio_fecha           ON recargas(negocio_id, fecha);
 CREATE INDEX IF NOT EXISTS idx_recargas_negocio_turno           ON recargas(negocio_id, turno_id);
 CREATE INDEX IF NOT EXISTS idx_recargas_negocio_tipo_servicio   ON recargas(negocio_id, tipo_servicio_id);

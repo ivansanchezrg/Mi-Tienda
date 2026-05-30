@@ -1,13 +1,13 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { ViewWillEnter } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import {
-    NavController, ModalController,
+    NavController, ModalController, AlertController,
     IonHeader, IonToolbar, IonButtons, IonButton, IonTitle,
     IonContent, IonFooter, IonIcon, IonInput, IonItem,
-    IonCard, IonCardContent, IonSpinner, IonToggle, IonSkeletonText
+    IonSpinner, IonToggle, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -16,7 +16,7 @@ import {
     chevronUpOutline, chevronDownOutline, layersOutline,
     sparklesOutline, pricetagOutline, createOutline, trashOutline,
     informationCircleOutline, trendingUpOutline, warningOutline, barcodeOutline,
-    cameraOutline, imageOutline, closeCircle, saveOutline
+    cameraOutline, imageOutline, closeCircle, saveOutline, ellipse
 } from 'ionicons/icons';
 import { ActivatedRoute } from '@angular/router';
 import { ROUTES } from '../../../../core/config/routes.config';
@@ -42,6 +42,7 @@ import { ProductoInventarioFormComponent } from '../../components/producto-inven
 import { ProductoPresentacionesComponent, PresentacionNueva } from '../../components/producto-presentaciones/producto-presentaciones.component';
 
 type TipoProducto = 'simple' | 'variantes';
+type TipoSelector = 'simple' | 'simple-presentaciones' | 'variantes';
 
 interface AtributoEditor {
     atributo: Atributo;
@@ -74,7 +75,7 @@ interface SKUGenerado {
         CommonModule, ReactiveFormsModule, FormsModule,
         IonHeader, IonToolbar, IonButtons, IonButton, IonTitle,
         IonContent, IonFooter, IonIcon, IonInput, IonItem,
-        IonCard, IonCardContent, IonSpinner, IonToggle, IonSkeletonText,
+        IonSpinner, IonToggle, IonSkeletonText,
         NumbersOnlyDirective, CurrencyInputDirective, UppercaseInputDirective,
         ScannerOverlayComponent,
         ProductoInfoFormComponent,
@@ -83,7 +84,7 @@ interface SKUGenerado {
         ProductoPresentacionesComponent,
     ]
 })
-export class ProductoCrearPage implements OnInit, ViewWillEnter {
+export class ProductoCrearPage implements ViewWillEnter {
     private navCtrl         = inject(NavController);
     private route           = inject(ActivatedRoute);
     private fb              = inject(FormBuilder);
@@ -91,6 +92,7 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
     private productoSvc     = inject(ProductoService);
     private atributoSvc     = inject(AtributoService);
     private modalCtrl       = inject(ModalController);
+    private alertCtrl       = inject(AlertController);
     protected currencyService = inject(CurrencyService);
     private ui              = inject(UiService);
     protected storageService = inject(StorageService);
@@ -103,11 +105,18 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
     listo        = false;
     categorias: CategoriaProducto[] = [];
 
-    // paso 1 = datos base + elección de tipo
-    // simple:    paso 2 = precio/stock/presentaciones → guardar
-    // variantes: paso 2 = atributos, paso 3 = SKUs → guardar
-    paso         = 1;
+    // paso 0 = selector visual de tipo
+    // simple:               paso 1 = formulario (info + precio + stock) → guardar
+    // simple-presentaciones: paso 1 = formulario + sección presentaciones → guardar
+    // variantes:             paso 1 = datos base, paso 2 = atributos, paso 3 = SKUs → guardar
+    paso         = 0;
     tipoProducto: TipoProducto = 'simple';
+    /** true cuando el usuario eligió "Tamaños o empaques distintos" en paso 0 */
+    mostrarPresentaciones = false;
+    /** Código de barras pre-cargado desde el escáner — se muestra como chip en el paso 0 */
+    codigoCapturado: string | null = null;
+    /** Qué card del paso 0 tiene los ejemplos expandidos (solo una a la vez) */
+    ejemplosExpandidos: TipoSelector | null = null;
 
     // ── FLUJO SIMPLE ──────────────────────────────────────────────────────────
     simpleForm!: FormGroup;
@@ -143,11 +152,9 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
             chevronUpOutline, chevronDownOutline, layersOutline,
             sparklesOutline, pricetagOutline, createOutline, trashOutline,
             informationCircleOutline, trendingUpOutline, warningOutline, barcodeOutline,
-            cameraOutline, imageOutline, closeCircle, saveOutline
+            cameraOutline, imageOutline, closeCircle, saveOutline, ellipse
         });
     }
-
-    ngOnInit() {}
 
     async ionViewWillEnter() {
         const tipo   = this.route.snapshot.queryParamMap.get('tipo') as TipoProducto | null;
@@ -155,13 +162,16 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
 
         // Resetear estado en cada entrada (Ionic cachea la instancia)
         this.listo           = false;
-        this.paso            = 1;
+        this.paso            = 0;
         this.tipoProducto    = 'simple';
+        this.mostrarPresentaciones = false;
+        this.presentacionesNuevas = [];
+        this.codigoCapturado = codigo || null;
+        this.ejemplosExpandidos = null;
         this.guardando       = false;
         this.escaneando      = false;
         this.fotoPreviewUrl  = null;
         this.fotoRawUrl      = null;
-        this.presentacionesNuevas = [];
         this.templateFotoPreviewUrl = null;
         this.templateFotoRawUrl     = null;
         this.margenPct       = 20;
@@ -179,11 +189,13 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
         this._initSimpleForm(codigo);
         this._initTemplateForm();
 
+        // Paso 0 es contenido estático — no necesita categorías. Mostrar de inmediato.
+        // Si viene con tipo pre-seleccionado, saltar directamente al paso 1 (skeleton hasta que carguen).
+        if (tipo === 'variantes') { this.tipoProducto = 'variantes'; this.paso = 1; }
+        else if (tipo === 'simple') { this.tipoProducto = 'simple'; this.paso = 1; }
+        else { this.listo = true; } // paso 0: visible sin esperar
+
         this.categorias = await this.inventarioSvc.obtenerCategorias();
-
-        if (tipo === 'variantes') this.tipoProducto = 'variantes';
-        if (tipo === 'simple' && codigo) this.paso = 2;
-
         this.listo = true;
     }
 
@@ -214,34 +226,59 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
         });
     }
 
+    toggleEjemplos(tipo: TipoSelector, event: Event) {
+        event.stopPropagation();
+        this.ejemplosExpandidos = this.ejemplosExpandidos === tipo ? null : tipo;
+    }
+
+    elegirTipo(tipo: TipoSelector) {
+        this.tipoProducto = tipo === 'variantes' ? 'variantes' : 'simple';
+        this.mostrarPresentaciones = tipo === 'simple-presentaciones';
+        this.paso = 1;
+    }
+
     volver() {
         if (this.paso > 1) {
             this.paso--;
+            return;
+        }
+        if (this.paso === 1) {
+            this.paso = 0;
             return;
         }
         this.navCtrl.navigateBack(ROUTES.inventario.root);
     }
 
     get tituloHeader(): string {
-        if (this.paso === 1) return 'Nuevo Producto';
-        if (this.tipoProducto === 'simple') return 'Nuevo Producto';
-        const pasoWizard = this.paso - 1; // paso 2 → "1 de 2", paso 3 → "2 de 2"
-        return `Con Variantes — Paso ${pasoWizard} de 2`;
+        // Paso 0: selector de tipo
+        if (this.paso === 0) return 'Nuevo producto';
+
+        if (this.tipoProducto === 'simple') {
+            return this.mostrarPresentaciones ? 'Tamaños o empaques distintos' : 'Producto simple';
+        }
+
+        // Variantes: paso 1 = datos base (mismo nombre que la card),
+        //            paso 2 = atributos, paso 3 = revisar SKUs generados
+        if (this.paso === 1) return 'Sabores, colores o tallas';
+        if (this.paso === 2) return 'Tipos de variante';
+        return 'Revisar variantes';
     }
 
+    /** Solo se usa en el flujo VARIANTES — el flujo SIMPLE guarda directo desde el paso 1 */
     avanzarDesdeDatosBase() {
-        this.simpleForm.get('nombre')?.markAsTouched();
-        this.simpleForm.get('categoria_id')?.markAsTouched();
-        if (this.simpleForm.get('nombre')?.invalid || this.simpleForm.get('categoria_id')?.invalid) return;
+        // Marcar todos los campos relevantes como tocados para mostrar errores
+        ['nombre', 'categoria_id'].forEach(f => this.simpleForm.get(f)?.markAsTouched());
+        ['precio_costo_base', 'precio_venta_base'].forEach(f => this.templateForm.get(f)?.markAsTouched());
 
-        if (this.tipoProducto === 'variantes') {
-            // Sincronizar nombre y categoría al templateForm
-            this.templateForm.patchValue({
-                nombre:      this.simpleForm.get('nombre')?.value,
-                categoria_id: this.simpleForm.get('categoria_id')?.value,
-                tiene_iva:   this.simpleForm.get('tiene_iva')?.value,
-            });
-        }
+        if (this.simpleForm.get('nombre')?.invalid || this.simpleForm.get('categoria_id')?.invalid) return;
+        if (this.templateForm.get('precio_costo_base')?.invalid || this.templateForm.get('precio_venta_base')?.invalid) return;
+
+        // Sincronizar nombre y categoría al templateForm
+        this.templateForm.patchValue({
+            nombre:       this.simpleForm.get('nombre')?.value,
+            categoria_id: this.simpleForm.get('categoria_id')?.value,
+            tiene_iva:    this.simpleForm.get('tiene_iva')?.value,
+        });
         this.paso = 2;
     }
 
@@ -259,9 +296,18 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
         this.fotoRawUrl     = null;
     }
 
+    onFotoSeleccionadaTemplate(event: FotoSeleccionada) {
+        this.templateFotoPreviewUrl = event.previewUrl;
+        this.templateFotoRawUrl     = event.rawUrl;
+    }
+
     async guardarSimple() {
         this.simpleForm.markAllAsTouched();
         if (this.simpleForm.invalid || this.guardando) return;
+        if (this.mostrarPresentaciones && this.presentacionesNuevas.length === 0) {
+            this.ui.showToast('Agrega al menos una presentación antes de guardar', 'warning');
+            return;
+        }
         this.guardando = true;
 
         const v = this.simpleForm.value;
@@ -275,7 +321,6 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
                 imagenUrl = path;
             }
 
-            // Subir imágenes pendientes de presentaciones
             const presentacionesConImagen = await Promise.all(
                 this.presentacionesNuevas.map(async p => {
                     let imagen_url = p.imagen_url ?? undefined;
@@ -393,10 +438,7 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
     }
 
     async seleccionarFotoTemplate() {
-        const source = this.storageService.isNative
-            ? (await import('@capacitor/camera')).CameraSource.Camera
-            : (await import('@capacitor/camera')).CameraSource.Photos;
-        const result = await this.storageService.capturarFoto(source);
+        const result = await this.storageService.elegirFuenteFoto();
         if (!result) return;
         this.templateFotoPreviewUrl = result.previewUrl;
         this.templateFotoRawUrl     = result.rawUrl;
@@ -464,14 +506,24 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
     }
 
     abrirEdicionOpciones(atributoId: string) {
+        if (this.tipoEnEdicion === atributoId) return;
         this.tipoEnEdicion = atributoId;
         this.textoNuevaOpcion = '';
+        this.opcionesSugeridas = [];
         const editor = this.atributosEditor.find(a => a.atributo.id === atributoId);
         if (editor) {
             this.atributoSvc.obtenerOpcionesAtributo(atributoId).then(ops => {
                 this.opcionesSugeridas = ops.filter(o => !editor.opciones.some(e => e.id === o.id));
             });
         }
+    }
+
+    enfocarInputOpcion(atributoId: string) {
+        this.abrirEdicionOpciones(atributoId);
+        setTimeout(() => {
+            const el = document.getElementById(`opcion-input-${atributoId}`);
+            el?.focus();
+        }, 50);
     }
 
     cerrarEdicionOpciones() {
@@ -483,7 +535,11 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
     onOpcionInput(valor: string) {
         this.textoNuevaOpcion = valor;
         clearTimeout(this.opcionDebounce);
-        if (!valor || valor.trim().length < 1) return;
+        if (!valor || valor.trim().length < 1) {
+            this.opcionesSugeridas = [];
+            this.buscandoOpcion = false;
+            return;
+        }
         this.buscandoOpcion = true;
         const atributoId = this.tipoEnEdicion!;
         this.opcionDebounce = setTimeout(async () => {
@@ -506,7 +562,7 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
         const editor = this.atributosEditor.find(a => a.atributo.id === this.tipoEnEdicion);
         if (!editor || editor.opciones.some(o => o.id === opcion.id)) return;
         editor.opciones = [...editor.opciones, opcion];
-        this.textoNuevaOpcion = '';
+        this._limpiarInputOpcion();
         this.opcionesSugeridas = (await this.atributoSvc.obtenerOpcionesAtributo(this.tipoEnEdicion))
             .filter(o => !editor.opciones.some(e => e.id === o.id));
     }
@@ -518,9 +574,18 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
             const editor = this.atributosEditor.find(a => a.atributo.id === this.tipoEnEdicion);
             if (!editor || editor.opciones.some(o => o.id === opcion.id)) return;
             editor.opciones = [...editor.opciones, opcion];
-            this.textoNuevaOpcion = '';
+            this._limpiarInputOpcion();
             this.opcionesSugeridas = (await this.atributoSvc.obtenerOpcionesAtributo(this.tipoEnEdicion!))
                 .filter(o => !editor.opciones.some(e => e.id === o.id));
+        }
+    }
+
+    private _limpiarInputOpcion() {
+        this.textoNuevaOpcion = '';
+        this.opcionesSugeridas = [];
+        if (this.tipoEnEdicion) {
+            const el = document.getElementById(`opcion-input-${this.tipoEnEdicion}`) as HTMLInputElement | null;
+            if (el) { el.value = ''; el.focus(); }
         }
     }
 
@@ -552,20 +617,35 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
     }
 
     private _generarCombinaciones(): SKUGenerado[] {
-        const nombreBase  = this.templateForm.get('nombre')!.value.trim().toUpperCase();
+        const nombreBase  = this.templateForm.get('nombre')!.value.trim();
         const precioCosto = Math.round(this.currencyService.parse(this.templateForm.get('precio_costo_base')!.value) * 100) / 100;
         const precioVenta = Math.round(this.currencyService.parse(this.templateForm.get('precio_venta_base')!.value) * 100) / 100;
         const stockMinimo = Number(this.templateForm.get('stock_minimo')!.value) || 5;
         const combinaciones = this._cartesian(this.atributosEditor.map(a => a.opciones));
         return combinaciones.map(combo => {
-            const labels = combo.map(o => o.valor);
+            const labels    = combo.map(o => o.valor);
+            const opcionIds = combo.map(o => o.id).sort().join(',');
+
+            // Si el SKU ya existía con las mismas opciones, conservar los valores editados
+            const existente = this.skusGenerados.find(s =>
+                [...s.opcion_ids].sort().join(',') === opcionIds
+            );
+
             return {
-                nombre: `${nombreBase} ${labels.join(' ')}`,
-                precio_costo: precioCosto, precio_venta: precioVenta,
-                stock_actual: 0, stock_minimo: stockMinimo,
-                opcion_ids: combo.map(o => o.id),
-                seleccionado: true, labels, margen: this.margenPct, codigo_barras: '',
-                presentaciones: [], mostrarPresentaciones: false
+                nombre:              `${nombreBase} ${labels.join(' ')}`,
+                precio_costo:        existente?.precio_costo  ?? precioCosto,
+                precio_venta:        existente?.precio_venta  ?? precioVenta,
+                stock_actual:        existente?.stock_actual  ?? 0,
+                stock_minimo:        existente?.stock_minimo  ?? stockMinimo,
+                opcion_ids:          combo.map(o => o.id),
+                seleccionado:        existente?.seleccionado  ?? true,
+                labels,
+                margen:              existente?.margen        ?? this.margenPct,
+                codigo_barras:       existente?.codigo_barras ?? '',
+                imagenRawUrl:        existente?.imagenRawUrl,
+                imagenPreviewUrl:    existente?.imagenPreviewUrl,
+                presentaciones:      existente?.presentaciones      ?? [],
+                mostrarPresentaciones: existente?.mostrarPresentaciones ?? false
             };
         });
     }
@@ -582,11 +662,19 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
     // ══════════════════════════════════════════════════════════════════════════
 
     get nombreBase(): string {
-        return this.templateForm.get('nombre')!.value.trim().toUpperCase();
+        return this.templateForm.get('nombre')!.value.trim();
     }
 
     get skusSeleccionados(): SKUGenerado[] {
         return this.skusGenerados.filter(s => s.seleccionado);
+    }
+
+    get skusValidos(): boolean {
+        return this.skusSeleccionados.every(s => s.precio_venta > 0 && s.precio_costo > 0);
+    }
+
+    get algunSkuSinStock(): boolean {
+        return this.skusSeleccionados.some(s => s.stock_actual === 0);
     }
 
     toggleSKU(sku: SKUGenerado) { sku.seleccionado = !sku.seleccionado; }
@@ -599,10 +687,7 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
     }
 
     async seleccionarFotoSku(sku: SKUGenerado) {
-        const source = this.storageService.isNative
-            ? (await import('@capacitor/camera')).CameraSource.Camera
-            : (await import('@capacitor/camera')).CameraSource.Photos;
-        const result = await this.storageService.capturarFoto(source);
+        const result = await this.storageService.elegirFuenteFoto();
         if (!result) return;
         sku.imagenRawUrl     = result.rawUrl;
         sku.imagenPreviewUrl = result.rawUrl;
@@ -626,6 +711,21 @@ export class ProductoCrearPage implements OnInit, ViewWillEnter {
         const seleccionados = this.skusSeleccionados;
         if (seleccionados.length === 0) { this.ui.showToast('Selecciona al menos una variante', 'warning'); return; }
         if (this.guardando) return;
+
+        if (this.algunSkuSinStock) {
+            const sinStock = seleccionados.filter(s => s.stock_actual === 0);
+            const confirmar = await new Promise<boolean>(resolve => {
+                this.alertCtrl.create({
+                    header: 'Stock en 0',
+                    message: `${sinStock.length} variante${sinStock.length !== 1 ? 's tienen' : ' tiene'} stock en 0. ¿Quieres completar el stock antes de crear, o crear las variantes ahora y agregar el stock después?`,
+                    buttons: [
+                        { text: 'Completar stock', role: 'cancel', handler: () => resolve(false) },
+                        { text: 'Crear sin stock', handler: () => resolve(true) }
+                    ]
+                }).then(a => a.present());
+            });
+            if (!confirmar) return;
+        }
         this.guardando = true;
 
         const v = this.templateForm.value;

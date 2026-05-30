@@ -5,7 +5,7 @@ import {
   documentTextOutline, cartOutline, storefrontOutline,
   checkmarkCircleOutline, personOutline, phonePortraitOutline,
   busOutline, handRightOutline, cubeOutline, banOutline,
-  cashOutline, walletOutline, receiptOutline
+  cashOutline, walletOutline, receiptOutline, timeOutline
 } from 'ionicons/icons';
 
 @Component({
@@ -69,7 +69,7 @@ export class EmptyStateComponent {
       documentTextOutline, cartOutline, storefrontOutline,
       checkmarkCircleOutline, personOutline, phonePortraitOutline,
       busOutline, handRightOutline, cubeOutline, banOutline,
-      cashOutline, walletOutline, receiptOutline
+      cashOutline, walletOutline, receiptOutline, timeOutline
     });
   }
 }

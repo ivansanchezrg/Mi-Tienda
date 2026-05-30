@@ -13,7 +13,8 @@ import {
   chevronBackOutline, arrowDownOutline, arrowUpOutline,
   lockOpenOutline, lockClosedOutline, createOutline,
   cashOutline, documentTextOutline, walletOutline,
-  documentAttachOutline, closeOutline, ellipsisVertical, close
+  documentAttachOutline, closeOutline, ellipsisVertical, close,
+  timeOutline
 } from 'ionicons/icons';
 import { CameraSource } from '@capacitor/camera';
 import { Subscription } from 'rxjs';
@@ -115,17 +116,36 @@ export class OperacionesCajaPage implements OnDestroy {
   // true si el usuario logueado es ADMIN
   esAdmin = false;
 
-  // true si el ⋮ debe mostrarse según caja y rol
+  // El menú ⋮ siempre se muestra. Las opciones internas se filtran según
+  // caja, rol y estado del turno (ver opcionesMenu).
   get mostrarMenuOpciones(): boolean {
-    if (this.cajaCodigo === 'CAJA_CHICA') return this.esMiTurno;
     return true;
   }
 
   get opcionesMenu(): MenuOption[] {
+    // Cajas digitales: solo edición
     const soloEditar = this.cajaCodigo === 'CAJA_CELULAR' || this.cajaCodigo === 'CAJA_BUS';
     if (soloEditar) {
       return [{ label: 'Editar caja', icon: 'create-outline', value: 'EDITAR' }];
     }
+
+    // Cajón (CAJA_CHICA): ingreso/egreso solo en tu turno + historial siempre
+    if (this.cajaCodigo === 'CAJA_CHICA') {
+      const opciones: MenuOption[] = [];
+      if (this.esMiTurno) {
+        opciones.push(
+          { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'INGRESO' },
+          { label: 'Registrar Egreso',  icon: 'arrow-up-outline',   value: 'EGRESO',  color: 'danger' },
+        );
+      }
+      opciones.push({ label: 'Historial de turnos', icon: 'time-outline', value: 'HISTORIAL_TURNOS' });
+      if (this.esAdmin) {
+        opciones.push({ label: 'Editar caja', icon: 'create-outline', value: 'EDITAR' });
+      }
+      return opciones;
+    }
+
+    // CAJA, VARIOS y custom: acciones completas
     return [
       { label: 'Registrar Ingreso', icon: 'arrow-down-outline', value: 'INGRESO' },
       { label: 'Registrar Egreso',  icon: 'arrow-up-outline',   value: 'EGRESO',  color: 'danger' },
@@ -138,7 +158,8 @@ export class OperacionesCajaPage implements OnDestroy {
       chevronBackOutline, arrowDownOutline, arrowUpOutline,
       lockOpenOutline, lockClosedOutline, createOutline,
       cashOutline, documentTextOutline, walletOutline,
-      documentAttachOutline, closeOutline, ellipsisVertical, close
+      documentAttachOutline, closeOutline, ellipsisVertical, close,
+      timeOutline
     });
   }
 
@@ -332,6 +353,10 @@ export class OperacionesCajaPage implements OnDestroy {
   async onMenuOpcion(option: MenuOption) {
     if (option.value === 'EDITAR') {
       this.abrirModalEditar();
+      return;
+    }
+    if (option.value === 'HISTORIAL_TURNOS') {
+      this.router.navigate([ROUTES.caja.historialTurnos]);
       return;
     }
     if (!this.isOnline) {

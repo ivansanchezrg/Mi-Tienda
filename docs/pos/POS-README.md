@@ -25,19 +25,20 @@ features/pos/
 ## Flujo de venta
 
 1. Empleado busca productos (por nombre o código) o escanea con cámara/pistola
-2. Productos se agregan al carrito local (array en memoria)
-3. Empleado presiona "Cobrar":
-   - Si el cliente es **Consumidor Final** → se abre el selector de cliente **antes** del modal de cobro. Si cancela sin elegir, el flujo se corta
-   - Una vez con cliente real seleccionado → abre `CobrarModalComponent`
-4. `CobrarModalComponent` (flujo unificado en 2 pasos internos):
+2. Productos se agregan al carrito local (signal en memoria)
+3. Empleado presiona "Cobrar efectivo" u "Otros métodos" → abre `CobrarModalComponent` inmediatamente (sin query previa)
+4. `CobrarModalComponent` (bottom-sheet-modal, patrón `bs-*`):
    - **Paso 1**: selección de método de pago (Efectivo, DeUna, Transferencia, Fiado)
    - **Paso 2** (solo Efectivo): ingreso de monto recibido + cálculo de vuelto en tiempo real
+   - **Paso FIADO con Consumidor Final**: muestra `AlertController` explicativo con botón "Seleccionar cliente" que abre el modal de clientes apilado encima. Al seleccionar un cliente real, re-intenta confirmar FIADO automáticamente
+   - **Paso confirmar-fiado** (FIADO con descuento activo): aviso de que el descuento no aplica + confirmación explícita
 5. `PosService.procesarVenta()` llama a `fn_registrar_venta_pos` (RPC PostgreSQL)
 6. La función SQL hace todo en una transacción atómica:
    - INSERT en `ventas`
    - INSERT en `ventas_detalles` (con snapshot de `precio_costo` al momento de la venta)
    - Trigger descuenta stock + graba kardex
    - Trigger actualiza saldo CAJA_CHICA si es EFECTIVO
+7. Tras venta exitosa → `limpiarCarrito()` llama `refrescarCatalogo()` en background para actualizar el stock visible
 
 ---
 
@@ -49,21 +50,50 @@ El POS tiene dos modos de visualización que el empleado alterna con un botón d
 
 Grid de cards de productos. Es el modo principal de entrada de productos.
 
-- Cards de producto simple muestran badge de cantidad en la esquina superior derecha cuando el producto ya está en el carrito. Tocar el badge abre `CantidadModalComponent` directamente.
-- Cards de template (producto con variantes) muestran un badge visual `catalogo-card-badge--template` que indica variantes disponibles — no es clickeable para editar cantidad.
-- Al agregar un producto desde catálogo se dispara la animación "fly to pill": se clona visualmente el card y vuela hacia el pill flotante del carrito.
+- Cards de producto simple muestran badge de cantidad en la esquina superior derecha cuando el producto ya está en el carrito. Tocar el badge abre `CantidadModalComponent` directamente. Mientras dura la consulta de stock fresco, el badge muestra un micro-spinner (flag `editandoItemKey`).
+- Cards de template (producto con variantes) muestran un badge visual `catalogo-card-badge--template` — no es clickeable para editar cantidad.
+- Al agregar un producto desde catálogo se dispara la animación "fly to pill": se clona visualmente el card y vuela hacia el pill flotante del carrito (mobile) o hacia el total del panel lateral `.panel-total-monto` (desktop). El destino se resuelve dinámicamente verificando cuál elemento es visible (`getBoundingClientRect().width > 0`).
+- La franja inferior de cada card muestra precio + stock disponible (`stockLibre = stock_actual - carritoCount`). Color: gris si > 10, naranja si ≤ 10, rojo si agotado.
 - La barra de búsqueda por texto solo existe en el modo catálogo. El filtro de categorías también es exclusivo de este modo.
 - `carritoCountMap` y `templateCountMap` son `computed()` signals — se recalculan solo cuando el carrito cambia.
 - `itemsCatalogo` es un `computed<CatalogoItem[]>()` — filtra y agrupa productos solo cuando cambia `productosCatalogo` o `buscarTexto`.
+- Las imágenes usan fade-in (`img-fade` + `img-loaded`) — el contenedor gris actúa como placeholder hasta que carga.
 
 ### Vista lista (carrito)
 
 Muestra los ítems ya agregados al carrito. No tiene barra de búsqueda.
 
 - Cada ítem es completamente tappable (toda la fila): abre `CantidadModalComponent` directamente.
-- Cada fila muestra: thumbnail cuadrado | nombre + precio unitario + badges de stock | subtotal + badge `x2` (cantidad).
+- Cada fila muestra: thumbnail cuadrado | nombre + precio unitario + stock inline | subtotal + badge `x2` (cantidad).
+- El stock inline usa el mismo lenguaje de color que el catálogo: gris `· X disp.`, naranja `quedan X`, rojo `¡último!`.
+- Al tocar un ítem, antes de abrir el modal se consulta el stock fresco de BD (`obtenerStockActual`). Durante esa consulta el ítem queda deshabilitado y el badge muestra un micro-spinner.
 - Swipe-left en un ítem es el atajo rápido para eliminarlo.
 - Los steppers `+/-` inline ya no existen en la vista lista — la edición de cantidad siempre va por `CantidadModalComponent`.
+
+---
+
+## Layout desktop (≥992px)
+
+En pantallas grandes el POS usa un layout de dos columnas (`pos-layout` con `display: flex`):
+
+| Columna | Clase | Contenido |
+|---------|-------|-----------|
+| Izquierda | `.pos-col-main` | Catálogo completo (siempre visible — `vistaActual` queda en `'catalogo'`) |
+| Derecha | `.pos-panel` | Panel fijo de carrito + cliente + totales + botones de cobro |
+
+**Elementos exclusivos de mobile ocultos en desktop** (con `display: none !important`):
+- `.catalogo-cart-pill` — pill flotante "Ver carrito"
+- `.volver-catalogo-btn` — botón de volver al catálogo
+- `.pos-footer-mobile` — footer con totales y botones de cobro
+
+**Panel lateral (`.pos-panel`):**
+- Header con icono de carrito + contador de ítems
+- Selector de cliente (mismo que la toolbar de mobile)
+- Lista scrollable de ítems (`.panel-items`) con stepper `+/-` inline por ítem
+- Footer fijo con desglose fiscal (FACTURA), descuento, upselling, total y botones de cobro
+- Auto-scroll: al agregar o incrementar cualquier producto, `.panel-items` hace scroll suave (`scrollIntoView`) al ítem afectado usando el atributo `[data-item-key]`
+
+**Animación fly-to-pill en desktop:** el clon vuela al `.panel-total-monto` (total visible en el panel derecho). En mobile vuela al `.catalogo-cart-pill`. La función `flyToPillFromClone()` elige el destino verificando cuál tiene dimensiones reales.
 
 ---
 
@@ -175,9 +205,9 @@ La validación de turno activo vive en `PosService.procesarVenta()` (no en la p�
 | Sin conexión | `procesarCodigoRapido()`, `buscarPorCodigo()`, `buscarPorNombre()` | `NetworkService.isConnected()` antes de query |
 | Error de red en escáner | `procesarCodigoRapido()` | try/catch con toast "Error de conexión" |
 | Doble cobro | `ejecutarCobro()` | Loading overlay bloquea UI inmediatamente |
-| Turno inactivo | `PosService.procesarVenta()` | Valida turno activo antes del RPC, lanza excepción |
-| Cliente requerido para FIADO/DEUNA/TRANSFERENCIA | `cobrar()` | Si es Consumidor Final, abre selector de cliente antes del modal. Si cancela, corta el flujo |
-| Factura sin cliente válido | `cobrar()` **y** `cobrarEfectivo()` | Bloquea si `es_consumidor_final` en ambas rutas de cobro |
+| Turno inactivo | `PosService.procesarVenta()` | Valida turno activo antes del RPC, lanza excepción `SIN_TURNO` (el guard `cajaAbiertaGuard` ya previene la mayoría de casos) |
+| FIADO con Consumidor Final | `CobrarModalComponent.confirmarMetodo()` | Alert con opción de seleccionar cliente — el modal de clientes se apila encima sin cerrar el modal de cobro |
+| Factura sin cliente válido | `abrirModalCobro()` | Bloquea con toast si `es_consumidor_final` antes de abrir el modal |
 | Fallo silencioso en cobro | `ejecutarCobro()` | Toast rojo si `response.success === false` o si hay excepción |
 | Idempotencia de cobro | `ejecutarCobro()` + `fn_registrar_venta_pos` | UUID persistido en localStorage antes del RPC + `UNIQUE` constraint en BD |
 
@@ -285,12 +315,23 @@ Input decimal visible desde el inicio, con focus automático al abrir el modal.
 
 Modal para elegir variante (producto con atributos) o presentación de un producto template.
 
+### Stock en el modal
+
+Cada fila muestra el stock libre disponible para esa variante/presentación en tiempo real:
+- `stockLibre(variante, presentacion?)` — método público que considera todas las unidades comprometidas en el carrito (incluyendo factor de conversión de presentaciones)
+- Color: gris `X disp.` si > 10, naranja `quedan X` si ≤ 10, rojo `sin stock` si agotado
+- Se actualiza reactivamente al agregar/quitar unidades dentro del mismo modal (lee de `_contadores` signal)
+
 ### Control de stock
 
-`sinStock(variante, presentacion?)` calcula las unidades comprometidas en el carrito para ese SKU y las compara contra el stock disponible:
+`sinStock(variante, presentacion?)` delega en `stockLibre()`:
 
-- Si sin stock y contador = 0: muestra badge "Sin stock" (gris, pill) en lugar del botón `+`. La fila completa tiene `vsm-row--sin-stock` (opacity 0.55).
+- Si sin stock y contador = 0: muestra badge "Sin stock" en lugar del botón `+`. La fila completa tiene `vsm-row--sin-stock` (opacity 0.55).
 - Si sin stock y contador > 0: el botón `+` del stepper queda deshabilitado.
+
+### Loading al editar cantidad
+
+Al tocar el número del stepper (`vsm-stepper-val`), el modal muestra un micro-spinner mientras consulta el stock fresco de BD antes de abrir `CantidadModalComponent`. Solo se bloquea la fila tocada — las demás siguen interactuables. Flag: `editandoKey` por ítem.
 
 ### Callbacks asíncronas
 
@@ -354,7 +395,19 @@ Las URLs resueltas son signed URLs obtenidas via `StorageService`. `templateImag
 
 ---
 
-## Notas de stock en carrito
+## Sincronización de stock
 
-El stock del carrito es una "foto" del momento en que se agregó el producto. Si otro usuario ajusta el stock desde otro dispositivo mientras hay una venta en curso, el carrito no se actualiza automáticamente. **Protocolo interno**: si el empleado detecta discrepancia, debe eliminar el producto del carrito y volver a buscarlo para refrescar el stock.
+El stock se mantiene actualizado en tres momentos automáticos:
+
+| Momento | Mecanismo |
+|---|---|
+| Al volver al POS (`ionViewWillEnter`) | `refrescarCatalogo()` — actualiza `productosCatalogo` signal y sincroniza `stock_disponible` del carrito |
+| Tras venta exitosa | `limpiarCarrito()` llama `refrescarCatalogo()` en background |
+| Al abrir `CantidadModal` de un ítem | `obtenerStockActual(id)` — consulta BD puntual, actualiza el ítem del carrito antes de abrir el modal |
+| Pull-to-refresh manual | `refrescarConfig()` + `refrescarCatalogo()` en paralelo |
+| Error de stock en BD al cobrar | Toast informativo + `refrescarCatalogo()` automático |
+
+`refrescarCatalogo()` opera en dos pasos: primero publica el stock fresco reutilizando imágenes ya cacheadas (evita parpadeo), luego resuelve URLs nuevas en background. El carrito nunca se pierde durante el refresh.
+
+> El stock del carrito (`stock_disponible`) es un campo sincronizado — no un snapshot congelado. `sincronizarStockCarrito()` lo actualiza con cada refresh comparando contra el catálogo fresco.
 

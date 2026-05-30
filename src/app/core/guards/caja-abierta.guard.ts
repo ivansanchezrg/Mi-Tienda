@@ -31,9 +31,9 @@ export const cajaAbiertaGuard: CanActivateFn = async () => {
   const turno = turnosCaja.turnoActivoValue;
   if (turno) {
     const nombre = turno.empleado?.nombre ?? 'Otro empleado';
-    await ui.showToast(`${nombre} ya tiene el turno abierto. Solo él puede usar el POS`, 'warning');
+    await ui.showToast(`${nombre} ya tiene el turno abierto. Solo ${nombre} puede usar el POS`, 'warning');
   } else {
-    await ui.showToast('Abrí la caja desde Inicio para usar el POS', 'warning');
+    await ui.showToast('Para usar el POS primero abre la caja desde Inicio', 'warning');
   }
   return router.createUrlTree(['/caja']);
 };

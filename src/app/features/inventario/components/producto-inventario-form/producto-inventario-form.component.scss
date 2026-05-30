@@ -39,6 +39,8 @@
     --padding-start: var(--spacing-md);
     margin-bottom: 4px;
     border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    overflow: hidden;
     transition: border-color var(--transition-fast);
 
     &.ion-focused  { border-color: var(--ion-color-primary); }

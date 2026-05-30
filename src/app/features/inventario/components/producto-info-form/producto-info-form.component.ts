@@ -11,9 +11,8 @@ import {
     chevronDownOutline, checkmarkCircleOutline, sparklesOutline,
     cubeOutline, scaleOutline
 } from 'ionicons/icons';
-import { CameraSource } from '@capacitor/camera';
 import { StorageService } from '../../../../core/services/storage.service';
-import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
+import { BarcodeScannerService, getBarcodeInputHint } from '../../../../core/services/barcode-scanner.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
@@ -42,6 +41,8 @@ export class ProductoInfoFormComponent {
     @Input() modo: 'crear' | 'editar' = 'crear';
     /** true cuando es SKU de variante — oculta tipo_venta (lo hereda del template) */
     @Input() esVariante = false;
+    /** true cuando el flujo eligió "tamaños o empaques" — fuerza UNIDAD y oculta el selector */
+    @Input() ocultarTipoVenta = false;
     /** URL ya resuelta de imagen existente (modo editar) */
     @Input() imagenUrlExistente: string | null = null;
     /** SafeUrl de preview local (recién capturada) */
@@ -53,6 +54,7 @@ export class ProductoInfoFormComponent {
     @Output() tipoVentaCambiado = new EventEmitter<'UNIDAD' | 'PESO'>();
 
     escaneando = false;
+    readonly barcodeHint = getBarcodeInputHint();
 
     protected storageService  = inject(StorageService);
     protected barcodeScanner  = inject(BarcodeScannerService);
@@ -120,8 +122,7 @@ export class ProductoInfoFormComponent {
     }
 
     async seleccionarFoto() {
-        const source = this.storageService.isNative ? CameraSource.Camera : CameraSource.Photos;
-        const result = await this.storageService.capturarFoto(source);
+        const result = await this.storageService.elegirFuenteFoto();
         if (!result) return;
         this.fotoSeleccionada.emit({ previewUrl: result.previewUrl, rawUrl: result.rawUrl });
     }

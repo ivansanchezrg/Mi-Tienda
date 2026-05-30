@@ -1,6 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonIcon, IonSkeletonText, ModalController } from '@ionic/angular/standalone';
+import { IonIcon, IonSkeletonText, IonSpinner, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   closeOutline, arrowDownOutline, arrowUpOutline, createOutline,
@@ -19,7 +19,7 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
   standalone: true,
   imports: [
     CommonModule,
-    IonIcon, IonSkeletonText,
+    IonIcon, IonSkeletonText, IonSpinner,
     EmptyStateComponent,
     OperacionLabelPipe
   ]
@@ -35,6 +35,7 @@ export class MovimientosHoyModalComponent implements OnInit {
   loading = true;
   cargandoMas = false;
   hasMore = false;
+  cargandoComprobante = new Set<string>();
   private page = 0;
 
   constructor() {
@@ -75,9 +76,14 @@ export class MovimientosHoyModalComponent implements OnInit {
   }
 
   async onVerComprobante(mov: OperacionCaja) {
-    if (!mov.comprobante_url) return;
-    const url = await this.storageService.resolveImageUrl(mov.comprobante_url);
-    if (url) window.open(url, '_blank');
+    if (!mov.comprobante_url || this.cargandoComprobante.has(mov.id)) return;
+    this.cargandoComprobante.add(mov.id);
+    try {
+      const url = await this.storageService.resolveImageUrl(mov.comprobante_url);
+      if (url) window.open(url, '_blank');
+    } finally {
+      this.cargandoComprobante.delete(mov.id);
+    }
   }
 
   formatHora(fecha: string): string {

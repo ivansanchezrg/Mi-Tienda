@@ -152,6 +152,58 @@
 }
 
 // ============================================================================
+// DENSIDAD MÓVIL — ítems más grandes para uso con el dedo
+// ============================================================================
+@media (max-width: 767px) {
+  .sidebar-logo {
+    width: 46px;
+    height: 46px;
+  }
+
+  .sidebar-negocio {
+    font-size: 15px;
+  }
+
+  .menu-item {
+    --min-height: 52px;
+    font-size: 15px;
+    margin: 1px var(--spacing-sm);
+
+    ion-icon {
+      font-size: 22px;
+    }
+  }
+
+  .menu-item-icon-wrap ion-icon:first-child {
+    font-size: 22px;
+  }
+
+  .footer-avatar {
+    width: 42px;
+    height: 42px;
+
+    span {
+      font-size: 16px;
+    }
+  }
+
+  .footer-nombre {
+    font-size: 15px;
+  }
+
+  .footer-actions {
+    .btn-settings,
+    .btn-logout {
+      height: 38px;
+
+      ion-icon {
+        font-size: 21px;
+      }
+    }
+  }
+}
+
+// ============================================================================
 // ACCIONES RÁPIDAS — solo desktop
 // ============================================================================
 .quick-actions {
@@ -280,27 +332,41 @@
   pointer-events: auto;
 }
 
+// Wrapper del slot "start" en ítem deshabilitado.
+// Patron replicado del DisabledTabComponent del tab bar:
+//   - wrapper mas grande que el icono para dar espacio al SVG
+//   - overflow visible para que el badge sobresalga
 .menu-item-icon-wrap {
   position: relative;
-  display: flex;
-  align-items: center;
-  margin-right: var(--spacing-lg);
+  width: 22px;
+  height: 22px;
+  overflow: visible;
+  margin-right: var(--spacing-md);
 
+  // El icono principal ocupa el wrapper completo
   ion-icon:first-child {
-    font-size: 22px;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    font-size: 20px;
     color: var(--app-sidebar-text-soft);
+    opacity: 0.75;
   }
 }
 
-.menu-item-lock {
+.menu-item-lock-badge {
   position: absolute;
-  bottom: -3px;
-  right: -6px;
-  font-size: 10px;
-  color: var(--app-sidebar-text-soft);
-  background: var(--app-sidebar-bg);
-  border-radius: 50%;
-  padding: 1px;
+  top: -5px;
+  right: -7px;
+  pointer-events: none;
+  z-index: 2;
+
+  svg {
+    width: 14px;
+    height: 14px;
+    color: var(--app-sidebar-text-soft);
+  }
 }
 
 // ── Item activo ───────────────────────────────────────────────────────────────

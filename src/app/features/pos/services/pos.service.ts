@@ -28,21 +28,6 @@ export class PosService {
     // OPERACIONES POS
     // ==========================================
 
-    /**
-     * Registra una venta completa en una transacción atómica via RPC PostgreSQL.
-     * Si cualquier paso falla, la BD hace rollback automático.
-     *
-     * El flujo dentro de la función SQL:
-     *   1. INSERT en `ventas` (con tipo_comprobante, IVA, cliente_id)
-     *   2. INSERT en `ventas_detalles` (por cada ítem)
-     *   3. Trigger `trg_descontar_stock_venta` → descuenta stock + graba kardex
-     *   4. Trigger `trg_actualizar_caja_por_venta` → sube saldo CAJA_CHICA si es EFECTIVO (v5)
-     */
-    async hayTurnoActivo(): Promise<boolean> {
-        const turno = await this.turnosService.obtenerTurnoActivo();
-        return !!turno;
-    }
-
     async procesarVenta(carrito: CartItem[], payload: VentaPayload) {
         // 1. Obtener el turno activo (requerido por la BD)
         const turno = await this.turnosService.obtenerTurnoActivo();

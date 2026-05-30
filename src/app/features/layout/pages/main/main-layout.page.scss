@@ -1,6 +1,13 @@
 ion-menu {
-  --width: 300px;
-  --max-width: 300px;
+  --width: 280px;
+  --max-width: 280px;
+}
+
+@media (min-width: 768px) {
+  ion-menu {
+    --width: 300px;
+    --max-width: 300px;
+  }
 }
 
 ion-split-pane {
@@ -8,6 +15,7 @@ ion-split-pane {
   --side-max-width: 300px;
   --side-min-width: 300px;
 }
+
 
 .main-content-wrapper {
   display: flex;

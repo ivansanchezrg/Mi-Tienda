@@ -15,7 +15,7 @@ ion-toolbar {
 
 }
 
-// ── Barra de filtros animada (estilo POS) ──
+// ── Barra de filtros animada (igual al POS) ──
 .inv-filter-bar {
     position: relative;
     display: flex;
@@ -27,7 +27,7 @@ ion-toolbar {
     overflow: hidden;
 }
 
-// Capa 1 — chips de categorías
+// Capa 1 — lupa + chips
 .inv-chips-layer {
     display: flex;
     align-items: center;
@@ -60,18 +60,7 @@ ion-toolbar {
     &:active { background: rgba(var(--ion-color-primary-rgb), 0.08); }
 }
 
-.inv-chips-scroll {
-    display: flex;
-    flex-direction: row;
-    gap: var(--spacing-xs);
-    overflow-x: auto;
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
-}
-
-// Capa 2 — input de búsqueda
+// Capa 2 — input de búsqueda a ancho completo
 .inv-search-layer {
     position: absolute;
     inset: 0;
@@ -97,11 +86,23 @@ ion-toolbar {
     align-items: center;
     height: 38px;
     border: 1px solid var(--ion-color-step-200);
-    border-radius: var(--radius-md);
+    border-radius: 8px;
     background: var(--ion-color-step-50, var(--ion-background-color));
     padding: 0 4px 0 10px;
     gap: 6px;
 }
+
+.inv-chips-scroll {
+    display: flex;
+    flex-direction: row;
+    gap: var(--spacing-xs);
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+}
+
 
 .inv-search-icon {
     flex-shrink: 0;
@@ -129,7 +130,7 @@ ion-toolbar {
     flex-shrink: 0;
 }
 
-.inv-search-close-btn {
+.inv-search-clear-btn {
     flex-shrink: 0;
     width: 32px;
     height: 32px;
@@ -215,7 +216,8 @@ ion-toolbar {
 .product-card {
     margin: 0; // El grid gap se encarga del espaciado exterior
     box-shadow: var(--shadow-level-1);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: 8px;
+    overflow: hidden;
     background: var(--ion-item-background);
     transition: transform var(--transition-fast);
     cursor: pointer;
@@ -261,11 +263,11 @@ ion-toolbar {
 
     .stock-badge {
         position: absolute;
-        top: var(--spacing-sm);
-        right: var(--spacing-sm);
-        padding: 2px 8px;
-        border-radius: var(--radius-pill);
-        font-size: 11px;
+        top: 0;
+        right: 0;
+        padding: 5px 8px;
+        border-radius: 0 8px 0 8px;
+        font-size: 13px;
         font-weight: var(--font-weight-bold);
         display: flex;
         align-items: center;
@@ -339,9 +341,7 @@ ion-toolbar {
             align-items: center;
             gap: 2px;
 
-            ion-icon {
-                font-size: 8px;
-            }
+            ion-icon { font-size: 8px; }
         }
 
         &.variante {
@@ -357,9 +357,17 @@ ion-toolbar {
                 background: rgba(var(--ion-color-primary-rgb), 0.22);
             }
 
-            ion-icon {
-                font-size: 8px;
-            }
+            ion-icon { font-size: 8px; }
+        }
+
+        &.variantes {
+            background: rgba(var(--ion-color-primary-rgb), 0.1);
+            color: var(--ion-color-primary);
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+
+            ion-icon { font-size: 8px; }
         }
 
     }
@@ -382,6 +390,27 @@ ion-toolbar {
         font-size: 11px;
     }
 }
+
+// ── Card de template agrupado ────────────────────────────────────────────────
+// Visualmente distinta para que se note que es un grupo de variantes, no un SKU individual.
+.product-card--template {
+    border: 1.5px solid rgba(var(--ion-color-primary-rgb), 0.18);
+
+    .product-image-container {
+        background: linear-gradient(
+            135deg,
+            rgba(var(--ion-color-primary-rgb), 0.06),
+            rgba(var(--ion-color-primary-rgb), 0.02)
+        );
+
+        .placeholder-image ion-icon {
+            color: var(--ion-color-primary);
+            opacity: 0.4;
+        }
+    }
+}
+
+
 
 @keyframes pulse {
     0% {

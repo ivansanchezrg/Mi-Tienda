@@ -47,8 +47,8 @@ BEGIN
 
     -- ── Módulo CELULAR ──
     IF p_celular THEN
-        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual)
-        VALUES (v_negocio_id, 'CAJA_CELULAR', 'Celular', 'Efectivo recargas celular', 0)
+        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno)
+        VALUES (v_negocio_id, 'CAJA_CELULAR', 'Celular', 'Efectivo recargas celular', 0, FALSE)
         ON CONFLICT (negocio_id, codigo) DO NOTHING;
 
         INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion, seleccionable)
@@ -61,8 +61,8 @@ BEGIN
 
     -- ── Módulo BUS ──
     IF p_bus THEN
-        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual)
-        VALUES (v_negocio_id, 'CAJA_BUS', 'Bus', 'Efectivo recargas bus', 0)
+        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno)
+        VALUES (v_negocio_id, 'CAJA_BUS', 'Bus', 'Efectivo recargas bus', 0, FALSE)
         ON CONFLICT (negocio_id, codigo) DO NOTHING;
 
         INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion, seleccionable)
@@ -84,8 +84,8 @@ BEGIN
             RAISE EXCEPTION 'Para activar Caja Varios debés indicar un monto diario mayor a $0';
         END IF;
 
-        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual)
-        VALUES (v_negocio_id, 'VARIOS', 'Varios', 'Fondo de emergencia', 0)
+        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno)
+        VALUES (v_negocio_id, 'VARIOS', 'Varios', 'Fondo de emergencia', 0, FALSE)
         ON CONFLICT (negocio_id, codigo) DO NOTHING;
     END IF;
 

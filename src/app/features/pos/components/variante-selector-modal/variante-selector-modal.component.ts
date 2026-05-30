@@ -1,6 +1,6 @@
 import { Component, Input, OnInit, inject, computed, signal, Signal, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonIcon, ModalController } from '@ionic/angular/standalone';
+import { IonIcon, IonSpinner, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline, chevronForwardOutline, imageOutline, arrowForwardOutline } from 'ionicons/icons';
 import { ProductoPOS, ProductoPresentacion } from '../../../inventario/models/producto.model';
@@ -17,7 +17,7 @@ export interface VarianteSelectorResult {
     templateUrl: './variante-selector-modal.component.html',
     styleUrls: ['./variante-selector-modal.component.scss'],
     standalone: true,
-    imports: [CommonModule, IonIcon]
+    imports: [CommonModule, IonIcon, IonSpinner]
 })
 export class VarianteSelectorModalComponent implements OnInit {
     @Input() templateNombre!: string;
@@ -40,9 +40,10 @@ export class VarianteSelectorModalComponent implements OnInit {
     protected currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
 
-    protected varianteActiva: ProductoPOS | null = null;
     protected procesando = false;
     protected footerAnimando = false;
+    // Key del ítem cuyo modal de cantidad está cargando (consulta stock fresco)
+    protected editandoKey: string | null = null;
 
     protected readonly _contadores = signal<Map<string, number>>(new Map());
 
@@ -109,26 +110,25 @@ export class VarianteSelectorModalComponent implements OnInit {
      * Para unidad suelta o variante sin presentaciones: compara directamente.
      */
     sinStock(v: ProductoPOS, p?: ProductoPresentacion): boolean {
+        return this.stockLibre(v, p) <= 0;
+    }
+
+    /** Unidades libres disponibles para agregar de esta variante/presentación. */
+    stockLibre(v: ProductoPOS, p?: ProductoPresentacion): number {
         const stock = v.stock_actual;
-        if (stock <= 0) return true;
+        if (stock <= 0) return 0;
         const map = this._contadores();
-        // Sumar todas las unidades base ya comprometidas para este SKU
-        let unidadesComprometidas = map.get(v.id) ?? 0; // unidades sueltas
+        let unidadesComprometidas = map.get(v.id) ?? 0;
         for (const pres of v.presentaciones ?? []) {
             unidadesComprometidas += (map.get(`${v.id}::${pres.id}`) ?? 0) * pres.factor_conversion;
         }
         const factor = p?.factor_conversion ?? 1;
-        // Stock libre en unidades base, convertido a unidades de esta presentación
-        const maxAgregar = Math.floor((stock - unidadesComprometidas) / factor);
-        return maxAgregar <= 0;
+        return Math.floor((stock - unidadesComprometidas) / factor);
     }
 
     async seleccionarVariante(v: ProductoPOS, event: Event) {
         if (this.procesando) return;
-        if (this.tienePresentaciones(v)) {
-            this.varianteActiva = this.varianteActiva?.id === v.id ? null : v;
-            return;
-        }
+        if (this.tienePresentaciones(v)) return;
         const rowEl = (event.currentTarget as HTMLElement).closest('.vsm-row') as HTMLElement;
         await this.agregar(v.id, undefined, rowEl);
     }
@@ -252,16 +252,21 @@ export class VarianteSelectorModalComponent implements OnInit {
     }
 
     async editarCantidadItem(v: ProductoPOS, p?: ProductoPresentacion) {
-        if (this.procesando) return;
         const key = p ? `${v.id}::${p.id}` : v.id;
-        const nuevaCantidad = await this.onEditarCantidad({ varianteId: v.id, presentacionId: p?.id });
-        if (nuevaCantidad === null) return;
-        this._contadores.update(m => {
-            const next = new Map(m);
-            if (nuevaCantidad <= 0) next.delete(key);
-            else next.set(key, nuevaCantidad);
-            return next;
-        });
+        if (this.editandoKey === key) return;
+        this.editandoKey = key;
+        try {
+            const nuevaCantidad = await this.onEditarCantidad({ varianteId: v.id, presentacionId: p?.id });
+            if (nuevaCantidad === null) return;
+            this._contadores.update(m => {
+                const next = new Map(m);
+                if (nuevaCantidad <= 0) next.delete(key);
+                else next.set(key, nuevaCantidad);
+                return next;
+            });
+        } finally {
+            this.editandoKey = null;
+        }
     }
 
     continuar() {

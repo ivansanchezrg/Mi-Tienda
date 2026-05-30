@@ -68,6 +68,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   logoutIcon = logOutOutline;
   settingsIcon = settingsOutline;
   readerIcon = readerOutline;
+  lockIcon = lockClosedOutline;
 
   // Nombre del negocio (header)
   nombreNegocio = '';
@@ -239,7 +240,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
     const turno = this.turnosCajaService.turnoActivoValue;
     const msg = turno
       ? `${turno.empleado?.nombre ?? 'Otro empleado'} ya tiene el turno abierto. Solo él puede usar el POS`
-      : 'Abrí la caja desde Inicio para usar el POS';
+      : 'Para usar el POS primero abre la caja desde Inicio';
     this.ui.showToast(msg, 'warning');
   }
 

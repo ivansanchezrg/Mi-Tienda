@@ -14,8 +14,11 @@
     --background: var(--ion-color-step-50);
     --border-radius: var(--radius-md);
     --padding-start: var(--spacing-md);
+    --inner-padding-end: 4px; // botón scan queda más pegado al borde derecho
     margin-bottom: 4px;
     border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    overflow: hidden;
     transition: border-color var(--transition-fast);
 
     &.ion-focused  { border-color: var(--ion-color-primary); }
@@ -24,6 +27,16 @@
         --background: rgba(var(--ion-color-danger-rgb), 0.05);
         border-color: rgba(var(--ion-color-danger-rgb), 0.5);
     }
+}
+
+// Botón scan en el borde derecho del input de código de barras
+.scan-btn {
+    --padding-start: 8px;
+    --padding-end: 8px;
+    margin: 0;
+    height: 100%;
+
+    ion-icon { font-size: 26px; }
 }
 
 .field-label {
@@ -65,8 +78,6 @@
         font-size: 14px;
         flex-shrink: 0;
     }
-
-    &--ok { color: var(--ion-color-success-shade); }
 }
 
 .filter-selector {

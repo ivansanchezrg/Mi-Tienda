@@ -23,7 +23,8 @@ import {
   layersOutline,
   pricetagOutline,
   colorPaletteOutline,
-  arrowUpOutline
+  arrowUpOutline,
+  chevronForwardOutline
 } from 'ionicons/icons';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
@@ -35,6 +36,27 @@ import { CurrencyService } from '../../../../core/services/currency.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
 import { ROUTES } from '../../../../core/config/routes.config';
+
+/**
+ * Item del grid de inventario en modo "agrupado".
+ * - 'simple'   → un producto individual (sin variantes)
+ * - 'template' → grupo de variantes del mismo template (camiseta S/M/L × colores)
+ */
+type InventarioItem =
+    | { kind: 'simple'; producto: Producto }
+    | {
+        kind: 'template';
+        templateId: string;
+        templateNombre: string;
+        templateImagenUrl?: string | null;
+        categoriaNombre?: string;
+        variantes: Producto[];
+        stockTotal: number;
+        stockBajo: number;        // variantes con stock <= stock_minimo (y > 0)
+        stockAgotado: number;     // variantes con stock = 0
+        precioMin: number;
+        precioMax: number;
+      };
 
 @Component({
   selector: 'app-inventario',
@@ -69,22 +91,60 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   templateSeleccionado?: { id: string; nombre: string };
   escaneando = false;
   mostrarDesactivados = false;
+  readonly vistaAgrupada = true;
   readonly skeletonItems = Array(6);
 
-  get filtroSeleccionado(): string {
+  /** Items derivados para el grid — agrupa por template cuando vistaAgrupada=true */
+  get itemsGrid(): InventarioItem[] {
+    return this.vistaAgrupada && !this.mostrarDesactivados && !this.templateSeleccionado
+      ? this.agruparItems(this.items)
+      : this.items.map(p => ({ kind: 'simple' as const, producto: p }));
+  }
+
+  private agruparItems(productos: Producto[]): InventarioItem[] {
+    const items: InventarioItem[] = [];
+    const templateMap = new Map<string, Extract<InventarioItem, { kind: 'template' }>>();
+
+    for (const p of productos) {
+      if (!p.producto_template_id) {
+        items.push({ kind: 'simple', producto: p });
+        continue;
+      }
+      const existing = templateMap.get(p.producto_template_id);
+      if (existing) {
+        existing.variantes.push(p);
+        existing.stockTotal += Number(p.stock_actual) || 0;
+        if (Number(p.stock_actual) === 0) existing.stockAgotado++;
+        else if (Number(p.stock_actual) <= Number(p.stock_minimo)) existing.stockBajo++;
+        existing.precioMin = Math.min(existing.precioMin, Number(p.precio_venta) || 0);
+        existing.precioMax = Math.max(existing.precioMax, Number(p.precio_venta) || 0);
+      } else {
+        const stock = Number(p.stock_actual) || 0;
+        const item: Extract<InventarioItem, { kind: 'template' }> = {
+          kind: 'template',
+          templateId: p.producto_template_id,
+          templateNombre: p.producto_template?.nombre ?? p.nombre,
+          templateImagenUrl: p.producto_template?.imagen_url ?? p.imagen_url,
+          categoriaNombre: p.producto_template?.categoria?.nombre ?? p.categoria?.nombre,
+          variantes: [p],
+          stockTotal: stock,
+          stockBajo:    stock > 0 && stock <= Number(p.stock_minimo) ? 1 : 0,
+          stockAgotado: stock === 0 ? 1 : 0,
+          precioMin: Number(p.precio_venta) || 0,
+          precioMax: Number(p.precio_venta) || 0,
+        };
+        templateMap.set(p.producto_template_id, item);
+        items.push(item);
+      }
+    }
+    return items;
+  }
+
+get filtroSeleccionado(): string {
     if (this.mostrarDesactivados) return 'desactivados';
     if (this.templateSeleccionado) return `tmpl-${this.templateSeleccionado.id}`;
     if (this.categoriaSeleccionada) return `cat-${this.categoriaSeleccionada}`;
     return 'todas';
-  }
-
-  get filtroLabel(): string {
-    if (this.mostrarDesactivados) return 'Desactivados';
-    if (this.categoriaSeleccionada) {
-      const cat = this.categorias.find(c => c.id === this.categoriaSeleccionada);
-      return cat?.nombre || 'Categoría';
-    }
-    return 'Todas las categorías';
   }
 
   private searchDebounce: ReturnType<typeof setTimeout> | undefined;
@@ -106,7 +166,8 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       layersOutline,
       pricetagOutline,
       colorPaletteOutline,
-      arrowUpOutline
+      arrowUpOutline,
+      chevronForwardOutline
     });
   }
 
@@ -115,16 +176,17 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     setTimeout(() => {
       const input = document.querySelector('.inv-search-input') as HTMLInputElement;
       input?.focus();
-    }, 280);
+    }, 260);
   }
 
   cerrarSearch() {
     this.searchAbierto = false;
-    if (this.buscarTexto) {
-      this.buscarTexto = '';
-      clearTimeout(this.searchDebounce);
-      this.cargar();
-    }
+    this.buscarTexto = '';
+    this.categoriaSeleccionada = undefined;
+    this.templateSeleccionado = undefined;
+    this.mostrarDesactivados = false;
+    clearTimeout(this.searchDebounce);
+    this.cargar();
   }
 
   onSearchInputNativo(event: Event) {
@@ -175,13 +237,6 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     return this.resolverImagenesLote(productos);
   }
 
-  onSearchInput(event: CustomEvent) {
-    // Leer el valor del evento directamente — evita desfase con ngModel
-    // cubre: tipeo, borrado tecla a tecla, y el botón X del searchbar
-    this.buscarTexto = (event.detail.value ?? '').toString();
-    this.aplicarFiltro();
-  }
-
   aplicarFiltro() {
     clearTimeout(this.searchDebounce);
     this.searchDebounce = setTimeout(async () => {
@@ -227,25 +282,27 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     this.cargar();
   }
 
+  /** Tap en card de template agrupado → muestra las variantes filtradas */
+  abrirTemplate(item: Extract<InventarioItem, { kind: 'template' }>) {
+    this.templateSeleccionado = { id: item.templateId, nombre: item.templateNombre };
+    this.categoriaSeleccionada = undefined;
+    this.mostrarDesactivados = false;
+    this.buscarTexto = '';
+    this.cargar();
+  }
+
   limpiarFiltroTemplate() {
     this.templateSeleccionado = undefined;
     this.cargar();
   }
 
-  limpiarBusqueda() {
-    this.buscarTexto = '';
-    this.categoriaSeleccionada = undefined;
-    this.mostrarDesactivados = false;
-    this.cargar();
-  }
-
-
   irACrear() {
     this.navCtrl.navigateForward(ROUTES.inventario.nuevo);
   }
 
-  private irACrearSimple(codigoBarras: string) {
-    this.navCtrl.navigateForward(ROUTES.inventario.nuevo, { queryParams: { tipo: 'simple', codigo: codigoBarras } });
+  private irACrearConCodigo(codigoBarras: string) {
+    // Sin `tipo` — el usuario elige en el paso 0 cómo se vende (simple / presentaciones / variantes)
+    this.navCtrl.navigateForward(ROUTES.inventario.nuevo, { queryParams: { codigo: codigoBarras } });
   }
 
   private async resolverImagenUrl(producto: Producto): Promise<Producto> {
@@ -254,8 +311,29 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   }
 
   private async resolverImagenesLote(productos: Producto[]): Promise<Producto[]> {
-    const urls = await this.storageService.resolveImageUrls(productos.map(p => p.imagen_url));
-    return productos.map((p, i) => ({ ...p, imagen_url: urls[i] ?? undefined }));
+    // Resolver tanto la imagen del SKU como la del template (cuando aplica)
+    const productoUrls = productos.map(p => p.imagen_url);
+    const templateUrls = productos.map(p => p.producto_template?.imagen_url ?? null);
+    const [urls, tUrls] = await Promise.all([
+      this.storageService.resolveImageUrls(productoUrls),
+      this.storageService.resolveImageUrls(templateUrls.filter((u): u is string => !!u))
+    ]);
+    // Re-mapear las URLs de template a sus índices originales (compactadas tras el filter)
+    const templateUrlMap = new Map<string, string>();
+    let ti = 0;
+    for (const u of templateUrls) {
+      if (u) {
+        const resolved = tUrls[ti++];
+        if (resolved) templateUrlMap.set(u, resolved);
+      }
+    }
+    return productos.map((p, i) => ({
+      ...p,
+      imagen_url: urls[i] ?? undefined,
+      producto_template: p.producto_template
+        ? { ...p.producto_template, imagen_url: p.producto_template.imagen_url ? templateUrlMap.get(p.producto_template.imagen_url) ?? undefined : undefined }
+        : undefined
+    }));
   }
 
   irAEditar(producto: Producto) {
@@ -319,7 +397,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     const productoExistente = await this.inventarioService.obtenerProductoPorCodigo(codigo);
 
     if (!productoExistente) {
-      this.irACrearSimple(codigo);
+      this.irACrearConCodigo(codigo);
       return;
     }
 

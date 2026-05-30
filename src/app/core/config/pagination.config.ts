@@ -37,5 +37,11 @@ export const PAGINATION_CONFIG = {
    */
   movimientosEmpleados: {
     pageSize: 20
+  },
+  /**
+   * Historial de cierres de turno
+   */
+  historialTurnos: {
+    pageSize: 20
   }
 } as const;

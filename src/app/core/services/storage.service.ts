@@ -2,11 +2,13 @@ import { Injectable, inject } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
+import { ModalController } from '@ionic/angular/standalone';
 import { SupabaseService } from './supabase.service';
 import { AuthService } from '../../features/auth/services/auth.service';
 import { UiService } from './ui.service';
 import { LoggerService } from './logger.service';
 import { getFechaLocal } from '../utils/date.util';
+import { OptionsModalComponent, ModalOptionGroup } from '../../shared/components/options-modal/options-modal.component';
 
 // Bucket único para toda la app. Estructura interna:
 // mi-tienda/{negocio_id}/comprobantes/YYYY/MM/operaciones/{uuid}.webp
@@ -17,11 +19,12 @@ const BUCKET = 'mi-tienda';
   providedIn: 'root'
 })
 export class StorageService {
-  private supabase = inject(SupabaseService);
-  private auth = inject(AuthService);
-  private ui = inject(UiService);
-  private logger = inject(LoggerService);
-  private sanitizer = inject(DomSanitizer);
+  private supabase    = inject(SupabaseService);
+  private auth        = inject(AuthService);
+  private ui          = inject(UiService);
+  private logger      = inject(LoggerService);
+  private sanitizer   = inject(DomSanitizer);
+  private modalCtrl   = inject(ModalController);
 
   // true en Android/iOS, false en browser/desktop
   get isNative(): boolean {
@@ -65,6 +68,35 @@ export class StorageService {
       this.logger.error('StorageService', 'Error al capturar foto', err);
       return null;
     }
+  }
+
+  /** Muestra un modal para elegir la fuente de la foto (cámara o galería).
+   *  En web solo ofrece galería. Retorna null si el usuario cancela. */
+  async elegirFuenteFoto(): Promise<{ previewUrl: SafeUrl; rawUrl: string } | null> {
+    if (!this.isNative) {
+      return this.capturarFoto(CameraSource.Photos);
+    }
+
+    const groups: ModalOptionGroup[] = [{
+      options: [
+        { label: 'Tomar foto',         icon: 'camera-outline',  value: 'camera'  },
+        { label: 'Elegir de galería',  icon: 'images-outline',  value: 'gallery' },
+      ]
+    }];
+
+    const modal = await this.modalCtrl.create({
+      component: OptionsModalComponent,
+      componentProps: { title: 'Agregar imagen', groups },
+      cssClass: 'options-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
+    });
+    await modal.present();
+    const { data } = await modal.onDidDismiss<string>();
+    if (!data) return null;
+
+    const source = data === 'camera' ? CameraSource.Camera : CameraSource.Photos;
+    return this.capturarFoto(source);
   }
 
   async uploadImage(imageUrl: string, subfolder: string = 'general', useDatePrefix = true): Promise<string | null> {

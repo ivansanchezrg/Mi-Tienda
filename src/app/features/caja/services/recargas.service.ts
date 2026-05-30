@@ -231,7 +231,6 @@ export class RecargasService {
       saldoCajaChicaDigital: cajaChica?.saldo_actual ?? 0,
       saldoCajaCelular: cajaCelular?.saldo_actual ?? 0,
       saldoCajaBus: cajaBus?.saldo_actual ?? 0,
-      fondoFijo: appConfig.caja_fondo_fijo_diario,
       transferenciaDiariaVarios: appConfig.caja_varios_transferencia_dia,
       agregadoCelularHoy: agregadoHoy.celular,
       agregadoBusHoy: agregadoHoy.bus
@@ -426,10 +425,8 @@ export class RecargasService {
    * Esta función ejecuta todas las operaciones del cierre diario en una transacción atómica.
    * Si alguna operación falla, PostgreSQL hace rollback automático de todo.
    *
-   * CAMBIOS VERSIÓN 4.0:
-   * - Ultra-simplificado: Solo requiere efectivo_recaudado
-   * - Fondo fijo y transferencia vienen de configuración
-   * - Fórmula: depósito = efectivo_recaudado - fondo_fijo - transferencia
+   * v6.2: el fondo es libre (declarado al abrir el turno, leído de turnos_caja.fondo_apertura).
+   * La distribución en cascada (VARIOS → fondo en cajón → CAJA) se calcula con ese valor.
    *
    * @param {ParamsCierreDiario} params Parámetros completos del cierre diario
    * @returns {Promise<any>} Resultado del cierre con información detallada

@@ -3,6 +3,17 @@ import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning
 import { Capacitor } from '@capacitor/core';
 import { UiService } from './ui.service';
 
+/**
+ * Texto helper unificado para todos los inputs de código de barras en estado vacío.
+ * Varía según si la plataforma tiene cámara/scanner (móvil/tablet) o no (web).
+ * Reutilizado en producto-info-form, presentacion-modal y donde se capture un código.
+ */
+export function getBarcodeInputHint(): string {
+    return Capacitor.isNativePlatform()
+        ? 'Si lo dejas vacío, se generará un código automáticamente. También puedes escanear o ingresar uno manualmente.'
+        : 'Si lo dejas vacío, se generará un código automáticamente. También puedes ingresarlo manualmente.';
+}
+
 /** Formatos estándar usados en toda la app (productos, presentaciones, QR de bus) */
 const FORMATOS_DEFAULT: BarcodeFormat[] = [
     BarcodeFormat.Ean13,
@@ -24,6 +35,13 @@ export class BarcodeScannerService {
 
     private audioCtx: AudioContext | null = null;
 
+    /** true mientras hay una sesión de escaneo activa (one-shot o continua) */
+    private _scanning = false;
+
+    get isScanning(): boolean {
+        return this._scanning;
+    }
+
     // ─────────────────────────────────────────────────────────────
     // scan() — escanea un solo código y cierra automáticamente.
     // Usado en: producto-form, presentacion-modal, inventario-lista.
@@ -33,6 +51,10 @@ export class BarcodeScannerService {
         const granted = await this.pedirPermiso();
         if (!granted) return null;
 
+        // Si hay una sesión activa previa (ej: doble tap), limpiarla primero
+        if (this._scanning) await this.detener();
+
+        this._scanning = true;
         this.activarOverlay();
 
         return new Promise<string | null>(async (resolve) => {
@@ -66,6 +88,10 @@ export class BarcodeScannerService {
         const granted = await this.pedirPermiso();
         if (!granted) return false;
 
+        // Si hay una sesión activa previa (ej: doble tap en botón escáner), limpiarla primero
+        if (this._scanning) await this.detener();
+
+        this._scanning = true;
         this.activarOverlay();
 
         try {
@@ -107,6 +133,7 @@ export class BarcodeScannerService {
     }
 
     private async detener(): Promise<void> {
+        this._scanning = false;
         await BarcodeScanner.removeAllListeners();
         await BarcodeScanner.stopScan();
         document.body.classList.remove('scanner-active');

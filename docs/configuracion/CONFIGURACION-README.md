@@ -47,7 +47,7 @@ Prefijo por modulo seguido de guion bajo:
 | Prefijo | Modulo | Ejemplo |
 |---------|--------|---------|
 | `negocio_` | General | `negocio_nombre` |
-| `caja_` | Dashboard/Cajas | `caja_fondo_fijo_diario` |
+| `caja_` | Dashboard/Cajas | `caja_varios_transferencia_dia` |
 | `recargas_` | Modulos opt-in (superadmin) | `recargas_celular_habilitada` |
 | `bus_` | Recargas Bus | `bus_alerta_saldo_bajo` |
 | `pos_` | POS | `pos_descuentos_habilitados` |
@@ -60,7 +60,6 @@ Prefijo por modulo seguido de guion bajo:
 | `negocio_nombre` | string | `'Mi Tienda'` | Nombre del negocio (header tickets, estado de cuenta) |
 | `negocio_telefono` | string | `''` | Telefono del negocio (opcional, para comprobantes) |
 | `negocio_direccion` | string | `''` | Direccion del negocio (opcional, para comprobantes) |
-| `caja_fondo_fijo_diario` | number | `0` | Fondo fijo que inicia cada turno de caja ($) |
 | `caja_varios_activa` | boolean | `false` | Si la caja VARIOS esta activa para este negocio. Una vez `true` no se puede revertir. |
 | `caja_varios_transferencia_dia` | number | `0` | Transferencia diaria a caja VARIOS ($) — solo aplica si `caja_varios_activa = true` |
 | `recargas_celular_habilitada` | boolean | `false` | Habilita el modulo de recargas CELULAR (crea CAJA_CELULAR + categorias). Solo lo activa el superadmin. |
@@ -78,6 +77,8 @@ Prefijo por modulo seguido de guion bajo:
 
 > **Nota (2026-05-01):** `recargas_celular_habilitada` y `recargas_bus_habilitada` reemplazan al flag unificado anterior. Cada modulo es independiente — el superadmin elige cual activar por negocio desde Parametros → Modulos.
 
+> **Nota (2026-05-29):** `caja_fondo_fijo_diario` fue **eliminado**. El fondo del cajón ya no es un valor global: cada empleado declara libremente cuánto deja al abrir caja, y ese valor se guarda en `turnos_caja.fondo_apertura` (por turno). El cierre lo lee directamente del turno.
+
 ---
 
 ## Dos servicios, dos propositos
@@ -89,7 +90,7 @@ Ubicacion: `src/app/core/services/config.service.ts`
 - **Proposito**: lectura rapida desde cualquier modulo de la app
 - **Cache**: en memoria, una sola query por sesion
 - **Metodos**: `get()`, `getNombreNegocio()`, `invalidar()`
-- **Quien lo usa**: POS (descuentos, IVA), Dashboard (fondo fijo), Recargas (alertas bus), Share tickets (nombre negocio)
+- **Quien lo usa**: POS (descuentos, IVA), Dashboard (transferencia Varios), Recargas (alertas bus), Share tickets (nombre negocio)
 
 ```typescript
 // Lectura tipada con cache
@@ -153,7 +154,7 @@ Formulario reactivo (`FormGroup`) agrupado en secciones visuales. Cada seccion (
 | Seccion | Icono | Campos | Visibilidad |
 |---------|-------|--------|-------------|
 | Negocio | `storefront-outline` | Nombre, Telefono, Direccion | Todos |
-| Caja | `wallet-outline` | Fondo fijo diario, Transferencia diaria a Varios | Todos |
+| Caja | `wallet-outline` | Transferencia diaria a Varios | Solo si `caja_varios_activa = true` |
 | Modulos | `apps-outline` | Toggles: Recargas Celular, Recargas Bus | **Solo superadmin** |
 | Bus | `bus-outline` | Alerta saldo bajo, Dias antes facturacion | Solo si `recargas_bus_habilitada` |
 | POS | `cart-outline` | Descuentos, Porcentaje, Monto minimo, IVA | Todos |

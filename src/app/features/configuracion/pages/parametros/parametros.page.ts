@@ -17,7 +17,7 @@ type Seccion = 'negocio' | 'caja' | 'bus' | 'pos' | 'nomina';
 
 const CAMPOS_POR_SECCION: Record<Seccion, string[]> = {
   negocio: ['negocio_nombre', 'negocio_telefono', 'negocio_direccion'],
-  caja:    ['caja_fondo_fijo_diario', 'caja_varios_transferencia_dia'],
+  caja:    ['caja_varios_transferencia_dia'],
   bus:     ['bus_alerta_saldo_bajo', 'bus_dias_antes_facturacion'],
   pos:     ['pos_descuentos_habilitados', 'pos_descuento_maximo_pct', 'pos_umbral_monto_descuento', 'pos_iva_porcentaje'],
   nomina:  ['nomina_sueldo_base', 'nomina_dia_pago'],
@@ -87,7 +87,6 @@ export class ParametrosPage implements OnInit, OnDestroy {
       negocio_nombre:               ['',   [Validators.required, Validators.maxLength(100)]],
       negocio_telefono:             ['',   [Validators.maxLength(20)]],
       negocio_direccion:            ['',   [Validators.maxLength(200)]],
-      caja_fondo_fijo_diario:       [null, [Validators.required, Validators.min(0)]],
       caja_varios_transferencia_dia:[null, [Validators.required, Validators.min(0)]],
       bus_alerta_saldo_bajo:        [null, [Validators.required, Validators.min(0)]],
       bus_dias_antes_facturacion:   [null, [Validators.required, Validators.min(1)]],
@@ -175,7 +174,6 @@ export class ParametrosPage implements OnInit, OnDestroy {
           negocio_nombre:                config.negocio_nombre,
           negocio_telefono:              config.negocio_telefono,
           negocio_direccion:             config.negocio_direccion,
-          caja_fondo_fijo_diario:        config.caja_fondo_fijo_diario,
           caja_varios_transferencia_dia: config.caja_varios_transferencia_dia,
           bus_alerta_saldo_bajo:         config.bus_alerta_saldo_bajo,
           bus_dias_antes_facturacion:    config.bus_dias_antes_facturacion,

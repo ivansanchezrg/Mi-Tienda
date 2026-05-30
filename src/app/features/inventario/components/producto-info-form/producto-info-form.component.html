@@ -11,22 +11,15 @@
         placeholder="Escanea o digita el codigo...">
       </ion-input>
       @if (barcodeScanner.isAvailable) {
-        <ion-button fill="clear" slot="end" (click)="escanearCodigo()">
+        <ion-button class="scan-btn" fill="clear" slot="end" (click)="escanearCodigo()">
           <ion-icon slot="icon-only" name="barcode-outline" color="primary"></ion-icon>
         </ion-button>
       }
     </ion-item>
-    @if (formGroup.get('codigo_barras')?.value?.trim()) {
-    <p class="auto-code-hint auto-code-hint--ok">
-      <ion-icon name="checkmark-circle-outline"></ion-icon>
-      Se usara este codigo para identificar el producto en el POS.
-    </p>
-    } @else {
     <p class="auto-code-hint">
       <ion-icon name="sparkles-outline"></ion-icon>
-      Si lo dejas vacio, se generara un codigo automaticamente.
+      {{ barcodeHint }}
     </p>
-    }
   </div>
   }
 
@@ -96,8 +89,8 @@
     }
   </div>
 
-  <!-- Tipo de venta (oculto para variantes — heredan del template) -->
-  @if (!esVariante) {
+  <!-- Tipo de venta (oculto para variantes — heredan del template; oculto cuando se eligió "tamaños o empaques") -->
+  @if (!esVariante && !ocultarTipoVenta) {
   <div class="input-group m-0">
     <p class="field-label mb-xs">Tipo de venta</p>
     <div class="tipo-venta-selector">

@@ -90,7 +90,7 @@ export class DisabledTabComponent {
   @Input() icon!: unknown;  // objeto ionicon, no string
   @Input() label!: string;
   /** Mensaje que se muestra al hacer click. Default: mensaje generico del POS. */
-  @Input() disabledMessage = 'Abri la caja desde Inicio para usar el POS';
+  @Input() disabledMessage = 'Para usar el POS primero abre la caja desde Inicio';
 
   private ui = inject(UiService);
 

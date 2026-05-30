@@ -92,7 +92,7 @@ BEGIN
         id, negocio_id, nombre, categoria_id, tipo_venta, unidad_medida, imagen_url, activo
     ) VALUES (
         v_template_id, v_negocio_id,
-        UPPER(TRIM(p_nombre)), p_categoria_id, p_tipo_venta, p_unidad_medida, p_imagen_url, TRUE
+        TRIM(p_nombre), p_categoria_id, p_tipo_venta, p_unidad_medida, p_imagen_url, TRUE
     );
 
     -- 2. Procesar atributos del template
@@ -141,7 +141,7 @@ BEGIN
             v_producto_id, v_negocio_id,
             v_template_id,
             p_tiene_iva,
-            UPPER(TRIM(v_variante->>'nombre')),
+            TRIM(v_variante->>'nombre'),
             (v_variante->>'precio_costo')::NUMERIC,
             (v_variante->>'precio_venta')::NUMERIC,
             COALESCE((v_variante->>'stock_actual')::NUMERIC, 0),
@@ -174,8 +174,8 @@ BEGIN
                 ) VALUES (
                     v_negocio_id,
                     v_producto_id,
-                    UPPER(TRIM(v_pres->>'nombre')),
-                    (v_pres->>'factor_conversion')::INTEGER,
+                    TRIM(v_pres->>'nombre'),
+                    (v_pres->>'factor_conversion')::DECIMAL(12,4),
                     (v_pres->>'precio_venta')::NUMERIC,
                     (v_pres->>'precio_costo')::NUMERIC,
                     NULLIF(TRIM(COALESCE(v_pres->>'codigo_barras', '')), ''),

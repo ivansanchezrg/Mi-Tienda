@@ -20,6 +20,7 @@
 // ── Card contenedor ──────────────────────────────────────────────────────────
 .mhm-card {
   background: var(--app-surface);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .mhm-row {
@@ -134,6 +135,7 @@
   cursor: pointer;
 
   ion-icon { font-size: 13px; color: var(--app-text-soft); }
+  ion-spinner { width: 13px; height: 13px; color: var(--app-text-soft); }
 
   &:active { opacity: 0.6; }
 }
@@ -142,6 +144,7 @@
   display: flex;
   justify-content: center;
   padding: 12px 16px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--app-divider);
 
   &__btn {

@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, AfterViewInit, inject, ElementRef, ViewChild } from '@angular/core';
+import { Component, Input, OnInit, inject, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IonButton, IonIcon, ModalController } from '@ionic/angular/standalone';
@@ -17,7 +17,7 @@ export interface CantidadModalResult {
     standalone: true,
     imports: [CommonModule, FormsModule, IonButton, IonIcon]
 })
-export class CantidadModalComponent implements OnInit, AfterViewInit {
+export class CantidadModalComponent implements OnInit {
     @ViewChild('cantidadInput') cantidadInputRef!: ElementRef<HTMLInputElement>;
 
     @Input() nombre!: string;
@@ -48,7 +48,6 @@ export class CantidadModalComponent implements OnInit, AfterViewInit {
         }
     }
 
-    ngAfterViewInit() { }
 
     get stockRestante(): number {
         const cantidadIngresada = this.cantidad ?? (this.esEdicion ? this.cantidadActual : 0);

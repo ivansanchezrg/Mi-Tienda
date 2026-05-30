@@ -41,7 +41,7 @@ export class OperacionLabelPipe implements PipeTransform {
     switch (modo) {
 
       case 'motivo':
-        return value.includes('·') ? value.split('·')[1].trim() : '';
+        return value.includes('·') ? value.split('·')[1].trim() : value;
 
       case 'color':
         return COLORS[value] ?? 'medium';

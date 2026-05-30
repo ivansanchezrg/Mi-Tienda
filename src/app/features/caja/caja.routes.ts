@@ -17,6 +17,10 @@ export const CAJA_ROUTES: Routes = [
     loadComponent: () => import('./pages/operaciones-caja/operaciones-caja.page').then(m => m.OperacionesCajaPage)
   },
   {
+    path: 'historial-turnos',
+    loadComponent: () => import('./pages/historial-turnos/historial-turnos.page').then(m => m.HistorialTurnosPage)
+  },
+  {
     path: 'recargas-virtuales',
     loadComponent: () => import('../recargas-virtuales/pages/recargas-virtuales/recargas-virtuales.page').then(m => m.RecargasVirtualesPage)
   }

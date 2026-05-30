@@ -20,8 +20,6 @@ export interface DatosCierreDiario {
   saldoCajaCelular: number;
   /** Saldo actual de CAJA_BUS */
   saldoCajaBus: number;
-  /** Fondo fijo diario (viene de configuración) */
-  fondoFijo: number;
   /** Monto fijo de transferencia diaria a VARIOS (viene de configuración) — para preview en Paso 3 */
   transferenciaDiariaVarios: number;
   /** Monto agregado de recargas virtuales celular pendientes de cierre */

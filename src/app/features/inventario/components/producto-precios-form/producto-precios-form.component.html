@@ -52,19 +52,17 @@
 
   <!-- IVA -->
   <div class="mt-md">
-    <ion-item class="custom-input flat-item" lines="none">
+    <div class="iva-row">
       <ion-toggle [formControl]="$any(formGroup.get('tiene_iva'))" color="primary">
-        Genera IVA (Impuesto)
+        <span class="iva-label">Tiene IVA</span>
       </ion-toggle>
-    </ion-item>
+    </div>
     @if (formGroup.get('tiene_iva')?.value) {
     <p class="help-text mt-xs">
-      <ion-icon name="checkmark-circle-outline" color="primary" class="icon-inline"></ion-icon>
       <strong>Tarifa 15%</strong> — aplica a la mayoria de productos (snacks, bebidas, electrodomesticos, ropa, etc.)
     </p>
     } @else {
     <p class="help-text mt-xs">
-      <ion-icon name="information-circle-outline" class="icon-inline"></ion-icon>
       <strong>Tarifa 0%</strong> — solo para <strong>canasta basica exenta de IVA</strong>: verduras, frutas, leche, pan, arroz, medicamentos, etc.
     </p>
     }

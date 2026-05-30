@@ -7,7 +7,7 @@
 -- Flujo (v5 — arquitectura 5 cajas):
 --   1. Busca CAJA_CHICA (cajón diario), NO CAJA (bóveda).
 --      Las ventas EFECTIVO entran al cajón diario. Al cierre, fn_ejecutar_cierre_diario
---      distribuye CAJA_CHICA → VARIOS (fondo fijo) + CAJA (bóveda excedente).
+--      distribuye CAJA_CHICA → VARIOS (transferencia diaria) + CAJA (bóveda excedente).
 --   2. Busca la categoría contable INGRESO por código 'IN-001'.
 --   3. Busca el tipo_referencia de la tabla 'ventas'.
 --   4. Inserta un registro en operaciones_cajas (trazabilidad contable).

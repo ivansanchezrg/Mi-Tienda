@@ -10,7 +10,7 @@
 --   4. Graba el movimiento en kardex_inventario (auditoría anti-fraude), con negocio_id y presentacion_id.
 --
 -- CAMBIOS v10 (schema v11 — multi-tenant UUID):
---   - v_factor: DECIMAL(10,4) → INTEGER (factor_conversion en schema es INTEGER)
+--   - v_factor: DECIMAL(12,4) (factor_conversion soporta fracciones: 0.5kg, 1.25L, etc.)
 --   - Agrega FOR UPDATE lock en producto antes de leer stock (previene overselling concurrente)
 --   - Agrega validación de stock insuficiente (RAISE EXCEPTION)
 --   - Agrega v_negocio_id := get negocio del producto
@@ -31,7 +31,7 @@ SET search_path = public
 AS $$
 DECLARE
     v_negocio_id    UUID;
-    v_factor        INTEGER;
+    v_factor        DECIMAL(12,4);
     v_cantidad_real DECIMAL(12,2);
     v_stock_actual  DECIMAL(12,2);
 BEGIN
@@ -43,7 +43,7 @@ BEGIN
             RAISE EXCEPTION 'Presentacion no valida o no encontrada: %', NEW.presentacion_id;
         END IF;
     ELSE
-        v_factor := 1;
+        v_factor := 1.0;
     END IF;
 
     v_cantidad_real := NEW.cantidad * v_factor;

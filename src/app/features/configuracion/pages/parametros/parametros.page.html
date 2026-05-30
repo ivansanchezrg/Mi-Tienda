@@ -64,24 +64,14 @@
         }
       </div>
 
-      <!-- ── SECCIÓN: CAJA ──────────────────────────────── -->
+      <!-- ── SECCIÓN: CAJA (solo si Varios está activa) ──────────────────────────────── -->
+      @if (variosActiva) {
       <div class="section-card">
         <div class="section-header">
           <ion-icon name="wallet-outline"></ion-icon>
           <span>Cajón diario</span>
         </div>
 
-        <div class="input-group">
-          <label class="input-label">Fondo fijo diario</label>
-          <div class="input-with-prefix">
-            <span class="prefix">$</span>
-            <input type="number" inputmode="decimal" step="0.01" min="0"
-              formControlName="caja_fondo_fijo_diario" autocomplete="off">
-          </div>
-          <span class="input-hint">Efectivo que queda en caja para el día siguiente</span>
-        </div>
-
-        @if (variosActiva) {
         <div class="input-group last">
           <label class="input-label">Transferencia diaria a Varios</label>
           <div class="input-with-prefix">
@@ -91,7 +81,6 @@
           </div>
           <span class="input-hint">Monto fijo que se transfiere a Varios (fondo emergencia) en cada cierre</span>
         </div>
-        }
 
         @if (tieneCambios['caja']) {
         <div id="footer-caja" class="section-footer">
@@ -101,6 +90,7 @@
         </div>
         }
       </div>
+      }
 
       <!-- ── SECCIÓN: MÓDULOS — solo superadmin ──────────────────────────── -->
       @if (esSuperadmin) {

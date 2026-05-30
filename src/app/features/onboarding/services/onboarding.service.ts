@@ -24,7 +24,6 @@ export interface OnboardingData {
   telefono:  string;
   direccion: string;
   // Paso 2
-  fondoFijo:        number;
   variosActiva:     boolean;
   montoVarios:      number;
   nominaSueldoBase: number;
@@ -58,7 +57,7 @@ export class OnboardingService {
     this._draft = { ...this._draft, ...data };
   }
 
-  guardarPaso2(data: Pick<OnboardingData, 'fondoFijo' | 'variosActiva' | 'montoVarios' | 'nominaSueldoBase'>): void {
+  guardarPaso2(data: Pick<OnboardingData, 'variosActiva' | 'montoVarios' | 'nominaSueldoBase'>): void {
     this._draft = { ...this._draft, ...data };
   }
 
@@ -98,7 +97,6 @@ export class OnboardingService {
         p_admin_nombre:       adminNombre,
         p_negocio_telefono:   (d.telefono  ?? '').trim(),
         p_negocio_direccion:  (d.direccion ?? '').trim(),
-        p_caja_fondo_fijo:    d.fondoFijo       ?? 0,
         p_varios_activa:      d.variosActiva     ?? false,
         p_caja_varios_monto:  d.montoVarios      ?? 0,
         p_nomina_sueldo_base: d.nominaSueldoBase ?? 0,

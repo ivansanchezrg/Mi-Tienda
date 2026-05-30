@@ -3,6 +3,18 @@
     flex-direction: column;
     gap: var(--spacing-sm);
     padding: var(--spacing-md);
+    padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 992px) {
+    .form-container {
+        align-items: center;
+
+        > * {
+            width: 100%;
+            max-width: 720px;
+        }
+    }
 }
 
 .form-card {
@@ -100,38 +112,9 @@
     .vcb-hermanas { font-size: 11px; color: var(--ion-color-step-400); }
 }
 
-.main-button {
-    margin-top: 0;
-    --padding-top: var(--spacing-md);
-    --padding-bottom: var(--spacing-md);
-}
-
-.delete-btn, .reactivar-btn {
-    width: 100%;
-    padding: var(--spacing-md);
-    background: transparent;
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-    font-weight: var(--font-weight-medium, 500);
+.actions-row {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-xs);
-    cursor: pointer;
+    gap: var(--spacing-sm);
 
-    ion-icon { font-size: 18px; }
+    ion-button { flex: 1; }
 }
-
-.delete-btn {
-    border: 1px solid var(--ion-color-danger);
-    color: var(--ion-color-danger);
-    &:active { background: rgba(var(--ion-color-danger-rgb), 0.1); }
-}
-
-.reactivar-btn {
-    border: 1px solid var(--ion-color-success);
-    color: var(--ion-color-success);
-    &:active { background: rgba(var(--ion-color-success-rgb), 0.1); }
-}
-
-.mt-md { margin-top: var(--spacing-md); }

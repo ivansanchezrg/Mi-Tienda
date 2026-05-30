@@ -70,7 +70,7 @@ BEGIN
         activo
     ) VALUES (
         v_producto_id, v_negocio_id,
-        UPPER(TRIM(p_nombre)), p_categoria_id, p_tiene_iva, p_tipo_venta, p_unidad_medida,
+        TRIM(p_nombre), p_categoria_id, p_tiene_iva, p_tipo_venta, p_unidad_medida,
         NULLIF(TRIM(COALESCE(p_codigo_barras, '')), ''), p_imagen_url,
         p_precio_costo, p_precio_venta, p_stock_actual, p_stock_minimo,
         TRUE
@@ -87,8 +87,8 @@ BEGIN
             ) VALUES (
                 v_negocio_id,
                 v_producto_id,
-                UPPER(TRIM(v_pres->>'nombre')),
-                (v_pres->>'factor_conversion')::INTEGER,
+                TRIM(v_pres->>'nombre'),
+                (v_pres->>'factor_conversion')::DECIMAL(12,4),
                 (v_pres->>'precio_venta')::NUMERIC,
                 (v_pres->>'precio_costo')::NUMERIC,
                 NULLIF(TRIM(COALESCE(v_pres->>'codigo_barras', '')), ''),

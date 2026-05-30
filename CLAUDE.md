@@ -934,7 +934,7 @@ Camera.getPhoto({ quality: 80, width: 1200, height: 1600, correctOrientation: tr
 
 ### Configuración — NUNCA hardcodear valores de negocio
 Los valores de negocio viven en la tabla `configuraciones` (clave/valor). Leerlos con `ConfigService.get()`, no hardcodearlos.
-Convención de claves: prefijo por módulo (`negocio_nombre`, `caja_fondo_fijo_diario`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`, `nomina_sueldo_base`).
+Convención de claves: prefijo por módulo (`negocio_nombre`, `caja_varios_transferencia_dia`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`, `nomina_sueldo_base`).
 
 ---
 
@@ -991,6 +991,15 @@ padding-bottom: env(safe-area-inset-bottom);
 
 > Los modales que usan `.bs-actions` (patrón `bottom-sheet-modal`) ya tienen safe area en `modals.scss`. Solo los footers custom necesitan agregarlo manualmente.
 
+**Modales sin `bs-actions` (solo contenido, sin botones al fondo):** el último elemento visible queda pegado a la barra de Android. Agregar `padding-bottom: env(safe-area-inset-bottom)` al contenedor más externo del contenido (normalmente la card o el wrapper principal dentro de `.bs-content`):
+
+```scss
+// ✅ Modal sin footer de acciones — safe area en el contenedor del contenido
+.mi-card {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+```
+
 **Excepción — páginas dentro de tabs:** `ion-tab-bar` ya compensa el safe area internamente. Los footers de páginas que viven dentro de tabs **NO deben sumar** `env(safe-area-inset-bottom)` — se duplica el espacio. Solo usar `padding-bottom` normal. Los elementos `position: fixed` (overlays, scanners) sí lo necesitan porque están fuera del flujo del tab bar.
 
 ```scss
@@ -1024,7 +1033,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | -------------- | ------------ | --------------- | ---------------------------------------- | ---------- |
 | `CAJA`         | Tienda       | Efectivo        | Vault de depósitos acumulados            | Base       |
 | `CAJA_CHICA`   | Cajón        | Cajón diario    | Efectivo del día (ventas POS + recargas) | Base       |
-| `VARIOS`       | Varios       | Fondo emergencia| Fondo fijo de gastos                     | Opt-in     |
+| `VARIOS`       | Varios       | Fondo emergencia| Fondo de emergencia para gastos imprevistos | Opt-in   |
 | `CAJA_CELULAR` | Celular      | Saldo digital   | Efectivo recargas celular                | Opt-in (superadmin) |
 | `CAJA_BUS`     | Bus          | Saldo digital   | Efectivo recargas bus                    | Opt-in (superadmin) |
 

@@ -2,7 +2,12 @@
 
   <!-- Header -->
   <div class="bs-header">
-    <span class="bs-header__title">{{ templateNombre }}</span>
+    <div class="vsm-header-text">
+      <span class="bs-header__title">{{ templateNombre }}</span>
+      @if (subtitle) {
+        <span class="vsm-header-subtitle">{{ subtitle }}</span>
+      }
+    </div>
     <button class="bs-header__close" (click)="cerrar()" type="button">
       <ion-icon name="close-outline"></ion-icon>
     </button>
@@ -10,8 +15,6 @@
 
   <div class="bs-content">
     <div class="vsm-content">
-      <!-- Subtitle -->
-      <p class="vsm-subtitle">{{ subtitle }}</p>
 
       <!-- Lista -->
       <div class="vsm-list">
@@ -19,24 +22,42 @@
 
           <!-- Fila variante sin presentaciones -->
           @if (!tienePresentaciones(v)) {
-            <div class="vsm-row" [class.vsm-row--active]="countVariante(v) > 0" [class.vsm-row--sin-stock]="sinStock(v) && countVariante(v) === 0">
-              <div class="vsm-row-thumb vsm-row-thumb--clickable" (click)="seleccionarVariante(v, $event)">
+            <div class="vsm-row vsm-row--clickable" [class.vsm-row--active]="countVariante(v) > 0" [class.vsm-row--sin-stock]="sinStock(v) && countVariante(v) === 0"
+              (click)="seleccionarVariante(v, $event)">
+              <div class="vsm-row-thumb">
                 @if (v.imagen_url) {
-                  <img [src]="v.imagen_url" [alt]="labelVariante(v)" class="vsm-row-img" loading="lazy">
+                  <img [src]="v.imagen_url" [alt]="labelVariante(v)" class="vsm-row-img img-fade" loading="lazy" (load)="$event.target['classList'].add('img-loaded')">
                 } @else {
                   <ion-icon name="image-outline" class="vsm-row-img-placeholder"></ion-icon>
                 }
               </div>
-              <div class="vsm-row-info" (click)="seleccionarVariante(v, $event)">
+              <div class="vsm-row-info">
                 <span class="vsm-row-nombre">{{ labelVariante(v) }}</span>
-                <span class="vsm-row-precio">${{ currencyService.format(v.precio_venta) }}</span>
+                <div class="vsm-row-detalle">
+                  <span class="vsm-row-precio">${{ currencyService.format(v.precio_venta) }}</span>
+                  @let sl = stockLibre(v);
+                  <span class="vsm-row-sep">·</span>
+                  @if (sl <= 0) {
+                    <span class="vsm-row-stock vsm-row-stock--danger">sin stock</span>
+                  } @else if (sl <= 10) {
+                    <span class="vsm-row-stock vsm-row-stock--warning">quedan {{ sl }}</span>
+                  } @else {
+                    <span class="vsm-row-stock">{{ sl }} disp.</span>
+                  }
+                </div>
               </div>
               @if (countVariante(v) > 0) {
                 <div class="vsm-stepper" (click)="$event.stopPropagation()">
                   <button class="vsm-stepper-btn" (click)="decrementarItem(v)" [disabled]="procesando" type="button">
                     <ion-icon name="remove-outline"></ion-icon>
                   </button>
-                  <span class="vsm-stepper-val" (click)="editarCantidadItem(v)">{{ countVariante(v) }}</span>
+                  <span class="vsm-stepper-val" (click)="editarCantidadItem(v)">
+                    @if (editandoKey === v.id) {
+                      <ion-spinner name="crescent" class="vsm-edit-spinner"></ion-spinner>
+                    } @else {
+                      {{ countVariante(v) }}
+                    }
+                  </span>
                   <button class="vsm-stepper-btn" (click)="incrementarItem(v)" [disabled]="procesando || sinStock(v)" type="button">
                     <ion-icon name="add-outline"></ion-icon>
                   </button>
@@ -51,56 +72,52 @@
             </div>
           }
 
-          <!-- Fila variante con presentaciones (expandible) -->
+          <!-- Presentaciones directas (sin toggle) -->
           @if (tienePresentaciones(v)) {
-            <button class="vsm-row vsm-row--expandible" (click)="seleccionarVariante(v, $event)" type="button"
-              [class.vsm-row--active]="varianteActiva?.id === v.id"
-              [disabled]="procesando">
-              <div class="vsm-row-thumb">
-                @if (v.imagen_url) {
-                  <img [src]="v.imagen_url" [alt]="labelVariante(v)" class="vsm-row-img" loading="lazy">
-                } @else {
-                  <ion-icon name="image-outline" class="vsm-row-img-placeholder"></ion-icon>
-                }
-              </div>
-              <div class="vsm-row-info">
-                <span class="vsm-row-nombre">{{ labelVariante(v) }}</span>
-                <span class="vsm-row-precio vsm-row-precio--hint">Toca para ver presentaciones</span>
-              </div>
-              @if (countVariante(v) > 0) {
-                <span class="vsm-count-badge">{{ countVariante(v) }}</span>
-              } @else if (sinStock(v)) {
-                <span class="vsm-sin-stock-badge">Sin stock</span>
+            <div class="vsm-presentaciones">
+              @if (variantes.length > 1) {
+                <p class="vsm-pres-label">{{ labelVariante(v) }}</p>
               }
-              <ion-icon name="chevron-forward-outline" class="vsm-row-chevron"
-                [class.vsm-row-chevron--open]="varianteActiva?.id === v.id">
-              </ion-icon>
-            </button>
-
-            <!-- Presentaciones expandidas -->
-            @if (varianteActiva?.id === v.id) {
-              <div class="vsm-presentaciones">
-                <p class="vsm-pres-label">Elige la presentación</p>
 
                 <!-- Unidad suelta -->
-                <div class="vsm-row vsm-row--pres" [class.vsm-row--active]="(_contadores().get(v.id) ?? 0) > 0" [class.vsm-row--sin-stock]="sinStock(v) && (_contadores().get(v.id) ?? 0) === 0">
-                  <div class="vsm-row-thumb vsm-row-thumb--clickable" (click)="seleccionarUnidadSuelta(v, $event)">
+                <div class="vsm-row vsm-row--pres vsm-row--clickable" [class.vsm-row--active]="(_contadores().get(v.id) ?? 0) > 0" [class.vsm-row--sin-stock]="sinStock(v) && (_contadores().get(v.id) ?? 0) === 0"
+                  (click)="seleccionarUnidadSuelta(v, $event)">
+                  <div class="vsm-row-thumb">
                     @if (v.imagen_url) {
-                      <img [src]="v.imagen_url" [alt]="labelVariante(v)" class="vsm-row-img" loading="lazy">
+                      <img [src]="v.imagen_url" [alt]="labelVariante(v)" class="vsm-row-img img-fade" loading="lazy" (load)="$event.target['classList'].add('img-loaded')">
                     } @else {
                       <ion-icon name="image-outline" class="vsm-row-img-placeholder"></ion-icon>
                     }
                   </div>
-                  <div class="vsm-row-info" (click)="seleccionarUnidadSuelta(v, $event)">
+                  <div class="vsm-row-info">
                     <span class="vsm-row-nombre">Unidad suelta</span>
-                    <span class="vsm-row-precio">${{ currencyService.format(v.precio_venta) }}</span>
+                    <span class="vsm-row-detalle">
+                      <span class="vsm-row-factor">x1 und</span>
+                      <span class="vsm-row-sep">·</span>
+                      <span class="vsm-row-precio">${{ currencyService.format(v.precio_venta) }}</span>
+                      @let slU = stockLibre(v);
+                      <span class="vsm-row-sep">·</span>
+                      @if (slU <= 0) {
+                        <span class="vsm-row-stock vsm-row-stock--danger">sin stock</span>
+                      } @else if (slU <= 10) {
+                        <span class="vsm-row-stock vsm-row-stock--warning">quedan {{ slU }}</span>
+                      } @else {
+                        <span class="vsm-row-stock">{{ slU }} disp.</span>
+                      }
+                    </span>
                   </div>
                   @if ((_contadores().get(v.id) ?? 0) > 0) {
                     <div class="vsm-stepper" (click)="$event.stopPropagation()">
                       <button class="vsm-stepper-btn" (click)="decrementarItem(v)" [disabled]="procesando" type="button">
                         <ion-icon name="remove-outline"></ion-icon>
                       </button>
-                      <span class="vsm-stepper-val" (click)="editarCantidadItem(v)">{{ _contadores().get(v.id) }}</span>
+                      <span class="vsm-stepper-val" (click)="editarCantidadItem(v)">
+                        @if (editandoKey === v.id) {
+                          <ion-spinner name="crescent" class="vsm-edit-spinner"></ion-spinner>
+                        } @else {
+                          {{ _contadores().get(v.id) }}
+                        }
+                      </span>
                       <button class="vsm-stepper-btn" (click)="incrementarItem(v)" [disabled]="procesando || sinStock(v)" type="button">
                         <ion-icon name="add-outline"></ion-icon>
                       </button>
@@ -116,24 +133,44 @@
 
                 <!-- Cada presentación -->
                 @for (p of v.presentaciones; track p.id) {
-                  <div class="vsm-row vsm-row--pres" [class.vsm-row--active]="countPresentacion(v, p) > 0" [class.vsm-row--sin-stock]="sinStock(v, p) && countPresentacion(v, p) === 0">
-                    <div class="vsm-row-thumb vsm-row-thumb--clickable" (click)="seleccionarPresentacion(v, p, $event)">
+                  <div class="vsm-row vsm-row--pres vsm-row--clickable" [class.vsm-row--active]="countPresentacion(v, p) > 0" [class.vsm-row--sin-stock]="sinStock(v, p) && countPresentacion(v, p) === 0"
+                    (click)="seleccionarPresentacion(v, p, $event)">
+                    <div class="vsm-row-thumb">
                       @if (p.imagen_url) {
-                        <img [src]="p.imagen_url" [alt]="p.nombre" class="vsm-row-img" loading="lazy">
+                        <img [src]="p.imagen_url" [alt]="p.nombre" class="vsm-row-img img-fade" loading="lazy" (load)="$event.target['classList'].add('img-loaded')">
                       } @else {
                         <ion-icon name="image-outline" class="vsm-row-img-placeholder"></ion-icon>
                       }
                     </div>
-                    <div class="vsm-row-info" (click)="seleccionarPresentacion(v, p, $event)">
+                    <div class="vsm-row-info">
                       <span class="vsm-row-nombre">{{ p.nombre }}</span>
-                      <span class="vsm-row-precio">${{ currencyService.format(p.precio_venta) }}</span>
+                      <span class="vsm-row-detalle">
+                        <span class="vsm-row-factor">x{{ p.factor_conversion }} und</span>
+                        <span class="vsm-row-sep">·</span>
+                        <span class="vsm-row-precio">${{ currencyService.format(p.precio_venta) }}</span>
+                        @let slP = stockLibre(v, p);
+                        <span class="vsm-row-sep">·</span>
+                        @if (slP <= 0) {
+                          <span class="vsm-row-stock vsm-row-stock--danger">sin stock</span>
+                        } @else if (slP <= 10) {
+                          <span class="vsm-row-stock vsm-row-stock--warning">quedan {{ slP }}</span>
+                        } @else {
+                          <span class="vsm-row-stock">{{ slP }} disp.</span>
+                        }
+                      </span>
                     </div>
                     @if (countPresentacion(v, p) > 0) {
                       <div class="vsm-stepper" (click)="$event.stopPropagation()">
                         <button class="vsm-stepper-btn" (click)="decrementarItem(v, p)" [disabled]="procesando" type="button">
                           <ion-icon name="remove-outline"></ion-icon>
                         </button>
-                        <span class="vsm-stepper-val" (click)="editarCantidadItem(v, p)">{{ countPresentacion(v, p) }}</span>
+                        <span class="vsm-stepper-val" (click)="editarCantidadItem(v, p)">
+                          @if (editandoKey === v.id + '::' + p.id) {
+                            <ion-spinner name="crescent" class="vsm-edit-spinner"></ion-spinner>
+                          } @else {
+                            {{ countPresentacion(v, p) }}
+                          }
+                        </span>
                         <button class="vsm-stepper-btn" (click)="incrementarItem(v, p)" [disabled]="procesando || sinStock(v, p)" type="button">
                           <ion-icon name="add-outline"></ion-icon>
                         </button>
@@ -148,7 +185,6 @@
                   </div>
                 }
               </div>
-            }
           }
 
         }

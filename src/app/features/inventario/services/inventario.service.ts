@@ -218,6 +218,15 @@ export class InventarioService {
         return res || [];
     }
 
+    async obtenerStockActual(productoId: string): Promise<number | null> {
+        const { data } = await this.supabase.client
+            .from('productos')
+            .select('stock_actual')
+            .eq('id', productoId)
+            .single();
+        return data?.stock_actual ?? null;
+    }
+
     async obtenerProductosStockBajo(): Promise<{ id: string; nombre: string; stock_actual: number }[]> {
         const { data } = await this.supabase.client
             .from('productos')

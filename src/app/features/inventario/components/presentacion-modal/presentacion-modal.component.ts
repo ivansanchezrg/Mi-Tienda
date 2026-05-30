@@ -1,18 +1,16 @@
 import { Component, Input, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SafeUrl } from '@angular/platform-browser';
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { IonButton, IonIcon, IonSpinner, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline, layersOutline, barcodeOutline, informationCircleOutline, trendingUpOutline, trendingDownOutline, removeOutline, checkmarkCircleOutline, sparklesOutline, imageOutline, cameraOutline, trashOutline } from 'ionicons/icons';
-import { CameraSource } from '@capacitor/camera';
 import { UiService } from '../../../../core/services/ui.service';
-import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
+import { BarcodeScannerService, getBarcodeInputHint } from '../../../../core/services/barcode-scanner.service';
 import { StorageService } from '../../../../core/services/storage.service';
 
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only.directive';
-import { UppercaseInputDirective } from '../../../../shared/directives/uppercase-input.directive';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { calcularPrecioDesdeMargen, calcularMargenDesdePrecio } from '../../../../core/utils/margen.util';
 import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
@@ -40,14 +38,10 @@ export interface PresentacionModalResult {
         IonSpinner,
         CurrencyInputDirective,
         NumbersOnlyDirective,
-        UppercaseInputDirective,
         ScannerOverlayComponent,
     ]
 })
 export class PresentacionModalComponent implements OnInit {
-
-    /** Nombres ya existentes para validar duplicados (excluye el nombre actual al editar) */
-    @Input() nombresExistentes: string[] = [];
 
     /** Si se pasa, el modal opera en modo EDITAR con los valores precargados */
     @Input() presentacionActual?: PresentacionModalResult;
@@ -71,7 +65,7 @@ export class PresentacionModalComponent implements OnInit {
     private modalCtrl = inject(ModalController);
     private fb = inject(FormBuilder);
     private ui = inject(UiService);
-    private barcodeScanner = inject(BarcodeScannerService);
+    protected barcodeScanner = inject(BarcodeScannerService);
     private storageService = inject(StorageService);
     protected currencyService = inject(CurrencyService);
 
@@ -79,6 +73,7 @@ export class PresentacionModalComponent implements OnInit {
     guardando = false;
     escaneando = false;
     margenPct: number = 20;
+    readonly barcodeHint = getBarcodeInputHint();
 
     // Imagen de la presentacion
     fotoPreviewUrl: SafeUrl | null = null;
@@ -114,7 +109,7 @@ export class PresentacionModalComponent implements OnInit {
 
     get stockEquivalente(): string {
         const factor = Number(this.form?.get('factor_conversion')?.value ?? 0);
-        if (!factor || factor < 1) return '';
+        if (!factor || factor <= 0) return '';
         return `1 paquete = ${factor} unidad${factor !== 1 ? 'es' : ''}`;
     }
 
@@ -135,11 +130,11 @@ export class PresentacionModalComponent implements OnInit {
         this.form = this.fb.group({
             nombre: [
                 this.presentacionActual?.nombre ?? '',
-                [Validators.required, Validators.minLength(2), Validators.maxLength(60), this.nombreDuplicadoValidator.bind(this)]
+                [Validators.required, Validators.minLength(2), Validators.maxLength(60)]
             ],
             factor_conversion: [
                 this.presentacionActual?.factor_conversion ?? '',
-                [Validators.required, Validators.min(2)]
+                [Validators.required, Validators.min(0.001)]
             ],
             precio_costo: [
                 this.presentacionActual?.precio_costo ?? '',
@@ -198,17 +193,6 @@ export class PresentacionModalComponent implements OnInit {
         );
     }
 
-    private nombreDuplicadoValidator(control: AbstractControl): ValidationErrors | null {
-        if (!control.value) return null;
-        const nombre = control.value.trim().toUpperCase();
-        const nombreActual = this.presentacionActual?.nombre?.toUpperCase();
-        const duplicado = this.nombresExistentes.some(n => {
-            const norm = n.toUpperCase();
-            return norm === nombre && norm !== nombreActual;
-        });
-        return duplicado ? { nombreDuplicado: true } : null;
-    }
-
     esCampoInvalido(campo: string): boolean {
         const c = this.form.get(campo);
         return !!(c && c.invalid && (c.dirty || c.touched));
@@ -219,8 +203,7 @@ export class PresentacionModalComponent implements OnInit {
     }
 
     async seleccionarFoto() {
-        const source = this.storageService.isNative ? CameraSource.Camera : CameraSource.Photos;
-        const result = await this.storageService.capturarFoto(source);
+        const result = await this.storageService.elegirFuenteFoto();
         if (!result) return;
         this.fotoPreviewUrl = result.previewUrl;
         this.fotoRawUrl = result.rawUrl;
@@ -250,7 +233,7 @@ export class PresentacionModalComponent implements OnInit {
 
         const result: PresentacionModalResult = {
             nombre: v.nombre.trim().toUpperCase(),
-            factor_conversion: Math.round(Number(v.factor_conversion)),
+            factor_conversion: Number(v.factor_conversion),
             precio_costo: this.currencyService.parse(v.precio_costo),
             precio_venta: this.currencyService.parse(v.precio_venta),
             codigo_barras: v.codigo_barras?.trim() || undefined,

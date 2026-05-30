@@ -80,8 +80,14 @@
 
             <div class="mhm-right">
               @if (mov.comprobante_url) {
-                <button class="mhm-comprobante-btn" type="button" (click)="onVerComprobante(mov)">
-                  <ion-icon name="image-outline"></ion-icon>
+                <button class="mhm-comprobante-btn" type="button"
+                  [disabled]="cargandoComprobante.has(mov.id)"
+                  (click)="onVerComprobante(mov)">
+                  @if (cargandoComprobante.has(mov.id)) {
+                    <ion-spinner name="crescent"></ion-spinner>
+                  } @else {
+                    <ion-icon name="image-outline"></ion-icon>
+                  }
                 </button>
               }
               <span class="mhm-amount" [attr.data-type]="mov.tipo_operacion | operacionLabel:'color'">

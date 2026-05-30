@@ -10,7 +10,7 @@
 --   p_admin_nombre          VARCHAR  — Nombre del admin (para crear fila en usuarios si no existe)
 --   p_negocio_telefono      VARCHAR  — Teléfono del negocio (opcional, puede ser '')
 --   p_negocio_direccion     VARCHAR  — Dirección del negocio (opcional, puede ser '')
---   p_caja_fondo_fijo       DECIMAL  — Fondo fijo del cajón al inicio de cada turno (>= 0)
+--   (p_caja_fondo_fijo eliminado en v2.0 — el fondo es libre, declarado al abrir cada turno)
 --   p_varios_activa         BOOLEAN  — Si true, activa la caja Varios y la transferencia diaria
 --   p_caja_varios_monto     DECIMAL  — Monto diario a transferir a Varios al cierre (> 0 si varios_activa)
 --   p_nomina_sueldo_base    DECIMAL  — Sueldo base mensual de empleados (>= 0)
@@ -32,7 +32,6 @@ CREATE OR REPLACE FUNCTION public.fn_completar_onboarding(
     p_admin_nombre       VARCHAR  DEFAULT NULL,
     p_negocio_telefono   VARCHAR  DEFAULT '',
     p_negocio_direccion  VARCHAR  DEFAULT '',
-    p_caja_fondo_fijo    DECIMAL  DEFAULT 0,
     p_varios_activa      BOOLEAN  DEFAULT FALSE,
     p_caja_varios_monto  DECIMAL  DEFAULT 0,
     p_nomina_sueldo_base DECIMAL  DEFAULT 0,
@@ -59,9 +58,6 @@ BEGIN
     END IF;
     IF TRIM(p_admin_email) = '' OR p_admin_email IS NULL THEN
         RAISE EXCEPTION 'El email del admin no puede estar vacío';
-    END IF;
-    IF p_caja_fondo_fijo < 0 THEN
-        RAISE EXCEPTION 'El fondo fijo del cajón no puede ser negativo';
     END IF;
     IF p_varios_activa AND (p_caja_varios_monto IS NULL OR p_caja_varios_monto <= 0) THEN
         RAISE EXCEPTION 'Si activás Caja Varios, el monto diario debe ser mayor a cero';
@@ -145,11 +141,14 @@ BEGIN
     END IF;
 
     -- ── 5. Las 3 cajas base ──
-    INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual) VALUES
-    (v_negocio_id, 'CAJA',       'Tienda', 'Vault de depositos acumulados',   0),
-    (v_negocio_id, 'CAJA_CHICA', 'Cajon',  'Efectivo del dia (ventas + rec)', 0),
-    (v_negocio_id, 'VARIOS',     'Varios', 'Fondo fijo de emergencia',        0);
+    -- puede_tener_turno: solo CAJA_CHICA es el cajón operativo diario que abre/cierra turnos.
+    -- CAJA y VARIOS son fondos/vaults — nunca tienen turno. Igual para CAJA_CELULAR y CAJA_BUS.
+    INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno) VALUES
+    (v_negocio_id, 'CAJA',       'Tienda', 'Vault de depositos acumulados',   0, FALSE),
+    (v_negocio_id, 'CAJA_CHICA', 'Cajon',  'Efectivo del dia (ventas + rec)', 0, TRUE),
+    (v_negocio_id, 'VARIOS',     'Varios', 'Fondo de emergencia',             0, FALSE);
     -- CAJA_CELULAR y CAJA_BUS se crean solo si el superadmin habilita el módulo de recargas (fn_configurar_modulos)
+    -- Al crearlas en fn_configurar_modulos, también deben tener puede_tener_turno = FALSE
 
     -- ── 6. Categorías de operaciones ──
     INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion, seleccionable) VALUES
@@ -193,7 +192,6 @@ BEGIN
     (v_negocio_id, 'negocio_telefono',              COALESCE(TRIM(p_negocio_telefono), '')),
     (v_negocio_id, 'negocio_direccion',             COALESCE(TRIM(p_negocio_direccion), '')),
     -- Caja
-    (v_negocio_id, 'caja_fondo_fijo_diario',        p_caja_fondo_fijo::TEXT),
     (v_negocio_id, 'caja_varios_activa',            p_varios_activa::TEXT),
     (v_negocio_id, 'caja_varios_transferencia_dia', CASE WHEN p_varios_activa THEN p_caja_varios_monto::TEXT ELSE '0' END),
     -- Módulos opcionales (desactivados por defecto, el superadmin los habilita por negocio)
@@ -234,11 +232,12 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
--- Cleanup de firmas viejas (por si se ejecuta despues de versiones anteriores)
+-- Cleanup de firmas anteriores (incluyendo la que tenía p_caja_fondo_fijo)
 DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL);
+DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL, VARCHAR);
 
-REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM authenticated;
+GRANT  EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

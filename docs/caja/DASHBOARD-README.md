@@ -383,7 +383,7 @@ Supabase Realtime UPDATE en cajas
 
 - Constantes centralizadas en tabla `configuraciones`
 - Fácil modificación sin redeploy
-- Claves con prefijo por módulo: `caja_fondo_fijo_diario`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`, `pos_iva_porcentaje`
+- Claves con prefijo por módulo: `caja_varios_transferencia_dia`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`, `pos_iva_porcentaje`
 - El estado "POS habilitado" ya **no** es una configuración: se deriva automáticamente de `turnos_caja` via `TurnosCajaService.cajaAbierta$` (ver [Estado reactivo de turno](#estado-reactivo-de-turno--single-source-of-truth))
 
 ### Transactional PostgreSQL Functions

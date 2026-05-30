@@ -29,7 +29,6 @@ OnboardingService          ← estado compartido entre los 2 pasos (draft + mode
      │     + Email/nombre del admin (solo en modo sucursal-superadmin)
      │
      └─ Paso 2: OnboardingCajaPage      (/onboarding/caja o /crear-negocio/caja)
-           Fondo fijo del cajón
            Toggle Caja Varios (opt-in) + monto diario si está activa
            Sueldo base de nómina
            → onboardingService.completar() → fn_completar_onboarding (atómico)
@@ -61,8 +60,7 @@ export interface OnboardingData {
   nombre:           string;   // Paso 1
   telefono:         string;
   direccion:        string;
-  fondoFijo:        number;   // Paso 2
-  variosActiva:     boolean;
+  variosActiva:     boolean;  // Paso 2
   montoVarios:      number;
   nominaSueldoBase: number;
   // Solo en modo sucursal-superadmin:
@@ -164,12 +162,13 @@ superadmin escribe email → pierde foco → verificarEmail()
 
 | Campo | Descripción | Obligatorio | Validación |
 |-------|-------------|-------------|------------|
-| Fondo fijo del cajón | Efectivo que arranca en `CAJA_CHICA` al inicio de cada turno | ✅ | >= 0 |
 | Toggle Caja Varios | Activa la caja VARIOS (fondo de emergencia) | ❌ | — |
 | Monto diario Varios | Cuánto se transfiere a Varios al cierre de cada turno | Solo si toggle ON | > 0 |
 | Sueldo base nómina | Sueldo mensual base para el módulo de nómina | ✅ | >= 0 |
 
 **Validator personalizado `variosMontoValidator`:** si el toggle está activo pero el monto es 0 o vacío, el formulario es inválido. Se evalúa a nivel de grupo (no del control individual).
+
+> **Nota (v6.2):** El fondo del cajón ya no se configura en el onboarding. Cada empleado declara libremente cuánto efectivo deja al abrir cada turno (`turnos_caja.fondo_apertura`). No hay valor predeterminado global.
 
 ### Flujo al confirmar
 
@@ -211,7 +210,7 @@ Operación atómica: crea todo o no crea nada. Si falla cualquier paso, rollback
 | 5 | `cajas` | 3 cajas base: `CAJA` (Tienda), `CAJA_CHICA` (Cajón), `VARIOS` (Varios). `CAJA_CELULAR` y `CAJA_BUS` solo se crean si el superadmin los habilita después via `fn_configurar_modulos`. |
 | 6 | `categorias_operaciones` | 17 categorías preconfiguradas (egresos + ingresos estándar de tienda minorista). |
 | 7 | `categorias_productos` | 8 categorías base (Sin categoría, Bebidas, Snacks, etc.). |
-| 8 | `configuraciones` | Defaults del negocio + valores del wizard (fondo fijo, Varios, nómina, POS, módulos). |
+| 8 | `configuraciones` | Defaults del negocio + valores del wizard (Varios, nómina, POS, módulos). |
 | 9 | `secuencias_comprobantes` | Secuencias en 0 para TICKET, NOTA_VENTA, FACTURA, RECARGA. |
 | 10 | `clientes` | Cliente "Consumidor Final" (requerido por el POS). |
 
@@ -224,7 +223,6 @@ Operación atómica: crea todo o no crea nada. Si falla cualquier paso, rollback
 | `p_admin_nombre` | VARCHAR | ❌ | Nombre del admin (para crear fila en `usuarios` si no existe) |
 | `p_negocio_telefono` | VARCHAR | ❌ | Teléfono |
 | `p_negocio_direccion` | VARCHAR | ❌ | Dirección |
-| `p_caja_fondo_fijo` | DECIMAL | ❌ | Fondo fijo diario del cajón (default 0) |
 | `p_varios_activa` | BOOLEAN | ❌ | Activar caja Varios (default false) |
 | `p_caja_varios_monto` | DECIMAL | ❌ | Monto diario a Varios (requerido si `p_varios_activa = true`) |
 | `p_nomina_sueldo_base` | DECIMAL | ❌ | Sueldo base mensual (default 0) |
@@ -279,7 +277,6 @@ Todas viven en tabla `configuraciones` (clave/valor). Los módulos las leen via 
 | `negocio_nombre` | Nombre del wizard | Admin en Parámetros |
 | `negocio_telefono` | Teléfono del wizard | Admin en Parámetros |
 | `negocio_direccion` | Dirección del wizard | Admin en Parámetros |
-| `caja_fondo_fijo_diario` | Fondo fijo del wizard | Admin en Parámetros |
 | `caja_varios_activa` | Toggle del wizard | Solo superadmin via `fn_configurar_modulos` / `fn_configurar_modulos_admin` (una vez activa, no se puede desactivar) |
 | `caja_varios_transferencia_dia` | Monto del wizard (o 0) | Admin en Parámetros |
 | `recargas_celular_habilitada` | `false` | Solo superadmin via `fn_configurar_modulos` / `fn_configurar_modulos_admin` |
@@ -337,7 +334,7 @@ Superadmin desde /admin → "Crear negocio"
 |---------|-----------|
 | `features/onboarding/services/onboarding.service.ts` | Store del wizard: draft, mode, `completar()`, `activarYFinalizar()`, `verificarEmailAdmin()` |
 | `features/onboarding/pages/negocio/onboarding-negocio.page.ts` | Paso 1: nombre, teléfono, dirección, email admin. Resolución del modo. Verificación de email. |
-| `features/onboarding/pages/caja/onboarding-caja.page.ts` | Paso 2: fondo fijo, Caja Varios toggle, nómina. Llama `completar()` y maneja los 3 destinos post-creación. |
+| `features/onboarding/pages/caja/onboarding-caja.page.ts` | Paso 2: Caja Varios toggle (+ monto si activa), sueldo base de nómina. Llama `completar()` y maneja los 3 destinos post-creación. |
 | `features/onboarding/onboarding.routes.ts` | Rutas `/onboarding/negocio` y `/onboarding/caja` (sin sidebar) |
 | `features/crear-negocio/crear-negocio.routes.ts` | Rutas `/crear-negocio/negocio` y `/crear-negocio/caja` (con sidebar) |
 | `docs/onboarding/sql/functions/fn_completar_onboarding.sql` | Función atómica: crea negocio + todas sus tablas asociadas en una sola transacción |

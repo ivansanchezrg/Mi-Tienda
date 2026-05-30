@@ -127,17 +127,17 @@
 
 .scan-btn-inline {
     position: absolute;
-    right: 8px;
+    right: 4px;
     top: 50%;
     transform: translateY(-50%);
     background: transparent;
     border: none;
-    padding: 4px;
+    padding: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--ion-color-primary);
-    font-size: 22px;
+    font-size: 28px;
     cursor: pointer;
     margin-right: 0;
 
@@ -155,10 +155,6 @@
     ion-icon {
         font-size: 14px;
         flex-shrink: 0;
-    }
-
-    &--ok {
-        color: var(--ion-color-success-shade);
     }
 }
 
@@ -264,7 +260,7 @@
     border-radius: 20px;
     font-weight: var(--font-weight-semibold, 600);
     background: var(--ion-color-success-shade);
-    color: var(--ion-color-success-contrast);
+    color: #ffffff;
 
     ion-icon {
         font-size: 15px;

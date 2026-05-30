@@ -1,4 +1,4 @@
-# Cierre Diario — Referencia Técnica (v6.1 — 2026-05-21)
+# Cierre Diario — Referencia Técnica (v6.2 — 2026-05-29 — fondo libre)
 
 ## 1. Arquitectura
 
@@ -6,14 +6,14 @@
 
 | Tabla | Rol |
 | --- | --- |
-| `turnos_caja` | Un turno por sesión. El cierre escribe `hora_fecha_cierre = NOW()` y `fondo_cubierto`. |
+| `turnos_caja` | Un turno por sesión. El cierre escribe `hora_fecha_cierre = NOW()`. La columna `fondo_apertura` (escrita al abrir) se lee como referencia del fondo declarado por el empleado. |
 | `recargas` | 1 registro por servicio por turno (`UNIQUE turno_id, tipo_servicio_id`). Guarda saldo_virtual antes y después. |
 | `recargas_virtuales` | Recargas del proveedor. Se filtran por `created_at > último_cierre_at` para evitar duplicados entre turnos. |
 | `operaciones_cajas` | Trazabilidad completa: cada movimiento contable con saldo anterior/posterior. |
 | `cajas` | Saldos actuales de las 5 cajas. Se actualizan al cierre. |
-| `configuraciones` | `caja_fondo_fijo_diario` y `caja_varios_transferencia_dia` (clave/valor). Fuente de verdad. |
+| `configuraciones` | `caja_varios_transferencia_dia` (clave/valor). El fondo es libre, declarado al abrir cada turno. |
 
-> **v5:** Las tablas `caja_fisica_diaria` y `gastos_diarios` fueron **eliminadas**. El cierre no escribe en `caja_fisica_diaria`. El turno cerrado se detecta por `hora_fecha_cierre IS NOT NULL` en `turnos_caja`. El déficit del turno queda registrado en `fondo_cubierto` (columna de `turnos_caja`).
+> **v6.2:** Eliminadas `fondo_cubierto` de `turnos_caja` y la clave `caja_fondo_fijo_diario` de `configuraciones`. El fondo del cajón ahora es libre — cada empleado declara cuánto deja al abrir y queda guardado en `turnos_caja.fondo_apertura`.
 
 ### Las 5 cajas en v5
 
@@ -25,7 +25,7 @@
 | `CAJA_CELULAR` | Celular | Efectivo cobrado por recargas celular | Venta del turno (INGRESO) |
 | `CAJA_BUS` | Bus | Efectivo cobrado por recargas de bus | Venta del turno (INGRESO) |
 
-> **Flujo clave:** Las ventas POS en efectivo van automáticamente a `CAJA_CHICA` (trigger `trg_actualizar_caja_por_venta`). Al cierre, el empleado cuenta el físico del cajón; el sistema ajusta la diferencia y distribuye en cascada: `fondoFijo` queda físicamente en el cajón, `transferenciaDiaria` va a VARIOS, el resto a CAJA. El cajón queda en **$0 digital** (el fondo físico permanece en el cajón para el día siguiente).
+> **Flujo clave:** Las ventas POS en efectivo van automáticamente a `CAJA_CHICA` (trigger `trg_actualizar_caja_por_venta`). Al cierre, el empleado cuenta el físico del cajón; el sistema ajusta la diferencia y distribuye en cascada: `fondoApertura` (declarado al abrir) queda físicamente en el cajón, `transferenciaDiaria` va a VARIOS, el resto a CAJA. El cajón queda en **$0 digital** (el fondo físico permanece en el cajón para el día siguiente).
 
 ---
 
@@ -51,7 +51,7 @@ Solo si las 3 pasan → `router.navigate(['/caja/cierre-diario'])` sin overlay a
 
 En `cargarDatosIniciales()` se carga en paralelo:
 - Saldos virtuales del último snapshot (CELULAR + BUS) desde `RecargasVirtualesService.getSaldoUltimoCierre()` — solo lee `saldo_virtual_actual` del último registro en `recargas`, sin sumar recargas posteriores
-- Datos del cierre (saldos de cajas, fondo fijo) desde `RecargasService`
+- Datos del cierre (saldos de cajas, transferencia diaria) desde `RecargasService`. El fondo se lee de `turnoActivo.fondo_apertura`.
 - Flag `transferenciaCajaChicaYaHecha` desde `RecargasService.verificarTransferenciaYaHecha()` — ver §4
 - Saldos de CAJA y VARIOS para la verificación antes→después
 
@@ -63,7 +63,7 @@ En `cargarDatosIniciales()` se carga en paralelo:
 | --- | --- | --- |
 | `saldoVirtualCelularFinal` | Sí | Saldo que muestra la app del proveedor celular en este momento. |
 | `saldoVirtualBusFinal` | Sí | Saldo que muestra la máquina de bus en este momento. |
-| `efectivoFisico` | Sí | Total físico contado en el cajón, **incluyendo el fondo fijo**. Campo `.destacado`. |
+| `efectivoFisico` | Sí | Total físico contado en el cajón, **incluyendo el fondo declarado al abrir**. Campo `.destacado`. |
 
 **Feedback en tiempo real:**
 - Ventas negativas → alerta roja; bloquea "Ver Resumen"
@@ -82,7 +82,7 @@ Venta negativa indica que falta registrar una recarga del proveedor en Recargas 
 
 **Referencia para el conteo físico:**
 ```
-efectivoEsperado = saldoCajaChicaDigital + fondoFijo
+efectivoEsperado = saldoCajaChicaDigital + fondoApertura
 diferencia       = efectivoFisico - efectivoEsperado
 ```
 
@@ -94,11 +94,11 @@ Preview de distribución calculado en el frontend:
 
 ```
 transferenciaVarios = efectivoFisico >= transferenciaDiaria ? transferenciaDiaria : 0
-fondoEnCajon        = (efectivoFisico - transferenciaVarios) >= fondoFijo
-depositoCaja        = efectivoFisico - transferenciaVarios - (fondoEnCajon ? fondoFijo : 0)
+fondoEnCajon        = (efectivoFisico - transferenciaVarios) >= fondoApertura
+depositoCaja        = efectivoFisico - transferenciaVarios - (fondoEnCajon ? fondoApertura : 0)
 ```
 
-| Caso | VARIOS | `fondoFijo` | CAJA | Cajón digital |
+| Caso | VARIOS | `fondoApertura` | CAJA | Cajón digital |
 | --- | --- | --- | --- | --- |
 | Normal | `transferenciaDiaria` | queda | resto | $0 |
 | Déficit fondo (`efectivo >= transferencia` pero no alcanza para fondo) | `transferenciaDiaria` | no queda | resto | $0 |
@@ -120,7 +120,7 @@ depositoCaja        = efectivoFisico - transferenciaVarios - (fondoEnCajon ? fon
 
 ---
 
-## 3. Función SQL: `fn_ejecutar_cierre_diario` (v6.1)
+## 3. Función SQL: `fn_ejecutar_cierre_diario` (v6.2)
 
 > 📄 Código fuente completo: [`docs/caja/sql/functions/fn_ejecutar_cierre_diario_v5.sql`](./sql/functions/fn_ejecutar_cierre_diario_v5.sql)
 
@@ -153,8 +153,8 @@ El `negocio_id` **no se pasa como parámetro** — la función lo lee internamen
 2. Lee `negocio_id` del JWT (`get_negocio_id()`)
 3. Valida: turno existe para ese negocio, no tiene `hora_fecha_cierre`, empleado coincide, `p_efectivo_fisico >= 0`
 4. Obtiene IDs de cajas, categorías, tipos de servicio y referencia por código
-5. Lee configuración: `caja_fondo_fijo_diario`, `caja_varios_activa`, `caja_varios_transferencia_dia`
-6. **Cutoff de recargas virtuales (v6.1):** obtiene `MAX(recargas.created_at)` separado por servicio (`v_ultimo_snapshot_celular`, `v_ultimo_snapshot_bus`) — mismo cutoff que `getAgregadoVirtualHoy()` en frontend
+5. Lee fondo del turno (`turnos_caja.fondo_apertura`) y configuración: `caja_varios_activa`, `caja_varios_transferencia_dia`
+6. **Cutoff de recargas virtuales:** obtiene `MAX(recargas.created_at)` separado por servicio (`v_ultimo_snapshot_celular`, `v_ultimo_snapshot_bus`) — mismo cutoff que `getAgregadoVirtualHoy()` en frontend
 7. Suma `recargas_virtuales` pendientes desde ese cutoff para CELULAR y BUS (`v_agregado_celular`, `v_agregado_bus`)
 8. Lee saldos actuales de `CAJA_CHICA`, `CAJA` y `VARIOS` con `FOR UPDATE` (lock de consistencia)
 9. Ajuste de conteo físico — solo si hubo movimientos en `CAJA_CHICA` durante el turno:
@@ -169,7 +169,7 @@ El `negocio_id` **no se pasa como parámetro** — la función lo lee internamen
 15. `UPDATE cajas`: CAJA + depósito, VARIOS + transferencia, CAJA_CHICA → $0
 16. Si `venta_celular > 0` → `INSERT recargas` (CELULAR) + `INSERT INGRESO` en CAJA_CELULAR + `UPDATE CAJA_CELULAR`
 17. `INSERT recargas` BUS con `ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE` (soporta mini cierre previo) + si `venta_bus > 0` → `INSERT INGRESO` en CAJA_BUS + `UPDATE CAJA_BUS`
-18. `UPDATE turnos_caja SET hora_fecha_cierre = NOW(), fondo_cubierto = v_fondo_en_cajon`
+18. `UPDATE turnos_caja SET hora_fecha_cierre = NOW()` (sin tocar `fondo_apertura`, que se mantiene como registro histórico del fondo declarado)
 19. Retorna JSON con resultado detallado (ver §3.1)
 
 > **Por qué `MAX(recargas.created_at)` y no `MAX(hora_fecha_cierre)`:** el mini cierre de BUS (`fn_registrar_compra_saldo_bus`) inserta en `recargas` con `created_at = NOW()` y en `recargas_virtuales` con `created_at = clock_timestamp()` (ligeramente posterior). Si entre el mini cierre y el cierre final hubo un turno completo cerrado, `MAX(hora_fecha_cierre)` podía quedar entre esos dos timestamps → `v_agregado_bus = 0` → venta bus negativa. El snapshot por `recargas.created_at` es idéntico al cutoff del frontend y siempre es consistente.
@@ -182,9 +182,9 @@ El `negocio_id` **no se pasa como parámetro** — la función lo lee internamen
   "turno_id": "uuid",
   "fecha": "2026-05-21",
   "turno_cerrado": true,
-  "version": "6.0",
+  "version": "6.2",
   "configuracion": {
-    "fondo_fijo": 40.00,
+    "fondo_apertura": 40.00,
     "transferencia_diaria": 20.00
   },
   "conteo_fisico": {
@@ -195,7 +195,6 @@ El `negocio_id` **no se pasa como parámetro** — la función lo lee internamen
     "ajuste_aplicado": false
   },
   "distribucion_efectivo": {
-    "fondo_en_cajon": true,
     "transferencia_varios": 20.00,
     "deposito_tienda": 20.00,
     "deficit_varios": 0,
@@ -253,12 +252,12 @@ Cuando `saldoCajaBus < 0`, el Paso 1 muestra una card explicativa para evitar co
 
 ## 6. Registro automático de faltante del empleado
 
-> **Distinción clave:** el déficit de VARIOS y del fondo son **costos operacionales del negocio** — el cajón no alcanzó por el flujo del día, no porque el empleado haya tomado dinero. Estos NO generan deuda del empleado.
+> **Distinción clave:** el déficit de VARIOS es un **costo operacional del negocio** — el cajón no alcanzó por el flujo del día, no porque el empleado haya tomado dinero. Esto NO genera deuda del empleado.
 
 Lo que SÍ genera deuda es cuando el **conteo físico es menor que lo esperado** — el cajón tiene menos efectivo del que el sistema calcula que debería haber:
 
 ```
-efectivo_esperado = saldo_digital + fondo_fijo
+efectivo_esperado = saldo_digital + fondo_apertura
 diferencia        = efectivo_fisico - efectivo_esperado
 ```
 
@@ -281,29 +280,26 @@ VALUES (p_empleado_id, p_turno_id, 'FALTANTE_CAJA', ABS(v_diferencia), '...', p_
 
 ---
 
-## 8. Reparación de déficit (turno siguiente)
+## 7. Reparación de déficit (turno siguiente)
 
-Cuando el cierre termina sin haber podido transferir a VARIOS (`deficit_varios > 0`), el déficit queda registrado implícitamente en `turnos_caja`:
-- `fondo_cubierto = FALSE` si el efectivo no alcanzó ni para el fondo (déficit total)
-- `fondo_cubierto = TRUE` si el fondo estuvo pero no alcanzó para VARIOS (déficit VARIOS)
-- La ausencia de `TRANSFERENCIA_ENTRANTE` en VARIOS para esa fecha indica que no cobró
+Cuando el cierre termina sin haber podido transferir a VARIOS (`deficit_varios > 0`), el déficit queda implícito en la ausencia de `TRANSFERENCIA_ENTRANTE` en VARIOS para esa fecha.
 
-Al **abrir caja al día siguiente**, `TurnosCajaService.obtenerDeficitTurnoAnterior()` detecta esto y presenta el modal de reparación. Ver referencia completa en [`docs/caja/8_PROCESO_ABRIR_CAJA.md`](./8_PROCESO_ABRIR_CAJA.md) §4 y §5.
+Al **abrir caja al día siguiente**, `TurnosCajaService.obtenerDeficitTurnoAnterior()` detecta esto y presenta el aviso en el modal de apertura. Ver referencia completa en [`docs/caja/8_PROCESO_ABRIR_CAJA.md`](./8_PROCESO_ABRIR_CAJA.md) §4 y §5.
 
 La función que ejecuta la reparación:
 
-> 📄 [`docs/caja/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql) — v1.4
+> 📄 [`docs/caja/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql) — v3.0
 
 En una transacción atómica:
-1. **EGRESO** de CAJA por `deficitVarios + fondoFaltante` — categoría `EG-012`
-2. **INGRESO** a VARIOS por `deficitVarios` (si > 0) — categoría `IN-004`
-3. **INSERT** en `turnos_caja` — abre el nuevo turno
+1. **EGRESO** de CAJA por `deficit_varios` — categoría `EG-012`
+2. **INGRESO** a VARIOS por `deficit_varios` — categoría `IN-004`
+3. **INSERT** en `turnos_caja` con `fondo_apertura` libre — abre el nuevo turno
 
-El INGRESO IN-004 es lo que tanto `fn_verificar_transferencia_caja_chica_hoy` como `obtenerDeficitTurnoAnterior()` detectan para no re-detectar el déficit el mismo día.
+El INGRESO IN-004 es lo que `obtenerDeficitTurnoAnterior()` detecta para no re-detectar el déficit el mismo día.
 
 ---
 
-## 9. Queries de auditoría
+## 8. Queries de auditoría
 
 ### Turnos del día con estado
 
@@ -313,7 +309,7 @@ SELECT
   e.nombre,
   t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil' AS apertura_local,
   t.hora_fecha_cierre   AT TIME ZONE 'America/Guayaquil' AS cierre_local,
-  t.fondo_cubierto,
+  t.fondo_apertura,
   CASE WHEN t.hora_fecha_cierre IS NULL THEN 'ABIERTO' ELSE 'CERRADO' END AS estado
 FROM turnos_caja t
 JOIN usuarios e ON t.empleado_id = e.id

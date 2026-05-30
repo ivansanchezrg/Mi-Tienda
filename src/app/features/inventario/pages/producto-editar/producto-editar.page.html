@@ -12,7 +12,7 @@
 <ion-content color="light">
 
   @if (cargando) {
-  <div class="p-lg form-container">
+  <div class="form-container">
     <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
       <ion-card-content class="p-lg">
         <ion-skeleton-text animated style="width: 40%; height: 20px; margin-bottom: 16px;"></ion-skeleton-text>
@@ -32,7 +32,7 @@
   </div>
   } @else {
 
-  <form [formGroup]="productoForm" class="p-lg form-container" (ngSubmit)="guardar()">
+  <form [formGroup]="productoForm" class="form-container" (ngSubmit)="guardar()">
 
     <!-- Banner producto inactivo -->
     @if (!producto.activo) {
@@ -107,11 +107,6 @@
     @if (productoForm.get('tipo_venta')?.value === 'UNIDAD' || templateSeleccionado) {
     <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
       <ion-card-content class="p-lg">
-        @if (templateSeleccionado) {
-        <h3 class="section-title">Presentaciones de esta variante</h3>
-        } @else {
-        <h3 class="section-title">Presentaciones</h3>
-        }
         <app-producto-presentaciones
           [productoId]="producto.id"
           [nombreProducto]="productoForm.get('nombre')?.value || producto.nombre"
@@ -124,32 +119,32 @@
     }
 
     <!-- ═══ Botones ═══ -->
-    <div class="p-xs">
-      <ion-button expand="block" type="submit" class="main-button rounded-sm"
+    <div class="actions-row">
+      @if (producto.activo) {
+      <ion-button expand="block" fill="outline" color="danger" type="button" (click)="desactivar()">
+        <ion-icon slot="start" name="trash-outline"></ion-icon>
+        Quitar
+      </ion-button>
+      } @else {
+      <ion-button expand="block" fill="outline" color="success" type="button" (click)="reactivar()">
+        <ion-icon slot="start" name="refresh-outline"></ion-icon>
+        Reactivar
+      </ion-button>
+      }
+
+      <ion-button expand="block" color="primary" type="submit"
         [disabled]="productoForm.invalid || guardando || productoForm.pristine">
         @if (guardando) {
-        <ion-spinner name="crescent" slot="start"></ion-spinner>
-        Guardando...
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+          Guardando...
         } @else if (productoForm.pristine) {
-        <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
-        Sin cambios
+          <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+          Sin cambios
         } @else {
-        <ion-icon slot="start" name="save-outline"></ion-icon>
-        Guardar Cambios
+          <ion-icon slot="start" name="save-outline"></ion-icon>
+          Guardar
         }
       </ion-button>
-
-      @if (producto.activo) {
-      <button type="button" class="delete-btn mt-md" (click)="desactivar()">
-        <ion-icon name="trash-outline"></ion-icon>
-        Quitar del inventario
-      </button>
-      } @else {
-      <button type="button" class="reactivar-btn mt-md" (click)="reactivar()">
-        <ion-icon name="refresh-outline"></ion-icon>
-        Reactivar producto
-      </button>
-      }
     </div>
 
   </form>

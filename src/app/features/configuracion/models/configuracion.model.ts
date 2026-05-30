@@ -12,7 +12,6 @@ export interface Configuracion {
     negocio_direccion: string;
     recargas_celular_habilitada: boolean;
     recargas_bus_habilitada: boolean;
-    caja_fondo_fijo_diario: number;
     caja_varios_activa: boolean;
     caja_varios_transferencia_dia: number;
     bus_alerta_saldo_bajo: number;
@@ -39,7 +38,6 @@ export const CONFIGURACION_DEFAULTS: Configuracion = {
     negocio_direccion: '',
     recargas_celular_habilitada: false,
     recargas_bus_habilitada: false,
-    caja_fondo_fijo_diario: 0,
     caja_varios_activa: false,
     caja_varios_transferencia_dia: 0,
     bus_alerta_saldo_bajo: 10,
@@ -74,7 +72,6 @@ export function mapRowsToConfig(rows: ConfiguracionRow[]): Configuracion {
         negocio_direccion:             map.get('negocio_direccion')             ?? D.negocio_direccion,
         recargas_celular_habilitada:   map.get('recargas_celular_habilitada') === 'true',
         recargas_bus_habilitada:       map.get('recargas_bus_habilitada') === 'true',
-        caja_fondo_fijo_diario:        num('caja_fondo_fijo_diario',        D.caja_fondo_fijo_diario),
         caja_varios_activa:            map.get('caja_varios_activa') === 'true',
         caja_varios_transferencia_dia: num('caja_varios_transferencia_dia', D.caja_varios_transferencia_dia),
         bus_alerta_saldo_bajo:         num('bus_alerta_saldo_bajo',         D.bus_alerta_saldo_bajo),

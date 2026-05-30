@@ -1,12 +1,7 @@
 <div class="presentaciones-wrapper">
 
   <div class="presentaciones-header">
-    <p class="field-label">
-      Presentaciones
-      @if (modo === 'crear') {
-      <span class="optional-badge">Opcional</span>
-      }
-    </p>
+    <p class="pres-title">Presentaciones</p>
     @if (modo === 'crear') {
     <button type="button" class="pres-add-btn" (click)="agregarNueva()">
       <ion-icon name="add-outline"></ion-icon> Agregar
@@ -23,7 +18,7 @@
     @if (presentacionesNuevas.length === 0) {
     <p class="help-text">
       <ion-icon name="information-circle-outline" class="icon-inline"></ion-icon>
-      Si este producto se vende en paquetes (ej. cajetilla x10), agregalos aqui. Opcional.
+      Agrega las presentaciones en que se vende este producto (suelto, funda, caja…).
     </p>
     } @else {
     <div class="presentaciones-list">
@@ -70,17 +65,21 @@
           <ion-icon name="image-outline"></ion-icon>
         </div>
         }
-        <div class="pres-info" (click)="editar(pres)">
+        <div class="pres-info">
           <span class="pres-nombre">{{ pres.nombre }}</span>
           <span class="pres-detalle">x{{ pres.factor_conversion }} und · ${{ currencyService.format(pres.precio_venta) }}</span>
           @if (pres.codigo_barras) {
           <span class="pres-codigo">{{ pres.codigo_barras }}</span>
           }
         </div>
-        <button type="button" class="pres-quitar-btn" (click)="desactivar(pres)">
-          <ion-icon name="close-outline"></ion-icon>
-          <span>Quitar</span>
-        </button>
+        <div class="pres-acciones">
+          <button type="button" class="pres-accion-btn pres-accion-btn--edit" (click)="editar(pres)">
+            <ion-icon name="create-outline"></ion-icon>
+          </button>
+          <button type="button" class="pres-accion-btn pres-accion-btn--delete" (click)="desactivar(pres)">
+            <ion-icon name="trash-outline"></ion-icon>
+          </button>
+        </div>
       </div>
       }
 

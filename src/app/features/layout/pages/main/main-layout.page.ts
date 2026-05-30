@@ -42,7 +42,7 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   private scanner = inject(BarcodeScannerService);
 
   posHabilitado = false;
-  posDisabledMessage = 'Abrí la caja desde Inicio para usar el POS';
+  posDisabledMessage = 'Para usar el POS primero abre la caja desde Inicio';
   esSuperadmin = false;
   private posSub!: Subscription;
   private turnoSub!: Subscription;
@@ -80,9 +80,9 @@ export class MainLayoutPage implements OnInit, OnDestroy {
     this.turnoSub = this.turnosCajaService.turnoActivo$.subscribe(turno => {
       if (turno && !this.posHabilitado) {
         const nombre = turno.empleado?.nombre ?? 'otro empleado';
-        this.posDisabledMessage = `${nombre} ya tiene el turno abierto. Solo él puede usar el POS`;
+        this.posDisabledMessage = `${nombre} ya tiene el turno abierto. Solo ${nombre} puede usar el POS`;
       } else if (!turno) {
-        this.posDisabledMessage = 'Abrí la caja desde Inicio para usar el POS';
+        this.posDisabledMessage = 'Para usar el POS primero abre la caja desde Inicio';
       }
     });
   }
@@ -92,7 +92,7 @@ export class MainLayoutPage implements OnInit, OnDestroy {
     this.turnoSub?.unsubscribe();
   }
 
-  /**
+/**
    * Toggle del estado del FAB
    */
   toggleFab() {

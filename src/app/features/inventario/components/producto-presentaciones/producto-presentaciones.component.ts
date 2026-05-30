@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { IonIcon, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-    addOutline, trashOutline, closeOutline, refreshOutline,
+    addOutline, trashOutline, closeOutline, refreshOutline, createOutline,
     chevronDownOutline, chevronUpOutline, informationCircleOutline, imageOutline
 } from 'ionicons/icons';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -71,7 +71,7 @@ export class ProductoPresentacionesComponent implements OnInit {
 
     constructor() {
         addIcons({
-            addOutline, trashOutline, closeOutline, refreshOutline,
+            addOutline, trashOutline, closeOutline, refreshOutline, createOutline,
             chevronDownOutline, chevronUpOutline, informationCircleOutline, imageOutline
         });
     }
@@ -112,9 +112,7 @@ export class ProductoPresentacionesComponent implements OnInit {
             this.ui.showToast('Ingresa el nombre del producto antes de agregar presentaciones', 'warning');
             return;
         }
-        const result = await this._abrirModal(
-            this.presentacionesNuevas.map(p => p.nombre)
-        );
+        const result = await this._abrirModal();
         if (!result) return;
 
         const pres: PresentacionNueva = {
@@ -136,7 +134,7 @@ export class ProductoPresentacionesComponent implements OnInit {
         const nombresOtros = this.presentacionesNuevas.filter((_, i) => i !== index).map(p => p.nombre);
         const imagenExistente = pres.imagen_url?.startsWith('__pending__') ? null : pres.imagen_url ?? null;
 
-        const result = await this._abrirModal(nombresOtros, pres, undefined, imagenExistente);
+        const result = await this._abrirModal(pres, undefined, imagenExistente);
         if (!result) return;
 
         const updated: PresentacionNueva = {
@@ -165,7 +163,6 @@ export class ProductoPresentacionesComponent implements OnInit {
 
     async agregar() {
         await this._abrirModal(
-            this.presentaciones.map(p => p.nombre),
             undefined,
             async (result) => {
                 let imagenPath: string | null | undefined = undefined;
@@ -200,9 +197,7 @@ export class ProductoPresentacionesComponent implements OnInit {
     }
 
     async editar(pres: ProductoPresentacion) {
-        const nombresOtros = this.presentaciones.filter(p => p.id !== pres.id).map(p => p.nombre);
         await this._abrirModal(
-            nombresOtros,
             pres,
             async (result) => {
                 let imagenPath: string | null | undefined = undefined;
@@ -242,7 +237,7 @@ export class ProductoPresentacionesComponent implements OnInit {
 
     async desactivar(pres: ProductoPresentacion) {
         const alert = await this.alertCtrl.create({
-            header: `¿Quitar "${pres.nombre}"?`,
+            header: `¿Quitar "${pres.nombre} x${pres.factor_conversion}"?`,
             message: 'Dejara de aparecer en el POS. Las ventas realizadas con esta presentacion no se veran afectadas.',
             buttons: [
                 { text: 'Cancelar', role: 'cancel' },
@@ -270,7 +265,6 @@ export class ProductoPresentacionesComponent implements OnInit {
     // ─────────────────────────────────────────────────────────────────────────
 
     private async _abrirModal(
-        nombresExistentes: string[],
         presentacionActual?: PresentacionModalResult,
         onConfirmar?: (result: PresentacionModalResult) => Promise<boolean>,
         imagenExistente?: string | null
@@ -278,7 +272,6 @@ export class ProductoPresentacionesComponent implements OnInit {
         const modal = await this.modalCtrl.create({
             component: PresentacionModalComponent,
             componentProps: {
-                nombresExistentes,
                 presentacionActual,
                 precioBase: this.precioCosto,
                 nombreProducto: this.nombreProducto.toUpperCase(),
