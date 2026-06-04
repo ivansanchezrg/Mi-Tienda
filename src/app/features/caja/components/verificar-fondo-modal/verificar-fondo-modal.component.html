@@ -29,7 +29,7 @@
       @if (hayDeficit) {
         <div class="vfm-deficit-banner">
           <ion-icon name="alert-circle-outline"></ion-icon>
-          <span>Se tomará <strong>${{ deficitVarios | number:'1.2-2' }}</strong> de Tienda para reponer Varios al abrir</span>
+          <span>Se tomará <strong>${{ deficitVarios | appCurrency }}</strong> de Tienda para reponer Varios al abrir</span>
         </div>
       }
 

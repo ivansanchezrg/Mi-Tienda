@@ -26,6 +26,22 @@ export class CurrencyService {
   }
 
   /**
+   * Parte entera de un monto para display bancario (trunca, no redondea).
+   * Ej: 0.71 → "0", 1250.99 → "1,250"
+   */
+  parteEntera(monto: number): string {
+    return Math.floor(monto).toLocaleString('en-US');
+  }
+
+  /**
+   * Parte decimal de un monto para display bancario (siempre 2 dígitos).
+   * Ej: 0.71 → "71", 1250.9 → "90", 1250.00 → "00"
+   */
+  centavos(monto: number): string {
+    return monto.toFixed(2).split('.')[1];
+  }
+
+  /**
    * Convierte cualquier entrada de usuario a un número válido.
    * Detecta inteligentemente si una coma es decimal o de miles.
    */

@@ -104,9 +104,9 @@ Para ver la imagen → `storageService.getSignedUrl(path)` genera una URL tempor
 
 `obtenerCategorias(tipo)` filtra `categorias_operaciones` por `tipo = 'INGRESO'` o `tipo = 'EGRESO'` y `activo = true`, ordenadas por `codigo ASC`.
 
-Categorías especiales usadas por el sistema (no aparecen en este modal):
-- `EG-012` — Ajuste Déficit Turno Anterior (usado por `fn_reparar_deficit_turno`)
-- `IN-004` — Reposición Déficit Turno Anterior (usado por `fn_reparar_deficit_turno`)
+Categorías especiales del sistema (no aparecen en el dropdown del usuario — viven en `categorias_sistema`, tabla global sin `negocio_id`):
+- `DEF-RETIRAR` — Ajuste Déficit Turno Anterior (usado por `fn_reparar_deficit_turno`)
+- `DEF-REPONER` — Reposición Déficit Turno Anterior (usado por `fn_reparar_deficit_turno`)
 
 ---
 

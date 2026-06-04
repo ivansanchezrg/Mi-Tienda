@@ -24,6 +24,27 @@
   }
 }
 
+.cierre-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-2xl) 0;
+
+  ion-spinner {
+    width: 36px;
+    height: 36px;
+    color: var(--ion-color-primary);
+  }
+
+  p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--ion-color-medium);
+  }
+}
+
 .paso-header {
   text-align: center;
   margin-bottom: var(--spacing-2xl);
@@ -274,7 +295,7 @@
 
 .saldo-fila {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--spacing-md);
   padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--ion-color-step-50);
@@ -334,9 +355,41 @@
     color: var(--ion-text-color);
   }
 
+  .saldo-ecuacion {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin-top: 4px;
+
+    .saldo-anterior {
+      font-size: 13px;
+      color: var(--ion-color-medium);
+      font-weight: var(--font-weight-medium);
+      white-space: nowrap;
+    }
+
+    .saldo-delta {
+      flex: 1;
+      text-align: center;
+      font-size: 14px;
+      color: var(--ion-color-success-shade);
+      font-weight: var(--font-weight-bold);
+      white-space: nowrap;
+    }
+
+    .saldo-monto {
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    .saldo-badge-neutral {
+      margin-left: var(--spacing-sm);
+    }
+  }
+
   .saldo-detalle {
     font-size: 12px;
-    color: var(--ion-color-success-shade);
+    color: var(--ion-color-medium);
     font-weight: var(--font-weight-medium);
     white-space: nowrap;
     overflow: hidden;
@@ -348,34 +401,28 @@
   }
 }
 
-.saldo-resultado {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  flex-shrink: 0;
+.saldo-monto {
+  font-size: 15px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ion-text-color);
+  white-space: nowrap;
 
-  .saldo-monto {
-    font-size: 15px;
-    font-weight: var(--font-weight-bold);
-    color: var(--ion-text-color);
-
-    &.highlight {
-      font-size: 17px;
-      color: var(--ion-color-primary);
-    }
+  &.highlight {
+    font-size: 16px;
+    color: var(--ion-color-primary);
   }
+}
 
-  .saldo-badge-neutral {
-    font-size: 10px;
-    font-weight: var(--font-weight-bold);
-    color: var(--ion-color-medium);
-    background: var(--ion-color-step-100);
-    border-radius: 4px;
-    padding: 2px 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
+.saldo-badge-neutral {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ion-color-medium);
+  background: var(--ion-color-step-100);
+  border-radius: 4px;
+  padding: 2px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
 // ─── Alertas (compartidas) ──────────────────────────────────

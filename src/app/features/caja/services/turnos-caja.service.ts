@@ -7,7 +7,20 @@ import { LoggerService } from '@core/services/logger.service';
 import { ConfigService } from '@core/services/config.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
+import { OperacionCaja } from '../models/operacion-caja.model';
 import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
+
+/**
+ * Snapshot consolidado del dashboard del home (devuelto por la RPC fn_home_dashboard).
+ * Reemplaza las múltiples llamadas paralelas que hacía home.cargarDatos().
+ */
+export interface HomeDashboard {
+  estadoCaja: EstadoCaja;
+  saldoVirtualCelular: number;
+  saldoVirtualBus: number;
+  ultimosMovimientos: OperacionCaja[];
+  totalMovimientosHoy: number;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -267,31 +280,27 @@ export class TurnosCajaService {
    * Retorna false tanto si ya hay turno abierto como si hay error de conexión —
    * home.page.ts maneja el error verificando si el turno existe tras el fallo.
    */
-  async abrirTurno(fondoApertura: number = 0): Promise<boolean> {
+  async abrirTurno(fondoApertura: number = 0): Promise<{ ok: boolean; errorHandled: boolean }> {
     const empleado = await this.authService.getUsuarioActual();
-    if (!empleado) return false;
+    if (!empleado) return { ok: false, errorHandled: false };
 
     const response = await this.supabase.call(
       this.supabase.client.rpc('fn_abrir_turno', {
         p_empleado_id:    empleado.id,
         p_fondo_apertura: fondoApertura
-      }),
-      undefined,
-      { showLoading: true }
+      })
     );
 
-    if (response === null) return false;
+    // response === null → supabase.call() ya mostró el toast del error SQL
+    if (response === null) return { ok: false, errorHandled: true };
 
     const data = response as any;
-    if (!data?.success) return false; // home.page.ts verifica si el turno ya existía
+    // success: false → turno ya existía (race condition); home verifica cuál es el caso
+    if (!data?.success) return { ok: false, errorHandled: false };
 
-    // Sincronizamos turnoActivo$ de forma proactiva para que el layout (tab POS)
-    // y el sidebar reaccionen sin esperar al round-trip del evento Realtime INSERT.
-    // El evento Realtime luego dispara un refetch idempotente, no duplica nada.
     await this.refrescarTurnoActivo();
-
     await this.ui.showSuccess('Caja abierta');
-    return true;
+    return { ok: true, errorHandled: false };
   }
 
   /**
@@ -300,63 +309,11 @@ export class TurnosCajaService {
    * Retorna null si no hay cierre previo o si VARIOS ya cobró ese día.
    */
   async obtenerDeficitTurnoAnterior(): Promise<{ deficitVarios: number } | null> {
-    // 1. Obtener el último turno cerrado
-    const { data: ultimoTurno, error: turnoError } = await this.supabase.client
-      .from('turnos_caja')
-      .select('hora_fecha_cierre')
-      .not('hora_fecha_cierre', 'is', null)
-      .order('hora_fecha_cierre', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (turnoError || !ultimoTurno) return null;
-
-    // 2. Fecha local del último cierre
-    const fechaUltimoCierre = new Date(ultimoTurno.hora_fecha_cierre);
-    const anio = fechaUltimoCierre.getFullYear();
-    const mes  = String(fechaUltimoCierre.getMonth() + 1).padStart(2, '0');
-    const dia  = String(fechaUltimoCierre.getDate()).padStart(2, '0');
-    const fechaLocalCierre = `${anio}-${mes}-${dia}`;
-
-    // 3. Verificar si VARIOS recibió su transferencia ese día
-    const [variosRes, config] = await Promise.all([
-      this.supabase.client.from('cajas').select('id').eq('codigo', 'VARIOS').single(),
-      this.configService.get()
-    ]);
-
-    if (!variosRes.data) return null;
-
-    const inicioUtc = new Date(`${fechaLocalCierre}T00:00:00`).toISOString();
-    const finUtc    = getInicioDiaSiguienteDeISO(fechaLocalCierre);
-
-    const [transferenciaRes, ingresoDeficitRes] = await Promise.all([
-      this.supabase.client
-        .from('operaciones_cajas')
-        .select('id')
-        .eq('caja_id', variosRes.data.id)
-        .gte('fecha', inicioUtc)
-        .lte('fecha', finUtc)
-        .eq('tipo_operacion', 'TRANSFERENCIA_ENTRANTE')
-        .limit(1)
-        .maybeSingle(),
-
-      this.supabase.client
-        .from('operaciones_cajas')
-        .select('id, categoria_id, categorias_operaciones!inner(codigo)')
-        .eq('caja_id', variosRes.data.id)
-        .gte('fecha', inicioUtc)
-        .lte('fecha', finUtc)
-        .eq('tipo_operacion', 'INGRESO')
-        .eq('categorias_operaciones.codigo', 'IN-004')
-        .limit(1)
-        .maybeSingle()
-    ]);
-
-    const variosYaCobro = !!(transferenciaRes.data || ingresoDeficitRes.data);
-    const deficitVarios = variosYaCobro ? 0 : config.caja_varios_transferencia_dia;
-
-    if (deficitVarios <= 0) return null;
-    return { deficitVarios };
+    const data = await this.supabase.call<{ deficit_varios: number }>(
+      this.supabase.client.rpc('fn_obtener_deficit_turno_anterior')
+    );
+    if (!data || data.deficit_varios <= 0) return null;
+    return { deficitVarios: data.deficit_varios };
   }
 
   /**
@@ -370,29 +327,13 @@ export class TurnosCajaService {
     const empleado = await this.authService.getUsuarioActual();
     if (!empleado) return { ok: false, errorMsg: 'No se pudo obtener el empleado actual' };
 
-    const { data: categorias, error: catError } = await this.supabase.client
-      .from('categorias_operaciones')
-      .select('id, codigo')
-      .in('codigo', ['EG-012', 'IN-004']);
-
-    if (catError || !categorias || categorias.length < 2) {
-      return { ok: false, errorMsg: 'No se encontraron las categorías de ajuste (EG-012 / IN-004). Ejecuta la migración SQL.' };
-    }
-
-    const catEgreso  = categorias.find(c => c.codigo === 'EG-012');
-    const catIngreso = categorias.find(c => c.codigo === 'IN-004');
-
-    if (!catEgreso || !catIngreso) {
-      return { ok: false, errorMsg: 'Categorías de ajuste incompletas en la base de datos.' };
-    }
-
+    // Las categorías DEF-RETIRAR y DEF-REPONER son UUIDs fijos en categorias_sistema —
+    // fn_reparar_deficit_turno las resuelve internamente, no las recibe como parámetros.
     const response = await this.supabase.call(
       this.supabase.client.rpc('fn_reparar_deficit_turno', {
         p_empleado_id:    empleado.id,
         p_deficit_varios: deficitVarios,
         p_fondo_apertura: fondoApertura,
-        p_cat_egreso_id:  catEgreso.id,
-        p_cat_ingreso_id: catIngreso.id
       }),
       undefined,
       { showLoading: true }
@@ -558,6 +499,69 @@ export class TurnosCajaService {
       horaApertura,
       turnosHoy,
       fechaUltimoCierre
+    };
+  }
+
+  /**
+   * Snapshot consolidado del home en una sola RPC (~250-500ms vs ~400-800ms de
+   * Promise.all con 9 queries individuales). Reemplaza la combinación de:
+   *   - obtenerEstadoCaja()
+   *   - getSaldoVirtualActual('CELULAR' | 'BUS') x2
+   *   - obtenerUltimosMovimientos()
+   *   - contarMovimientosHoy()
+   *
+   * La RPC filtra todo por get_negocio_id() del JWT. Multi-tenant safe.
+   */
+  async obtenerHomeDashboard(): Promise<HomeDashboard> {
+    const data = await this.supabase.call<{
+      estado_caja: {
+        turno_activo: TurnoCajaConEmpleado | null;
+        turnos_hoy: number;
+        fecha_ultimo_cierre: string | null;
+      };
+      saldos_virtuales: { celular: number; bus: number };
+      movimientos: { lista: OperacionCaja[]; total: number };
+    }>(
+      this.supabase.client.rpc('fn_home_dashboard')
+    );
+
+    // Defaults defensivos si la RPC retornó null (shouldn't happen pero por las dudas)
+    const ec = data?.estado_caja ?? { turno_activo: null, turnos_hoy: 0, fecha_ultimo_cierre: null };
+    const sv = data?.saldos_virtuales ?? { celular: 0, bus: 0 };
+    const mov = data?.movimientos ?? { lista: [], total: 0 };
+
+    // Calcular estado a partir del turno activo y turnos del día
+    let estado: EstadoCajaTipo;
+    let empleadoNombre = '';
+    let horaApertura = '';
+
+    if (ec.turno_activo) {
+      estado = 'TURNO_EN_CURSO';
+      empleadoNombre = ec.turno_activo.empleado?.nombre || '';
+      horaApertura = new Date(ec.turno_activo.hora_fecha_apertura).toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } else if (ec.turnos_hoy > 0) {
+      estado = 'CERRADA';
+    } else {
+      estado = 'SIN_ABRIR';
+    }
+
+    return {
+      estadoCaja: {
+        estado,
+        turnoActivo:       ec.turno_activo,
+        empleadoNombre,
+        horaApertura,
+        turnosHoy:         ec.turnos_hoy,
+        fechaUltimoCierre: ec.fecha_ultimo_cierre,
+      },
+      saldoVirtualCelular: sv.celular ?? 0,
+      saldoVirtualBus:     sv.bus     ?? 0,
+      ultimosMovimientos:  mov.lista  ?? [],
+      totalMovimientosHoy: mov.total  ?? 0,
     };
   }
 }

@@ -7,9 +7,9 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-    barcodeOutline, cameraOutline, closeCircle,
+    barcodeOutline, cameraOutline, closeCircle, ellipsisHorizontal,
     chevronDownOutline, checkmarkCircleOutline, sparklesOutline,
-    cubeOutline, scaleOutline
+    cubeOutline, scaleOutline, cropOutline, trashOutline
 } from 'ionicons/icons';
 import { StorageService } from '../../../../core/services/storage.service';
 import { BarcodeScannerService, getBarcodeInputHint } from '../../../../core/services/barcode-scanner.service';
@@ -47,6 +47,8 @@ export class ProductoInfoFormComponent {
     @Input() imagenUrlExistente: string | null = null;
     /** SafeUrl de preview local (recién capturada) */
     @Input() fotoPreviewUrl: SafeUrl | null = null;
+    /** rawUrl (base64) de la foto local — necesario para re-cropear sin recapturar */
+    @Input() fotoRawUrl: string | null = null;
 
     @Output() fotoSeleccionada = new EventEmitter<FotoSeleccionada>();
     @Output() fotoRemovida     = new EventEmitter<void>();
@@ -63,9 +65,9 @@ export class ProductoInfoFormComponent {
 
     constructor() {
         addIcons({
-            barcodeOutline, cameraOutline, closeCircle,
+            barcodeOutline, cameraOutline, closeCircle, ellipsisHorizontal,
             chevronDownOutline, checkmarkCircleOutline, sparklesOutline,
-            cubeOutline, scaleOutline
+            cubeOutline, scaleOutline, cropOutline, trashOutline
         });
     }
 
@@ -121,14 +123,64 @@ export class ProductoInfoFormComponent {
         this.escaneando = false;
     }
 
+    /** Bloquea aperturas concurrentes del flujo de imagen (doble-tap, etc.) */
+    private procesandoImagen = false;
+
     async seleccionarFoto() {
-        const result = await this.storageService.elegirFuenteFoto();
-        if (!result) return;
-        this.fotoSeleccionada.emit({ previewUrl: result.previewUrl, rawUrl: result.rawUrl });
+        if (this.procesandoImagen) return;
+        this.procesandoImagen = true;
+        try {
+            const result = await this.storageService.elegirFuenteFoto();
+            if (!result) return;
+            this.fotoSeleccionada.emit({ previewUrl: result.previewUrl, rawUrl: result.rawUrl });
+        } finally {
+            this.procesandoImagen = false;
+        }
     }
 
     removerFoto() {
         this.fotoRemovida.emit();
+    }
+
+    /**
+     * Abre el menú de opciones cuando ya hay una imagen seleccionada/cargada.
+     * - 'recortar' → vuelve a abrir el cropper sobre la imagen actual (sin retomar la foto)
+     * - 'cambiar'  → flujo completo: elegir fuente → recortar
+     * - 'quitar'   → emite fotoRemovida
+     */
+    async abrirOpcionesImagen() {
+        if (this.procesandoImagen) return;
+        this.procesandoImagen = true;
+        try {
+            const accion = await this.storageService.mostrarOpcionesImagen();
+            if (!accion) return;
+
+            if (accion === 'quitar') {
+                this.removerFoto();
+                return;
+            }
+
+            if (accion === 'cambiar') {
+                // Liberar el lock antes de llamar a seleccionarFoto (que lo vuelve a tomar)
+                this.procesandoImagen = false;
+                await this.seleccionarFoto();
+                return;
+            }
+
+            // 'recortar' — necesitamos la URL real de la imagen actual
+            const url = this.fotoRawUrl ?? this.imagenUrlExistente;
+            if (!url) {
+                this.procesandoImagen = false;
+                await this.seleccionarFoto();
+                return;
+            }
+
+            const result = await this.storageService.recortarImagen(url);
+            if (!result) return;
+            this.fotoSeleccionada.emit({ previewUrl: result.previewUrl, rawUrl: result.rawUrl });
+        } finally {
+            this.procesandoImagen = false;
+        }
     }
 
     onTipoVentaChange(tipo: 'UNIDAD' | 'PESO') {

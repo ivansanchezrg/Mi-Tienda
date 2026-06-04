@@ -1,10 +1,26 @@
 DROP FUNCTION IF EXISTS public.fn_listar_productos(TEXT, UUID, INT, INT);
 DROP FUNCTION IF EXISTS public.fn_listar_productos(TEXT, UUID, UUID, INT, INT);
 
--- fn_listar_productos
--- Lista productos activos con filtro por categoria (simples Y variantes),
+-- ==========================================
+-- fn_listar_productos (v2.0 — performance: subqueries → JOINs)
+-- ==========================================
+-- Lista productos activos con filtro por categoría (simples y variantes),
 -- filtro por template, búsqueda por nombre/código de barras, y paginación.
--- Variantes: categoria_id vive en producto_templates, no en productos.
+--
+-- v2.0 (2026-05-30) — PERFORMANCE:
+--   Reemplaza 3 subqueries por fila (categoria, template.categoria, presentaciones)
+--   por JOINs explícitos:
+--     - `LEFT JOIN producto_templates` (ya existía)
+--     - `LEFT JOIN categorias_productos cat_efectiva` — categoría visible (template o producto)
+--     - `LEFT JOIN categorias_productos cat_template` — categoría del template (anidada)
+--     - `LEFT JOIN LATERAL` con `json_agg` — presentaciones del producto
+--
+--   Antes: con LIMIT 24, ~72 subqueries adicionales por llamada (24 × 3).
+--   Después: 3 JOINs constantes (independiente del LIMIT).
+--
+--   Contrato JSON sin cambios — todos los campos antiguos siguen devolviendo
+--   exactamente lo mismo. El consumidor (inventario.page, kardex) no requiere ajustes.
+-- ==========================================
 
 CREATE OR REPLACE FUNCTION public.fn_listar_productos(
     p_buscar       TEXT  DEFAULT NULL,
@@ -38,43 +54,50 @@ AS $$
             'unidad_medida',        COALESCE(t.unidad_medida,p.unidad_medida),
             'updated_at',           p.updated_at,
             'created_at',           p.created_at,
-            'categoria', (
-                SELECT row_to_json(c)
-                FROM categorias_productos c
-                WHERE c.id = COALESCE(t.categoria_id, p.categoria_id)
-            ),
+            -- categoría efectiva (del template si es variante, del producto si es simple)
+            'categoria', CASE
+                WHEN cat_efectiva.id IS NULL THEN NULL
+                ELSE row_to_json(cat_efectiva)
+            END,
+            -- producto_template con su propia categoría anidada (NULL si producto simple)
             'producto_template', CASE
                 WHEN t.id IS NULL THEN NULL
-                ELSE (
-                    SELECT row_to_json(r) FROM (
-                        SELECT
-                            t.id,
-                            t.nombre,
-                            t.categoria_id,
-                            t.tipo_venta,
-                            t.unidad_medida,
-                            t.imagen_url,
-                            t.activo,
-                            t.created_at,
-                            (SELECT row_to_json(c2)
-                             FROM categorias_productos c2
-                             WHERE c2.id = t.categoria_id) AS categoria
-                    ) r
+                ELSE json_build_object(
+                    'id',            t.id,
+                    'nombre',        t.nombre,
+                    'categoria_id',  t.categoria_id,
+                    'tipo_venta',    t.tipo_venta,
+                    'unidad_medida', t.unidad_medida,
+                    'imagen_url',    t.imagen_url,
+                    'activo',        t.activo,
+                    'created_at',    t.created_at,
+                    'categoria', CASE
+                        WHEN cat_template.id IS NULL THEN NULL
+                        ELSE row_to_json(cat_template)
+                    END
                 )
             END,
-            'presentaciones', (
-                SELECT COALESCE(json_agg(json_build_object('id', pp.id)), '[]'::json)
-                FROM producto_presentaciones pp
-                WHERE pp.producto_id = p.id AND pp.activo = TRUE
-            )
+            'presentaciones', COALESCE(pres.presentaciones, '[]'::json)
         )
     FROM productos p
-    LEFT JOIN producto_templates t ON t.id = p.producto_template_id
-    WHERE p.negocio_id = get_negocio_id()
+    LEFT JOIN producto_templates t
+        ON t.id = p.producto_template_id
+    LEFT JOIN categorias_productos cat_efectiva
+        ON cat_efectiva.id = COALESCE(t.categoria_id, p.categoria_id)
+       AND cat_efectiva.negocio_id = p.negocio_id
+    LEFT JOIN categorias_productos cat_template
+        ON cat_template.id = t.categoria_id
+       AND cat_template.negocio_id = p.negocio_id
+    LEFT JOIN LATERAL (
+        SELECT json_agg(json_build_object('id', pp.id)) AS presentaciones
+        FROM producto_presentaciones pp
+        WHERE pp.producto_id = p.id AND pp.activo = TRUE
+    ) pres ON TRUE
+    WHERE p.negocio_id = public.get_negocio_id()
       AND p.activo = TRUE
       AND (
           p_buscar IS NULL
-          OR p.nombre       ILIKE '%' || p_buscar || '%'
+          OR p.nombre        ILIKE '%' || p_buscar || '%'
           OR p.codigo_barras ILIKE '%' || p_buscar || '%'
       )
       AND (
@@ -94,3 +117,8 @@ REVOKE EXECUTE ON FUNCTION public.fn_listar_productos(TEXT, UUID, UUID, INT, INT
 GRANT  EXECUTE ON FUNCTION public.fn_listar_productos(TEXT, UUID, UUID, INT, INT) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
+
+COMMENT ON FUNCTION public.fn_listar_productos IS
+    'v2.0 — Performance: 3 subqueries por fila reemplazadas por JOINs explícitos. '
+    'LEFT JOIN categorias_productos (categoría efectiva + categoría del template) y '
+    'LEFT JOIN LATERAL para presentaciones. Contrato JSON sin cambios.';

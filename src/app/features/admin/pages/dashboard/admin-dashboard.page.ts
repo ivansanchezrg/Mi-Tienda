@@ -80,6 +80,9 @@ export class AdminDashboardPage implements OnInit {
         .from('negocios')
         .select(`
           id, nombre, slug, propietario_usuario_id, created_at,
+          telefono, direccion, correo_electronico,
+          ruc, razon_social, nombre_comercial,
+          codigo_establecimiento, codigo_punto_emision, ambiente_sri, obligado_contabilidad,
           propietario:usuarios!propietario_usuario_id (nombre, email, activo),
           configuraciones (clave, valor)
         `)
@@ -99,6 +102,16 @@ export class AdminDashboardPage implements OnInit {
           id:                     n.id,
           nombre:                 n.nombre,
           slug:                   n.slug,
+          telefono:               n.telefono               ?? null,
+          direccion:              n.direccion              ?? null,
+          correo_electronico:     n.correo_electronico     ?? null,
+          ruc:                    n.ruc                    ?? null,
+          razon_social:           n.razon_social           ?? null,
+          nombre_comercial:       n.nombre_comercial       ?? null,
+          codigo_establecimiento: n.codigo_establecimiento ?? '001',
+          codigo_punto_emision:   n.codigo_punto_emision   ?? '001',
+          ambiente_sri:           n.ambiente_sri           ?? 1,
+          obligado_contabilidad:  n.obligado_contabilidad  ?? false,
           propietario_usuario_id: n.propietario_usuario_id,
           created_at:             n.created_at,
           propietario_nombre:     n.propietario?.nombre  ?? 'Sin nombre',

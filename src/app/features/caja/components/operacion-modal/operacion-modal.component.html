@@ -37,7 +37,7 @@
               </div>
               <div class="caja-mini-card__info">
                 <span class="caja-mini-card__name">{{ cajaPreseleccionada?.nombre }}</span>
-                <span class="caja-mini-card__saldo">${{ (cajaPreseleccionada?.saldo_actual ?? 0) | number:'1.2-2' }}</span>
+                <span class="caja-mini-card__saldo">${{ (cajaPreseleccionada?.saldo_actual ?? 0) | appCurrency }}</span>
               </div>
             </div>
           </div>
@@ -63,7 +63,7 @@
                 </div>
                 <div class="caja-mini-card__info">
                   <span class="caja-mini-card__name">{{ caja.nombre }}</span>
-                  <span class="caja-mini-card__saldo">${{ caja.saldo_actual | number:'1.2-2' }}</span>
+                  <span class="caja-mini-card__saldo">${{ caja.saldo_actual | appCurrency }}</span>
                 </div>
               </button>
             }
@@ -107,7 +107,7 @@
             appNumbersOnly>
         </div>
         @if (montoExcedeSaldo) {
-          <span class="field-error">El monto excede el saldo disponible (${{ saldoCajaSeleccionada | number:'1.2-2' }})</span>
+          <span class="field-error">El monto excede el saldo disponible (${{ saldoCajaSeleccionada | appCurrency }})</span>
         }
       </div>
 

@@ -15,7 +15,7 @@ import { VentasService } from '../../services/ventas.service';
 import { ShareVentaService } from '../../services/share-venta.service';
 import { Venta } from '../../models/venta.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
-import { ConfigService } from '../../../../core/services/config.service';
+import { AuthService } from '../../../auth/services/auth.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { formatFechaHoraEC, formatHoraEC } from '../../../../core/utils/date.util';
 
@@ -35,7 +35,7 @@ export class VentaDetalleModalComponent implements OnInit {
     private ventasService = inject(VentasService);
     private shareService  = inject(ShareVentaService);
     protected currencyService = inject(CurrencyService);
-    private configService  = inject(ConfigService);
+    private authService    = inject(AuthService);
     private modalCtrl = inject(ModalController);
     private ui = inject(UiService);
 
@@ -54,10 +54,8 @@ export class VentaDetalleModalComponent implements OnInit {
     }
 
     async ngOnInit() {
-        [this.venta, this.nombreNegocio] = await Promise.all([
-            this.ventasService.obtenerVentaDetalle(this.ventaId),
-            this.configService.getNombreNegocio(),
-        ]);
+        this.venta = await this.ventasService.obtenerVentaDetalle(this.ventaId);
+        this.nombreNegocio = this.authService.usuarioActualValue?.negocio_nombre ?? 'Mi Tienda';
         this.loading = false;
     }
 

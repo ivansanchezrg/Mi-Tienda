@@ -85,6 +85,14 @@ BEGIN
         RAISE EXCEPTION 'Debe incluir al menos un tipo de atributo para el template.';
     END IF;
 
+    -- 🔒 Multi-tenant: la categoría debe pertenecer al negocio activo
+    IF p_categoria_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM categorias_productos
+        WHERE id = p_categoria_id AND negocio_id = v_negocio_id
+    ) THEN
+        RAISE EXCEPTION 'La categoría no pertenece a este negocio';
+    END IF;
+
     -- 1. Crear template (sin tiene_iva — la fuente de verdad es cada SKU en productos)
     v_template_id := gen_random_uuid();
 
@@ -119,6 +127,13 @@ BEGIN
             SELECT value::text FROM json_array_elements_text(v_atributo_entry->'opcion_ids')
         LOOP
             v_opcion_id := v_opcion_id_val::UUID;
+            -- 🔒 Multi-tenant: la opción debe pertenecer al negocio activo
+            IF NOT EXISTS (
+                SELECT 1 FROM atributo_opciones
+                WHERE id = v_opcion_id AND negocio_id = v_negocio_id
+            ) THEN
+                RAISE EXCEPTION 'Una opción de atributo no pertenece a este negocio: %', v_opcion_id;
+            END IF;
             INSERT INTO template_atributo_opciones (template_atributo_id, atributo_opcion_id)
             VALUES (v_ta_id, v_opcion_id)
             ON CONFLICT DO NOTHING;
@@ -193,9 +208,6 @@ BEGIN
         'template_id', v_template_id,
         'skus_creados', v_skus_creados
     );
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al crear producto con variantes: %', SQLERRM;
 END;
 $$;
 

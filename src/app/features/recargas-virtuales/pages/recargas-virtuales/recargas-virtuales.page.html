@@ -39,13 +39,13 @@
         <span>Celular</span>
       </div>
       }
-      <div class="saldo-monto">${{ saldoVirtualCelular | number:'1.2-2' }}</div>
+      <div class="saldo-monto">${{ saldoVirtualCelular | appCurrency }}</div>
       <div class="saldo-label">Saldo para vender recargas</div>
       <div class="saldo-divider"></div>
       <div class="saldo-caja-row">
         <ion-icon name="wallet-outline"></ion-icon>
         <span class="saldo-caja-label">Caja Celular</span>
-        <span class="saldo-caja-valor">${{ cajaCelularSaldo | number:'1.2-2' }}</span>
+        <span class="saldo-caja-valor">${{ cajaCelularSaldo | appCurrency }}</span>
       </div>
     </div>
 
@@ -70,7 +70,7 @@
       </div>
       <div class="action-content">
         <h3>Pagar al proveedor</h3>
-        <p>Debes <span class="badge danger">${{ totalDeudaCelular | number:'1.2-2' }}</span> · {{ deudasCelular.length }} recarga{{ deudasCelular.length === 1 ? '' : 's' }} pendiente{{ deudasCelular.length === 1 ? '' : 's' }}</p>
+        <p>Debes <span class="badge danger">${{ totalDeudaCelular | appCurrency }}</span> · {{ deudasCelular.length }} recarga{{ deudasCelular.length === 1 ? '' : 's' }} pendiente{{ deudasCelular.length === 1 ? '' : 's' }}</p>
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
@@ -85,7 +85,7 @@
       <div class="action-content">
         <h3>Movimientos</h3>
         @if (gananciaCelularPendiente > 0) {
-          <p>Tienes <span class="badge celular">${{ gananciaCelularPendiente | number:'1.2-2' }}</span> por liquidar · Ver movimientos</p>
+          <p>Tienes <span class="badge celular">${{ gananciaCelularPendiente | appCurrency }}</span> por liquidar · Ver movimientos</p>
         } @else {
           <p>Ver movimientos</p>
         }
@@ -139,13 +139,13 @@
         <span>Bus</span>
       </div>
       }
-      <div class="saldo-monto">${{ saldoVirtualBus | number:'1.2-2' }}</div>
+      <div class="saldo-monto">${{ saldoVirtualBus | appCurrency }}</div>
       <div class="saldo-label">Saldo para vender pasajes</div>
       <div class="saldo-divider"></div>
       <div class="saldo-caja-row">
         <ion-icon name="wallet-outline"></ion-icon>
         <span class="saldo-caja-label">Caja Bus</span>
-        <span class="saldo-caja-valor">${{ cajaBusSaldo | number:'1.2-2' }}</span>
+        <span class="saldo-caja-valor">${{ cajaBusSaldo | appCurrency }}</span>
       </div>
     </div>
 
@@ -182,7 +182,7 @@
       <div class="action-content">
         <h3>Movimientos</h3>
         @if (gananciasBusPendiente > 0) {
-          <p>Tienes <span class="badge bus">${{ gananciasBusPendiente | number:'1.2-2' }}</span> por liquidar · Ver movimientos</p>
+          <p>Tienes <span class="badge bus">${{ gananciasBusPendiente | appCurrency }}</span> por liquidar · Ver movimientos</p>
         } @else {
           <p>Ver movimientos</p>
         }

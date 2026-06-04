@@ -28,13 +28,8 @@ export class OperacionesCajaService {
   async obtenerUltimosMovimientos(): Promise<OperacionCaja[]> {
     const data = await this.supabase.call<OperacionCaja[]>(
       this.supabase.client
-        .from('operaciones_cajas')
-        .select(`
-          id, fecha, tipo_operacion, monto, descripcion, comprobante_url,
-          caja:cajas!inner(id, nombre, codigo),
-          empleado:usuarios(id, nombre),
-          categoria:categorias_operaciones(id, nombre, codigo, tipo)
-        `)
+        .from('v_operaciones_cajas')
+        .select('id, fecha, tipo_operacion, monto, descripcion, comprobante_url, categoria, caja, empleado')
         .not('tipo_operacion', 'in', '(APERTURA,CIERRE)')
         .gte('fecha', getInicioHaceNDiasISO(0))
         .lt('fecha', getInicioDiaSiguienteISO())
@@ -59,13 +54,8 @@ export class OperacionesCajaService {
     const from = page * this.pageSize;
     const to   = from + this.pageSize - 1;
     const result = await this.supabase.client
-      .from('operaciones_cajas')
-      .select(`
-        id, fecha, tipo_operacion, monto, descripcion, comprobante_url,
-        caja:cajas!inner(id, nombre, codigo),
-        empleado:usuarios(id, nombre),
-        categoria:categorias_operaciones(id, nombre, codigo, tipo)
-      `, { count: 'exact' })
+      .from('v_operaciones_cajas')
+      .select('id, fecha, tipo_operacion, monto, descripcion, comprobante_url, categoria, caja, empleado', { count: 'exact' })
       .not('tipo_operacion', 'in', '(APERTURA,CIERRE)')
       .gte('fecha', getInicioHaceNDiasISO(0))
       .lt('fecha', getInicioDiaSiguienteISO())
@@ -86,7 +76,6 @@ export class OperacionesCajaService {
       .from('categorias_operaciones')
       .select('*')
       .eq('activo', true)
-      .eq('seleccionable', true)   // excluye categorías del sistema (EG-010/011/012, IN-004)
       .order('codigo', { ascending: true });
 
     if (tipo) {
@@ -111,13 +100,8 @@ export class OperacionesCajaService {
     const to = from + this.pageSize - 1;
 
     let query = this.supabase.client
-      .from('operaciones_cajas')
-      .select(`
-        *,
-        caja:cajas!inner(id, nombre, codigo),
-        empleado:usuarios(id, nombre),
-        categoria:categorias_operaciones(id, nombre, codigo, tipo)
-      `, { count: 'exact' })
+      .from('v_operaciones_cajas')
+      .select('*', { count: 'exact' })
       .eq('caja_id', cajaId)
       .order('fecha', { ascending: false });
 

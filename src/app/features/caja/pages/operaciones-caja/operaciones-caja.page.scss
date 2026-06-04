@@ -274,6 +274,12 @@ app-period-filter {
   }
 }
 
+// ── Scroll to top FAB ────────────────────────────────────────────────────────
+
+.scroll-top-fab {
+  margin-bottom: env(safe-area-inset-bottom);
+}
+
 // ── Modal comprobante ─────────────────────────────────────────────────────────
 
 ::ng-deep {

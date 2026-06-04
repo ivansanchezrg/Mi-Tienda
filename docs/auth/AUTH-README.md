@@ -140,7 +140,8 @@ Para cambiar de negocio sin necesidad de re-login (desde el panel admin o select
 - No depende de `usuarioBase` — lee `UsuarioActual` desde Preferences
 - Para usuarios normales, lee el `rol` real de `usuario_negocios` antes de actualizar JWT
 - Superadmin siempre opera como `ADMIN` en cualquier negocio
-- Llama `fn_set_negocio_activo` + `refreshSession` + `saveUsuarioActual` + navega a `/caja`
+- Llama `fn_set_negocio_activo` + `refreshSession` + `saveUsuarioActual` + navega a `/home`
+- **Escribe `AUTENTICADO_KEY` en Preferences** (igual que `activarNegocio`) — sin esto el `authGuard` detecta `hasActiveAuth() = false` tras el hard reload y redirige al login en lugar de dejar pasar. Aplica especialmente al superadmin, que nunca pasa por `activarNegocio()` en el flujo normal.
 
 #### `irAlPanelAdmin()` — superadmin vuelve al panel
 

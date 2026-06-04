@@ -23,7 +23,7 @@
             @if (loading) {
               <ion-skeleton-text [animated]="true" class="hint-skeleton"></ion-skeleton-text>
             } @else {
-              <p class="input-hint">Sistema actual: ${{ saldoVirtualActualCelular | number:'1.2-2' }}</p>
+              <p class="input-hint">Sistema actual: ${{ saldoVirtualActualCelular | appCurrency }}</p>
             }
           </div>
         </label>
@@ -48,7 +48,7 @@
             @if (loading) {
               <ion-skeleton-text [animated]="true" class="hint-skeleton"></ion-skeleton-text>
             } @else {
-              <p class="input-hint">Sistema actual: ${{ saldoVirtualActualBus | number:'1.2-2' }}</p>
+              <p class="input-hint">Sistema actual: ${{ saldoVirtualActualBus | appCurrency }}</p>
             }
           </div>
         </label>
@@ -72,7 +72,7 @@
             <ion-icon name="phone-portrait-outline"></ion-icon>
             <span>Celular</span>
           </div>
-          <span class="result-value">${{ ventaCelular | number:'1.2-2' }}</span>
+          <span class="result-value">${{ ventaCelular | appCurrency }}</span>
         </div>
         }
         @if (mostrarResultadoCelular && mostrarResultadoBus) {
@@ -84,7 +84,7 @@
             <ion-icon name="bus-outline"></ion-icon>
             <span>Bus</span>
           </div>
-          <span class="result-value">${{ ventaBus | number:'1.2-2' }}</span>
+          <span class="result-value">${{ ventaBus | appCurrency }}</span>
         </div>
         }
       </div>

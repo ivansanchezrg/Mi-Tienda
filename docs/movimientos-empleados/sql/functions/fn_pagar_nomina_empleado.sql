@@ -49,7 +49,6 @@ DECLARE
   v_caja_id             UUID;
   v_saldo_varios        DECIMAL(12,2);
   v_saldo_caja          DECIMAL(12,2);
-  v_cat_salarios_id     UUID;
   v_beneficiario_nombre VARCHAR(255);
 
   v_total_descuentos  DECIMAL(12,2) := 0;
@@ -64,6 +63,8 @@ DECLARE
   v_mov_sueldo_id     UUID;
   v_mov_pago_id       UUID;
   v_mov_arrastre_id   UUID;
+  -- UUID fijo de categorias_sistema para SALARIOS
+  v_cat_salarios_id   CONSTANT UUID := 'a1000001-0000-0000-0000-000000000008';
 
   v_detalle_descuentos JSON;
   v_instrucciones      JSON;
@@ -87,6 +88,17 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'El sueldo base debe ser mayor a cero');
   END IF;
 
+  -- 🔒 Multi-tenant: validar que el operador (p_empleado_id) tenga membresía
+  -- activa en el negocio. Sin esto, un usuario podría operar como empleado de otro tenant.
+  IF NOT EXISTS (
+    SELECT 1 FROM usuario_negocios
+    WHERE usuario_id = p_empleado_id
+      AND negocio_id = v_negocio_id
+      AND activo     = TRUE
+  ) THEN
+    RETURN json_build_object('success', false, 'error', 'El operador no pertenece a este negocio');
+  END IF;
+
   -- Validar beneficiario activo en este negocio (activo vive en usuario_negocios, no en usuarios)
   v_beneficiario_nombre := (
     SELECT u.nombre
@@ -100,10 +112,7 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'El empleado no existe o no esta activo en este negocio');
   END IF;
 
-  v_cat_salarios_id := (SELECT id FROM categorias_operaciones WHERE tipo = 'EGRESO' AND nombre = 'Salarios' AND negocio_id = v_negocio_id LIMIT 1);
-  IF v_cat_salarios_id IS NULL THEN
-    RETURN json_build_object('success', false, 'error', 'Categoria Salarios no encontrada. Ejecuta el setup de categorias de movimientos-empleados.');
-  END IF;
+  -- v_cat_salarios_id: CONSTANT declarada en DECLARE (UUID fijo de categorias_sistema)
 
   v_tipo_ref_id := (SELECT id FROM tipos_referencia WHERE tabla = 'movimientos_empleados');
   IF v_tipo_ref_id IS NULL THEN
@@ -329,7 +338,7 @@ BEGIN
   IF v_monto_de_varios > 0 THEN
     v_op_varios_id := gen_random_uuid();
     INSERT INTO operaciones_cajas (
-      id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_id,
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_sistema_id,
       tipo_referencia_id, referencia_id,
       monto, saldo_anterior, saldo_actual,
       descripcion, comprobante_url
@@ -348,7 +357,7 @@ BEGIN
   IF v_monto_de_caja > 0 THEN
     v_op_caja_id := gen_random_uuid();
     INSERT INTO operaciones_cajas (
-      id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_id,
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_sistema_id,
       tipo_referencia_id, referencia_id,
       monto, saldo_anterior, saldo_actual,
       descripcion, comprobante_url
@@ -401,9 +410,6 @@ BEGIN
     'instrucciones_fisicas',  COALESCE(v_instrucciones, '[]'::JSON),
     'operaciones_ids',        json_build_array(v_op_varios_id, v_op_caja_id)
   );
-
-EXCEPTION WHEN OTHERS THEN
-  RETURN json_build_object('success', false, 'error', SQLERRM);
 END;
 $$;
 

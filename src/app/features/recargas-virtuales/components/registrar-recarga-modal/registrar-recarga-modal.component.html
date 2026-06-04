@@ -35,15 +35,15 @@
         <div class="disponible-card">
           <div class="disponible-row">
             <span>Caja BUS acumulada</span>
-            <span>${{ saldoCajaBus | number:'1.2-2' }}</span>
+            <span>${{ saldoCajaBus | appCurrency }}</span>
           </div>
           <div class="disponible-row">
             <span>Ventas del día (sin cerrar)</span>
-            <span class="valor-ventas">+${{ ventaBusCalculada | number:'1.2-2' }}</span>
+            <span class="valor-ventas">+${{ ventaBusCalculada | appCurrency }}</span>
           </div>
           <div class="disponible-row total">
             <span>Disponible para depositar</span>
-            <span class="valor-total">${{ disponibleParaDepositar | number:'1.2-2' }}</span>
+            <span class="valor-total">${{ disponibleParaDepositar | appCurrency }}</span>
           </div>
         </div>
       }
@@ -70,11 +70,11 @@
       <div class="calculo-preview">
         <div class="calculo-row">
           <span>Deuda a pagar al proveedor</span>
-          <span class="calculo-danger">${{ montoAPagar | number:'1.2-2' }}</span>
+          <span class="calculo-danger">${{ montoAPagar | appCurrency }}</span>
         </div>
         <div class="calculo-row">
           <span>Ganancia ({{ comisionPct }}%)</span>
-          <span class="calculo-success">${{ ganancia | number:'1.2-2' }}</span>
+          <span class="calculo-success">${{ ganancia | appCurrency }}</span>
         </div>
       </div>
     }
@@ -86,7 +86,7 @@
           <div class="calculo-row">
             <span>CAJA BUS después del depósito</span>
             <span class="calculo-success">
-              ${{ saldoBusDespues | number:'1.2-2' }}
+              ${{ saldoBusDespues | appCurrency }}
               <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
             </span>
           </div>
@@ -96,7 +96,7 @@
           <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
           <div>
             <strong>Efectivo insuficiente</strong>
-            <p>El monto supera el efectivo disponible (${{ disponibleParaDepositar | number:'1.2-2' }})</p>
+            <p>El monto supera el efectivo disponible (${{ disponibleParaDepositar | appCurrency }})</p>
           </div>
         </div>
       }

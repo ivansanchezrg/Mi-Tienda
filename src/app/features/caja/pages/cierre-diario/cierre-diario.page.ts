@@ -5,8 +5,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonProgressBar, IonContent, IonList, IonItem, IonLabel,
   IonInput, IonIcon, IonNote, IonCard, IonCardHeader, IonCardTitle,
-  IonCardContent, IonTextarea, AlertController, IonSkeletonText,
-  ModalController
+  IonCardContent, IonTextarea, IonSpinner, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -25,9 +24,7 @@ import {
   receiptOutline,
   fileTrayOutline,
   storefrontOutline,
-  shieldCheckmarkOutline,
-  logoWhatsapp,
-  closeOutline
+  shieldCheckmarkOutline
 } from 'ionicons/icons';
 import { CommonModule } from '@angular/common';
 import { UiService } from '@core/services/ui.service';
@@ -43,10 +40,10 @@ import { CurrencyInputDirective } from '@shared/directives/currency-input.direct
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { getFechaLocal } from '@core/utils/date.util';
 import { ShareCierreService, DatosCierreParaCompartir } from '../../services/share-cierre.service';
-import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 import { ScrollResetDirective } from '@shared/directives/scroll-reset.directive';
 import { TurnoCajaConEmpleado } from '../../models/turno-caja.model';
 import { ROUTES } from '@core/config/routes.config';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 @Component({
   selector: 'app-cierre-diario',
@@ -59,10 +56,11 @@ import { ROUTES } from '@core/config/routes.config';
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonProgressBar, IonContent, IonList, IonItem, IonLabel,
     IonInput, IonIcon, IonNote, IonCard, IonCardHeader, IonCardTitle,
-    IonCardContent, IonTextarea, IonSkeletonText,
+    IonCardContent, IonTextarea, IonSpinner,
     CurrencyInputDirective,
     NumbersOnlyDirective,
-    ScrollResetDirective
+    ScrollResetDirective,
+    AppCurrencyPipe
   ]
 })
 export class CierreDiarioPage implements HasPendingChanges {
@@ -78,7 +76,6 @@ export class CierreDiarioPage implements HasPendingChanges {
   private currencyService = inject(CurrencyService);
   private configService = inject(ConfigService);
   private shareCierreService = inject(ShareCierreService);
-  private modalCtrl = inject(ModalController);
 
   // ==========================================
   // ESTADO DEL WIZARD (v5: 2 pasos)
@@ -128,6 +125,9 @@ export class CierreDiarioPage implements HasPendingChanges {
   recargasBusHabilitada = false;
   variosActiva = false;
 
+  // Modo sin POS: true cuando el turno no tuvo ventas registradas en el sistema
+  esModoSinPos = false;
+
   // Conciliación real del turno (Paso 2)
   ventasPosEfectivo = 0;   // Ventas POS en efectivo registradas en el sistema
   egresos = 0;             // Egresos/gastos del cajón durante el turno
@@ -156,9 +156,7 @@ export class CierreDiarioPage implements HasPendingChanges {
       receiptOutline,
       fileTrayOutline,
       storefrontOutline,
-      shieldCheckmarkOutline,
-      logoWhatsapp,
-      closeOutline
+      shieldCheckmarkOutline
     });
 
     this.cierreForm = this.fb.group({
@@ -263,6 +261,12 @@ export class CierreDiarioPage implements HasPendingChanges {
         );
         this.ventasPosEfectivo = resumen.ventasPosEfectivo;
         this.egresos           = resumen.egresos;
+        // Modo sin cuadre: el cajón no tuvo ningún movimiento durante el turno.
+        // Si hubo ventas POS, ingresos manuales o egresos, el sistema conoce
+        // el esperado real y debe mostrar el resultado del cuadre.
+        this.esModoSinPos = resumen.ventasPosEfectivo === 0
+                         && this.otrosIngresos          === 0
+                         && resumen.egresos              === 0;
       }
     } catch (error: any) {
       await this.ui.showError('Error al cargar los datos del cierre. Verifica tu conexión e intenta de nuevo.');
@@ -305,6 +309,17 @@ export class CierreDiarioPage implements HasPendingChanges {
 
   get hayVentaNegativa(): boolean {
     return this.ventaCelular < 0 || this.ventaBus < 0;
+  }
+
+  // ==========================================
+  // GETTERS — Paso 1
+  // ==========================================
+
+  get subtituloPaso1(): string {
+    if (this.esModoSinPos) {
+      return 'Ingresa el efectivo contado en el cajón al cerrar el turno.';
+    }
+    return 'Revisa los saldos virtuales e ingresa el efectivo físico contado.';
   }
 
   // ==========================================
@@ -517,6 +532,8 @@ export class CierreDiarioPage implements HasPendingChanges {
       // leen el formulario (efectivoFisico, saldoCelularFinal, etc.) devolverían 0.
       const datosCierre: DatosCierreParaCompartir = {
         numeroTurno:       this.turnoActivo.numero_turno,
+        esModoSinPos:      this.esModoSinPos,
+        observaciones:     this.cierreForm.get('observaciones')?.value || null,
         cajeroNombre:      this.turnoActivo.empleado?.nombre ?? empleado.nombre,
         horaApertura:      this.turnoActivo.hora_fecha_apertura,
         fondoApertura:     this.fondoApertura,
@@ -548,7 +565,8 @@ export class CierreDiarioPage implements HasPendingChanges {
       this.cierreForm.markAsPristine();
       this.resetState();
 
-      await this.ofrecerCompartirCierre(datosCierre);
+      // Guardar datos para que el home abra el modal de compartir al detectar el pendiente
+      this.shareCierreService.guardarPendiente(datosCierre);
 
       await this.router.navigate([ROUTES.home]);
     } catch (error: any) {
@@ -557,30 +575,4 @@ export class CierreDiarioPage implements HasPendingChanges {
     }
   }
 
-  private async ofrecerCompartirCierre(datos: DatosCierreParaCompartir): Promise<void> {
-    const groups: ModalOptionGroup[] = [{
-      options: [
-        { label: 'Enviar resumen', icon: 'logo-whatsapp', value: 'enviar' },
-        { label: 'Omitir',         icon: 'close-outline',  value: 'omitir' },
-      ]
-    }];
-
-    const modal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
-      componentProps: {
-        title: 'Cierre registrado',
-        subtitle: `Cajero: ${datos.cajeroNombre}`,
-        groups
-      },
-      cssClass: 'options-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-    await modal.present();
-    const { data } = await modal.onDidDismiss();
-
-    if (data === 'enviar') {
-      await this.shareCierreService.enviarResumenWhatsApp(datos);
-    }
-  }
 }

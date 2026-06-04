@@ -33,11 +33,15 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_inicio_dia   TIMESTAMPTZ;
-  v_numero_turno INTEGER;
-  v_turno_id     UUID;
-  v_negocio_id   UUID;
-  v_caja_id      UUID;
+  v_inicio_dia        TIMESTAMPTZ;
+  v_numero_turno      INTEGER;
+  v_turno_id          UUID;
+  v_negocio_id        UUID;
+  v_caja_id           UUID;
+  v_caja_tienda_id    UUID;
+  v_saldo_tienda      DECIMAL(12,2);
+  -- UUID fijo de categorias_sistema para FONDO-APERTURA
+  v_cat_fondo_id      CONSTANT UUID := 'a1000001-0000-0000-0000-000000000007';
 BEGIN
   PERFORM public.fn_assert_no_superadmin();
 
@@ -49,6 +53,16 @@ BEGIN
 
   IF p_fondo_apertura < 0 THEN
     RETURN json_build_object('success', false, 'error', 'El fondo de apertura no puede ser negativo');
+  END IF;
+
+  -- 🔒 SEGURIDAD MULTI-TENANT: el empleado debe tener membresía activa en este negocio.
+  IF NOT EXISTS (
+    SELECT 1 FROM usuario_negocios
+    WHERE usuario_id = p_empleado_id
+      AND negocio_id = v_negocio_id
+      AND activo     = TRUE
+  ) THEN
+    RETURN json_build_object('success', false, 'error', 'El empleado no pertenece a este negocio');
   END IF;
 
   -- Resolver CAJA_CHICA del negocio (única caja operativa en modelo mono-caja).
@@ -87,15 +101,46 @@ BEGIN
   INSERT INTO turnos_caja (id, negocio_id, caja_id, numero_turno, empleado_id, hora_fecha_apertura, fondo_apertura)
   VALUES (v_turno_id, v_negocio_id, v_caja_id, v_numero_turno, p_empleado_id, NOW(), p_fondo_apertura);
 
+  -- Registrar egreso de Tienda por el fondo entregado al cajón (solo si hay fondo > 0)
+  IF p_fondo_apertura > 0 THEN
+    v_caja_tienda_id := (SELECT id FROM cajas WHERE negocio_id = v_negocio_id AND codigo = 'CAJA' LIMIT 1);
+    v_saldo_tienda   := (SELECT saldo_actual FROM cajas WHERE id = v_caja_tienda_id);
+
+    -- Validar que Tienda tenga saldo suficiente para cubrir el fondo
+    IF v_saldo_tienda < p_fondo_apertura THEN
+      RAISE EXCEPTION 'Saldo insuficiente en Tienda para entregar el fondo. Saldo actual: $%, fondo solicitado: $%',
+        ROUND(v_saldo_tienda, 2), ROUND(p_fondo_apertura, 2);
+    END IF;
+
+    -- Actualizar saldo de Tienda
+    UPDATE cajas
+    SET saldo_actual = v_saldo_tienda - p_fondo_apertura
+    WHERE id = v_caja_tienda_id AND negocio_id = v_negocio_id;
+
+    -- Registrar operación visible en el historial de Tienda
+    INSERT INTO operaciones_cajas (
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_sistema_id, monto,
+      saldo_anterior, saldo_actual, descripcion
+    ) VALUES (
+      gen_random_uuid(),
+      v_negocio_id,
+      v_caja_tienda_id,
+      p_empleado_id,
+      'EGRESO',
+      v_cat_fondo_id,
+      p_fondo_apertura,
+      v_saldo_tienda,
+      v_saldo_tienda - p_fondo_apertura,
+      'Fondo entregado al cajon para apertura de turno #' || v_numero_turno
+    );
+  END IF;
+
   RETURN json_build_object(
-    'success',       true,
-    'turno_id',      v_turno_id,
-    'numero_turno',  v_numero_turno,
+    'success',        true,
+    'turno_id',       v_turno_id,
+    'numero_turno',   v_numero_turno,
     'fondo_apertura', p_fondo_apertura
   );
-
-EXCEPTION WHEN OTHERS THEN
-  RETURN json_build_object('success', false, 'error', SQLERRM);
 END;
 $$;
 
@@ -106,8 +151,12 @@ GRANT  EXECUTE ON FUNCTION public.fn_abrir_turno(UUID, DECIMAL) TO authenticated
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_abrir_turno IS
-  'v3.0 - Apertura atómica de turno de caja con fondo libre. '
-  'p_fondo_apertura: monto que el empleado declara en el cajón al abrir (libre, sin valor fijo). '
-  'Se guarda en turnos_caja.fondo_apertura para que el cierre lo use como referencia. '
+  'v3.2 — Categoría FONDO-APERTURA migrada a categorias_sistema (UUID fijo). '
+  'v3.1 - Apertura atómica de turno de caja con fondo libre. '
+  'p_fondo_apertura: monto que el empleado declara en el cajón al abrir. '
+  'Si fondo > 0: valida que Tienda tenga saldo suficiente (RAISE EXCEPTION si no alcanza), '
+  'luego registra EGRESO de Tienda (categoria: Fondo Apertura Turno) para '
+  'que el ciclo cajón→Tienda al cierre no duplique dinero. '
+  'Se guarda en turnos_caja.fondo_apertura para que el cierre calcule efectivo_esperado. '
   'UUID (multi-tenant v11). Resuelve caja_id automáticamente (CAJA_CHICA). '
   'Retorna turno_id, numero_turno y fondo_apertura.';

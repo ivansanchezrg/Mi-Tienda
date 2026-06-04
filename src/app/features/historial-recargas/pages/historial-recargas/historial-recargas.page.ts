@@ -11,6 +11,7 @@ import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
 import { LoggerService } from '@core/services/logger.service';
 import { RecargasService, RecargaHistorial } from '../../../caja/services/recargas.service';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 interface GrupoHistorial {
   fecha: string;
@@ -34,7 +35,8 @@ interface FiltroOption {
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
     IonContent, IonIcon, IonCard,
-    IonRefresher, IonRefresherContent, IonSkeletonText
+    IonRefresher, IonRefresherContent, IonSkeletonText,
+    AppCurrencyPipe,
   ]
 })
 export class HistorialRecargasPage {

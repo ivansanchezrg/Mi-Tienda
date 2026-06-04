@@ -8,8 +8,8 @@
 --   p_nombre_negocio        VARCHAR  — Nombre del negocio (requerido)
 --   p_admin_email           VARCHAR  — Email del admin (debe existir en auth.users)
 --   p_admin_nombre          VARCHAR  — Nombre del admin (para crear fila en usuarios si no existe)
---   p_negocio_telefono      VARCHAR  — Teléfono del negocio (opcional, puede ser '')
---   p_negocio_direccion     VARCHAR  — Dirección del negocio (opcional, puede ser '')
+--   p_negocio_telefono      VARCHAR  — Teléfono del negocio (opcional) → se guarda en negocios.telefono
+--   p_negocio_direccion     VARCHAR  — Dirección del negocio (opcional) → se guarda en negocios.direccion
 --   (p_caja_fondo_fijo eliminado en v2.0 — el fondo es libre, declarado al abrir cada turno)
 --   p_varios_activa         BOOLEAN  — Si true, activa la caja Varios y la transferencia diaria
 --   p_caja_varios_monto     DECIMAL  — Monto diario a transferir a Varios al cierre (> 0 si varios_activa)
@@ -18,6 +18,9 @@
 --                                       Si NULL → propietario = admin (caso onboarding inicial / admin comun creando sucursal).
 --                                       Si difiere de p_admin_email → solo el superadmin puede invocarlo.
 --
+-- Nota v2026-06-03: nombre, telefono y dirección se guardan en `negocios` directamente.
+-- Ya NO se insertan en `configuraciones` (eliminada duplicidad).
+--
 -- Retorna: JSON con { negocio_id, usuario_id, propietario_id, success }
 --
 -- Seguridad: SECURITY DEFINER — el JWT del llamador aún no tiene negocio_id.
@@ -25,6 +28,10 @@
 --   - Admin comun: solo puede crear negocios con su propio email como admin Y como propietario
 --   - Superadmin: puede crear con cualquier admin/propietario
 -- =============================================================================
+
+-- Cleanup de firmas anteriores (mover ANTES del CREATE para evitar duplicación)
+DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL);
+DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL, VARCHAR);
 
 CREATE OR REPLACE FUNCTION public.fn_completar_onboarding(
     p_nombre_negocio     VARCHAR,
@@ -118,12 +125,15 @@ BEGIN
     END IF;
 
     -- ── 3. Negocio ──
+    -- nombre, telefono y direccion son fuente de verdad en negocios (no en configuraciones).
     v_negocio_id := gen_random_uuid();
-    INSERT INTO negocios (id, nombre, slug, propietario_usuario_id)
+    INSERT INTO negocios (id, nombre, slug, telefono, direccion, propietario_usuario_id)
     VALUES (
         v_negocio_id,
         TRIM(p_nombre_negocio),
         TRIM(BOTH '-' FROM REGEXP_REPLACE(LOWER(TRIM(p_nombre_negocio)), '[^a-z0-9]+', '-', 'g')),
+        NULLIF(TRIM(COALESCE(p_negocio_telefono, '')), ''),
+        NULLIF(TRIM(COALESCE(p_negocio_direccion, '')), ''),
         v_propietario_id
     );
 
@@ -143,35 +153,28 @@ BEGIN
     -- ── 5. Las 3 cajas base ──
     -- puede_tener_turno: solo CAJA_CHICA es el cajón operativo diario que abre/cierra turnos.
     -- CAJA y VARIOS son fondos/vaults — nunca tienen turno. Igual para CAJA_CELULAR y CAJA_BUS.
-    INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno) VALUES
-    (v_negocio_id, 'CAJA',       'Tienda', 'Vault de depositos acumulados',   0, FALSE),
-    (v_negocio_id, 'CAJA_CHICA', 'Cajon',  'Efectivo del dia (ventas + rec)', 0, TRUE),
-    (v_negocio_id, 'VARIOS',     'Varios', 'Fondo de emergencia',             0, FALSE);
+    INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno, icono, color) VALUES
+    (v_negocio_id, 'CAJA',       'Tienda', 'Vault de depositos acumulados',   0, FALSE, 'cash-outline',       '#1ba74a'),
+    (v_negocio_id, 'CAJA_CHICA', 'Cajon',  'Efectivo del dia (ventas + rec)', 0, TRUE,  'file-tray-outline',  '#0077cc'),
+    (v_negocio_id, 'VARIOS',     'Varios', 'Fondo de emergencia',             0, FALSE, 'archive-outline',    '#e06c00');
     -- CAJA_CELULAR y CAJA_BUS se crean solo si el superadmin habilita el módulo de recargas (fn_configurar_modulos)
     -- Al crearlas en fn_configurar_modulos, también deben tener puede_tener_turno = FALSE
 
-    -- ── 6. Categorías de operaciones ──
-    INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion, seleccionable) VALUES
-    (v_negocio_id, 'Compras/Mercaderia',               'EGRESO',  'Compra de productos para reventa o uso en el negocio',                            TRUE),
-    (v_negocio_id, 'Servicios Basicos',                'EGRESO',  'Pago de luz, agua, internet, telefono',                                           TRUE),
-    (v_negocio_id, 'Alquiler',                         'EGRESO',  'Pago de alquiler del local',                                                      TRUE),
-    (v_negocio_id, 'Mantenimiento',                    'EGRESO',  'Reparaciones y mantenimiento del local o equipo',                                  TRUE),
-    (v_negocio_id, 'Transporte/Combustible',           'EGRESO',  'Gastos de transporte y combustible',                                              TRUE),
-    (v_negocio_id, 'Papeleria/Suministros',            'EGRESO',  'Papeleria, utiles de oficina y suministros generales',                            TRUE),
-    (v_negocio_id, 'Salarios',                         'EGRESO',  'Pago de salarios a empleados (via flujo de nomina)',                              FALSE),
-    (v_negocio_id, 'Impuestos/Tasas',                  'EGRESO',  'Pago de impuestos y tasas municipales',                                           TRUE),
-    (v_negocio_id, 'Otros Gastos',                     'EGRESO',  'Otros gastos operativos no clasificados',                                         TRUE),
-    (v_negocio_id, 'Pago Proveedor Recargas',           'EGRESO',  'Pago al proveedor de recargas celular (saldo prestado a credito)',               FALSE),
-    (v_negocio_id, 'Compra Saldo Virtual Bus',          'EGRESO',  'Compra de saldo virtual bus mediante deposito bancario',                           FALSE),
-    (v_negocio_id, 'Ajuste Deficit Turno Anterior',    'EGRESO',  'Retiro de Tienda para reponer deficit del turno anterior',                        FALSE),
-    (v_negocio_id, 'Ajuste Diferencia Conteo',         'EGRESO',  'Ajuste al cierre cuando el conteo fisico es menor al saldo digital del cajon',    FALSE),
-    (v_negocio_id, 'Adelanto Sueldo Empleado',         'EGRESO',  'Anticipo de sueldo entregado al empleado en efectivo (via flujo de nomina)',       FALSE),
-    (v_negocio_id, 'Anulacion Venta',                  'EGRESO',  'Reversa de efectivo al anular una venta POS completada',                          FALSE),
-    (v_negocio_id, 'Ventas',                           'INGRESO', 'Ingresos por ventas del negocio',                                                 TRUE),
-    (v_negocio_id, 'Devoluciones de Proveedores',      'INGRESO', 'Devolucion de dinero por parte de proveedores',                                   TRUE),
-    (v_negocio_id, 'Otros Ingresos',                   'INGRESO', 'Otros ingresos no clasificados',                                                  TRUE),
-    (v_negocio_id, 'Reposicion Deficit Turno Anterior','INGRESO', 'Ingreso a Varios por reposicion del deficit pendiente del turno anterior',         FALSE),
-    (v_negocio_id, 'Ajuste Diferencia Conteo',         'INGRESO', 'Ajuste al cierre cuando el conteo fisico supera al saldo digital del cajon',      FALSE);
+    -- ── 6. Categorías de operaciones (solo las del usuario) ──
+    -- Las categorías del sistema viven en categorias_sistema (global, sin negocio_id).
+    -- Ver: docs/setup/migrations/001_categorias_sistema.sql
+    INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion) VALUES
+    (v_negocio_id, 'Compras/Mercaderia',          'EGRESO',  'Compra de productos para reventa o uso en el negocio'),
+    (v_negocio_id, 'Servicios Basicos',           'EGRESO',  'Pago de luz, agua, internet, telefono'),
+    (v_negocio_id, 'Alquiler',                    'EGRESO',  'Pago de alquiler del local'),
+    (v_negocio_id, 'Mantenimiento',               'EGRESO',  'Reparaciones y mantenimiento del local o equipo'),
+    (v_negocio_id, 'Transporte/Combustible',      'EGRESO',  'Gastos de transporte y combustible'),
+    (v_negocio_id, 'Papeleria/Suministros',       'EGRESO',  'Papeleria, utiles de oficina y suministros generales'),
+    (v_negocio_id, 'Impuestos/Tasas',             'EGRESO',  'Pago de impuestos y tasas municipales'),
+    (v_negocio_id, 'Otros Gastos',                'EGRESO',  'Otros gastos operativos no clasificados'),
+    (v_negocio_id, 'Devoluciones de Proveedores', 'INGRESO', 'Devolucion de dinero por parte de proveedores'),
+    (v_negocio_id, 'Otros Ingresos',              'INGRESO', 'Otros ingresos no clasificados')
+    ON CONFLICT (negocio_id, nombre) DO NOTHING;
 
     -- ── 7. Categorías de productos ──
     INSERT INTO categorias_productos (negocio_id, nombre) VALUES
@@ -185,12 +188,9 @@ BEGIN
     (v_negocio_id, 'Panaderia')
     ON CONFLICT (negocio_id, nombre) DO NOTHING;
 
-    -- ── 8. Configuraciones (defaults + valores del onboarding) ──
+    -- ── 8. Configuraciones (solo parámetros operativos — datos de identidad van en negocios) ──
+    -- nombre, telefono y direccion ya se guardaron en negocios (paso 3).
     INSERT INTO configuraciones (negocio_id, clave, valor) VALUES
-    -- Negocio
-    (v_negocio_id, 'negocio_nombre',                TRIM(p_nombre_negocio)),
-    (v_negocio_id, 'negocio_telefono',              COALESCE(TRIM(p_negocio_telefono), '')),
-    (v_negocio_id, 'negocio_direccion',             COALESCE(TRIM(p_negocio_direccion), '')),
     -- Caja
     (v_negocio_id, 'caja_varios_activa',            p_varios_activa::TEXT),
     (v_negocio_id, 'caja_varios_transferencia_dia', CASE WHEN p_varios_activa THEN p_caja_varios_monto::TEXT ELSE '0' END),
@@ -226,15 +226,8 @@ BEGIN
         'usuario_id',     v_usuario_id,
         'propietario_id', v_propietario_id
     );
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al completar onboarding: % (SQLSTATE: %)', SQLERRM, SQLSTATE;
 END;
 $$;
-
--- Cleanup de firmas anteriores (incluyendo la que tenía p_caja_fondo_fijo)
-DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL);
-DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL, VARCHAR);
 
 REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM anon;
 REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM authenticated;

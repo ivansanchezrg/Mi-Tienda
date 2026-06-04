@@ -578,9 +578,9 @@ const FORMATOS_DEFAULT = [
 | Metodo | Descripcion |
 |--------|-------------|
 | `obtenerProductos(buscar?, categoriaId?, page, pageSize)` | Paginado con join categoria |
-| `buscarProductosPOS(texto)` | Liviana, limit 10, para POS. Incluye `imagen_url` y `precio_costo` en presentaciones |
+| `buscarProductosPOS(texto)` | Buscador del POS por texto. RPC `fn_buscar_productos_pos`. Limit 20, incluye presentaciones completas |
 | `buscarPorCodigoBarras(codigo)` | Busqueda dual en paralelo: producto + presentaciones. Retorna `{ producto, presentacion? }`. `presentacion` incluye `imagen_url` |
-| `obtenerProductosCatalogoPOS()` | Carga el catalogo completo para el grid del POS. Incluye `imagen_url` y `precio_costo` en presentaciones |
+| `obtenerProductosCatalogoPOS(categoriaId?)` | Catálogo completo del POS. RPC `fn_catalogo_productos_pos`. **Filtra correctamente por categoría heredada del template (fix bug 2026-05-30 — antes ocultaba variantes)** |
 | `obtenerProductoPorCodigo(codigo)` | Por EAN exacto solo en productos. Usa `maybeSingle()` |
 | `obtenerProductoPorId(id)` | Con join categoria y `presentaciones:producto_presentaciones(id)` filtrado por `activo=true` |
 | `crearProducto(producto)` | INSERT + emite evento CREADO |
@@ -608,13 +608,17 @@ const FORMATOS_DEFAULT = [
 
 | Funcion | Ubicacion | Descripcion |
 |---------|-----------|-------------|
-| `fn_ajustar_stock_inventario` | `docs/inventario/sql/functions/` | Ajuste manual + kardex |
-| `fn_crear_producto_simple` | `docs/inventario/sql/functions/` | Crear producto simple (alternativa RPC) |
-| `fn_crear_producto_con_variantes` | `docs/inventario/sql/functions/` | Crear todas las variantes en una sola transaccion |
-| `fn_actualizar_stock_venta` | `docs/pos/sql/triggers/` | Trigger: descuenta stock al vender (factor desde presentacion) |
-| `fn_registrar_venta_pos` | `docs/pos/sql/functions/` | RPC atomica. Inserta en ventas_detalles con presentacion_id |
-| `fn_anular_venta` | `docs/pos/sql/functions/` | Revierte stock con JOIN a presentaciones |
-| `fn_generar_codigo_interno` | `docs/inventario/sql/functions/` | Trigger: genera codigo_barras si no tiene |
+| `fn_ajustar_stock_inventario` | `docs/inventario/sql/functions/` | v1.1 — Ajuste manual + kardex. Filtra por `negocio_id` (multi-tenant) |
+| `fn_crear_producto_simple` | `docs/inventario/sql/functions/` | RPC atómica. Valida que la categoría pertenezca al negocio |
+| `fn_crear_producto_con_variantes` | `docs/inventario/sql/functions/` | RPC atómica. Valida categoría + cada `atributo_opcion_id` del negocio |
+| `fn_listar_productos` | `docs/inventario/sql/functions/` | v2.0 — Lista paginada para gestión de inventario. Subqueries reemplazadas por JOINs explícitos (categoria + template.categoria + LEFT JOIN LATERAL para presentaciones) |
+| `fn_buscar_productos_pos` | `docs/pos/sql/functions/` | v1.0 — Buscador del POS por texto (nombre/código). Limit 20. Presentaciones completas + template básico |
+| `fn_catalogo_productos_pos` | `docs/pos/sql/functions/` | v1.0 — Catálogo POS con filtro por categoría heredada del template (fix bug variantes 2026-05-30). Presentaciones completas + template_atributos |
+| `fn_generar_codigo_interno` | `docs/inventario/sql/functions/` | Trigger: genera `codigo_barras` interno si no se provee |
+| `fn_generar_codigo_interno_presentacion` | `docs/inventario/sql/functions/` | Idem para presentaciones |
+| `trg_descontar_stock_venta` | `docs/pos/sql/triggers/` | Trigger: descuenta stock al vender (multiplica por `factor_conversion` de la presentación si aplica) |
+| `fn_registrar_venta_pos` | `docs/pos/sql/functions/` | v3.0 — RPC atómica con validación multi-tenant y `INSERT ... SELECT FROM jsonb_array_elements` (sin N+1) |
+| `fn_anular_venta` | `docs/ventas/sql/functions/` | v2.0 — Revierte stock + caja + `cuentas_cobrar`. `FOR UPDATE` en venta |
 
 ---
 
@@ -644,11 +648,11 @@ const FORMATOS_DEFAULT = [
 
 ### Imagenes de productos
 
-- Captura: `StorageService.capturarFoto()` — `quality: 70`, `width/height: 1280`, `resultType: Uri`. Retorna `{ previewUrl: SafeUrl, rawUrl: string }`. El preview se muestra inmediato con la URL nativa; el `rawUrl` se pasa a `uploadImage()` al guardar.
-- Upload: `StorageService.uploadImage(rawUrl, subfolder, false)` — el subfolder es `'productos/<categoria>'`, comprime a WebP máx 1200px antes de subir (~150–300KB)
-- Bucket: `productos` (público) en Supabase Storage
+- Captura y recorte: `StorageService.elegirFuenteFoto()` — flujo completo (cámara/galería → cropper → blob). Defaults: `initialRatio: 'libre'`, `lockRatio: true`. Retorna `{ previewUrl: SafeUrl, rawUrl: string }`. El preview se muestra inmediato; el `rawUrl` se pasa a `uploadImage()` al guardar.
+- Upload: `StorageService.uploadImage(rawUrl, subfolder, false)` — el subfolder es `'productos/<categoria>'`, comprime a WebP máx 1600px, calidad 0.92 antes de subir.
+- Bucket: `mi-tienda` (privado, aislado por `negocio_id`) en Supabase Storage
 - Subfolder: nombre de la categoría sanitizado (`Bebidas` → `bebidas`)
-- Al cambiar imagen: se elimina la anterior del storage (`deleteFile`)
+- Al cambiar imagen: `StorageService.replaceImage()` sube la nueva y elimina la anterior atómicamente.
 - Al desactivar producto: la imagen se conserva (por si se reactiva)
 
 ### Imagenes de presentaciones

@@ -4,7 +4,9 @@ import { Share } from '@capacitor/share';
 import { Cliente } from '../models/cliente.model';
 import { VentaFiada, VentaFiadaItem } from '../models/cuenta-cobrar.model';
 import { CurrencyService } from '../../../core/services/currency.service';
-import { ConfigService } from '../../../core/services/config.service';
+import { AuthService } from '../../auth/services/auth.service';
+import { ConfiguracionService } from '../../configuracion/services/configuracion.service';
+import { DatosNegocio } from '../../configuracion/models/configuracion.model';
 import { formatFechaEC } from '../../../core/utils/date.util';
 
 const TEMP_FILE = 'estado-cuenta.jpg';
@@ -47,8 +49,9 @@ class NullCanvas {
 @Injectable({ providedIn: 'root' })
 export class ShareEstadoCuentaService {
 
-    private currency = inject(CurrencyService);
-    private config   = inject(ConfigService);
+    private currency      = inject(CurrencyService);
+    private auth          = inject(AuthService);
+    private configuracion = inject(ConfiguracionService);
 
     private readonly CANVAS_WIDTH = 400;
     private readonly PADDING = 28;
@@ -63,15 +66,19 @@ export class ShareEstadoCuentaService {
         ventas: VentaFiada[],
         itemsPorVenta: Map<string, VentaFiadaItem[]>
     ): Promise<void> {
-        const nombreNegocio = await this.config.getNombreNegocio();
+        const [usuario, datosNegocio] = await Promise.all([
+            this.auth.getUsuarioActual(),
+            this.configuracion.getDatosNegocio()
+        ]);
+        const nombreNegocio = datosNegocio?.nombre ?? usuario?.negocio_nombre ?? '';
 
         // Pasada 1: medir altura real
-        const measuredY = this.renderEstadoCuenta(new NullCanvas() as any, nombreNegocio, cliente, ventas, itemsPorVenta);
+        const measuredY = this.renderEstadoCuenta(new NullCanvas() as any, nombreNegocio, datosNegocio, cliente, ventas, itemsPorVenta);
         const totalHeight = measuredY + 20;
 
         // Pasada 2: dibujar con altura exacta
         const base64 = await this.drawToCanvas(totalHeight, (ctx) => {
-            this.renderEstadoCuenta(ctx, nombreNegocio, cliente, ventas, itemsPorVenta);
+            this.renderEstadoCuenta(ctx, nombreNegocio, datosNegocio, cliente, ventas, itemsPorVenta);
         });
 
         await this.saveAndShare(base64, `Estado de cuenta — ${cliente.nombre}`);
@@ -80,6 +87,7 @@ export class ShareEstadoCuentaService {
     private renderEstadoCuenta(
         ctx: CanvasRenderingContext2D,
         nombreNegocio: string,
+        negocio: DatosNegocio | null,
         cliente: Cliente,
         ventas: VentaFiada[],
         itemsPorVenta: Map<string, VentaFiadaItem[]>
@@ -88,6 +96,14 @@ export class ShareEstadoCuentaService {
 
         this.drawCenteredText(ctx, nombreNegocio, y, '22px', '800');
         y += 24;
+        if (negocio?.direccion) {
+            this.drawCenteredText(ctx, negocio.direccion, y, '11px', 'normal', '#888');
+            y += 16;
+        }
+        if (negocio?.telefono) {
+            this.drawCenteredText(ctx, `Tel: ${negocio.telefono}`, y, '11px', 'normal', '#888');
+            y += 16;
+        }
         this.drawCenteredText(ctx, 'ESTADO DE CUENTA', y, '12px', '600', '#888');
         y += 24;
         y = this.drawDashedLine(ctx, y);
@@ -176,15 +192,19 @@ export class ShareEstadoCuentaService {
         saldoRestante: number,
         ventasPendientes: VentaFiada[]
     ): Promise<void> {
-        const nombreNegocio = await this.config.getNombreNegocio();
+        const [usuario, datosNegocio] = await Promise.all([
+            this.auth.getUsuarioActual(),
+            this.configuracion.getDatosNegocio()
+        ]);
+        const nombreNegocio = datosNegocio?.nombre ?? usuario?.negocio_nombre ?? '';
 
         // Pasada 1: medir altura real
-        const measuredY = this.renderComprobantePago(new NullCanvas() as any, nombreNegocio, cliente, items, montoTotal, saldoRestante, ventasPendientes);
+        const measuredY = this.renderComprobantePago(new NullCanvas() as any, nombreNegocio, datosNegocio, cliente, items, montoTotal, saldoRestante, ventasPendientes);
         const totalHeight = measuredY + 20;
 
         // Pasada 2: dibujar con altura exacta
         const base64 = await this.drawToCanvas(totalHeight, (ctx) => {
-            this.renderComprobantePago(ctx, nombreNegocio, cliente, items, montoTotal, saldoRestante, ventasPendientes);
+            this.renderComprobantePago(ctx, nombreNegocio, datosNegocio, cliente, items, montoTotal, saldoRestante, ventasPendientes);
         });
 
         await this.saveAndShare(base64, `Comprobante de pago — ${cliente.nombre}`);
@@ -193,6 +213,7 @@ export class ShareEstadoCuentaService {
     private renderComprobantePago(
         ctx: CanvasRenderingContext2D,
         nombreNegocio: string,
+        negocio: DatosNegocio | null,
         cliente: Cliente,
         items: ComprobantePagoItem[],
         montoTotal: number,
@@ -203,6 +224,14 @@ export class ShareEstadoCuentaService {
 
         this.drawCenteredText(ctx, nombreNegocio, y, '22px', '800');
         y += 24;
+        if (negocio?.direccion) {
+            this.drawCenteredText(ctx, negocio.direccion, y, '11px', 'normal', '#888');
+            y += 16;
+        }
+        if (negocio?.telefono) {
+            this.drawCenteredText(ctx, `Tel: ${negocio.telefono}`, y, '11px', 'normal', '#888');
+            y += 16;
+        }
         this.drawCenteredText(ctx, 'COMPROBANTE DE PAGO', y, '12px', '600', '#888');
         y += 24;
         y = this.drawDashedLine(ctx, y);

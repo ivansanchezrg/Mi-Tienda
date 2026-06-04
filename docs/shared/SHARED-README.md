@@ -218,6 +218,68 @@ const modal = await this.modalCtrl.create({
 
 ---
 
+### `app-image-cropper-modal` — Recortador de imágenes
+
+**Archivo:** `components/image-cropper-modal/`
+
+Modal fullscreen para recortar imágenes con `ngx-image-cropper` v9. Permite al usuario ajustar el encuadre antes de subir la foto a Storage. Diseñado para catálogo de productos donde la calidad y el encuadre importan.
+
+**No se invoca directamente** — el flujo correcto pasa por `StorageService.elegirFuenteFoto()` o `StorageService.recortarImagen()` que abren el cropper internamente. Esto garantiza el manejo consistente de blob URLs, status bar y memoria entre todos los módulos.
+
+#### Características
+
+- **Output blob** — el recorte se emite como `Blob` (no base64), evitando strings gigantes en memoria. Una imagen 1600×1600 PNG ocupa ~600 KB en vez de ~6 MB.
+- **Ratio libre por defecto** — el recuadro arranca sin restricción de proporción. El selector de ratios está oculto (`lockRatio: true` por defecto).
+- **Controles de rotación** — slider de `-45°` a `+45°` en pasos de `0.5°` + botón de 90° acumulable + reset. Tab "Rotar" en la barra inferior.
+- **Controles de escala** — slider de `50%` a `300%`. Tab "Escalar" en la barra inferior.
+- **Solo esquinas activas** — los handles de los lados (top/right/bottom/left) están ocultos para evitar conflicto con los gestos de navegación de Android. Solo las 4 esquinas redimensionan el recuadro.
+- **Resize 1600×1600 máx** — el cropper redimensiona con `onlyScaleDown: true` para no escalar hacia arriba imágenes pequeñas.
+- **Status bar inteligente** — en Android, `StatusBar.getInfo()` guarda el estilo original al abrir y lo restaura tal cual al cerrar. No hardcodea colores.
+- **Memory-safe** — todas las `blob:` URLs creadas por `URL.createObjectURL` se revocan en `ngOnDestroy`.
+- **PNG durante el crop** — el cropper emite PNG lossless. La compresión real (WebP 0.92) ocurre en `StorageService.uploadImage()`, evitando doble compresión lossy.
+
+#### API (`@Input()`)
+
+| Campo | Tipo | Default | Descripción |
+|---|---|---|---|
+| `imageUrl` | `string` | — (requerido) | URL de la imagen a recortar. Acepta `capacitor://`, `blob:`, `data:` o `http(s)://`. Se descarga y convierte a `blob:` URL local si es necesario (el cropper no entiende `capacitor://`). |
+| `initialRatio` | `AspectRatioPreset` | `'libre'` | Ratio inicial del recuadro. Valores: `'libre' \| 'cuadrado' \| '4:3' \| '16:9' \| '3:4'` |
+| `lockRatio` | `boolean` | `true` | Si true, oculta el selector de ratios y fija el inicial. Por defecto activado. |
+
+#### Resultado (`onDidDismiss`)
+
+```typescript
+export interface ImageCropperResult {
+  croppedBlob: Blob;  // PNG sin pérdida — pasar a StorageService.uploadImage()
+}
+```
+
+#### Flujo típico (no usar directamente — usar StorageService)
+
+```typescript
+// ❌ NO hacer esto directamente
+const modal = await this.modalCtrl.create({
+  component: ImageCropperModalComponent,
+  componentProps: { imageUrl, initialRatio: 'libre', lockRatio: true }
+});
+
+// ✅ Usar el StorageService que ya maneja todo
+const result = await this.storageService.elegirFuenteFoto();
+// → abre cámara/galería → abre cropper → devuelve { previewUrl, rawUrl } listo para uploadImage()
+```
+
+Ver [CORE-README → StorageService](../core/CORE-README.md) para los métodos públicos del flujo completo de fotos.
+
+#### CSS class
+
+Se abre con `cssClass: 'image-cropper-modal'` (definida en [modals.scss](../../src/theme/custom/modals.scss)). Fullscreen 100vw/100vh en móvil, 540×720px centrado en tablet/desktop.
+
+#### Dependencia
+
+`ngx-image-cropper@9.x` — requiere Angular 17.3+. Standalone component (sin módulos).
+
+---
+
 ### `app-disabled-tab` — Tab deshabilitada
 
 **Archivo:** `components/disabled-tab/`

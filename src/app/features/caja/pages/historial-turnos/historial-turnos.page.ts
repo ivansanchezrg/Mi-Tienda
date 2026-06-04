@@ -24,6 +24,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { CierresTurnoService } from '../../services/cierres-turno.service';
 import { CierreTurnoSnapshot } from '../../models/cierre-turno.model';
 import { CierreTurnoDetalleModalComponent } from '../../components/cierre-turno-detalle-modal/cierre-turno-detalle-modal.component';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 type FiltroFecha = 'hoy' | 'semana' | 'mes' | 'todas';
 
@@ -45,6 +46,7 @@ interface CierresAgrupados {
     IonFab, IonFabButton,
     PeriodFilterComponent,
     EmptyStateComponent,
+    AppCurrencyPipe,
   ]
 })
 export class HistorialTurnosPage {

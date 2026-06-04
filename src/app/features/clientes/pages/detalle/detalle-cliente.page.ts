@@ -249,7 +249,7 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
         const { role } = await alert.onDidDismiss();
         if (role !== 'confirm') return;
 
-        const nombreNegocio = await this.config.getNombreNegocio();
+        const nombreNegocio = this.authService.usuarioActualValue?.negocio_nombre ?? '';
         this.shareService.enviarComprobanteWhatsApp(
             this.cliente, items, montoTotal, saldoRestante, this.ventasFiadas, nombreNegocio
         );
@@ -310,7 +310,7 @@ export class DetalleClientePage implements OnInit, ViewWillEnter, ViewWillLeave 
         const { role } = await alert.onDidDismiss();
         if (role !== 'confirm') return;
 
-        const nombreNegocio = await this.config.getNombreNegocio();
+        const nombreNegocio = this.authService.usuarioActualValue?.negocio_nombre ?? '';
         this.shareService.enviarResumenWhatsApp(this.cliente, this.ventasFiadas, nombreNegocio);
     }
 

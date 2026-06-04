@@ -10,10 +10,15 @@
 --   4. Elimina registros de cuentas_cobrar (solo si fue FIADO)
 --   5. Marca la venta como estado='ANULADA'
 --
+-- CAMBIOS v2.1 (migración categorias_sistema):
+--   - Categoría ANULACION-VENTA migrada a categorias_sistema (UUID fijo).
+--   - Eliminado v_categoria_id y lookup a categorias_operaciones.
+--   - INSERT usa categoria_sistema_id en lugar de categoria_id.
+--
 -- CAMBIOS v2.0:
 --   - p_empleado_id: INTEGER → UUID (schema v11 migró PKs a UUID)
---   - v_caja_id, v_categoria_id, v_tipo_referencia_id: INTEGER → UUID
---   - Multi-tenant: get_negocio_id() + filtro negocio_id en cajas y categorias_operaciones
+--   - v_caja_id, v_tipo_referencia_id: INTEGER → UUID
+--   - Multi-tenant: get_negocio_id() + filtro negocio_id en cajas
 --   - DROP/GRANT usan firma UUID
 --
 -- HEREDA DE v1.3:
@@ -49,6 +54,7 @@ AS $$
 DECLARE
     v_negocio_id         UUID;
     v_detalle            RECORD;
+    v_venta_rec          RECORD;
     -- campos de ventas
     v_venta_id_check     UUID;
     v_venta_estado       TEXT;
@@ -63,7 +69,8 @@ DECLARE
     v_cantidad_real      DECIMAL(12,2);
     v_caja_id            UUID;
     v_saldo_actual_caja  DECIMAL(12,2);
-    v_categoria_id       UUID;
+    -- UUID fijo de categorias_sistema para ANULACION-VENTA
+    v_cat_sistema_id     CONSTANT UUID := 'a1000001-0000-0000-0000-000000000010';
     v_tipo_referencia_id INTEGER;
     v_turno_abierto      BOOLEAN;
 BEGIN
@@ -82,13 +89,23 @@ BEGIN
         RAISE EXCEPTION 'El motivo de anulación es obligatorio';
     END IF;
 
-    v_venta_id_check    := (SELECT id                FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
-    v_venta_estado      := (SELECT estado             FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
-    v_venta_metodo_pago := (SELECT metodo_pago        FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
-    v_venta_total       := (SELECT total              FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
-    v_venta_numero      := (SELECT numero_comprobante FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
-    v_venta_turno_id    := (SELECT turno_id           FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
-    v_venta_tipo_comp   := (SELECT tipo_comprobante::TEXT FROM ventas WHERE id = p_venta_id AND negocio_id = v_negocio_id);
+    -- Lock + lectura atómica de la venta (FOR..LOOP single-row con FOR UPDATE).
+    -- Reemplaza 7 subqueries idénticas y previene race conditions.
+    FOR v_venta_rec IN
+        SELECT id, estado, metodo_pago, total, numero_comprobante, turno_id, tipo_comprobante::TEXT AS tipo_comp
+        FROM ventas
+        WHERE id = p_venta_id AND negocio_id = v_negocio_id
+        FOR UPDATE
+    LOOP
+        v_venta_id_check    := v_venta_rec.id;
+        v_venta_estado      := v_venta_rec.estado;
+        v_venta_metodo_pago := v_venta_rec.metodo_pago;
+        v_venta_total       := v_venta_rec.total;
+        v_venta_numero      := v_venta_rec.numero_comprobante;
+        v_venta_turno_id    := v_venta_rec.turno_id;
+        v_venta_tipo_comp   := v_venta_rec.tipo_comp;
+        EXIT;
+    END LOOP;
 
     -- Descripción: "Ticket #3 — motivo del usuario"
     v_descripcion_op := CASE v_venta_tipo_comp
@@ -176,25 +193,14 @@ BEGIN
             v_saldo_actual_caja := (SELECT saldo_actual FROM cajas WHERE codigo = 'CAJA' AND negocio_id = v_negocio_id);
         END IF;
 
-        -- Categoría EGRESO para anulaciones — nombre canónico definido en fn_completar_onboarding.
-        v_categoria_id := (
-            SELECT id FROM categorias_operaciones
-            WHERE nombre = 'Anulacion Venta'
-              AND tipo = 'EGRESO'
-              AND negocio_id = v_negocio_id
-        );
-
-        IF v_categoria_id IS NULL THEN
-            RAISE EXCEPTION 'Categoría "Anulacion Venta" (EGRESO) no encontrada para este negocio. Verifica que las categorías de operación estén correctamente inicializadas.';
-        END IF;
-
+        -- v_cat_sistema_id: UUID fijo de categorias_sistema (ANULACION-VENTA), declarado en DECLARE.
         v_tipo_referencia_id := (SELECT id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1);
 
-        IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN
+        IF v_caja_id IS NOT NULL THEN
             INSERT INTO operaciones_cajas (
                 caja_id, empleado_id, tipo_operacion, monto,
                 saldo_anterior, saldo_actual,
-                categoria_id, tipo_referencia_id, referencia_id, descripcion,
+                categoria_sistema_id, tipo_referencia_id, referencia_id, descripcion,
                 negocio_id
             ) VALUES (
                 v_caja_id,
@@ -203,7 +209,7 @@ BEGIN
                 v_venta_total,
                 v_saldo_actual_caja,
                 v_saldo_actual_caja - v_venta_total,
-                v_categoria_id,
+                v_cat_sistema_id,
                 v_tipo_referencia_id,
                 p_venta_id,
                 v_descripcion_op,
@@ -246,9 +252,6 @@ BEGIN
         'numero_comprobante', v_venta_numero,
         'monto_revertido',    v_venta_total
     );
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al anular venta: %', SQLERRM;
 END;
 $$;
 
@@ -260,9 +263,8 @@ GRANT  EXECUTE ON FUNCTION public.fn_anular_venta(UUID, UUID, TEXT) TO authentic
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_anular_venta IS
-    'v2.0 — UUID + multi-tenant. '
-    'p_empleado_id y variables de ID cambiados de INTEGER a UUID (schema v11). '
-    'Filtra cajas y categorias_operaciones por negocio_id (get_negocio_id()). '
+    'v2.1 — Categoría ANULACION-VENTA migrada a categorias_sistema (UUID fijo a1000001-...-000000000010). '
+    'v2.0 — UUID + multi-tenant. p_empleado_id y variables de ID cambiados de INTEGER a UUID (schema v11). '
     'v1.3 — Fix: revierte EFECTIVO de la caja correcta según estado del turno. '
     'Turno abierto → CAJA_CHICA (donde el trigger original ingresó el dinero). '
     'Turno cerrado → CAJA (bóveda, donde el cierre depositó el dinero). '

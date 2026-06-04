@@ -13,6 +13,7 @@ import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { UiService } from '@core/services/ui.service';
 import { CurrencyService } from '@core/services/currency.service';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 @Component({
   selector: 'app-verificar-fondo-modal',
@@ -23,7 +24,8 @@ import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive'
     CommonModule,
     FormsModule,
     IonButton, IonIcon, IonSpinner,
-    NumbersOnlyDirective
+    NumbersOnlyDirective,
+    AppCurrencyPipe,
   ]
 })
 export class VerificarFondoModalComponent implements AfterViewInit {

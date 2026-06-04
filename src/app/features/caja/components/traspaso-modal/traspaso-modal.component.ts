@@ -9,6 +9,7 @@ import { OperacionesCajaService } from '../../services/operaciones-caja.service'
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { HorizontalScrollDirective } from '@shared/directives/horizontal-scroll.directive';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 const CAJA_ICONOS: Record<string, string> = {
   CAJA:       'cash-outline',
@@ -28,6 +29,7 @@ const CAJA_ICONOS: Record<string, string> = {
     CurrencyInputDirective,
     NumbersOnlyDirective,
     HorizontalScrollDirective,
+    AppCurrencyPipe,
   ]
 })
 export class TraspasoModalComponent implements OnInit {
@@ -37,15 +39,17 @@ export class TraspasoModalComponent implements OnInit {
 
   @Input() cajas: Caja[] = [];
   @Input() cajaAbierta = false;
+  @Input() variosActiva = false;
 
   form!: FormGroup;
   guardando = false;
 
-  // Solo CAJA, CAJA_CHICA (si turno abierto) y VARIOS — sin Celular ni Bus
+  // Solo CAJA, CAJA_CHICA (si turno abierto) y VARIOS (si activa) — sin Celular ni Bus
   get cajasDisponibles(): Caja[] {
     return this.cajas.filter(c => {
       if (c.codigo === 'CAJA_CHICA') return this.cajaAbierta;
-      return c.codigo === 'CAJA' || c.codigo === 'VARIOS';
+      if (c.codigo === 'VARIOS')     return this.variosActiva;
+      return c.codigo === 'CAJA';
     });
   }
 

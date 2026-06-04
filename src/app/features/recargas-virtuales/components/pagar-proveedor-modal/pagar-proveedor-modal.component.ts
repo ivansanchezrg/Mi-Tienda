@@ -10,6 +10,7 @@ import { closeOutline, cardOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 @Component({
   selector: 'app-pagar-proveedor-modal',
@@ -20,6 +21,7 @@ import { AuthService } from '../../../auth/services/auth.service';
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonContent, IonIcon, IonCheckbox,
+    AppCurrencyPipe,
   ]
 })
 export class PagarProveedorModalComponent implements OnInit {

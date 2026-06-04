@@ -8,7 +8,7 @@
     <ion-title>{{ cajaNombre }}</ion-title>
     <ion-buttons slot="end">
       @if (showHeaderBalance) {
-        <span class="header-balance">${{ cajaSaldo | number:'1.2-2' }}</span>
+        <span class="header-balance">${{ cajaSaldo | appCurrency }}</span>
       }
       @if (mostrarMenuOpciones) {
         <app-options-menu
@@ -22,7 +22,7 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content [scrollEvents]="true" (ionScroll)="onScroll($event)">
+<ion-content #content [scrollEvents]="true" (ionScroll)="onScroll($event)">
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
@@ -30,14 +30,14 @@
   <!-- Balance Card -->
   <div class="balance-card">
     <span class="balance-label">Saldo disponible</span>
-    <span class="balance-amount">${{ cajaSaldo | number:'1.2-2' }}</span>
+    <span class="balance-amount">${{ cajaSaldo | appCurrency }}</span>
     <div class="balance-summary">
       <div class="summary-item">
         <div class="summary-icon income">
           <ion-icon name="arrow-down-outline"></ion-icon>
         </div>
         <div class="summary-info">
-          <span class="summary-value income">${{ totalIngresos | number:'1.2-2' }}</span>
+          <span class="summary-value income">${{ totalIngresos | appCurrency }}</span>
           <span class="summary-label">Ingresos</span>
         </div>
       </div>
@@ -47,7 +47,7 @@
           <ion-icon name="arrow-up-outline"></ion-icon>
         </div>
         <div class="summary-info">
-          <span class="summary-value expense">${{ totalEgresos | number:'1.2-2' }}</span>
+          <span class="summary-value expense">${{ totalEgresos | appCurrency }}</span>
           <span class="summary-label">Egresos</span>
         </div>
       </div>
@@ -142,7 +142,7 @@
             </button>
           }
           <span class="op-amount" [attr.data-type]="op.tipo_operacion | operacionLabel:'color'">
-            {{ op.tipo_operacion | operacionLabel:'signo' }}${{ op.monto | number:'1.2-2' }}
+            {{ op.tipo_operacion | operacionLabel:'signo' }}${{ op.monto | appCurrency }}
           </span>
         </div>
 
@@ -153,10 +153,19 @@
 
     }
 
-    <ion-infinite-scroll threshold="100px" [disabled]="!hasMore" (ionInfinite)="loadMore($event)">
-      <ion-infinite-scroll-content loadingSpinner="crescent" loadingText="Cargando más...">
-      </ion-infinite-scroll-content>
-    </ion-infinite-scroll>
+  }
+
+  <ion-infinite-scroll threshold="100px" [disabled]="!hasMore" (ionInfinite)="loadMore($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent" loadingText="Cargando más...">
+    </ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
+  @if (showScrollTop) {
+    <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+      <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+        <ion-icon name="arrow-up-outline"></ion-icon>
+      </ion-fab-button>
+    </ion-fab>
   }
 
 </ion-content>

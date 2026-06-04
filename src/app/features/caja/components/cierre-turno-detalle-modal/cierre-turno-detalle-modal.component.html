@@ -40,68 +40,80 @@
         <div class="resumen-card__body">
 
           @if (tieneMovimientos) {
-            <p class="cajon-section-label">Movimientos del turno</p>
+            <p class="cajon-section-label">Movimientos del cajón</p>
             @if (cierre.ventas_pos_efectivo > 0) {
               <div class="cajon-row">
                 <span class="cajon-row-label">Ventas POS en efectivo</span>
-                <span class="cajon-row-valor">+${{ cierre.ventas_pos_efectivo | number:'1.2-2' }}</span>
+                <span class="cajon-row-valor">+${{ cierre.ventas_pos_efectivo | appCurrency }}</span>
               </div>
             }
             @if (cierre.otros_ingresos > 0) {
               <div class="cajon-row">
                 <span class="cajon-row-label">Ingresos manuales</span>
-                <span class="cajon-row-valor">+${{ cierre.otros_ingresos | number:'1.2-2' }}</span>
+                <span class="cajon-row-valor">+${{ cierre.otros_ingresos | appCurrency }}</span>
               </div>
             }
             @if (cierre.egresos > 0) {
               <div class="cajon-row">
                 <span class="cajon-row-label">Gastos del turno</span>
-                <span class="cajon-row-valor negativo">−${{ cierre.egresos | number:'1.2-2' }}</span>
+                <span class="cajon-row-valor negativo">−${{ cierre.egresos | appCurrency }}</span>
               </div>
             }
             <div class="cajon-divider"></div>
           }
 
           <p class="cajon-section-label">Conteo esperado</p>
-          <div class="cajon-row">
-            <span class="cajon-row-label">Acumulado en cajón</span>
-            <span class="cajon-row-valor">${{ saldoCajonDigital | number:'1.2-2' }}</span>
-          </div>
-          <div class="cajon-row">
-            <span class="cajon-row-label">Fondo de apertura</span>
-            <span class="cajon-row-valor">${{ cierre.fondo_apertura | number:'1.2-2' }}</span>
-          </div>
-          <div class="cajon-row cajon-row--total">
-            <span class="cajon-row-label">Debía tener</span>
-            <span class="cajon-row-valor primary">${{ efectivoEsperado | number:'1.2-2' }}</span>
-          </div>
 
-          <!-- Resultado del conteo -->
-          @if (!hasDiferencia) {
-            <div class="cajon-resultado cajon-resultado--ok">
-              <ion-icon name="checkmark-circle-outline"></ion-icon>
-              <div>
-                <span class="cajon-resultado-titulo">Cajón cuadrado</span>
-                <span class="cajon-resultado-sub">Contó exactamente lo esperado</span>
-              </div>
-              <span class="cajon-resultado-monto">${{ cierre.efectivo_fisico | number:'1.2-2' }}</span>
+          @if (esModoSinPos) {
+            <div class="cajon-row">
+              <span class="cajon-row-label">Fondo inicial</span>
+              <span class="cajon-row-valor">${{ cierre.fondo_apertura | appCurrency }}</span>
             </div>
-          } @else if (cierre.diferencia < 0) {
-            <div class="cajon-resultado cajon-resultado--faltante">
-              <ion-icon name="alert-circle-outline"></ion-icon>
-              <div>
-                <span class="cajon-resultado-titulo">Faltante de ${{ (cierre.diferencia * -1) | number:'1.2-2' }}</span>
-                <span class="cajon-resultado-sub">Contó ${{ cierre.efectivo_fisico | number:'1.2-2' }}</span>
-              </div>
+            <div class="cajon-row cajon-row--total">
+              <span class="cajon-row-label">Total contado</span>
+              <span class="cajon-row-valor primary">${{ cierre.efectivo_fisico | appCurrency }}</span>
             </div>
           } @else {
-            <div class="cajon-resultado cajon-resultado--sobrante">
-              <ion-icon name="information-circle-outline"></ion-icon>
-              <div>
-                <span class="cajon-resultado-titulo">Sobrante de +${{ cierre.diferencia | number:'1.2-2' }}</span>
-                <span class="cajon-resultado-sub">Contó ${{ cierre.efectivo_fisico | number:'1.2-2' }}</span>
-              </div>
+            <div class="cajon-row">
+              <span class="cajon-row-label">Acumulado en cajón</span>
+              <span class="cajon-row-valor">${{ saldoCajonDigital | appCurrency }}</span>
             </div>
+            <div class="cajon-row">
+              <span class="cajon-row-label">Fondo de apertura</span>
+              <span class="cajon-row-valor">${{ cierre.fondo_apertura | appCurrency }}</span>
+            </div>
+            <div class="cajon-row cajon-row--total">
+              <span class="cajon-row-label">Debía tener</span>
+              <span class="cajon-row-valor primary">${{ efectivoEsperado | appCurrency }}</span>
+            </div>
+
+            <!-- Resultado del conteo — solo en Modo A donde el sistema conoce el esperado real -->
+            @if (!hasDiferencia) {
+              <div class="cajon-resultado cajon-resultado--ok">
+                <ion-icon name="checkmark-circle-outline"></ion-icon>
+                <div>
+                  <span class="cajon-resultado-titulo">Cajón cuadrado</span>
+                  <span class="cajon-resultado-sub">Contó exactamente lo esperado</span>
+                </div>
+                <span class="cajon-resultado-monto">${{ cierre.efectivo_fisico | appCurrency }}</span>
+              </div>
+            } @else if (cierre.diferencia < 0) {
+              <div class="cajon-resultado cajon-resultado--faltante">
+                <ion-icon name="alert-circle-outline"></ion-icon>
+                <div>
+                  <span class="cajon-resultado-titulo">Faltante de ${{ (cierre.diferencia * -1) | appCurrency }}</span>
+                  <span class="cajon-resultado-sub">Contó ${{ cierre.efectivo_fisico | appCurrency }}</span>
+                </div>
+              </div>
+            } @else {
+              <div class="cajon-resultado cajon-resultado--sobrante">
+                <ion-icon name="information-circle-outline"></ion-icon>
+                <div>
+                  <span class="cajon-resultado-titulo">Sobrante de +${{ cierre.diferencia | appCurrency }}</span>
+                  <span class="cajon-resultado-sub">Contó ${{ cierre.efectivo_fisico | appCurrency }}</span>
+                </div>
+              </div>
+            }
           }
 
         </div>
@@ -123,15 +135,15 @@
             <div class="saldo-info">
               <span class="saldo-nombre">Tienda</span>
               @if (cierre.deposito_caja > 0) {
-                <span class="saldo-detalle">+ ${{ cierre.deposito_caja | number:'1.2-2' }} del cajón</span>
+                <span class="saldo-detalle">+ ${{ cierre.deposito_caja | appCurrency }} del cajón</span>
               }
             </div>
             <div class="saldo-resultado">
               @if (cierre.deposito_caja === 0) {
-                <span class="saldo-monto">${{ cierre.saldo_anterior_caja | number:'1.2-2' }}</span>
+                <span class="saldo-monto">${{ cierre.saldo_anterior_caja | appCurrency }}</span>
                 <span class="saldo-badge-neutral">sin cambio</span>
               } @else {
-                <span class="saldo-monto highlight">${{ cierre.saldo_final_caja | number:'1.2-2' }}</span>
+                <span class="saldo-monto highlight">${{ cierre.saldo_final_caja | appCurrency }}</span>
               }
             </div>
           </div>
@@ -144,15 +156,15 @@
               <div class="saldo-info">
                 <span class="saldo-nombre">Varios</span>
                 @if (cierre.transferencia_varios > 0) {
-                  <span class="saldo-detalle">+ ${{ cierre.transferencia_varios | number:'1.2-2' }} transferencia</span>
+                  <span class="saldo-detalle">+ ${{ cierre.transferencia_varios | appCurrency }} transferencia</span>
                 }
               </div>
               <div class="saldo-resultado">
                 @if (cierre.transferencia_varios === 0) {
-                  <span class="saldo-monto">${{ cierre.saldo_anterior_varios | number:'1.2-2' }}</span>
+                  <span class="saldo-monto">${{ cierre.saldo_anterior_varios | appCurrency }}</span>
                   <span class="saldo-badge-neutral">sin cambio</span>
                 } @else {
-                  <span class="saldo-monto highlight">${{ cierre.saldo_final_varios | number:'1.2-2' }}</span>
+                  <span class="saldo-monto highlight">${{ cierre.saldo_final_varios | appCurrency }}</span>
                 }
               </div>
             </div>
@@ -166,15 +178,15 @@
               <div class="saldo-info">
                 <span class="saldo-nombre">Celular</span>
                 @if (cierre.venta_celular > 0) {
-                  <span class="saldo-detalle">+ ${{ cierre.venta_celular | number:'1.2-2' }} en ventas</span>
+                  <span class="saldo-detalle">+ ${{ cierre.venta_celular | appCurrency }} en ventas</span>
                 }
               </div>
               <div class="saldo-resultado">
                 @if (cierre.venta_celular === 0) {
-                  <span class="saldo-monto">${{ cierre.saldo_anterior_celular | number:'1.2-2' }}</span>
+                  <span class="saldo-monto">${{ cierre.saldo_anterior_celular | appCurrency }}</span>
                   <span class="saldo-badge-neutral">sin cambio</span>
                 } @else {
-                  <span class="saldo-monto highlight">${{ cierre.saldo_final_celular | number:'1.2-2' }}</span>
+                  <span class="saldo-monto highlight">${{ cierre.saldo_final_celular | appCurrency }}</span>
                 }
               </div>
             </div>
@@ -188,17 +200,17 @@
               <div class="saldo-info">
                 <span class="saldo-nombre">Bus</span>
                 @if (tieneDepositoAnticipadoBus) {
-                  <span class="saldo-detalle">Depósito anticipado · ventas ${{ cierre.venta_bus | number:'1.2-2' }}</span>
+                  <span class="saldo-detalle">Depósito anticipado · ventas ${{ cierre.venta_bus | appCurrency }}</span>
                 } @else if (cierre.venta_bus > 0) {
-                  <span class="saldo-detalle">+ ${{ cierre.venta_bus | number:'1.2-2' }} en ventas</span>
+                  <span class="saldo-detalle">+ ${{ cierre.venta_bus | appCurrency }} en ventas</span>
                 }
               </div>
               <div class="saldo-resultado">
                 @if (cierre.venta_bus === 0 && !tieneDepositoAnticipadoBus) {
-                  <span class="saldo-monto">${{ cierre.saldo_anterior_bus | number:'1.2-2' }}</span>
+                  <span class="saldo-monto">${{ cierre.saldo_anterior_bus | appCurrency }}</span>
                   <span class="saldo-badge-neutral">sin cambio</span>
                 } @else {
-                  <span class="saldo-monto highlight">${{ cierre.saldo_final_bus | number:'1.2-2' }}</span>
+                  <span class="saldo-monto highlight">${{ cierre.saldo_final_bus | appCurrency }}</span>
                 }
               </div>
             </div>
@@ -207,42 +219,7 @@
         </div>
       </section>
 
-      <!-- ── Card 3: Saldos virtuales (si aplica) ─────────────────── -->
-      @if (cierre.celular_habilitado || cierre.bus_habilitado) {
-        <section class="resumen-card">
-          <div class="resumen-card__header">
-            <ion-icon name="cellular-outline"></ion-icon>
-            <h3>Saldos Virtuales</h3>
-          </div>
-          <div class="resumen-card__body">
-
-            @if (cierre.celular_habilitado) {
-              <div class="virtual-row">
-                <span class="virtual-row__nombre">Celular</span>
-                <span class="virtual-row__valor">
-                  ${{ cierre.saldo_virtual_anterior_celular | number:'1.2-2' }}
-                  <span class="virtual-row__arrow">→</span>
-                  <strong>${{ cierre.saldo_virtual_final_celular | number:'1.2-2' }}</strong>
-                </span>
-              </div>
-            }
-
-            @if (cierre.bus_habilitado) {
-              <div class="virtual-row">
-                <span class="virtual-row__nombre">Bus</span>
-                <span class="virtual-row__valor">
-                  ${{ cierre.saldo_virtual_anterior_bus | number:'1.2-2' }}
-                  <span class="virtual-row__arrow">→</span>
-                  <strong>${{ cierre.saldo_virtual_final_bus | number:'1.2-2' }}</strong>
-                </span>
-              </div>
-            }
-
-          </div>
-        </section>
-      }
-
-      <!-- ── Card 4: Observaciones (si existen) ───────────────────── -->
+      <!-- ── Card 3: Observaciones (si existen) ───────────────────── -->
       @if (cierre.observaciones && cierre.observaciones !== 'Sin novedad') {
         <section class="resumen-card">
           <div class="resumen-card__header">

@@ -5,7 +5,7 @@ import {
   IonSpinner, IonSkeletonText, IonIcon
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { storefrontOutline, walletOutline, archiveOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline } from 'ionicons/icons';
+import { storefrontOutline, walletOutline, archiveOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline, documentTextOutline } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
@@ -13,10 +13,13 @@ import { ConfiguracionService } from '../../services/configuracion.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { SupabaseService } from '@core/services/supabase.service';
 
-type Seccion = 'negocio' | 'caja' | 'bus' | 'pos' | 'nomina';
+// Sección 'negocio' ahora usa fn_actualizar_datos_negocio (tabla negocios).
+// El resto de secciones siguen usando configuraciones (tabla configuraciones).
+type Seccion = 'negocio' | 'sri' | 'caja' | 'bus' | 'pos' | 'nomina';
 
 const CAMPOS_POR_SECCION: Record<Seccion, string[]> = {
-  negocio: ['negocio_nombre', 'negocio_telefono', 'negocio_direccion'],
+  negocio: ['nombre', 'telefono', 'direccion', 'correo_electronico'],
+  sri:     ['ruc', 'razon_social', 'nombre_comercial', 'codigo_establecimiento', 'codigo_punto_emision', 'ambiente_sri', 'obligado_contabilidad'],
   caja:    ['caja_varios_transferencia_dia'],
   bus:     ['bus_alerta_saldo_bajo', 'bus_dias_antes_facturacion'],
   pos:     ['pos_descuentos_habilitados', 'pos_descuento_maximo_pct', 'pos_umbral_monto_descuento', 'pos_iva_porcentaje'],
@@ -25,6 +28,7 @@ const CAMPOS_POR_SECCION: Record<Seccion, string[]> = {
 
 const MENSAJES_SECCION: Record<Seccion, string> = {
   negocio: 'Datos del negocio guardados',
+  sri:     'Datos SRI guardados',
   caja:    'Parámetros de caja guardados',
   bus:     'Parámetros de bus guardados',
   pos:     'Configuración POS guardada',
@@ -44,22 +48,22 @@ const MENSAJES_SECCION: Record<Seccion, string> = {
 })
 export class ParametrosPage implements OnInit, OnDestroy {
   constructor() {
-    addIcons({ storefrontOutline, walletOutline, archiveOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline });
+    addIcons({ storefrontOutline, walletOutline, archiveOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline, documentTextOutline });
   }
 
-  private fb = inject(FormBuilder);
+  private fb                   = inject(FormBuilder);
   private configuracionService = inject(ConfiguracionService);
-  private configService = inject(ConfigService);
-  private authService = inject(AuthService);
-  private supabase = inject(SupabaseService);
-  private ui = inject(UiService);
+  private configService        = inject(ConfigService);
+  private authService          = inject(AuthService);
+  private supabase             = inject(SupabaseService);
+  private ui                   = inject(UiService);
   private sub!: Subscription;
   private scrollTimeout?: ReturnType<typeof setTimeout>;
 
   form!: FormGroup;
-  cargando = true;
-  esSuperadmin = false;
-  esAdmin = false;
+  cargando                  = true;
+  esSuperadmin              = false;
+  esAdmin                   = false;
   recargasCelularHabilitada = false;
   recargasBusHabilitada     = false;
   variosActiva              = false;
@@ -72,39 +76,51 @@ export class ParametrosPage implements OnInit, OnDestroy {
   }
 
   guardando: Record<string, boolean> = {
-    negocio: false, caja: false, bus: false, pos: false, nomina: false,
+    negocio: false, sri: false, caja: false, bus: false, pos: false, nomina: false,
   };
 
   tieneCambios: Record<string, boolean> = {
-    negocio: false, caja: false, bus: false, pos: false, nomina: false,
+    negocio: false, sri: false, caja: false, bus: false, pos: false, nomina: false,
   };
 
   private savedValues: Record<string, Record<string, any>> = {};
 
   async ngOnInit() {
-    // Construir form primero (no depende de usuario ni de config)
     this.form = this.fb.group({
-      negocio_nombre:               ['',   [Validators.required, Validators.maxLength(100)]],
-      negocio_telefono:             ['',   [Validators.maxLength(20)]],
-      negocio_direccion:            ['',   [Validators.maxLength(200)]],
-      caja_varios_transferencia_dia:[null, [Validators.required, Validators.min(0)]],
-      bus_alerta_saldo_bajo:        [null, [Validators.required, Validators.min(0)]],
-      bus_dias_antes_facturacion:   [null, [Validators.required, Validators.min(1)]],
-      pos_descuentos_habilitados:   [false],
-      pos_descuento_maximo_pct:     [null, [Validators.required, Validators.min(0), Validators.max(100)]],
-      pos_umbral_monto_descuento:   [null, [Validators.required, Validators.min(0)]],
-      pos_iva_porcentaje:           [null, [Validators.required, Validators.min(1), Validators.max(100)]],
-      nomina_sueldo_base:           [null, [Validators.required, Validators.min(0)]],
-      nomina_dia_pago:              [null, [Validators.required, Validators.min(1), Validators.max(31)]],
+      // Sección negocio — tabla negocios
+      nombre:               ['', [Validators.required, Validators.maxLength(255)]],
+      telefono:             ['', [Validators.maxLength(20)]],
+      direccion:            ['', [Validators.maxLength(200)]],
+      correo_electronico:   ['', [Validators.maxLength(100), Validators.email]],
+      // Sección SRI — tabla negocios
+      ruc:                    ['', [Validators.maxLength(13), Validators.minLength(13), Validators.pattern(/^\d*$/)]],
+      razon_social:           ['', [Validators.maxLength(300)]],
+      nombre_comercial:       ['', [Validators.maxLength(300)]],
+      codigo_establecimiento: ['001', [Validators.required, Validators.maxLength(3), Validators.pattern(/^\d{3}$/)]],
+      codigo_punto_emision:   ['001', [Validators.required, Validators.maxLength(3), Validators.pattern(/^\d{3}$/)]],
+      ambiente_sri:           [1],
+      obligado_contabilidad:  [false],
+      // Sección caja — tabla configuraciones
+      caja_varios_transferencia_dia: [null, [Validators.required, Validators.min(0)]],
+      // Sección bus — tabla configuraciones
+      bus_alerta_saldo_bajo:       [null, [Validators.required, Validators.min(0)]],
+      bus_dias_antes_facturacion:  [null, [Validators.required, Validators.min(1)]],
+      // Sección POS — tabla configuraciones
+      pos_descuentos_habilitados:  [false],
+      pos_descuento_maximo_pct:    [null, [Validators.required, Validators.min(0), Validators.max(100)]],
+      pos_umbral_monto_descuento:  [null, [Validators.required, Validators.min(0)]],
+      pos_iva_porcentaje:          [null, [Validators.required, Validators.min(1), Validators.max(100)]],
+      // Sección nómina — tabla configuraciones
+      nomina_sueldo_base: [null, [Validators.required, Validators.min(0)]],
+      nomina_dia_pago:    [null, [Validators.required, Validators.min(1), Validators.max(31)]],
     });
 
-    // Cargar usuario y configuración en paralelo
     const [usuario] = await Promise.all([
       this.authService.getUsuarioActual(),
       this.cargarConfiguracion()
     ]);
     this.esSuperadmin = usuario?.es_superadmin ?? false;
-    this.esAdmin = usuario?.rol === 'ADMIN' || this.esSuperadmin;
+    this.esAdmin      = usuario?.rol === 'ADMIN' || this.esSuperadmin;
   }
 
   ngOnDestroy() {
@@ -112,13 +128,8 @@ export class ParametrosPage implements OnInit, OnDestroy {
     clearTimeout(this.scrollTimeout);
   }
 
-  ionViewWillEnter() {
-    this.ui.hideTabs();
-  }
-
-  ionViewWillLeave() {
-    this.ui.showTabs();
-  }
+  ionViewWillEnter() { this.ui.hideTabs(); }
+  ionViewWillLeave() { this.ui.showTabs(); }
 
   private snapshotSeccion(seccion: Seccion): Record<string, any> {
     const snap: Record<string, any> = {};
@@ -147,7 +158,6 @@ export class ParametrosPage implements OnInit, OnDestroy {
 
       this.tieneCambios = nuevo;
 
-      // Scroll al botón guardar de la sección que acaba de tener cambios
       for (const seccion of Object.keys(nuevo) as Seccion[]) {
         if (nuevo[seccion] && !anterior[seccion]) {
           clearTimeout(this.scrollTimeout);
@@ -163,7 +173,27 @@ export class ParametrosPage implements OnInit, OnDestroy {
   private async cargarConfiguracion() {
     this.cargando = true;
     try {
-      const config = await this.configuracionService.get();
+      const [config, datosNegocio] = await Promise.all([
+        this.configuracionService.get(),
+        this.configuracionService.getDatosNegocio()
+      ]);
+
+      if (datosNegocio) {
+        this.form.patchValue({
+          nombre:               datosNegocio.nombre             ?? '',
+          telefono:             datosNegocio.telefono           ?? '',
+          direccion:            datosNegocio.direccion          ?? '',
+          correo_electronico:   datosNegocio.correo_electronico ?? '',
+          ruc:                    datosNegocio.ruc                    ?? '',
+          razon_social:           datosNegocio.razon_social           ?? '',
+          nombre_comercial:       datosNegocio.nombre_comercial       ?? '',
+          codigo_establecimiento: datosNegocio.codigo_establecimiento ?? '001',
+          codigo_punto_emision:   datosNegocio.codigo_punto_emision   ?? '001',
+          ambiente_sri:           datosNegocio.ambiente_sri           ?? 1,
+          obligado_contabilidad:  datosNegocio.obligado_contabilidad  ?? false,
+        }, { emitEvent: false });
+      }
+
       if (config) {
         this.recargasCelularHabilitada = config.recargas_celular_habilitada;
         this.recargasBusHabilitada     = config.recargas_bus_habilitada;
@@ -171,9 +201,6 @@ export class ParametrosPage implements OnInit, OnDestroy {
         this.variosMonto               = config.caja_varios_transferencia_dia ?? 0;
         this.tipoComprobanteActual     = config.pos_tipo_comprobante;
         this.form.patchValue({
-          negocio_nombre:                config.negocio_nombre,
-          negocio_telefono:              config.negocio_telefono,
-          negocio_direccion:             config.negocio_direccion,
           caja_varios_transferencia_dia: config.caja_varios_transferencia_dia,
           bus_alerta_saldo_bajo:         config.bus_alerta_saldo_bajo,
           bus_dias_antes_facturacion:    config.bus_dias_antes_facturacion,
@@ -184,9 +211,9 @@ export class ParametrosPage implements OnInit, OnDestroy {
           nomina_sueldo_base:            config.nomina_sueldo_base,
           nomina_dia_pago:               config.nomina_dia_pago,
         }, { emitEvent: false });
-
-        this.guardarSnapshot();
       }
+
+      this.guardarSnapshot();
     } catch {
       await this.ui.showError('Error al cargar los parámetros. Verifica tu conexión.');
     } finally {
@@ -226,21 +253,42 @@ export class ParametrosPage implements OnInit, OnDestroy {
 
     this.guardando[seccion] = true;
     try {
-      const valores: any = {};
-      const STRING_FIELDS = new Set(['negocio_nombre', 'negocio_telefono', 'negocio_direccion']);
-      campos.forEach(c => {
-        const val = this.form.value[c];
-        if (STRING_FIELDS.has(c)) valores[c] = (val ?? '').trim();
-        else if (typeof val === 'boolean' || c.endsWith('_habilitado') || c.endsWith('_habilitados')) valores[c] = !!val;
-        else valores[c] = Number(val);
-      });
-
-      const ok = await this.configuracionService.update(valores, MENSAJES_SECCION[seccion]);
-      if (ok) {
-        this.configService.invalidar();
-        this.form.patchValue(valores, { emitEvent: false });
-        this.savedValues[seccion] = this.snapshotSeccion(seccion);
-        this.tieneCambios = { ...this.tieneCambios, [seccion]: false };
+      if (seccion === 'negocio' || seccion === 'sri') {
+        // Datos de identidad → tabla negocios vía RPC
+        const v = this.form.value;
+        const datos: any = {};
+        campos.forEach(c => {
+          const val = v[c];
+          if (typeof val === 'boolean') datos[c] = val;
+          else if (c === 'ambiente_sri') datos[c] = Number(val);
+          else datos[c] = (val ?? '').toString().trim() || null;
+        });
+        const ok = await this.configuracionService.actualizarDatosNegocio(datos, MENSAJES_SECCION[seccion]);
+        if (ok) {
+          this.savedValues[seccion] = this.snapshotSeccion(seccion);
+          this.tieneCambios = { ...this.tieneCambios, [seccion]: false };
+          // Si cambió el nombre, actualizar el cache local para que el sidebar lo refleje de inmediato
+          if (seccion === 'negocio' && datos.nombre) {
+            await this.authService.actualizarNombreNegocio(datos.nombre);
+          }
+        }
+      } else {
+        // Parámetros operativos → tabla configuraciones
+        const valores: any = {};
+        const STRING_FIELDS = new Set<string>([]);
+        campos.forEach(c => {
+          const val = this.form.value[c];
+          if (STRING_FIELDS.has(c)) valores[c] = (val ?? '').trim();
+          else if (typeof val === 'boolean' || c.endsWith('_habilitado') || c.endsWith('_habilitados')) valores[c] = !!val;
+          else valores[c] = Number(val);
+        });
+        const ok = await this.configuracionService.update(valores, MENSAJES_SECCION[seccion]);
+        if (ok) {
+          this.configService.invalidar();
+          this.form.patchValue(valores, { emitEvent: false });
+          this.savedValues[seccion] = this.snapshotSeccion(seccion);
+          this.tieneCambios = { ...this.tieneCambios, [seccion]: false };
+        }
       }
     } catch {
       await this.ui.showError('Error al guardar. Verifica tu conexión.');

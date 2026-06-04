@@ -27,6 +27,11 @@
 
 <ion-content>
 
+  <!-- Pull-to-refresh: recarga dashboard vía fn_home_dashboard sin mostrar skeleton -->
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
   <!-- ── Hero oscuro: efectivo en cajas ─────────────────────────────────── -->
   <div class="hero-section">
     <div class="hero-card">
@@ -42,7 +47,7 @@
         <h1 class="hero-card__amount">••••</h1>
       } @else {
         <h1 class="hero-card__amount">
-          <span class="hero-card__currency">$</span><span class="hero-card__integer">{{ totalEfectivo | number:'1.0-0' }}</span><span class="hero-card__cents">.{{ centavos(totalEfectivo) }}</span>
+          <span class="hero-card__currency">$</span><span class="hero-card__integer">{{ currency.parteEntera(totalEfectivo) }}</span><span class="hero-card__cents">.{{ currency.centavos(totalEfectivo) }}</span>
         </h1>
       }
 
@@ -52,16 +57,16 @@
           <div class="hero-card__deltas-row">
             <div class="hero-card__delta hero-card__delta--ingreso">
               <ion-icon name="trending-up-outline"></ion-icon>
-              <span>+${{ totalIngresosHoy | number:'1.2-2' }}</span>
+              <span>+${{ totalIngresosHoy | appCurrency }}</span>
             </div>
             <div class="hero-card__delta hero-card__delta--egreso">
               <ion-icon name="trending-down-outline"></ion-icon>
-              <span>-${{ totalEgresosHoy | number:'1.2-2' }}</span>
+              <span>-${{ totalEgresosHoy | appCurrency }}</span>
             </div>
           </div>
         </div>
 
-        <div class="hero-card__status-chip" [ngClass]="estadoCaja.estado">
+        <div class="hero-card__status-chip">
           @if (cajaAbierta) {
             <span class="hero-card__dot hero-card__dot--active"></span>
             <span>Caja abierta</span>
@@ -94,7 +99,7 @@
           <ion-icon [name]="cajaPorCodigo('CAJA')?.icono || 'cash-outline'"></ion-icon>
         </div>
         <div class="cuenta-card__info">
-          <span class="cuenta-card__name">{{ cajaNombreFor('CAJA') }}</span>
+          <span class="cuenta-card__name">{{ cajaPorCodigo('CAJA')?.nombre }}</span>
           <span class="cuenta-card__subtitle">Efectivo acumulado</span>
         </div>
       </div>
@@ -105,7 +110,7 @@
           <span class="cuenta-card__amount">••••</span>
         } @else {
           <span class="cuenta-card__amount">
-            <span class="cc-currency">$</span>{{ saldoCaja | number:'1.0-0' }}<span class="cc-cents">.{{ centavos(saldoCaja) }}</span>
+            <span class="cc-currency">$</span>{{ currency.parteEntera(saldoCaja) }}<span class="cc-cents">.{{ currency.centavos(saldoCaja) }}</span>
           </span>
         }
       </div>
@@ -113,13 +118,13 @@
 
     <!-- ── Cajón (CAJA_CHICA) ───────────────────────────────────────────── -->
     <div class="cuenta-card cuenta-card--cajon" [class.cuenta-card--idle]="!cajaAbierta && !cargando"
-      (click)="cajaAbierta && onSaldoClick('cajaChica')">
+      (click)="onSaldoClick('cajaChica')">
       <div class="cuenta-card__top">
         <div class="cuenta-card__icon" [style.background]="cajaPorCodigo('CAJA_CHICA')?.color || 'var(--ion-color-success)'">
           <ion-icon [name]="cajaPorCodigo('CAJA_CHICA')?.icono || 'file-tray-outline'"></ion-icon>
         </div>
         <div class="cuenta-card__info">
-          <span class="cuenta-card__name">{{ cajaNombreFor('CAJA_CHICA') }}</span>
+          <span class="cuenta-card__name">{{ cajaPorCodigo('CAJA_CHICA')?.nombre }}</span>
           <span class="cuenta-card__subtitle">
             @if (cajaAbierta) { Cierre {{ fechaUltimoCierre }} } @else { Turno cerrado }
           </span>
@@ -134,7 +139,7 @@
           <span class="cuenta-card__amount">••••</span>
         } @else {
           <span class="cuenta-card__amount">
-            <span class="cc-currency">$</span>{{ saldoCajaChica | number:'1.0-0' }}<span class="cc-cents">.{{ centavos(saldoCajaChica) }}</span>
+            <span class="cc-currency">$</span>{{ currency.parteEntera(saldoCajaChica) }}<span class="cc-cents">.{{ currency.centavos(saldoCajaChica) }}</span>
           </span>
         }
       </div>
@@ -149,7 +154,7 @@
               <ion-icon [name]="cajaPorCodigo('VARIOS')?.icono || 'archive-outline'"></ion-icon>
             </div>
             <div class="cuenta-card__info">
-              <span class="cuenta-card__name">{{ cajaNombreFor('VARIOS') }}</span>
+              <span class="cuenta-card__name">{{ cajaPorCodigo('VARIOS')?.nombre }}</span>
               <span class="cuenta-card__subtitle">Fondo de emergencia</span>
             </div>
           </div>
@@ -160,7 +165,7 @@
               <span class="cuenta-card__amount">••••</span>
             } @else {
               <span class="cuenta-card__amount">
-                <span class="cc-currency">$</span>{{ saldoVarios | number:'1.0-0' }}<span class="cc-cents">.{{ centavos(saldoVarios) }}</span>
+                <span class="cc-currency">$</span>{{ currency.parteEntera(saldoVarios) }}<span class="cc-cents">.{{ currency.centavos(saldoVarios) }}</span>
               </span>
             }
           </div>
@@ -187,7 +192,7 @@
               <ion-icon [name]="cajaPorCodigo('CAJA_CELULAR')?.icono || 'phone-portrait-outline'"></ion-icon>
             </div>
             <div class="cuenta-card__info">
-              <span class="cuenta-card__name">{{ cajaNombreFor('CAJA_CELULAR') }}</span>
+              <span class="cuenta-card__name">{{ cajaPorCodigo('CAJA_CELULAR')?.nombre }}</span>
               <span class="cuenta-card__subtitle">Efectivo acumulado</span>
             </div>
           </div>
@@ -198,13 +203,13 @@
               <span class="cuenta-card__amount">••••</span>
             } @else {
               <span class="cuenta-card__amount">
-                <span class="cc-currency">$</span>{{ saldoCelular | number:'1.0-0' }}<span class="cc-cents">.{{ centavos(saldoCelular) }}</span>
+                <span class="cc-currency">$</span>{{ currency.parteEntera(saldoCelular) }}<span class="cc-cents">.{{ currency.centavos(saldoCelular) }}</span>
               </span>
             }
           </div>
           <div class="cuenta-card__virtual">
             <span>SALDO VIRTUAL</span>
-            <span>{{ montosOcultos ? '••••' : ('$' + (saldoVirtualCelular | number:'1.2-2')) }}</span>
+            <span>{{ montosOcultos ? '••••' : ('$' + (saldoVirtualCelular | appCurrency)) }}</span>
           </div>
         </div>
       }
@@ -230,7 +235,7 @@
               <ion-icon [name]="cajaPorCodigo('CAJA_BUS')?.icono || 'bus-outline'"></ion-icon>
             </div>
             <div class="cuenta-card__info">
-              <span class="cuenta-card__name">{{ cajaNombreFor('CAJA_BUS') }}</span>
+              <span class="cuenta-card__name">{{ cajaPorCodigo('CAJA_BUS')?.nombre }}</span>
               <span class="cuenta-card__subtitle">Efectivo acumulado</span>
             </div>
           </div>
@@ -241,13 +246,13 @@
               <span class="cuenta-card__amount">••••</span>
             } @else {
               <span class="cuenta-card__amount">
-                <span class="cc-currency">$</span>{{ saldoBus | number:'1.0-0' }}<span class="cc-cents">.{{ centavos(saldoBus) }}</span>
+                <span class="cc-currency">$</span>{{ currency.parteEntera(saldoBus) }}<span class="cc-cents">.{{ currency.centavos(saldoBus) }}</span>
               </span>
             }
           </div>
           <div class="cuenta-card__virtual">
             <span>SALDO VIRTUAL</span>
-            <span>{{ montosOcultos ? '••••' : ('$' + (saldoVirtualBus | number:'1.2-2')) }}</span>
+            <span>{{ montosOcultos ? '••••' : ('$' + (saldoVirtualBus | appCurrency)) }}</span>
           </div>
         </div>
       }
@@ -283,7 +288,7 @@
             <span class="cuenta-card__amount">••••</span>
           } @else {
             <span class="cuenta-card__amount">
-              <span class="cc-currency">$</span>{{ caja.saldo_actual | number:'1.0-0' }}<span class="cc-cents">.{{ centavos(caja.saldo_actual) }}</span>
+              <span class="cc-currency">$</span>{{ currency.parteEntera(caja.saldo_actual) }}<span class="cc-cents">.{{ currency.centavos(caja.saldo_actual) }}</span>
             </span>
           }
         </div>
@@ -346,15 +351,7 @@
 
   <!-- ── Movimientos de hoy ─────────────────────────────────────────────── -->
   <div class="section-header">
-    <div class="section-header__left">
-      <span class="section-header__title">MOVIMIENTOS DE HOY</span>
-      <button type="button" class="icon-btn icon-btn--sm" [class.spinning]="cargandoMovimientos" (click)="refrescarMovimientos()">
-        <ion-icon name="refresh-outline"></ion-icon>
-      </button>
-    </div>
-    @if (!cargandoMovimientos && totalMovimientosHoy > 0) {
-      <span class="section-header__count">{{ totalMovimientosHoy }}</span>
-    }
+    <span class="section-header__title">ÚLTIMOS 5 MOVIMIENTOS</span>
   </div>
 
   @if (cargandoMovimientos) {
@@ -399,14 +396,11 @@
           </div>
 
           <div class="mov-details">
+            <span class="mov-caja-badge">{{ mov.caja?.nombre }}</span>
             <span class="mov-title">{{ mov.categoria?.nombre || (mov.tipo_operacion | operacionLabel:mov.descripcion) }}</span>
-            <div class="mov-meta">
-              <span class="mov-caja">{{ mov.caja?.nombre }}</span>
-              @if (mov.descripcion | operacionLabel:'motivo') {
-                <span class="mov-dot">·</span>
-                <span class="mov-desc">{{ mov.descripcion | operacionLabel:'motivo' }}</span>
-              }
-            </div>
+            @if (mov.descripcion | operacionLabel:'motivo') {
+              <span class="mov-desc">{{ mov.descripcion | operacionLabel:'motivo' }}</span>
+            }
             @if (mov.empleado?.nombre) {
               <span class="mov-empleado">
                 {{ mov.empleado!.nombre }}
@@ -427,7 +421,7 @@
               <ion-icon name="image-outline"></ion-icon>
             </button>
             <span class="mov-amount" [attr.data-type]="mov.tipo_operacion | operacionLabel:'color'">
-              {{ mov.tipo_operacion | operacionLabel:'signo' }}${{ mov.monto | number:'1.2-2' }}
+              {{ mov.tipo_operacion | operacionLabel:'signo' }}${{ mov.monto | appCurrency }}
             </span>
           </div>
 
@@ -436,12 +430,7 @@
       }
 
       @if (totalMovimientosHoy > 5) {
-        <div class="mov-footer">
-          <button type="button" class="mov-footer__btn" (click)="verTodosLosMovimientos()">
-            <span>Ver todos los movimientos</span>
-            <ion-icon name="arrow-forward-outline"></ion-icon>
-          </button>
-        </div>
+        <p class="mov-hint">Para ver el historial completo, entra a cada cuenta.</p>
       }
     </div>
   }

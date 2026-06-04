@@ -3,7 +3,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCard,
+  IonContent, IonIcon, IonCard, IonFab, IonFabButton,
   IonInfiniteScroll, IonInfiniteScrollContent,
   IonRefresher, IonRefresherContent,
   ModalController, AlertController, IonSkeletonText
@@ -14,7 +14,7 @@ import {
   lockOpenOutline, lockClosedOutline, createOutline,
   cashOutline, documentTextOutline, walletOutline,
   documentAttachOutline, closeOutline, ellipsisVertical, close,
-  timeOutline
+  timeOutline, eyeOutline, cameraOutline
 } from 'ionicons/icons';
 import { CameraSource } from '@capacitor/camera';
 import { Subscription } from 'rxjs';
@@ -32,6 +32,7 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
 import { OperacionLabelPipe } from '../../../../shared/pipes/operacion-label.pipe';
 import { PeriodFilterComponent, PeriodOption } from '../../../../shared/components/period-filter/period-filter.component';
 import { ROUTES } from '@core/config/routes.config';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 interface OperacionAgrupada {
   fecha: string;
@@ -49,13 +50,14 @@ interface OperacionAgrupada {
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonCard,
+    IonContent, IonIcon, IonCard, IonFab, IonFabButton,
     IonInfiniteScroll, IonInfiniteScrollContent, IonSkeletonText,
     IonRefresher, IonRefresherContent,
     EmptyStateComponent,
     PeriodFilterComponent,
     OptionsMenuComponent,
-    OperacionLabelPipe
+    OperacionLabelPipe,
+    AppCurrencyPipe,
   ]
 })
 export class OperacionesCajaPage implements OnDestroy {
@@ -72,7 +74,7 @@ export class OperacionesCajaPage implements OnDestroy {
   private networkSub?: Subscription;
   private cajasSub?: Subscription;
 
-  @ViewChild(IonInfiniteScroll) infiniteScroll!: IonInfiniteScroll;
+  @ViewChild('content') content!: IonContent;
 
   cajaId: string = '';
   cajaNombre: string = '';
@@ -100,6 +102,7 @@ export class OperacionesCajaPage implements OnDestroy {
 
   // Header con saldo
   showHeaderBalance = false;
+  showScrollTop = false;
 
   // Estado de conexión
   isOnline = true;
@@ -159,8 +162,12 @@ export class OperacionesCajaPage implements OnDestroy {
       lockOpenOutline, lockClosedOutline, createOutline,
       cashOutline, documentTextOutline, walletOutline,
       documentAttachOutline, closeOutline, ellipsisVertical, close,
-      timeOutline
+      timeOutline, eyeOutline, cameraOutline
     });
+  }
+
+  scrollToTop() {
+    this.content.scrollToTop(300);
   }
 
   async ionViewWillEnter() {
@@ -346,8 +353,9 @@ export class OperacionesCajaPage implements OnDestroy {
   }
 
   onScroll(event: any) {
-    // Mostrar saldo en header cuando el balance-card ya no es visible (~150px)
-    this.showHeaderBalance = event.detail.scrollTop > 150;
+    const top = event.detail.scrollTop;
+    this.showHeaderBalance = top > 150;
+    this.showScrollTop = top > 600;
   }
 
   async onMenuOpcion(option: MenuOption) {

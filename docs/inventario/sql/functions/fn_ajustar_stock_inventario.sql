@@ -1,5 +1,10 @@
 -- ==========================================
--- FUNCIÓN: fn_ajustar_stock_inventario (v1.0)
+-- FUNCIÓN: fn_ajustar_stock_inventario (v1.1)
+-- ==========================================
+-- v1.1 (2026-05-30) — SEGURIDAD MULTI-TENANT:
+--   Agrega filtro p.negocio_id = v_negocio_id en la lectura, lock y
+--   actualización de productos. Sin este filtro un usuario podía
+--   ajustar stock de productos de otro tenant si conocía el UUID.
 -- ==========================================
 -- Ajusta el stock de un producto manualmente y registra el movimiento
 -- en kardex_inventario (auditoría). Usado desde la página de Kárdex.
@@ -16,6 +21,8 @@
 --   p_cantidad        — Cantidad a sumar o restar (siempre positiva)
 --   p_observaciones   — Motivo del ajuste (obligatorio)
 -- ==========================================
+
+DROP FUNCTION IF EXISTS public.fn_ajustar_stock_inventario(UUID, TEXT, DECIMAL, TEXT);
 
 CREATE OR REPLACE FUNCTION public.fn_ajustar_stock_inventario(
     p_producto_id     UUID,
@@ -51,11 +58,18 @@ BEGIN
         RAISE EXCEPTION 'Tipo de movimiento inválido: %. Use COMPRA, AJUSTE_POSITIVO o AJUSTE_NEGATIVO', p_tipo_movimiento;
     END IF;
 
-    -- 2. Leer stock actual y bloquear la fila (FOR UPDATE evita race conditions)
+    -- 2. Leer stock actual y bloquear la fila (FOR UPDATE evita race conditions).
     -- ⚠️  Supabase no soporta SELECT ... INTO — usar := (SELECT ...)
-    PERFORM id FROM productos WHERE id = p_producto_id FOR UPDATE;
+    -- ⚠️  Multi-tenant: filtrar por negocio_id es obligatorio aunque RLS exista,
+    --     porque SECURITY DEFINER bypasea RLS.
+    PERFORM id FROM productos
+      WHERE id = p_producto_id AND negocio_id = v_negocio_id
+      FOR UPDATE;
 
-    v_stock_anterior := (SELECT stock_actual FROM productos WHERE id = p_producto_id);
+    v_stock_anterior := (
+        SELECT stock_actual FROM productos
+        WHERE id = p_producto_id AND negocio_id = v_negocio_id
+    );
 
     IF v_stock_anterior IS NULL THEN
         RAISE EXCEPTION 'Producto no encontrado: %', p_producto_id;
@@ -74,10 +88,10 @@ BEGIN
         RAISE EXCEPTION 'Stock insuficiente. Stock actual: %, ajuste solicitado: -%', v_stock_anterior, p_cantidad;
     END IF;
 
-    -- 4. Actualizar stock
+    -- 4. Actualizar stock (con filtro de negocio para defensa en profundidad)
     UPDATE productos
     SET    stock_actual = v_stock_nuevo
-    WHERE  id = p_producto_id;
+    WHERE  id = p_producto_id AND negocio_id = v_negocio_id;
 
     -- 5. Registrar en kardex
     INSERT INTO kardex_inventario (
@@ -105,9 +119,6 @@ BEGIN
         'stock_anterior', v_stock_anterior,
         'delta',         v_delta
     );
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al ajustar stock: %', SQLERRM;
 END;
 $$;
 

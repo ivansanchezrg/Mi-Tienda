@@ -6,9 +6,14 @@ DROP FUNCTION IF EXISTS public.fn_reporte_ventas_periodo(TEXT, TEXT, UUID);
 DROP FUNCTION IF EXISTS public.fn_reporte_ventas_periodo(TEXT, TEXT, UUID, INTEGER);
 
 -- ==========================================
--- FUNCIÓN: fn_reporte_ventas_periodo (v1.8)
+-- FUNCIÓN: fn_reporte_ventas_periodo (v1.9 — performance: consolidación de agregados)
 -- ==========================================
--- Genera un resumen completo de ventas para un rango de fechas.
+-- v1.9 (2026-05-30) — PERFORMANCE:
+--   Consolida 6 SELECTs idénticos sobre `ventas` en 1 único query con COUNT/SUM FILTER.
+--   Consolida 2 SELECTs sobre `ventas_detalles` (costo + ganancia) en 1 query.
+--   Consolida 3 SELECTs del período anterior en 2 queries (ventas + detalles).
+--   Reducción: 11 queries redundantes → 4 queries. El contrato del JSON de salida
+--   no cambia — todos los campos antiguos siguen presentes con el mismo nombre.
 --
 -- v1.8 — Agrega productos_baja_rotacion: top 5 productos activos con menos
 --         unidades vendidas en el período (incluye los que tienen 0 ventas via LEFT JOIN).
@@ -25,8 +30,6 @@ DROP FUNCTION IF EXISTS public.fn_reporte_ventas_periodo(TEXT, TEXT, UUID, INTEG
 -- v1.6 — Agrega filtro explícito negocio_id = get_negocio_id() en todas las queries.
 -- v1.5 — Agrega total_descuentos y clientes_unicos.
 -- v1.4 — Usa vd.precio_costo (snapshot histórico en ventas_detalles).
---
--- Llamada desde: VentasService.obtenerReportePeriodo(filtro, turnoId?)
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION public.fn_reporte_ventas_periodo(
@@ -46,19 +49,18 @@ DECLARE
     v_dias_rango           INTEGER;
     v_inicio_anterior      TIMESTAMPTZ;
     v_fin_anterior         TIMESTAMPTZ;
-    v_total_ventas         BIGINT;
-    v_total_monto          NUMERIC(12,2);
-    v_total_anuladas       BIGINT;
-    v_monto_anulado        NUMERIC(12,2);
-    v_total_descuentos     NUMERIC(12,2);
-    v_clientes_unicos      BIGINT;
-    v_costo_total          NUMERIC(12,2);
-    v_ganancia_bruta       NUMERIC(12,2);
+
+    -- Agregados consolidados (single-row records)
+    v_actuales             RECORD;  -- COUNTs/SUMs período actual sobre ventas
+    v_detalles_actuales    RECORD;  -- costo + ganancia actual sobre ventas_detalles
+    v_anteriores           RECORD;  -- COUNT + SUM período anterior sobre ventas
+    v_detalles_anteriores  RECORD;  -- ganancia anterior sobre ventas_detalles
+
+    -- Métricas derivadas
     v_margen_pct           NUMERIC(5,2);
     v_ticket_promedio      NUMERIC(12,2);
-    v_total_monto_ant      NUMERIC(12,2);
-    v_total_ventas_ant     BIGINT;
-    v_ganancia_ant         NUMERIC(12,2);
+
+    -- Métricas calculadas por separado (no consolidables)
     v_sin_movimiento       BIGINT;
     v_baja_rotacion        JSON;
     v_por_metodo           JSON;
@@ -70,7 +72,6 @@ BEGIN
     v_negocio_id := public.get_negocio_id();
 
     -- Defensa en profundidad: validar que p_turno_id (si viene) pertenece al negocio activo.
-    -- RLS ya filtra por negocio, pero un check explícito previene resultados confusos.
     IF p_turno_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM turnos_caja WHERE id = p_turno_id AND negocio_id = v_negocio_id
     ) THEN
@@ -86,51 +87,83 @@ BEGIN
     v_inicio_anterior := ((p_fecha_inicio::DATE - v_dias_rango)::TIMESTAMP AT TIME ZONE 'America/Guayaquil');
     v_fin_anterior    := (p_fecha_inicio::DATE::TIMESTAMP AT TIME ZONE 'America/Guayaquil');
 
-    -- ── Agregados período actual ──
-    v_total_ventas     := (SELECT COALESCE(COUNT(*) FILTER (WHERE estado = 'COMPLETADA'), 0) FROM ventas WHERE negocio_id = v_negocio_id AND (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio AND fecha < v_fin);
-    v_total_monto      := (SELECT COALESCE(SUM(total) FILTER (WHERE estado = 'COMPLETADA'), 0) FROM ventas WHERE negocio_id = v_negocio_id AND (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio AND fecha < v_fin);
-    v_total_anuladas   := (SELECT COALESCE(COUNT(*) FILTER (WHERE estado = 'ANULADA'), 0) FROM ventas WHERE negocio_id = v_negocio_id AND (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio AND fecha < v_fin);
-    v_monto_anulado    := (SELECT COALESCE(SUM(total) FILTER (WHERE estado = 'ANULADA'), 0) FROM ventas WHERE negocio_id = v_negocio_id AND (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio AND fecha < v_fin);
-    v_total_descuentos := (SELECT COALESCE(SUM(descuento) FILTER (WHERE estado = 'COMPLETADA'), 0) FROM ventas WHERE negocio_id = v_negocio_id AND (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio AND fecha < v_fin);
-    v_clientes_unicos  := (SELECT COALESCE(COUNT(DISTINCT cliente_id) FILTER (WHERE estado = 'COMPLETADA' AND cliente_id IS NOT NULL), 0) FROM ventas WHERE negocio_id = v_negocio_id AND (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio AND fecha < v_fin);
+    -- ── Bloque 1: Agregados período actual sobre `ventas` (1 query) ──────────
+    -- Reemplaza 6 SELECTs idénticos con un solo scan + COUNT/SUM FILTER.
+    FOR v_actuales IN
+        SELECT
+            COALESCE(COUNT(*) FILTER (WHERE estado = 'COMPLETADA'), 0)::BIGINT          AS total_ventas,
+            COALESCE(SUM(total) FILTER (WHERE estado = 'COMPLETADA'), 0)::NUMERIC(12,2) AS total_monto,
+            COALESCE(COUNT(*) FILTER (WHERE estado = 'ANULADA'), 0)::BIGINT             AS total_anuladas,
+            COALESCE(SUM(total) FILTER (WHERE estado = 'ANULADA'), 0)::NUMERIC(12,2)    AS monto_anulado,
+            COALESCE(SUM(descuento) FILTER (WHERE estado = 'COMPLETADA'), 0)::NUMERIC(12,2) AS total_descuentos,
+            COALESCE(
+                COUNT(DISTINCT cliente_id) FILTER (WHERE estado = 'COMPLETADA' AND cliente_id IS NOT NULL),
+                0
+            )::BIGINT                                                                   AS clientes_unicos
+        FROM ventas
+        WHERE negocio_id = v_negocio_id
+          AND (p_turno_id IS NULL OR turno_id = p_turno_id)
+          AND fecha >= v_inicio
+          AND fecha <  v_fin
+    LOOP
+        EXIT; -- single-row
+    END LOOP;
 
-    -- Costo y ganancia del período actual
-    v_costo_total := (
-        SELECT COALESCE(SUM(vd.precio_costo * vd.cantidad), 0)
+    -- ── Bloque 2: Costo + ganancia actual sobre `ventas_detalles` (1 query) ──
+    -- Reemplaza 2 SELECTs sobre el mismo JOIN.
+    FOR v_detalles_actuales IN
+        SELECT
+            COALESCE(SUM(vd.precio_costo * vd.cantidad), 0)::NUMERIC(12,2)                                AS costo_total,
+            COALESCE(SUM((vd.precio_unitario - vd.precio_costo) * vd.cantidad), 0)::NUMERIC(12,2)         AS ganancia_bruta
         FROM ventas_detalles vd
         JOIN ventas v ON v.id = vd.venta_id
         WHERE v.negocio_id = v_negocio_id
           AND v.estado = 'COMPLETADA'
           AND (p_turno_id IS NULL OR v.turno_id = p_turno_id)
           AND v.fecha >= v_inicio AND v.fecha < v_fin
-    );
-    v_ganancia_bruta := (
-        SELECT COALESCE(SUM((vd.precio_unitario - vd.precio_costo) * vd.cantidad), 0)
+    LOOP
+        EXIT;
+    END LOOP;
+
+    -- Métricas derivadas
+    v_margen_pct      := CASE WHEN v_actuales.total_monto > 0
+                              THEN ROUND((v_detalles_actuales.ganancia_bruta / v_actuales.total_monto) * 100, 2)
+                              ELSE 0 END;
+    v_ticket_promedio := CASE WHEN v_actuales.total_ventas > 0
+                              THEN ROUND(v_actuales.total_monto / v_actuales.total_ventas, 2)
+                              ELSE 0 END;
+
+    -- ── Bloque 3: Agregados período anterior sobre `ventas` (1 query) ─────────
+    -- Reemplaza 2 SELECTs idénticos.
+    FOR v_anteriores IN
+        SELECT
+            COALESCE(SUM(total) FILTER (WHERE estado = 'COMPLETADA'), 0)::NUMERIC(12,2) AS total_monto,
+            COALESCE(COUNT(*)   FILTER (WHERE estado = 'COMPLETADA'), 0)::BIGINT        AS total_ventas
+        FROM ventas
+        WHERE negocio_id = v_negocio_id
+          AND (p_turno_id IS NULL OR turno_id = p_turno_id)
+          AND fecha >= v_inicio_anterior
+          AND fecha <  v_fin_anterior
+    LOOP
+        EXIT;
+    END LOOP;
+
+    -- ── Bloque 4: Ganancia período anterior sobre `ventas_detalles` (1 query) ─
+    FOR v_detalles_anteriores IN
+        SELECT
+            COALESCE(SUM((vd.precio_unitario - vd.precio_costo) * vd.cantidad), 0)::NUMERIC(12,2) AS ganancia_anterior
         FROM ventas_detalles vd
         JOIN ventas v ON v.id = vd.venta_id
         WHERE v.negocio_id = v_negocio_id
           AND v.estado = 'COMPLETADA'
           AND (p_turno_id IS NULL OR v.turno_id = p_turno_id)
-          AND v.fecha >= v_inicio AND v.fecha < v_fin
-    );
+          AND v.fecha >= v_inicio_anterior
+          AND v.fecha <  v_fin_anterior
+    LOOP
+        EXIT;
+    END LOOP;
 
-    v_margen_pct      := CASE WHEN v_total_monto > 0 THEN ROUND((v_ganancia_bruta / v_total_monto) * 100, 2) ELSE 0 END;
-    v_ticket_promedio := CASE WHEN v_total_ventas > 0 THEN ROUND(v_total_monto / v_total_ventas, 2) ELSE 0 END;
-
-    -- ── Comparativa: período anterior ──
-    v_total_monto_ant  := (SELECT COALESCE(SUM(total) FILTER (WHERE estado = 'COMPLETADA'), 0) FROM ventas WHERE negocio_id = v_negocio_id AND (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio_anterior AND fecha < v_fin_anterior);
-    v_total_ventas_ant := (SELECT COALESCE(COUNT(*) FILTER (WHERE estado = 'COMPLETADA'), 0) FROM ventas WHERE negocio_id = v_negocio_id AND (p_turno_id IS NULL OR turno_id = p_turno_id) AND fecha >= v_inicio_anterior AND fecha < v_fin_anterior);
-    v_ganancia_ant := (
-        SELECT COALESCE(SUM((vd.precio_unitario - vd.precio_costo) * vd.cantidad), 0)
-        FROM ventas_detalles vd
-        JOIN ventas v ON v.id = vd.venta_id
-        WHERE v.negocio_id = v_negocio_id
-          AND v.estado = 'COMPLETADA'
-          AND (p_turno_id IS NULL OR v.turno_id = p_turno_id)
-          AND v.fecha >= v_inicio_anterior AND v.fecha < v_fin_anterior
-    );
-
-    -- ── Productos sin movimiento (no se vendieron en el período) ──
+    -- ── Productos sin movimiento (no se vendieron en el período) ──────────────
     v_sin_movimiento := (
         SELECT COUNT(*)
         FROM productos p
@@ -147,7 +180,7 @@ BEGIN
           )
     );
 
-    -- ── Top 5 productos con menos movimiento (incluye 0 ventas) ──
+    -- ── Top 5 productos con menos movimiento (incluye 0 ventas) ──────────────
     v_baja_rotacion := (
         SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
         FROM (
@@ -173,7 +206,7 @@ BEGIN
         ) t
     );
 
-    -- ── Desglose por método de pago ──
+    -- ── Desglose por método de pago ──────────────────────────────────────────
     v_por_metodo := (
         SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
         FROM (
@@ -187,7 +220,7 @@ BEGIN
         ) t
     );
 
-    -- ── Desglose por tipo de comprobante ──
+    -- ── Desglose por tipo de comprobante ─────────────────────────────────────
     v_por_comprobante := (
         SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
         FROM (
@@ -201,7 +234,7 @@ BEGIN
         ) t
     );
 
-    -- ── Top 5 productos por ingreso ──
+    -- ── Top 5 productos por ingreso ──────────────────────────────────────────
     v_top_ingreso := (
         SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
         FROM (
@@ -222,7 +255,7 @@ BEGIN
         ) t
     );
 
-    -- ── Top 5 productos por ganancia ──
+    -- ── Top 5 productos por ganancia ─────────────────────────────────────────
     v_top_rentables := (
         SELECT COALESCE(json_agg(row_to_json(t)), '[]'::JSON)
         FROM (
@@ -246,7 +279,7 @@ BEGIN
         ) t
     );
 
-    -- ── Ventas por hora (solo si rango es 1 solo día) ──
+    -- ── Ventas por hora (solo si rango es 1 solo día) ────────────────────────
     IF v_dias_rango = 1 THEN
         v_ventas_por_hora := (
             SELECT COALESCE(json_agg(row_to_json(t) ORDER BY hora), '[]'::JSON)
@@ -268,22 +301,22 @@ BEGIN
     RETURN json_build_object(
         'fecha_inicio',             p_fecha_inicio,
         'fecha_fin',                p_fecha_fin,
-        'total_ventas',             v_total_ventas,
-        'total_monto',              v_total_monto,
-        'total_anuladas',           v_total_anuladas,
-        'monto_anulado',            v_monto_anulado,
-        'total_descuentos',         v_total_descuentos,
-        'clientes_unicos',          v_clientes_unicos,
-        'costo_total',              v_costo_total,
-        'ganancia_bruta',           v_ganancia_bruta,
+        'total_ventas',             v_actuales.total_ventas,
+        'total_monto',              v_actuales.total_monto,
+        'total_anuladas',           v_actuales.total_anuladas,
+        'monto_anulado',            v_actuales.monto_anulado,
+        'total_descuentos',         v_actuales.total_descuentos,
+        'clientes_unicos',          v_actuales.clientes_unicos,
+        'costo_total',              v_detalles_actuales.costo_total,
+        'ganancia_bruta',           v_detalles_actuales.ganancia_bruta,
         'margen_pct',               v_margen_pct,
         'ticket_promedio',          v_ticket_promedio,
-        'total_monto_anterior',     v_total_monto_ant,
-        'total_ventas_anterior',    v_total_ventas_ant,
-        'ganancia_anterior',        v_ganancia_ant,
-        'productos_sin_movimiento',  v_sin_movimiento,
-        'productos_baja_rotacion',   v_baja_rotacion,
-        'por_metodo_pago',           v_por_metodo,
+        'total_monto_anterior',     v_anteriores.total_monto,
+        'total_ventas_anterior',    v_anteriores.total_ventas,
+        'ganancia_anterior',        v_detalles_anteriores.ganancia_anterior,
+        'productos_sin_movimiento', v_sin_movimiento,
+        'productos_baja_rotacion',  v_baja_rotacion,
+        'por_metodo_pago',          v_por_metodo,
         'por_tipo_comprobante',     v_por_comprobante,
         'top_productos',            v_top_ingreso,
         'top_productos_rentables',  v_top_rentables,
@@ -299,8 +332,10 @@ GRANT  EXECUTE ON FUNCTION public.fn_reporte_ventas_periodo(TEXT, TEXT, UUID) TO
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_reporte_ventas_periodo IS
-    'v1.8 — Agrega productos_baja_rotacion: top 5 activos con menos unidades vendidas '
-    '(LEFT JOIN, incluye 0 ventas). Dashboard ejecutivo: ticket promedio, comparativa '
-    'con período anterior, top productos por ganancia, ventas por hora (cuando rango = 1 día), '
-    'productos sin movimiento, deuda total y % deuda. '
+    'v1.9 — Performance: 6 SELECTs sobre `ventas` consolidados en 1 con COUNT/SUM FILTER, '
+    '2 SELECTs sobre `ventas_detalles` consolidados, idem período anterior. '
+    'Contrato del JSON sin cambios — todos los campos antiguos se mantienen. '
+    'v1.8 — productos_baja_rotacion: top 5 menos vendidos. '
+    'v1.7 — Dashboard ejecutivo: ticket promedio, comparativa período anterior, '
+    'top productos por ganancia, ventas por hora (rango = 1 día), productos sin movimiento. '
     'Métricas core (totales, métodos de pago, comprobantes, top ingreso) sin cambios.';

@@ -12,8 +12,8 @@ Desde 2026-05-01, **CELULAR y BUS son módulos opcionales independientes**. Un n
 
 | Flag (en `configuraciones`) | Quién lo activa | Efecto al activar |
 |----------------------------|-----------------|-------------------|
-| `recargas_celular_habilitada` | Solo superadmin (Parámetros → Módulos) | Crea CAJA_CELULAR + categoría "Pago Proveedor Celular" (`seleccionable=true`) |
-| `recargas_bus_habilitada`     | Solo superadmin (Parámetros → Módulos) | Crea CAJA_BUS + categoría "Compra Saldo Virtual Bus" (`seleccionable=false`) |
+| `recargas_celular_habilitada` | Solo superadmin (Parámetros → Módulos) | Crea CAJA_CELULAR. Categoría `PAGO-PROV-CEL` ya existe en `categorias_sistema` (global). |
+| `recargas_bus_habilitada`     | Solo superadmin (Parámetros → Módulos) | Crea CAJA_BUS. Categoría `COMPRA-BUS` ya existe en `categorias_sistema` (global). |
 
 Función SQL: `fn_configurar_modulos(p_celular BOOLEAN, p_bus BOOLEAN, p_varios BOOLEAN DEFAULT FALSE)` en `docs/onboarding/sql/functions/` (desde dentro del negocio) y `fn_configurar_modulos_admin` en `docs/admin/sql/functions/` (desde `/admin`).
 
@@ -176,7 +176,7 @@ El botón **"Transferir $X a Varios/Tienda"** muestra el monto exacto por liquid
 
 | Método | Fórmula | Usar en |
 |---|---|---|
-| `getSaldoVirtualActual(servicio)` | Último snapshot + recargas posteriores al snapshot | Dashboard home, cierre diario, cuadre de caja, notificaciones, modal de compra BUS |
+| `getSaldoVirtualActual(servicio)` | Último snapshot + recargas posteriores al snapshot | Cierre diario, cuadre de caja, notificaciones, modal de compra BUS. **Home ya NO lo llama directamente** — desde 2026-05-30 usa `fn_home_dashboard` (RPC consolidada) que incluye el saldo de CELULAR y BUS en un solo round-trip |
 | `getSaldoUltimoCierre(servicio)` | Solo el `saldo_virtual_actual` del último snapshot en `recargas` | Uso interno — base de cálculo para `getSaldoVirtualActual()`. No usar directamente en UI. |
 
 > Ambos servicios viven en el feature `recargas-virtuales/services/` — fueron movidos desde `core/` porque solo los usa este módulo y el dashboard de caja los accede via `inject()`.
@@ -263,7 +263,7 @@ RecargasVirtualesPage (tab CELULAR) → card "Pagar al proveedor"
                  └─ UPDATE saldo CAJA_CELULAR
 ```
 
-> Función SQL dedicada: `fn_pagar_proveedor_celular`. La categoría usada es `'Pago Proveedor Recargas'` (creada en `fn_completar_onboarding`, `seleccionable=false`). La ganancia se queda en CAJA_CELULAR y se transfiere solo al ejecutar `fn_liquidar_ganancias('CELULAR')`.
+> Función SQL dedicada: `fn_pagar_proveedor_celular`. La categoría usada es `PAGO-PROV-CEL` de `categorias_sistema` (UUID fijo `a1000001-0000-0000-0000-000000000011`). La ganancia se queda en CAJA_CELULAR y se transfiere solo al ejecutar `fn_liquidar_ganancias('CELULAR')`.
 
 ### CELULAR — Liquidar ganancia
 

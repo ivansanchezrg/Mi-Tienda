@@ -107,6 +107,22 @@ ion-title {
   letter-spacing: -0.5px;
 }
 
+/**
+ * input[type=number] — Ocultar flechas nativas de incremento/decremento
+ * ---------------------------------------------------
+ * Aplica globalmente a todos los inputs numéricos de la app.
+ * Chrome/Safari/Android: -webkit-inner/outer-spin-button
+ * Firefox: -moz-appearance: textfield
+ */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
 
 
 // ─────────────────────────────────────────

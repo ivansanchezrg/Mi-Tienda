@@ -725,6 +725,7 @@ export class AuthService {
     };
 
     await this.saveUsuarioActual(actualizado);
+    await Preferences.set({ key: this.AUTENTICADO_KEY, value: 'true' });
     this.validadoEnEstaSesion = true;
     this.logger.info('AuthService', `Negocio cambiado a: ${negocioNombre} (${rolEfectivo})`);
 
@@ -800,6 +801,18 @@ export class AuthService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Actualiza el nombre del negocio en el cache local (Preferences + BehaviorSubject).
+   * Llamar después de guardar exitosamente en fn_actualizar_datos_negocio para que
+   * el sidebar refleje el nuevo nombre sin necesidad de re-login.
+   * No toca el JWT — el JWT se actualiza en el próximo fn_set_negocio_activo.
+   */
+  async actualizarNombreNegocio(nombre: string): Promise<void> {
+    const actual = await this.getUsuarioActual();
+    if (!actual) return;
+    await this.saveUsuarioActual({ ...actual, negocio_nombre: nombre });
   }
 
   /**

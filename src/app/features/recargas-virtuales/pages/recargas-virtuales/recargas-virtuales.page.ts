@@ -22,6 +22,7 @@ import { RecargasVirtualesService, RecargaVirtual } from '../../services/recarga
 import { RegistrarRecargaModalComponent } from '../../components/registrar-recarga-modal/registrar-recarga-modal.component';
 import { HistorialModalComponent } from '../../components/historial-modal/historial-modal.component';
 import { PagarProveedorModalComponent } from '../../components/pagar-proveedor-modal/pagar-proveedor-modal.component';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 type TabActivo = 'CELULAR' | 'BUS';
 
@@ -34,7 +35,8 @@ type TabActivo = 'CELULAR' | 'BUS';
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
     IonContent, IonIcon,
-    IonRefresher, IonRefresherContent, IonSkeletonText
+    IonRefresher, IonRefresherContent, IonSkeletonText,
+    AppCurrencyPipe,
   ]
 })
 export class RecargasVirtualesPage {

@@ -13,6 +13,7 @@ import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 type TipoServicio = 'CELULAR' | 'BUS';
 
@@ -25,7 +26,8 @@ type TipoServicio = 'CELULAR' | 'BUS';
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonContent, IonIcon, IonCard,
-    EmptyStateComponent
+    EmptyStateComponent,
+    AppCurrencyPipe,
   ]
 })
 export class HistorialModalComponent implements OnInit {

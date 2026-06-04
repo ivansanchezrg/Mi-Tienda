@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { ConfigService } from '@core/services/config.service';
+import { AuthService } from '../../auth/services/auth.service';
 import { CurrencyService } from '@core/services/currency.service';
 import { UiService } from '@core/services/ui.service';
 import { formatFechaEC } from '@core/utils/date.util';
@@ -9,6 +9,10 @@ export interface DatosCierreParaCompartir {
   numeroTurno:      number;
   cajeroNombre:     string;
   horaApertura:     string;  // ISO
+  // Modo de operación
+  esModoSinPos:     boolean; // true = cajón sin movimientos (sin POS, sin ingresos manuales, sin egresos)
+  // Observaciones del cajero (opcional)
+  observaciones:    string | null;
   // Cajón
   fondoApertura:    number;
   ventasPosEfectivo: number;
@@ -46,17 +50,33 @@ const E = {
 
 @Injectable({ providedIn: 'root' })
 export class ShareCierreService {
-  private configService  = inject(ConfigService);
+  private authService    = inject(AuthService);
   private currencyService = inject(CurrencyService);
   private ui             = inject(UiService);
+
+  /** Datos del último cierre pendientes de mostrar en el modal del home */
+  private _datosPendientes: DatosCierreParaCompartir | null = null;
+
+  guardarPendiente(datos: DatosCierreParaCompartir): void {
+    this._datosPendientes = datos;
+  }
+
+  consumirPendiente(): DatosCierreParaCompartir | null {
+    const datos = this._datosPendientes;
+    this._datosPendientes = null;
+    return datos;
+  }
 
   private fmt(n: number): string {
     return `$${this.currencyService.format(n)}`;
   }
 
   async enviarResumenWhatsApp(datos: DatosCierreParaCompartir): Promise<void> {
-    const config = await this.configService.get();
-    const telefono = this.normalizarTelefono(config.negocio_telefono);
+    const usuario = await this.authService.getUsuarioActual();
+    const negocioTelefono = (usuario as any)?.negocio_telefono ?? '';
+    const negocioNombre   = usuario?.negocio_nombre ?? '';
+
+    const telefono = this.normalizarTelefono(negocioTelefono);
 
     if (!telefono) {
       this.ui.showToast(
@@ -66,7 +86,7 @@ export class ShareCierreService {
       return;
     }
 
-    const texto = this.construirTexto(datos, config.negocio_nombre);
+    const texto = this.construirTexto(datos, negocioNombre);
     const url   = `https://api.whatsapp.com/send?phone=${telefono}&text=${encodeURIComponent(texto)}`;
     window.open(url, '_blank');
   }
@@ -89,26 +109,35 @@ export class ShareCierreService {
 
     // ── Caja del día ──────────────────────────────────────────────
     lineas.push(`${E.caja} *CAJA DEL DÍA*`);
-    lineas.push(`Apertura:        ${this.fmt(d.fondoApertura)}`);
-    if (d.ventasPosEfectivo > 0) {
-      lineas.push(`Ventas POS:      ${this.fmt(d.ventasPosEfectivo)}`);
-    }
-    if (d.otrosIngresos > 0) {
-      lineas.push(`Ingresos:       +${this.fmt(d.otrosIngresos)}`);
-    }
-    if (d.egresos > 0) {
-      lineas.push(`Gastos:         −${this.fmt(d.egresos)}`);
-    }
-    lineas.push(`Contado:         ${this.fmt(d.efectivoFisico)}`);
-    if (Math.abs(d.diferencia) > 0.001) {
-      if (d.diferencia < 0) {
-        lineas.push(`${E.warning} Faltante:      ${this.fmt(d.diferencia)}`);
-      } else {
-        lineas.push(`Sobrante:       +${this.fmt(d.diferencia)}`);
-      }
+
+    if (d.esModoSinPos) {
+      // Sin movimientos en el cajón: solo fondo y conteo, sin cuadre
+      lineas.push(`Fondo inicial:   ${this.fmt(d.fondoApertura)}`);
+      lineas.push(`Total contado:   ${this.fmt(d.efectivoFisico)}`);
     } else {
-      lineas.push(`${E.check} Cajón cuadrado`);
+      // Con movimientos: desglose completo con cuadre
+      lineas.push(`Fondo apertura:  ${this.fmt(d.fondoApertura)}`);
+      if (d.ventasPosEfectivo > 0) {
+        lineas.push(`Ventas POS:      ${this.fmt(d.ventasPosEfectivo)}`);
+      }
+      if (d.otrosIngresos > 0) {
+        lineas.push(`Otros ingresos: +${this.fmt(d.otrosIngresos)}`);
+      }
+      if (d.egresos > 0) {
+        lineas.push(`Gastos:         −${this.fmt(d.egresos)}`);
+      }
+      lineas.push(`Contado:         ${this.fmt(d.efectivoFisico)}`);
+      if (Math.abs(d.diferencia) > 0.001) {
+        if (d.diferencia < 0) {
+          lineas.push(`${E.warning} Faltante:     ${this.fmt(Math.abs(d.diferencia))}`);
+        } else {
+          lineas.push(`Sobrante:       +${this.fmt(d.diferencia)}`);
+        }
+      } else {
+        lineas.push(`${E.check} Cajón cuadrado`);
+      }
     }
+
     lineas.push('');
 
     // ── Saldos al cierre ──────────────────────────────────────────
@@ -148,7 +177,12 @@ export class ShareCierreService {
       }
     }
 
-    lineas.push('');
+    // ── Observaciones (solo si el cajero dejó un comentario) ─────
+    if (d.observaciones?.trim()) {
+      lineas.push(`📝 *OBSERVACIONES*`);
+      lineas.push(d.observaciones.trim());
+      lineas.push('');
+    }
 
     // ── Pie ───────────────────────────────────────────────────────
     const ahora = new Date().toLocaleTimeString('es-EC', {

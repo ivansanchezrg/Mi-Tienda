@@ -2,7 +2,7 @@
 ORDEN DE EJECUCION EN SUPABASE — Mi Tienda
 ================================================================================
 
-Fecha: 2026-05-11
+Fecha: 2026-05-30
 Proposito: Reset completo de la base de datos en dev. Ejecutar en este orden
 exacto desde el SQL Editor de Supabase. Cada bloque depende de los anteriores.
 
@@ -73,7 +73,15 @@ NOTAS GENERALES:
   Todas las funciones de mutacion la llaman con PERFORM al inicio.
 
 ================================================================================
-5. FUNCIONES DEL FLUJO DE CREACION DE NEGOCIOS / TENANCY
+6. TRIGGERS DE PROTECCION (auth — antes de crear negocios/usuarios)
+================================================================================
+
+  docs/auth/sql/setup/trigger_proteger_superadmin.sql
+    (incluye politica RLS DELETE que blinda al superadmin)
+  docs/auth/sql/setup/trigger_proteger_propietario.sql
+
+================================================================================
+7. FUNCIONES DEL FLUJO DE CREACION DE NEGOCIOS / TENANCY
 ================================================================================
 
   Orden importante (la primera depende de las tablas, las siguientes pueden ir
@@ -84,8 +92,11 @@ NOTAS GENERALES:
   docs/admin/sql/functions/fn_configurar_modulos_admin.sql
 
 ================================================================================
-6. FUNCIONES DE MODULOS (orden libre — solo dependen de schema + RLS)
+8. FUNCIONES DE MODULOS (orden libre — solo dependen de schema + RLS)
 ================================================================================
+
+  Auth:
+    docs/auth/sql/functions/fn_validar_sesion.sql
 
   Admin / Usuarios:
     docs/admin/sql/functions/fn_consultar_usuario_por_email.sql
@@ -100,6 +111,8 @@ NOTAS GENERALES:
     docs/caja/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql
     docs/caja/sql/functions/fn_ejecutar_cierre_diario_v5.sql
     docs/caja/sql/functions/fn_reparar_deficit_turno.sql
+    docs/caja/sql/functions/fn_listar_cierres_turno.sql
+    docs/caja/sql/functions/fn_home_dashboard.sql
 
   Inventario:
     docs/inventario/sql/functions/fn_generar_codigo_interno.sql
@@ -110,10 +123,13 @@ NOTAS GENERALES:
     docs/inventario/sql/functions/fn_ajustar_stock_inventario.sql
 
   POS:
+    docs/pos/sql/functions/fn_buscar_productos_pos.sql
+    docs/pos/sql/functions/fn_catalogo_productos_pos.sql
     docs/pos/sql/functions/fn_registrar_venta_pos.sql
 
   Recargas Virtuales:
     docs/recargas-virtuales/sql/functions/fn_registrar_recarga_proveedor_celular.sql
+    docs/recargas-virtuales/sql/functions/fn_pagar_proveedor_celular.sql
     docs/recargas-virtuales/sql/functions/fn_registrar_compra_saldo_bus.sql
     docs/recargas-virtuales/sql/functions/fn_liquidar_ganancias.sql
 
@@ -135,29 +151,26 @@ NOTAS GENERALES:
     (sin funciones — DELETE directo con RLS desde 2026-05-07)
 
 ================================================================================
-7. VISTAS
+9. VISTAS
 ================================================================================
 
   docs/movimientos-empleados/sql/views/v_saldos_empleados.sql
 
 ================================================================================
-8. TRIGGERS DE NEGOCIO (los inline ya estan en schema.sql; aqui los externos)
+10. TRIGGERS DE NEGOCIO
 ================================================================================
 
   docs/configuracion/sql/triggers/trg_set_codigo_categoria_operacion.sql
   docs/pos/sql/triggers/trg_actualizar_caja_por_venta.sql
   docs/pos/sql/triggers/trg_descontar_stock_venta.sql
 
-  docs/auth/sql/setup/trigger_proteger_superadmin.sql
-    (incluye politica RLS DELETE que blinda al superadmin)
-  docs/auth/sql/setup/trigger_proteger_propietario.sql
-
 ================================================================================
-9. REALTIME (publicar tablas para websocket)
+11. REALTIME (publicar tablas para websocket)
 ================================================================================
 
   docs/configuracion/sql/setup/realtime_configuraciones.sql
   docs/caja/sql/setup/realtime_turnos_caja.sql
+  docs/caja/sql/setup/realtime_cajas.sql
   docs/usuarios/sql/setup/realtime_usuario_negocios.sql
 
   IMPORTANTE: cada vez que se re-ejecuta schema.sql, los DROP TABLE CASCADE
@@ -166,10 +179,11 @@ NOTAS GENERALES:
   hay que navegar/refrescar para verlos.
 
 ================================================================================
-10. SEEDS DE DESARROLLO (opcional, solo en dev)
+12. SEEDS DE DESARROLLO (opcional, solo en dev)
 ================================================================================
 
   docs/inventario/sql/seeds/seed_productos_prueba.sql
+  docs/ventas/sql/seeds/seed_ventas_prueba.sql
     (requiere que ya exista al menos un negocio creado via
      fn_completar_onboarding)
 

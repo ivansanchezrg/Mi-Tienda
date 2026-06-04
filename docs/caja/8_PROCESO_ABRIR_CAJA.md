@@ -1,4 +1,4 @@
-# Abrir Caja — Referencia Técnica (v6.0 — 2026-05-29 — fondo libre)
+# Abrir Caja — Referencia Técnica (v6.3 — 2026-06-01 — fondo libre con EGRESO contable)
 
 ## 1. Arquitectura
 
@@ -7,11 +7,12 @@
 | Archivo | Rol |
 | --- | --- |
 | `pages/home/home.page.ts` | `onAbrirCaja()`, `mostrarModalVerificacionFondo()` |
-| `components/verificar-fondo-modal/verificar-fondo-modal.component.ts` | Modal de un paso: input libre del fondo a dejar + aviso de déficit (si aplica) |
-| `services/turnos-caja.service.ts` | `obtenerDeficitTurnoAnterior()`, `abrirTurno(fondoApertura)`, `repararDeficit(deficitVarios, fondoApertura)` |
+| `components/verificar-fondo-modal/verificar-fondo-modal.component.ts` | Modal de un paso: input libre del fondo a dejar + aviso de déficit (si aplica). En caso sin déficit hace `dismiss` con `fondoApertura`; el home llama `abrirTurno()`. En caso con déficit llama `repararDeficit()` internamente y solo cierra el modal si todo OK. |
+| `services/turnos-caja.service.ts` | `obtenerDeficitTurnoAnterior()` (delegado a `fn_obtener_deficit_turno_anterior`), `abrirTurno(fondoApertura)`, `repararDeficit(deficitVarios, fondoApertura)` |
 | `models/turno-caja.model.ts` | `TurnoCaja`, `TurnoCajaConEmpleado`, `EstadoCaja` |
 | `sql/functions/fn_abrir_turno.sql` | Apertura atómica sin déficit: validación + cálculo número turno + INSERT en una transacción |
 | `sql/functions/fn_reparar_deficit_turno.sql` | Apertura con déficit: EGRESO + INGRESO + INSERT turno en una transacción |
+| `sql/functions/fn_obtener_deficit_turno_anterior.sql` | **RPC consolidada** (v1.0 — 2026-06-03). Reemplaza 4 round-trips del cliente en 1 sola llamada al servidor. Retorna `{ deficit_varios: number }` |
 
 ### Tablas involucradas
 
@@ -21,7 +22,7 @@
 | `operaciones_cajas` | `repararDeficit()` inserta el EGRESO de CAJA y el INGRESO a VARIOS cuando hay déficit. |
 | `configuraciones` | `caja_varios_transferencia_dia` (clave/valor). `caja_fondo_fijo_diario` eliminado — el fondo es libre. |
 
-> **Principio clave:** En el caso normal, abrir caja **no afecta saldos** — solo crea el registro en `turnos_caja`. Cuando hay déficit, `fn_reparar_deficit_turno` mueve saldos (EGRESO de CAJA + INGRESO a VARIOS) **y** abre el turno en la misma transacción atómica.
+> **Principio clave (v6.3):** En el caso normal con fondo = 0, abrir caja **no afecta saldos**. Si el empleado declara fondo > 0, `fn_abrir_turno` registra un EGRESO de Tienda (`CAJA`) con categoría `Fondo Apertura Turno` — trazabilidad contable del efectivo que sale de la bóveda hacia el cajón. Cuando hay déficit, `fn_reparar_deficit_turno` mueve saldos (EGRESO de CAJA + INGRESO a VARIOS) **y** abre el turno en la misma transacción atómica.
 
 > **Fondo libre (v6.0):** Ya no existe un fondo fijo predeterminado. Al abrir caja, el empleado declara libremente cuánto efectivo deja en el cajón. Este valor se guarda en `turnos_caja.fondo_apertura` y el cierre lo usa como referencia para la distribución.
 
@@ -37,17 +38,20 @@ onAbrirCaja()
   │         → return (no navega, no abre modal)
   │
   └─ mostrarModalVerificacionFondo()
-       └─ obtenerDeficitTurnoAnterior()  → verifica si VARIOS tiene pendiente
+       └─ fn_obtener_deficit_turno_anterior()  ← 1 RPC, reemplaza 4 round-trips
         ↓
 [VerificarFondoModalComponent]
   │  Input libre: "¿Cuánto efectivo dejas en el cajón?"
   │
   ├─ Sin déficit (hayDeficit = false)
-  │    → dismiss { confirmado: true, fondoApertura: N }
-  │    → home llama abrirTurno(fondoApertura) → fn_abrir_turno(empleado, fondoApertura)
+  │    → dismiss { confirmado: true, fondoApertura }
+  │    → HOME llama abrirTurno(fondoApertura) → fn_abrir_turno(empleado, fondoApertura)
+  │       ├─ Si ok: cargarDatos() → refresca home
+  │       └─ Si error: muestra toast (errorHandled) o mensaje genérico
   │
   └─ Con déficit de VARIOS (hayDeficit = true)
        → "Se tomará $X de Tienda para reponer Varios"
+       → MODAL llama repararDeficit(deficitVarios, fondoApertura)
        → dismiss { confirmado: true, turnoId: uuid }  ← ya abierto atómicamente
        → home detecta turnoId → NO llama abrirTurno()
         ↓
@@ -77,23 +81,32 @@ El banner usa `estadoCaja.estado` + el getter `esMiTurno` (compara `turnoActivo.
 
 ## 4. Detección de déficit: `obtenerDeficitTurnoAnterior()`
 
-Determina si el último turno cerrado tuvo déficit **solo en VARIOS** (el fondo ya no se repone automáticamente — el empleado lo declara libremente al abrir).
+Delega completamente en la RPC `fn_obtener_deficit_turno_anterior` (v1.0 — 2026-06-03).
 
-### Lógica (en orden)
+> 📄 Código fuente: [`docs/caja/sql/functions/fn_obtener_deficit_turno_anterior.sql`](./sql/functions/fn_obtener_deficit_turno_anterior.sql)
 
-1. Obtiene el último turno cerrado: `hora_fecha_cierre IS NOT NULL ORDER BY hora_fecha_cierre DESC LIMIT 1`.
-2. Extrae la **fecha local** del cierre (sin desfase UTC).
-3. En paralelo: busca el ID de VARIOS en `cajas` y lee `caja_varios_transferencia_dia` de `configuraciones`.
+**Antes (4 round-trips secuenciales):** query turnos → query cajas + config → 2 queries operaciones_cajas.
+**Ahora (1 RPC):** todo consolidado en el servidor en una sola llamada.
+
+### Lógica de la función SQL (en orden)
+
+1. Si VARIOS no existe (módulo desactivado) → `{ deficit_varios: 0 }`.
+2. Si no hay ningún turno cerrado → `{ deficit_varios: 0 }`.
+3. Calcula la **ventana UTC** del día local del último cierre (UTC-5 Ecuador, sin `AT TIME ZONE` en el `WHERE` — permite usar el índice de `operaciones_cajas.fecha`).
 4. Verifica si VARIOS ya cobró ese día buscando en `operaciones_cajas` cualquiera de:
    - `tipo_operacion = 'TRANSFERENCIA_ENTRANTE'` → cierre normal sin déficit
-   - `tipo_operacion = 'INGRESO'` + `categorias_operaciones.codigo = 'IN-004'` → reparación de apertura ya ejecutada hoy
-5. Calcula el déficit:
+   - `tipo_operacion = 'INGRESO'` + `categoria_sistema_id = DEF-REPONER` → reparación de apertura ya ejecutada hoy
+5. Si no cobró → retorna `caja_varios_transferencia_dia` de `configuraciones`.
 
 ```typescript
-const variosYaCobro = !!(transferenciaEncontrada || ingresoIN004Encontrado);
-const deficitVarios = variosYaCobro ? 0 : caja_varios_transferencia_dia;
-if (deficitVarios <= 0) return null;
-return { deficitVarios };
+// TurnosCajaService — ahora son 5 líneas
+async obtenerDeficitTurnoAnterior(): Promise<{ deficitVarios: number } | null> {
+  const data = await this.supabase.call<{ deficit_varios: number }>(
+    this.supabase.client.rpc('fn_obtener_deficit_turno_anterior')
+  );
+  if (!data || data.deficit_varios <= 0) return null;
+  return { deficitVarios: data.deficit_varios };
+}
 ```
 
 ### Los 2 escenarios posibles
@@ -103,9 +116,9 @@ return { deficitVarios };
 | No | $X (monto config) | Aviso + input fondo libre |
 | Sí | $0 | Solo input fondo libre |
 
-### Por qué se verifica INGRESO IN-004 además de TRANSFERENCIA_ENTRANTE
+### Por qué se verifica INGRESO DEF-REPONER además de TRANSFERENCIA_ENTRANTE
 
-Cuando un cierre tuvo déficit en VARIOS, `fn_reparar_deficit_turno` inserta un `INGRESO` (cat `IN-004`) en VARIOS — no una `TRANSFERENCIA_ENTRANTE`. Sin esta verificación doble, el sistema re-detectaría el déficit al re-abrir el mismo día.
+Cuando un cierre tuvo déficit en VARIOS, `fn_reparar_deficit_turno` inserta un `INGRESO` (cat `DEF-REPONER` de `categorias_sistema`) en VARIOS — no una `TRANSFERENCIA_ENTRANTE`. Sin esta verificación doble, el sistema re-detectaría el déficit al re-abrir el mismo día.
 
 ---
 
@@ -122,16 +135,16 @@ Llama a `rpc('reparar_deficit_turno', params)`. Todo en una sola transacción at
   p_empleado_id:    UUID,     // empleado que abre
   p_deficit_varios: number,   // monto pendiente a VARIOS
   p_fondo_apertura: number,   // monto libre declarado por el empleado en el cajón
-  p_cat_egreso_id:  UUID,     // ID de categoría EG-012 (Ajuste Déficit Turno Anterior)
-  p_cat_ingreso_id: UUID      // ID de categoría IN-004 (Reposición Déficit Turno Anterior)
 }
 ```
+
+> **v4.0:** `p_cat_egreso_id` y `p_cat_ingreso_id` fueron eliminados. Las categorías `DEF-RETIRAR` y `DEF-REPONER` son UUIDs fijos de `categorias_sistema` resueltos internamente por la función.
 
 ### Lo que ejecuta (atómico)
 
 1. **Valida saldo** de CAJA ≥ `deficitVarios`. Si no alcanza, retorna error con mensaje descriptivo.
-2. **EGRESO** de CAJA por `deficitVarios` — categoría `EG-012`.
-3. **INGRESO** a VARIOS por `deficitVarios` — categoría `IN-004`. Este INGRESO es lo que `obtenerDeficitTurnoAnterior()` detecta el día siguiente para no re-detectar el déficit.
+2. **EGRESO** de CAJA por `deficitVarios` — categoría `DEF-RETIRAR` (`categorias_sistema`).
+3. **INGRESO** a VARIOS por `deficitVarios` — categoría `DEF-REPONER` (`categorias_sistema`). Este INGRESO es lo que `obtenerDeficitTurnoAnterior()` detecta el día siguiente para no re-detectar el déficit.
 4. **INSERT** en `turnos_caja` con `fondo_apertura` — abre el turno en la misma transacción atómica.
 
 > El déficit de VARIOS es costo operacional del negocio — no se registra en `movimientos_empleados`. Los faltantes de conteo físico sí se registran como `FALTANTE_CAJA` por `fn_ejecutar_cierre_diario`.
@@ -154,33 +167,30 @@ Si retorna error, el modal muestra el mensaje y el operador debe registrar prime
 
 > 📄 Código fuente: [`docs/caja/sql/functions/fn_abrir_turno.sql`](./sql/functions/fn_abrir_turno.sql)
 
-Delega en `rpc('fn_abrir_turno', { p_empleado_id, p_fondo_apertura })`. La función SQL (v3.0) ejecuta en una sola transacción atómica:
+Delega en `rpc('fn_abrir_turno', { p_empleado_id, p_fondo_apertura })`. La función SQL (v3.1) ejecuta en una sola transacción atómica:
 
 1. Resuelve `caja_id` automáticamente buscando la `CAJA_CHICA` del negocio.
 2. Valida que no exista turno abierto hoy en esa caja (rango `>= inicio_día AND < inicio_día_siguiente`).
 3. Calcula `numero_turno = COUNT(turnos hoy de esa caja) + 1`.
-4. `INSERT turnos_caja` con `hora_fecha_apertura = NOW()`, `caja_id` poblado y `fondo_apertura` declarado por el empleado.
-5. Retorna `{ success: true, turno_id, numero_turno, fondo_apertura }` o `{ success: false, error }`.
+4. **Si `p_fondo_apertura > 0`:** valida que Tienda (`CAJA`) tenga saldo suficiente, luego registra un `EGRESO` en Tienda con categoría `Fondo Apertura Turno` (trazabilidad contable del efectivo que sale hacia el cajón).
+5. `INSERT turnos_caja` con `hora_fecha_apertura = NOW()`, `caja_id` poblado y `fondo_apertura` declarado por el empleado.
+6. Retorna `{ success: true, turno_id, numero_turno, fondo_apertura }` o `{ success: false, error }`.
 
 **Ventaja sobre el enfoque anterior** (3 queries separadas): elimina la race condition TOCTOU — el check y el INSERT ocurren en la misma transacción con lock implícito.
 
-`abrirTurno()` retorna `false` tanto si la función reporta error como si hay fallo de conexión. `home.page.ts` gestiona tres sub-casos releyendo el turno activo con `obtenerTurnoActivo()`:
-
-| Sub-caso | Condición | Resultado |
-| --- | --- | --- |
-| Lock timeout propio | Turno existe y `empleado_id === empleadoActualId` | Toast éxito + `cargarDatos()` |
-| Datos desactualizados | Turno existe y `empleado_id !== empleadoActualId` | Error con nombre del otro empleado + `cargarDatos()` |
-| Error real | No existe turno activo | Error: "No se pudo abrir el turno. Verificá tu conexión." |
+`abrirTurno()` retorna `{ ok: boolean, errorHandled: boolean }`. La llamada ocurre en el **home** (`onAbrirCaja()`) cuando el modal devuelve el resultado sin déficit — el modal no llama `abrirTurno()` directamente. Si `ok === false` y `errorHandled === false`, el home muestra un toast genérico; si `errorHandled === true`, `SupabaseService.call()` ya mostró el error al usuario.
 
 ---
 
-## 7. El fondo de apertura: libre y sin operación contable
+## 7. El fondo de apertura: libre, con EGRESO contable en Tienda
 
-CAJA_CHICA siempre termina en **$0 digital** al cierre (`UPDATE cajas SET saldo_actual = 0`). El efectivo que el empleado declara al abrir (`fondo_apertura`) permanece físicamente en el cajón pero **no se registra digitalmente**.
+CAJA_CHICA siempre termina en **$0 digital** al cierre (`UPDATE cajas SET saldo_actual = 0`). El efectivo que el empleado declara al abrir (`fondo_apertura`) sale de Tienda digitalmente (EGRESO con categoría `Fondo Apertura Turno`) pero **no entra como INGRESO al cajón**.
 
-El cierre lo compensa con: `efectivo_esperado = saldo_digital + fondo_apertura`. Si el saldo digital del cajón es $30 y el empleado declaró $15 al abrir, el sistema espera contar $45 físicos.
+El cierre lo compensa con: `efectivo_esperado = saldo_digital_cajón + fondo_apertura`. Si el saldo digital del cajón es $30 y el empleado declaró $15 al abrir, el sistema espera contar $45 físicos.
 
-No se registra un INGRESO a CAJA_CHICA por el fondo — hacerlo rompería la fórmula y generaría siempre un ajuste negativo.
+**¿Por qué no se registra INGRESO en CAJA_CHICA?** Hacerlo rompería la fórmula y generaría siempre un ajuste negativo. El EGRESO de Tienda es solo para trazabilidad — el cajón lo recibe físicamente, y el cierre lo re-deposita a Tienda junto con las ventas del día.
+
+Si `fondo_apertura = 0`, no se genera ninguna operación contable al abrir.
 
 **El fondo ya no es fijo ni predeterminado.** Cada empleado declara libremente cuánto deja al abrir. Si deja $0, la fórmula sigue funcionando correctamente.
 
@@ -282,13 +292,9 @@ LEFT JOIN operaciones_cajas oc
     oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
     OR (
       oc.tipo_operacion = 'INGRESO'
-      AND EXISTS (
-        SELECT 1 FROM categorias_operaciones co
-        WHERE co.id = oc.categoria_id AND co.codigo = 'IN-004'
-      )
+      AND oc.categoria_sistema_id = 'a1000001-0000-0000-0000-000000000005'  -- DEF-REPONER
     )
   )
-LEFT JOIN categorias_operaciones co ON co.id = oc.categoria_id
 WHERE t.hora_fecha_cierre IS NOT NULL
 ORDER BY t.hora_fecha_cierre DESC
 LIMIT 1;
@@ -307,8 +313,8 @@ SELECT
   oc.fecha AT TIME ZONE 'America/Guayaquil' AS fecha_local
 FROM operaciones_cajas oc
 JOIN cajas c ON c.id = oc.caja_id
-JOIN categorias_operaciones co ON co.id = oc.categoria_id
-WHERE co.codigo IN ('EG-012', 'IN-004')
+JOIN categorias_sistema cs ON cs.id = oc.categoria_sistema_id
+WHERE cs.codigo IN ('DEF-RETIRAR', 'DEF-REPONER')
   AND (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = CURRENT_DATE
 ORDER BY oc.fecha;
 ```

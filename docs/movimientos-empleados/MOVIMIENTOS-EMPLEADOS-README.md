@@ -83,12 +83,12 @@ CREATE TABLE movimientos_empleados (
 
 ## 4. Categorias de operacion
 
-| Codigo | Nombre | `seleccionable` | Usado por |
-|---|---|---|---|
-| `EG-007` | Salarios | `FALSE` | `fn_pagar_nomina_empleado` |
-| `EG-014` | Adelanto Sueldo Empleado | `FALSE` | `fn_registrar_adelanto_sueldo` |
+Ambas categorías son de sistema — viven en `categorias_sistema` (tabla global sin `negocio_id`) y no aparecen en el dropdown del modal de operacion manual.
 
-Ambas categorias son de sistema — no aparecen en el dropdown del modal de operacion manual.
+| Codigo semántico | Nombre | Tabla | Usado por |
+|---|---|---|---|
+| `SALARIOS` | Salarios | `categorias_sistema` | `fn_pagar_nomina_empleado` |
+| `ADELANTO` | Adelanto Sueldo Empleado | `categorias_sistema` | `fn_registrar_adelanto_sueldo` |
 
 ---
 

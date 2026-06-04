@@ -20,13 +20,14 @@ import {
 import { CierreTurnoSnapshot } from '../../models/cierre-turno.model';
 import { ShareCierreService } from '../../services/share-cierre.service';
 import { formatFechaHoraEC, formatHoraEC } from '@core/utils/date.util';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 @Component({
   selector: 'app-cierre-turno-detalle-modal',
   templateUrl: './cierre-turno-detalle-modal.component.html',
   styleUrls: ['./cierre-turno-detalle-modal.component.scss'],
   standalone: true,
-  imports: [CommonModule, IonIcon, IonButton]
+  imports: [CommonModule, IonIcon, IonButton, AppCurrencyPipe]
 })
 export class CierreTurnoDetalleModalComponent {
   @Input({ required: true }) cierre!: CierreTurnoSnapshot;
@@ -94,6 +95,14 @@ export class CierreTurnoDetalleModalComponent {
     return this.cierre.bus_habilitado && this.cierre.saldo_anterior_bus < 0;
   }
 
+  get esModoSinPos(): boolean {
+    // Sin cuadre cuando el cajón no tuvo ningún movimiento durante el turno:
+    // ni ventas POS, ni ingresos manuales, ni egresos.
+    return this.cierre.ventas_pos_efectivo === 0
+        && this.cierre.otros_ingresos      === 0
+        && this.cierre.egresos             === 0;
+  }
+
   // ── Compartir por WhatsApp ──────────────────────────────────
 
   async compartirWhatsApp(): Promise<void> {
@@ -101,6 +110,8 @@ export class CierreTurnoDetalleModalComponent {
       numeroTurno:       this.cierre.numero_turno,
       cajeroNombre:      this.cierre.empleado_nombre,
       horaApertura:      this.cierre.hora_fecha_apertura,
+      esModoSinPos:      !this.cierre.usa_pos,
+      observaciones:     this.cierre.observaciones,
       fondoApertura:     this.cierre.fondo_apertura,
       ventasPosEfectivo: this.cierre.ventas_pos_efectivo,
       otrosIngresos:     this.cierre.otros_ingresos,

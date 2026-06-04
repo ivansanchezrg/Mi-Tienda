@@ -24,6 +24,7 @@ export interface OperacionCaja {
   saldo_anterior: number | null;
   saldo_actual: number | null;
   categoria_id: string | null;
+  categoria_sistema_id: string | null;
   tipo_referencia_id: string | null;
   referencia_id: string | null;
   descripcion: string | null;

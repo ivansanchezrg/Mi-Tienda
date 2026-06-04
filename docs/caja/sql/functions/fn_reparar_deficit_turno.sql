@@ -4,9 +4,10 @@
 DROP FUNCTION IF EXISTS public.fn_reparar_deficit_turno(INTEGER, DECIMAL, DECIMAL, INTEGER, INTEGER);
 DROP FUNCTION IF EXISTS public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMAL, UUID, UUID);
 DROP FUNCTION IF EXISTS public.fn_reparar_deficit_turno(UUID, DECIMAL, UUID, UUID);
+DROP FUNCTION IF EXISTS public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMAL);
 
 -- ==========================================
--- FUNCIÓN: fn_reparar_deficit_turno (v3.0 — fondo libre, solo repara VARIOS)
+-- FUNCIÓN: fn_reparar_deficit_turno (v4.0 — categorías migradas a categorias_sistema)
 -- ==========================================
 -- CAMBIOS v3.0:
 --   - Elimina p_fondo_faltante: sin fondo fijo no hay fondo que reponer automáticamente.
@@ -26,9 +27,7 @@ DROP FUNCTION IF EXISTS public.fn_reparar_deficit_turno(UUID, DECIMAL, UUID, UUI
 CREATE OR REPLACE FUNCTION public.fn_reparar_deficit_turno(
   p_empleado_id    UUID,
   p_deficit_varios DECIMAL(12,2),
-  p_fondo_apertura DECIMAL(12,2),
-  p_cat_egreso_id  UUID,
-  p_cat_ingreso_id UUID
+  p_fondo_apertura DECIMAL(12,2)
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -43,6 +42,9 @@ DECLARE
   v_saldo_varios DECIMAL(12,2);
   v_op_egreso_id  UUID;
   v_op_ingreso_id UUID;
+  -- UUIDs fijos de categorias_sistema
+  v_cat_egreso_id  CONSTANT UUID := 'a1000001-0000-0000-0000-000000000006';  -- DEF-RETIRAR
+  v_cat_ingreso_id CONSTANT UUID := 'a1000001-0000-0000-0000-000000000005';  -- DEF-REPONER
   -- Apertura de turno
   v_inicio_dia   TIMESTAMPTZ;
   v_numero_turno INTEGER;
@@ -93,10 +95,10 @@ BEGIN
   -- ==========================================
   v_op_egreso_id := gen_random_uuid();
   INSERT INTO operaciones_cajas (
-    id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_id,
+    id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_sistema_id,
     monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
   ) VALUES (
-    v_op_egreso_id, v_negocio_id, v_caja_id, p_empleado_id, 'EGRESO', p_cat_egreso_id,
+    v_op_egreso_id, v_negocio_id, v_caja_id, p_empleado_id, 'EGRESO', v_cat_egreso_id,
     p_deficit_varios, v_saldo_tienda, v_saldo_tienda - p_deficit_varios,
     FORMAT('Ajuste déficit turno anterior — Varios: $%s', TO_CHAR(p_deficit_varios, 'FM999990.00')),
     NULL
@@ -116,10 +118,10 @@ BEGIN
 
   v_op_ingreso_id := gen_random_uuid();
   INSERT INTO operaciones_cajas (
-    id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_id,
+    id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_sistema_id,
     monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
   ) VALUES (
-    v_op_ingreso_id, v_negocio_id, v_varios_id, p_empleado_id, 'INGRESO', p_cat_ingreso_id,
+    v_op_ingreso_id, v_negocio_id, v_varios_id, p_empleado_id, 'INGRESO', v_cat_ingreso_id,
     p_deficit_varios, v_saldo_varios, v_saldo_varios + p_deficit_varios,
     'Reposición déficit turno anterior — pendiente cobrado de Tienda',
     NULL
@@ -168,20 +170,19 @@ BEGIN
     'total_retirado',     p_deficit_varios,
     'saldo_tienda_nuevo', v_saldo_tienda - p_deficit_varios
   );
-
-EXCEPTION WHEN OTHERS THEN
-  RETURN json_build_object('success', false, 'error', SQLERRM);
 END;
 $$;
 
 -- Permisos
-REVOKE EXECUTE ON FUNCTION public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMAL, UUID, UUID) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMAL, UUID, UUID) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMAL) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMAL) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_reparar_deficit_turno IS
-  'v3.0 — Solo repara déficit de VARIOS (fondo libre: sin fondo fijo predeterminado). '
+  'v4.0 — Elimina p_cat_egreso_id y p_cat_ingreso_id: categorías migradas a categorias_sistema (UUIDs fijos). '
+  'DEF-RETIRAR (EGRESO Tienda) y DEF-REPONER (INGRESO Varios) referenciados internamente. '
+  'v3.0: Solo repara déficit de VARIOS (fondo libre). '
   'EGRESO de Tienda + INGRESO a VARIOS + INSERT en turnos_caja con fondo_apertura libre. '
   'Transacción atómica: si algo falla, rollback completo. '
   'Negocio leído del JWT; todas las queries filtran por negocio_id.';

@@ -116,9 +116,21 @@ await this.authService.cambiarNegocio(negocio.id, negocio.nombre);
 
 `cambiarNegocio()` llama `fn_set_negocio_activo`, refresca el JWT con el nuevo `negocio_id` y hace `window.location.href = ROUTES.home` (hard reload — patrón multi-tenant para limpiar todo estado en memoria). Desde `/caja` el superadmin opera con rol ADMIN dentro del negocio.
 
+> **Bug corregido (2026-06-03):** `cambiarNegocio()` no escribía `AUTENTICADO_KEY` en Preferences. El `authGuard` detectaba `hasActiveAuth() = false` tras el hard reload y redirigía al login en lugar de entrar al negocio. Fix: se agregó `Preferences.set({ key: AUTENTICADO_KEY, value: 'true' })` en `cambiarNegocio()`, igual que en `activarNegocio()`.
+
 Para volver a `/admin`: botón en el sidebar → `irAlPanelAdmin()`.
 
-### 4. Crear negocio
+### 4. Activar módulos de un negocio
+
+Menú ⋯ → "Módulos" → `ModulosNegocioModalComponent` → `fn_configurar_modulos_admin`.
+
+La función crea la caja (`INSERT ... ON CONFLICT DO NOTHING`) y actualiza los flags en `configuraciones`. Las categorías de sistema (`PAGO-PROV-CEL`, `COMPRA-BUS`) ya existen globalmente en `categorias_sistema` — no se crean por negocio.
+
+**Visibilidad de cajas en el home del admin del negocio:** cuando se activa un módulo, `fn_configurar_modulos_admin` inserta la caja nueva. Supabase Realtime propaga el INSERT al `CajasService` del negocio (`cajas$`). El subscribe de `cajas$` en `HomePage` detecta que llegó una caja de módulo que no estaba antes (`VARIOS`, `CAJA_CELULAR`, `CAJA_BUS`), invalida el `ConfigService` y re-lee los flags — las cards aparecen sin recargar la página.
+
+Al **desactivar** un módulo, solo cambia el flag en `configuraciones` (la caja no se toca). El admin del negocio debe refrescar la página para que las cards desaparezcan.
+
+### 5. Crear negocio
 
 Botón "Crear negocio" → navega al wizard reutilizable:
 

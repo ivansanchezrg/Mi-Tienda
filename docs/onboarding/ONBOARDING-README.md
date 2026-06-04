@@ -92,6 +92,8 @@ El draft vive en `OnboardingService._draft` (en memoria, no en Preferences). Si 
 
 **Archivos:** `features/onboarding/pages/negocio/`
 
+**UI:** muestra el logo del proyecto en lugar del icono `storefront-outline`. Los inputs `[type=number]` tienen las flechas ocultas (regla global en `global.scss`).
+
 ### Resolución del modo
 
 ```typescript
@@ -195,8 +197,18 @@ onboardingService.completar()
 ## Función SQL — `fn_completar_onboarding`
 
 **Archivo:** `docs/onboarding/sql/functions/fn_completar_onboarding.sql`
+**Versión actual:** v2.1 (colores de cajas + categorías de sistema)
 
 Operación atómica: crea todo o no crea nada. Si falla cualquier paso, rollback completo.
+
+> **v2.0 (2026-05-30):**
+> - `DROP FUNCTION IF EXISTS` movido al inicio del archivo (antes estaba al final, lo que dejaba dos versiones convivendo si la firma cambiaba).
+> - Eliminado `EXCEPTION WHEN OTHERS` enmascarador — ahora los errores propagan con su SQLSTATE original.
+> - `p_propietario_email` (opcional) permite al superadmin crear un negocio asignando a otro usuario como propietario, mientras él queda como admin operativo.
+>
+> **v2.1 (2026-06-01):**
+> - Colores de cajas ajustados: `CAJA_CHICA` → `#0077cc` (azul), `VARIOS` → `#e06c00` (naranja).
+> - Nuevas categorías de sistema: `Fondo Apertura Turno` (EGRESO), `Cierre — Ventas del dia` (INGRESO), `Cierre — Ventas con POS` (INGRESO). Usadas por `fn_abrir_turno` y `fn_ejecutar_cierre_diario` para etiquetar automáticamente sus operaciones.
 
 ### Qué crea en una sola transacción
 
@@ -207,8 +219,8 @@ Operación atómica: crea todo o no crea nada. Si falla cualquier paso, rollback
 | 3 | `negocios` | Inserta el negocio con `slug` generado automáticamente desde el nombre. |
 | 4 | `usuario_negocios` | Membresía ADMIN del admin en el nuevo negocio (upsert). |
 | 4b | `usuario_negocios` | Si el propietario difiere del admin, también le da membresía ADMIN. |
-| 5 | `cajas` | 3 cajas base: `CAJA` (Tienda), `CAJA_CHICA` (Cajón), `VARIOS` (Varios). `CAJA_CELULAR` y `CAJA_BUS` solo se crean si el superadmin los habilita después via `fn_configurar_modulos`. |
-| 6 | `categorias_operaciones` | 17 categorías preconfiguradas (egresos + ingresos estándar de tienda minorista). |
+| 5 | `cajas` | 3 cajas base: `CAJA` (Tienda), `CAJA_CHICA` (Cajón, color `#0077cc` azul), `VARIOS` (Varios, color `#e06c00` naranja). `CAJA_CELULAR` y `CAJA_BUS` solo se crean si el superadmin los habilita después via `fn_configurar_modulos`. |
+| 6 | `categorias_operaciones` | 20 categorías preconfiguradas: egresos + ingresos estándar de tienda minorista + 3 categorías de sistema: `Fondo Apertura Turno` (EGRESO), `Cierre — Ventas del dia` (INGRESO), `Cierre — Ventas con POS` (INGRESO). |
 | 7 | `categorias_productos` | 8 categorías base (Sin categoría, Bebidas, Snacks, etc.). |
 | 8 | `configuraciones` | Defaults del negocio + valores del wizard (Varios, nómina, POS, módulos). |
 | 9 | `secuencias_comprobantes` | Secuencias en 0 para TICKET, NOTA_VENTA, FACTURA, RECARGA. |

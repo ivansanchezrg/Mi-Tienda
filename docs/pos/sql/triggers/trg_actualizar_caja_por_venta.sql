@@ -8,15 +8,19 @@
 --   1. Busca CAJA_CHICA (cajón diario), NO CAJA (bóveda).
 --      Las ventas EFECTIVO entran al cajón diario. Al cierre, fn_ejecutar_cierre_diario
 --      distribuye CAJA_CHICA → VARIOS (transferencia diaria) + CAJA (bóveda excedente).
---   2. Busca la categoría contable INGRESO por código 'IN-001'.
+--   2. Usa UUID fijo VENTA-POS de categorias_sistema (categoria_sistema_id).
 --   3. Busca el tipo_referencia de la tabla 'ventas'.
 --   4. Inserta un registro en operaciones_cajas (trazabilidad contable).
 --   5. Actualiza saldo_actual de CAJA_CHICA.
 --
+-- CAMBIOS v7 (migración categorias_sistema):
+--   - Categoría VENTA-POS migrada a categorias_sistema (UUID fijo, sin negocio_id).
+--   - Eliminado v_categoria_id y lookup a categorias_operaciones.
+--   - INSERT usa categoria_sistema_id en lugar de categoria_id.
+--
 -- CAMBIOS v6:
 --   - SECURITY DEFINER + SET search_path = public (requerido para acceso a tablas con RLS)
 --   - v_caja_id, v_categoria_id, v_tipo_referencia_id: INTEGER → UUID (schema v11)
---   - Filtra cajas y categorias_operaciones por negocio_id (NEW.negocio_id)
 --   - operaciones_cajas INSERT incluye negocio_id
 --
 -- Métodos de pago alternativos (DEUNA, TRANSFERENCIA, FIADO):
@@ -36,23 +40,23 @@ SET search_path = public
 AS $$
 DECLARE
     v_caja_id            UUID;
-    v_categoria_id       UUID;
+    -- VENTA-POS: UUID fijo de categorias_sistema (antes IN-001 en categorias_operaciones)
+    v_cat_sistema_id     CONSTANT UUID := 'a1000001-0000-0000-0000-000000000013';
     v_tipo_referencia_id INTEGER;  -- tipos_referencia usa SERIAL → INTEGER
     v_saldo_actual_caja  DECIMAL(12,2);
 BEGIN
     IF NEW.metodo_pago = 'EFECTIVO' AND NEW.estado = 'COMPLETADA' THEN
         -- v5: ingreso va a CAJA_CHICA (cajón diario), no a CAJA (bóveda)
         v_caja_id            := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA' AND negocio_id = NEW.negocio_id);
-        v_categoria_id       := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-001' AND negocio_id = NEW.negocio_id);
         v_tipo_referencia_id := (SELECT id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1);
 
-        IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN
+        IF v_caja_id IS NOT NULL THEN
             v_saldo_actual_caja := (SELECT saldo_actual FROM cajas WHERE id = v_caja_id);
 
             INSERT INTO operaciones_cajas (
                 caja_id, empleado_id, tipo_operacion, monto,
                 saldo_anterior, saldo_actual,
-                categoria_id, tipo_referencia_id, referencia_id, descripcion,
+                categoria_sistema_id, tipo_referencia_id, referencia_id, descripcion,
                 negocio_id
             ) VALUES (
                 v_caja_id,
@@ -61,7 +65,7 @@ BEGIN
                 NEW.total,
                 v_saldo_actual_caja,
                 v_saldo_actual_caja + NEW.total,
-                v_categoria_id,
+                v_cat_sistema_id,
                 v_tipo_referencia_id,
                 NEW.id,
                 'Venta POS Efectivo',

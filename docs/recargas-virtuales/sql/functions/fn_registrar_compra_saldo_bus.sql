@@ -60,7 +60,8 @@ DECLARE
   v_tipo_bus_id              INTEGER;
   v_tipo_ref_rv_id           INTEGER;  -- tipos_referencia 'recargas_virtuales'
   v_tipo_ref_recargas_id     INTEGER;  -- tipos_referencia 'recargas'
-  v_categoria_eg011_id       UUID;
+  -- UUID fijo de categorias_sistema para COMPRA-BUS
+  v_categoria_eg011_id       CONSTANT UUID := 'a1000001-0000-0000-0000-000000000012';
 
   -- Saldos
   v_saldo_anterior           NUMERIC;   -- CAJA_BUS antes de cualquier operación
@@ -103,7 +104,7 @@ BEGIN
   v_ganancia             := ROUND(p_monto * v_comision_pct / 100.0, 2);
   v_tipo_ref_rv_id       := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas_virtuales');
   v_tipo_ref_recargas_id := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas');
-  v_categoria_eg011_id   := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-011' AND negocio_id = v_negocio_id);
+  -- v_categoria_eg011_id: CONSTANT declarada en DECLARE (UUID fijo de categorias_sistema)
 
   IF v_caja_bus_id IS NULL THEN
     RAISE EXCEPTION 'Caja CAJA_BUS no encontrada';
@@ -114,7 +115,7 @@ BEGIN
   END IF;
 
   IF v_categoria_eg011_id IS NULL THEN
-    RAISE EXCEPTION 'Categoría operación EG-011 no encontrada';
+    RAISE EXCEPTION 'Categoría COMPRA-BUS no encontrada en categorias_sistema';
   END IF;
 
   IF p_monto <= 0 THEN
@@ -189,11 +190,15 @@ BEGIN
 
   IF v_venta_bus_hoy > 0 THEN
 
-    -- Requiere turno abierto para crear el snapshot en `recargas`
+    -- Requiere turno abierto para crear el snapshot en `recargas`.
+    -- 🔒 Multi-tenant: filtrar por negocio_id (faltaba antes — podía traer turno de otro tenant).
+    -- ⚡ Performance: usar ventana UTC en vez de AT TIME ZONE en WHERE (rompe el índice).
     v_turno_id := (
       SELECT id
       FROM turnos_caja
-      WHERE (hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = p_fecha
+      WHERE negocio_id = v_negocio_id
+        AND hora_fecha_apertura >= (p_fecha::TIMESTAMP        AT TIME ZONE 'America/Guayaquil')
+        AND hora_fecha_apertura <  ((p_fecha + 1)::TIMESTAMP  AT TIME ZONE 'America/Guayaquil')
         AND hora_fecha_cierre IS NULL
       ORDER BY hora_fecha_apertura DESC
       LIMIT 1
@@ -263,7 +268,7 @@ BEGIN
     id, negocio_id, fecha, caja_id, empleado_id,
     tipo_operacion, monto,
     saldo_anterior, saldo_actual,
-    categoria_id, tipo_referencia_id, referencia_id,
+    categoria_sistema_id, tipo_referencia_id, referencia_id,
     descripcion
   ) VALUES (
     v_operacion_egreso_id, v_negocio_id, NOW(), v_caja_bus_id, p_empleado_id,
@@ -310,10 +315,6 @@ BEGIN
         'Compra saldo Bus $' || p_monto
     END
   );
-
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al registrar compra saldo bus: %', SQLERRM;
 END;
 $$;
 

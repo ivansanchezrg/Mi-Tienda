@@ -191,10 +191,11 @@ Ubicación: `docs/clientes/sql/functions/`
 - Solo clientes **con** deuda pendiente (`HAVING total_deuda > 0`)
 - Usado por el listado de cuentas por cobrar (paginado) — NO por `obtenerResumen()`
 
-### `fn_resumir_cuentas_cobrar(p_busqueda)`
+### `fn_resumir_cuentas_cobrar(p_busqueda)` — v1.1
 
-- Retorna: `total_clientes` (con deuda) + `total_deuda` global
+- Retorna: `total_clientes` (con deuda) + `total_deuda` global del negocio activo
 - Siempre retorna 1 fila con COALESCE a 0
+- **v1.1 (2026-05-30):** fix multi-tenant. Antes la función no filtraba por `negocio_id`, devolviendo la suma de todos los tenants. Ahora cada JOIN (ventas, clientes, cuentas_cobrar) filtra por `get_negocio_id()` del JWT — obligatorio porque `SECURITY DEFINER` bypasea RLS.
 
 ### `fn_registrar_pago_fiado(p_venta_id, p_monto, p_metodo_pago, p_observaciones)`
 

@@ -164,11 +164,32 @@ GRANT EXECUTE ON FUNCTION public.get_email()               TO authenticated;
 --   Solo el superadmin puede operar sobre un negocio sin ser su propietario.
 -- Nota: la columna `activo` fue eliminada. La suspensión de acceso se gestiona únicamente
 --   a través de usuarios.activo (suspensión del propietario/usuario, via fn_suspender_usuario).
+--
+-- Datos de identidad del negocio (fuente de verdad — no duplicar en configuraciones):
+--   nombre, telefono, direccion, correo_electronico — datos comerciales básicos
+--   ruc, razon_social, nombre_comercial — datos legales / SRI
+--   codigo_establecimiento, codigo_punto_emision — para secuencial de comprobantes SRI
+--   ambiente_sri — 1=pruebas, 2=producción
+--   obligado_contabilidad — requerido en XML de factura electrónica
+-- Todos los campos de identidad son nullable — no afectan a negocios que solo usan TICKET.
 CREATE TABLE IF NOT EXISTS negocios (
-    id                     UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id                     UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+    -- Identidad comercial
     nombre                 VARCHAR(255) NOT NULL,
-    slug                   VARCHAR(50)  NOT NULL UNIQUE,  -- identificador URL-safe ('panaderia-don-viche')
-    propietario_usuario_id UUID NOT NULL,                 -- FK a usuarios(id), agregada al final via ALTER TABLE
+    slug                   VARCHAR(50)  NOT NULL UNIQUE,   -- identificador URL-safe ('panaderia-don-viche')
+    telefono               VARCHAR(20),
+    direccion              VARCHAR(200),
+    correo_electronico     VARCHAR(100),
+    -- Datos legales / SRI (facturación electrónica Ecuador)
+    ruc                    VARCHAR(13),
+    razon_social           VARCHAR(300),
+    nombre_comercial       VARCHAR(300),
+    codigo_establecimiento VARCHAR(3)   DEFAULT '001',
+    codigo_punto_emision   VARCHAR(3)   DEFAULT '001',
+    ambiente_sri           SMALLINT     DEFAULT 1,         -- 1=pruebas, 2=producción
+    obligado_contabilidad  BOOLEAN      DEFAULT FALSE,
+    -- Control
+    propietario_usuario_id UUID NOT NULL,                  -- FK a usuarios(id), agregada al final via ALTER TABLE
     created_at             TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -257,8 +278,19 @@ CREATE TABLE IF NOT EXISTS configuraciones (
     PRIMARY KEY (negocio_id, clave)
 );
 
--- 8. categorias_operaciones — UUID (antes SERIAL). Por negocio.
--- seleccionable = FALSE → creada por sistema, no aparece en dropdowns del usuario
+-- 7b. categorias_sistema — Catálogo global de categorías del sistema (sin negocio_id).
+-- UUIDs fijos predefinidos. No editable desde la UI. Ver migrations/001_categorias_sistema.sql.
+CREATE TABLE IF NOT EXISTS public.categorias_sistema (
+    id          UUID        PRIMARY KEY,
+    codigo      VARCHAR(30) NOT NULL UNIQUE,
+    tipo        VARCHAR(10) NOT NULL CHECK (tipo IN ('INGRESO', 'EGRESO')),
+    nombre      VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 8. categorias_operaciones — Solo categorías definidas por el usuario de cada negocio.
+-- Las categorías de sistema viven en categorias_sistema (tabla global sin negocio_id).
 CREATE TABLE IF NOT EXISTS categorias_operaciones (
     id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     negocio_id   UUID        NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
@@ -267,7 +299,6 @@ CREATE TABLE IF NOT EXISTS categorias_operaciones (
     codigo       VARCHAR(20)  NOT NULL,   -- generado por trigger: 'EG-001', 'IN-001'
     descripcion  TEXT,
     activo       BOOLEAN DEFAULT TRUE,
-    seleccionable BOOLEAN DEFAULT TRUE,
     created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (negocio_id, codigo)
 );
@@ -337,11 +368,16 @@ CREATE TABLE IF NOT EXISTS operaciones_cajas (
     monto              DECIMAL(12,2) NOT NULL CHECK (monto > 0),
     saldo_anterior     DECIMAL(12,2),
     saldo_actual       DECIMAL(12,2),
-    categoria_id       UUID REFERENCES categorias_operaciones(id),
-    tipo_referencia_id INTEGER REFERENCES tipos_referencia(id),
-    referencia_id      UUID,
-    descripcion        TEXT,
-    comprobante_url    TEXT
+    categoria_id        UUID REFERENCES categorias_operaciones(id),   -- categoría del usuario
+    categoria_sistema_id UUID REFERENCES categorias_sistema(id),      -- categoría del sistema
+    tipo_referencia_id  INTEGER REFERENCES tipos_referencia(id),
+    referencia_id       UUID,
+    descripcion         TEXT,
+    comprobante_url     TEXT,
+    -- XOR: una operación apunta a categoría de usuario O de sistema, nunca ambas
+    CONSTRAINT chk_categoria_xor CHECK (
+        NOT (categoria_id IS NOT NULL AND categoria_sistema_id IS NOT NULL)
+    )
 );
 
 -- FK circular: recargas_virtuales.operacion_pago_id -> operaciones_cajas
@@ -1112,29 +1148,30 @@ CREATE TRIGGER trg_descontar_stock_venta
 CREATE OR REPLACE FUNCTION fn_actualizar_saldo_caja_venta()
 RETURNS TRIGGER AS $$
 DECLARE
-    v_negocio_id         UUID;
-    v_caja_id            UUID;
-    v_categoria_id       UUID;
-    v_tipo_referencia_id INTEGER;
-    v_saldo_actual_caja  DECIMAL(12,2);
+    v_negocio_id          UUID;
+    v_caja_id             UUID;
+    v_cat_sistema_id      UUID;
+    v_tipo_referencia_id  INTEGER;
+    v_saldo_actual_caja   DECIMAL(12,2);
 BEGIN
     IF NEW.metodo_pago = 'EFECTIVO' AND NEW.estado = 'COMPLETADA' THEN
         v_negocio_id         := NEW.negocio_id;
         v_caja_id            := (SELECT id FROM cajas WHERE negocio_id = v_negocio_id AND codigo = 'CAJA_CHICA');
-        v_categoria_id       := (SELECT id FROM categorias_operaciones WHERE negocio_id = v_negocio_id AND codigo = 'IN-001');
+        -- Categoría de sistema con UUID fijo — no depende del negocio
+        v_cat_sistema_id     := 'a1000001-0000-0000-0000-000000000013'; -- VENTA-POS
         v_tipo_referencia_id := (SELECT id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1);
 
-        IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN
+        IF v_caja_id IS NOT NULL THEN
             v_saldo_actual_caja := (SELECT saldo_actual FROM cajas WHERE id = v_caja_id);
 
             INSERT INTO operaciones_cajas (
                 negocio_id, caja_id, empleado_id, tipo_operacion, monto,
-                saldo_anterior, saldo_actual, categoria_id,
+                saldo_anterior, saldo_actual, categoria_sistema_id,
                 tipo_referencia_id, referencia_id, descripcion
             ) VALUES (
                 v_negocio_id, v_caja_id, NEW.empleado_id, 'INGRESO', NEW.total,
                 v_saldo_actual_caja, v_saldo_actual_caja + NEW.total,
-                v_categoria_id, v_tipo_referencia_id, NEW.id, 'Venta POS Efectivo'
+                v_cat_sistema_id, v_tipo_referencia_id, NEW.id, 'Venta POS Efectivo'
             );
 
             UPDATE cajas

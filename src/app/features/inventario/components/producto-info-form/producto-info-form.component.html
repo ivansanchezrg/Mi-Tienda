@@ -80,10 +80,10 @@
       <span>{{ storageService.isNative ? 'Tomar foto o seleccionar de galeria' : 'Seleccionar de galeria' }}</span>
     </button>
     } @else {
-    <div class="photo-preview">
+    <div class="photo-preview" (click)="abrirOpcionesImagen()">
       <img [src]="fotoPreviewUrl || imagenUrlExistente" alt="Imagen del producto">
-      <button type="button" class="remove-photo" (click)="removerFoto()">
-        <ion-icon name="close-circle"></ion-icon>
+      <button type="button" class="photo-menu" (click)="abrirOpcionesImagen(); $event.stopPropagation()" aria-label="Opciones de imagen">
+        <ion-icon name="ellipsis-horizontal"></ion-icon>
       </button>
     </div>
     }

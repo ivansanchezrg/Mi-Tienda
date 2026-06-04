@@ -15,7 +15,7 @@
     <!-- Resumen saldo -->
     <div class="saldo-row">
       <span class="saldo-label">Caja Celular disponible</span>
-      <span class="saldo-valor">${{ cajaCelularSaldo | number:'1.2-2' }}</span>
+      <span class="saldo-valor">${{ cajaCelularSaldo | appCurrency }}</span>
     </div>
 
     <!-- Toggle seleccionar todas -->
@@ -38,11 +38,11 @@
           </ion-checkbox>
           <div class="deuda-info">
             <span class="deuda-fecha">{{ formatearFecha(deuda.fecha) }}</span>
-            <span class="deuda-virtual">Virtual: ${{ deuda.monto_virtual | number:'1.2-2' }}</span>
+            <span class="deuda-virtual">Virtual: ${{ deuda.monto_virtual | appCurrency }}</span>
           </div>
           <div class="deuda-monto">
-            <span class="monto-pagar">${{ deuda.monto_a_pagar | number:'1.2-2' }}</span>
-            <span class="ganancia-label">ganancia ${{ deuda.ganancia | number:'1.2-2' }}</span>
+            <span class="monto-pagar">${{ deuda.monto_a_pagar | appCurrency }}</span>
+            <span class="ganancia-label">ganancia ${{ deuda.ganancia | appCurrency }}</span>
           </div>
         </div>
       }
@@ -51,13 +51,13 @@
     <!-- Total + alerta saldo insuficiente -->
     <div class="total-row" [class.insuficiente]="!saldoSuficiente && algunaSeleccionada">
       <span>Total a pagar</span>
-      <span class="total-valor">${{ totalSeleccionado | number:'1.2-2' }}</span>
+      <span class="total-valor">${{ totalSeleccionado | appCurrency }}</span>
     </div>
 
     @if (!saldoSuficiente && algunaSeleccionada) {
       <div class="alerta-saldo">
         <ion-icon name="card-outline"></ion-icon>
-        <p>Caja Celular no tiene fondos suficientes para pagar ${{ totalSeleccionado | number:'1.2-2' }}</p>
+        <p>Caja Celular no tiene fondos suficientes para pagar ${{ totalSeleccionado | appCurrency }}</p>
       </div>
     }
 

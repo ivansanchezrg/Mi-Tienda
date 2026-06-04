@@ -59,6 +59,14 @@ BEGIN
         RAISE EXCEPTION 'El precio de venta debe ser mayor a 0';
     END IF;
 
+    -- 🔒 Multi-tenant: la categoría debe pertenecer al negocio activo
+    IF p_categoria_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM categorias_productos
+        WHERE id = p_categoria_id AND negocio_id = v_negocio_id
+    ) THEN
+        RAISE EXCEPTION 'La categoría no pertenece a este negocio';
+    END IF;
+
     -- Crear producto
     v_producto_id := gen_random_uuid();
 
@@ -102,9 +110,6 @@ BEGIN
         'ok', TRUE,
         'producto_id', v_producto_id
     );
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al crear producto simple: %', SQLERRM;
 END;
 $$;
 

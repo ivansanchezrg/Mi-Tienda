@@ -25,14 +25,13 @@ export class CategoriasOperacionesService {
   }
 
   /**
-   * Crea una nueva categoría de operación manual.
-   * Siempre se crea con seleccionable = true (visible en dropdowns del usuario).
+   * Crea una nueva categoría de operación del usuario.
    */
   async crear(categoria: CategoriaOperacionInsert): Promise<CategoriaOperacion> {
     const data = await this.supabase.call<CategoriaOperacion>(
       this.supabase.client
         .from('categorias_operaciones')
-        .insert({ ...categoria, seleccionable: true, negocio_id: this.auth.usuarioActualValue?.negocio_id })
+        .insert({ ...categoria, negocio_id: this.auth.usuarioActualValue?.negocio_id })
         .select()
         .single()
     );
@@ -56,8 +55,7 @@ export class CategoriasOperacionesService {
   }
 
   /**
-   * Activa o desactiva una categoría.
-   * Las categorías del sistema (seleccionable = false) también pueden desactivarse.
+   * Activa o desactiva una categoría de usuario.
    */
   async toggleActivo(id: string, activo: boolean): Promise<void> {
     const { error } = await this.supabase.client

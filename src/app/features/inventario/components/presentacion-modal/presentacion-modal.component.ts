@@ -211,6 +211,23 @@ export class PresentacionModalComponent implements OnInit {
         this.imagenEliminada = false;
     }
 
+    async abrirOpcionesImagen() {
+        const accion = await this.storageService.mostrarOpcionesImagen();
+        if (!accion) return;
+        if (accion === 'quitar') {
+            this.removerFoto();
+        } else if (accion === 'recortar') {
+            const rawUrl = this.fotoRawUrl ?? this.imagenUrlResuelta;
+            if (!rawUrl) return;
+            const result = await this.storageService.recortarImagen(rawUrl);
+            if (!result) return;
+            this.fotoPreviewUrl = result.previewUrl;
+            this.fotoRawUrl = result.rawUrl;
+        } else if (accion === 'cambiar') {
+            await this.seleccionarFoto();
+        }
+    }
+
     removerFoto() {
         if (this.imagenExistente && !this.fotoRawUrl) {
             this.imagenEliminada = true;

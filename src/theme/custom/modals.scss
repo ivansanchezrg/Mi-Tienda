@@ -58,6 +58,39 @@
   align-items: flex-end;
 }
 
+// ── Image Cropper Modal — fullscreen con fondo negro ─────────────────────
+// ImageCropperModalComponent: ocupa toda la pantalla para maximizar el área de recorte.
+// En Android el modal cubre status bar y nav bar — el header maneja safe-area-inset-top
+// y .icm-actions maneja safe-area-inset-bottom. El fondo negro se extiende edge-to-edge.
+ion-modal.image-cropper-modal {
+  --width: 100vw;
+  --height: 100vh;
+  --max-width: 100vw;
+  --max-height: 100vh;
+  --border-radius: 0;
+  --background: #000;
+  // Cubrir toda la pantalla incluyendo status bar (Android) y safe areas
+  align-items: stretch;
+  justify-content: stretch;
+
+  @media (min-width: 768px) {
+    --width: 540px;
+    --height: 720px;
+    --max-width: 540px;
+    --max-height: 720px;
+    --border-radius: 20px;
+    --box-shadow: var(--shadow-level-4);
+    align-items: center;
+    justify-content: center;
+  }
+
+  // Forzar que el wrapper interno también ocupe 100% sin respetar margins
+  &::part(content) {
+    width: 100%;
+    height: 100%;
+  }
+}
+
 // ── Options Modal (menú contextual tipo bottom sheet) ─────────────────────
 // OptionsModalComponent: lista corta de acciones, sin scroll interno.
 ion-modal.options-modal {

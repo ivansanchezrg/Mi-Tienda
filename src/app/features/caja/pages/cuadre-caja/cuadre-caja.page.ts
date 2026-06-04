@@ -13,6 +13,7 @@ import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 @Component({
   selector: 'app-cuadre-caja',
@@ -24,7 +25,8 @@ import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive'
     ReactiveFormsModule,
     IonButton, IonIcon, IonSkeletonText,
     CurrencyInputDirective,
-    NumbersOnlyDirective
+    NumbersOnlyDirective,
+    AppCurrencyPipe,
   ]
 })
 export class CuadreCajaPage implements OnInit {

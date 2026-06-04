@@ -19,10 +19,12 @@ export const LAYOUT_ROUTES: Routes = [
       },
       {
         path: 'ventas',
+        data: { preload: true },
         loadChildren: () => import('../ventas/ventas.routes').then(m => m.VENTAS_ROUTES)
       },
       {
         path: 'inventario',
+        data: { preload: true },
         loadChildren: () => import('../inventario/inventario.routes').then(m => m.INVENTARIO_ROUTES)
       },
       {
@@ -37,10 +39,12 @@ export const LAYOUT_ROUTES: Routes = [
       {
         path: 'pos',
         canActivate: [cajaAbiertaGuard],
+        data: { preload: true },
         loadChildren: () => import('../pos/pos.routes').then(m => m.POS_ROUTES)
       },
       {
         path: 'clientes',
+        data: { preload: true },
         loadChildren: () => import('../clientes/clientes.routes').then(m => m.CLIENTES_ROUTES)
       },
       {

@@ -47,30 +47,22 @@ BEGIN
 
     -- ── Módulo CELULAR ──
     IF p_celular THEN
-        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno)
-        VALUES (v_negocio_id, 'CAJA_CELULAR', 'Celular', 'Efectivo recargas celular', 0, FALSE)
+        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno, icono, color)
+        VALUES (v_negocio_id, 'CAJA_CELULAR', 'Celular', 'Efectivo recargas celular', 0, FALSE, 'phone-portrait-outline', '#3dc2ff')
         ON CONFLICT (negocio_id, codigo) DO NOTHING;
 
-        INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion, seleccionable)
-        SELECT v_negocio_id, 'Pago Proveedor Recargas', 'EGRESO', 'Pago al proveedor de recargas celular (saldo prestado a credito)', FALSE
-        WHERE NOT EXISTS (
-            SELECT 1 FROM categorias_operaciones
-            WHERE negocio_id = v_negocio_id AND nombre = 'Pago Proveedor Recargas'
-        );
+        -- Categoría de sistema PAGO-PROV-CEL ya existe en categorias_sistema (global).
+        -- No se crea por negocio.
     END IF;
 
     -- ── Módulo BUS ──
     IF p_bus THEN
-        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno)
-        VALUES (v_negocio_id, 'CAJA_BUS', 'Bus', 'Efectivo recargas bus', 0, FALSE)
+        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno, icono, color)
+        VALUES (v_negocio_id, 'CAJA_BUS', 'Bus', 'Efectivo recargas bus', 0, FALSE, 'bus-outline', '#ffc409')
         ON CONFLICT (negocio_id, codigo) DO NOTHING;
 
-        INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion, seleccionable)
-        SELECT v_negocio_id, 'Compra Saldo Virtual Bus', 'EGRESO', 'Compra de saldo virtual bus mediante deposito bancario', FALSE
-        WHERE NOT EXISTS (
-            SELECT 1 FROM categorias_operaciones
-            WHERE negocio_id = v_negocio_id AND nombre = 'Compra Saldo Virtual Bus'
-        );
+        -- Categoría de sistema COMPRA-BUS ya existe en categorias_sistema (global).
+        -- No se crea por negocio.
 
         INSERT INTO configuraciones (negocio_id, clave, valor) VALUES
         (v_negocio_id, 'bus_alerta_saldo_bajo',      '10'),
@@ -84,8 +76,8 @@ BEGIN
             RAISE EXCEPTION 'Para activar Caja Varios debés indicar un monto diario mayor a $0';
         END IF;
 
-        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno)
-        VALUES (v_negocio_id, 'VARIOS', 'Varios', 'Fondo de emergencia', 0, FALSE)
+        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno, icono, color)
+        VALUES (v_negocio_id, 'VARIOS', 'Varios', 'Fondo de emergencia', 0, FALSE, 'archive-outline', '#7044ff')
         ON CONFLICT (negocio_id, codigo) DO NOTHING;
     END IF;
 
@@ -106,9 +98,6 @@ BEGIN
     END IF;
 
     RETURN json_build_object('success', TRUE);
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al configurar módulos: % (SQLSTATE: %)', SQLERRM, SQLSTATE;
 END;
 $$;
 

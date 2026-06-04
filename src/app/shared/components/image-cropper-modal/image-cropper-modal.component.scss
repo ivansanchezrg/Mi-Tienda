@@ -1,0 +1,361 @@
+// ── Variables locales ─────────────────────────────────────────────────────
+$bg-dark:      #000;
+$bg-panel:     #111;
+$bg-panel-2:   #1a1a1a;
+$border-dim:   rgba(255, 255, 255, 0.08);
+$text-primary: #fff;
+$text-dim:     rgba(255, 255, 255, 0.45);
+$text-mid:     rgba(255, 255, 255, 0.7);
+$accent:       var(--ion-color-primary);
+$accent-rgb:   var(--ion-color-primary-rgb);
+
+// ── Raíz ──────────────────────────────────────────────────────────────────
+.icm-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: $bg-dark;
+  overflow: hidden;
+}
+
+// ── Header ────────────────────────────────────────────────────────────────
+.icm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(14px + env(safe-area-inset-top)) 20px 14px;
+  flex-shrink: 0;
+  background: $bg-dark;
+  border-bottom: 1px solid $border-dim;
+}
+
+.icm-header__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-primary;
+  letter-spacing: 0.2px;
+}
+
+.icm-header__close,
+.icm-header__confirm {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.icm-header__close {
+  background: rgba(255,255,255,0.08);
+  ion-icon {
+    font-size: 20px;
+    color: $text-mid;
+  }
+  &:active { background: rgba(255,255,255,0.15); }
+}
+
+.icm-header__confirm {
+  background: rgba(var(--ion-color-primary-rgb), 0.15);
+  color: $text-dim;
+  font-weight: 700;
+  font-size: 20px;
+
+  &--active {
+    background: $accent;
+    color: #fff;
+  }
+  &:not([disabled]):active { opacity: 0.8; }
+  &[disabled] { cursor: default; }
+}
+
+// ── Canvas ────────────────────────────────────────────────────────────────
+.icm-canvas-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #0a0a0a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.icm-cropper {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+
+  ::ng-deep {
+    .ngx-ic-source-image {
+      max-height: 100% !important;
+    }
+    .ngx-ic-overlay {
+      outline-color: rgba(0, 0, 0, 0.55) !important;
+    }
+
+    // Borde del recuadro
+    .ngx-ic-cropper .ngx-ic-move {
+      border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
+    }
+
+    // Líneas de guía (regla de tercios)
+    .ngx-ic-cropper::after {
+      border-color: rgba(255,255,255,0.2) !important;
+    }
+
+    // Ocultar handles de los lados — evita conflicto con gestos de Android
+    .ngx-ic-resize.ngx-ic-top,
+    .ngx-ic-resize.ngx-ic-right,
+    .ngx-ic-resize.ngx-ic-bottom,
+    .ngx-ic-resize.ngx-ic-left,
+    .ngx-ic-resize-bar.ngx-ic-top,
+    .ngx-ic-resize-bar.ngx-ic-right,
+    .ngx-ic-resize-bar.ngx-ic-bottom,
+    .ngx-ic-resize-bar.ngx-ic-left {
+      display: none !important;
+      pointer-events: none !important;
+    }
+
+    // Esquinas: más grandes y visibles
+    .ngx-ic-resize.ngx-ic-topleft,
+    .ngx-ic-resize.ngx-ic-topright,
+    .ngx-ic-resize.ngx-ic-bottomleft,
+    .ngx-ic-resize.ngx-ic-bottomright {
+      padding: 16px !important;
+
+      .ngx-ic-square {
+        width: 14px !important;
+        height: 14px !important;
+        background: $accent !important;
+        border: 2.5px solid #fff !important;
+        border-radius: 3px !important;
+      }
+    }
+  }
+}
+
+// ── Loading / Error ───────────────────────────────────────────────────────
+.icm-loading,
+.icm-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #0a0a0a;
+
+  p {
+    color: $text-dim;
+    font-size: 14px;
+    margin: 0;
+  }
+}
+
+.icm-loading ion-spinner {
+  color: $accent;
+  --color: $accent;
+  width: 32px;
+  height: 32px;
+}
+
+.icm-error ion-icon {
+  font-size: 44px;
+  color: var(--ion-color-danger);
+  opacity: 0.7;
+}
+
+// ── Panel de herramientas ─────────────────────────────────────────────────
+.icm-tools {
+  flex-shrink: 0;
+  background: $bg-panel;
+  border-top: 1px solid $border-dim;
+}
+
+// ── Slider area ───────────────────────────────────────────────────────────
+.icm-slider-area {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid $border-dim;
+}
+
+.icm-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icm-slider-track {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.icm-slider-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: $text-dim;
+  letter-spacing: 0.5px;
+  transition: color 0.15s;
+  min-width: 52px;
+  text-align: center;
+
+  &--active {
+    color: $accent;
+  }
+}
+
+// Range input personalizado
+.icm-range {
+  width: 100%;
+  height: 2px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+
+  &::-webkit-slider-runnable-track {
+    height: 2px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+  }
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: $accent;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    margin-top: -10px;
+    cursor: grab;
+    transition: transform 0.1s;
+
+    &:active { transform: scale(1.15); cursor: grabbing; }
+  }
+
+  &::-moz-range-track {
+    height: 2px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+  }
+
+  &::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: $accent;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    cursor: grab;
+  }
+}
+
+// Marcas decorativas del slider
+.icm-range-ticks {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 2px;
+}
+
+.icm-range-tick {
+  display: block;
+  width: 1px;
+  height: 4px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 1px;
+
+  &--center {
+    height: 7px;
+    background: rgba(255,255,255,0.45);
+  }
+}
+
+// Botones laterales del slider
+.icm-tool-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.07);
+  color: $text-mid;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+
+  ion-icon { font-size: 18px; }
+  span { font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
+
+  &:active { background: rgba(255,255,255,0.14); }
+
+  &--dim {
+    opacity: 0.35;
+  }
+}
+
+.icm-tool-spacer {
+  width: 42px;
+  flex-shrink: 0;
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────
+.icm-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.icm-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: none;
+  background: transparent;
+  color: $text-dim;
+  cursor: pointer;
+  transition: color 0.15s;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+
+  ion-icon, .icm-tab-svg {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+    transition: color 0.15s;
+  }
+
+  &--active {
+    color: $accent;
+  }
+
+  &:active { opacity: 0.7; }
+}
+
+.icm-tab-svg {
+  stroke: currentColor;
+}

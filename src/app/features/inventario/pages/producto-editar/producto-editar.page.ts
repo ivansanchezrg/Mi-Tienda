@@ -74,7 +74,7 @@ export class ProductoEditarPage implements OnInit, ViewWillEnter {
 
     // Imagen
     fotoPreviewUrl: SafeUrl | null = null;
-    private fotoRawUrl: string | null = null;
+    fotoRawUrl: string | null = null;
     imagenUrlExistente: string | null = null;
     private imagenPathAnterior: string | null = null;
     private fotoNueva      = false;

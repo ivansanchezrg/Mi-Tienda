@@ -120,7 +120,7 @@
             <div class="turno-card__resumen">
               <div class="turno-card__resumen-row">
                 <span class="turno-card__label">Cajón contado</span>
-                <span class="turno-card__value turno-card__value--strong">${{ cierre.efectivo_fisico | number:'1.2-2' }}</span>
+                <span class="turno-card__value turno-card__value--strong">${{ cierre.efectivo_fisico | appCurrency }}</span>
               </div>
 
               @if (cierre.deposito_caja > 0) {
@@ -129,7 +129,7 @@
                     <ion-icon name="storefront-outline"></ion-icon>
                     A Tienda
                   </span>
-                  <span class="turno-card__value">+${{ cierre.deposito_caja | number:'1.2-2' }}</span>
+                  <span class="turno-card__value">+${{ cierre.deposito_caja | appCurrency }}</span>
                 </div>
               }
 
@@ -139,7 +139,7 @@
                     <ion-icon name="shield-checkmark-outline"></ion-icon>
                     A Varios
                   </span>
-                  <span class="turno-card__value">+${{ cierre.transferencia_varios | number:'1.2-2' }}</span>
+                  <span class="turno-card__value">+${{ cierre.transferencia_varios | appCurrency }}</span>
                 </div>
               }
 
@@ -149,7 +149,7 @@
                     <ion-icon name="phone-portrait-outline"></ion-icon>
                     Venta Celular
                   </span>
-                  <span class="turno-card__value">${{ cierre.venta_celular | number:'1.2-2' }}</span>
+                  <span class="turno-card__value">${{ cierre.venta_celular | appCurrency }}</span>
                 </div>
               }
 
@@ -159,7 +159,7 @@
                     <ion-icon name="bus-outline"></ion-icon>
                     Venta Bus
                   </span>
-                  <span class="turno-card__value">${{ cierre.venta_bus | number:'1.2-2' }}</span>
+                  <span class="turno-card__value">${{ cierre.venta_bus | appCurrency }}</span>
                 </div>
               }
             </div>

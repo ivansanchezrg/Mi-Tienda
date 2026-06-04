@@ -36,4 +36,5 @@ export interface CierreTurnoSnapshot {
   saldo_virtual_final_bus: number;
   varios_activa: boolean;
   observaciones: string | null;
+  usa_pos: boolean;
 }

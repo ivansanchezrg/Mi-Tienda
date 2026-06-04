@@ -195,7 +195,7 @@ Ubicación: `docs/ventas/sql/functions/`
 - Devuelve campos planos (sin JOINs anidados)
 - **v1.5**: agrega filtro explícito `negocio_id = get_negocio_id()` en la query principal — obligatorio porque `SECURITY DEFINER` bypasea RLS
 
-### `fn_reporte_ventas_periodo(p_fecha_inicio, p_fecha_fin, p_turno_id)` — v1.6
+### `fn_reporte_ventas_periodo(p_fecha_inicio, p_fecha_fin, p_turno_id)` — v1.8
 
 - Resumen agregado de un rango de fechas en timezone Ecuador
 - `p_turno_id`: UUID del turno. `NULL` = todos los turnos. Solo el ADMIN lo envía desde el frontend
@@ -207,19 +207,31 @@ Ubicación: `docs/ventas/sql/functions/`
   - `costo_total` — suma de `vd.precio_costo × cantidad` (snapshot histórico, no el costo actual del producto)
   - `ganancia_bruta` — `total_monto - costo_total`
   - `margen_pct` — `ganancia_bruta / total_monto × 100` (redondeado a 2 decimales)
+  - `ticket_promedio` — `total_monto / total_ventas` (v1.7+)
+  - `total_monto_anterior`, `total_ventas_anterior`, `ganancia_anterior` — comparativa con el mismo rango del período anterior (v1.7+)
+  - `productos_sin_movimiento` — `COUNT` de productos activos sin ventas en el período (v1.7+)
+  - `productos_baja_rotacion[]` — top 5 productos activos con menos unidades vendidas, incluye los que tienen 0 ventas (v1.8+)
   - `por_metodo_pago[]` — `{ metodo, cantidad, monto }`
   - `por_tipo_comprobante[]` — `{ tipo, cantidad, monto }`
-  - `top_productos[]` — `{ producto_id, nombre, total_unidades, total_monto, total_ventas }`
+  - `top_productos[]` — `{ producto_id, nombre, total_unidades, total_monto, total_ventas }` (por ingreso)
+  - `top_productos_rentables[]` — top 5 por ganancia, no por ingreso (v1.7+)
+  - `ventas_por_hora[]` — solo cuando el rango es de 1 día (v1.7+)
 
-> **v1.6**: agrega filtro explícito `negocio_id = get_negocio_id()` en todas las queries — obligatorio porque `SECURITY DEFINER` bypasea RLS.
+> **v1.8**: agrega `productos_baja_rotacion` (top 5 menos vendidos).
+> **v1.7**: agrega métricas para dashboard ejecutivo: `ticket_promedio`, comparativa con período anterior, `top_productos_rentables`, `ventas_por_hora`, `productos_sin_movimiento`.
+> **v1.6**: filtro explícito `negocio_id = get_negocio_id()` en todas las queries — obligatorio porque `SECURITY DEFINER` bypasea RLS.
 > **v1.5**: agrega `total_descuentos` y `clientes_unicos`.
 > **v1.4**: usa `vd.precio_costo` de `ventas_detalles` en lugar de `p.precio_costo` de `productos`. Los reportes históricos ya no cambian si se modifica el costo de un producto en inventario.
+>
+> **⚠️ Pendiente conocido (auditoría 2026-05-30):** la función ejecuta 6 SELECTs casi idénticos sobre `ventas` para extraer agregados por separado. Con miles de ventas la performance se degrada. Refactor pendiente: consolidar en un solo SELECT con `COUNT FILTER (WHERE ...)`/`SUM FILTER (...)`.
 
 ---
 
 ## Función de anulación
 
-Ubicación: `docs/pos/sql/functions/fn_anular_venta.sql` (v1.1)
+Ubicación: `docs/ventas/sql/functions/fn_anular_venta.sql` (v2.0 — multi-tenant UUID + FOR UPDATE)
+
+> **v2.0 (2026-05-30):** `p_empleado_id` ahora es `UUID` (antes `INTEGER`). Lectura de la venta usa `FOR..LOOP ... FOR UPDATE` con `RECORD` — reemplaza 7 subqueries idénticas anteriores y evita race conditions. Multi-tenant: todas las queries filtran por `negocio_id = get_negocio_id()`.
 
 ### Qué hace (atómico en una transacción)
 

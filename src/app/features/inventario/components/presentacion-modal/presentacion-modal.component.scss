@@ -204,6 +204,10 @@
 .imagen-pres-preview {
     position: relative;
     display: inline-flex;
+    cursor: pointer;
+    transition: opacity var(--transition-fast);
+
+    &:active { opacity: 0.85; }
 }
 
 .imagen-pres-img {
@@ -215,24 +219,29 @@
     display: block;
 }
 
-.imagen-pres-remove {
+.imagen-pres-menu {
     position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 24px;
-    height: 24px;
+    top: -6px;
+    right: -6px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    background: var(--ion-color-danger);
-    color: var(--ion-color-danger-contrast);
+    background: rgba(0, 0, 0, 0.7);
     border: 2px solid var(--ion-item-background);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
     cursor: pointer;
     padding: 0;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 
-    &:active { opacity: 0.7; }
+    ion-icon {
+        font-size: 14px;
+        color: #fff;
+    }
+
+    &:active { transform: scale(0.92); background: rgba(0, 0, 0, 0.85); }
 }
 
 // ── Margen de ganancia ─────────────────────────

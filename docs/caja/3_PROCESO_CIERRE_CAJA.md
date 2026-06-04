@@ -1,4 +1,4 @@
-# Cierre Diario — Referencia Técnica (v6.2 — 2026-05-29 — fondo libre)
+# Cierre Diario — Referencia Técnica (v6.3 — 2026-05-30 — todo el efectivo se deposita)
 
 ## 1. Arquitectura
 
@@ -13,19 +13,21 @@
 | `cajas` | Saldos actuales de las 5 cajas. Se actualizan al cierre. |
 | `configuraciones` | `caja_varios_transferencia_dia` (clave/valor). El fondo es libre, declarado al abrir cada turno. |
 
-> **v6.2:** Eliminadas `fondo_cubierto` de `turnos_caja` y la clave `caja_fondo_fijo_diario` de `configuraciones`. El fondo del cajón ahora es libre — cada empleado declara cuánto deja al abrir y queda guardado en `turnos_caja.fondo_apertura`.
+> **v6.3 (2026-05-30):** Distribución simplificada. El fondo declarado al abrir (`turnos_caja.fondo_apertura`) **ya no se retiene en el cajón al cerrar** — todo el efectivo contado se deposita completo. VARIOS recibe su transferencia diaria si alcanza; el resto va íntegro a CAJA. El fondo del próximo turno lo declara el empleado al abrir.
+>
+> **v6.2 (legacy):** Eliminadas `fondo_cubierto` de `turnos_caja` y la clave `caja_fondo_fijo_diario` de `configuraciones`. Fondo libre por turno.
 
-### Las 5 cajas en v5
+### Las 5 cajas
 
 | Código | UI | Rol | Qué recibe en el cierre |
 | --- | --- | --- | --- |
-| `CAJA` | Tienda | Bóveda de depósitos acumulados | Sobrante del cajón (INGRESO) |
-| `CAJA_CHICA` | Cajón | Efectivo del día: ventas POS + recargas manuales | Se vacía → queda en **$0 digital** |
-| `VARIOS` | Varios | Fondo de emergencia para gastos imprevistos | Transferencia fija diaria desde el cajón |
+| `CAJA` | Tienda | Bóveda de depósitos acumulados | Todo el efectivo del cajón menos la transferencia a VARIOS (INGRESO con tipo `CIERRE`) |
+| `CAJA_CHICA` | Cajón | Efectivo del día: ventas POS + recargas manuales | Se vacía completo → queda en **$0 digital** |
+| `VARIOS` | Varios | Fondo de emergencia para gastos imprevistos | Transferencia fija diaria (si el efectivo alcanza) |
 | `CAJA_CELULAR` | Celular | Efectivo cobrado por recargas celular | Venta del turno (INGRESO) |
 | `CAJA_BUS` | Bus | Efectivo cobrado por recargas de bus | Venta del turno (INGRESO) |
 
-> **Flujo clave:** Las ventas POS en efectivo van automáticamente a `CAJA_CHICA` (trigger `trg_actualizar_caja_por_venta`). Al cierre, el empleado cuenta el físico del cajón; el sistema ajusta la diferencia y distribuye en cascada: `fondoApertura` (declarado al abrir) queda físicamente en el cajón, `transferenciaDiaria` va a VARIOS, el resto a CAJA. El cajón queda en **$0 digital** (el fondo físico permanece en el cajón para el día siguiente).
+> **Flujo clave (v6.3):** Las ventas POS en efectivo van automáticamente a `CAJA_CHICA` (trigger `trg_actualizar_caja_por_venta`). Al cierre, el empleado cuenta el físico del cajón; el sistema ajusta la diferencia y distribuye: `transferenciaDiaria` va a VARIOS si el efectivo alcanza, el resto íntegro a CAJA. El fondo del próximo turno lo declara el empleado al abrir (`fondo_apertura` en `turnos_caja`).
 
 ---
 
@@ -88,39 +90,43 @@ diferencia       = efectivoFisico - efectivoEsperado
 
 ---
 
-### Paso 2 — Resumen y Confirmación
+### Paso 2 — Resumen y Confirmación (v6.3 — fondo libre)
 
 Preview de distribución calculado en el frontend:
 
 ```
 transferenciaVarios = efectivoFisico >= transferenciaDiaria ? transferenciaDiaria : 0
-fondoEnCajon        = (efectivoFisico - transferenciaVarios) >= fondoApertura
-depositoCaja        = efectivoFisico - transferenciaVarios - (fondoEnCajon ? fondoApertura : 0)
+depositoCaja        = efectivoFisico - transferenciaVarios   // todo lo demás va a CAJA
 ```
 
-| Caso | VARIOS | `fondoApertura` | CAJA | Cajón digital |
+| Caso | VARIOS | CAJA | Cajón digital | Notas |
 | --- | --- | --- | --- | --- |
-| Normal | `transferenciaDiaria` | queda | resto | $0 |
-| Déficit fondo (`efectivo >= transferencia` pero no alcanza para fondo) | `transferenciaDiaria` | no queda | resto | $0 |
-| Déficit total (`efectivo < transferencia`) | $0 | no queda | todo | $0 |
-| 2° turno (VARIOS ya recibió hoy) | $0 (ya recibió) | queda si alcanza | resto | $0 |
+| Normal | `transferenciaDiaria` | resto del efectivo | $0 | El fondo del próximo turno se declara al abrir |
+| Déficit (`efectivo < transferenciaDiaria`) | $0 | todo el efectivo | $0 | VARIOS no recibe hoy — se repondrá al abrir el próximo turno |
+| 2° turno (VARIOS ya recibió) | $0 (ya recibió) | todo el efectivo | $0 | Solo 1 transferencia diaria a VARIOS |
+| Varios desactivada | $0 | todo el efectivo | $0 | Cuando `caja_varios_activa = false` |
 
-**Secciones del Paso 2:**
-1. Ventas del turno (celular y bus)
-2. Distribución del cajón — desglose de efectivo con colores por estado
-3. Alerta naranja si `hayDeficitPreview = true` (VARIOS no recibe hoy)
-4. Verificación de saldos — todas las cajas con antes→después
-5. Observaciones (opcional)
-6. Botón "Cerrar Caja" — alert de confirmación antes de ejecutar
+**v6.3 vs v6.2:** Eliminada la retención del fondo en el cajón. Antes el `fondoApertura` quedaba físicamente en CAJA_CHICA al cerrar; ahora **todo el efectivo se deposita** y el fondo del siguiente turno se declara libremente al abrir.
 
-**Color del valor de VARIOS en la distribución:**
-- Normal: neutro (sin clase especial)
-- Déficit (VARIOS no recibe): naranja (`.deficit`)
-- Ya recibió hoy (2° turno): gris (`.muted`)
+**Card 1 del Paso 2 — Cajón Físico:**
+- Movimientos del turno (solo si hubo): ventas POS efectivo, ingresos manuales, gastos
+- Conteo esperado: acumulado en cajón + fondo de apertura = "deberías tener"
+- Resultado del conteo: verde (cuadrado), rojo (faltante), azul (sobrante)
+
+**Card 2 del Paso 2 — Saldos al Cierre:**
+- Tienda: antes → después (depósito del cajón)
+- Varios (si activa): antes → después o "sin cambio" / "déficit"
+- Celular / Bus (si habilitados): antes → después de las ventas virtuales
+
+**Modo sin cuadre (`esModoSinPos = true`):** se activa cuando el cajón no tuvo ningún movimiento durante el turno — sin ventas POS, sin ingresos manuales y sin egresos. En ese caso el Paso 2 muestra solo "Fondo inicial" y "Total contado", sin el bloque de resultado (cuadrado / faltante / sobrante). Si hubo **cualquier movimiento** — incluso solo ingresos manuales sin POS — el sistema conoce el esperado real y activa el cuadre completo. Aplica tanto al wizard de cierre como al historial de turnos (`CierreTurnoDetalleModalComponent`) y al resumen de WhatsApp (`ShareCierreService`).
+
+**Botón "Cerrar Caja":** alert de confirmación → ejecuta `fn_ejecutar_cierre_diario`.
+
+**Después del cierre exitoso:** la página guarda los datos del cierre con `ShareCierreService.guardarPendiente(datos)` y navega al home. Es el home quien detecta el pendiente con `ShareCierreService.consumirPendiente()` y abre el modal de compartir (opciones "Enviar resumen" / "Omitir"). El texto plano lo construye `ShareCierreService.enviarResumenWhatsApp(datos)`. Los datos incluyen `esModoSinPos` y `observaciones`.
 
 ---
 
-## 3. Función SQL: `fn_ejecutar_cierre_diario` (v6.2)
+## 3. Función SQL: `fn_ejecutar_cierre_diario` (v6.3)
 
 > 📄 Código fuente completo: [`docs/caja/sql/functions/fn_ejecutar_cierre_diario_v5.sql`](./sql/functions/fn_ejecutar_cierre_diario_v5.sql)
 
@@ -158,13 +164,13 @@ El `negocio_id` **no se pasa como parámetro** — la función lo lee internamen
 7. Suma `recargas_virtuales` pendientes desde ese cutoff para CELULAR y BUS (`v_agregado_celular`, `v_agregado_bus`)
 8. Lee saldos actuales de `CAJA_CHICA`, `CAJA` y `VARIOS` con `FOR UPDATE` (lock de consistencia)
 9. Ajuste de conteo físico — solo si hubo movimientos en `CAJA_CHICA` durante el turno:
-   - `diferencia > 0` → `INSERT INGRESO` ajuste (IN-005) en CAJA_CHICA
-   - `diferencia < 0` → `INSERT EGRESO` ajuste (EG-013) en CAJA_CHICA + `INSERT FALTANTE_CAJA` en `movimientos_empleados`
-10. **Detecta si VARIOS ya recibió hoy** — busca `TRANSFERENCIA_ENTRANTE` o `INGRESO IN-004` en VARIOS para `p_fecha`
+   - `diferencia > 0` → `INSERT INGRESO` con `categoria_sistema_id = AJU-CONTEO-IN` en CAJA_CHICA
+   - `diferencia < 0` → `INSERT EGRESO` con `categoria_sistema_id = AJU-CONTEO-EG` en CAJA_CHICA + `INSERT FALTANTE_CAJA` en `movimientos_empleados`
+10. **Detecta si VARIOS ya recibió hoy** — busca `TRANSFERENCIA_ENTRANTE` o `INGRESO` con `categoria_sistema_id = DEF-REPONER` en VARIOS para `p_fecha`
 11. Calcula distribución en cascada **VARIOS → Fondo → CAJA** (ver §2)
 12. Calcula ventas virtuales: `venta = (saldo_anterior + agregado_pendiente) - saldo_final`
     - Si cualquier venta < 0 → `RAISE EXCEPTION` (bloquea el cierre)
-13. Si `v_dinero_a_depositar > 0` → `INSERT CIERRE` en CAJA
+13. Si `v_dinero_a_depositar > 0` → `INSERT CIERRE` en CAJA con `categoria_sistema_id = CIE-CON-POS` (si el turno tuvo ventas POS en efectivo) o `CIE-SIN-POS` (si no)
 14. Si `v_transferencia_efectiva > 0` → `INSERT TRANSFERENCIA_ENTRANTE` en VARIOS
 15. `UPDATE cajas`: CAJA + depósito, VARIOS + transferencia, CAJA_CHICA → $0
 16. Si `venta_celular > 0` → `INSERT recargas` (CELULAR) + `INSERT INGRESO` en CAJA_CELULAR + `UPDATE CAJA_CELULAR`
@@ -182,7 +188,7 @@ El `negocio_id` **no se pasa como parámetro** — la función lo lee internamen
   "turno_id": "uuid",
   "fecha": "2026-05-21",
   "turno_cerrado": true,
-  "version": "6.2",
+  "version": "6.3",
   "configuracion": {
     "fondo_apertura": 40.00,
     "transferencia_diaria": 20.00
@@ -234,11 +240,11 @@ Usada en `RecargasService.verificarTransferenciaYaHecha()` durante `cargarDatosI
 
 **Cubre dos casos (v1.2):**
 1. `TRANSFERENCIA_ENTRANTE` en VARIOS para `p_fecha` → cierre normal anterior del día
-2. `INGRESO` categoría `IN-004` en VARIOS para `p_fecha` → reparación de déficit ejecutada al abrir hoy
+2. `INGRESO` con `categoria_sistema_id = DEF-REPONER` en VARIOS para `p_fecha` → reparación de déficit ejecutada al abrir hoy
 
 Si retorna `true`, el cierre muestra `transferenciaCajaChicaYaHecha = true`: el valor de VARIOS en la distribución aparece como "$0.00 — ✅ Ya recibió hoy" en gris (`.muted`), y la alerta de déficit no se muestra.
 
-> ⚠️ La función SQL en Supabase debe estar en versión **1.2** (incluye el `OR INGRESO IN-004`). Si está en v1.0 o v1.1 puede no detectar reparaciones como "ya recibidas" y mostrar déficit falsos.
+> ⚠️ La función SQL en Supabase debe estar en versión **1.5** (migrada a `categorias_sistema` — detecta `DEF-REPONER` en lugar de `IN-004`). Si está en versiones anteriores puede no detectar reparaciones como "ya recibidas" y mostrar déficit falsos.
 
 ---
 
@@ -291,11 +297,11 @@ La función que ejecuta la reparación:
 > 📄 [`docs/caja/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql) — v3.0
 
 En una transacción atómica:
-1. **EGRESO** de CAJA por `deficit_varios` — categoría `EG-012`
-2. **INGRESO** a VARIOS por `deficit_varios` — categoría `IN-004`
+1. **EGRESO** de CAJA por `deficit_varios` — categoría `DEF-RETIRAR` (`categorias_sistema`)
+2. **INGRESO** a VARIOS por `deficit_varios` — categoría `DEF-REPONER` (`categorias_sistema`)
 3. **INSERT** en `turnos_caja` con `fondo_apertura` libre — abre el nuevo turno
 
-El INGRESO IN-004 es lo que `obtenerDeficitTurnoAnterior()` detecta para no re-detectar el déficit el mismo día.
+El INGRESO `DEF-REPONER` es lo que `obtenerDeficitTurnoAnterior()` detecta para no re-detectar el déficit el mismo día.
 
 ---
 
@@ -365,11 +371,11 @@ SELECT
   oc.fecha AT TIME ZONE 'America/Guayaquil' AS fecha_local
 FROM operaciones_cajas oc
 JOIN cajas c ON c.id = oc.caja_id AND c.codigo = 'VARIOS'
-LEFT JOIN categorias_operaciones co ON co.id = oc.categoria_id
 WHERE (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = CURRENT_DATE
   AND (
     oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
-    OR (oc.tipo_operacion = 'INGRESO' AND co.codigo = 'IN-004')
+    OR (oc.tipo_operacion = 'INGRESO'
+        AND oc.categoria_sistema_id = 'a1000001-0000-0000-0000-000000000005')  -- DEF-REPONER
   )
 ORDER BY oc.fecha;
 ```

@@ -181,66 +181,126 @@ body.scanner-active .scanner-overlay * {
 
 ### StorageService (`core/services/storage.service.ts`)
 
-Punto único para captura de fotos, compresión y subida a Supabase Storage. Cualquier módulo que necesite fotografiar o subir imágenes debe usar este servicio — nunca llamar a `Camera.getPhoto` directamente.
+Punto único para captura, recorte, compresión y subida de imágenes a Supabase Storage. Cualquier módulo que necesite fotografiar o subir imágenes debe usar este servicio — **nunca** llamar a `Camera.getPhoto` directamente.
 
-#### API pública
+#### API pública — flujo recomendado
 
-| Método | Descripción |
+| Método | Cuándo usar |
 |--------|-------------|
-| `capturarFoto(source)` | Abre cámara o galería. Retorna `{ previewUrl: SafeUrl, rawUrl: string } \| null`. `previewUrl` va directo al `<img [src]>`; `rawUrl` se pasa a `uploadImage()`. Null si el usuario canceló. |
-| `uploadImage(imageUrl, bucket, subfolder, useDatePrefix?)` | Comprime a WebP y sube a Storage. Acepta URL nativa o dataUrl. Retorna `path \| null` |
-| `getSignedUrl(path, bucket?, expiresIn?)` | URL firmada temporal (default: 1h). Para buckets privados |
-| `getPublicUrl(path, bucket?)` | URL pública directa. Solo para buckets públicos (ej: `productos`) |
-| `deleteFile(path, bucket?)` | Elimina un archivo. Usar para rollback si el RPC falla después de subir |
+| `elegirFuenteFoto(initialRatio?, lockRatio?, withCrop?)` | **Flujo principal para fotos del catálogo.** Elige fuente (cámara/galería) → abre el cropper → devuelve el recorte listo. Defaults: `initialRatio: 'libre'`, `lockRatio: true`. `withCrop: false` salta el cropper (para comprobantes que no requieren recorte). |
+| `recortarImagen(imageUrl, initialRatio?, lockRatio?)` | Re-cropea una imagen existente sin retomar la foto. Útil para "Recortar de nuevo" sobre una foto ya capturada o una signed URL del bucket. Defaults: `initialRatio: 'libre'`, `lockRatio: true`. |
+| `mostrarOpcionesImagen()` | Abre el menú estándar con "Recortar de nuevo / Cambiar imagen / Quitar imagen". Devuelve la acción elegida (`'recortar' \| 'cambiar' \| 'quitar' \| null`) para que el caller decida. |
+| `uploadImage(imageUrl, subfolder, useDatePrefix?)` | Comprime a WebP y sube a Storage. Acepta `data:`, `blob:`, `capacitor://` o `http(s)://`. Retorna `path \| null`. El bucket es fijo (`mi-tienda`), el caller solo pasa el `subfolder`. |
+| `replaceImage(newImageUrl, subfolder, oldPath, useDatePrefix?)` | Sube nueva + elimina anterior atómicamente. Si el upload falla retorna null y no toca `oldPath`. |
+| `getSignedUrl(path, expiresIn?)` | URL firmada temporal (default: 1h). Para buckets privados como `comprobantes`. |
+| `getPublicUrl(path)` | URL pública directa. Solo para buckets/subfolders públicos. |
+| `resolveImageUrl(path)` / `resolveImageUrls(paths[])` | Resuelve path → signed URL. Si ya es URL completa la retorna tal cual. Versión plural usa `Promise.all` para listas. |
+| `deleteFile(path)` | Elimina un archivo. Usar para rollback si el RPC falla después de subir. |
+| `capturarFoto(source)` | **Bajo nivel** — solo abre cámara/galería sin cropper. Prefiere `elegirFuenteFoto()` que incluye el flujo completo. |
 
-#### Captura de fotos
+#### Flujo principal — selección + recorte + upload
 
 ```typescript
-import { CameraSource } from '@capacitor/camera';
 import { SafeUrl } from '@angular/platform-browser';
 private storageService = inject(StorageService);
 
-// En el componente: dos propiedades separadas
-fotoPreviewUrl: SafeUrl | null = null;  // para <img [src]>
-fotoRawUrl: string | null = null;       // para uploadImage()
+fotoPreviewUrl: SafeUrl | null = null;
+fotoRawUrl: string | null = null;
 
-// Abrir cámara
-const result = await this.storageService.capturarFoto(CameraSource.Camera);
-if (!result) return; // usuario canceló
+async seleccionarFoto() {
+  // default: ratio libre, selector de ratios oculto (lockRatio: true)
+  const result = await this.storageService.elegirFuenteFoto();
+  if (!result) return;
+  this.fotoPreviewUrl = result.previewUrl;
+  this.fotoRawUrl     = result.rawUrl;  // blob: URL del recorte
+}
 
-this.fotoPreviewUrl = result.previewUrl; // SafeUrl — Angular no bloquea capacitor://
-this.fotoRawUrl = result.rawUrl;         // string — para el upload posterior
+async guardar() {
+  if (!this.fotoRawUrl) return;
+  const path = await this.storageService.uploadImage(this.fotoRawUrl, 'productos/bebidas', false);
+  // path queda como '{negocio_id}/productos/bebidas/{uuid}.webp'
+}
 ```
 
 ```html
 <img [src]="fotoPreviewUrl" alt="Preview" />
 ```
 
-Parámetros internos (definidos una sola vez en el servicio): `quality: 70`, `width/height: 1280`, `correctOrientation: true`, `saveToGallery: false`, `resultType: Uri`.
+#### Patrón menú "Recortar / Cambiar / Quitar"
 
-`capturarFoto` usa `CameraResultType.Uri` + `Capacitor.convertFileSrc()` para evitar serializar la imagen por el bridge de Capacitor. La conversión a WebP ocurre solo al momento del upload, no al previsualizar.
+Cuando ya hay una imagen en el formulario, ofrecer al usuario las 3 opciones en un solo menú:
 
-#### Compresión automática en `uploadImage`
+```typescript
+async abrirOpcionesImagen() {
+  const accion = await this.storageService.mostrarOpcionesImagen();
+  if (!accion) return;
 
-1. Si `imageUrl` no es base64: hace `fetch()` local para obtener el blob
-2. **Redimensiona** al lado más largo a máx 1200px (mantiene proporción)
-3. **WebP primero** (calidad 0.8), fallback automático a JPEG si el dispositivo no lo soporta
-4. **Nombre generado**: `YYYY/MM/{subfolder}/{uuid}.webp` (o `.jpg` si fallback)
+  if (accion === 'quitar') { this.fotoPreviewUrl = null; this.fotoRawUrl = null; return; }
+  if (accion === 'cambiar') return this.seleccionarFoto();
+
+  // 'recortar' — re-cropea sin retomar la foto
+  const url = this.fotoRawUrl ?? this.imagenUrlExistente;
+  if (!url) return this.seleccionarFoto();
+
+  const result = await this.storageService.recortarImagen(url);
+  if (!result) return;
+  this.fotoPreviewUrl = result.previewUrl;
+  this.fotoRawUrl     = result.rawUrl;
+}
+```
+
+> Patrón implementado en [producto-info-form](../../src/app/features/inventario/components/producto-info-form/) y [presentacion-modal](../../src/app/features/inventario/components/presentacion-modal/). Ambos usan un flag `procesandoImagen` para evitar aperturas concurrentes por doble-tap.
+
+#### Saltar el cropper (comprobantes)
+
+Para comprobantes de caja que no necesitan recorte, pasar `withCrop: false`:
+
+```typescript
+// Comprobante de operación manual — la foto se sube tal cual
+const result = await this.storageService.elegirFuenteFoto('libre', false, false);
+```
+
+#### Calidad del pipeline
+
+Los parámetros están afinados para mantener calidad sin inflar el tamaño:
+
+| Etapa | Parámetro | Valor |
+|-------|-----------|-------|
+| Captura cámara | `quality` | `92` |
+| Captura cámara | `width × height` | `1920 × 1920` |
+| Cropper output | `format` | `png` (lossless durante el crop) |
+| Cropper output | `resizeToWidth/Height` | `1600` con `onlyScaleDown: true` |
+| Compresión final | Formato | WebP (fallback JPEG) |
+| Compresión final | Calidad | `0.92` |
+| Compresión final | `MAX_SIDE` | `1600px` |
+| Compresión final | `imageSmoothingQuality` | `'high'` |
+
+**Por qué PNG en el cropper:** evita la doble compresión lossy. El recorte se entrega sin pérdida y la única compresión real ocurre en `uploadImage` al subir.
+
+#### Manejo de memoria (blob URLs)
+
+Toda la cadena trabaja con `Blob` y `blob:` URLs en lugar de strings base64. Beneficios:
+- Una imagen 1600×1600 ocupa ~600 KB de blob en vez de ~6 MB de base64
+- El cropper emite blobs ligeros en cada movimiento del recuadro
+- `compressImage` decodifica blob URLs vía `<img src>` sin pasar por data URL gigante
+- `ImageCropperModalComponent` revoca sus blob URLs en `ngOnDestroy`
 
 #### Estructura en Storage
 
-```
-comprobantes/  (bucket privado — requiere signed URL)
-  2026/05/operaciones/{uuid}.webp   ← comprobantes de operaciones manuales de caja
+Bucket único `mi-tienda` con aislamiento por `negocio_id`:
 
-productos/  (bucket público)
-  {subfolder-categoria}/{uuid}.webp  ← fotos de productos (useDatePrefix=false)
 ```
+mi-tienda/{negocio_id}/
+  comprobantes/YYYY/MM/operaciones/{uuid}.webp  ← bucket privado (signed URL)
+  productos/{subfolder}/{uuid}.webp             ← acceso vía signed URL (useDatePrefix=false)
+```
+
+Ver [CLAUDE.md → Storage multi-tenant](../../CLAUDE.md) para reglas RLS y conventions.
 
 #### Patrón rollback
 
 ```typescript
-const path = await this.storageService.uploadImage(rawUrl, 'comprobantes', 'operaciones');
+const path = await this.storageService.uploadImage(rawUrl, 'comprobantes/operaciones');
 if (!path) return; // error ya mostrado por el servicio
 
 const { error } = await supabase.rpc('fn_mi_operacion', { p_comprobante_url: path });
@@ -248,6 +308,17 @@ if (error) {
   await this.storageService.deleteFile(path); // rollback: no dejar huérfanos en Storage
 }
 ```
+
+Para actualizar imagen + borrar anterior atómicamente, preferir `replaceImage()`:
+
+```typescript
+const newPath = await this.storageService.replaceImage(rawUrl, 'productos/bebidas', oldPath, false);
+// Si el upload falla, oldPath queda intacto
+```
+
+#### Cropper modal
+
+El recortador vive en `shared/components/image-cropper-modal/`. No se invoca directamente — se accede vía `elegirFuenteFoto()` o `recortarImagen()`. Ver [SHARED-README → app-image-cropper-modal](../shared/SHARED-README.md) para detalles del componente.
 
 ---
 

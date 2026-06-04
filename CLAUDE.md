@@ -83,14 +83,14 @@ Funciones exentas de `fn_assert_no_superadmin` (el superadmin sí las ejecuta): 
 | `auth`              | ✅ Completo                                  |
 | `admin`             | ✅ Panel superadmin (lista negocios, crear negocio, suspender/reactivar). Ruta: `/admin`. Guard: `superadminGuard` |
 | `crear-negocio`     | ✅ Wizard reutilizable (`/crear-negocio?context=admin\|sucursal`). Reusa páginas del onboarding inicial cambiando el modo via `OnboardingService.setMode()` |
-| `caja`              | ✅ Completo (v5 — 5 cajas, cierre wizard 2p) |
+| `caja`              | ✅ Completo (v6.3 — 5 cajas, cierre wizard 2p, historial de turnos) |
 | `recargas-virtuales`| ✅ Completo                                  |
 | `usuarios`          | ✅ Completo (solo Equipo — gestión de empleados del negocio activo) |
 | `inventario`        | ✅ Completo                                  |
 | `pos`               | ✅ Completo (descuentos, idempotencia, escáner) |
 | `clientes`          | ✅ Completo (listado + créditos/fiados unificados)           |
 | `configuracion`     | ✅ Completo (parámetros negocio, categorías)  |
-| `movimientos-empleados` | 🚧 Frontend nuevo (cuenta corriente empleados, nomina). No requiere turno abierto. |
+| `movimientos-empleados` | ✅ Completo (cuenta corriente empleados, adelantos, ajustes, pago nómina con preview). No requiere turno abierto. |
 | ~~`reportes`~~      | ❌ Eliminado (2026-03-26) — el resumen diario se integró como panel colapsable en `ventas` |
 | ~~`gastos-diarios`~~| ❌ Eliminado en v5 (2026-03-06) — los gastos van como EGRESO en `operacion-modal` |
 
@@ -184,12 +184,65 @@ src/app/
 | `SupabaseService`         | Todas las queries y auth. Usar siempre `.call()` o `.rpc()`. Tiene listener global de auth (TOKEN_REFRESHED, SIGNED_OUT), detección de JWT expirado en `call()`, refresh proactivo al volver del background (`refreshSessionOnResume()`), y `handleExpiredSession()` como punto centralizado de limpieza de sesión |
 | `UiService`               | Loading, toasts, alertas, confirmaciones, `hideTabs()`/`showTabs()` para ocultar tabs en páginas de detalle |
 | `ConfigService`           | Lee tabla `configuraciones` (clave/valor con prefijo por módulo: `negocio_`, `caja_`, `bus_`, `pos_`, `nomina_`) con cache en memoria. Métodos: `get()`, `getNombreNegocio()`, `invalidar()` |
-| `CurrencyService`         | Formateo de moneda: `format(value)` y `parse(value)`. No formatear manualmente |
-| `StorageService`          | Captura fotos y sube imágenes a Supabase Storage con compresión automática. Bucket único `mi-tienda`, aislado por `negocio_id`. Ver sección "Storage multi-tenant" |
+| `CurrencyService`         | Formateo de moneda. Métodos: `format(value)` (display estándar `1,250.00`), `parse(value)` (string → number), `parteEntera(monto)` (entero truncado con `Math.floor`, sin redondeo), `centavos(monto)` (2 dígitos decimales). No formatear moneda manualmente — ver patrón abajo |
+| `StorageService`          | Flujo completo de imágenes: captura (cámara/galería) → cropper integrado (5 ratios) → compresión WebP → upload a Supabase Storage. Bucket único `mi-tienda` aislado por `negocio_id`. Métodos clave: `elegirFuenteFoto()`, `recortarImagen()`, `mostrarOpcionesImagen()`, `uploadImage()`, `replaceImage()`. Ver sección "Storage multi-tenant" |
 | `GananciasService`        | Lógica de comisiones recargas virtuales (liquidación BUS mensual) |
 | `RecargasVirtualesService`| Operaciones de saldo celular/bus                            |
 | `LoggerService`           | Logs estructurados a filesystem con rotación (no usar console.log directo) |
 | `NetworkService`          | Estado de conectividad: `isOnline$: BehaviorSubject<boolean>` |
+
+---
+
+## Formateo de dinero — patrón obligatorio
+
+Toda cantidad de dinero visible al usuario debe usar `CurrencyService` o `AppCurrencyPipe`. **Nunca** usar `| number:'1.2-2'`, `| number:'1.0-0'`, ni `.toFixed()` en templates.
+
+### Por qué `number:'1.0-0'` está prohibido
+
+`0.71 | number:'1.0-0'` redondea matemáticamente a `1`, luego `centavos(0.71)` devuelve `71` → el usuario ve `$1.71` en lugar de `$0.71`. `Math.floor` trunca sin redondear, lo que es siempre correcto para dinero.
+
+### Display estándar (la mayoría de los casos)
+
+Usar `AppCurrencyPipe` en el template. Requiere importar en el componente:
+
+```typescript
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
+// En imports[]: AppCurrencyPipe
+```
+
+```html
+<!-- ✅ Display estándar: $1,250.00 -->
+${{ monto | appCurrency }}
+```
+
+### Display bancario partido (saldos grandes con énfasis visual)
+
+Para cards de saldo donde entero y centavos tienen tamaños tipográficos distintos. Requiere inyectar `CurrencyService` como `readonly currency`:
+
+```typescript
+readonly currency = inject(CurrencyService);
+```
+
+```html
+<!-- ✅ Display bancario: parte entera grande, centavos pequeños -->
+<span class="cc-currency">$</span>{{ currency.parteEntera(saldo) }}<span class="cc-cents">.{{ currency.centavos(saldo) }}</span>
+```
+
+### Parse (input del usuario → número)
+
+```typescript
+private currency = inject(CurrencyService);
+const monto = this.currency.parse(this.form.get('monto')?.value); // "1,250.50" → 1250.5
+```
+
+### Regla — cuándo usar cada uno
+
+| Caso | Usar |
+|------|------|
+| Lista, tabla, label, toast, alerta | `\| appCurrency` |
+| Card de saldo con tipografía partida | `currency.parteEntera()` + `currency.centavos()` |
+| Convertir input de usuario a número | `currency.parse()` |
+| Texto en TS (mensajes, logs) | `currency.format(value)` |
 
 ---
 
@@ -926,11 +979,16 @@ getInicioDiaSiguienteDeISO(fechaLocal) // → ISO del día siguiente de una fech
 .lt('fecha', getInicioDiaSiguienteISO())
 ```
 
-### Imágenes — NUNCA foto a resolución completa
+### Imágenes — usar siempre `StorageService.elegirFuenteFoto()`
 ```typescript
-// ✅ Siempre con límites (reduce de 5MB a ~300KB)
-Camera.getPhoto({ quality: 80, width: 1200, height: 1600, correctOrientation: true });
+// ✅ Flujo completo: elegir fuente → cropper → blob listo para uploadImage()
+const result = await this.storageService.elegirFuenteFoto();   // ratio 'cuadrado' default
+if (result) { this.fotoPreviewUrl = result.previewUrl; this.fotoRawUrl = result.rawUrl; }
+
+// ✅ Comprobantes (sin recorte): tercer parámetro withCrop = false
+const result = await this.storageService.elegirFuenteFoto('libre', false, false);
 ```
+El servicio fija internamente `quality: 92`, `1920×1920` para la captura y `1600×1600` WebP `0.92` para la compresión final. **No llamar `Camera.getPhoto` directamente** — pierdes el cropper, los límites de calidad y el flujo unificado.
 
 ### Configuración — NUNCA hardcodear valores de negocio
 Los valores de negocio viven en la tabla `configuraciones` (clave/valor). Leerlos con `ConfigService.get()`, no hardcodearlos.
@@ -1040,6 +1098,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 > No renombrar los códigos de BD. Solo los labels de UI difieren.
 > **v5 (2026-03-06):** `CAJA_CHICA` es ahora el cajón físico diario. `VARIOS` es el fondo de emergencia (antes era `CAJA_CHICA` en BD).
 > **2026-05-01:** VARIOS pasa a opt-in. CELULAR/BUS solo se crean si el superadmin habilita el módulo en Parámetros → Módulos. Las funciones SQL del cierre ya manejan el caso "Varios desactivada" (`caja_varios_activa = false` → `transferencia_diaria = 0` en cascada).
+> **v6.3 (2026-05-30):** `fn_ejecutar_cierre_diario` simplificó la distribución — todo el efectivo se deposita al cerrar, sin retener el fondo en el cajón. El fondo del próximo turno lo declara el empleado al abrir (`turnos_caja.fondo_apertura`).
 
 ---
 
@@ -1059,25 +1118,36 @@ mi-tienda/
 ### API de StorageService
 
 ```typescript
-// Capturar foto (cámara o galería) — retorna SafeUrl para preview + rawUrl para upload
-const result = await this.storageService.capturarFoto(CameraSource.Camera);
-if (!result) return; // usuario canceló
+// Flujo completo: elegir fuente → cropper → blob listo para uploadImage()
+// initialRatio default 'cuadrado' (ideal catálogo); lockRatio para fijar; withCrop:false para comprobantes
+const result = await this.storageService.elegirFuenteFoto();
+if (!result) return;
 this.fotoPreviewUrl = result.previewUrl; // SafeUrl → <img [src]>
-this.fotoRawUrl = result.rawUrl;         // string → uploadImage()
+this.fotoRawUrl     = result.rawUrl;     // blob: URL → uploadImage()
 
-// Subir imagen — negocio_id se inyecta internamente, no se pasa como parámetro
+// Re-cropear una imagen existente (sin retomar foto) — para "Recortar de nuevo"
+const result = await this.storageService.recortarImagen(this.fotoRawUrl ?? imagenUrlExistente);
+
+// Menú estándar "Recortar / Cambiar / Quitar"
+const accion = await this.storageService.mostrarOpcionesImagen();
+// → 'recortar' | 'cambiar' | 'quitar' | null
+
+// Subir imagen — negocio_id se inyecta internamente
 const path = await this.storageService.uploadImage(rawUrl, 'comprobantes/operaciones');
 const path = await this.storageService.uploadImage(rawUrl, `productos/${subfolder}`, false);
 
-// Obtener URL firmada (bucket privado — comprobantes)
-const url = await this.storageService.getSignedUrl(path);
+// Reemplazar imagen + eliminar la anterior atómicamente
+const path = await this.storageService.replaceImage(rawUrl, 'productos/bebidas', oldPath, false);
 
-// Obtener URL pública (bucket público — productos)
-const url = this.storageService.getPublicUrl(path);
+// Resolver path → URL firmada (acepta lista en paralelo)
+const url  = await this.storageService.getSignedUrl(path);
+const urls = await this.storageService.resolveImageUrls([path1, path2, path3]);
 
-// Eliminar archivo (rollback si RPC falla, o al cambiar imagen)
+// Eliminar (rollback si RPC falla, o al limpiar)
 await this.storageService.deleteFile(path);
 ```
+
+Detalles del pipeline (calidad, blob URLs, ratios, menú "Recortar/Cambiar/Quitar"): ver [docs/core/CORE-README.md](docs/core/CORE-README.md) → StorageService y [docs/shared/SHARED-README.md](docs/shared/SHARED-README.md) → `app-image-cropper-modal`.
 
 ### Reglas críticas
 
@@ -1128,7 +1198,7 @@ WITH CHECK (
 - No hacer múltiples INSERT/UPDATE sueltos para operaciones relacionadas → usar función SQL
 - No usar constructor para inyección de dependencias → usar `inject()`
 - No crear componentes sin `standalone: true`
-- No formatear moneda manualmente → usar `CurrencyService`
+- No formatear moneda manualmente → usar `AppCurrencyPipe` (`| appCurrency`) en templates o `CurrencyService.format()` en TS. Nunca `| number:'1.2-2'`, `| number:'1.0-0'` ni `.toFixed()` en templates — ver sección "Formateo de dinero"
 - No mostrar `console.log` en producción → usar `LoggerService`
 - No dejar footers/paneles inferiores sin `env(safe-area-inset-bottom)` → ver sección "Safe area en Android"
 - No usar `ActionSheetController`, `PopoverController` ni `ion-select` → usar `OptionsModalComponent` (modo acción o modo selección). `<select>` nativo solo dentro de formularios con `formControlName`
@@ -1137,8 +1207,11 @@ WITH CHECK (
 - No usar `console.error()` en servicios → usar `LoggerService.error()` para que quede en los logs del dispositivo
 - No crear funciones SQL de mutación sin `PERFORM public.fn_assert_no_superadmin();` al inicio
 - No agregar una tabla nueva sin su política RESTRICTIVE `superadmin_no_write` en `docs/setup/02_rls.sql`
+- No envolver el cuerpo de una función SQL con `EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'Error...'` — enmascara el `SQLSTATE` original y rompe el debugging en producción. Dejá que el error propague con su mensaje real. Solo es válido `EXCEPTION WHEN unique_violation` (u otras condiciones específicas) cuando manejás un caso concreto, p.ej. idempotencia.
+- No confiar en RLS dentro de funciones `SECURITY DEFINER` — `SECURITY DEFINER` bypassa RLS. Toda función de este tipo DEBE filtrar manualmente por `negocio_id = public.get_negocio_id()` en cada query, y validar la pertenencia al negocio de todo ID externo que reciba (`p_turno_id`, `p_categoria_id`, `p_empleado_id`, etc.). Sin esto un usuario puede pasar IDs de otro tenant y mutar datos cruzados.
+- No usar `(fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha` en cláusulas WHERE — la conversión rompe el uso del índice y degrada a sequential scan. Convertir el rango a UTC en variables antes del WHERE y comparar `fecha >= v_inicio_utc AND fecha < v_fin_utc`.
 - No ocultar botones de acción al superadmin en el frontend — la seguridad está en la BD (RLS + `fn_assert_no_superadmin`). El superadmin necesita ver el flujo completo para dar soporte. Si intenta ejecutar una acción, recibe el toast de error de la BD.
-- No llamar a `Camera.getPhoto` directamente — usar siempre `StorageService.capturarFoto()`
+- No llamar a `Camera.getPhoto` directamente — usar siempre `StorageService.elegirFuenteFoto()` (incluye selección de fuente + cropper). `capturarFoto()` es API de bajo nivel solo para casos puntuales sin cropper
 - No pasar `bucket` ni `negocio_id` a los métodos de `StorageService` — el bucket es `mi-tienda` (constante interna) y el `negocio_id` se inyecta automáticamente. Solo pasar el `subfolder` descriptivo
 - No guardar URLs firmadas ni URLs públicas en la BD — guardar siempre el `path` que retorna `uploadImage()`
 - No usar `IonInfiniteScroll` fuera de `ion-content` — lanza error en runtime. En modales bottom-sheet (que usan `div.bs-content` con `overflow-y: auto`), reemplazar por un botón "Cargar más" nativo
@@ -1159,7 +1232,7 @@ WITH CHECK (
 | Ventas              | `docs/ventas/VENTAS-README.md`                             |
 | Clientes y Créditos | `docs/clientes/CLIENTES-README.md`                         |
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
-| Sistema de diseño   | `docs/DESIGN.md`                                           |
+| Sistema de diseño   | `docs/guides/DESIGN.md`                                    |
 | Shared              | `docs/shared/SHARED-README.md`                             |
 | Estructura/Patrones | `docs/guides/ESTRUCTURA-PROYECTO.md`                       |
 | Schema BD           | `docs/setup/schema.sql`                                    |
@@ -1172,3 +1245,5 @@ WITH CHECK (
 | Historial Recargas  | `docs/historial-recargas/HISTORIAL-RECARGAS-README.md`     |
 | Crear Negocio       | `docs/crear-negocio/CREAR-NEGOCIO-README.md`               |
 | Auditoría producción | `docs/AUDITORIA-PRODUCCION-2026-05-07.md`                 |
+| Auditoría SQL 2026-05 | `docs/RESUMEN-AUDITORIA-SQL-2026-05-30.md` (detalle: `AUDITORIA-FUNCIONES-SQL-2026-05-30.md`, `CORRECCIONES-SQL-2026-05-30.md`) |
+| Performance arranque | `docs/guides/PERFORMANCE-STARTUP.md`                       |

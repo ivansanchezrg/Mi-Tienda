@@ -87,6 +87,17 @@ BEGIN
     END IF;
   END IF;
 
+  IF v_caja_codigo = 'VARIOS' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM configuraciones
+      WHERE negocio_id = v_negocio_id
+        AND clave      = 'caja_varios_activa'
+        AND valor      = 'true'
+    ) THEN
+      RAISE EXCEPTION 'La Caja Varios no está activa para este negocio';
+    END IF;
+  END IF;
+
   -- 1. Obtener saldo actual de la caja (con lock para evitar race conditions)
   PERFORM id FROM cajas WHERE id = p_caja_id AND negocio_id = v_negocio_id FOR UPDATE;
   v_saldo_anterior := (SELECT saldo_actual FROM cajas WHERE id = p_caja_id AND negocio_id = v_negocio_id);
@@ -128,9 +139,6 @@ BEGIN
     'saldo_anterior', v_saldo_anterior,
     'saldo_nuevo',    v_saldo_nuevo
   );
-
-EXCEPTION WHEN OTHERS THEN
-  RAISE EXCEPTION 'Error en operación: %', SQLERRM;
 END;
 $$;
 
@@ -142,8 +150,9 @@ GRANT  EXECUTE ON FUNCTION public.fn_registrar_operacion_manual(UUID, UUID, TEXT
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_registrar_operacion_manual IS
-  'v3.0 (multi-tenant UUID) - Registra un INGRESO o EGRESO manual en una caja. '
+  'v3.1 - Registra un INGRESO o EGRESO manual en una caja. '
   'Bloqueo FOR UPDATE evita race conditions. '
   'Valida saldo suficiente en EGRESO. '
   'Para CAJA_CHICA: solo el empleado con turno activo hoy puede operar. '
+  'Para VARIOS: valida que caja_varios_activa = true en configuraciones. '
   'Para EGRESO con saldo = 0 (déficit), usar reparar_deficit_turno.';

@@ -139,8 +139,18 @@ USING (
 CREATE POLICY "negocios_insert" ON negocios FOR INSERT TO authenticated
 WITH CHECK (public.get_es_superadmin());
 
+-- UPDATE: superadmin puede actualizar cualquier negocio.
+--         ADMIN del negocio activo puede actualizar sus propios datos de identidad
+--         (nombre, telefono, direccion, correo, RUC, etc.) via fn_actualizar_datos_negocio
+--         que usa SECURITY DEFINER — esta política es la red de seguridad directa.
 CREATE POLICY "negocios_update" ON negocios FOR UPDATE TO authenticated
-USING (public.get_es_superadmin());
+USING (
+    public.get_es_superadmin()
+    OR (
+        id = public.get_negocio_id()
+        AND public.get_rol() = 'ADMIN'
+    )
+);
 
 CREATE POLICY "negocios_delete" ON negocios FOR DELETE TO authenticated
 USING (public.get_es_superadmin());

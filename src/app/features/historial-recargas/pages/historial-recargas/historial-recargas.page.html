@@ -74,19 +74,19 @@
         <div class="cierre-datos">
           <div class="dato-col">
             <span class="dato-label">Saldo virtual</span>
-            <span class="dato-valor">${{ item.saldo_actual | number:'1.2-2' }}</span>
+            <span class="dato-valor">${{ item.saldo_actual | appCurrency }}</span>
           </div>
           <div class="dato-col">
             <span class="dato-label">Venta del día</span>
-            <span class="dato-valor venta">${{ item.venta_dia | number:'1.2-2' }}</span>
+            <span class="dato-valor venta">${{ item.venta_dia | appCurrency }}</span>
           </div>
           <div class="dato-col">
             <span class="dato-label">{{ labelCaja(item.servicio) }}</span>
-            <span class="dato-valor">${{ item.saldo_caja | number:'1.2-2' }}</span>
+            <span class="dato-valor">${{ item.saldo_caja | appCurrency }}</span>
           </div>
           <div class="dato-col">
             <span class="dato-label">Cuadre</span>
-            <span class="dato-valor cuadre">${{ item.saldo_actual + item.saldo_caja | number:'1.2-2' }}</span>
+            <span class="dato-valor cuadre">${{ item.saldo_actual + item.saldo_caja | appCurrency }}</span>
           </div>
         </div>
       </div>

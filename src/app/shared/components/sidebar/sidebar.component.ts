@@ -128,25 +128,20 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
-    const [usuario, nombreNegocio, config] = await Promise.all([
+    const [usuario, config] = await Promise.all([
       this.authService.getUsuarioActual(),
-      this.configService.getNombreNegocio(),
       this.configService.get()
     ]);
 
     this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
     this.recargasBusHabilitada     = config?.recargas_bus_habilitada     ?? false;
 
-    this.nombreNegocio = nombreNegocio;
-
     if (usuario) {
       this.aplicarDatosUsuario(usuario);
-      // Priorizar negocio_nombre del UsuarioActual (multi-tenant)
-      // Si no está disponible (cache antiguo), usar configService como fallback
-      if (usuario.negocio_nombre) {
-        this.nombreNegocio = usuario.negocio_nombre;
-      }
     }
+
+    // negocios.nombre es la fuente de verdad — viene en el JWT via fn_set_negocio_activo.
+    this.nombreNegocio = usuario?.negocio_nombre || '';
 
     // El POS solo se habilita para el empleado que abrio el turno.
     // TurnosCajaService emite esMiTurno$ via Realtime de la tabla turnos_caja.
@@ -177,9 +172,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.empleadoId = usuario.id ?? null;
     if (usuario.negocio_id) {
       this.negocioActivoId = usuario.negocio_id;
-    }
-    if (usuario.negocio_nombre) {
-      this.nombreNegocio = usuario.negocio_nombre;
     }
   }
 

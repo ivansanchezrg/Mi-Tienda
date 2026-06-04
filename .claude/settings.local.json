@@ -201,7 +201,22 @@
       "Bash(node -e \"const i = require\\('ionicons/icons'\\); console.log\\('bankOutline:', !!i.bankOutline, 'businessOutline:', !!i.businessOutline, 'statsChartOutline:', !!i.statsChartOutline, 'pieChartOutline:', !!i.pieChartOutline, 'bicycleOutline:', !!i.bicycleOutline, 'pricetagOutline:', !!i.pricetagOutline\\)\")",
       "Bash(git -C \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\" log --oneline -10)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\" -Recurse -Directory)",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(xargs ls -la)",
+      "Bash(powershell -Command \"Get-ChildItem -Path 'C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\auth\\\\services' -Filter '*.ts' | Select-Object Name\")",
+      "Bash(powershell -Command \"grep -n 'fn_actualizar_membresia\\\\|fn_transferir_empleado' 'C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\usuarios\\\\services\\\\usuario.service.ts'\")",
+      "Bash(powershell -Command \"Get-ChildItem -Recurse -Path 'C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features' -Filter '*.service.ts' -Exclude '*spec*' | Select-Object FullName | ConvertTo-Csv -NoTypeInformation | Select-Object -Skip 1\")",
+      "Bash(powershell -Command \"Select-String -Path 'C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\admin\\\\ADMIN-README.md' -Pattern 'fn_abrir_turno|fn_set_negocio|fn_validar|v[0-9]+\\\\.' | Select-Object -First 10\")",
+      "Bash(powershell -Command \"Select-String -Path 'C:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\configuracion\\\\CONFIGURACION-README.md' -Pattern 'eliminado|Nota.*2026|v[0-9]+\\\\.' | Select-Object -First 15\")",
+      "Bash(grep -oE \"^\\\\s*\\\\.[a-zA-Z][a-zA-Z0-9_-]*\" c:/Users/ivan/Desktop/Proyectos/mi-tienda/src/app/features/caja/pages/home/home.page.scss | sed 's/^\\\\s*\\\\.//' | sort -u > /tmp/scss-classes.txt && wc -l /tmp/scss-classes.txt)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__navigate",
+      "Bash(git grep *)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\" -Recurse -Directory | Where-Object { $_.Name -eq \"caja\" } | Select-Object -ExpandProperty FullName)",
+      "Bash(Remove-Item -Recurse -Force \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\caja\\\\components\\\\movimientos-hoy-modal\")"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   },
   "disableAllHooks": true

@@ -203,10 +203,6 @@ BEGIN
       'lista',    COALESCE(v_deudas_pendientes, '[]'::json)
     )
   );
-
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al registrar recarga proveedor celular: %', SQLERRM;
 END;
 $$;
 

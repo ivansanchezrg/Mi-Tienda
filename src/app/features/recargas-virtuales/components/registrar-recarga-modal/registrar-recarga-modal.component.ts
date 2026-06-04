@@ -16,6 +16,7 @@ import { RecargasVirtualesService } from '../../services/recargas-virtuales.serv
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 import { getFechaLocal } from '@core/utils/date.util';
 
 type TipoServicio = 'CELULAR' | 'BUS';
@@ -31,7 +32,8 @@ type TipoServicio = 'CELULAR' | 'BUS';
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonContent, IonIcon,
     CurrencyInputDirective,
-    NumbersOnlyDirective
+    NumbersOnlyDirective,
+    AppCurrencyPipe,
   ]
 })
 export class RegistrarRecargaModalComponent implements OnInit {

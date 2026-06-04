@@ -91,7 +91,6 @@ export class CategoriasOperacionesPage implements OnInit {
   // ── Tap en item ─────────────────────────────────────────────────────────────
 
   onItemClick(categoria: CategoriaOperacion) {
-    if (!categoria.seleccionable) return; // categorías del sistema: solo lectura
     this.abrirModalEditar(categoria);
   }
 

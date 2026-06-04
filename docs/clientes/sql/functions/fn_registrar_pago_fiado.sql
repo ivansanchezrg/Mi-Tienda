@@ -42,7 +42,6 @@ DECLARE
     v_nuevo_estado       VARCHAR(20);
     v_empleado_id        UUID;
     v_caja_id            UUID;
-    v_categoria_id       UUID;
     v_tipo_referencia_id INTEGER;  -- tipos_referencia usa SERIAL → INTEGER
     v_saldo_caja         DECIMAL(12,2);
 BEGIN
@@ -115,24 +114,24 @@ BEGIN
 
     -- 6. Si es EFECTIVO → ingresar a CAJA_CHICA
     IF p_metodo_pago = 'EFECTIVO' THEN
-        v_caja_id            := (SELECT id FROM cajas              WHERE codigo = 'CAJA_CHICA' AND negocio_id = v_negocio_id);
-        v_categoria_id       := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-001'  AND negocio_id = v_negocio_id);
-        v_tipo_referencia_id := (SELECT id FROM tipos_referencia   WHERE tabla = 'ventas' LIMIT 1);
+        v_caja_id            := (SELECT id FROM cajas            WHERE codigo = 'CAJA_CHICA' AND negocio_id = v_negocio_id);
+        v_tipo_referencia_id := (SELECT id FROM tipos_referencia WHERE tabla = 'ventas' LIMIT 1);
 
-        IF v_caja_id IS NOT NULL AND v_categoria_id IS NOT NULL THEN
+        IF v_caja_id IS NOT NULL THEN
             v_saldo_caja := (SELECT saldo_actual FROM cajas WHERE id = v_caja_id);
 
             INSERT INTO operaciones_cajas (
                 negocio_id,
                 caja_id, empleado_id, tipo_operacion, monto,
                 saldo_anterior, saldo_actual,
-                categoria_id, tipo_referencia_id, referencia_id,
+                -- VENTA-POS: UUID fijo de categorias_sistema (antes IN-001 en categorias_operaciones)
+                categoria_sistema_id, tipo_referencia_id, referencia_id,
                 descripcion
             ) VALUES (
                 v_negocio_id,
                 v_caja_id, v_empleado_id, 'INGRESO', p_monto,
                 v_saldo_caja, v_saldo_caja + p_monto,
-                v_categoria_id, v_tipo_referencia_id, p_venta_id,
+                'a1000001-0000-0000-0000-000000000013', v_tipo_referencia_id, p_venta_id,
                 'Pago fiado - ' || COALESCE(p_observaciones, 'Sin observaciones')
             );
 

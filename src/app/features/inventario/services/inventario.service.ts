@@ -80,37 +80,19 @@ export class InventarioService {
     // ==========================================
 
     async buscarProductosPOS(texto: string): Promise<ProductoPOS[]> {
-        const { data } = await this.supabase.client
-            .from('productos')
-            .select(`
-                id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo,
-                imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id,
-                producto_template:producto_templates(id, nombre),
-                presentaciones:producto_presentaciones(id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, imagen_url, es_principal, activo)
-            `)
-            .eq('activo', true)
-            .eq('producto_presentaciones.activo', true)
-            .or(`nombre.ilike.%${texto}%,codigo_barras.ilike.%${texto}%`)
-            .order('nombre')
-            .limit(20);
-        return (data || []) as unknown as ProductoPOS[];
+        const data = await this.supabase.call<ProductoPOS[]>(
+            this.supabase.client.rpc('fn_buscar_productos_pos', { p_busqueda: texto })
+        );
+        return data ?? [];
     }
 
     async obtenerProductosCatalogoPOS(categoriaId?: string): Promise<ProductoPOS[]> {
-        let query = this.supabase.client
-            .from('productos')
-            .select(`
-                id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo,
-                imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id,
-                producto_template:producto_templates(id, nombre, imagen_url, template_atributos(atributo:atributos(nombre))),
-                presentaciones:producto_presentaciones(id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, imagen_url, es_principal, activo)
-            `)
-            .eq('activo', true)
-            .eq('producto_presentaciones.activo', true)
-            .order('nombre');
-        if (categoriaId) query = query.eq('categoria_id', categoriaId);
-        const { data } = await query;
-        return (data || []) as unknown as ProductoPOS[];
+        const data = await this.supabase.call<ProductoPOS[]>(
+            this.supabase.client.rpc('fn_catalogo_productos_pos', {
+                p_categoria_id: categoriaId ?? null
+            })
+        );
+        return data ?? [];
     }
 
     async buscarPorCodigoBarras(codigo: string): Promise<{ producto: ProductoPOS; presentacion?: ProductoPresentacion } | null> {

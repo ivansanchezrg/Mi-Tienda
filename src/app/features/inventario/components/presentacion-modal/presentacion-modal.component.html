@@ -122,10 +122,10 @@
       <!-- Imagen de la presentación (opcional) -->
       <div class="imagen-pres-section">
         @if (tieneImagen) {
-          <div class="imagen-pres-preview">
+          <div class="imagen-pres-preview" (click)="abrirOpcionesImagen()">
             <img [src]="fotoPreviewUrl || imagenUrlResuelta" alt="Imagen de presentación" class="imagen-pres-img">
-            <button type="button" class="imagen-pres-remove" (click)="removerFoto()" aria-label="Quitar imagen">
-              <ion-icon name="trash-outline"></ion-icon>
+            <button type="button" class="imagen-pres-menu" (click)="abrirOpcionesImagen(); $event.stopPropagation()" aria-label="Opciones de imagen">
+              <ion-icon name="ellipsis-horizontal"></ion-icon>
             </button>
           </div>
         } @else {

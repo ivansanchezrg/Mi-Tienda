@@ -121,7 +121,7 @@ export class ProductoCrearPage implements ViewWillEnter {
     // ── FLUJO SIMPLE ──────────────────────────────────────────────────────────
     simpleForm!: FormGroup;
     fotoPreviewUrl: SafeUrl | null = null;
-    private fotoRawUrl: string | null = null;
+    protected fotoRawUrl: string | null = null;
     presentacionesNuevas: PresentacionNueva[] = [];
 
     // ── FLUJO VARIANTES (wizard multi-paso) ───────────────────────────────────

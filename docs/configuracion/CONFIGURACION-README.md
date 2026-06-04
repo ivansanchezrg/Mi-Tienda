@@ -88,18 +88,28 @@ Prefijo por modulo seguido de guion bajo:
 Ubicacion: `src/app/core/services/config.service.ts`
 
 - **Proposito**: lectura rapida desde cualquier modulo de la app
-- **Cache**: en memoria, una sola query por sesion
+- **Cache en cascada (3 niveles)** desde 2026-05-30:
+  1. **RAM** (~0ms) — hit en `cache: Configuracion | null`
+  2. **Preferences** (~5-10ms) — snapshot persistido con TTL 1h y `negocio_id` para invalidación cross-tenant automática
+  3. **BD** (~200-400ms) — query a Supabase como fallback
+- **Stale-while-revalidate**: si sirve del cache persistido, dispara refresh contra BD en background. El próximo `get()` ya tiene el valor fresco en RAM.
+- **Invalidación**:
+  - Automática al cambiar de negocio (snapshot guarda `negocio_id`)
+  - Automática en logout (`registerBeforeCleanup` borra la key)
+  - Manual con `invalidar()` cuando el admin edita parámetros
 - **Metodos**: `get()`, `getNombreNegocio()`, `invalidar()`
 - **Quien lo usa**: POS (descuentos, IVA), Dashboard (transferencia Varios), Recargas (alertas bus), Share tickets (nombre negocio)
 
 ```typescript
-// Lectura tipada con cache
+// Lectura tipada con cache (lee de RAM → Preferences → BD, en ese orden)
 const config = await this.configService.get();
 const nombre = config.negocio_nombre;
 
 // Despues de que el admin guarda cambios:
-this.configService.invalidar(); // limpia cache → proxima lectura va a BD
+this.configService.invalidar(); // limpia cache RAM + Preferences → proxima lectura va a BD
 ```
+
+> El cache persistido reduce ~200-400ms del cold start del home. Ver [PERFORMANCE-STARTUP.md](../guides/PERFORMANCE-STARTUP.md#6-cache-persistido-de-configservice-stale-while-revalidate) para detalle.
 
 > El estado reactivo del POS vive en `TurnosCajaService.cajaAbierta$` — no en `ConfigService`.
 

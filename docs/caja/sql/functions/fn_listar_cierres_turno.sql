@@ -4,6 +4,9 @@
 -- Reconstruye el resumen del cierre de cada turno cerrado en el rango de fechas
 -- a partir del ledger inmutable (operaciones_cajas + recargas + ventas).
 --
+-- v2.1 — usa_pos ahora refleja cualquier movimiento del cajón (ventas POS,
+--   ingresos manuales o egresos). Antes solo consideraba ventas POS,
+--   dejando el cuadre desactivado cuando había ingresos/egresos manuales sin POS.
 -- v2 — optimizaciones de correctitud y performance:
 --   • Resuelve IDs (cajas, categorías, servicios, negocio) en variables locales
 --     antes del query principal. Una sola query por ID, no por fila.
@@ -56,7 +59,8 @@ RETURNS TABLE (
     saldo_virtual_anterior_bus     DECIMAL(12,2),
     saldo_virtual_final_bus        DECIMAL(12,2),
     varios_activa                  BOOLEAN,
-    observaciones                  TEXT
+    observaciones                  TEXT,
+    usa_pos                        BOOLEAN
 )
 LANGUAGE plpgsql
 STABLE
@@ -67,16 +71,18 @@ DECLARE
     v_negocio_id UUID;
 
     -- IDs resueltos una vez
-    v_caja_id         UUID;
-    v_chica_id        UUID;
-    v_varios_id       UUID;
-    v_celular_id      UUID;
-    v_bus_id          UUID;
-    v_cat_ajuste_in   UUID;
-    v_cat_ajuste_eg   UUID;
-    v_tipo_celular    INTEGER;
-    v_tipo_bus        INTEGER;
-    v_varios_activa   BOOLEAN;
+    v_caja_id              UUID;
+    v_chica_id             UUID;
+    v_varios_id            UUID;
+    v_celular_id           UUID;
+    v_bus_id               UUID;
+    -- UUIDs fijos de categorias_sistema (no dependen del negocio)
+    v_cat_ajuste_in      CONSTANT UUID := 'a1000001-0000-0000-0000-000000000003';  -- AJU-CONTEO-IN
+    v_cat_ajuste_eg      CONSTANT UUID := 'a1000001-0000-0000-0000-000000000004';  -- AJU-CONTEO-EG
+    v_cat_cierre_sin_pos CONSTANT UUID := 'a1000001-0000-0000-0000-000000000001';  -- CIE-SIN-POS
+    v_tipo_celular         INTEGER;
+    v_tipo_bus             INTEGER;
+    v_varios_activa        BOOLEAN;
 
     -- Saldos actuales de las cajas (fallback cuando no hay operación en el turno)
     v_saldo_caja_act    DECIMAL(12,2);
@@ -106,8 +112,7 @@ BEGIN
     v_celular_id := (SELECT id FROM cajas WHERE codigo = 'CAJA_CELULAR' AND negocio_id = v_negocio_id);
     v_bus_id     := (SELECT id FROM cajas WHERE codigo = 'CAJA_BUS'     AND negocio_id = v_negocio_id);
 
-    v_cat_ajuste_in := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-005' AND negocio_id = v_negocio_id);
-    v_cat_ajuste_eg := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-013' AND negocio_id = v_negocio_id);
+    -- v_cat_ajuste_in, v_cat_ajuste_eg, v_cat_cierre_sin_pos: CONSTANT declaradas arriba
 
     v_tipo_celular := (SELECT id FROM tipos_servicio WHERE codigo = 'CELULAR');
     v_tipo_bus     := (SELECT id FROM tipos_servicio WHERE codigo = 'BUS');
@@ -185,7 +190,8 @@ BEGIN
                o.monto         AS deposito,
                o.saldo_anterior,
                o.saldo_actual,
-               o.descripcion
+               o.descripcion,
+               o.categoria_id
         FROM operaciones_cajas o
         WHERE o.negocio_id     = v_negocio_id
           AND o.caja_id        = v_caja_id
@@ -273,7 +279,24 @@ BEGIN
         COALESCE(rec_bus.saldo_virtual_anterior, 0)::DECIMAL(12,2),
         COALESCE(rec_bus.saldo_virtual_actual, 0)::DECIMAL(12,2),
         v_varios_activa,
-        op_deposito.descripcion::TEXT
+        op_deposito.descripcion::TEXT,
+        -- usa_pos: true cuando el cajón tuvo cualquier movimiento durante el turno
+        -- (ventas POS, ingresos manuales o egresos). Si hubo movimientos, el sistema
+        -- conoce el esperado real y debe mostrar el cuadre en el historial.
+        -- false = cajón sin movimientos → modo sin cuadre (solo fondo + conteo).
+        (
+          COALESCE(agg_ventas.total,  0) > 0
+          OR COALESCE(agg_egresos.total, 0) > 0
+          OR GREATEST(
+               0,
+               COALESCE(op_deposito.deposito, 0)
+               + COALESCE(op_transferencia.transferencia, 0)
+               - COALESCE(agg_ajuste.diferencia, 0)
+               - t.fondo_apertura
+               - COALESCE(agg_ventas.total, 0)
+               + COALESCE(agg_egresos.total, 0)
+             ) > 0
+        )
     FROM turnos t
     LEFT JOIN agg_ventas       ON agg_ventas.turno_id       = t.id
     LEFT JOIN agg_egresos      ON agg_egresos.turno_id      = t.id

@@ -5,11 +5,10 @@ export interface ConfiguracionRow {
 }
 
 // Objeto tipado que se usa en toda la app
-// Prefijo por módulo: negocio_, caja_, bus_, pos_, nomina_
+// Prefijo por módulo: caja_, bus_, pos_, nomina_
+// Nota: negocio_nombre, negocio_telefono, negocio_direccion fueron eliminados —
+// ahora viven en la tabla `negocios` como fuente de verdad. Ver DatosNegocio.
 export interface Configuracion {
-    negocio_nombre: string;
-    negocio_telefono: string;
-    negocio_direccion: string;
     recargas_celular_habilitada: boolean;
     recargas_bus_habilitada: boolean;
     caja_varios_activa: boolean;
@@ -33,9 +32,6 @@ export type ConfiguracionKey = keyof Configuracion;
 
 /** Valores por defecto si la clave no existe en BD o falla la query */
 export const CONFIGURACION_DEFAULTS: Configuracion = {
-    negocio_nombre: 'Mi Tienda',
-    negocio_telefono: '',
-    negocio_direccion: '',
     recargas_celular_habilitada: false,
     recargas_bus_habilitada: false,
     caja_varios_activa: false,
@@ -50,6 +46,23 @@ export const CONFIGURACION_DEFAULTS: Configuracion = {
     nomina_sueldo_base: 0,
     nomina_dia_pago: 1,
 };
+
+// Datos de identidad del negocio — leídos de la tabla `negocios` (no de configuraciones)
+export interface DatosNegocio {
+    id: string;
+    nombre: string;
+    slug: string;
+    telefono: string | null;
+    direccion: string | null;
+    correo_electronico: string | null;
+    ruc: string | null;
+    razon_social: string | null;
+    nombre_comercial: string | null;
+    codigo_establecimiento: string;
+    codigo_punto_emision: string;
+    ambiente_sri: number;
+    obligado_contabilidad: boolean;
+}
 
 /**
  * Convierte filas clave/valor de BD en el objeto tipado Configuracion.
@@ -67,9 +80,6 @@ export function mapRowsToConfig(rows: ConfiguracionRow[]): Configuracion {
     };
 
     return {
-        negocio_nombre:                map.get('negocio_nombre')                ?? D.negocio_nombre,
-        negocio_telefono:              map.get('negocio_telefono')              ?? D.negocio_telefono,
-        negocio_direccion:             map.get('negocio_direccion')             ?? D.negocio_direccion,
         recargas_celular_habilitada:   map.get('recargas_celular_habilitada') === 'true',
         recargas_bus_habilitada:       map.get('recargas_bus_habilitada') === 'true',
         caja_varios_activa:            map.get('caja_varios_activa') === 'true',

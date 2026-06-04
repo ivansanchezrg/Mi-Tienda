@@ -29,12 +29,11 @@
 --  11. docs/admin/sql/functions/fn_suspender_usuario.sql
 --  12. docs/usuarios/sql/functions/fn_actualizar_membresia.sql
 --  13. docs/usuarios/sql/functions/fn_transferir_empleado.sql
---  14. docs/inventario/sql/setup/codigo_barras_unique_global.sql
---  15. docs/inventario/sql/setup/presentaciones_constraints.sql
---  16. docs/*/sql/functions/*.sql                (resto de funciones de modulos)
---  17. docs/*/sql/setup/realtime_*.sql
+--  14. docs/*/sql/functions/*.sql                (resto de funciones de modulos)
+--  15. docs/*/sql/setup/realtime_*.sql
 --      — docs/configuracion/sql/setup/realtime_configuraciones.sql
 --      — docs/caja/sql/setup/realtime_turnos_caja.sql
+--      — docs/caja/sql/setup/realtime_cajas.sql
 --      — docs/usuarios/sql/setup/realtime_usuario_negocios.sql
 -- =============================================================================
 
@@ -63,6 +62,16 @@ DECLARE
         -- POS
         'fn_registrar_venta_pos',
         'fn_anular_venta',
+        'fn_buscar_productos_pos',
+        'fn_catalogo_productos_pos',
+        -- Dashboard
+        'fn_home_dashboard',
+        -- Caja — historial
+        'fn_listar_cierres_turno',
+        -- Recargas Virtuales
+        'fn_pagar_proveedor_celular',
+        -- Auth
+        'fn_validar_sesion',
         -- Clientes / Cuentas por Cobrar
         'fn_registrar_pago_fiado',
         'fn_listar_cuentas_cobrar',
@@ -187,8 +196,13 @@ END $$;
 -- 3b. TRIGGERS LEGACY (DROP explicito — el CASCADE de la funcion los elimina,
 --     pero los listamos para claridad y por si la funcion ya no existe)
 -- =============================================================================
-DROP TRIGGER IF EXISTS trg_codigo_barras_unico_productos      ON public.productos;
-DROP TRIGGER IF EXISTS trg_codigo_barras_unico_presentaciones ON public.producto_presentaciones;
+DO $$
+BEGIN
+    DROP TRIGGER IF EXISTS trg_codigo_barras_unico_productos      ON public.productos;
+    DROP TRIGGER IF EXISTS trg_codigo_barras_unico_presentaciones ON public.producto_presentaciones;
+EXCEPTION WHEN undefined_table OR others THEN
+    NULL;  -- ignorar si la tabla ya no existe
+END $$;
 
 -- =============================================================================
 -- 4. VISTAS

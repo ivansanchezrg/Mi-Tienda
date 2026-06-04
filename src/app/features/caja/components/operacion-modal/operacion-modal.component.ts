@@ -22,6 +22,7 @@ import { UiService } from '@core/services/ui.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { HorizontalScrollDirective } from '@shared/directives/horizontal-scroll.directive';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 export interface OperacionModalData {
   tipo: 'INGRESO' | 'EGRESO';
@@ -55,6 +56,7 @@ const CAJA_ICONOS: Record<string, string> = {
     CurrencyInputDirective,
     NumbersOnlyDirective,
     HorizontalScrollDirective,
+    AppCurrencyPipe,
   ]
 })
 export class OperacionModalComponent implements OnInit, OnDestroy {
@@ -70,6 +72,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   @Input() cajas: Caja[] = [];
   @Input() cajaIdPreseleccionada?: string;
   @Input() excluirCajaChica = false;
+  @Input() variosActiva = false;
 
   form!: FormGroup;
   cajasFiltradas: Caja[] = [];
@@ -90,6 +93,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   async ngOnInit() {
     this.cajasFiltradas = this.cajas.filter(c => {
       if (this.excluirCajaChica && c.codigo === 'CAJA_CHICA') return false;
+      if (!this.variosActiva   && c.codigo === 'VARIOS')      return false;
       return ['CAJA', 'CAJA_CHICA', 'VARIOS'].includes(c.codigo) || c.codigo.startsWith('CUSTOM_');
     });
 

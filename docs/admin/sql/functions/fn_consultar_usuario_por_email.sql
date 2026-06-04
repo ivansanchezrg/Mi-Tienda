@@ -99,9 +99,6 @@ BEGIN
         'nombre',   v_nombre,
         'negocios', v_negocios
     );
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al consultar usuario: % (SQLSTATE: %)', SQLERRM, SQLSTATE;
 END;
 $$;
 

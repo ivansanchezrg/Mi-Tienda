@@ -75,9 +75,6 @@ BEGIN
         'email',      v_usuario_email,
         'activo',     p_activo
     );
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al cambiar estado del usuario: % (SQLSTATE: %)', SQLERRM, SQLSTATE;
 END;
 $$;
 

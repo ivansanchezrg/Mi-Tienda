@@ -1,16 +1,19 @@
 -- =============================================================================
--- fn_transferir_empleado
+-- fn_transferir_empleado (v3.0)
 -- =============================================================================
 -- Transfiere un empleado de su negocio actual a otro negocio destino.
 -- Desactiva la membresía origen y crea/reactiva la membresía destino.
 --
--- Requiere: rol ADMIN en el negocio activo (o ser superadmin).
+-- v3.0 (2026-05-30) — SEGURIDAD MULTI-TENANT CRÍTICA:
+--   Valida que el negocio origen sea el negocio activo del JWT.
+--   Sin este check un ADMIN de A podía transferir empleados entre B y C
+--   sin tener permisos en ninguno (escalada cross-tenant).
+--   Superadmin sigue pudiendo operar sobre cualquier negocio.
 --
--- v2.0 (2026-05-07) — RETURNS JSON con feedback granular:
+-- v2.0 — RETURNS JSON con feedback granular:
 --   { success: boolean, mensaje: string, error?: string }
 -- =============================================================================
 
--- DROP firma anterior (cambió tipo de retorno: VOID → JSON)
 DROP FUNCTION IF EXISTS public.fn_transferir_empleado(UUID, UUID, TEXT);
 
 CREATE OR REPLACE FUNCTION public.fn_transferir_empleado(
@@ -24,11 +27,16 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    v_usuario_id   UUID;
-    v_negocio_orig UUID;
+    v_caller_es_superadmin BOOLEAN;
+    v_jwt_negocio_id       UUID;
+    v_usuario_id           UUID;
+    v_negocio_orig         UUID;
 BEGIN
-    -- Solo ADMIN o superadmin pueden transferir
-    IF public.get_rol() <> 'ADMIN' AND NOT public.get_es_superadmin() THEN
+    v_caller_es_superadmin := public.get_es_superadmin();
+    v_jwt_negocio_id       := public.get_negocio_id();
+
+    -- Solo ADMIN del negocio activo o superadmin pueden transferir
+    IF public.get_rol() <> 'ADMIN' AND NOT v_caller_es_superadmin THEN
         RETURN json_build_object('success', false, 'error', 'Acceso denegado');
     END IF;
 
@@ -37,6 +45,15 @@ BEGIN
 
     IF v_usuario_id IS NULL THEN
         RETURN json_build_object('success', false, 'error', 'Membresía no encontrada');
+    END IF;
+
+    -- 🔒 SEGURIDAD MULTI-TENANT: el negocio origen debe ser el activo del JWT,
+    -- salvo que el caller sea superadmin (puede operar cross-tenant).
+    IF NOT v_caller_es_superadmin AND v_negocio_orig <> v_jwt_negocio_id THEN
+        RETURN json_build_object(
+            'success', false,
+            'error',   'Acceso denegado: no podés transferir empleados de otro negocio'
+        );
     END IF;
 
     -- Solo se puede transferir si la membresía está activa en el negocio origen
@@ -51,24 +68,23 @@ BEGIN
         RETURN json_build_object('success', false, 'error', 'El negocio destino es el mismo que el origen');
     END IF;
 
+    -- Validar que el negocio destino exista
+    IF NOT EXISTS (SELECT 1 FROM negocios WHERE id = p_negocio_destino_id) THEN
+        RETURN json_build_object('success', false, 'error', 'Negocio destino no encontrado');
+    END IF;
+
     -- Desactivar membresía origen
     UPDATE usuario_negocios
     SET activo = FALSE
     WHERE id = p_membresia_id;
 
     -- Crear o reactivar membresía destino
-    -- Nota: p_rol se castea a rol_usuario_enum porque la columna es un enum de Postgres.
-    --       Pasar TEXT sin cast causa error 42804.
     INSERT INTO usuario_negocios (usuario_id, negocio_id, rol, activo)
     VALUES (v_usuario_id, p_negocio_destino_id, p_rol::rol_usuario_enum, TRUE)
     ON CONFLICT (usuario_id, negocio_id)
     DO UPDATE SET activo = TRUE, rol = EXCLUDED.rol;
 
     RETURN json_build_object('success', true, 'mensaje', 'Empleado transferido correctamente');
-
-EXCEPTION
-    WHEN OTHERS THEN
-        RETURN json_build_object('success', false, 'error', SQLERRM);
 END;
 $$;
 

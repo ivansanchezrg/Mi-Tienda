@@ -71,9 +71,12 @@ DECLARE
   v_caja_celular_id UUID;
   v_caja_bus_id     UUID;
 
-  -- IDs de categorías de ajuste
-  v_cat_ajuste_ingreso_id UUID;  -- IN-005: Ajuste Diferencia Conteo
-  v_cat_ajuste_egreso_id  UUID;  -- EG-013: Ajuste Diferencia Conteo
+  -- IDs de categorías de sistema (UUIDs fijos de categorias_sistema)
+  v_cat_ajuste_ingreso_id UUID;  -- AJU-CONTEO-IN: Ajuste Diferencia Conteo (sobra)
+  v_cat_ajuste_egreso_id  UUID;  -- AJU-CONTEO-EG: Ajuste Diferencia Conteo (falta)
+  v_cat_cierre_sin_pos_id UUID;  -- CIE-SIN-POS: Cierre — Ventas del día
+  v_cat_cierre_con_pos_id UUID;  -- CIE-CON-POS: Cierre — Ventas con POS
+  v_cat_cierre_id         UUID;  -- categoría activa según modo
 
   -- IDs de servicios y referencias (tipos_servicio y tipos_referencia usan SERIAL → INTEGER)
   v_tipo_servicio_celular_id INTEGER;
@@ -174,8 +177,11 @@ BEGIN
   v_tipo_ref_recargas_id     := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas');
   v_tipo_ref_turnos_id       := (SELECT id FROM tipos_referencia WHERE tabla = 'turnos_caja');
 
-  v_cat_ajuste_ingreso_id := (SELECT id FROM categorias_operaciones WHERE codigo = 'IN-005' AND negocio_id = v_negocio_id);
-  v_cat_ajuste_egreso_id  := (SELECT id FROM categorias_operaciones WHERE codigo = 'EG-013' AND negocio_id = v_negocio_id);
+  -- Categorías de sistema: UUIDs fijos, no dependen del negocio
+  v_cat_ajuste_ingreso_id := 'a1000001-0000-0000-0000-000000000003';  -- AJU-CONTEO-IN
+  v_cat_ajuste_egreso_id  := 'a1000001-0000-0000-0000-000000000004';  -- AJU-CONTEO-EG
+  v_cat_cierre_sin_pos_id := 'a1000001-0000-0000-0000-000000000001';  -- CIE-SIN-POS
+  v_cat_cierre_con_pos_id := 'a1000001-0000-0000-0000-000000000002';  -- CIE-CON-POS
 
   -- ==========================================
   -- 3. OBTENER CONFIGURACIÓN Y FONDO DE APERTURA
@@ -295,7 +301,7 @@ BEGIN
   IF v_diferencia > 0 THEN
     -- Más físico del esperado → INGRESO de ajuste a CAJA_CHICA
     INSERT INTO operaciones_cajas (
-      id, negocio_id, caja_id, empleado_id, tipo_operacion, monto, categoria_id,
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, monto, categoria_sistema_id,
       saldo_anterior, saldo_actual, descripcion
     ) VALUES (
       gen_random_uuid(),
@@ -318,7 +324,7 @@ BEGIN
   ELSIF v_diferencia < 0 THEN
     -- Menos físico del esperado → EGRESO de ajuste desde CAJA_CHICA
     INSERT INTO operaciones_cajas (
-      id, negocio_id, caja_id, empleado_id, tipo_operacion, monto, categoria_id,
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, monto, categoria_sistema_id,
       saldo_anterior, saldo_actual, descripcion
     ) VALUES (
       gen_random_uuid(),
@@ -369,17 +375,14 @@ BEGIN
   v_transferencia_ya_hecha := EXISTS (
     SELECT 1
     FROM operaciones_cajas oc
-    WHERE oc.caja_id = v_varios_id
+    WHERE oc.caja_id    = v_varios_id
       AND oc.negocio_id = v_negocio_id
       AND (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
       AND (
         oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
         OR (
           oc.tipo_operacion = 'INGRESO'
-          AND EXISTS (
-            SELECT 1 FROM categorias_operaciones co
-            WHERE co.id = oc.categoria_id AND co.codigo = 'IN-004'
-          )
+          AND oc.categoria_sistema_id = 'a1000001-0000-0000-0000-000000000005'  -- DEF-REPONER
         )
       )
   );
@@ -411,6 +414,21 @@ BEGIN
     v_monto_reposicion_apertura := v_transferencia_diaria;
   END IF;
 
+  -- Determinar categoría del depósito a Tienda según modo de operación:
+  -- Se consulta directamente si hubo ventas POS en efectivo durante el turno.
+  -- No se usa v_saldo_caja_chica_digital porque puede ser $0 aunque hubo ventas
+  -- (ej: egresos manuales que vaciaron el cajón antes del cierre).
+  v_cat_cierre_id := CASE
+    WHEN EXISTS (
+      SELECT 1 FROM ventas
+      WHERE turno_id   = p_turno_id
+        AND negocio_id = v_negocio_id
+        AND metodo_pago = 'EFECTIVO'
+        AND estado      = 'COMPLETADA'
+    ) THEN v_cat_cierre_con_pos_id
+    ELSE v_cat_cierre_sin_pos_id
+  END;
+
   -- ==========================================
   -- 9. CALCULAR VENTAS VIRTUALES
   -- ==========================================
@@ -436,7 +454,7 @@ BEGIN
 
   IF v_dinero_a_depositar > 0 THEN
     INSERT INTO operaciones_cajas (
-      id, negocio_id, caja_id, empleado_id, tipo_operacion, monto,
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_sistema_id, monto,
       saldo_anterior, saldo_actual, descripcion,
       tipo_referencia_id, referencia_id
     ) VALUES (
@@ -445,6 +463,7 @@ BEGIN
       v_caja_id,
       p_empleado_id,
       'CIERRE',
+      v_cat_cierre_id,
       v_dinero_a_depositar,
       v_saldo_caja,
       v_saldo_caja + v_dinero_a_depositar,
@@ -644,10 +663,6 @@ BEGIN
       'bus',     v_venta_bus
     )
   );
-
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error en cierre diario v6.3: %', SQLERRM;
 END;
 $function$;
 
@@ -668,7 +683,8 @@ GRANT EXECUTE ON FUNCTION public.fn_ejecutar_cierre_diario(
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_ejecutar_cierre_diario IS
-'Cierre diario v6.3 — todo el efectivo se deposita al cerrar (sin retención en cajón). '
+'Cierre diario v6.4 — categorías migradas a categorias_sistema (UUIDs fijos). '
+'v6.3: todo el efectivo se deposita al cerrar (sin retención en cajón). '
 'v_fondo_fijo leído de turnos_caja.fondo_apertura solo para calcular efectivo_esperado. '
 'Distribución: VARIOS recibe su transferencia si hay suficiente efectivo; resto íntegro a CAJA. '
 'El fondo del próximo turno lo declara el empleado al abrir, no viene del cierre. '

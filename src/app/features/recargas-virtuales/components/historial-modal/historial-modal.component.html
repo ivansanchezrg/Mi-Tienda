@@ -47,14 +47,14 @@
             <span class="tabla-fecha">{{ formatearFecha(r.fecha) }}</span>
 
             @if (tipo === 'CELULAR') {
-              <span class="tabla-monto">${{ r.monto_virtual | number:'1.2-2' }}</span>
+              <span class="tabla-monto">${{ r.monto_virtual | appCurrency }}</span>
               <span class="tabla-ganancia" [class.celular]="r.pagado_proveedor" [class.muted]="!r.pagado_proveedor">
-                ${{ r.ganancia | number:'1.2-2' }}
+                ${{ r.ganancia | appCurrency }}
               </span>
             } @else {
-              <span class="tabla-monto">${{ r.monto_a_pagar | number:'1.2-2' }}</span>
+              <span class="tabla-monto">${{ r.monto_a_pagar | appCurrency }}</span>
               <span class="tabla-ganancia" [class.bus]="r.pagado_proveedor" [class.muted]="!r.pagado_proveedor">
-                ${{ r.ganancia | number:'1.2-2' }}
+                ${{ r.ganancia | appCurrency }}
               </span>
             }
 
@@ -87,7 +87,7 @@
                   <span class="total-dot liquidado"></span>
                   <span>Ya transferido</span>
                 </div>
-                <span class="total-col-monto liquidado">${{ totalLiquidado | number:'1.2-2' }}</span>
+                <span class="total-col-monto liquidado">${{ totalLiquidado | appCurrency }}</span>
               </div>
             }
             @if (totalPorLiquidar > 0) {
@@ -97,7 +97,7 @@
                   <span>Por liquidar</span>
                 </div>
                 <span class="total-col-monto" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'">
-                  ${{ totalPorLiquidar | number:'1.2-2' }}
+                  ${{ totalPorLiquidar | appCurrency }}
                 </span>
               </div>
             }
@@ -106,7 +106,7 @@
                 <div class="total-col-label">
                   <span>Total ganancia</span>
                 </div>
-                <span class="total-col-monto total">${{ totalGanancia | number:'1.2-2' }}</span>
+                <span class="total-col-monto total">${{ totalGanancia | appCurrency }}</span>
               </div>
             }
           </div>
@@ -118,7 +118,7 @@
             [color]="tipo === 'CELULAR' ? 'primary' : 'secondary'"
             class="liquidar-btn"
             (click)="confirmarLiquidacion()">
-            Transferir ${{ totalPorLiquidar | number:'1.2-2' }} a {{ nombreCajaDestino }}
+            Transferir ${{ totalPorLiquidar | appCurrency }} a {{ nombreCajaDestino }}
             <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
           </ion-button>
           }

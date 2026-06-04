@@ -36,29 +36,110 @@
 
         <div class="input-group">
           <label class="input-label">Nombre del negocio</label>
-          <input type="text" formControlName="negocio_nombre" autocomplete="off"
-            placeholder="Ej: Mi Tienda" maxlength="100">
-          <span class="input-hint">Aparece en comprobantes y estados de cuenta</span>
+          <input type="text" formControlName="nombre" autocomplete="off"
+            placeholder="Ej: Mi Tienda" maxlength="255">
+          <span class="input-hint">Aparece en el sidebar, comprobantes y estados de cuenta</span>
         </div>
 
         <div class="input-group">
           <label class="input-label">Teléfono</label>
-          <input type="tel" formControlName="negocio_telefono" autocomplete="off"
+          <input type="tel" formControlName="telefono" autocomplete="off"
             placeholder="Ej: 0999 123 456" maxlength="20">
-          <span class="input-hint">Opcional — se puede mostrar en comprobantes</span>
+          <span class="input-hint">Opcional — se muestra en comprobantes y se usa para enviar resúmenes por WhatsApp</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Dirección</label>
+          <input type="text" formControlName="direccion" autocomplete="off"
+            placeholder="Ej: Av. Principal 123" maxlength="200">
+          <span class="input-hint">Opcional — se muestra en comprobantes</span>
         </div>
 
         <div class="input-group last">
-          <label class="input-label">Dirección</label>
-          <input type="text" formControlName="negocio_direccion" autocomplete="off"
-            placeholder="Ej: Av. Principal 123" maxlength="200">
-          <span class="input-hint">Opcional — se puede mostrar en comprobantes</span>
+          <label class="input-label">Correo electrónico</label>
+          <input type="email" formControlName="correo_electronico" autocomplete="off"
+            placeholder="Ej: negocio@gmail.com" maxlength="100">
+          <span class="input-hint">Opcional — para envío de comprobantes y contacto SRI</span>
         </div>
 
         @if (tieneCambios['negocio']) {
         <div id="footer-negocio" class="section-footer">
           <button type="button" class="section-save-btn" [disabled]="guardando['negocio']" (click)="guardarSeccion('negocio')">
             @if (guardando['negocio']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
+      </div>
+
+      <!-- ── SECCIÓN: SRI (datos legales / facturación) ── -->
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="document-text-outline"></ion-icon>
+          <span>Datos SRI</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">RUC</label>
+          <input type="text" formControlName="ruc" autocomplete="off"
+            placeholder="Ej: 0999999990001" maxlength="13" inputmode="numeric">
+          <span class="input-hint">13 dígitos — requerido para emitir facturas electrónicas</span>
+          @if (form.get('ruc')?.touched && form.get('ruc')?.invalid) {
+            <span class="input-error">El RUC debe tener exactamente 13 dígitos numéricos</span>
+          }
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Razón social</label>
+          <input type="text" formControlName="razon_social" autocomplete="off"
+            placeholder="Ej: SÁNCHEZ ROLANDO PEDRO" maxlength="300">
+          <span class="input-hint">Nombre legal tal como aparece en el RUC del SRI</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Nombre comercial</label>
+          <input type="text" formControlName="nombre_comercial" autocomplete="off"
+            placeholder="Ej: Panadería Rolando" maxlength="300">
+          <span class="input-hint">Nombre con que opera el negocio (puede ser igual a la razón social)</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Código de establecimiento</label>
+          <input type="text" formControlName="codigo_establecimiento" autocomplete="off"
+            placeholder="001" maxlength="3" inputmode="numeric">
+          <span class="input-hint">3 dígitos asignados por el SRI (usualmente 001)</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Código de punto de emisión</label>
+          <input type="text" formControlName="codigo_punto_emision" autocomplete="off"
+            placeholder="001" maxlength="3" inputmode="numeric">
+          <span class="input-hint">3 dígitos asignados por el negocio (usualmente 001)</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Ambiente SRI</label>
+          <select formControlName="ambiente_sri" class="select-native">
+            <option [value]="1">Pruebas</option>
+            <option [value]="2">Producción</option>
+          </select>
+          <span class="input-hint">Pruebas mientras configuras el sistema — Producción cuando estés listo para emitir</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="toggle-row">
+            <span class="input-label">Obligado a llevar contabilidad</span>
+            <label class="toggle-switch">
+              <input type="checkbox" formControlName="obligado_contabilidad">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          <span class="input-hint">Requerido en el XML de las facturas electrónicas</span>
+        </div>
+
+        @if (tieneCambios['sri']) {
+        <div id="footer-sri" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['sri']" (click)="guardarSeccion('sri')">
+            @if (guardando['sri']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
           </button>
         </div>
         }

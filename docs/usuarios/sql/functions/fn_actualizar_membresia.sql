@@ -1,17 +1,21 @@
 -- =============================================================================
--- fn_actualizar_membresia
+-- fn_actualizar_membresia (v2.0)
 -- =============================================================================
 -- Actualiza rol y/o activo de una membresía (usuario_negocios).
 -- Reemplaza el UPDATE directo desde el cliente para poder validar que al
 -- reactivar un empleado no esté ya activo en otro negocio.
 --
+-- v2.0 (2026-05-30) — SEGURIDAD MULTI-TENANT CRÍTICA:
+--   Valida que la membresía pertenezca al negocio activo del JWT.
+--   Sin este check un ADMIN del negocio A podía cambiar rol/activo de
+--   membresías del negocio B (escalada de privilegios cross-tenant).
+--   Superadmin sigue pudiendo operar sobre cualquier negocio.
+--
 -- Retorna el registro actualizado (id, rol, activo).
 -- Requiere: rol ADMIN en el negocio activo (o ser superadmin).
---
--- Validaciones:
---   - Si activo pasa de FALSE → TRUE: verifica que el usuario no tenga
---     otra membresía activa en un negocio distinto. Si la tiene, lanza excepción.
 -- =============================================================================
+
+DROP FUNCTION IF EXISTS public.fn_actualizar_membresia(UUID, TEXT, BOOLEAN);
 
 CREATE OR REPLACE FUNCTION public.fn_actualizar_membresia(
     p_membresia_id UUID,
@@ -24,22 +28,34 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    v_usuario_id    UUID;
-    v_negocio_id    UUID;
-    v_activo_actual BOOLEAN;
-    v_otro_negocio  TEXT;
+    v_caller_es_superadmin BOOLEAN;
+    v_jwt_negocio_id       UUID;
+    v_usuario_id           UUID;
+    v_mem_negocio_id       UUID;
+    v_activo_actual        BOOLEAN;
+    v_otro_negocio         TEXT;
 BEGIN
-    IF public.get_rol() <> 'ADMIN' AND NOT public.get_es_superadmin() THEN
+    v_caller_es_superadmin := public.get_es_superadmin();
+    v_jwt_negocio_id       := public.get_negocio_id();
+
+    -- Solo ADMIN del negocio o superadmin pueden ejecutar
+    IF public.get_rol() <> 'ADMIN' AND NOT v_caller_es_superadmin THEN
         RAISE EXCEPTION 'Acceso denegado';
     END IF;
 
-    -- Leer estado actual de la membresía
-    v_usuario_id    := (SELECT usuario_id FROM usuario_negocios WHERE usuario_negocios.id = p_membresia_id);
-    v_negocio_id    := (SELECT negocio_id FROM usuario_negocios WHERE usuario_negocios.id = p_membresia_id);
-    v_activo_actual := (SELECT usuario_negocios.activo FROM usuario_negocios WHERE usuario_negocios.id = p_membresia_id);
+    -- Leer la membresía
+    v_usuario_id     := (SELECT usuario_id FROM usuario_negocios WHERE id = p_membresia_id);
+    v_mem_negocio_id := (SELECT negocio_id FROM usuario_negocios WHERE id = p_membresia_id);
+    v_activo_actual  := (SELECT activo     FROM usuario_negocios WHERE id = p_membresia_id);
 
     IF v_usuario_id IS NULL THEN
         RAISE EXCEPTION 'Membresía no encontrada';
+    END IF;
+
+    -- 🔒 SEGURIDAD MULTI-TENANT: la membresía debe pertenecer al negocio activo,
+    -- salvo que el caller sea superadmin (que puede operar fuera de su negocio).
+    IF NOT v_caller_es_superadmin AND v_mem_negocio_id <> v_jwt_negocio_id THEN
+        RAISE EXCEPTION 'Acceso denegado: la membresía no pertenece al negocio activo';
     END IF;
 
     -- Si se está reactivando (FALSE → TRUE), verificar que no esté activo en otro negocio
@@ -49,7 +65,7 @@ BEGIN
             FROM usuario_negocios un
             JOIN negocios n ON n.id = un.negocio_id
             WHERE un.usuario_id = v_usuario_id
-              AND un.negocio_id <> v_negocio_id
+              AND un.negocio_id <> v_mem_negocio_id
               AND un.activo = TRUE
             LIMIT 1
         );

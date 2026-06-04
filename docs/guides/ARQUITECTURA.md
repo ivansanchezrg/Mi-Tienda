@@ -38,8 +38,8 @@ APERTURA SIGUIENTE DÍA (empleado declara fondo libre)
   Sin déficit → fn_abrir_turno(empleado, fondoApertura)
                  ↳ INSERT turnos_caja con fondo_apertura
   Con déficit → fn_reparar_deficit_turno(empleado, deficitVarios, fondoApertura)
-    TIENDA ──► EGRESO (déficit VARIOS pendiente)
-    VARIOS ──► INGRESO IN-004 (repone lo que le faltó ayer)
+    TIENDA ──► EGRESO cat. DEF-RETIRAR (déficit VARIOS pendiente)
+    VARIOS ──► INGRESO cat. DEF-REPONER (repone lo que le faltó ayer)
     INSERT turnos_caja con fondo_apertura — todo atómico
 ```
 
@@ -105,7 +105,7 @@ Así el fondo queda "implícito" en la fórmula. Registrar un INGRESO por el fon
 ¿VARIOS ya cobró ese día?
   Busca en operaciones_cajas de VARIOS:
     - TRANSFERENCIA_ENTRANTE  (cierre normal)
-    - INGRESO cat. IN-004     (reparación anterior del mismo día)
+    - INGRESO cat. DEF-REPONER (reparación anterior del mismo día)
 
 deficitVarios = variosYaCobro ? 0 : caja_varios_transferencia_dia
 
@@ -130,7 +130,7 @@ Si deficitVarios = 0 → no hay déficit, abre directo con fondo libre
 | Función | Cuándo se llama | Qué hace |
 |---|---|---|
 | `fn_abrir_turno` | Apertura sin déficit | Valida + crea registro en `turnos_caja` con `fondo_apertura` libre — atómico |
-| `fn_reparar_deficit_turno` | Apertura con déficit de VARIOS | EGRESO Tienda + INGRESO Varios (IN-004) + abre turno con fondo libre — todo atómico |
+| `fn_reparar_deficit_turno` | Apertura con déficit de VARIOS | EGRESO Tienda (DEF-RETIRAR) + INGRESO Varios (DEF-REPONER) + abre turno con fondo libre — todo atómico |
 | `fn_ejecutar_cierre_diario` | Cierre | Ajuste conteo + distribución cascada + recargas + cierra turno — todo atómico |
 | `fn_registrar_operacion_manual` | Ingreso/Egreso manual | INSERT operacion + UPDATE saldo caja — atómico |
 | `fn_crear_transferencia` | Transferencia entre cajas | EGRESO origen + INGRESO destino — atómico |

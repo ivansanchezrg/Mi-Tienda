@@ -28,7 +28,8 @@ AS $$
 DECLARE
   v_negocio_id         UUID;
   v_caja_celular_id    UUID;
-  v_categoria_id       UUID;
+  -- UUID fijo de categorias_sistema para PAGO-PROV-CEL
+  v_categoria_id       CONSTANT UUID := 'a1000001-0000-0000-0000-000000000011';
   v_tipo_ref_rv_id     INTEGER;
   v_saldo_anterior     DECIMAL(12,2);
   v_saldo_nuevo        DECIMAL(12,2);
@@ -52,7 +53,7 @@ BEGIN
   -- ==========================================
 
   v_caja_celular_id := (SELECT id FROM cajas WHERE codigo = 'CAJA_CELULAR' AND negocio_id = v_negocio_id);
-  v_categoria_id    := (SELECT id FROM categorias_operaciones WHERE nombre = 'Pago Proveedor Recargas' AND negocio_id = v_negocio_id LIMIT 1);
+  -- v_categoria_id: CONSTANT declarada en DECLARE (UUID fijo de categorias_sistema)
   v_tipo_ref_rv_id  := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas_virtuales' LIMIT 1);
 
   IF v_caja_celular_id IS NULL THEN
@@ -99,7 +100,7 @@ BEGIN
     id, negocio_id, caja_id, empleado_id,
     tipo_operacion, monto,
     saldo_anterior, saldo_actual,
-    categoria_id, tipo_referencia_id,
+    categoria_sistema_id, tipo_referencia_id,
     descripcion
   ) VALUES (
     v_operacion_id, v_negocio_id, v_caja_celular_id, p_empleado_id,
@@ -141,10 +142,6 @@ BEGIN
     'message',                  'Pago al proveedor registrado: $' || v_total_a_pagar ||
                                 ' (' || v_filas_afectadas || ' recarga(s) marcadas como pagadas)'
   );
-
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al pagar al proveedor celular: %', SQLERRM;
 END;
 $$;
 

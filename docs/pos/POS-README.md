@@ -269,7 +269,7 @@ El POS aplica descuentos automáticos sobre el subtotal bruto si se cumplen las 
 - Si `subtotalBruto >= umbral` y descuentos habilitados → `descuento = subtotal * (pct / 100)`
 - **FIADO no lleva descuento** — son beneficios mutuamente excluyentes. Al elegir FIADO en el cobrar-modal, se muestra paso de confirmación con total sin descuento + aviso "El descuento no aplica para ventas fiadas"
 - Se persiste en BD: `ventas.descuento` (monto) + `ventas.descuento_pct` (porcentaje) para trazabilidad histórica independiente de configuración futura
-- Función SQL: `fn_registrar_venta_pos` v1.7 (parámetros `p_descuento` + `p_descuento_pct` + snapshot `precio_costo`)
+- Función SQL: `fn_registrar_venta_pos` v3.0 — `p_descuento` + `p_descuento_pct` + snapshot `precio_costo`, validación multi-tenant de turno/cliente/empleado/productos del JSONB de items, INSERT batch (sin N+1)
 
 **Indicadores visuales:**
 - **Header**: chip verde `-X%` junto al título "POS" (solo si descuentos habilitados)
@@ -381,7 +381,10 @@ Las URLs resueltas son signed URLs obtenidas via `StorageService`. `templateImag
 
 ## Dependencias clave
 
-- `InventarioService` — queries de productos (por nombre, por código, catálogo POS). Incluye `imagen_url` y `precio_costo` en presentaciones
+- `InventarioService` — queries de productos:
+  - `buscarProductosPOS(texto)` → RPC `fn_buscar_productos_pos` (búsqueda por texto, limit 20, presentaciones completas)
+  - `obtenerProductosCatalogoPOS(categoriaId?)` → RPC `fn_catalogo_productos_pos` (catálogo del grid con filtro de categoría que incluye variantes)
+  - `buscarPorCodigoBarras(codigo)` → query directa (lookup dual producto + presentación)
 - `PosService` — RPC `fn_registrar_venta_pos`
 - `BarcodeScannerService` — escáner de cámara centralizado (permisos, overlay, beep, vibración, formatos QR + lineales)
 - `CobrarModalComponent` — modal unificado de cobro (reemplaza OptionsModal + VueltoModal)
