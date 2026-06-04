@@ -79,6 +79,13 @@ BEGIN
     RETURN json_build_object('deficit_varios', 0);
   END IF;
 
+  -- ── 2b. ¿VARIOS ya existía cuando cerró el último turno? ─────────────────
+  -- Si la caja se creó DESPUÉS del último cierre, fue activada por el superadmin
+  -- (o por el onboarding) tras ese cierre — no había obligación de transferir ese día.
+  IF (SELECT created_at FROM cajas WHERE id = v_varios_id) > v_fecha_ultimo_cierre THEN
+    RETURN json_build_object('deficit_varios', 0);
+  END IF;
+
   -- ── 3. Ventana UTC del día local del último cierre ────────────────────────
   -- Ecuador UTC-5, sin DST. Conversión correcta sin AT TIME ZONE en WHERE
   -- (evita sequential scan; permite uso del índice sobre operaciones_cajas.fecha).

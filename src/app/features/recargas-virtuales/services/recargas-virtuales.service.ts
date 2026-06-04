@@ -151,23 +151,6 @@ export class RecargasVirtualesService {
     return response.data?.saldo_actual ?? 0;
   }
 
-  /**
-   * Saldo virtual del último snapshot en `recargas` para un servicio.
-   * Usado exclusivamente en el cuadre — no suma recargas posteriores al snapshot.
-   */
-  async getSaldoUltimoCierre(servicio: 'CELULAR' | 'BUS'): Promise<number> {
-    const result = await this.supabase.client
-      .from('recargas')
-      .select('saldo_virtual_actual, tipos_servicio!inner(codigo)')
-      .eq('tipos_servicio.codigo', servicio)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (result.error) throw result.error;
-    return result.data?.saldo_virtual_actual ?? 0;
-  }
-
   async getSaldoVirtualActual(servicio: 'CELULAR' | 'BUS'): Promise<number> {
     if (this.saldoInFlight.has(servicio)) {
       return this.saldoInFlight.get(servicio)!;

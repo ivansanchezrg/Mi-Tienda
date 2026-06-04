@@ -67,7 +67,13 @@ BEGIN
                 'fecha_ultimo_cierre', NULL
             ),
             'saldos_virtuales', json_build_object('celular', 0, 'bus', 0),
-            'movimientos', json_build_object('lista', '[]'::JSON, 'total', 0)
+            'movimientos', json_build_object('lista', '[]'::JSON, 'total', 0),
+            'saldos_cajas', '[]'::JSON,
+            'modulos', json_build_object(
+                'varios_activa', FALSE,
+                'celular_habilitada', FALSE,
+                'bus_habilitada', FALSE
+            )
         );
     END IF;
 
@@ -215,7 +221,23 @@ BEGIN
     );
 
     -- ════════════════════════════════════════════════════════════════
-    -- 4. RETORNAR JSON CONSOLIDADO
+    -- 4. SALDOS DE CAJAS — lista completa de cajas activas del negocio
+    --    Incluye saldo_actual, icono, color y descripcion para que el
+    --    Home pueda renderizar las tarjetas sin depender del Realtime.
+    --    El Realtime sigue cubriendo sincronizacion entre dispositivos;
+    --    esta sección garantiza datos frescos en el dispositivo local
+    --    tras cualquier operacion que mute cajas (cierre, pull-to-refresh).
+    -- ════════════════════════════════════════════════════════════════
+
+    -- ════════════════════════════════════════════════════════════════
+    -- 5. FLAGS DE MÓDULOS — fuente de verdad para visibilidad de cards
+    --    VARIOS:        existencia de la caja (es irreversible; si existe → activa)
+    --    CAJA_CELULAR:  flag recargas_celular_habilitada (puede estar en BD pero desactivada)
+    --    CAJA_BUS:      flag recargas_bus_habilitada     (igual que celular)
+    -- ════════════════════════════════════════════════════════════════
+
+    -- ════════════════════════════════════════════════════════════════
+    -- 6. RETORNAR JSON CONSOLIDADO
     -- ════════════════════════════════════════════════════════════════
     RETURN json_build_object(
         'estado_caja', json_build_object(
@@ -230,6 +252,32 @@ BEGIN
         'movimientos', json_build_object(
             'lista', v_movimientos_hoy,
             'total', v_total_movimientos
+        ),
+        'saldos_cajas', COALESCE((
+            SELECT json_agg(row_to_json(c) ORDER BY c.id)
+            FROM (
+                SELECT id, codigo, nombre, saldo_actual, activo,
+                       icono, color, descripcion
+                FROM cajas
+                WHERE negocio_id = v_negocio_id
+                  AND activo = TRUE
+            ) c
+        ), '[]'::JSON),
+        'modulos', json_build_object(
+            -- VARIOS: existencia real de la caja (irreversible — si existe, está activa)
+            'varios_activa', EXISTS (
+                SELECT 1 FROM cajas
+                WHERE negocio_id = v_negocio_id AND codigo = 'VARIOS' AND activo = TRUE
+            ),
+            -- CELULAR y BUS: flag de configuraciones (pueden existir en BD pero desactivadas)
+            'celular_habilitada', COALESCE((
+                SELECT valor = 'true' FROM configuraciones
+                WHERE negocio_id = v_negocio_id AND clave = 'recargas_celular_habilitada'
+            ), FALSE),
+            'bus_habilitada', COALESCE((
+                SELECT valor = 'true' FROM configuraciones
+                WHERE negocio_id = v_negocio_id AND clave = 'recargas_bus_habilitada'
+            ), FALSE)
         )
     );
 END;
@@ -241,10 +289,12 @@ GRANT  EXECUTE ON FUNCTION public.fn_home_dashboard() TO authenticated;
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_home_dashboard IS
-'v1.2 — Movimientos: JOIN a categorias_sistema para mostrar nombre correcto (igual que v_operaciones_cajas).
+'v1.4 — Agrega modulos: flags de visibilidad con fuente de verdad correcta por caja.
+VARIOS: existencia real en BD (irreversible). CELULAR/BUS: flag en configuraciones
+(pueden existir en BD pero estar desactivadas via fn_configurar_modulos).
+v1.3 — Agrega saldos_cajas: lista completa de cajas activas. cargarDatos() del
+Home es la unica fuente de verdad sin depender del timing del Realtime.
+v1.2 — Movimientos: JOIN a categorias_sistema para mostrar nombre correcto.
 v1.1 — Movimientos: excluye solo APERTURA (CIERRE ahora visible).
-v1.0 — Consolida en 1 RPC los datos iniciales del home: estado de caja,
-saldos virtuales CELULAR/BUS y últimos 5 movimientos + count. Reemplaza
-~9 queries paralelas que hacía home.cargarDatos() en Promise.all().
-Multi-tenant: filtra por get_negocio_id(). Sin fn_assert_no_superadmin
-(es lectura — el superadmin necesita ver el dashboard del negocio activo).';
+v1.0 — Consolida en 1 RPC los datos iniciales del home.
+Multi-tenant: filtra por get_negocio_id(). Sin fn_assert_no_superadmin.';

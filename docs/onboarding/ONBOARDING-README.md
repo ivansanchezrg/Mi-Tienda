@@ -233,8 +233,8 @@ Operación atómica: crea todo o no crea nada. Si falla cualquier paso, rollback
 | `p_nombre_negocio` | VARCHAR | ✅ | Nombre del negocio |
 | `p_admin_email` | VARCHAR | ✅ | Email del admin (debe ser el email del JWT en modo usuario normal) |
 | `p_admin_nombre` | VARCHAR | ❌ | Nombre del admin (para crear fila en `usuarios` si no existe) |
-| `p_negocio_telefono` | VARCHAR | ❌ | Teléfono |
-| `p_negocio_direccion` | VARCHAR | ❌ | Dirección |
+| `p_negocio_telefono` | VARCHAR | ❌ | Teléfono → se guarda en `negocios.telefono` |
+| `p_negocio_direccion` | VARCHAR | ❌ | Dirección → se guarda en `negocios.direccion` |
 | `p_varios_activa` | BOOLEAN | ❌ | Activar caja Varios (default false) |
 | `p_caja_varios_monto` | DECIMAL | ❌ | Monto diario a Varios (requerido si `p_varios_activa = true`) |
 | `p_nomina_sueldo_base` | DECIMAL | ❌ | Sueldo base mensual (default 0) |
@@ -280,15 +280,29 @@ Habilita los módulos opcionales `CAJA_CELULAR`, `CAJA_BUS` y/o `VARIOS` para un
 
 ---
 
-## Configuraciones que se establecen al crear un negocio
+## Datos que se establecen al crear un negocio
 
-Todas viven en tabla `configuraciones` (clave/valor). Los módulos las leen via `ConfigService.get(clave)`.
+### Tabla `negocios` (identidad — fuente de verdad)
+
+| Columna | Valor inicial | Quién puede cambiarlo después |
+|---------|--------------|-------------------------------|
+| `nombre` | Nombre del wizard | Admin en Parámetros → Negocio |
+| `telefono` | Teléfono del wizard | Admin en Parámetros → Negocio |
+| `direccion` | Dirección del wizard | Admin en Parámetros → Negocio |
+| `correo_electronico` | — | Admin en Parámetros → Negocio |
+| `ruc`, `razon_social`, `nombre_comercial` | — | Admin en Parámetros → Datos SRI |
+| `codigo_establecimiento`, `codigo_punto_emision` | `001` | Admin en Parámetros → Datos SRI |
+| `ambiente_sri` | `1` (pruebas) | Admin en Parámetros → Datos SRI |
+| `obligado_contabilidad` | `false` | Admin en Parámetros → Datos SRI |
+
+Vía RPC `fn_actualizar_datos_negocio` (SECURITY DEFINER). El nombre también actualiza el cache local del sidebar via `AuthService.actualizarNombreNegocio()`.
+
+### Tabla `configuraciones` (parámetros operativos)
+
+Los módulos los leen via `ConfigService.get()`.
 
 | Clave | Valor inicial | Quién puede cambiarla después |
 |-------|--------------|-------------------------------|
-| `negocio_nombre` | Nombre del wizard | Admin en Parámetros |
-| `negocio_telefono` | Teléfono del wizard | Admin en Parámetros |
-| `negocio_direccion` | Dirección del wizard | Admin en Parámetros |
 | `caja_varios_activa` | Toggle del wizard | Solo superadmin via `fn_configurar_modulos` / `fn_configurar_modulos_admin` (una vez activa, no se puede desactivar) |
 | `caja_varios_transferencia_dia` | Monto del wizard (o 0) | Admin en Parámetros |
 | `recargas_celular_habilitada` | `false` | Solo superadmin via `fn_configurar_modulos` / `fn_configurar_modulos_admin` |

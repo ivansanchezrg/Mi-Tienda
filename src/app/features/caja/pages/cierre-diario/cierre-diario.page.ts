@@ -32,9 +32,7 @@ import { HasPendingChanges } from '@core/guards/pending-changes.guard';
 import { CurrencyService } from '@core/services/currency.service';
 import { ConfigService } from '@core/services/config.service';
 import { RecargasService } from '../../services/recargas.service';
-import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
-import { CajasService } from '../../services/cajas.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
@@ -67,11 +65,9 @@ export class CierreDiarioPage implements HasPendingChanges {
   private router = inject(Router);
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
-  private recargasService = inject(RecargasService);
-  private recargasVirtualesService = inject(RecargasVirtualesService);
+  private recargasService   = inject(RecargasService);
   private turnosCajaService = inject(TurnosCajaService);
-  private cajasService = inject(CajasService);
-  private authService = inject(AuthService);
+  private authService       = inject(AuthService);
   private alertCtrl = inject(AlertController);
   private currencyService = inject(CurrencyService);
   private configService = inject(ConfigService);
@@ -185,90 +181,62 @@ export class CierreDiarioPage implements HasPendingChanges {
     this.pasoActual = 1;
   }
 
-  /**
-   * Carga todos los datos necesarios para el wizard de cierre.
-   *
-   * Lote 1 (paralelo): datos del cierre + saldos virtuales + cajas + turno activo.
-   * Lote 2 (secuencial): resumen del turno — necesita turnoId del lote 1.
-   */
+  /** Carga todos los datos del wizard en una sola RPC (fn_datos_cierre_diario). */
   async cargarDatosIniciales() {
     this.cargandoDatos = true;
     try {
-      // Lote 1: todo en paralelo
-      const [datos, saldoVirtualCelular, saldoVirtualBus, transferenciaYaHecha, saldosCajas, estadoCaja, config] = await Promise.all([
-        this.recargasService.getDatosCierreDiario(),
-        this.recargasVirtualesService.getSaldoUltimoCierre('CELULAR'),
-        this.recargasVirtualesService.getSaldoUltimoCierre('BUS'),
-        this.recargasService.verificarTransferenciaYaHecha(),
-        this.cajasService.obtenerSaldosCajas(),
-        this.turnosCajaService.obtenerEstadoCaja(),
-        this.configService.get()
-      ]);
+      // Invalidar config antes de cargar — garantiza flags frescos aunque el superadmin
+      // haya cambiado módulos desde otro dispositivo sin que este tenga notificación.
+      this.configService.invalidar();
 
-      // Flags de módulos — condicionan inputs, validadores y datos enviados al SQL
-      this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
-      this.recargasBusHabilitada     = config?.recargas_bus_habilitada     ?? false;
-      this.variosActiva              = config?.caja_varios_activa          ?? false;
+      const datos = await this.turnosCajaService.obtenerDatosCierreDiario();
+
+      // Flags de módulos — condicionan inputs y validadores
+      this.recargasCelularHabilitada = datos.configuracion.recargasCelularHabilitada;
+      this.recargasBusHabilitada     = datos.configuracion.recargasBusHabilitada;
+      this.variosActiva              = datos.configuracion.cajaVariosActiva;
 
       // Aplicar validators dinámicos según módulos activos
       const celularCtrl = this.cierreForm.get('saldoVirtualCelularFinal');
       const busCtrl     = this.cierreForm.get('saldoVirtualBusFinal');
-      if (this.recargasCelularHabilitada) {
-        celularCtrl?.setValidators([Validators.required]);
-      } else {
-        celularCtrl?.clearValidators();
-      }
-      if (this.recargasBusHabilitada) {
-        busCtrl?.setValidators([Validators.required]);
-      } else {
-        busCtrl?.clearValidators();
-      }
+      celularCtrl?.setValidators(this.recargasCelularHabilitada ? [Validators.required] : []);
+      busCtrl?.setValidators(this.recargasBusHabilitada         ? [Validators.required] : []);
       celularCtrl?.updateValueAndValidity();
       busCtrl?.updateValueAndValidity();
 
-      // Saldos virtuales
+      // Turno activo
+      this.turnoActivo   = datos.turnoActivo as any;
+      this.fondoApertura = datos.turnoActivo?.fondo_apertura ?? 0;
+
+      // Saldos virtuales (snapshot = último cierre; agregado = recargas posteriores)
       this.saldoAnteriorCelular      = datos.saldosVirtuales.celular;
       this.saldoAnteriorBus          = datos.saldosVirtuales.bus;
-      this.saldoVirtualActualCelular = saldoVirtualCelular;
-      this.saldoVirtualActualBus     = saldoVirtualBus;
-      this.agregadoCelularHoy        = datos.agregadoCelularHoy;
-      this.agregadoBusHoy            = datos.agregadoBusHoy;
+      this.saldoVirtualActualCelular = datos.saldosVirtuales.celular;
+      this.saldoVirtualActualBus     = datos.saldosVirtuales.bus;
+      this.agregadoCelularHoy        = datos.agregadoVirtualHoy.celular;
+      this.agregadoBusHoy            = datos.agregadoVirtualHoy.bus;
 
-      // Saldos de cajas de recargas
-      this.saldoAnteriorCajaCelular = datos.saldoCajaCelular;
-      this.saldoAnteriorCajaBus     = datos.saldoCajaBus;
+      // Saldos de cajas físicas
+      this.saldoCajaChicaDigital    = datos.saldosCajas.cajaCHicaDigital;
+      this.saldoAnteriorCajaCelular = datos.saldosCajas.cajaCelular;
+      this.saldoAnteriorCajaBus     = datos.saldosCajas.cajaBus;
 
-      // Cajón físico
-      this.saldoCajaChicaDigital = datos.saldoCajaChicaDigital;
-      // Turno activo — guardarlo para reutilizar en ejecutarCierre()
-      this.turnoActivo = estadoCaja.turnoActivo;
-      // El fondo viene del turno abierto (declarado libremente por el empleado al abrir)
-      this.fondoApertura = estadoCaja.turnoActivo?.fondo_apertura ?? 0;
+      // Saldos para preview antes→después (Paso 2)
+      this.saldoAnteriorCaja   = datos.saldosAntesCierre.caja;
+      this.saldoAnteriorVarios = datos.saldosAntesCierre.varios;
 
-      // Preview distribución
+      // Distribución
       this.transferenciaDiariaVarios     = datos.transferenciaDiariaVarios;
-      this.transferenciaCajaChicaYaHecha = transferenciaYaHecha;
+      this.transferenciaCajaChicaYaHecha = datos.transferenciaYaHecha;
 
-      // Saldos para verificación antes→después (Paso 2)
-      this.saldoAnteriorCaja   = saldosCajas?.cajaPrincipal ?? 0;
-      this.saldoAnteriorVarios = saldosCajas?.varios ?? 0;
+      // Resumen del turno (ventas POS + egresos — ya calculados en la RPC)
+      this.ventasPosEfectivo = datos.resumenTurno.ventasPosEfectivo;
+      this.egresos           = datos.resumenTurno.egresos;
 
-      // Lote 2: resumen del turno (necesita turnoId del lote 1)
-      if (this.turnoActivo?.id) {
-        const resumen = await this.turnosCajaService.getResumenTurnoActual(
-          this.turnoActivo.id,
-          this.turnoActivo.hora_fecha_apertura
-        );
-        this.ventasPosEfectivo = resumen.ventasPosEfectivo;
-        this.egresos           = resumen.egresos;
-        // Modo sin cuadre: el cajón no tuvo ningún movimiento durante el turno.
-        // Si hubo ventas POS, ingresos manuales o egresos, el sistema conoce
-        // el esperado real y debe mostrar el resultado del cuadre.
-        this.esModoSinPos = resumen.ventasPosEfectivo === 0
-                         && this.otrosIngresos          === 0
-                         && resumen.egresos              === 0;
-      }
-    } catch (error: any) {
+      this.esModoSinPos = this.ventasPosEfectivo === 0
+                       && this.otrosIngresos      === 0
+                       && this.egresos             === 0;
+    } catch {
       await this.ui.showError('Error al cargar los datos del cierre. Verifica tu conexión e intenta de nuevo.');
     } finally {
       this.cargandoDatos = false;

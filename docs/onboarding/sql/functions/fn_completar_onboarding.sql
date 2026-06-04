@@ -150,15 +150,21 @@ BEGIN
         ON CONFLICT (usuario_id, negocio_id) DO UPDATE SET rol = 'ADMIN', activo = TRUE;
     END IF;
 
-    -- ── 5. Las 3 cajas base ──
+    -- ── 5. Las 2 cajas base siempre presentes ──
     -- puede_tener_turno: solo CAJA_CHICA es el cajón operativo diario que abre/cierra turnos.
-    -- CAJA y VARIOS son fondos/vaults — nunca tienen turno. Igual para CAJA_CELULAR y CAJA_BUS.
+    -- CAJA es vault — nunca tiene turno.
     INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno, icono, color) VALUES
-    (v_negocio_id, 'CAJA',       'Tienda', 'Vault de depositos acumulados',   0, FALSE, 'cash-outline',       '#1ba74a'),
-    (v_negocio_id, 'CAJA_CHICA', 'Cajon',  'Efectivo del dia (ventas + rec)', 0, TRUE,  'file-tray-outline',  '#0077cc'),
-    (v_negocio_id, 'VARIOS',     'Varios', 'Fondo de emergencia',             0, FALSE, 'archive-outline',    '#e06c00');
-    -- CAJA_CELULAR y CAJA_BUS se crean solo si el superadmin habilita el módulo de recargas (fn_configurar_modulos)
-    -- Al crearlas en fn_configurar_modulos, también deben tener puede_tener_turno = FALSE
+    (v_negocio_id, 'CAJA',       'Tienda', 'Vault de depositos acumulados',   0, FALSE, 'cash-outline',      '#1ba74a'),
+    (v_negocio_id, 'CAJA_CHICA', 'Cajon',  'Efectivo del dia (ventas + rec)', 0, TRUE,  'file-tray-outline', '#0077cc');
+
+    -- VARIOS solo se crea si el usuario la activó en el onboarding.
+    -- Si no se activa aquí, el superadmin la crea después desde fn_configurar_modulos.
+    -- created_at es la fuente de verdad para saber desde cuándo aplica la obligación de transferir.
+    -- CAJA_CELULAR y CAJA_BUS se crean solo si el superadmin habilita el módulo de recargas (fn_configurar_modulos).
+    IF p_varios_activa THEN
+        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno, icono, color)
+        VALUES (v_negocio_id, 'VARIOS', 'Varios', 'Fondo de emergencia', 0, FALSE, 'archive-outline', '#e06c00');
+    END IF;
 
     -- ── 6. Categorías de operaciones (solo las del usuario) ──
     -- Las categorías del sistema viven en categorias_sistema (global, sin negocio_id).
@@ -173,8 +179,7 @@ BEGIN
     (v_negocio_id, 'Impuestos/Tasas',             'EGRESO',  'Pago de impuestos y tasas municipales'),
     (v_negocio_id, 'Otros Gastos',                'EGRESO',  'Otros gastos operativos no clasificados'),
     (v_negocio_id, 'Devoluciones de Proveedores', 'INGRESO', 'Devolucion de dinero por parte de proveedores'),
-    (v_negocio_id, 'Otros Ingresos',              'INGRESO', 'Otros ingresos no clasificados')
-    ON CONFLICT (negocio_id, nombre) DO NOTHING;
+    (v_negocio_id, 'Otros Ingresos',              'INGRESO', 'Otros ingresos no clasificados');
 
     -- ── 7. Categorías de productos ──
     INSERT INTO categorias_productos (negocio_id, nombre) VALUES

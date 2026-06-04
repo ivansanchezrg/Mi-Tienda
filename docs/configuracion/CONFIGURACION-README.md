@@ -46,20 +46,18 @@ Prefijo por modulo seguido de guion bajo:
 
 | Prefijo | Modulo | Ejemplo |
 |---------|--------|---------|
-| `negocio_` | General | `negocio_nombre` |
 | `caja_` | Dashboard/Cajas | `caja_varios_transferencia_dia` |
 | `recargas_` | Modulos opt-in (superadmin) | `recargas_celular_habilitada` |
 | `bus_` | Recargas Bus | `bus_alerta_saldo_bajo` |
 | `pos_` | POS | `pos_descuentos_habilitados` |
 | `nomina_` | Movimientos Empleados | `nomina_sueldo_base` |
 
+> **Nota (2026-06-03):** El prefijo `negocio_` fue **eliminado**. `negocio_nombre`, `negocio_telefono` y `negocio_direccion` ya NO viven en `configuraciones` — fueron migrados a la tabla `negocios` como columnas propias (`nombre`, `telefono`, `direccion`, más campos SRI). Leerlos de `ConfiguracionService.getDatosNegocio()`, no de `ConfigService`.
+
 ### Claves actuales
 
 | Clave | Tipo | Default | Descripcion |
 |-------|------|---------|-------------|
-| `negocio_nombre` | string | `'Mi Tienda'` | Nombre del negocio (header tickets, estado de cuenta) |
-| `negocio_telefono` | string | `''` | Telefono del negocio (opcional, para comprobantes) |
-| `negocio_direccion` | string | `''` | Direccion del negocio (opcional, para comprobantes) |
 | `caja_varios_activa` | boolean | `false` | Si la caja VARIOS esta activa para este negocio. Una vez `true` no se puede revertir. |
 | `caja_varios_transferencia_dia` | number | `0` | Transferencia diaria a caja VARIOS ($) — solo aplica si `caja_varios_activa = true` |
 | `recargas_celular_habilitada` | boolean | `false` | Habilita el modulo de recargas CELULAR (crea CAJA_CELULAR + categorias). Solo lo activa el superadmin. |
@@ -97,13 +95,13 @@ Ubicacion: `src/app/core/services/config.service.ts`
   - Automática al cambiar de negocio (snapshot guarda `negocio_id`)
   - Automática en logout (`registerBeforeCleanup` borra la key)
   - Manual con `invalidar()` cuando el admin edita parámetros
-- **Metodos**: `get()`, `getNombreNegocio()`, `invalidar()`
-- **Quien lo usa**: POS (descuentos, IVA), Dashboard (transferencia Varios), Recargas (alertas bus), Share tickets (nombre negocio)
+- **Metodos**: `get()`, `invalidar()`
+- **Quien lo usa**: POS (descuentos, IVA), Dashboard (transferencia Varios), Recargas (alertas bus)
+- **Nombre del negocio**: ya NO viene de `ConfigService`. Leer de `authService.usuarioActualValue?.negocio_nombre` (JWT/cache).
 
 ```typescript
 // Lectura tipada con cache (lee de RAM → Preferences → BD, en ese orden)
 const config = await this.configService.get();
-const nombre = config.negocio_nombre;
 
 // Despues de que el admin guarda cambios:
 this.configService.invalidar(); // limpia cache RAM + Preferences → proxima lectura va a BD
@@ -119,19 +117,20 @@ Ubicacion: `src/app/features/configuracion/services/configuracion.service.ts`
 
 - **Proposito**: lectura y escritura desde la pagina de administracion
 - **Sin cache**: siempre consulta BD (el admin necesita ver el valor actual)
-- **Metodos**: `get()`, `update(cambios)`
+- **Metodos**: `get()`, `update(cambios)`, `getDatosNegocio()`, `actualizarDatosNegocio(datos)`
 - **Quien lo usa**: solo `ParametrosPage`
-- **Mapper compartido**: ambos servicios delegan a `mapRowsToConfig()` exportada desde el modelo. Agregar un campo nuevo = editar solo `configuracion.model.ts`.
+- **Separación de responsabilidades**:
+  - `get()` / `update()` → tabla `configuraciones` (parámetros operativos: flags, montos, umbrales)
+  - `getDatosNegocio()` / `actualizarDatosNegocio()` → tabla `negocios` vía RPC (identidad: nombre, teléfono, dirección, RUC, datos SRI)
 
 ```typescript
-// Lectura sin cache (admin)
+// Parámetros operativos (configuraciones)
 const config = await this.configuracionService.get();
+await this.configuracionService.update({ pos_descuentos_habilitados: true });
 
-// Escritura con UPSERT
-await this.configuracionService.update({
-    pos_descuentos_habilitados: true,
-    pos_descuento_maximo_pct: 15
-});
+// Datos de identidad del negocio (negocios)
+const negocio = await this.configuracionService.getDatosNegocio();
+await this.configuracionService.actualizarDatosNegocio({ nombre: 'Nueva Panadería', ruc: '0999999990001' });
 ```
 
 ---
@@ -161,24 +160,35 @@ Lista de opciones agrupadas en secciones:
 
 Formulario reactivo (`FormGroup`) agrupado en secciones visuales. Cada seccion (excepto Modulos) tiene su propio boton "Guardar" que aparece **solo cuando hay cambios pendientes** en esa seccion (comparacion por snapshot con `valueChanges`).
 
-| Seccion | Icono | Campos | Visibilidad |
-|---------|-------|--------|-------------|
-| Negocio | `storefront-outline` | Nombre, Telefono, Direccion | Todos |
-| Caja | `wallet-outline` | Transferencia diaria a Varios | Solo si `caja_varios_activa = true` |
-| Modulos | `apps-outline` | Toggles: Recargas Celular, Recargas Bus | **Solo superadmin** |
-| Bus | `bus-outline` | Alerta saldo bajo, Dias antes facturacion | Solo si `recargas_bus_habilitada` |
-| POS | `cart-outline` | Descuentos, Porcentaje, Monto minimo, IVA | Todos |
-| Nomina | `people-outline` | Sueldo base, Dia de pago | Todos |
+| Seccion | Icono | Campos | Fuente | Visibilidad |
+|---------|-------|--------|--------|-------------|
+| Negocio | `storefront-outline` | Nombre, Telefono, Direccion, Correo | tabla `negocios` | Todos |
+| Datos SRI | `document-text-outline` | RUC, Razon social, Nombre comercial, Cod. establecimiento, Cod. punto emision, Ambiente SRI, Obligado contabilidad | tabla `negocios` | Todos |
+| Caja | `wallet-outline` | Transferencia diaria a Varios | tabla `configuraciones` | Solo si `caja_varios_activa = true` |
+| Modulos | `apps-outline` | Toggles: Recargas Celular, Recargas Bus | tabla `configuraciones` | **Solo superadmin** |
+| Bus | `bus-outline` | Alerta saldo bajo, Dias antes facturacion | tabla `configuraciones` | Solo si `recargas_bus_habilitada` |
+| POS | `cart-outline` | Descuentos, Porcentaje, Monto minimo, IVA | tabla `configuraciones` | Todos |
+| Nomina | `people-outline` | Sueldo base, Dia de pago | tabla `configuraciones` | Todos |
 
 **Comportamiento condicional de secciones**:
 - POS: `pos_descuentos_habilitados = OFF` → oculta los campos de porcentaje y monto minimo. El campo IVA siempre es visible.
 - Modulos: los toggles de cada modulo (Celular, Bus, Varios) llaman directamente a `fn_configurar_modulos` (sin boton Guardar). La funcion crea las cajas y categorias solo del modulo activado y actualiza los flags correspondientes.
 - Bus: la seccion entera depende de `recargas_bus_habilitada`. Si esta OFF, no aparece.
 
-**Flujo de guardado por seccion** (Negocio, Caja, Bus, POS, Nomina):
-1. Detecta cambios con `valueChanges` comparando snapshot guardado vs valor actual
-2. Aparece boton "Guardar" solo si hay diferencias en esa seccion
-3. Valida solo los campos de esa seccion (markAsTouched)
+**Flujo de guardado por seccion:**
+
+Secciones **Negocio** y **Datos SRI** (tabla `negocios`):
+1. Detecta cambios con `valueChanges` comparando snapshot vs valor actual
+2. Aparece boton "Guardar" solo si hay diferencias
+3. Valida campos de la seccion (markAsTouched)
+4. `ConfiguracionService.actualizarDatosNegocio()` → RPC `fn_actualizar_datos_negocio` (SECURITY DEFINER)
+5. Si cambio el nombre → `AuthService.actualizarNombreNegocio()` → actualiza sidebar sin recargar
+6. Actualiza snapshot → oculta boton
+
+Resto de secciones (tabla `configuraciones`):
+1. Detecta cambios con `valueChanges`
+2. Aparece boton "Guardar" solo si hay diferencias
+3. Valida campos de la seccion
 4. `ConfiguracionService.update()` con UPSERT solo de esos campos
 5. `ConfigService.invalidar()` → limpia cache global
 6. Actualiza snapshot → oculta boton

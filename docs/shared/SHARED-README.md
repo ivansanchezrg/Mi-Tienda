@@ -761,6 +761,31 @@ tipo = 'TRANSFERENCIA_SALIENTE', descripcion = 'hacia Cajón · pago proveedores
 
 Registros históricos sin descripción (o con formato antiguo sin `·`) retornan los labels genéricos `"Traspaso enviado"` / `"Traspaso recibido"` sin error.
 
+#### Patrón obligatorio para descripciones en funciones SQL
+
+Al generar el campo `descripcion` en un INSERT de `operaciones_cajas`, respetar este patrón según el tipo de operación:
+
+| Tipo | Patrón | Ejemplo |
+|---|---|---|
+| `TRANSFERENCIA_SALIENTE` | `'hacia [nombre destino] · [motivo]'` | `'hacia Cajón · Fondo de emergencia'` |
+| `TRANSFERENCIA_ENTRANTE` | `'desde [nombre origen] · [motivo]'` | `'desde Cajón · Fondo de emergencia'` |
+| `INGRESO` / `EGRESO` / `CIERRE` / `APERTURA` / `AJUSTE` | Texto libre sin `·` | `'Venta celular del turno 2026-06-04'` |
+
+**Regla:** el separador `·` **solo** se usa en transferencias para separar la contraparte del motivo. En otros tipos, el texto libre se muestra completo como descripción — el pipe no lo fragmenta.
+
+**Patrón SQL para transferencias con motivo opcional:**
+```sql
+-- Con motivo fijo:
+'desde Cajón · Fondo de emergencia'
+
+-- Con motivo dinámico (como en fn_crear_transferencia):
+'hacia ' || v_destino.nombre
+  || CASE WHEN TRIM(COALESCE(p_descripcion, '')) <> ''
+          THEN ' · ' || p_descripcion
+          ELSE ''
+     END
+```
+
 #### Páginas que lo usan
 
 `home.page.html` (caja dashboard), `operaciones-caja.page.html` (historial de operaciones por caja).

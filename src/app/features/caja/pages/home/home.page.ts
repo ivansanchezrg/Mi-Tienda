@@ -44,7 +44,6 @@ import { RecargasService } from '../../services/recargas.service';
 import { CajasService, Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
-import { ConfigService } from '@core/services/config.service';
 import { StorageService } from '@core/services/storage.service';
 import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
 import { TurnosCajaService, HomeDashboard } from '../../services/turnos-caja.service';
@@ -92,7 +91,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private turnosCajaService = inject(TurnosCajaService);
   private notificacionesService = inject(NotificacionesService);
   private modalCtrl = inject(ModalController);
-  private configService  = inject(ConfigService);
   private storageService = inject(StorageService);
   private shareCierreService = inject(ShareCierreService);
   private cdr = inject(ChangeDetectorRef);
@@ -219,8 +217,11 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     await this.cargarDatos();
 
-    // Sincronizar saldos de cajas via Realtime — actualiza cards sin reload
-    this.cajasSub = this.cajasService.cajas$.subscribe(async cajas => {
+    // Sincronizar saldos de cajas via Realtime — actualiza saldos y lista sin reload.
+    // Las flags de visibilidad NO se recalculan aquí: vienen de fn_home_dashboard
+    // (cargarDatos/refrescarMovimientos) que las lee de configuraciones junto con
+    // las cajas. El Realtime solo actualiza saldos entre cargas imperativas.
+    this.cajasSub = this.cajasService.cajas$.subscribe(cajas => {
       if (!cajas.length) return;
       const saldos = this.cajasService.saldosValue;
       this.saldoCaja      = saldos.cajaPrincipal;
@@ -229,21 +230,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       this.saldoCelular   = saldos.cajaCelular;
       this.saldoBus       = saldos.cajaBus;
       this.totalSaldos    = saldos.total;
-
-      // Si llegó una caja de módulo que no estaba visible, re-leer flags de configuración
-      const modulos = ['VARIOS', 'CAJA_CELULAR', 'CAJA_BUS'] as const;
-      const hayNueva = modulos.some(
-        cod => cajas.some(c => c.codigo === cod) && !this.cajas.some(c => c.codigo === cod)
-      );
-      if (hayNueva) {
-        this.configService.invalidar();
-        const cfg = await this.configService.get();
-        this.variosActiva              = cfg.caja_varios_activa;
-        this.recargasCelularHabilitada = cfg.recargas_celular_habilitada;
-        this.recargasBusHabilitada     = cfg.recargas_bus_habilitada;
-      }
-
-      this.cajas = cajas;
+      this.cajas          = cajas;
       this.cdr.markForCheck();
     });
 
@@ -308,12 +295,12 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       this.cargandoMovimientos = true;
     }
     try {
-      // 1 RPC consolidada (fn_home_dashboard) + 3 fuentes ligeras en paralelo.
-      const [dashboard, notificaciones, empleado, appConfig] = await Promise.all([
+      // 1 RPC consolidada (fn_home_dashboard) + 2 fuentes ligeras en paralelo.
+      // Flags de módulos y saldos de cajas vienen en dashboard — no se necesita configService.
+      const [dashboard, notificaciones, empleado] = await Promise.all([
         this.turnosCajaService.obtenerHomeDashboard(),
         this.notificacionesService.getNotificaciones(),
         this.authService.getUsuarioActual(),
-        this.configService.get(),
       ]);
 
       this.aplicarDashboard(dashboard);
@@ -324,9 +311,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
       this.notificaciones           = notificaciones;
       this.notificacionesPendientes = notificaciones.length;
-      this.variosActiva              = appConfig.caja_varios_activa;
-      this.recargasCelularHabilitada = appConfig.recargas_celular_habilitada;
-      this.recargasBusHabilitada     = appConfig.recargas_bus_habilitada;
     } catch {
       await this.ui.showError('Error al cargar los datos. Verifica tu conexión e intenta de nuevo.');
     } finally {
@@ -339,6 +323,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   /**
    * Aplica el snapshot del dashboard a las propiedades del componente. Centraliza
    * el mapeo para evitar duplicar la lógica entre `cargarDatos()` y `refrescarMovimientos()`.
+   * Incluye saldos de cajas (v1.3) para que cargarDatos() sea la única fuente de verdad
+   * del Home — sin depender del timing del Realtime en el dispositivo local.
    */
   private aplicarDashboard(dashboard: HomeDashboard): void {
     this.estadoCaja          = { ...dashboard.estadoCaja };
@@ -349,6 +335,26 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     this.fechaUltimoCierre   = dashboard.estadoCaja.fechaUltimoCierre
       ? this.formatearFecha(new Date(dashboard.estadoCaja.fechaUltimoCierre + 'T00:00:00'))
       : 'Hoy es tu primer turno';
+
+    // Flags de visibilidad — fuente de verdad correcta por módulo:
+    //   VARIOS:   existencia real en BD (irreversible; si está en el array → activa)
+    //   CELULAR/BUS: flag de configuraciones (puede existir en BD pero estar desactivada)
+    this.variosActiva              = dashboard.modulos.variosActiva;
+    this.recargasCelularHabilitada = dashboard.modulos.celularHabilitada;
+    this.recargasBusHabilitada     = dashboard.modulos.busHabilitada;
+
+    // Saldos de cajas frescos desde la RPC — cubre post-cierre y pull-to-refresh
+    // sin depender del timing del Realtime en el dispositivo local.
+    if (dashboard.cajas.length) {
+      const saldos = this.cajasService.aplicarCajasExternas(dashboard.cajas);
+      this.cajas          = dashboard.cajas;
+      this.saldoCaja      = saldos.cajaPrincipal;
+      this.saldoCajaChica = saldos.cajaChica;
+      this.saldoVarios    = saldos.varios;
+      this.saldoCelular   = saldos.cajaCelular;
+      this.saldoBus       = saldos.cajaBus;
+      this.totalSaldos    = saldos.total;
+    }
   }
 
   private formatearFecha(fecha: Date): string {
@@ -495,16 +501,15 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private async mostrarModalCajonCerrado(): Promise<void> {
     const groups: ModalOptionGroup[] = [{
       options: [
-        { label: 'Ver historial de turnos', icon: 'time-outline',  value: 'historial' },
-        { label: 'Cerrar',                  icon: 'close-outline', value: 'cerrar'    },
+        { label: 'Ver cierres', icon: 'time-outline', value: 'historial' },
+        { label: 'Salir',                    icon: 'close-outline', value: 'cerrar'    },
       ]
     }];
 
     const modal = await this.modalCtrl.create({
       component: OptionsModalComponent,
       componentProps: {
-        title:    'Cajón cerrado',
-        subtitle: 'Abre el turno para registrar ventas y movimientos del día.',
+        title: 'Cajón cerrado',
         groups,
       },
       cssClass: 'options-modal',

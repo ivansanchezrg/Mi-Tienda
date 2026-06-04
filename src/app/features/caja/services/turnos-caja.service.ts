@@ -8,11 +8,18 @@ import { ConfigService } from '@core/services/config.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
 import { OperacionCaja } from '../models/operacion-caja.model';
+import { Caja } from './cajas.service';
+import { DatosCierreDiario } from '../models/saldos-anteriores.model';
 import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
 
 /**
  * Snapshot consolidado del dashboard del home (devuelto por la RPC fn_home_dashboard).
  * Reemplaza las múltiples llamadas paralelas que hacía home.cargarDatos().
+ * v1.3: incluye cajas[] para que cargarDatos() sea la única fuente de verdad del Home.
+ * v1.4: incluye modulos con flags de visibilidad con fuente de verdad correcta por caja:
+ *   - variosActiva:        existencia real en BD (irreversible)
+ *   - celularHabilitada:   flag en configuraciones (puede existir en BD pero desactivada)
+ *   - busHabilitada:       flag en configuraciones (igual que celular)
  */
 export interface HomeDashboard {
   estadoCaja: EstadoCaja;
@@ -20,6 +27,12 @@ export interface HomeDashboard {
   saldoVirtualBus: number;
   ultimosMovimientos: OperacionCaja[];
   totalMovimientosHoy: number;
+  cajas: Caja[];
+  modulos: {
+    variosActiva: boolean;
+    celularHabilitada: boolean;
+    busHabilitada: boolean;
+  };
 }
 
 @Injectable({
@@ -357,59 +370,6 @@ export class TurnosCajaService {
   }
 
   /**
-   * Resumen de ingresos y egresos del cajón para el turno activo (v5).
-   *
-   * Usado en el Paso 2 del wizard de cierre para mostrar la conciliación real:
-   *   + Ventas POS en efectivo  (tabla ventas, turno_id + metodo_pago = EFECTIVO)
-   *   + Otros ingresos manuales (= saldoCajaChicaDigital - ventasPOS + egresos)
-   *   − Egresos / gastos        (operaciones_cajas EGRESO en CAJA_CHICA)
-   *   = Neto del turno          (= saldoCajaChicaDigital)
-   *
-   * @param turnoId       UUID del turno activo
-   * @param horaApertura  ISO timestamp de apertura del turno (para filtrar operaciones)
-   */
-  async getResumenTurnoActual(
-    turnoId: string,
-    horaApertura: string
-  ): Promise<{ ventasPosEfectivo: number; egresos: number }> {
-    // 1. ID de CAJA_CHICA (sin overlay — lectura rápida)
-    const { data: cajaChica } = await this.supabase.client
-      .from('cajas')
-      .select('id')
-      .eq('codigo', 'CAJA_CHICA')
-      .single();
-
-    if (!cajaChica) return { ventasPosEfectivo: 0, egresos: 0 };
-
-    // 2. Ventas POS en efectivo del turno + egresos del cajón en paralelo
-    const [ventasRes, egresosRes] = await Promise.all([
-      // Ventas POS: efectivo completadas en este turno
-      this.supabase.client
-        .from('ventas')
-        .select('total')
-        .eq('turno_id', turnoId)
-        .eq('metodo_pago', 'EFECTIVO')
-        .eq('estado', 'COMPLETADA'),
-
-      // Egresos registrados en CAJA_CHICA desde la apertura del turno
-      this.supabase.client
-        .from('operaciones_cajas')
-        .select('monto')
-        .eq('caja_id', cajaChica.id)
-        .eq('tipo_operacion', 'EGRESO')
-        .gte('fecha', horaApertura)
-    ]);
-
-    const ventasPosEfectivo = (ventasRes.data ?? [])
-      .reduce((sum: number, v: any) => sum + (v.total ?? 0), 0);
-
-    const egresos = (egresosRes.data ?? [])
-      .reduce((sum: number, o: any) => sum + (o.monto ?? 0), 0);
-
-    return { ventasPosEfectivo, egresos };
-  }
-
-  /**
    * Obtiene los turnos de una fecha específica (para selector en ventas).
    * Incluye nombre del empleado. Ordenados por numero_turno ASC.
    * @param fecha 'YYYY-MM-DD' — si no se pasa, usa la fecha de hoy
@@ -433,76 +393,6 @@ export class TurnosCajaService {
 
 
   /**
-   * Obtiene el estado completo de la caja para mostrar en el banner
-   */
-  async obtenerEstadoCaja(): Promise<EstadoCaja> {
-    const inicioDia = new Date(`${getFechaLocal()}T00:00:00`).toISOString();
-    const inicioMana = getInicioDiaSiguienteISO();
-
-    const [turnoActivo, countResult, ultimoCierre] = await Promise.all([
-      this.supabase.call<TurnoCajaConEmpleado>(
-        this.supabase.client
-          .from('turnos_caja')
-          .select('*, empleado:usuarios(id, nombre)')
-          .is('hora_fecha_cierre', null)
-          .maybeSingle(),
-        undefined,
-        { showLoading: false }
-      ),
-      this.supabase.client
-        .from('turnos_caja')
-        .select('id', { count: 'exact', head: true })
-        .gte('hora_fecha_apertura', inicioDia)
-        .lt('hora_fecha_apertura', inicioMana),
-      this.supabase.call<{ hora_fecha_cierre: string }>(
-        this.supabase.client
-          .from('turnos_caja')
-          .select('hora_fecha_cierre')
-          .not('hora_fecha_cierre', 'is', null)
-          .order('hora_fecha_cierre', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      )
-    ]);
-
-    const turnosHoy = countResult.count ?? 0;
-
-    let estado: EstadoCajaTipo;
-    let empleadoNombre = '';
-    let horaApertura = '';
-
-    if (turnoActivo) {
-      estado = 'TURNO_EN_CURSO';
-      empleadoNombre = turnoActivo.empleado?.nombre || '';
-      horaApertura = new Date(turnoActivo.hora_fecha_apertura).toLocaleTimeString('es-ES', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
-    } else if (turnosHoy > 0) {
-      estado = 'CERRADA';
-    } else {
-      estado = 'SIN_ABRIR';
-    }
-
-    const fechaUltimoCierre = ultimoCierre?.hora_fecha_cierre
-      ? (() => {
-          const d = new Date(ultimoCierre.hora_fecha_cierre);
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        })()
-      : null;
-
-    return {
-      estado,
-      turnoActivo,
-      empleadoNombre,
-      horaApertura,
-      turnosHoy,
-      fechaUltimoCierre
-    };
-  }
-
-  /**
    * Snapshot consolidado del home en una sola RPC (~250-500ms vs ~400-800ms de
    * Promise.all con 9 queries individuales). Reemplaza la combinación de:
    *   - obtenerEstadoCaja()
@@ -521,14 +411,18 @@ export class TurnosCajaService {
       };
       saldos_virtuales: { celular: number; bus: number };
       movimientos: { lista: OperacionCaja[]; total: number };
+      saldos_cajas: Caja[];
+      modulos: { varios_activa: boolean; celular_habilitada: boolean; bus_habilitada: boolean };
     }>(
       this.supabase.client.rpc('fn_home_dashboard')
     );
 
     // Defaults defensivos si la RPC retornó null (shouldn't happen pero por las dudas)
-    const ec = data?.estado_caja ?? { turno_activo: null, turnos_hoy: 0, fecha_ultimo_cierre: null };
-    const sv = data?.saldos_virtuales ?? { celular: 0, bus: 0 };
-    const mov = data?.movimientos ?? { lista: [], total: 0 };
+    const ec  = data?.estado_caja      ?? { turno_activo: null, turnos_hoy: 0, fecha_ultimo_cierre: null };
+    const sv  = data?.saldos_virtuales ?? { celular: 0, bus: 0 };
+    const mov = data?.movimientos      ?? { lista: [], total: 0 };
+    const caj = data?.saldos_cajas     ?? [];
+    const mod = data?.modulos          ?? { varios_activa: false, celular_habilitada: false, bus_habilitada: false };
 
     // Calcular estado a partir del turno activo y turnos del día
     let estado: EstadoCajaTipo;
@@ -562,6 +456,55 @@ export class TurnosCajaService {
       saldoVirtualBus:     sv.bus     ?? 0,
       ultimosMovimientos:  mov.lista  ?? [],
       totalMovimientosHoy: mov.total  ?? 0,
+      cajas:               caj,
+      modulos: {
+        variosActiva:      mod.varios_activa      ?? false,
+        celularHabilitada: mod.celular_habilitada ?? false,
+        busHabilitada:     mod.bus_habilitada     ?? false,
+      },
+    };
+  }
+
+  /**
+   * Datos iniciales del wizard de cierre diario en una sola RPC (fn_datos_cierre_diario).
+   * Reemplaza las 8-9 queries paralelas que hacía cargarDatosIniciales().
+   */
+  async obtenerDatosCierreDiario(): Promise<DatosCierreDiario> {
+    const data = await this.supabase.call<{
+      turno_activo: any | null;
+      saldos_virtuales:      { celular: number; bus: number };
+      agregado_virtual_hoy:  { celular: number; bus: number };
+      saldos_cajas:          { caja_chica_digital: number; caja_celular: number; caja_bus: number };
+      saldos_antes_cierre:   { caja: number; varios: number };
+      transferencia_diaria_varios: number;
+      transferencia_ya_hecha: boolean;
+      resumen_turno:         { ventas_pos_efectivo: number; egresos: number };
+      configuracion:         { recargas_celular_habilitada: boolean; recargas_bus_habilitada: boolean; caja_varios_activa: boolean };
+    }>(
+      this.supabase.client.rpc('fn_datos_cierre_diario')
+    );
+
+    const sv  = data?.saldos_virtuales      ?? { celular: 0, bus: 0 };
+    const ag  = data?.agregado_virtual_hoy  ?? { celular: 0, bus: 0 };
+    const sc  = data?.saldos_cajas          ?? { caja_chica_digital: 0, caja_celular: 0, caja_bus: 0 };
+    const sac = data?.saldos_antes_cierre   ?? { caja: 0, varios: 0 };
+    const rt  = data?.resumen_turno         ?? { ventas_pos_efectivo: 0, egresos: 0 };
+    const cfg = data?.configuracion         ?? { recargas_celular_habilitada: false, recargas_bus_habilitada: false, caja_varios_activa: false };
+
+    return {
+      turnoActivo:               data?.turno_activo ?? null,
+      saldosVirtuales:           { celular: sv.celular ?? 0,  bus: sv.bus ?? 0 },
+      agregadoVirtualHoy:        { celular: ag.celular ?? 0,  bus: ag.bus ?? 0 },
+      saldosCajas:               { cajaCHicaDigital: sc.caja_chica_digital ?? 0, cajaCelular: sc.caja_celular ?? 0, cajaBus: sc.caja_bus ?? 0 },
+      saldosAntesCierre:         { caja: sac.caja ?? 0, varios: sac.varios ?? 0 },
+      transferenciaDiariaVarios: data?.transferencia_diaria_varios ?? 0,
+      transferenciaYaHecha:      data?.transferencia_ya_hecha      ?? false,
+      resumenTurno:              { ventasPosEfectivo: rt.ventas_pos_efectivo ?? 0, egresos: rt.egresos ?? 0 },
+      configuracion: {
+        recargasCelularHabilitada: cfg.recargas_celular_habilitada ?? false,
+        recargasBusHabilitada:     cfg.recargas_bus_habilitada     ?? false,
+        cajaVariosActiva:          cfg.caja_varios_activa          ?? false,
+      },
     };
   }
 }

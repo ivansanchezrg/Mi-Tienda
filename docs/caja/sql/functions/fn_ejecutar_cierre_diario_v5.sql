@@ -491,7 +491,7 @@ BEGIN
       v_transferencia_efectiva,
       v_saldo_varios,
       v_saldo_varios + v_transferencia_efectiva,
-      'Transferencia diaria desde cajón — turno ' || p_fecha,
+      'desde Cajón · Fondo de emergencia',
       v_tipo_ref_turnos_id,
       p_turno_id
     );

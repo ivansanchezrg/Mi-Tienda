@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { AuthService } from '../../auth/services/auth.service';
 import { CurrencyService } from '@core/services/currency.service';
 import { UiService } from '@core/services/ui.service';
+import { ConfiguracionService } from '../../configuracion/services/configuracion.service';
 import { formatFechaEC } from '@core/utils/date.util';
 
 export interface DatosCierreParaCompartir {
@@ -50,9 +51,10 @@ const E = {
 
 @Injectable({ providedIn: 'root' })
 export class ShareCierreService {
-  private authService    = inject(AuthService);
-  private currencyService = inject(CurrencyService);
-  private ui             = inject(UiService);
+  private authService          = inject(AuthService);
+  private currencyService      = inject(CurrencyService);
+  private ui                   = inject(UiService);
+  private configuracionService = inject(ConfiguracionService);
 
   /** Datos del último cierre pendientes de mostrar en el modal del home */
   private _datosPendientes: DatosCierreParaCompartir | null = null;
@@ -72,11 +74,11 @@ export class ShareCierreService {
   }
 
   async enviarResumenWhatsApp(datos: DatosCierreParaCompartir): Promise<void> {
-    const usuario = await this.authService.getUsuarioActual();
-    const negocioTelefono = (usuario as any)?.negocio_telefono ?? '';
-    const negocioNombre   = usuario?.negocio_nombre ?? '';
+    const usuario      = await this.authService.getUsuarioActual();
+    const negocioNombre = usuario?.negocio_nombre ?? '';
 
-    const telefono = this.normalizarTelefono(negocioTelefono);
+    const negocio  = await this.configuracionService.getDatosNegocio();
+    const telefono = this.normalizarTelefono(negocio?.telefono ?? '');
 
     if (!telefono) {
       this.ui.showToast(

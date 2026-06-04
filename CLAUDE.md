@@ -183,7 +183,7 @@ src/app/
 | ------------------------- | ----------------------------------------------------------- |
 | `SupabaseService`         | Todas las queries y auth. Usar siempre `.call()` o `.rpc()`. Tiene listener global de auth (TOKEN_REFRESHED, SIGNED_OUT), detección de JWT expirado en `call()`, refresh proactivo al volver del background (`refreshSessionOnResume()`), y `handleExpiredSession()` como punto centralizado de limpieza de sesión |
 | `UiService`               | Loading, toasts, alertas, confirmaciones, `hideTabs()`/`showTabs()` para ocultar tabs en páginas de detalle |
-| `ConfigService`           | Lee tabla `configuraciones` (clave/valor con prefijo por módulo: `negocio_`, `caja_`, `bus_`, `pos_`, `nomina_`) con cache en memoria. Métodos: `get()`, `getNombreNegocio()`, `invalidar()` |
+| `ConfigService`           | Lee tabla `configuraciones` (clave/valor con prefijo por módulo: `caja_`, `bus_`, `pos_`, `nomina_`) con cache en memoria. Métodos: `get()`, `invalidar()`. **No** leer nombre/teléfono/dirección del negocio de aquí — viven en `negocios`. Nombre: `authService.usuarioActualValue?.negocio_nombre`. Resto de datos: `ConfiguracionService.getDatosNegocio()` |
 | `CurrencyService`         | Formateo de moneda. Métodos: `format(value)` (display estándar `1,250.00`), `parse(value)` (string → number), `parteEntera(monto)` (entero truncado con `Math.floor`, sin redondeo), `centavos(monto)` (2 dígitos decimales). No formatear moneda manualmente — ver patrón abajo |
 | `StorageService`          | Flujo completo de imágenes: captura (cámara/galería) → cropper integrado (5 ratios) → compresión WebP → upload a Supabase Storage. Bucket único `mi-tienda` aislado por `negocio_id`. Métodos clave: `elegirFuenteFoto()`, `recortarImagen()`, `mostrarOpcionesImagen()`, `uploadImage()`, `replaceImage()`. Ver sección "Storage multi-tenant" |
 | `GananciasService`        | Lógica de comisiones recargas virtuales (liquidación BUS mensual) |
@@ -585,6 +585,21 @@ import { OperacionLabelPipe } from '@shared/pipes/operacion-label.pipe';
 ```
 
 **Cómo se genera la descripción:** `fn_crear_transferencia` escribe `"hacia Cajón · motivo"` (SALIENTE) y `"desde Tienda · motivo"` (ENTRANTE). El pipe parsea el `·` para separar contraparte de motivo. Registros sin descripción retornan los labels genéricos sin error.
+
+**Patrón obligatorio en funciones SQL** al insertar en `operaciones_cajas`:
+
+| Tipo de operación | Formato del campo `descripcion` | Ejemplo |
+|---|---|---|
+| `TRANSFERENCIA_SALIENTE` | `'hacia [nombre destino] · [motivo]'` | `'hacia Cajón · Fondo de emergencia'` |
+| `TRANSFERENCIA_ENTRANTE` | `'desde [nombre origen] · [motivo]'` | `'desde Cajón · Fondo de emergencia'` |
+| `INGRESO` / `EGRESO` / `CIERRE` / `APERTURA` / `AJUSTE` | Texto libre sin `·` | `'Venta celular del turno 2026-06-04'` |
+
+El separador `·` **solo** se usa en transferencias. En otros tipos, el texto libre se muestra completo. Para motivo opcional en SQL:
+```sql
+'hacia ' || v_destino.nombre
+  || CASE WHEN TRIM(COALESCE(p_descripcion, '')) <> ''
+          THEN ' · ' || p_descripcion ELSE '' END
+```
 
 Ver documentación completa en `docs/shared/SHARED-README.md` → sección **Pipes**.
 
@@ -991,8 +1006,11 @@ const result = await this.storageService.elegirFuenteFoto('libre', false, false)
 El servicio fija internamente `quality: 92`, `1920×1920` para la captura y `1600×1600` WebP `0.92` para la compresión final. **No llamar `Camera.getPhoto` directamente** — pierdes el cropper, los límites de calidad y el flujo unificado.
 
 ### Configuración — NUNCA hardcodear valores de negocio
-Los valores de negocio viven en la tabla `configuraciones` (clave/valor). Leerlos con `ConfigService.get()`, no hardcodearlos.
-Convención de claves: prefijo por módulo (`negocio_nombre`, `caja_varios_transferencia_dia`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`, `nomina_sueldo_base`).
+
+**Datos de identidad del negocio** (nombre, teléfono, dirección, correo, RUC, razón social, datos SRI) → viven en tabla `negocios`. Leer con `ConfiguracionService.getDatosNegocio()` o el nombre directamente de `authService.usuarioActualValue?.negocio_nombre`. Editar con `ConfiguracionService.actualizarDatosNegocio()` (llama `fn_actualizar_datos_negocio`).
+
+**Parámetros operativos** (flags de módulos, montos, umbrales, POS, nómina) → viven en tabla `configuraciones`. Leerlos con `ConfigService.get()`, no hardcodearlos.
+Convención de claves: prefijo por módulo (`caja_varios_transferencia_dia`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`, `nomina_sueldo_base`).
 
 ---
 

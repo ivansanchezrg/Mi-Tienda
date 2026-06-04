@@ -141,7 +141,7 @@ export class OperacionesCajaPage implements OnDestroy {
           { label: 'Registrar Egreso',  icon: 'arrow-up-outline',   value: 'EGRESO',  color: 'danger' },
         );
       }
-      opciones.push({ label: 'Historial de turnos', icon: 'time-outline', value: 'HISTORIAL_TURNOS' });
+      opciones.push({ label: 'Cierres de caja', icon: 'time-outline', value: 'HISTORIAL_TURNOS' });
       if (this.esAdmin) {
         opciones.push({ label: 'Editar caja', icon: 'create-outline', value: 'EDITAR' });
       }

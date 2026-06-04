@@ -181,6 +181,19 @@ export class CajasService {
     return this.calcularSaldos(cajas);
   }
 
+  /**
+   * Aplica una lista de cajas externa (proveniente de fn_home_dashboard) al
+   * BehaviorSubject y retorna los saldos calculados.
+   *
+   * Permite que cargarDatos() del Home actualice los saldos de cajas de forma
+   * imperativa — sin esperar al Realtime — cubriendo post-cierre y pull-to-refresh.
+   * El Realtime sigue activo para sincronización entre dispositivos.
+   */
+  aplicarCajasExternas(cajas: Caja[]): SaldosCajas {
+    this._cajas$.next(cajas);
+    return this.calcularSaldos(cajas);
+  }
+
   async obtenerSaldoCaja(codigoCaja: string): Promise<number | null> {
     const cajas = await this.obtenerCajas();
     return cajas.find(c => c.codigo === codigoCaja)?.saldo_actual ?? null;

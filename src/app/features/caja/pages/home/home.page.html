@@ -126,7 +126,7 @@
         <div class="cuenta-card__info">
           <span class="cuenta-card__name">{{ cajaPorCodigo('CAJA_CHICA')?.nombre }}</span>
           <span class="cuenta-card__subtitle">
-            @if (cajaAbierta) { Cierre {{ fechaUltimoCierre }} } @else { Turno cerrado }
+            @if (cajaAbierta) { Cierre {{ fechaUltimoCierre }} } @else { Cajón cerrado }
           </span>
         </div>
       </div>
@@ -134,7 +134,7 @@
         @if (cargando) {
           <ion-skeleton-text animated class="cuenta-card__skeleton-amount"></ion-skeleton-text>
         } @else if (!cajaAbierta) {
-          <p class="cuenta-card__idle-helper">Abre el turno desde<br><strong>Acciones rápidas</strong></p>
+          <p class="cuenta-card__idle-helper">Toca para ver opciones</p>
         } @else if (montosOcultos) {
           <span class="cuenta-card__amount">••••</span>
         } @else {

@@ -1,6 +1,6 @@
 import { Component, ElementRef, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonContent, IonIcon, IonSkeletonText, IonRefresher, IonRefresherContent,
@@ -11,8 +11,7 @@ import { addIcons } from 'ionicons';
 import {
   chevronBackOutline, arrowUpOutline, timeOutline,
   checkmarkCircleOutline, alertCircleOutline, informationCircleOutline,
-  storefrontOutline, shieldCheckmarkOutline, phonePortraitOutline, busOutline,
-  chevronForwardOutline, personOutline
+  personOutline
 } from 'ionicons/icons';
 
 import { ROUTES } from '@core/config/routes.config';
@@ -24,7 +23,6 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { CierresTurnoService } from '../../services/cierres-turno.service';
 import { CierreTurnoSnapshot } from '../../models/cierre-turno.model';
 import { CierreTurnoDetalleModalComponent } from '../../components/cierre-turno-detalle-modal/cierre-turno-detalle-modal.component';
-import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 type FiltroFecha = 'hoy' | 'semana' | 'mes' | 'todas';
 
@@ -46,14 +44,14 @@ interface CierresAgrupados {
     IonFab, IonFabButton,
     PeriodFilterComponent,
     EmptyStateComponent,
-    AppCurrencyPipe,
   ]
 })
 export class HistorialTurnosPage {
   @ViewChild('content', { read: ElementRef }) private contentRef!: ElementRef;
 
   private router = inject(Router);
-  private ui = inject(UiService);
+  private route  = inject(ActivatedRoute);
+  private ui     = inject(UiService);
   private cierresService = inject(CierresTurnoService);
   private modalCtrl = inject(ModalController);
 
@@ -74,8 +72,7 @@ export class HistorialTurnosPage {
     addIcons({
       chevronBackOutline, arrowUpOutline, timeOutline,
       checkmarkCircleOutline, alertCircleOutline, informationCircleOutline,
-      storefrontOutline, shieldCheckmarkOutline, phonePortraitOutline, busOutline,
-      chevronForwardOutline, personOutline
+      personOutline
     });
   }
 
@@ -89,7 +86,12 @@ export class HistorialTurnosPage {
   }
 
   volver() {
-    this.router.navigate([ROUTES.caja.operacionesCaja], { replaceUrl: true });
+    const from = this.route.snapshot.queryParamMap.get('from');
+    if (from === 'home') {
+      this.router.navigate([ROUTES.home], { replaceUrl: true });
+    } else {
+      this.router.navigate([ROUTES.caja.operacionesCaja], { replaceUrl: true });
+    }
   }
 
   async cambiarFiltro(filtro: string) {
