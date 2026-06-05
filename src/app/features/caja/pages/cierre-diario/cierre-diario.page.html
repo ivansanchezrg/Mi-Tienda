@@ -43,7 +43,7 @@
             <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular"></ion-icon>
             <ion-label position="stacked">
               <strong>Saldo Virtual Celular</strong>
-              <ion-note>Virtual: {{ saldoEsperadoCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</ion-note>
+              <ion-note>Virtual: {{ saldoVirtualActualCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</ion-note>
             </ion-label>
             <div class="input-wrapper">
               <span class="currency-prefix">$</span>
@@ -70,7 +70,7 @@
             <ion-icon slot="start" name="bus-outline" class="item-icon bus"></ion-icon>
             <ion-label position="stacked">
               <strong>Saldo Virtual Bus</strong>
-              <ion-note>Virtual: {{ saldoEsperadoBus | currency:'USD':'symbol-narrow':'1.2-2' }}</ion-note>
+              <ion-note>Virtual: {{ saldoVirtualActualBus | currency:'USD':'symbol-narrow':'1.2-2' }}</ion-note>
             </ion-label>
             <div class="input-wrapper">
               <span class="currency-prefix">$</span>
@@ -285,8 +285,9 @@
               } @else if (hayDeficitPreview) {
                 <div class="saldo-ecuacion">
                   <span class="saldo-anterior">${{ saldoAnteriorVarios | appCurrency }}</span>
-                  <span class="saldo-detalle saldo-detalle--warning">déficit ${{ transferenciaDiariaVarios | appCurrency }}</span>
+                  <span class="saldo-badge-neutral saldo-badge--warning">sin cambio hoy</span>
                 </div>
+                <span class="saldo-deficit-hint">Efectivo insuficiente para transferir ${{ transferenciaDiariaVarios | appCurrency }}</span>
               } @else {
                 <div class="saldo-ecuacion">
                   <span class="saldo-anterior">${{ saldoAnteriorVarios | appCurrency }}</span>

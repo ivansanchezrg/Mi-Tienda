@@ -1,4 +1,4 @@
-# Abrir Caja — Referencia Técnica (v6.3 — 2026-06-01 — fondo libre con EGRESO contable)
+# Abrir Caja — Referencia Técnica (v6.4 — 2026-06-05 — reparación de déficit incluye EGRESO del fondo)
 
 ## 1. Arquitectura
 
@@ -22,7 +22,7 @@
 | `operaciones_cajas` | `repararDeficit()` inserta el EGRESO de CAJA y el INGRESO a VARIOS cuando hay déficit. |
 | `configuraciones` | `caja_varios_transferencia_dia` (clave/valor). `caja_fondo_fijo_diario` eliminado — el fondo es libre. |
 
-> **Principio clave (v6.3):** En el caso normal con fondo = 0, abrir caja **no afecta saldos**. Si el empleado declara fondo > 0, `fn_abrir_turno` registra un EGRESO de Tienda (`CAJA`) con categoría `Fondo Apertura Turno` — trazabilidad contable del efectivo que sale de la bóveda hacia el cajón. Cuando hay déficit, `fn_reparar_deficit_turno` mueve saldos (EGRESO de CAJA + INGRESO a VARIOS) **y** abre el turno en la misma transacción atómica.
+> **Principio clave (v6.4):** En el caso normal con fondo = 0, abrir caja **no afecta saldos**. Si el empleado declara fondo > 0, tanto `fn_abrir_turno` como `fn_reparar_deficit_turno` registran un EGRESO de Tienda (`CAJA`) con categoría `Fondo Apertura Turno` — trazabilidad contable del efectivo que sale de la bóveda hacia el cajón. Cuando hay déficit, `fn_reparar_deficit_turno` mueve saldos (EGRESO de CAJA por déficit + INGRESO a VARIOS + EGRESO de CAJA por fondo si > 0) **y** abre el turno en la misma transacción atómica. El saldo de Tienda se valida contra el **total** que saldrá: `déficit + fondo`.
 
 > **Fondo libre (v6.0):** Ya no existe un fondo fijo predeterminado. Al abrir caja, el empleado declara libremente cuánto efectivo deja en el cajón. Este valor se guarda en `turnos_caja.fondo_apertura` y el cierre lo usa como referencia para la distribución.
 
@@ -138,14 +138,16 @@ Llama a `rpc('reparar_deficit_turno', params)`. Todo en una sola transacción at
 }
 ```
 
+> **v4.1:** Validación de saldo incluye `fondoApertura` (`déficit + fondo`). Agrega EGRESO `FONDO-APERTURA` de Tienda cuando `fondoApertura > 0`, espejando el comportamiento de `fn_abrir_turno`. Saldo retornado (`saldo_tienda_nuevo`) refleja el descuento total.
 > **v4.0:** `p_cat_egreso_id` y `p_cat_ingreso_id` fueron eliminados. Las categorías `DEF-RETIRAR` y `DEF-REPONER` son UUIDs fijos de `categorias_sistema` resueltos internamente por la función.
 
 ### Lo que ejecuta (atómico)
 
-1. **Valida saldo** de CAJA ≥ `deficitVarios`. Si no alcanza, retorna error con mensaje descriptivo.
-2. **EGRESO** de CAJA por `deficitVarios` — categoría `DEF-RETIRAR` (`categorias_sistema`).
+1. **Valida saldo** de CAJA ≥ `deficitVarios + fondoApertura`. Si no alcanza, retorna error con mensaje descriptivo que muestra los tres montos. La validación suma ambos conceptos porque ambos salen de Tienda en la misma transacción.
+2. **EGRESO** de CAJA por `deficitVarios` — categoría `DEF-RETIRAR` (`categorias_sistema`). Actualiza `saldo_actual` de CAJA.
 3. **INGRESO** a VARIOS por `deficitVarios` — categoría `DEF-REPONER` (`categorias_sistema`). Este INGRESO es lo que `obtenerDeficitTurnoAnterior()` detecta el día siguiente para no re-detectar el déficit.
-4. **INSERT** en `turnos_caja` con `fondo_apertura` — abre el turno en la misma transacción atómica.
+4. **INSERT** en `turnos_caja` con `fondo_apertura` — abre el turno.
+5. **Si `fondoApertura > 0`:** EGRESO de CAJA por `fondoApertura` — categoría `FONDO-APERTURA` (misma que `fn_abrir_turno`). El `saldo_anterior` de este EGRESO es el saldo de Tienda **después** del paso 2 (`saldo_tienda - déficit`). Actualiza `saldo_actual` de CAJA con el descuento final.
 
 > El déficit de VARIOS es costo operacional del negocio — no se registra en `movimientos_empleados`. Los faltantes de conteo físico sí se registran como `FALTANTE_CAJA` por `fn_ejecutar_cierre_diario`.
 
@@ -153,10 +155,17 @@ Llama a `rpc('reparar_deficit_turno', params)`. Todo en una sola transacción at
 
 ```typescript
 // Éxito
-{ success: true, turno_id: uuid, op_egreso_id, op_ingreso_id, total_retirado, saldo_tienda_nuevo }
+{
+  success: true,
+  turno_id: uuid,
+  op_egreso_id: uuid,          // EGRESO déficit en CAJA
+  op_ingreso_id: uuid,         // INGRESO DEF-REPONER en VARIOS
+  total_retirado: number,      // = deficitVarios (sin fondo)
+  saldo_tienda_nuevo: number   // saldo_tienda - déficit - fondo
+}
 
-// Error
-{ success: false, error: 'Saldo insuficiente en Tienda ($X) para cubrir el ajuste de $Y...' }
+// Error — saldo insuficiente
+{ success: false, error: 'Saldo insuficiente en Tienda ($X) para cubrir el déficit de VARIOS ($Y) más el fondo de apertura ($Z). Registra un ingreso manual en Tienda primero.' }
 ```
 
 Si retorna error, el modal muestra el mensaje y el operador debe registrar primero un INGRESO manual en CAJA antes de reintentar.

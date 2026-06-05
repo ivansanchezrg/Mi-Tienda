@@ -1,4 +1,4 @@
-# Cierre Diario — Referencia Técnica (v6.3 — 2026-05-30 — todo el efectivo se deposita)
+# Cierre Diario — Referencia Técnica (v6.3 — 2026-06-05)
 
 ## 1. Arquitectura
 
@@ -51,11 +51,20 @@
 
 Solo si las 3 pasan → `router.navigate(['/caja/cierre-diario'])` sin overlay activo (evita colisión con el ciclo de vida de `ionViewWillEnter`).
 
-En `cargarDatosIniciales()` se carga en paralelo:
-- Saldos virtuales del último snapshot (CELULAR + BUS) desde `RecargasVirtualesService.getSaldoUltimoCierre()` — solo lee `saldo_virtual_actual` del último registro en `recargas`, sin sumar recargas posteriores
-- Datos del cierre (saldos de cajas, transferencia diaria) desde `RecargasService`. El fondo se lee de `turnoActivo.fondo_apertura`.
-- Flag `transferenciaCajaChicaYaHecha` desde `RecargasService.verificarTransferenciaYaHecha()` — ver §4
-- Saldos de CAJA y VARIOS para la verificación antes→después
+En `cargarDatosIniciales()` se hace **una sola RPC** `fn_datos_cierre_diario()` que retorna todo en un único round-trip:
+
+| Campo retornado | Uso en la página |
+|---|---|
+| `turno_activo` | Turno abierto con empleado JOIN |
+| `saldos_virtuales` | `snapshot + agregado` = total actual — se muestra como "Virtual: $X" en Paso 1 |
+| `snapshot_virtuales` | Solo el `saldo_virtual_actual` del último registro en `recargas` — se envía como `p_saldo_anterior_*` al SQL del cierre |
+| `agregado_virtual_hoy` | Informativo — recargas posteriores al snapshot (no se suma en UI ni se envía al SQL) |
+| `saldos_cajas` | Saldos de CAJA_CHICA, CAJA_CELULAR, CAJA_BUS |
+| `saldos_antes_cierre` | Saldos de CAJA y VARIOS para preview antes→después en Paso 2 |
+| `transferencia_diaria_varios` | Monto configurado para VARIOS |
+| `transferencia_ya_hecha` | `true` si VARIOS ya recibió hoy |
+| `resumen_turno` | Ventas POS efectivo + egresos del cajón en el turno |
+| `configuracion` | Flags de módulos activos |
 
 ---
 
@@ -72,13 +81,23 @@ En `cargarDatosIniciales()` se carga en paralelo:
 - Diferencia en conteo físico → alerta naranja (faltante) o azul (sobrante)
 - Conteo exacto → alerta verde
 
-**Cálculo de ventas:**
+**Cálculo de ventas (en UI — solo para mostrar feedback):**
 ```
-venta_celular = saldoUltimoCierre_celular - saldoVirtualCelularFinal
-venta_bus     = saldoUltimoCierre_bus     - saldoVirtualBusFinal
+venta_celular = saldoVirtualActualCelular - saldoVirtualCelularFinal
+venta_bus     = saldoVirtualActualBus     - saldoVirtualBusFinal
 ```
 
-`saldoUltimoCierre` = `saldo_virtual_actual` del último registro en la tabla `recargas` (cierre diario o mini cierre). No suma recargas virtuales posteriores — eso evitaba el doble conteo al usar la fórmula completa de `getSaldoVirtualActual()`.
+`saldoVirtualActualCelular` = `snapshot_virtuales.celular + agregado_virtual_hoy.celular` (total actual).
+
+**Cálculo de ventas (en SQL — el que afecta saldos reales):**
+```
+v_venta_celular = (p_saldo_anterior_celular + v_agregado_celular) - p_saldo_celular_final
+```
+
+`p_saldo_anterior_celular` = `snapshot_virtuales.celular` (solo el snapshot, sin el agregado).
+`v_agregado_celular` = calculado internamente por el SQL desde `recargas_virtuales`.
+
+> **Por qué dos cálculos:** la UI usa el total visible para dar feedback al empleado. El SQL recalcula desde el snapshot para evitar doble conteo — si se enviara el total (snapshot + agregado) como `p_saldo_anterior`, el SQL lo volvería a sumar con `v_agregado_celular` y la venta quedaría inflada.
 
 Venta negativa indica que falta registrar una recarga del proveedor en Recargas Virtuales.
 

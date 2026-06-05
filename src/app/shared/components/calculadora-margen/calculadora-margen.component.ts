@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IonButton, IonIcon, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, calculatorOutline } from 'ionicons/icons';
+import { closeOutline, calculatorOutline, refreshOutline } from 'ionicons/icons';
 import { calcularPrecioDesdeMargen, calcularMargenDesdePrecio } from '../../../core/utils/margen.util';
 import { CurrencyService } from '@core/services/currency.service';
 
@@ -18,14 +18,15 @@ export class CalculadoraMargenComponent {
     private modalCtrl = inject(ModalController);
     private currencyService = inject(CurrencyService);
 
-    @ViewChild('costoInput') costoInputRef!: ElementRef<HTMLInputElement>;
+    @ViewChild('costoInput')  costoInputRef!:  ElementRef<HTMLInputElement>;
+    @ViewChild('precioInput') precioInputRef!: ElementRef<HTMLInputElement>;
 
     costo: number | null = null;
     precioVenta: number | null = null;
     margenPct: number = 20;
 
     constructor() {
-        addIcons({ closeOutline, calculatorOutline });
+        addIcons({ closeOutline, calculatorOutline, refreshOutline });
     }
 
     get margenColor(): string {
@@ -53,6 +54,8 @@ export class CalculadoraMargenComponent {
             return;
         }
         this.precioVenta = calcularPrecioDesdeMargen(this.costo, this.margenPct);
+        // Foco automático al precio cuando aparece por primera vez
+        Promise.resolve().then(() => this.precioInputRef?.nativeElement?.focus());
     }
 
     onPrecioVentaChange() {

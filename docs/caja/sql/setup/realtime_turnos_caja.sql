@@ -27,16 +27,11 @@ END $$;
 --    de reconstruccion del estado en el cliente).
 ALTER TABLE turnos_caja REPLICA IDENTITY FULL;
 
--- 3. Politica RLS: usuarios autenticados pueden leer turnos_caja
---    (necesario para que Realtime respete RLS y entregue los cambios)
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_policies
-        WHERE tablename = 'turnos_caja' AND policyname = 'authenticated puede leer turnos_caja'
-    ) THEN
-        EXECUTE 'CREATE POLICY "authenticated puede leer turnos_caja" ON turnos_caja FOR SELECT TO authenticated USING (true)';
-    END IF;
-END $$;
+-- 3. La politica RLS SELECT ya esta definida en docs/setup/02_rls.sql (turnos_caja_select).
+--    NO crear una politica adicional aqui — multiples politicas SELECT se combinan con OR
+--    y una con USING(true) anularia el filtro de negocio_id, exponiendo datos de todos los negocios.
+--    Si existe la politica incorrecta del pasado, eliminarla:
+DROP POLICY IF EXISTS "authenticated puede leer turnos_caja" ON turnos_caja;
 
 -- =============================================================================
 -- Verificacion (ejecutar por separado si se quiere confirmar el estado)

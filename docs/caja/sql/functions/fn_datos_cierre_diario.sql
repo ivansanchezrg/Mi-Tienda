@@ -1,5 +1,5 @@
 -- =============================================================================
--- fn_datos_cierre_diario (v1.0 — 2026-06-04)
+-- fn_datos_cierre_diario (v1.1 — 2026-06-05)
 -- =============================================================================
 -- Consolida en una sola RPC todos los datos que necesita el wizard de cierre
 -- diario para cargarse. Reemplaza las 8-9 queries paralelas que hacía
@@ -7,8 +7,10 @@
 --
 -- Datos retornados:
 --   turno_activo          — turno abierto actualmente (con empleado JOIN)
---   saldos_virtuales      — último snapshot de recargas para CELULAR y BUS
---   agregado_virtual_hoy  — recargas_virtuales pendientes de cierre por servicio
+--   saldos_virtuales      — snapshot + agregado (total actual visible en UI)
+--   snapshot_virtuales    — solo el saldo_virtual_actual del último registro en recargas
+--                           (se envía a fn_ejecutar_cierre_diario como p_saldo_anterior_*)
+--   agregado_virtual_hoy  — recargas_virtuales posteriores al snapshot (informativo)
 --   saldos_cajas          — saldo_actual de CAJA_CHICA, CAJA_CELULAR, CAJA_BUS
 --   saldos_antes_cierre   — saldo_actual de CAJA y VARIOS (para preview antes→después)
 --   transferencia_diaria_varios — monto configurado para transferir a VARIOS al cierre
@@ -147,13 +149,8 @@ BEGIN
     -- cutoff = created_at del último registro en tabla recargas por servicio.
 
     -- CELULAR
-    SELECT r.created_at, r.saldo_virtual_actual
-    INTO v_celular_snapshot_at, v_celular_snapshot_val
-    FROM recargas r
-    WHERE r.negocio_id        = v_negocio_id
-      AND r.tipo_servicio_id  = v_tipo_celular_id
-    ORDER BY r.created_at DESC
-    LIMIT 1;
+    v_celular_snapshot_at  := (SELECT r.created_at        FROM recargas r WHERE r.negocio_id = v_negocio_id AND r.tipo_servicio_id = v_tipo_celular_id ORDER BY r.created_at DESC LIMIT 1);
+    v_celular_snapshot_val := (SELECT r.saldo_virtual_actual FROM recargas r WHERE r.negocio_id = v_negocio_id AND r.tipo_servicio_id = v_tipo_celular_id ORDER BY r.created_at DESC LIMIT 1);
 
     v_celular_agregado := COALESCE((
         SELECT SUM(rv.monto_virtual)
@@ -166,13 +163,8 @@ BEGIN
     v_saldo_virtual_celular := COALESCE(v_celular_snapshot_val, 0) + v_celular_agregado;
 
     -- BUS
-    SELECT r.created_at, r.saldo_virtual_actual
-    INTO v_bus_snapshot_at, v_bus_snapshot_val
-    FROM recargas r
-    WHERE r.negocio_id        = v_negocio_id
-      AND r.tipo_servicio_id  = v_tipo_bus_id
-    ORDER BY r.created_at DESC
-    LIMIT 1;
+    v_bus_snapshot_at  := (SELECT r.created_at          FROM recargas r WHERE r.negocio_id = v_negocio_id AND r.tipo_servicio_id = v_tipo_bus_id ORDER BY r.created_at DESC LIMIT 1);
+    v_bus_snapshot_val := (SELECT r.saldo_virtual_actual FROM recargas r WHERE r.negocio_id = v_negocio_id AND r.tipo_servicio_id = v_tipo_bus_id ORDER BY r.created_at DESC LIMIT 1);
 
     v_bus_agregado := COALESCE((
         SELECT SUM(rv.monto_virtual)
@@ -260,6 +252,10 @@ BEGIN
             'celular', v_saldo_virtual_celular,
             'bus',     v_saldo_virtual_bus
         ),
+        'snapshot_virtuales',   json_build_object(
+            'celular', COALESCE(v_celular_snapshot_val, 0),
+            'bus',     COALESCE(v_bus_snapshot_val, 0)
+        ),
         'agregado_virtual_hoy', json_build_object(
             'celular', v_celular_agregado,
             'bus',     v_bus_agregado
@@ -294,10 +290,9 @@ GRANT  EXECUTE ON FUNCTION public.fn_datos_cierre_diario() TO authenticated;
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_datos_cierre_diario IS
-'v1.0 — Consolida en 1 RPC todos los datos iniciales del wizard de cierre diario.
-Reemplaza 8-9 queries paralelas de cargarDatosIniciales() en cierre-diario.page.ts:
-getSaldosAnteriores, getAgregadoVirtualHoy, getDatosCierreDiario, getSaldoUltimoCierre x2,
-verificarTransferenciaYaHecha (fn_verificar_transferencia_caja_chica_hoy),
-obtenerEstadoCaja y getResumenTurnoActual.
+'v1.1 — Agrega snapshot_virtuales (valor puro del último registro en recargas, sin agregado).
+La página usa saldos_virtuales para mostrar el total en UI y snapshot_virtuales para enviarlo
+como p_saldo_anterior_* a fn_ejecutar_cierre_diario (el SQL recalcula el agregado internamente).
+v1.0: Consolida en 1 RPC todos los datos iniciales del wizard de cierre diario.
 Multi-tenant: filtra por get_negocio_id(). STABLE: lectura pura.
 Sin fn_assert_no_superadmin: el superadmin necesita ver el wizard del negocio activo.';

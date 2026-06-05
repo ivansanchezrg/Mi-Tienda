@@ -10,6 +10,7 @@ export interface DatosCierreDiario {
     empleado: { id: string; nombre: string } | null;
   } | null;
   saldosVirtuales:      { celular: number; bus: number };
+  snapshotVirtuales:    { celular: number; bus: number };
   agregadoVirtualHoy:   { celular: number; bus: number };
   saldosCajas:          { cajaCHicaDigital: number; cajaCelular: number; cajaBus: number };
   saldosAntesCierre:    { caja: number; varios: number };

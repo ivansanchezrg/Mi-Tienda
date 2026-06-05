@@ -4,7 +4,7 @@
     <div class="bs-header__icon">
       <ion-icon name="calculator-outline"></ion-icon>
     </div>
-    <span class="bs-header__title">Calc. Margen</span>
+    <span class="bs-header__title">Calculadora de margen</span>
     <button class="bs-header__close" (click)="cerrar()">
       <ion-icon name="close-outline"></ion-icon>
     </button>
@@ -28,9 +28,11 @@
             min="0">
         </div>
 
+        @if (costo && costo > 0) {
         <div class="calc-field">
           <label class="calc-label">Precio de venta ($)</label>
           <input
+            #precioInput
             class="calc-input destacado"
             type="number"
             inputmode="decimal"
@@ -39,27 +41,24 @@
             (ngModelChange)="onPrecioVentaChange()"
             min="0">
         </div>
+        }
       </div>
-
-      <!-- Margen de ganancia -->
-      @if (costo && costo > 0) {
-      <div class="margen-section">
-        <span class="margen-label">Margen de ganancia</span>
-        <span class="margen-valor" [class.danger]="margenColor === 'danger'" [class.warning]="margenColor === 'warning'" [class.success]="margenColor === 'success'">{{ margenPct }}%</span>
-      </div>
-      }
 
       <!-- Resultado -->
       @if (costo && precioVenta && precioVenta > 0) {
       <div class="resultado-card" [class.danger-card]="margenColor === 'danger'" [class.warning-card]="margenColor === 'warning'" [class.success-card]="margenColor === 'success'">
-        <div class="resultado-row">
-          <span class="resultado-label">Ganancia</span>
-          <span class="resultado-valor">{{ ganancia }}</span>
+        <div class="resultado-cols">
+          <div class="resultado-col">
+            <span class="resultado-col-label">Ganancia</span>
+            <span class="resultado-col-valor">{{ ganancia }}</span>
+          </div>
+          <div class="resultado-col-divider"></div>
+          <div class="resultado-col">
+            <span class="resultado-col-label">Margen</span>
+            <span class="resultado-col-valor" [class.danger]="margenColor === 'danger'" [class.warning]="margenColor === 'warning'" [class.success]="margenColor === 'success'">{{ margenPct }}%</span>
+          </div>
         </div>
-        <div class="resultado-row">
-          <span class="resultado-label">{{ margenLabel }}</span>
-          <span class="resultado-badge" [class.danger]="margenColor === 'danger'" [class.warning]="margenColor === 'warning'" [class.success]="margenColor === 'success'">{{ margenPct }}% margen</span>
-        </div>
+        <span class="resultado-tag" [class.danger]="margenColor === 'danger'" [class.warning]="margenColor === 'warning'" [class.success]="margenColor === 'success'">{{ margenLabel }}</span>
       </div>
       }
 
@@ -67,8 +66,9 @@
   </div>
 
   <!-- Botones -->
-  <div class="bs-actions bs-actions--compact">
-    <ion-button fill="solid" color="success" (click)="limpiar()">Limpiar</ion-button>
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cerrar</ion-button>
+    <ion-button expand="block" fill="solid" color="success" (click)="limpiar()">Nueva consulta</ion-button>
   </div>
 
 </div>

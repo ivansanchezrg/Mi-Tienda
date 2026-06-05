@@ -88,13 +88,9 @@ export class CierreDiarioPage implements HasPendingChanges {
   saldoAnteriorCelular = 0;
   saldoAnteriorBus = 0;
 
-  // Saldo virtual actual (saldo_anterior + agregado_hoy)
+  // Saldo virtual actual (snapshot + agregado) — total que debería haber en la máquina
   saldoVirtualActualCelular = 0;
   saldoVirtualActualBus = 0;
-
-  // Agregado pendiente de recargas virtuales
-  agregadoCelularHoy = 0;
-  agregadoBusHoy = 0;
 
   // Saldos de cajas virtuales (para cálculo de ventas y verificación)
   saldoAnteriorCajaCelular = 0;
@@ -208,13 +204,12 @@ export class CierreDiarioPage implements HasPendingChanges {
       this.turnoActivo   = datos.turnoActivo as any;
       this.fondoApertura = datos.turnoActivo?.fondo_apertura ?? 0;
 
-      // Saldos virtuales (snapshot = último cierre; agregado = recargas posteriores)
-      this.saldoAnteriorCelular      = datos.saldosVirtuales.celular;
-      this.saldoAnteriorBus          = datos.saldosVirtuales.bus;
+      // saldoAnterior* = snapshot puro del último cierre (se envía al SQL para calcular venta)
+      // saldoVirtualActual* = snapshot + agregado (total actual, para mostrar en UI)
+      this.saldoAnteriorCelular      = datos.snapshotVirtuales.celular;
+      this.saldoAnteriorBus          = datos.snapshotVirtuales.bus;
       this.saldoVirtualActualCelular = datos.saldosVirtuales.celular;
       this.saldoVirtualActualBus     = datos.saldosVirtuales.bus;
-      this.agregadoCelularHoy        = datos.agregadoVirtualHoy.celular;
-      this.agregadoBusHoy            = datos.agregadoVirtualHoy.bus;
 
       // Saldos de cajas físicas
       this.saldoCajaChicaDigital    = datos.saldosCajas.cajaCHicaDigital;
@@ -260,19 +255,11 @@ export class CierreDiarioPage implements HasPendingChanges {
   }
 
   get ventaCelular(): number {
-    return this.saldoEsperadoCelular - this.saldoCelularFinal;
+    return this.saldoVirtualActualCelular - this.saldoCelularFinal;
   }
 
   get ventaBus(): number {
-    return this.saldoEsperadoBus - this.saldoBusFinal;
-  }
-
-  get saldoEsperadoCelular(): number {
-    return this.saldoVirtualActualCelular + this.agregadoCelularHoy;
-  }
-
-  get saldoEsperadoBus(): number {
-    return this.saldoVirtualActualBus + this.agregadoBusHoy;
+    return this.saldoVirtualActualBus - this.saldoBusFinal;
   }
 
   get hayVentaNegativa(): boolean {

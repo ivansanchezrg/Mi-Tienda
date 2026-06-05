@@ -7,7 +7,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   closeOutline, phonePortraitOutline, busOutline,
-  cashOutline, scaleOutline, informationCircleOutline
+  cashOutline, scaleOutline, informationCircleOutline, refreshOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
@@ -51,7 +51,8 @@ export class CuadreCajaPage implements OnInit {
       busOutline,
       cashOutline,
       scaleOutline,
-      informationCircleOutline
+      informationCircleOutline,
+      refreshOutline
     });
   }
 
@@ -127,7 +128,7 @@ export class CuadreCajaPage implements OnInit {
     this.modalCtrl.dismiss();
   }
 
-  limpiar() {
+  nuevaConsulta() {
     this.form.reset();
     setTimeout(() => this.saldoCelularInputRef?.nativeElement?.focus(), 50);
   }

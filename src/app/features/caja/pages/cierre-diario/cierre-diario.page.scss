@@ -385,19 +385,17 @@
     .saldo-badge-neutral {
       margin-left: var(--spacing-sm);
     }
-  }
 
-  .saldo-detalle {
-    font-size: 12px;
-    color: var(--ion-color-medium);
-    font-weight: var(--font-weight-medium);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-
-    &--warning {
+    .saldo-badge--warning {
+      background: rgba(var(--ion-color-warning-rgb), 0.15);
       color: var(--ion-color-warning-shade);
     }
+  }
+
+  .saldo-deficit-hint {
+    font-size: 11px;
+    color: var(--ion-color-warning-shade);
+    margin-top: 2px;
   }
 }
 

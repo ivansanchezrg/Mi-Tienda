@@ -277,11 +277,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE cajas;
 -- 2. REPLICA IDENTITY FULL — entrega la fila completa en UPDATE (no solo columnas modificadas)
 ALTER TABLE cajas REPLICA IDENTITY FULL;
 
--- 3. Política RLS SELECT para que Realtime respete aislamiento multi-tenant
-CREATE POLICY "authenticated puede leer cajas" ON cajas FOR SELECT TO authenticated USING (true);
+-- 3. La política RLS SELECT ya está definida en docs/setup/02_rls.sql (cajas_select).
+--    NO crear una política adicional aquí — múltiples políticas SELECT se combinan con OR
+--    y una con USING(true) anularía el filtro de negocio_id, exponiendo datos de todos los negocios.
+--    Si existe la política incorrecta del pasado, eliminarla:
+DROP POLICY IF EXISTS "authenticated puede leer cajas" ON cajas;
 ```
 
-> **Nota:** Si se re-ejecuta `schema.sql` (reset completo), hay que volver a ejecutar este archivo — `DROP TABLE ... CASCADE` elimina la publicación y la política RLS automáticamente.
+> **Nota:** Si se re-ejecuta `schema.sql` (reset completo), hay que volver a ejecutar este archivo — `DROP TABLE ... CASCADE` elimina la publicación Realtime y la política RLS automáticamente.
 
 ### Flujo en el cliente (`CajasService`)
 

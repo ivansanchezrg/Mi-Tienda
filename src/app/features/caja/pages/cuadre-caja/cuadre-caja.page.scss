@@ -8,7 +8,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
-    padding: var(--spacing-md) var(--spacing-lg);
+    padding: var(--spacing-xs) var(--spacing-lg);
 }
 
 .input-label {
@@ -48,11 +48,6 @@
     border-radius: 4px;
 }
 
-.input-divider {
-    height: 1px;
-    background: var(--ion-color-step-100);
-    margin: 0 var(--spacing-lg);
-}
 
 .amount-wrapper {
     display: flex;
@@ -111,7 +106,7 @@
 }
 
 .result-card {
-    margin: var(--spacing-sm) var(--spacing-lg);
+    margin: var(--spacing-xs) var(--spacing-lg);
     padding: var(--spacing-md) var(--spacing-lg);
     border-radius: var(--radius-md);
     background: rgba(var(--ion-color-success-rgb), 0.06);

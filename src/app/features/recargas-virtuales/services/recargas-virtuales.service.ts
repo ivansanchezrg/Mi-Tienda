@@ -64,6 +64,30 @@ export class RecargasVirtualesService {
   private ui = inject(UiService);
 
   private saldoInFlight = new Map<string, Promise<number>>();
+  private tipoServicioIdCache = new Map<string, number>();
+  private tipoServicioInFlight = new Map<string, Promise<number>>();
+
+  private getTipoServicioId(servicio: 'CELULAR' | 'BUS'): Promise<number> {
+    if (this.tipoServicioIdCache.has(servicio)) {
+      return Promise.resolve(this.tipoServicioIdCache.get(servicio)!);
+    }
+    if (this.tipoServicioInFlight.has(servicio)) {
+      return this.tipoServicioInFlight.get(servicio)!;
+    }
+    const promise = Promise.resolve(
+      this.supabase.client
+        .from('tipos_servicio')
+        .select('id')
+        .eq('codigo', servicio)
+        .single()
+    ).then(res => {
+      if (res.error) throw res.error;
+      this.tipoServicioIdCache.set(servicio, res.data.id);
+      return res.data.id as number;
+    }).finally(() => this.tipoServicioInFlight.delete(servicio));
+    this.tipoServicioInFlight.set(servicio, promise);
+    return promise;
+  }
 
   async getPorcentajeComision(servicio: 'CELULAR' | 'BUS'): Promise<number> {
     const response = await this.supabase.client
@@ -82,19 +106,17 @@ export class RecargasVirtualesService {
    * BUS: sin paso intermedio, no tiene deudas en este sentido.
    */
   async obtenerDeudasCelular(): Promise<RecargaVirtual[]> {
+    const tipoId = await this.getTipoServicioId('CELULAR');
     const response = await this.supabase.client
       .from('recargas_virtuales')
-      .select('*, tipos_servicio!inner(codigo)')
-      .eq('tipos_servicio.codigo', 'CELULAR')
+      .select('*')
+      .eq('tipo_servicio_id', tipoId)
       .eq('pagado_proveedor', false)
       .order('fecha', { ascending: true });
 
     if (response.error) throw response.error;
 
-    return (response.data || []).map((r: any) => ({
-      ...r,
-      servicio: r.tipos_servicio.codigo
-    }));
+    return (response.data || []).map((r: any) => ({ ...r, servicio: 'CELULAR' }));
   }
 
   /**
@@ -103,10 +125,11 @@ export class RecargasVirtualesService {
    * BUS:     pagado_proveedor=false (no tiene paso intermedio)
    */
   async obtenerPendientes(servicio: 'CELULAR' | 'BUS'): Promise<RecargaVirtual[]> {
+    const tipoId = await this.getTipoServicioId(servicio);
     const query = this.supabase.client
       .from('recargas_virtuales')
-      .select('*, tipos_servicio!inner(codigo)')
-      .eq('tipos_servicio.codigo', servicio)
+      .select('*')
+      .eq('tipo_servicio_id', tipoId)
       .eq('ganancia_liquidada', false);
 
     const filtrado = servicio === 'CELULAR'
@@ -117,17 +140,15 @@ export class RecargasVirtualesService {
 
     if (response.error) throw response.error;
 
-    return (response.data || []).map((r: any) => ({
-      ...r,
-      servicio: r.tipos_servicio.codigo
-    }));
+    return (response.data || []).map((r: any) => ({ ...r, servicio }));
   }
 
   async obtenerHistorial(servicio: 'CELULAR' | 'BUS'): Promise<RecargaVirtual[]> {
+    const tipoId = await this.getTipoServicioId(servicio);
     const response = await this.supabase.client
       .from('recargas_virtuales')
-      .select('*, tipos_servicio!inner(codigo), usuarios!inner(nombre)')
-      .eq('tipos_servicio.codigo', servicio)
+      .select('*, usuarios(nombre)')
+      .eq('tipo_servicio_id', tipoId)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -135,7 +156,7 @@ export class RecargasVirtualesService {
 
     return (response.data || []).map((r: any) => ({
       ...r,
-      servicio: r.tipos_servicio.codigo,
+      servicio,
       empleado_nombre: r.usuarios?.nombre ?? null
     }));
   }
@@ -145,7 +166,7 @@ export class RecargasVirtualesService {
       .from('cajas')
       .select('saldo_actual')
       .eq('codigo', codigoCaja)
-      .single();
+      .maybeSingle();
 
     if (response.error) throw response.error;
     return response.data?.saldo_actual ?? 0;
@@ -165,10 +186,12 @@ export class RecargasVirtualesService {
   }
 
   private async _fetchSaldoVirtualActual(servicio: 'CELULAR' | 'BUS'): Promise<number> {
+    const tipoId = await this.getTipoServicioId(servicio);
+
     const snapshot = await this.supabase.client
       .from('recargas')
-      .select('saldo_virtual_actual, created_at, tipos_servicio!inner(codigo)')
-      .eq('tipos_servicio.codigo', servicio)
+      .select('saldo_virtual_actual, created_at')
+      .eq('tipo_servicio_id', tipoId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -180,8 +203,8 @@ export class RecargasVirtualesService {
 
     const postSnapshot = await this.supabase.client
       .from('recargas_virtuales')
-      .select('monto_virtual, tipos_servicio!inner(codigo)')
-      .eq('tipos_servicio.codigo', servicio)
+      .select('monto_virtual')
+      .eq('tipo_servicio_id', tipoId)
       .gt('created_at', fechaCorte);
 
     if (postSnapshot.error) throw postSnapshot.error;
@@ -273,7 +296,6 @@ export class RecargasVirtualesService {
 
       // Reemplazar mensaje técnico de turno por texto legible antes de que call() lo muestre
       if (response.error) {
-        console.error('[BUS debug] error raw:', response.error);
         const raw: string = response.error.message ?? '';
         if (raw.toLowerCase().includes('turno')) {
           response.error.message = 'Debes tener un turno abierto. Ve a Inicio y abre el turno primero.';

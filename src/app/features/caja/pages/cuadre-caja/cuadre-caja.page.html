@@ -19,11 +19,11 @@
         <label class="input-label">
           <ion-icon name="phone-portrait-outline"></ion-icon>
           <div class="input-label-text">
-            <span>Saldo Virtual Celular</span>
+            <span>Saldo virtual en celular</span>
             @if (loading) {
               <ion-skeleton-text [animated]="true" class="hint-skeleton"></ion-skeleton-text>
             } @else {
-              <p class="input-hint">Sistema actual: ${{ saldoVirtualActualCelular | appCurrency }}</p>
+              <p class="input-hint">Último cierre: ${{ saldoVirtualActualCelular | appCurrency }}</p>
             }
           </div>
         </label>
@@ -37,18 +37,16 @@
         }
       </div>
 
-      <div class="input-divider"></div>
-
       <!-- Saldo Bus -->
       <div class="input-group">
         <label class="input-label">
           <ion-icon name="bus-outline"></ion-icon>
           <div class="input-label-text">
-            <span>Saldo Virtual Bus</span>
+            <span>Saldo virtual en bus</span>
             @if (loading) {
               <ion-skeleton-text [animated]="true" class="hint-skeleton"></ion-skeleton-text>
             } @else {
-              <p class="input-hint">Sistema actual: ${{ saldoVirtualActualBus | appCurrency }}</p>
+              <p class="input-hint">Último cierre: ${{ saldoVirtualActualBus | appCurrency }}</p>
             }
           </div>
         </label>
@@ -94,8 +92,9 @@
   </div>
 
   <!-- Botones -->
-  <div class="bs-actions bs-actions--compact">
-    <ion-button fill="solid" color="tertiary" (click)="limpiar()">Limpiar</ion-button>
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cerrar</ion-button>
+    <ion-button expand="block" fill="solid" color="tertiary" (click)="nuevaConsulta()">Nueva consulta</ion-button>
   </div>
 
 </div>

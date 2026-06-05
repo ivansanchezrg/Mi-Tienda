@@ -176,10 +176,21 @@ El botón **"Transferir $X a Varios/Tienda"** muestra el monto exacto por liquid
 
 | Método | Fórmula | Usar en |
 |---|---|---|
-| `getSaldoVirtualActual(servicio)` | Último snapshot + recargas posteriores al snapshot | Cierre diario, cuadre de caja, notificaciones, modal de compra BUS. **Home ya NO lo llama directamente** — desde 2026-05-30 usa `fn_home_dashboard` (RPC consolidada) que incluye el saldo de CELULAR y BUS en un solo round-trip |
-| `getSaldoUltimoCierre(servicio)` | Solo el `saldo_virtual_actual` del último snapshot en `recargas` | Uso interno — base de cálculo para `getSaldoVirtualActual()`. No usar directamente en UI. |
+| `getSaldoVirtualActual(servicio)` | Último snapshot + recargas posteriores al snapshot | Página de Recargas Virtuales, cuadre de caja, notificaciones, modal de compra BUS. **Home ya NO lo llama directamente** — desde 2026-05-30 usa `fn_home_dashboard`. **Cierre diario tampoco** — usa `fn_datos_cierre_diario` que retorna `saldos_virtuales` (total UI) y `snapshot_virtuales` (base para SQL). |
 
 > Ambos servicios viven en el feature `recargas-virtuales/services/` — fueron movidos desde `core/` porque solo los usa este módulo y el dashboard de caja los accede via `inject()`.
+
+### Patrón de filtros en queries de `recargas_virtuales`
+
+Las queries que filtran por servicio usan `tipo_servicio_id` (FK directa) en lugar del join embebido `tipos_servicio!inner(codigo)`. El filtro en joins embebidos de Supabase JS **no actúa como WHERE** — solo filtra columnas del resultado, no filas. Usar siempre:
+
+```typescript
+const tipoId = await this.getTipoServicioId(servicio); // resuelve y cachea el ID
+query.eq('tipo_servicio_id', tipoId)                   // ✅ filtra filas correctamente
+// ❌ NO: .eq('tipos_servicio.codigo', servicio)        // no filtra filas en Supabase JS
+```
+
+`getTipoServicioId()` tiene cache en memoria + in-flight dedup para evitar queries duplicadas cuando CELULAR y BUS se resuelven en paralelo.
 
 ---
 
@@ -398,8 +409,10 @@ Si no hay FACTURACION_BUS_PENDIENTE y diasHastaFinMes <= bus_dias_antes_facturac
 
 - `RecargasVirtualesService` usa `throw response.error` en métodos de lectura directa (`getPorcentajeComision`, `getSaldoVirtualActual`, `obtenerPendientes()`, etc.). Los callers tienen try/catch.
 - `getSaldoVirtualActual(servicio)` tiene in-flight dedup: si home y `NotificacionesService` llaman simultáneamente con el mismo servicio, solo se lanza una query — ambos awaitan la misma `Promise`. El mapa `saldoInFlight` se limpia al resolver (`.finally()`). Mismo patrón que `ConfigService.loadingPromise`.
+- `getTipoServicioId(servicio)` tiene cache en memoria (`tipoServicioIdCache`) + in-flight dedup (`tipoServicioInFlight`). Resuelve el ID de `tipos_servicio` una sola vez por sesión aunque se llame en paralelo para CELULAR y BUS simultáneamente.
 - `registrarRecargaProveedorCelular()` lanza `Error('respuesta vacía')` si `supabase.call()` retorna null. El `confirmar()` en `RegistrarRecargaModalComponent` tiene try/catch que lo captura y muestra `error.message`.
 - El porcentaje de comisión viene de la tabla `tipos_servicio` (`porcentaje_comision`). Nunca está hardcodeado en el código TypeScript ni en las funciones SQL. Esto permite cambiar la comisión BUS sin tocar código.
+- **`fn_datos_cierre_diario` devuelve `saldos_virtuales` ya como total final** (snapshot + agregado). El campo `agregado_virtual_hoy` es solo informativo para mostrar en la UI cuánto se sumó hoy — no se debe volver a sumar sobre `saldos_virtuales`. El getter `saldoEsperadoBus` en `cierre-diario.page.ts` usa solo `saldoVirtualActualBus` sin sumar el agregado.
 
 ---
 

@@ -551,6 +551,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       if (data?.cliente) {
         this.clienteSeleccionado = data.cliente;
         this.sinConsumidorFinal = false;
+        this.cdr.markForCheck();
       }
       return;
     }
@@ -567,6 +568,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const { data } = await modal.onDidDismiss();
     if (data?.cliente) {
       this.clienteSeleccionado = data.cliente;
+      this.cdr.markForCheck();
     }
   }
 

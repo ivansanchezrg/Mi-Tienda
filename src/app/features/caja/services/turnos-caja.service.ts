@@ -473,6 +473,7 @@ export class TurnosCajaService {
     const data = await this.supabase.call<{
       turno_activo: any | null;
       saldos_virtuales:      { celular: number; bus: number };
+      snapshot_virtuales:    { celular: number; bus: number };
       agregado_virtual_hoy:  { celular: number; bus: number };
       saldos_cajas:          { caja_chica_digital: number; caja_celular: number; caja_bus: number };
       saldos_antes_cierre:   { caja: number; varios: number };
@@ -485,6 +486,7 @@ export class TurnosCajaService {
     );
 
     const sv  = data?.saldos_virtuales      ?? { celular: 0, bus: 0 };
+    const sn  = data?.snapshot_virtuales    ?? { celular: 0, bus: 0 };
     const ag  = data?.agregado_virtual_hoy  ?? { celular: 0, bus: 0 };
     const sc  = data?.saldos_cajas          ?? { caja_chica_digital: 0, caja_celular: 0, caja_bus: 0 };
     const sac = data?.saldos_antes_cierre   ?? { caja: 0, varios: 0 };
@@ -494,6 +496,7 @@ export class TurnosCajaService {
     return {
       turnoActivo:               data?.turno_activo ?? null,
       saldosVirtuales:           { celular: sv.celular ?? 0,  bus: sv.bus ?? 0 },
+      snapshotVirtuales:         { celular: sn.celular ?? 0,  bus: sn.bus ?? 0 },
       agregadoVirtualHoy:        { celular: ag.celular ?? 0,  bus: ag.bus ?? 0 },
       saldosCajas:               { cajaCHicaDigital: sc.caja_chica_digital ?? 0, cajaCelular: sc.caja_celular ?? 0, cajaBus: sc.caja_bus ?? 0 },
       saldosAntesCierre:         { caja: sac.caja ?? 0, varios: sac.varios ?? 0 },

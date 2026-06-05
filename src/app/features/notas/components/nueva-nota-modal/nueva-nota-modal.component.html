@@ -36,11 +36,9 @@
   </div>
 
   <!-- Botones -->
-  <div class="bs-actions bs-actions--compact">
-    <ion-button fill="solid" color="secondary" (click)="guardar()" [disabled]="!valido">
-      <ion-icon name="checkmark-outline" slot="start"></ion-icon>
-      Guardar
-    </ion-button>
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">Salir</ion-button>
+    <ion-button expand="block" fill="solid" color="secondary" (click)="guardar()" [disabled]="!valido">Guardar</ion-button>
   </div>
 
 </div>

@@ -50,9 +50,9 @@ interface MenuGroup {
   ]
 })
 export class SidebarComponent implements OnInit, OnDestroy {
-  private menuCtrl      = inject(MenuController);
-  private modalCtrl     = inject(ModalController);
-  private authService   = inject(AuthService);
+  private menuCtrl          = inject(MenuController);
+  private modalCtrl         = inject(ModalController);
+  private authService       = inject(AuthService);
   private turnosCajaService = inject(TurnosCajaService);
   private ui            = inject(UiService);
   private configService = inject(ConfigService);
@@ -128,6 +128,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
+    // Invalidar caché antes de leer — garantiza flags frescos desde BD cada vez
+    // que el sidebar se monta, sin depender del TTL de 1 hora del caché.
+    this.configService.invalidar();
+
     const [usuario, config] = await Promise.all([
       this.authService.getUsuarioActual(),
       this.configService.get()
@@ -139,18 +143,15 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (usuario) {
       this.aplicarDatosUsuario(usuario);
     }
-
-    // negocios.nombre es la fuente de verdad — viene en el JWT via fn_set_negocio_activo.
     this.nombreNegocio = usuario?.negocio_nombre || '';
 
-    // El POS solo se habilita para el empleado que abrio el turno.
-    // TurnosCajaService emite esMiTurno$ via Realtime de la tabla turnos_caja.
+    // POS: solo para el empleado que abrió el turno (Realtime de turnos_caja).
     this.posSub = this.turnosCajaService.esMiTurno$.subscribe(esMio => {
       this.posHabilitado = esMio;
       this.recalcularMenu();
     });
 
-    // Realtime: actualizar sidebar cuando el admin cambia rol, nombre, etc.
+    // Datos del usuario: actualizar sidebar cuando el admin cambia rol, nombre, etc.
     this.usuarioSub = this.authService.usuarioActual$.subscribe(usr => {
       if (usr) {
         this.aplicarDatosUsuario(usr);

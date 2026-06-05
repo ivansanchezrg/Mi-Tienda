@@ -78,14 +78,15 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'No se encontró la caja Tienda');
   END IF;
 
-  -- Validar saldo suficiente
-  IF v_saldo_tienda < p_deficit_varios THEN
+  -- Validar saldo suficiente para cubrir déficit + fondo de apertura
+  IF v_saldo_tienda < (p_deficit_varios + p_fondo_apertura) THEN
     RETURN json_build_object(
       'success', false,
       'error', FORMAT(
-        'Saldo insuficiente en Tienda ($%s) para cubrir el déficit de VARIOS ($%s). Registra un ingreso manual en Tienda primero.',
+        'Saldo insuficiente en Tienda ($%s) para cubrir el déficit de VARIOS ($%s) más el fondo de apertura ($%s). Registra un ingreso manual en Tienda primero.',
         TO_CHAR(v_saldo_tienda, 'FM999990.00'),
-        TO_CHAR(p_deficit_varios, 'FM999990.00')
+        TO_CHAR(p_deficit_varios, 'FM999990.00'),
+        TO_CHAR(p_fondo_apertura, 'FM999990.00')
       )
     );
   END IF;
@@ -159,6 +160,32 @@ BEGIN
   INSERT INTO turnos_caja (id, negocio_id, caja_id, numero_turno, empleado_id, hora_fecha_apertura, fondo_apertura)
   VALUES (v_turno_id, v_negocio_id, v_caja_chica_id, v_numero_turno, p_empleado_id, NOW(), p_fondo_apertura);
 
+  -- Registrar EGRESO de Tienda por el fondo entregado al cajón (solo si hay fondo > 0).
+  -- Usa la misma categoría FONDO-APERTURA que fn_abrir_turno para consistencia en historial.
+  -- El saldo de Tienda ya fue deducido por el déficit en el paso 1; se descuenta el fondo
+  -- del saldo resultante (v_saldo_tienda - p_deficit_varios).
+  IF p_fondo_apertura > 0 THEN
+    INSERT INTO operaciones_cajas (
+      id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_sistema_id,
+      monto, saldo_anterior, saldo_actual, descripcion
+    ) VALUES (
+      gen_random_uuid(),
+      v_negocio_id,
+      v_caja_id,
+      p_empleado_id,
+      'EGRESO',
+      'a1000001-0000-0000-0000-000000000007',  -- FONDO-APERTURA (mismo que fn_abrir_turno)
+      p_fondo_apertura,
+      v_saldo_tienda - p_deficit_varios,
+      v_saldo_tienda - p_deficit_varios - p_fondo_apertura,
+      'Fondo entregado al cajon para apertura de turno #' || v_numero_turno
+    );
+
+    UPDATE cajas
+    SET saldo_actual = v_saldo_tienda - p_deficit_varios - p_fondo_apertura
+    WHERE id = v_caja_id AND negocio_id = v_negocio_id;
+  END IF;
+
   -- ==========================================
   -- RESULTADO
   -- ==========================================
@@ -168,7 +195,7 @@ BEGIN
     'op_egreso_id',       v_op_egreso_id,
     'op_ingreso_id',      v_op_ingreso_id,
     'total_retirado',     p_deficit_varios,
-    'saldo_tienda_nuevo', v_saldo_tienda - p_deficit_varios
+    'saldo_tienda_nuevo', v_saldo_tienda - p_deficit_varios - p_fondo_apertura
   );
 END;
 $$;
@@ -180,7 +207,9 @@ GRANT  EXECUTE ON FUNCTION public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMA
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_reparar_deficit_turno IS
-  'v4.0 — Elimina p_cat_egreso_id y p_cat_ingreso_id: categorías migradas a categorias_sistema (UUIDs fijos). '
+  'v4.1 — Validación de saldo incluye fondo de apertura (p_deficit_varios + p_fondo_apertura). '
+  'Agrega EGRESO FONDO-APERTURA de Tienda cuando p_fondo_apertura > 0 (mismo comportamiento que fn_abrir_turno). '
+  'v4.0: Categorías migradas a categorias_sistema (UUIDs fijos). '
   'DEF-RETIRAR (EGRESO Tienda) y DEF-REPONER (INGRESO Varios) referenciados internamente. '
   'v3.0: Solo repara déficit de VARIOS (fondo libre). '
   'EGRESO de Tienda + INGRESO a VARIOS + INSERT en turnos_caja con fondo_apertura libre. '
