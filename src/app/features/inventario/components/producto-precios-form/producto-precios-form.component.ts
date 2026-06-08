@@ -12,7 +12,7 @@ import {
 import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only.directive';
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
 import { CurrencyService } from '../../../../core/services/currency.service';
-import { calcularMargenDesdePrecio, calcularPrecioDesdeMargen } from '../../../../core/utils/margen.util';
+import { calcularMargenDesdePrecio, resolverPrecioYMargen } from '../../../../core/utils/margen.util';
 
 @Component({
     selector: 'app-producto-precios-form',
@@ -63,14 +63,18 @@ export class ProductoPreciosFormComponent implements OnInit, OnDestroy {
                 return;
             }
             if (!this._precioEditadoManualmente) {
-                // Precio no tocado: calcular automáticamente con el margen actual
-                const precio = calcularPrecioDesdeMargen(costo, this.margenPct);
+                // Precio no tocado: calcular automáticamente con el margen objetivo actual.
+                // resolverPrecioYMargen redondea el precio a centavo y devuelve el margen real.
+                const { precio, margenReal } = resolverPrecioYMargen(costo, this.margenPct);
                 this.formGroup.get('precio_venta')!.setValue(
                     this.currencyService.format(precio),
                     { emitEvent: false }
                 );
+                this.margenPct = margenReal;
+                this.margenAbsoluto = Math.round((precio - costo) * 100) / 100;
+            } else {
+                this._recalcularMargen();
             }
-            this._recalcularMargen();
             this.costoChange.emit(costo);
         });
 

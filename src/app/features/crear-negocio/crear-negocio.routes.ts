@@ -29,6 +29,10 @@ export const CREAR_NEGOCIO_ROUTES: Routes = [
         loadComponent: () => import('../onboarding/pages/negocio/onboarding-negocio.page').then(m => m.OnboardingNegocioPage)
       },
       {
+        path: 'contexto',
+        loadComponent: () => import('../onboarding/pages/contexto/onboarding-contexto.page').then(m => m.OnboardingContextoPage)
+      },
+      {
         path: 'caja',
         loadComponent: () => import('../onboarding/pages/caja/onboarding-caja.page').then(m => m.OnboardingCajaPage)
       }

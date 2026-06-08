@@ -1,5 +1,6 @@
 import { Component, inject, OnDestroy, ViewChild } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
+import { NavController } from '@ionic/angular/standalone';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
@@ -62,6 +63,7 @@ interface OperacionAgrupada {
 })
 export class OperacionesCajaPage implements OnDestroy {
   private router = inject(Router);
+  private navCtrl = inject(NavController);
   private service = inject(OperacionesCajaService);
   private cajasService = inject(CajasService);
   private ui = inject(UiService);
@@ -141,7 +143,7 @@ export class OperacionesCajaPage implements OnDestroy {
           { label: 'Registrar Egreso',  icon: 'arrow-up-outline',   value: 'EGRESO',  color: 'danger' },
         );
       }
-      opciones.push({ label: 'Cierres de caja', icon: 'time-outline', value: 'HISTORIAL_TURNOS' });
+      opciones.push({ label: 'Historial de cierres', icon: 'time-outline', value: 'HISTORIAL_TURNOS' });
       if (this.esAdmin) {
         opciones.push({ label: 'Editar caja', icon: 'create-outline', value: 'EDITAR' });
       }
@@ -364,7 +366,7 @@ export class OperacionesCajaPage implements OnDestroy {
       return;
     }
     if (option.value === 'HISTORIAL_TURNOS') {
-      this.router.navigate([ROUTES.caja.historialTurnos]);
+      this.navCtrl.navigateForward([ROUTES.caja.historialTurnos]);
       return;
     }
     if (!this.isOnline) {

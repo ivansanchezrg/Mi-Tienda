@@ -11,6 +11,10 @@ export const ONBOARDING_ROUTES: Routes = [
     loadComponent: () => import('./pages/negocio/onboarding-negocio.page').then(m => m.OnboardingNegocioPage)
   },
   {
+    path: 'contexto',
+    loadComponent: () => import('./pages/contexto/onboarding-contexto.page').then(m => m.OnboardingContextoPage)
+  },
+  {
     path: 'caja',
     loadComponent: () => import('./pages/caja/onboarding-caja.page').then(m => m.OnboardingCajaPage)
   }

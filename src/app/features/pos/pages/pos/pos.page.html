@@ -17,6 +17,22 @@
       }
     </ion-title>
     <ion-buttons slot="end">
+      <!-- Ícono búsqueda / cerrar búsqueda — solo en vista catálogo -->
+      @if (vistaActual === 'catalogo') {
+        @if (catalogoSearchAbierto) {
+          <button class="header-search-btn header-search-btn--active" (click)="cerrarCatalogoSearch()" type="button">
+            <ion-icon name="close-outline"></ion-icon>
+          </button>
+        } @else {
+          <button class="header-search-btn" (click)="abrirCatalogoSearch()" type="button">
+            @if (modoBusqueda === 'codigo') {
+              <ion-icon name="barcode-outline"></ion-icon>
+            } @else {
+              <ion-icon name="search-outline"></ion-icon>
+            }
+          </button>
+        }
+      }
       <!-- Menú ⋮ — acciones rápidas del POS -->
       <app-options-menu triggerId="pos-options" [options]="comprobanteOptions"
         (optionSelected)="onComprobanteOption($event)">
@@ -205,13 +221,6 @@
 
         <div class="catalogo-cats-bar" [class.catalogo-cats-bar--searching]="catalogoSearchAbierto">
           <div class="cats-layer">
-            <button class="cat-search-btn" (click)="abrirCatalogoSearch()" type="button">
-              @if (modoBusqueda === 'codigo') {
-                <ion-icon name="barcode-outline"></ion-icon>
-              } @else {
-                <ion-icon name="search-outline"></ion-icon>
-              }
-            </button>
             <button class="cat-tab" [class.cat-tab--active]="categoriaActivaId === null"
               data-cat-id="__todos__" (click)="seleccionarCategoriaCatalogo(null)">
               Todos
@@ -246,7 +255,7 @@
               }
               <button class="cat-search-close-btn"
                 (mousedown)="$event.preventDefault()"
-                (click)="cerrarCatalogoSearch()" type="button">
+                (click)="limpiarInputBusqueda()" type="button">
                 <ion-icon name="close-outline"></ion-icon>
               </button>
             </div>

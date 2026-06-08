@@ -15,13 +15,6 @@ export interface MenuOption {
     separator?: boolean;
 }
 
-export interface MenuHeader {
-    icon: string;
-    iconColor: string;
-    title: string;
-    subtitle?: string;
-}
-
 @Component({
     selector: 'app-options-menu',
     templateUrl: './options-menu.component.html',
@@ -33,7 +26,6 @@ export class OptionsMenuComponent {
     @ViewChild(IonPopover) popover!: IonPopover;
 
     @Input() options: MenuOption[] = [];
-    @Input() header?: MenuHeader;
     @Input() triggerId = 'options-menu-trigger';
     @Input() triggerColor = 'medium';
     @Input() disabled = false;

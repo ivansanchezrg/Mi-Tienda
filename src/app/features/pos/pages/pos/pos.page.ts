@@ -946,6 +946,15 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.cdr.markForCheck();
   }
 
+  limpiarInputBusqueda() {
+    this.buscarTexto.set('');
+    this.productosBusqueda = [];
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      document.querySelector<HTMLInputElement>('.cat-search-input')?.focus();
+    }, 0);
+  }
+
   // Dispatcher: según el modo activo llama a la lógica correspondiente
   private searchDebounce: ReturnType<typeof setTimeout> | undefined;
   onSearchInput(event: Event) {

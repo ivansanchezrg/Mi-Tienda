@@ -101,6 +101,10 @@ v_venta_celular = (p_saldo_anterior_celular + v_agregado_celular) - p_saldo_celu
 
 Venta negativa indica que falta registrar una recarga del proveedor en Recargas Virtuales.
 
+> **Bug histórico (2026-06-05, resuelto):** La v1.0 de `fn_datos_cierre_diario` no devolvía `snapshot_virtuales`. El front recibía `undefined`, el mapeo lo convertía a `0`, y el cierre calculaba `(0 + agregado) − conteo` dando venta negativa falsa aunque el conteo fuera correcto. Solución: `fn_datos_cierre_diario` v1.1 agrega el campo `snapshot_virtuales` explícitamente.
+
+> **Riesgo latente:** si el empleado registra una recarga de proveedor **entre** cargar el Paso 1 y confirmar el Paso 2, el agregado que recalcula el SQL difiere del que mostró el wizard. En la práctica es muy improbable (el wizard se completa en segundos), pero si ocurriera el cierre mostraría una venta distinta a la del Paso 1. Solución definitiva si se convierte en problema frecuente: que `fn_ejecutar_cierre_diario` reciba el saldo virtual total directamente en lugar de recalcular el agregado.
+
 **Referencia para el conteo físico:**
 ```
 efectivoEsperado = saldoCajaChicaDigital + fondoApertura

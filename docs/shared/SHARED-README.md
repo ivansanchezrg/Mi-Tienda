@@ -27,13 +27,16 @@ Botón de tres puntos que despliega un popover con lista de opciones genéricas.
 
 ```typescript
 export interface MenuOption {
-  label: string;      // Texto visible
-  icon: string;       // Nombre de ionicon (ej: 'trash-outline')
-  value: any;         // Valor que se emite al seleccionar
-  active?: boolean;   // Muestra ✓ a la derecha
-  color?: string;     // Color Ionic: 'danger', 'primary', etc.
+  label: string;       // Texto visible
+  icon: string;        // Nombre de ionicon (ej: 'trash-outline')
+  value: any;          // Valor que se emite al seleccionar
+  active?: boolean;    // Muestra ✓ a la derecha
+  color?: string;      // Color Ionic: 'danger', 'primary', etc.
+  separator?: boolean; // Inserta una línea divisora antes de esta opción
 }
 ```
+
+> **Estilos globales del popover:** `IonPopover` escapa el shadow DOM — su ancho y apariencia se controlan en `src/theme/custom/popovers.scss`, no en el SCSS del componente.
 
 #### Ejemplo de uso
 

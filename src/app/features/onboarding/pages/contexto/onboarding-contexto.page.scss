@@ -1,0 +1,131 @@
+.brand-name {
+  color: var(--ion-color-primary);
+  font-weight: 700;
+}
+
+// Cards de contexto
+.ctx-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.ctx-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px;
+  background: var(--ion-item-background, var(--ion-background-color));
+  border: 1.5px solid var(--ion-color-light-shade);
+  border-radius: 14px;
+
+  &--optional {
+    border-style: dashed;
+    border-color: rgba(var(--ion-color-warning-rgb), 0.4);
+    background: rgba(var(--ion-color-warning-rgb), 0.03);
+  }
+}
+
+.ctx-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  ion-icon { font-size: 22px; }
+
+  &--blue {
+    background: rgba(var(--ion-color-primary-rgb), 0.10);
+    ion-icon { color: var(--ion-color-primary); }
+  }
+
+  &--green {
+    background: rgba(var(--ion-color-success-rgb), 0.10);
+    ion-icon { color: var(--ion-color-success-shade); }
+  }
+
+  &--orange {
+    background: rgba(var(--ion-color-warning-rgb), 0.12);
+    ion-icon { color: var(--ion-color-warning-shade); }
+  }
+}
+
+.ctx-card-body {
+  flex: 1;
+  min-width: 0;
+
+  strong {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ion-text-color);
+    display: block;
+    margin-bottom: 3px;
+  }
+
+  p {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+    margin: 0;
+    line-height: 1.5;
+  }
+}
+
+.ctx-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.ctx-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(var(--ion-color-warning-rgb), 0.15);
+  color: var(--ion-color-warning-shade);
+}
+
+// Flecha entre Cajón y Tienda
+.ctx-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--ion-color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  background: rgba(var(--ion-color-primary-rgb), 0.07);
+  border-radius: 999px;
+  align-self: center;
+  letter-spacing: 0.2px;
+
+  ion-icon { font-size: 14px; }
+}
+
+// Nota al pie
+.ctx-footer-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  background: rgba(var(--ion-color-primary-rgb), 0.05);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 24px;
+  line-height: 1.4;
+
+  ion-icon {
+    font-size: 14px;
+    color: var(--ion-color-primary);
+    flex-shrink: 0;
+  }
+}

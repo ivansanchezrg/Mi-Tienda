@@ -214,7 +214,9 @@
       "Bash(git grep *)",
       "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\" -Recurse -Directory | Where-Object { $_.Name -eq \"caja\" } | Select-Object -ExpandProperty FullName)",
       "Bash(Remove-Item -Recurse -Force \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\caja\\\\components\\\\movimientos-hoy-modal\")",
-      "Bash(del \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\caja\\\\sql\\\\functions\\\\fn_verificar_transferencia_caja_chica_hoy.sql\")"
+      "Bash(del \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\caja\\\\sql\\\\functions\\\\fn_verificar_transferencia_caja_chica_hoy.sql\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\" -Recurse -Directory -ErrorAction SilentlyContinue)",
+      "Bash(Format-Table FullName)"
     ],
     "additionalDirectories": [
       "\\tmp"

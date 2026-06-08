@@ -25,7 +25,7 @@ import { UiService } from '../../../../core/services/ui.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
-import { calcularMargenDesdePrecio, calcularPrecioDesdeMargen } from '../../../../core/utils/margen.util';
+import { calcularMargenDesdePrecio, resolverPrecioYMargen } from '../../../../core/utils/margen.util';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { Atributo, AtributoOpcion } from '../../models/producto.model';
 import { InventarioService } from '../../services/inventario.service';
@@ -377,6 +377,7 @@ export class ProductoCrearPage implements ViewWillEnter {
     }
 
     onCostoChange() {
+        // setTimeout: ionInput emite antes de que el formControl tenga el valor actualizado.
         setTimeout(() => {
             const costo = this.costoActual;
             if (costo <= 0) {
@@ -402,12 +403,13 @@ export class ProductoCrearPage implements ViewWillEnter {
     private _recalcularPrecioDesdeMargen() {
         const costo = this.costoActual;
         if (costo <= 0 || this.margenPct <= 0) return;
-        const precio = calcularPrecioDesdeMargen(costo, this.margenPct);
-        const redondeado = Math.round(precio * 100) / 100;
+        // Precio redondeado a centavo + margen real recalculado desde ese precio
+        const { precio, margenReal } = resolverPrecioYMargen(costo, this.margenPct);
         this.templateForm.get('precio_venta_base')?.setValue(
-            this.currencyService.format(redondeado), { emitEvent: false }
+            this.currencyService.format(precio), { emitEvent: false }
         );
-        this.margenAbsoluto = Math.round((redondeado - costo) * 100) / 100;
+        this.margenPct = margenReal;
+        this.margenAbsoluto = Math.round((precio - costo) * 100) / 100;
     }
 
     get categoriaLabelTemplate(): string {

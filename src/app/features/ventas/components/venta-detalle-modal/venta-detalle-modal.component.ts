@@ -1,5 +1,6 @@
 import { Component, Input, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Capacitor } from '@capacitor/core';
 import {
     IonContent, IonIcon, IonSpinner,
     ModalController
@@ -9,7 +10,7 @@ import {
     closeOutline, receiptOutline, documentTextOutline, documentOutline,
     cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
     personOutline, calendarOutline, printOutline, alertCircleOutline,
-    banOutline, shareOutline
+    banOutline, shareOutline, downloadOutline
 } from 'ionicons/icons';
 import { VentasService } from '../../services/ventas.service';
 import { ShareVentaService } from '../../services/share-venta.service';
@@ -44,12 +45,14 @@ export class VentaDetalleModalComponent implements OnInit {
     nombreNegocio = 'Mi Tienda';
     compartiendo = false;
 
+    readonly isNative = Capacitor.isNativePlatform();
+
     constructor() {
         addIcons({
             closeOutline, receiptOutline, documentTextOutline, documentOutline,
             cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
             personOutline, calendarOutline, printOutline, alertCircleOutline,
-            banOutline, shareOutline
+            banOutline, shareOutline, downloadOutline
         });
     }
 

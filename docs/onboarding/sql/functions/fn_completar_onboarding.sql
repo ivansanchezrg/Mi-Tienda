@@ -32,6 +32,7 @@
 -- Cleanup de firmas anteriores (mover ANTES del CREATE para evitar duplicación)
 DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL);
 DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL, VARCHAR);
+DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR);
 
 CREATE OR REPLACE FUNCTION public.fn_completar_onboarding(
     p_nombre_negocio     VARCHAR,
@@ -39,6 +40,7 @@ CREATE OR REPLACE FUNCTION public.fn_completar_onboarding(
     p_admin_nombre       VARCHAR  DEFAULT NULL,
     p_negocio_telefono   VARCHAR  DEFAULT '',
     p_negocio_direccion  VARCHAR  DEFAULT '',
+    p_negocio_correo     VARCHAR  DEFAULT '',
     p_varios_activa      BOOLEAN  DEFAULT FALSE,
     p_caja_varios_monto  DECIMAL  DEFAULT 0,
     p_nomina_sueldo_base DECIMAL  DEFAULT 0,
@@ -127,13 +129,14 @@ BEGIN
     -- ── 3. Negocio ──
     -- nombre, telefono y direccion son fuente de verdad en negocios (no en configuraciones).
     v_negocio_id := gen_random_uuid();
-    INSERT INTO negocios (id, nombre, slug, telefono, direccion, propietario_usuario_id)
+    INSERT INTO negocios (id, nombre, slug, telefono, direccion, correo_electronico, propietario_usuario_id)
     VALUES (
         v_negocio_id,
         TRIM(p_nombre_negocio),
         TRIM(BOTH '-' FROM REGEXP_REPLACE(LOWER(TRIM(p_nombre_negocio)), '[^a-z0-9]+', '-', 'g')),
         NULLIF(TRIM(COALESCE(p_negocio_telefono, '')), ''),
         NULLIF(TRIM(COALESCE(p_negocio_direccion, '')), ''),
+        NULLIF(TRIM(COALESCE(p_negocio_correo, '')), ''),
         v_propietario_id
     );
 
@@ -234,8 +237,8 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM authenticated;
+GRANT  EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

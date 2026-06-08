@@ -322,18 +322,3 @@ ion-modal.bottom-sheet-modal {
     }
   }
 }
-
-// ── Options Menu Popover (⋮ en cards) ────────────────────────────────────
-ion-popover {
-  --backdrop-opacity: 0.04;
-  --width: 170px;
-
-  @media (min-width: 768px) { --width: 210px; }
-  @media (min-width: 992px) { --width: 240px; }
-
-  &::part(content) {
-    border-radius: 14px;
-    box-shadow: var(--shadow-level-4);
-    border: 1px solid var(--app-divider);
-  }
-}

@@ -666,7 +666,10 @@ Verifica los siguientes puntos:
 |---------|-------------|
 | `src/theme/variables.scss` | **Design Tokens principales** - Todas las variables del sistema |
 | `src/global.scss` | Estilos globales e imports de Ionic |
-| `src/theme/custom/index.scss` | Entry point de estilos custom compartidos (importa `overlays`, etc.) |
+| `src/theme/custom/index.scss` | Entry point de estilos custom — importa `modals`, `tabs`, `popovers` |
+| `src/theme/custom/modals.scss` | Estilos globales de modales bottom-sheet (`bottom-sheet-modal`, `.bs-*`) |
+| `src/theme/custom/popovers.scss` | Estilos globales de `IonPopover` (ancho, border-radius, sombra) |
+| `src/theme/custom/tabs.scss` | Tabs estilo Chrome/browser (`.chrome-tabs`, `.chrome-tab`) |
 | `src/app/features/layout/pages/main/main-layout.page.scss` | **Patrón FAB Custom** + tab bar personalizado |
 | `src/app/features/caja/pages/home/home.page.scss` | **Ejemplo de referencia** - Implementación completa del patrón |
 

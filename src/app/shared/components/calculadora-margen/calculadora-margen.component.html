@@ -32,20 +32,19 @@
         <div class="calc-field">
           <label class="calc-label">Precio de venta ($)</label>
           <input
-            #precioInput
             class="calc-input destacado"
-            type="number"
+            type="text"
             inputmode="decimal"
             placeholder="0.00"
             [(ngModel)]="precioVenta"
             (ngModelChange)="onPrecioVentaChange()"
-            min="0">
+            (blur)="onPrecioBlur()">
         </div>
         }
       </div>
 
       <!-- Resultado -->
-      @if (costo && precioVenta && precioVenta > 0) {
+      @if (costo && costo > 0 && precioVentaNum > 0) {
       <div class="resultado-card" [class.danger-card]="margenColor === 'danger'" [class.warning-card]="margenColor === 'warning'" [class.success-card]="margenColor === 'success'">
         <div class="resultado-cols">
           <div class="resultado-col">

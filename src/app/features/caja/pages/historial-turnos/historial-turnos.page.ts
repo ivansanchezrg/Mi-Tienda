@@ -5,7 +5,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonContent, IonIcon, IonSkeletonText, IonRefresher, IonRefresherContent,
   IonFab, IonFabButton,
-  ModalController
+  ModalController, NavController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -51,6 +51,7 @@ export class HistorialTurnosPage {
 
   private router = inject(Router);
   private route  = inject(ActivatedRoute);
+  private navCtrl = inject(NavController);
   private ui     = inject(UiService);
   private cierresService = inject(CierresTurnoService);
   private modalCtrl = inject(ModalController);
@@ -90,7 +91,7 @@ export class HistorialTurnosPage {
     if (from === 'home') {
       this.router.navigate([ROUTES.home], { replaceUrl: true });
     } else {
-      this.router.navigate([ROUTES.caja.operacionesCaja], { replaceUrl: true });
+      this.navCtrl.back();
     }
   }
 

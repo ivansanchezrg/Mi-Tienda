@@ -16,9 +16,10 @@ export const ROUTES = {
   },
 
   onboarding: {
-    root:    '/onboarding',
-    negocio: '/onboarding/negocio',
-    caja:    '/onboarding/caja',
+    root:     '/onboarding',
+    negocio:  '/onboarding/negocio',
+    contexto: '/onboarding/contexto',
+    caja:     '/onboarding/caja',
   },
 
   /**
@@ -28,9 +29,10 @@ export const ROUTES = {
    * el email del admin/propietario y el destino post-creacion.
    */
   crearNegocio: {
-    root:    '/crear-negocio',
-    negocio: '/crear-negocio/negocio',
-    caja:    '/crear-negocio/caja',
+    root:     '/crear-negocio',
+    negocio:  '/crear-negocio/negocio',
+    contexto: '/crear-negocio/contexto',
+    caja:     '/crear-negocio/caja',
   },
 
   pos: '/pos',

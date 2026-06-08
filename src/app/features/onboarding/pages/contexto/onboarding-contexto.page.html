@@ -1,0 +1,73 @@
+<ion-content class="onboarding-content">
+  <div class="onboarding-wrapper">
+
+    <div class="onboarding-progress">
+      <ion-progress-bar value="0.75"></ion-progress-bar>
+      <span class="step-label">Paso 2 de 2</span>
+    </div>
+
+    <div class="onboarding-spacer"></div>
+
+    <div class="onboarding-header">
+      <div class="onboarding-icon">
+        <ion-icon name="cash-outline"></ion-icon>
+      </div>
+      <h1 class="onboarding-title">Así organiza tu dinero</h1>
+      <p class="onboarding-subtitle"><span class="brand-name">NexoPOS</span> usa tres cajas para que siempre sepas dónde está cada dólar.</p>
+    </div>
+
+    <div class="ctx-cards">
+
+      <div class="ctx-card">
+        <div class="ctx-card-icon ctx-card-icon--blue">
+          <ion-icon name="file-tray-outline"></ion-icon>
+        </div>
+        <div class="ctx-card-body">
+          <strong>Cajón</strong>
+          <p>El cajón físico de tu tienda. Aquí entran todas las ventas del día en efectivo.</p>
+        </div>
+      </div>
+
+      <div class="ctx-arrow">
+        <ion-icon name="arrow-forward-outline"></ion-icon>
+        <span>Al cerrar el día</span>
+        <ion-icon name="arrow-forward-outline"></ion-icon>
+      </div>
+
+      <div class="ctx-card">
+        <div class="ctx-card-icon ctx-card-icon--green">
+          <ion-icon name="cash-outline"></ion-icon>
+        </div>
+        <div class="ctx-card-body">
+          <strong>Caja Tienda</strong>
+          <p>Tu caja de acumulación. Cada noche el Cajón deposita todo lo del día aquí. Se va sumando día a día.</p>
+        </div>
+      </div>
+
+      <div class="ctx-card ctx-card--optional">
+        <div class="ctx-card-icon ctx-card-icon--orange">
+          <ion-icon name="shield-checkmark-outline"></ion-icon>
+        </div>
+        <div class="ctx-card-body">
+          <div class="ctx-card-title-row">
+            <strong>Caja Varios</strong>
+            <span class="ctx-badge">Opcional</span>
+          </div>
+          <p>Fondo separado para emergencias. Tú decides cuánto apartar, y cada noche el sistema lo separa solo, sin que tengas que recordarlo.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="ctx-footer-hint">
+      <ion-icon name="arrow-forward-outline"></ion-icon>
+      Al abrir tu primer turno, tú decides con cuánto efectivo inicia el Cajón.
+    </p>
+
+    <ion-button expand="block" class="onboarding-btn" (click)="continuar()">
+      <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
+      Entendido, configurar mi caja
+    </ion-button>
+
+  </div>
+</ion-content>

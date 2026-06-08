@@ -20,3 +20,23 @@ export function calcularMargenDesdePrecio(costo: number, venta: number): number 
     if (c <= 0 || v <= 0 || v <= c) return 0;
     return Math.round(((v - c) / v) * 1000) / 10;
 }
+
+/**
+ * Resuelve precio + margen real de forma coherente. SINGLE SOURCE OF TRUTH para
+ * todo formulario de precio (producto simple, variantes, presentaciones, calculadora).
+ *
+ * Principio contable: el precio se redondea a centavo, y el margen mostrado SIEMPRE
+ * se recalcula desde ese precio efectivo. El margen real puede diferir del objetivo
+ * por el redondeo (ej: costo 0.15 + margen objetivo 20% → precio 0.19 → margen real 21.1%).
+ * Esto garantiza que el margen mostrado = el margen que realmente se obtiene.
+ *
+ * @param costo          costo del producto (se redondea a 2 decimales internamente)
+ * @param margenObjetivo margen sobre venta deseado (default de negocio: 20)
+ * @returns { precio: redondeado a centavo, margenReal: recalculado desde ese precio }
+ */
+export function resolverPrecioYMargen(costo: number, margenObjetivo: number): { precio: number; margenReal: number } {
+    const c = Math.round(costo * 100) / 100;
+    const precio = calcularPrecioDesdeMargen(c, margenObjetivo);
+    const margenReal = calcularMargenDesdePrecio(c, precio);
+    return { precio, margenReal };
+}

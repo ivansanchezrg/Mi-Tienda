@@ -501,7 +501,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private async mostrarModalCajonCerrado(): Promise<void> {
     const groups: ModalOptionGroup[] = [{
       options: [
-        { label: 'Ver cierres', icon: 'time-outline', value: 'historial' },
+        { label: 'Historial de cierres', icon: 'time-outline', value: 'historial' },
         { label: 'Salir',                    icon: 'close-outline', value: 'cerrar'    },
       ]
     }];

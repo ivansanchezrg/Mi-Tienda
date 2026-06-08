@@ -20,9 +20,10 @@ export type OnboardingMode = 'inicial' | 'sucursal-admin' | 'sucursal-superadmin
 
 export interface OnboardingData {
   // Paso 1
-  nombre:    string;
-  telefono:  string;
-  direccion: string;
+  nombre:              string;
+  telefono:            string;
+  direccion:           string;
+  correoElectronico:   string;
   // Paso 2
   variosActiva:     boolean;
   montoVarios:      number;
@@ -47,13 +48,15 @@ export class OnboardingService {
   get draft(): Readonly<Partial<OnboardingData>> { return this._draft; }
   get mode(): OnboardingMode { return this._mode; }
 
-  /** Inicializa el modo del wizard. Debe llamarse al entrar al primer paso. */
+  /** Inicializa el modo del wizard. Solo limpia el draft si el modo cambia. */
   setMode(mode: OnboardingMode): void {
+    if (this._mode !== mode) {
+      this._draft = {};
+    }
     this._mode = mode;
-    this._draft = {}; // limpia draft al cambiar de modo
   }
 
-  guardarPaso1(data: Pick<OnboardingData, 'nombre' | 'telefono' | 'direccion' | 'adminEmail' | 'adminNombre' | 'propietarioEmail'>): void {
+  guardarPaso1(data: Pick<OnboardingData, 'nombre' | 'telefono' | 'direccion' | 'correoElectronico' | 'adminEmail' | 'adminNombre' | 'propietarioEmail'>): void {
     this._draft = { ...this._draft, ...data };
   }
 
@@ -97,6 +100,7 @@ export class OnboardingService {
         p_admin_nombre:       adminNombre,
         p_negocio_telefono:   (d.telefono  ?? '').trim(),
         p_negocio_direccion:  (d.direccion ?? '').trim(),
+        p_negocio_correo:     (d.correoElectronico ?? '').trim(),
         p_varios_activa:      d.variosActiva     ?? false,
         p_caja_varios_monto:  d.montoVarios      ?? 0,
         p_nomina_sueldo_base: d.nominaSueldoBase ?? 0,

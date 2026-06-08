@@ -63,6 +63,22 @@
         <span class="field-hint">Aparece en reportes y comprobantes.</span>
       </div>
 
+      <div class="field-group">
+        <label class="field-label">Correo electrónico <span class="optional">(opcional)</span></label>
+        <input
+          type="email"
+          formControlName="correoElectronico"
+          placeholder="Ej: contacto@minegocio.com"
+          autocomplete="off"
+          maxlength="100"
+          [class.invalid]="correoElectronicoCtrl.touched && correoElectronicoCtrl.invalid">
+        @if (errorCorreoElectronico) {
+          <span class="field-error">{{ errorCorreoElectronico }}</span>
+        } @else {
+          <span class="field-hint">Aparece en comprobantes para que tus clientes puedan contactarte.</span>
+        }
+      </div>
+
       @if (esModoSuperadmin) {
         <div class="field-group">
           <label class="field-label">Email del administrador <span class="required">*</span></label>

@@ -52,11 +52,12 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
 
   // Form base — campos extra (adminEmail, adminNombre) solo si mode === 'sucursal-superadmin'
   form = this.fb.group({
-    nombre:       ['', [Validators.required, Validators.minLength(2), Validators.maxLength(80)]],
-    telefono:     ['', [Validators.maxLength(20)]],
-    direccion:    ['', [Validators.maxLength(200)]],
-    adminEmail:   ['', [Validators.email, Validators.maxLength(100)]],
-    adminNombre:  ['', [Validators.maxLength(100)]],
+    nombre:              ['', [Validators.required, Validators.minLength(2), Validators.maxLength(80)]],
+    telefono:            ['', [Validators.maxLength(20)]],
+    direccion:           ['', [Validators.maxLength(200)]],
+    correoElectronico:   ['', [Validators.email, Validators.maxLength(100)]],
+    adminEmail:          ['', [Validators.email, Validators.maxLength(100)]],
+    adminNombre:         ['', [Validators.maxLength(100)]],
   });
 
   // Estado de verificacion del email (solo aplica en modo sucursal-superadmin)
@@ -97,11 +98,12 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
 
     // Restaurar draft si volvemos del paso 2
     const d = this.onboardingService.draft;
-    if (d.nombre)       this.form.patchValue({ nombre: d.nombre });
-    if (d.telefono)     this.form.patchValue({ telefono: d.telefono });
-    if (d.direccion)    this.form.patchValue({ direccion: d.direccion });
-    if (d.adminEmail)   this.form.patchValue({ adminEmail: d.adminEmail });
-    if (d.adminNombre)  this.form.patchValue({ adminNombre: d.adminNombre });
+    if (d.nombre)              this.form.patchValue({ nombre: d.nombre });
+    if (d.telefono)            this.form.patchValue({ telefono: d.telefono });
+    if (d.direccion)           this.form.patchValue({ direccion: d.direccion });
+    if (d.correoElectronico)   this.form.patchValue({ correoElectronico: d.correoElectronico });
+    if (d.adminEmail)          this.form.patchValue({ adminEmail: d.adminEmail });
+    if (d.adminNombre)         this.form.patchValue({ adminNombre: d.adminNombre });
 
     // Si volvemos del paso 2 con email guardado, re-validar para reconstruir UI
     if (this.mode === 'sucursal-superadmin' && d.adminEmail) {
@@ -177,6 +179,16 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
     if (c.hasError('required'))  return 'Ingresa el nombre del negocio.';
     if (c.hasError('minlength')) return 'Mínimo 2 caracteres.';
     if (c.hasError('maxlength')) return 'Máximo 80 caracteres.';
+    return null;
+  }
+
+  get correoElectronicoCtrl() { return this.form.controls.correoElectronico; }
+
+  get errorCorreoElectronico(): string | null {
+    const c = this.correoElectronicoCtrl;
+    if (!c.touched || c.valid) return null;
+    if (c.hasError('email'))     return 'Ingresa un correo electrónico válido.';
+    if (c.hasError('maxlength')) return 'Máximo 100 caracteres.';
     return null;
   }
 
@@ -261,18 +273,19 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
     if (!this.puedeContinuar) return;
 
     this.onboardingService.guardarPaso1({
-      nombre:       this.form.value.nombre!.trim(),
-      telefono:     this.form.value.telefono?.trim() ?? '',
-      direccion:    this.form.value.direccion?.trim() ?? '',
-      adminEmail:   this.form.value.adminEmail?.trim() ?? '',
-      adminNombre:  this.form.value.adminNombre?.trim() ?? '',
+      nombre:              this.form.value.nombre!.trim(),
+      telefono:            this.form.value.telefono?.trim() ?? '',
+      direccion:           this.form.value.direccion?.trim() ?? '',
+      correoElectronico:   this.form.value.correoElectronico?.trim() ?? '',
+      adminEmail:          this.form.value.adminEmail?.trim() ?? '',
+      adminNombre:         this.form.value.adminNombre?.trim() ?? '',
       // En modo sucursal-superadmin el propietario es el mismo admin (mismo dueño solicitando sucursal).
       propietarioEmail: this.form.value.adminEmail?.trim() ?? '',
     });
 
     const siguienteRuta = this.mode === 'inicial'
-      ? ROUTES.onboarding.caja
-      : ROUTES.crearNegocio.caja;
+      ? ROUTES.onboarding.contexto
+      : ROUTES.crearNegocio.contexto;
 
     this.router.navigate([siguienteRuta], { replaceUrl: true });
   }

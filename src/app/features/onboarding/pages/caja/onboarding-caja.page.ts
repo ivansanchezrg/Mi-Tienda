@@ -3,12 +3,12 @@ import { FormBuilder, Validators, AbstractControl, ValidationErrors, ReactiveFor
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
-  IonContent, IonButton, IonIcon, IonSpinner, IonProgressBar, IonToggle
+  IonContent, IonButton, IonIcon, IonSpinner, IonProgressBar
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   walletOutline, arrowForwardOutline, arrowBackOutline,
-  shieldCheckmarkOutline, peopleOutline
+  shieldCheckmarkOutline, peopleOutline, checkmarkCircle
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { OnboardingService } from '../../services/onboarding.service';
@@ -30,7 +30,7 @@ function variosMontoValidator(control: AbstractControl): ValidationErrors | null
   standalone: true,
   imports: [
     CommonModule, ReactiveFormsModule,
-    IonContent, IonButton, IonIcon, IonSpinner, IonProgressBar, IonToggle
+    IonContent, IonButton, IonIcon, IonSpinner, IonProgressBar
   ]
 })
 export class OnboardingCajaPage {
@@ -44,11 +44,11 @@ export class OnboardingCajaPage {
   form = this.fb.group({
     variosActiva:     [false],
     montoVarios:      [null as number | null, [Validators.min(0.01)]],
-    nominaSueldoBase: [0,     [Validators.required, Validators.min(0)]]
+    nominaSueldoBase: [null as number | null, [Validators.required, Validators.min(0)]]
   }, { validators: variosMontoValidator });
 
   constructor() {
-    addIcons({ walletOutline, arrowForwardOutline, arrowBackOutline, shieldCheckmarkOutline, peopleOutline });
+    addIcons({ walletOutline, arrowForwardOutline, arrowBackOutline, shieldCheckmarkOutline, peopleOutline, checkmarkCircle });
     // Restaurar borrador si el usuario volvió
     const d = this.onboardingService.draft;
     if (d.variosActiva     !== undefined) this.form.patchValue({ variosActiva: d.variosActiva });
@@ -57,16 +57,21 @@ export class OnboardingCajaPage {
   }
 
   get usaVarios(): boolean { return !!this.form.value.variosActiva; }
+
+  setVarios(value: boolean) {
+    this.form.patchValue({ variosActiva: value });
+    if (!value) this.form.patchValue({ montoVarios: null });
+  }
   get variosMontoError(): boolean {
     return this.form.hasError('variosMontoRequerido') && this.form.touched;
   }
 
   /** Navega al paso 1 segun la ruta base actual (mantiene el modo del wizard). */
   volver() {
-    const rutaPaso1 = this.onboardingService.mode === 'inicial'
-      ? ROUTES.onboarding.negocio
-      : ROUTES.crearNegocio.negocio;
-    this.router.navigate([rutaPaso1], { replaceUrl: true });
+    const ruta = this.onboardingService.mode === 'inicial'
+      ? ROUTES.onboarding.contexto
+      : ROUTES.crearNegocio.contexto;
+    this.router.navigate([ruta], { replaceUrl: true });
   }
 
   async continuar() {
@@ -80,7 +85,7 @@ export class OnboardingCajaPage {
     this.onboardingService.guardarPaso2({
       variosActiva,
       montoVarios,
-      nominaSueldoBase: Number(this.form.value.nominaSueldoBase)
+      nominaSueldoBase: Number(this.form.value.nominaSueldoBase ?? 0)
     });
 
     this.guardando = true;

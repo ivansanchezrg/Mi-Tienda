@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 import { Venta } from '../models/venta.model';
 import { CurrencyService } from '../../../core/services/currency.service';
 import { AuthService } from '../../auth/services/auth.service';
@@ -375,21 +376,27 @@ export class ShareVentaService {
     }
 
     private async saveAndShare(base64: string, titulo: string): Promise<void> {
-        await Filesystem.writeFile({
-            path: TEMP_FILE,
-            data: base64,
-            directory: Directory.Cache,
-        });
-
-        const { uri } = await Filesystem.getUri({
-            path: TEMP_FILE,
-            directory: Directory.Cache,
-        });
-
-        // Cerrar loading ANTES de abrir el share sheet nativo.
-        // Share.share() resuelve cuando el usuario vuelve a la app, no al compartir.
-        await Share.share({ title: titulo, files: [uri], dialogTitle: titulo });
-        Filesystem.deleteFile({ path: TEMP_FILE, directory: Directory.Cache }).catch(() => {});
+        if (Capacitor.isNativePlatform()) {
+            await Filesystem.writeFile({
+                path: TEMP_FILE,
+                data: base64,
+                directory: Directory.Cache,
+            });
+            const { uri } = await Filesystem.getUri({
+                path: TEMP_FILE,
+                directory: Directory.Cache,
+            });
+            // Cerrar loading ANTES de abrir el share sheet nativo.
+            // Share.share() resuelve cuando el usuario vuelve a la app, no al compartir.
+            await Share.share({ title: titulo, files: [uri], dialogTitle: titulo });
+            Filesystem.deleteFile({ path: TEMP_FILE, directory: Directory.Cache }).catch(() => {});
+        } else {
+            // Web: descarga directa como imagen
+            const link = document.createElement('a');
+            link.href = `data:image/jpeg;base64,${base64}`;
+            link.download = `${titulo}.jpg`;
+            link.click();
+        }
     }
 
     private getLabelTipo(tipo: string): string {

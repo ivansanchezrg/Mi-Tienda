@@ -12,7 +12,7 @@ import { StorageService } from '../../../../core/services/storage.service';
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only.directive';
 import { CurrencyService } from '../../../../core/services/currency.service';
-import { calcularPrecioDesdeMargen, calcularMargenDesdePrecio } from '../../../../core/utils/margen.util';
+import { calcularMargenDesdePrecio, resolverPrecioYMargen } from '../../../../core/utils/margen.util';
 import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
 
 export interface PresentacionModalResult {
@@ -186,11 +186,13 @@ export class PresentacionModalComponent implements OnInit {
     private calcularPrecioConMargenDefault() {
         const costo = this.costoPack;
         if (costo <= 0 || this.margenPct <= 0) return;
-        const precio = calcularPrecioDesdeMargen(costo, this.margenPct);
+        // Precio redondeado a centavo + margen real recalculado desde ese precio
+        const { precio, margenReal } = resolverPrecioYMargen(costo, this.margenPct);
         this.form.get('precio_venta')?.setValue(
             this.currencyService.format(precio),
             { emitEvent: false }
         );
+        this.margenPct = margenReal;
     }
 
     esCampoInvalido(campo: string): boolean {
