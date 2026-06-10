@@ -16,30 +16,41 @@ src/app/features/ventas/
 ├── services/
 │   └── ventas.service.ts                   # Queries, detalle, anulación, reporte
 ├── components/
-│   ├── ventas-tabs/                        # Tabs internas (Lista / Resumen)
+│   ├── ventas-tabs/                        # Tabs internas (Lista / Resumen / Pendientes)
 │   └── venta-detalle-modal/                # Modal de detalle reutilizable
 └── pages/
     ├── listado/                            # Lista paginada con filtros
     │   ├── ventas-listado.page.ts
     │   ├── ventas-listado.page.html
     │   └── ventas-listado.page.scss
-    └── resumen/                            # Resumen por período (KPIs, métodos, comprobantes, top productos)
-        ├── ventas-resumen.page.ts
-        ├── ventas-resumen.page.html
-        └── ventas-resumen.page.scss
+    ├── resumen/                            # Resumen por período (KPIs, métodos, comprobantes, top productos)
+    │   ├── ventas-resumen.page.ts
+    │   ├── ventas-resumen.page.html
+    │   └── ventas-resumen.page.scss
+    └── pendientes/                         # Cola de ventas offline sin sincronizar (modo offline POS)
+        ├── ventas-pendientes.page.ts
+        ├── ventas-pendientes.page.html
+        └── ventas-pendientes.page.scss
 ```
 
 ### Patrón de tabs internas
 
-El módulo usa **tabs internas** (`VentasTabsComponent`) para navegar entre Listado y Resumen.
+El módulo usa **tabs internas** (`VentasTabsComponent`) para navegar entre Listado, Resumen y Pendientes.
 Cada página incluye su propio `ion-header` con el componente de tabs — Ionic no soporta
 un layout wrapper con `router-outlet` hijo sin conflictos de `ion-content`.
 
 ```
 VentasTabsComponent detecta la ruta activa automáticamente (NavigationEnd).
-Tab "Lista"   → router.navigate(['/ventas'])
-Tab "Resumen" → router.navigate(['/ventas/resumen'])
+Tab "Lista"      → router.navigate(['/ventas'])
+Tab "Resumen"    → router.navigate(['/ventas/resumen'])
+Tab "Pendientes" → router.navigate(['/ventas/pendientes'])  ← solo visible si hay cola (outbox.pendientes$ > 0)
 ```
+
+> **Tab Pendientes (modo offline):** muestra las ventas hechas sin conexión que aún no llegaron al servidor
+> (estados `PENDING`/`ERROR`), con botón "Sincronizar ahora" y, en las `ERROR`, reintentar/descartar. Solo
+> aparece cuando hay cola. Las ventas ya sincronizadas NO aparecen aquí — viven en Lista/Resumen (que leen del
+> servidor). Mensaje mental: *Lista/Resumen = lo ya subido; Pendientes = lo que falta subir.* Ver
+> `PLAN-OFFLINE-POS-2026-06-08.md` §7.
 
 **Este patrón debe seguirse en cualquier módulo que necesite tabs internas:**
 1. Crear un componente de tabs en `components/` (no en `pages/`)

@@ -5,6 +5,7 @@ import { Preferences } from '@capacitor/preferences';
 import { environment } from 'src/environments/environment';
 import { UiService } from './ui.service';
 import { LoggerService } from './logger.service';
+import { NetworkService } from './network.service';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { ROUTES } from '@core/config/routes.config';
@@ -15,6 +16,7 @@ import { TIMING } from '@core/config/timing.config';
 export class SupabaseService {
   private ui = inject(UiService);
   private logger = inject(LoggerService);
+  private network = inject(NetworkService);
   private router = inject(Router);
   private zone = inject(NgZone);
 
@@ -170,6 +172,14 @@ export class SupabaseService {
       const superadminMatch = rawMsg.match(/superadmin_blocked:\s*(.+)/i);
       const msg = superadminMatch ? superadminMatch[1].trim() : rawMsg;
 
+      // Sin red: el fallo es por falta de conexión. El banner global (app-offline-banner)
+      // ya comunica el estado offline → no mostrar toast redundante. Único punto de la app
+      // que sabe con certeza que una query falló por red (tiene el error original, no un string).
+      if (!this.network.isConnected() && this.esErrorDeTransporte(error)) {
+        if (showLoading) await this.ui.hideLoading();
+        return null;
+      }
+
       // JWT expirado/inválido → limpiar sesión y redirigir al login
       if (this.isJwtError(msg)) {
         if (showLoading) await this.ui.hideLoading();
@@ -195,6 +205,37 @@ export class SupabaseService {
   private isJwtError(message: string): boolean {
     const lower = message.toLowerCase();
     return lower.includes('jwt') && (lower.includes('expired') || lower.includes('invalid'));
+  }
+
+  /**
+   * Detecta si el error es de transporte (la query no llegó al servidor) vs un error
+   * de datos del servidor (RLS, validación, constraint). Se evalúa sobre el objeto error
+   * original — más confiable que un string. Un fetch fallido no trae `code` de PostgREST.
+   *
+   * Público para los servicios/páginas que usan `.client` directo (sin pasar por `call()`):
+   * en su propio catch deben silenciar el toast si fue por red (el banner global ya avisa):
+   *   `if (this.supabase.esErrorDeTransporte(error) && !network.isConnected()) return;`
+   */
+  esErrorDeTransporte(error: any): boolean {
+    const msg = (error?.message ?? '').toLowerCase();
+    // PostgREST/Postgres adjuntan `code` a los errores de datos; su ausencia + mensaje
+    // de fetch indica que la request no llegó al servidor (sin red).
+    const sinCodeServidor = error?.code === undefined;
+    return msg.includes('failed to fetch')
+        || msg.includes('networkerror')
+        || msg.includes('network request failed')
+        || msg.includes('load failed')
+        || (sinCodeServidor && (msg.includes('fetch') || msg === ''));
+  }
+
+  /**
+   * True si el toast del error debe omitirse: el fallo es por falta de red estando offline,
+   * y el banner global ya comunica el estado. Para usar en el catch de páginas/servicios que
+   * llaman `.client` directo (no pasan por `call()`, que ya lo maneja internamente):
+   *   `catch (e) { if (this.supabase.debeSilenciarErrorOffline(e)) return; this.ui.showError(...) }`
+   */
+  debeSilenciarErrorOffline(error: any): boolean {
+    return !this.network.isConnected() && this.esErrorDeTransporte(error);
   }
 
   /**

@@ -17,6 +17,7 @@ import {
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
+import { SupabaseService } from '@core/services/supabase.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { RegistrarRecargaModalComponent } from '../../components/registrar-recarga-modal/registrar-recarga-modal.component';
@@ -43,6 +44,7 @@ export class RecargasVirtualesPage {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private ui = inject(UiService);
+  private supabase = inject(SupabaseService);
   private configService = inject(ConfigService);
   private authService = inject(AuthService);
   private service = inject(RecargasVirtualesService);
@@ -142,8 +144,10 @@ export class RecargasVirtualesPage {
       this.cajaBusSaldo            = cajaBus;
       this.totalMovimientosCelular = historialCelular.length;
       this.totalMovimientosBus     = historialBus.length;
-    } catch {
-      await this.ui.showError('Error al cargar los datos');
+    } catch (error) {
+      if (!this.supabase.debeSilenciarErrorOffline(error)) {
+        await this.ui.showError('Error al cargar los datos');
+      }
     } finally {
       this.loading = false;
     }

@@ -15,6 +15,7 @@ import { ROUTES } from './core/config/routes.config';
 @Component({
   selector: 'app-root',
   templateUrl: 'app.component.html',
+  styleUrl: 'app.component.scss',
   imports: [IonApp, IonRouterOutlet, OfflineBannerComponent],
 })
 export class AppComponent implements OnDestroy {

@@ -10,6 +10,7 @@ import {
   closeOutline, phonePortraitOutline, busOutline, arrowForwardOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { SupabaseService } from '@core/services/supabase.service';
 import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
@@ -39,6 +40,7 @@ export class HistorialModalComponent implements OnInit {
   private modalCtrl = inject(ModalController);
   private alertCtrl = inject(AlertController);
   private ui = inject(UiService);
+  private supabase = inject(SupabaseService);
   private service = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
 
@@ -58,8 +60,10 @@ export class HistorialModalComponent implements OnInit {
     this.loading = true;
     try {
       this.historial = await this.service.obtenerHistorial(this.tipo);
-    } catch {
-      await this.ui.showError('Error al cargar el historial');
+    } catch (error) {
+      if (!this.supabase.debeSilenciarErrorOffline(error)) {
+        await this.ui.showError('Error al cargar el historial');
+      }
     } finally {
       this.loading = false;
     }

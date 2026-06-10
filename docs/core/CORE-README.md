@@ -90,6 +90,39 @@ const [usuarios, productos, ventas] = await Promise.all([
 ]);
 ```
 
+#### Errores offline — no mostrar toast (el banner global ya avisa)
+
+El `<app-offline-banner>` es la **única** señal de offline en toda la app. Mostrar además un toast
+"Error al cargar..." al entrar a una sección sin red es redundante. Hay dos casos:
+
+**Caso 1 — la query pasa por `call()` (lo normal):** ya está resuelto en la fuente. `call()` detecta el error
+de transporte estando offline y devuelve `null` **sin** mostrar toast. No hay que hacer nada en el componente.
+
+**Caso 2 — el servicio usa `this.supabase.client` directo y hace `throw` (con catch propio en la página):**
+el componente guarda su `showError` detrás del helper público `debeSilenciarErrorOffline()`:
+
+```typescript
+private supabase = inject(SupabaseService);
+
+async cargarHistorial() {
+  try {
+    this.items = await this.miServicio.obtenerHistorial(); // usa .client directo, hace throw
+  } catch (error) {
+    // Sin red → no mostrar toast (el banner ya avisa). Errores reales del servidor sí se muestran.
+    if (!this.supabase.debeSilenciarErrorOffline(error)) {
+      await this.ui.showError('Error al cargar el historial');
+    }
+  }
+}
+```
+
+`debeSilenciarErrorOffline(error)` = `!isConnected() && esErrorDeTransporte(error)`. Evalúa el **objeto error
+original** (ausencia de `code` de PostgREST + mensaje de fetch = la request no llegó al servidor), no el texto
+del mensaje — más robusto que adivinar palabras. Las validaciones (mensajes de formulario) NO son errores de
+transporte → se siguen mostrando aunque no haya red.
+
+> **Regla de qué toast se muestra offline:** errores de **carga** de datos por red → silenciar. Errores de
+> **acción/validación** ("Ingresa el monto", saldo insuficiente) → mostrar siempre. Ver `PLAN-OFFLINE-POS-2026-06-08.md` §13.2.
 
 ### BarcodeScannerService (`core/services/barcode-scanner.service.ts`)
 
@@ -346,6 +379,52 @@ this.currencyService.parse('1,250.50');  // → 1250.5
 this.currencyService.parse('200,80');    // → 200.8 (detecta la coma final humana como decimal)
 this.currencyService.format(1250.5);     // → "1,250.50"
 ```
+
+---
+
+## Servicios del modo offline (POS)
+
+Capa de datos local que permite cobrar sin internet. Plan completo: `docs/PLAN-OFFLINE-POS-2026-06-08.md`.
+
+### LocalDbService (`core/services/local-db.service.ts`)
+
+Abstracción de almacenamiento local con patrón adaptador. **Android/iOS** → SQLite nativo
+(`@capacitor-community/sqlite`); **Web** → IndexedDB nativo del browser (sin jeep-sqlite, por su bug de wasm).
+API uniforme `run()`/`query()`/`execute()`. Una DB por `negocio_id` (`mi_tienda_<id>`). Tablas:
+`outbox_ventas`, `turno_activo_local`, `cache_catalogo`.
+
+### CatalogoLocalService (`core/services/catalogo-local.service.ts`)
+
+Cache de solo lectura del catálogo aplanado (`ProductoPOS[]`) + categorías. Doble nivel: SQLite/IndexedDB +
+**cache RAM** (evita re-leer la DB y re-parsear JSON en cada filtro offline → filtros instantáneos). Replica
+offline `fn_catalogo_productos_pos`, `fn_buscar_productos_pos` y el lookup por código de barras, en memoria.
+Stock cacheado es **optimista** — la verdad la define el servidor al sincronizar.
+
+### TurnoLocalService (`core/services/turno-local.service.ts`)
+
+Snapshot del turno YA ABIERTO (`turno_activo_local`). Destraba el cobro offline: `PosService` y
+`cajaAbiertaGuard` leían el turno del servidor (null sin red → POS bloqueado). CRUD `guardar`/`obtener`/`borrar`.
+Lo sincroniza `TurnosCajaService.sincronizarSnapshotLocal()` **solo con red** (offline un null puede ser "query
+falló", no "no hay turno" → no se borra el snapshot válido).
+
+### OutboxService (`core/services/outbox.service.ts`)
+
+Cola durable de ventas pendientes en `outbox_ventas` (estados `PENDING`/`SYNCING`/`SYNCED`/`ERROR`). Guarda el
+**payload crudo** del RPC (no recalcula nada local). Expone `pendientes$` (contador reactivo) que alimenta el
+badge del banner y la tab Pendientes. Métodos: `encolar`, `obtenerPendientes`, `marcarEstado`, `eliminar`,
+`refrescarContador`.
+
+### SyncService (`core/services/sync.service.ts`)
+
+Drena la cola contra `fn_registrar_venta_pos` al volver la red (listener de `NetworkService`). **FIFO estricto**
+con corte al primer error para preservar el orden del ledger. Distingue error de red (deja `PENDING`, reintenta)
+de error de datos (marca `ERROR`/dead-letter, no reintenta en loop). La `idempotency_key UNIQUE` hace el reenvío
+100% seguro.
+
+> **Errores offline:** el silenciado de toasts de red está centralizado en `SupabaseService.call()` (y el helper
+> público `debeSilenciarErrorOffline()` para las queries con `.client` directo). El `<app-offline-banner>` global
+> es la única señal de offline. Los toasts de acción concreta (ej: "Venta guardada") sí se muestran. Ver la
+> subsección "Errores offline" arriba (SupabaseService) y §13.2 del plan.
 
 ---
 

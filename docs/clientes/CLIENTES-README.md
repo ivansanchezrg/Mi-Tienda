@@ -72,9 +72,13 @@ Acceso:
 | `buscarClientes(texto)` | Búsqueda rápida (límite 20). Usada por el modal de selección |
 | `buscarPorIdentificacion(id)` | Busca exacto por cédula/RUC. Deduplicación |
 | `obtenerClientePorId(id)` | Obtiene un cliente por UUID |
-| `obtenerConsumidorFinal()` | Registro especial "Consumidor Final" |
+| `obtenerConsumidorFinal()` | Registro especial "Consumidor Final". **Cacheado en `localStorage` por negocio** para habilitar el cobro offline en POS: online lee de Supabase y refresca el cache, offline lo sirve del cache. Solo se cachea el CF (no la lista de clientes — ver nota) |
 | `crearCliente(data)` | Crea cliente. Toast de éxito automático |
 | `actualizarCliente(id, data)` | Actualiza nombre, teléfono, email. Toast de éxito automático |
+
+> **Offline (POS):** solo el **Consumidor Final** se cachea, no la lista de clientes registrados. En el POS los
+> clientes registrados solo se usan para **FIADO**, que está vetado sin conexión (requiere validar/mutar el
+> saldo de crédito contra el servidor). Cachearlos no tendría propósito. Ver `PLAN-OFFLINE-POS-2026-06-08.md` §3 y §13.1.
 
 ### `cuentas-cobrar.service.ts`
 

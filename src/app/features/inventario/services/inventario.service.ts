@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SupabaseService } from '../../../core/services/supabase.service';
+import { NetworkService } from '../../../core/services/network.service';
+import { CatalogoLocalService } from '../../../core/services/catalogo-local.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { Producto, ProductoPOS, ProductoPresentacion } from '../models/producto.model';
 import { CategoriaProducto } from '../models/categoria-producto.model';
@@ -18,6 +20,8 @@ export interface ProductoChangeEvent {
 export class InventarioService {
     private supabase          = inject(SupabaseService);
     private auth              = inject(AuthService);
+    private network           = inject(NetworkService);
+    private catalogoLocal     = inject(CatalogoLocalService);
     private productoService   = inject(ProductoService);
     private presentacionSvc   = inject(PresentacionService);
     private atributoSvc       = inject(AtributoService);
@@ -80,22 +84,56 @@ export class InventarioService {
     // ==========================================
 
     async buscarProductosPOS(texto: string): Promise<ProductoPOS[]> {
+        // Offline: buscar en memoria sobre el catálogo cacheado (replica fn_buscar_productos_pos).
+        if (!this.network.isConnected()) {
+            return this.catalogoLocal.buscarPorTexto(texto);
+        }
         const data = await this.supabase.call<ProductoPOS[]>(
             this.supabase.client.rpc('fn_buscar_productos_pos', { p_busqueda: texto })
         );
         return data ?? [];
     }
 
-    async obtenerProductosCatalogoPOS(categoriaId?: string): Promise<ProductoPOS[]> {
+    async obtenerProductosCatalogoPOS(categoriaId?: string, categoriasParaCache?: CategoriaProducto[]): Promise<ProductoPOS[]> {
+        // Offline: servir del cache filtrando por categoría en memoria.
+        if (!this.network.isConnected()) {
+            return this.catalogoLocal.obtenerCatalogoPorCategoria(categoriaId);
+        }
         const data = await this.supabase.call<ProductoPOS[]>(
             this.supabase.client.rpc('fn_catalogo_productos_pos', {
                 p_categoria_id: categoriaId ?? null
             })
         );
-        return data ?? [];
+        const catalogo = data ?? [];
+        // Solo el catálogo completo (sin filtro) refresca el snapshot — un filtro parcial
+        // no debe sobrescribir el cache completo del negocio.
+        if (!categoriaId && catalogo.length > 0) {
+            this.guardarCacheEnBackground(catalogo, categoriasParaCache);
+        }
+        return catalogo;
+    }
+
+    /**
+     * Guarda catálogo + categorías en background. Best-effort: nunca bloquea el flujo online.
+     * Reutiliza las categorías ya cargadas por el caller si las pasa, evitando una query extra.
+     */
+    private guardarCacheEnBackground(catalogo: ProductoPOS[], categorias?: CategoriaProducto[]): void {
+        const guardar = (cats: CategoriaProducto[]) => this.catalogoLocal.guardar(catalogo, cats);
+        if (categorias) {
+            guardar(categorias).catch(() => { /* cache es best-effort */ });
+        } else {
+            this.obtenerCategorias()
+                .then(guardar)
+                .catch(() => { /* cache es best-effort */ });
+        }
     }
 
     async buscarPorCodigoBarras(codigo: string): Promise<{ producto: ProductoPOS; presentacion?: ProductoPresentacion } | null> {
+        // Offline: lookup dual en memoria sobre el catálogo cacheado.
+        if (!this.network.isConnected()) {
+            return this.catalogoLocal.buscarPorCodigoBarras(codigo);
+        }
+
         type PresRow = {
             id: string; producto_id: string; nombre: string;
             factor_conversion: number; precio_venta: number; precio_costo: number;
@@ -142,6 +180,10 @@ export class InventarioService {
     // ==========================================
 
     async obtenerCategorias(): Promise<CategoriaProducto[]> {
+        // Offline: servir las categorías cacheadas (solo lectura, mismo contrato).
+        if (!this.network.isConnected()) {
+            return this.catalogoLocal.obtenerCategorias();
+        }
         const res = await this.supabase.call<CategoriaProducto[]>(
             this.supabase.client.from('categorias_productos').select('*').eq('activo', true).order('nombre')
         );

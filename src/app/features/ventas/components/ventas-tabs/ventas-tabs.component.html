@@ -1,10 +1,17 @@
 <div class="chrome-tabs">
   <button class="chrome-tab" [class.active]="activeTab === 'lista'" (click)="navigateTo('lista')">
     <ion-icon name="list-outline"></ion-icon>
-    <span>Lista</span>
+    <span>Listado</span>
   </button>
   <button class="chrome-tab" [class.active]="activeTab === 'resumen'" (click)="navigateTo('resumen')">
     <ion-icon name="bar-chart-outline"></ion-icon>
     <span>Resumen</span>
   </button>
+  @if (pendientes > 0) {
+    <button class="chrome-tab" [class.active]="activeTab === 'pendientes'" (click)="navigateTo('pendientes')">
+      <ion-icon name="cloud-upload-outline"></ion-icon>
+      <span>Pendientes</span>
+      <ion-badge color="warning">{{ pendientes }}</ion-badge>
+    </button>
+  }
 </div>

@@ -1,6 +1,10 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { TurnosCajaService } from '../../caja/services/turnos-caja.service';
+import { NetworkService } from '../../../core/services/network.service';
+import { TurnoLocalService } from '../../../core/services/turno-local.service';
+import { OutboxService, OutboxVentaPayload } from '../../../core/services/outbox.service';
+import { SyncService } from '../../../core/services/sync.service';
 import { CartItem } from '../models/cart-item.model';
 
 export interface VentaPayload {
@@ -23,26 +27,78 @@ export interface VentaPayload {
 export class PosService {
     private supabase = inject(SupabaseService);
     private turnosService = inject(TurnosCajaService);
+    private network = inject(NetworkService);
+    private turnoLocal = inject(TurnoLocalService);
+    private outbox = inject(OutboxService);
+    private sync = inject(SyncService);
 
     // ==========================================
     // OPERACIONES POS
     // ==========================================
 
-    async procesarVenta(carrito: CartItem[], payload: VentaPayload) {
-        // 1. Obtener el turno activo (requerido por la BD)
-        const turno = await this.turnosService.obtenerTurnoActivo();
-        if (!turno) {
-            throw new Error('SIN_TURNO');
+    /**
+     * Resuelve el turno al que colgar la venta.
+     * Online: consulta el servidor (fuente de verdad). Offline: lee el snapshot local
+     * (turno_activo_local) — escrito al abrir turno con red. Sin esto el cobro offline
+     * es imposible: consultar el servidor sin red devuelve null → SIN_TURNO.
+     */
+    private async resolverTurno(): Promise<{ id: string; empleado_id: string }> {
+        if (this.network.isConnected()) {
+            const turno = await this.turnosService.obtenerTurnoActivo();
+            if (!turno) throw new Error('SIN_TURNO');
+            return { id: turno.id, empleado_id: turno.empleado_id };
         }
 
-        // 2. Preparar los items del carrito para el JSONB del RPC
-        const items = carrito.map(item => ({
+        const snapshot = await this.turnoLocal.obtener();
+        if (!snapshot) throw new Error('SIN_TURNO');
+        return { id: snapshot.turnoId, empleado_id: snapshot.empleadoId };
+    }
+
+    /** Transforma el carrito al formato de items que consume fn_registrar_venta_pos. */
+    private mapearItems(carrito: CartItem[]) {
+        return carrito.map(item => ({
             producto_id: item.id,
             cantidad: item.cantidad,
             precio_unitario: item.precio_venta,
             subtotal: item.subtotal,
             presentacion_id: item.presentacion_id || null
         }));
+    }
+
+    /**
+     * Encola una venta para sincronizar (cobro offline, local-first §4.1).
+     * Guarda el payload crudo en el outbox y dispara el sync (no-op si sigue sin red).
+     * El turno se resuelve del snapshot local. Devuelve true si se encoló.
+     */
+    async encolarVentaOffline(carrito: CartItem[], payload: VentaPayload): Promise<boolean> {
+        const turno = await this.resolverTurno();
+        const outboxPayload: OutboxVentaPayload = {
+            turnoId:         turno.id,
+            empleadoId:      turno.empleado_id,
+            clienteId:       payload.clienteId ?? null,
+            tipoComprobante: payload.tipoComprobante,
+            total:           payload.total,
+            subtotal:        payload.subtotal,
+            descuento:       payload.descuento,
+            descuentoPct:    payload.descuentoPct,
+            baseIva0:        payload.baseIva0,
+            baseIva15:       payload.baseIva15,
+            ivaValor:        payload.ivaValor,
+            metodoPago:      payload.metodoPago,
+            items:           this.mapearItems(carrito),
+        };
+
+        const encolada = await this.outbox.encolar(payload.idempotencyKey, outboxPayload);
+        if (encolada) void this.sync.sincronizar();
+        return encolada;
+    }
+
+    async procesarVenta(carrito: CartItem[], payload: VentaPayload) {
+        // 1. Resolver el turno (servidor online, snapshot local offline)
+        const turno = await this.resolverTurno();
+
+        // 2. Preparar los items del carrito para el JSONB del RPC
+        const items = this.mapearItems(carrito);
 
         // 3. Llamar a la función PostgreSQL (1 sola llamada — transacción atómica)
         const resultado = await this.supabase.call<{ success: boolean; venta_id: string; numero_comprobante: number }>(

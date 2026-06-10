@@ -38,6 +38,7 @@ AS $$
             'tiene_iva',            p.tiene_iva,
             'tipo_venta',           COALESCE(t.tipo_venta,    p.tipo_venta),
             'unidad_medida',        COALESCE(t.unidad_medida, p.unidad_medida),
+            'categoria_id',         COALESCE(t.categoria_id,  p.categoria_id),
             'producto_template_id', p.producto_template_id,
             'producto_template', CASE
                 WHEN t.id IS NULL THEN NULL

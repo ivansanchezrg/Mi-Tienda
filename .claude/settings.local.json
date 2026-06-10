@@ -216,7 +216,16 @@
       "Bash(Remove-Item -Recurse -Force \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\caja\\\\components\\\\movimientos-hoy-modal\")",
       "Bash(del \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\caja\\\\sql\\\\functions\\\\fn_verificar_transferencia_caja_chica_hoy.sql\")",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\" -Recurse -Directory -ErrorAction SilentlyContinue)",
-      "Bash(Format-Table FullName)"
+      "Bash(Format-Table FullName)",
+      "Bash(node -e \"const a=require\\('./angular.json'\\); const assets=a.projects['mi-tienda'].architect.build.options.assets; console.log\\(JSON.stringify\\(assets,null,2\\)\\)\")",
+      "Bash(node -e \"const a=require\\('./angular.json'\\); console.log\\(Object.keys\\(a.projects\\)\\)\")",
+      "Bash(node -e \"const a=require\\('./angular.json'\\); const assets=a.projects['app'].architect.build.options.assets; console.log\\(JSON.stringify\\(assets,null,2\\)\\)\")",
+      "Bash(node -e \"const a=require\\('./angular.json'\\); console.log\\(JSON.stringify\\(a.projects['app'].architect.build.options, null, 2\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/jeep-sqlite/package.json'\\); console.log\\('version:', p.version, '\\\\ndeps sql.js:', p.dependencies?.['sql.js'] || p.devDependencies?.['sql.js'] || 'no encontrado'\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/jeep-sqlite/package.json'\\); console.log\\('version:', p.version\\); console.log\\('sqljs dep:', p.dependencies?.['sql.js']\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/sql.js/package.json'\\); console.log\\('sql.js instalado:', p.version\\)\")",
+      "WebFetch(domain:forum.ionicframework.com)",
+      "Bash(python -c ' *)"
     ],
     "additionalDirectories": [
       "\\tmp"

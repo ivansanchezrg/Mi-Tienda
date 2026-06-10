@@ -7,6 +7,7 @@ import { SupabaseService } from './supabase.service';
 import { AuthService } from '../../features/auth/services/auth.service';
 import { UiService } from './ui.service';
 import { LoggerService } from './logger.service';
+import { NetworkService } from './network.service';
 import { getFechaLocal } from '../utils/date.util';
 import { OptionsModalComponent, ModalOptionGroup } from '../../shared/components/options-modal/options-modal.component';
 import { ImageCropperModalComponent, ImageCropperResult, AspectRatioPreset } from '../../shared/components/image-cropper-modal/image-cropper-modal.component';
@@ -26,6 +27,14 @@ export class StorageService {
   private logger      = inject(LoggerService);
   private sanitizer   = inject(DomSanitizer);
   private modalCtrl   = inject(ModalController);
+  private network     = inject(NetworkService);
+
+  // Cache de URLs firmadas por path crudo de Storage.
+  // El path es estable entre categorías/búsquedas → una imagen se firma UNA vez (online)
+  // y se reutiliza en todo render posterior, incluso offline. La signed URL expira a la hora
+  // (expiresIn de getSignedUrl); se reusa solo dentro de un margen seguro antes de caducar.
+  private static readonly SIGNED_URL_REUSE_MS = 50 * 60 * 1000; // 50 min (TTL real: 60 min)
+  private signedUrlCache = new Map<string, { url: string; firmadaEn: number }>();
 
   // true en Android/iOS, false en browser/desktop
   get isNative(): boolean {
@@ -270,10 +279,28 @@ export class StorageService {
 
   // Resuelve el path de Storage a una URL firmada válida.
   // Si ya es una URL completa (http/https) la retorna tal cual — evita doble resolución.
+  // Cachea la URL firmada por path: una imagen firmada online se reutiliza al filtrar,
+  // buscar o perder la red — la foto se mantiene visible sin re-firmar.
+  // Sin red: si hay una URL cacheada se sirve (mejor que un placeholder); si no, null
+  // (firmar offline solo se cuelga hasta timeout y resuelve null igual).
   async resolveImageUrl(path: string | null | undefined): Promise<string | null> {
     if (!path) return null;
     if (path.startsWith('http')) return path;
-    return this.getSignedUrl(path);
+
+    const cached = this.signedUrlCache.get(path);
+    const offline = !this.network.isConnected();
+
+    if (cached) {
+      const fresca = Date.now() - cached.firmadaEn < StorageService.SIGNED_URL_REUSE_MS;
+      // Online: reusar solo si está fresca. Offline: reusar siempre (no hay forma de re-firmar).
+      if (fresca || offline) return cached.url;
+    }
+
+    if (offline) return null;
+
+    const url = await this.getSignedUrl(path);
+    if (url) this.signedUrlCache.set(path, { url, firmadaEn: Date.now() });
+    return url;
   }
 
   // Resuelve múltiples paths en paralelo — usar cuando se carga una lista de productos.

@@ -30,6 +30,7 @@ import { CobrarModalComponent } from '../../components/cobrar-modal/cobrar-modal
 import { CantidadModalComponent, CantidadModalResult } from '../../components/cantidad-modal/cantidad-modal.component';
 import { VarianteSelectorModalComponent, VarianteSelectorResult } from '../../components/variante-selector-modal/variante-selector-modal.component';
 import { NetworkService } from '../../../../core/services/network.service';
+import { CatalogoLocalService } from '../../../../core/services/catalogo-local.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { ConfigService } from '../../../../core/services/config.service';
@@ -65,6 +66,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private clientesService = inject(ClientesService);
   protected barcodeScanner = inject(BarcodeScannerService);
   private network = inject(NetworkService);
+  private catalogoLocal = inject(CatalogoLocalService);
   private logger = inject(LoggerService);
   private storageService = inject(StorageService);
   private configService = inject(ConfigService);
@@ -187,20 +189,42 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   async cargarCatalogo() {
-    this.cargandoCatalogo = true;
-    this.cdr.markForCheck();
+    this.categoriaActivaId = null;
+
+    // Stale-while-revalidate: si hay cache local, pinta la cuadrícula al instante
+    // (sin spinner) y refresca contra el servidor en segundo plano. Arranque percibido
+    // inmediato, como una app profesional. Sin cache, muestra el skeleton normal.
+    const huboCache = await this.pintarDesdeCacheSiExiste();
+    if (!huboCache) {
+      this.cargandoCatalogo = true;
+      this.cdr.markForCheck();
+    }
+
     try {
-      const [categorias, productos] = await Promise.all([
-        this.inventarioService.obtenerCategorias(),
-        this.inventarioService.obtenerProductosCatalogoPOS()
-      ]);
+      const categorias = await this.inventarioService.obtenerCategorias();
       this.categoriasCatalogo = categorias;
-      this.productosCatalogo.set(await this.resolverImagenesCatalogo(productos));
-      this.categoriaActivaId  = null;
+      // Pasar las categorías ya cargadas evita una query extra al guardar el cache.
+      const productos = await this.inventarioService.obtenerProductosCatalogoPOS(undefined, categorias);
+      // Pinta la cuadrícula fresca al instante; las imágenes se resuelven en background.
+      this.publicarCatalogoConImagenesProgresivas(productos);
     } finally {
       this.cargandoCatalogo = false;
       this.cdr.markForCheck();
     }
+  }
+
+  /**
+   * Pinta el catálogo desde el cache local si existe, para un arranque instantáneo
+   * mientras se refresca contra el servidor. Devuelve true si pintó algo.
+   * Las imágenes cacheadas (paths) se resuelven en background como en cualquier carga.
+   */
+  private async pintarDesdeCacheSiExiste(): Promise<boolean> {
+    const cacheados = await this.catalogoLocal.obtenerCatalogoPorCategoria();
+    if (cacheados.length === 0) return false;
+    const categoriasCache = await this.catalogoLocal.obtenerCategorias();
+    if (categoriasCache.length > 0) this.categoriasCatalogo = categoriasCache;
+    this.publicarCatalogoConImagenesProgresivas(cacheados);
+    return true;
   }
 
   async seleccionarCategoriaCatalogo(categoriaId: string | null) {
@@ -215,15 +239,63 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       tabEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }, 0);
 
-    this.cargandoCatalogo = true;
-    this.cdr.markForCheck();
+    // Si hay cache en memoria el filtro es puro JS — no hay I/O, no hace falta spinner
+    const instantaneo = !this.network.isConnected() && this.catalogoLocal.tieneCacheEnMemoria();
+    if (!instantaneo) {
+      this.cargandoCatalogo = true;
+      this.cdr.markForCheck();
+    }
     try {
       const productos = await this.inventarioService.obtenerProductosCatalogoPOS(categoriaId ?? undefined);
-      this.productosCatalogo.set(await this.resolverImagenesCatalogo(productos));
+      // Pinta al instante reutilizando imágenes ya resueltas; resuelve nuevas en background.
+      this.publicarCatalogoConImagenesProgresivas(productos);
     } finally {
       this.cargandoCatalogo = false;
       this.cdr.markForCheck();
     }
+  }
+
+  /**
+   * Publica el catálogo en dos pasos para que la cuadrícula aparezca al instante:
+   *  Paso 1 (síncrono): pinta los productos reutilizando las imágenes ya resueltas en
+   *    el catálogo actual (mismo producto/template) → 0 llamadas a Storage, render inmediato.
+   *  Paso 2 (background): resuelve las URLs nuevas sin bloquear la UI y re-publica.
+   * Único punto de pintado del catálogo — lo usan cargarCatalogo, filtro y refresco.
+   */
+  private publicarCatalogoConImagenesProgresivas(productos: ProductoPOS[]) {
+    const catalogoActual = this.productosCatalogo();
+    const imagenesCacheadas = new Map(catalogoActual.map(p => [p.id, p.imagen_url]));
+    const templateImagenesCacheadas = new Map(
+      catalogoActual
+        .filter(p => p.producto_template_id && p.producto_template?.imagen_url?.startsWith('http'))
+        .map(p => [p.producto_template_id!, p.producto_template!.imagen_url!])
+    );
+
+    // Paso 1: pintar ya, con las imágenes que tengamos a mano.
+    // Solo se usa una URL si ya está firmada (http). Si solo hay path crudo de Storage,
+    // se deja undefined (placeholder) — pintarlo haría que <img> pida el path como ruta
+    // local (localhost/{path}) → 404 en consola. El Paso 2 lo firma y re-publica.
+    const urlFirmada = (valor: string | null | undefined): string | undefined =>
+      valor?.startsWith('http') ? valor : undefined;
+
+    const productosConImagenCacheada = productos.map(p => {
+      const result = { ...p, imagen_url: urlFirmada(imagenesCacheadas.get(p.id) ?? p.imagen_url) };
+      if (result.producto_template) {
+        result.producto_template = {
+          ...result.producto_template,
+          imagen_url: urlFirmada(templateImagenesCacheadas.get(p.producto_template_id!) ?? result.producto_template.imagen_url)
+        };
+      }
+      return result;
+    });
+    this.productosCatalogo.set(productosConImagenCacheada);
+    this.cdr.markForCheck();
+
+    // Paso 2: resolver las URLs faltantes en background, sin bloquear el render
+    this.resolverImagenesCatalogo(productos).then(productosConImg => {
+      this.productosCatalogo.set(productosConImg);
+      this.cdr.markForCheck();
+    }).catch(() => { /* imagen fallida no rompe el flujo */ });
   }
 
   private async resolverImagenesCatalogo(productos: ProductoPOS[]): Promise<ProductoPOS[]> {
@@ -531,7 +603,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   async abrirSelectorCliente() {
     if (this.errorCliente) {
       await this.cargarCliente();
-      if (this.errorCliente) {
+      // Sin red el banner global ya avisa del offline — no repetir con toast.
+      if (this.errorCliente && this.network.isConnected()) {
         this.ui.showToast('No se pudo cargar el cliente. Verifica tu conexión.', 'danger');
       }
       return;
@@ -980,8 +1053,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
 
   private async buscarPorCodigo(texto: string) {
-    if (!this.network.isConnected()) {
-      this.ui.showToast('Sin conexión a internet', 'danger');
+    // Sin red: continuar solo si hay catálogo cacheado. El InventarioService
+    // resuelve la búsqueda en memoria (modo offline). Sin cache = no hay nada que buscar.
+    if (!this.network.isConnected() && !(await this.catalogoLocal.tieneCache())) {
+      this.ui.showToast('Sin conexión y sin catálogo disponible', 'danger');
       return;
     }
 
@@ -1151,8 +1226,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   async procesarCodigoRapido(codigo: string) {
-    if (!this.network.isConnected()) {
-      this.ui.showToast('Sin conexión a internet', 'danger');
+    // Sin red: continuar solo si hay catálogo cacheado.
+    if (!this.network.isConnected() && !(await this.catalogoLocal.tieneCache())) {
+      this.ui.showToast('Sin conexión y sin catálogo disponible', 'danger');
       return;
     }
 
@@ -1272,41 +1348,55 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (this.cobroEnProceso) return;
     this.cobroEnProceso = true;
     this.cdr.markForCheck();
+
+    // 1. Generar idempotency key y persistir ANTES de cualquier intento (online u offline)
+    const idempotencyKey = crypto.randomUUID();
+    localStorage.setItem(PosPage.IDEMPOTENCY_STORAGE_KEY, idempotencyKey);
+
+    // 2. Armar el payload con todos los campos fiscales correctos
+    //    FIADO no lleva descuento — son beneficios mutuamente excluyentes
+    const esFiado = metodoPago === 'FIADO';
+    const descuento = esFiado ? 0 : this.descuentoAplicado();
+    const descuentoPct = esFiado ? 0 : this.descuentoPct;
+    const totalFinal = esFiado ? this.subtotalBruto() : this.totalPagar();
+    const esFactura = this.tipoComprobante === TipoComprobante.FACTURA;
+    const payload: VentaPayload = {
+      total:             totalFinal,
+      subtotal:          esFactura ? this.subtotalNeto() : this.subtotalBruto(),
+      descuento,
+      descuentoPct,
+      metodoPago,
+      tipoComprobante:   this.tipoComprobante,
+      clienteId:         this.clienteSeleccionado?.id,
+      baseIva0:          esFactura ? this.baseIva0()  : 0,
+      baseIva15:         esFactura ? this.baseIva15() : 0,
+      ivaValor:          esFactura ? this.ivaValor()  : 0,
+      idempotencyKey,
+    };
+
+    // 3. Offline: FIADO y FACTURA no están soportados (requieren el servidor — §3 del plan).
+    //    El resto se encola local-first y se sincroniza al volver la red.
+    if (!this.network.isConnected()) {
+      if (esFiado || esFactura) {
+        localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
+        this.ui.showToast('Fiado y Factura no están disponibles sin conexión', 'warning');
+        this.cobroEnProceso = false;
+        this.cdr.markForCheck();
+        return;
+      }
+      await this.cobrarOffline(idempotencyKey, payload);
+      this.cobroEnProceso = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    // 4. Online: flujo directo contra el servidor (muestra número de comprobante real).
     await this.ui.showLoading();
-
     try {
-      // 1. Generar idempotency key y persistir ANTES del RPC
-      const idempotencyKey = crypto.randomUUID();
-      localStorage.setItem(PosPage.IDEMPOTENCY_STORAGE_KEY, idempotencyKey);
-
-      // 2. Armar el payload con todos los campos fiscales correctos
-      //    FIADO no lleva descuento — son beneficios mutuamente excluyentes
-      const esFiado = metodoPago === 'FIADO';
-      const descuento = esFiado ? 0 : this.descuentoAplicado();
-      const descuentoPct = esFiado ? 0 : this.descuentoPct;
-      const totalFinal = esFiado ? this.subtotalBruto() : this.totalPagar();
-      const esFactura = this.tipoComprobante === TipoComprobante.FACTURA;
-      const payload: VentaPayload = {
-        total:             totalFinal,
-        subtotal:          esFactura ? this.subtotalNeto() : this.subtotalBruto(),
-        descuento,
-        descuentoPct,
-        metodoPago,
-        tipoComprobante:   this.tipoComprobante,
-        clienteId:         this.clienteSeleccionado?.id,
-        baseIva0:          esFactura ? this.baseIva0()  : 0,
-        baseIva15:         esFactura ? this.baseIva15() : 0,
-        ivaValor:          esFactura ? this.ivaValor()  : 0,
-        idempotencyKey,
-      };
-
-      // 3. Procesar la venta en Supabase (RPC) — turno se valida dentro del servicio
       const response = await this.posService.procesarVenta(this.carrito(), payload);
-
       await this.ui.hideLoading();
 
       if (response.success) {
-        // Limpiar idempotency key — venta confirmada
         localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
         this.ui.showToast(`Venta #${response.numeroComprobante} registrada`, 'success');
         this.limpiarCarrito();
@@ -1329,6 +1419,34 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     } finally {
       this.cobroEnProceso = false;
       this.cdr.markForCheck();
+    }
+  }
+
+  /**
+   * Cobro offline (local-first): encola la venta y responde al instante.
+   * La venta YA existe en disco al volver este método — el SyncService la sube al
+   * volver la red. No espera al servidor ni muestra número de comprobante (lo asigna
+   * el servidor al sincronizar). El stock se descontó optimista en el carrito.
+   */
+  private async cobrarOffline(idempotencyKey: string, payload: VentaPayload) {
+    try {
+      const encolada = await this.posService.encolarVentaOffline(this.carrito(), payload);
+      if (encolada) {
+        // La venta está en disco — la idempotency key ya no la maneja localStorage,
+        // la cola es la fuente de verdad de lo pendiente.
+        localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
+        this.ui.showToast('Venta guardada — se sincronizará al volver la conexión', 'success');
+        this.limpiarCarrito();
+      } else {
+        this.ui.showToast('No se pudo guardar la venta. Intenta de nuevo.', 'danger');
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === 'SIN_TURNO') {
+        await this.mostrarAlertSinTurno();
+      } else {
+        this.ui.showToast('No se pudo guardar la venta sin conexión.', 'danger');
+        this.logger.error('PosPage', 'Error al encolar venta offline', error);
+      }
     }
   }
 
@@ -1379,44 +1497,17 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   /** Refresca el catálogo silenciosamente sin spinner ni pérdida del carrito.
-   *  Paso 1: actualiza el signal de stock inmediatamente (con imágenes ya cacheadas).
-   *  Paso 2: resuelve URLs de imágenes en background sin bloquear la actualización de stock. */
+   *  Reutiliza el pintado progresivo (stock fresco al instante, imágenes en background)
+   *  y sincroniza el stock de los ítems del carrito con los valores frescos. */
   private async refrescarCatalogo() {
     try {
       const [categorias, productos] = await Promise.all([
         this.inventarioService.obtenerCategorias(),
-        this.inventarioService.obtenerProductosCatalogoPOS(this.categoriaActivaId ?? undefined)
+        this.inventarioService.obtenerProductosCatalogoPOS(this.categoriaActivaId ?? undefined, undefined)
       ]);
       this.categoriasCatalogo = categorias;
-
-      // Paso 1: publicar stock fresco inmediatamente reutilizando imágenes ya resueltas
-      const catalogoActual = this.productosCatalogo();
-      const imagenesCacheadas = new Map(catalogoActual.map(p => [p.id, p.imagen_url]));
-      const templateImagenesCacheadas = new Map(
-        catalogoActual
-          .filter(p => p.producto_template_id && p.producto_template?.imagen_url?.startsWith('http'))
-          .map(p => [p.producto_template_id!, p.producto_template!.imagen_url!])
-      );
-      const productosConImagenCacheada = productos.map(p => {
-        const result = { ...p, imagen_url: imagenesCacheadas.get(p.id) ?? p.imagen_url };
-        if (result.producto_template && templateImagenesCacheadas.has(p.producto_template_id!)) {
-          result.producto_template = {
-            ...result.producto_template,
-            imagen_url: templateImagenesCacheadas.get(p.producto_template_id!)
-          };
-        }
-        return result;
-      });
-      this.productosCatalogo.set(productosConImagenCacheada);
+      this.publicarCatalogoConImagenesProgresivas(productos);
       this.sincronizarStockCarrito(productos);
-      this.cdr.markForCheck();
-
-      // Paso 2: resolver URLs nuevas en background (no bloquea la UI)
-      this.resolverImagenesCatalogo(productos).then(productosConImg => {
-        this.productosCatalogo.set(productosConImg);
-        this.cdr.markForCheck();
-      }).catch(() => { /* imagen fallida no rompe el flujo */ });
-
     } catch {
       // Silencioso — si falla la red el catálogo anterior sigue visible
     }

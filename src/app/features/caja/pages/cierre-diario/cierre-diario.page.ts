@@ -31,6 +31,8 @@ import { UiService } from '@core/services/ui.service';
 import { HasPendingChanges } from '@core/guards/pending-changes.guard';
 import { CurrencyService } from '@core/services/currency.service';
 import { ConfigService } from '@core/services/config.service';
+import { OutboxService } from '@core/services/outbox.service';
+import { SyncService } from '@core/services/sync.service';
 import { RecargasService } from '../../services/recargas.service';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
@@ -68,6 +70,8 @@ export class CierreDiarioPage implements HasPendingChanges {
   private recargasService   = inject(RecargasService);
   private turnosCajaService = inject(TurnosCajaService);
   private authService       = inject(AuthService);
+  private outbox            = inject(OutboxService);
+  private sync              = inject(SyncService);
   private alertCtrl = inject(AlertController);
   private currencyService = inject(CurrencyService);
   private configService = inject(ConfigService);
@@ -418,6 +422,11 @@ export class CierreDiarioPage implements HasPendingChanges {
   // ==========================================
 
   async confirmarCierre() {
+    // Barrera del cierre (§4.7 PLAN-OFFLINE-POS): no cerrar con ventas offline sin sincronizar.
+    // Esas ventas llegarían al servidor DESPUÉS del cierre → el saldo_digital del cajón quedaría
+    // incompleto → cuadre incorrecto y posible FALTANTE_CAJA injusto. Se drena la cola primero.
+    if (!(await this.colaSincronizadaParaCerrar())) return;
+
     const alert = await this.alertCtrl.create({
       header: 'Confirmar Cierre',
       message: '¿Confirmas el cierre del turno con los valores indicados?',
@@ -429,6 +438,29 @@ export class CierreDiarioPage implements HasPendingChanges {
     await alert.present();
     const { role } = await alert.onDidDismiss();
     if (role === 'confirm') await this.ejecutarCierre();
+  }
+
+  /**
+   * Garantiza que no queden ventas offline en cola antes de cerrar.
+   * Si hay pendientes, intenta drenarlas (el cierre siempre es online). Si tras el
+   * intento siguen pendientes, bloquea el cierre y guía al usuario a revisarlas.
+   * Devuelve true si la cola está vacía y se puede cerrar.
+   */
+  private async colaSincronizadaParaCerrar(): Promise<boolean> {
+    if (await this.outbox.cantidadPendientes() === 0) return true;
+
+    await this.ui.showLoading('Sincronizando ventas pendientes...');
+    await this.sync.sincronizar();
+    await this.ui.hideLoading();
+
+    const restantes = await this.outbox.cantidadPendientes();
+    if (restantes === 0) return true;
+
+    await this.ui.showError(
+      `Hay ${restantes} venta(s) sin sincronizar. No se puede cerrar el turno hasta subirlas. ` +
+      `Verifica tu conexión e intenta de nuevo.`
+    );
+    return false;
   }
 
   /**

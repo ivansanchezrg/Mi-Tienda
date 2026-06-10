@@ -7,10 +7,19 @@ DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
 DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
   UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID
 );
+DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
+  UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID, BOOLEAN
+);
 
 -- ==========================================
--- FUNCIÓN: fn_registrar_venta_pos (v3.0 — multi-tenant safe + performance)
+-- FUNCIÓN: fn_registrar_venta_pos (v3.1 — soporte venta offline)
 -- ==========================================
+-- v3.1 (2026-06-10):
+--   • p_permitir_stock_negativo (default false). Solo las ventas drenadas desde la
+--     cola offline (SyncService) lo activan. Setea la variable de sesión transaccional
+--     app.permitir_stock_negativo que el trigger fn_actualizar_stock_venta lee para
+--     omitir el RAISE de stock insuficiente. El stock offline es optimista (§5).
+--
 -- v3.0 (2026-05-30):
 --   • Valida pertenencia al negocio de: p_turno_id, p_cliente_id, p_empleado_id,
 --     y de cada producto/presentacion del array p_items. Sin estas validaciones
@@ -25,20 +34,21 @@ DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION public.fn_registrar_venta_pos(
-  p_turno_id         UUID,
-  p_empleado_id      UUID,
-  p_cliente_id       UUID             DEFAULT NULL,
-  p_tipo_comprobante TEXT             DEFAULT 'TICKET',
-  p_total            DECIMAL(12,2)    DEFAULT 0,
-  p_subtotal         DECIMAL(12,2)    DEFAULT 0,
-  p_descuento        DECIMAL(12,2)    DEFAULT 0,
-  p_descuento_pct    SMALLINT         DEFAULT 0,
-  p_base_iva_0       DECIMAL(12,2)    DEFAULT 0,
-  p_base_iva_15      DECIMAL(12,2)    DEFAULT 0,
-  p_iva_valor        DECIMAL(12,2)    DEFAULT 0,
-  p_metodo_pago      TEXT             DEFAULT 'EFECTIVO',
-  p_items            JSONB            DEFAULT '[]',
-  p_idempotency_key  UUID             DEFAULT NULL
+  p_turno_id                UUID,
+  p_empleado_id             UUID,
+  p_cliente_id              UUID             DEFAULT NULL,
+  p_tipo_comprobante        TEXT             DEFAULT 'TICKET',
+  p_total                   DECIMAL(12,2)    DEFAULT 0,
+  p_subtotal                DECIMAL(12,2)    DEFAULT 0,
+  p_descuento               DECIMAL(12,2)    DEFAULT 0,
+  p_descuento_pct           SMALLINT         DEFAULT 0,
+  p_base_iva_0              DECIMAL(12,2)    DEFAULT 0,
+  p_base_iva_15             DECIMAL(12,2)    DEFAULT 0,
+  p_iva_valor               DECIMAL(12,2)    DEFAULT 0,
+  p_metodo_pago             TEXT             DEFAULT 'EFECTIVO',
+  p_items                   JSONB            DEFAULT '[]',
+  p_idempotency_key         UUID             DEFAULT NULL,
+  p_permitir_stock_negativo BOOLEAN          DEFAULT FALSE
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -59,6 +69,12 @@ BEGIN
   v_negocio_id := public.get_negocio_id();
   IF v_negocio_id IS NULL THEN
     RAISE EXCEPTION 'No hay negocio activo en el JWT';
+  END IF;
+
+  -- Venta offline (§6): habilita stock negativo para esta transacción. El trigger
+  -- fn_actualizar_stock_venta lee esta variable. is_local=true → vive solo en esta TX.
+  IF p_permitir_stock_negativo THEN
+    PERFORM set_config('app.permitir_stock_negativo', 'on', true);
   END IF;
 
   -- ────────── Idempotencia ──────────
@@ -188,12 +204,14 @@ END;
 $$;
 
 -- Permisos
-REVOKE EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID, BOOLEAN) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID, BOOLEAN) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_registrar_venta_pos IS
-  'v3.0 — Multi-tenant: valida turno/cliente/empleado/productos del negocio. '
+  'v3.1 — Multi-tenant: valida turno/cliente/empleado/productos del negocio. '
   'Performance: detalles insertados en batch (INSERT ... SELECT) eliminando N+1. '
-  'Idempotencia por p_idempotency_key. Triggers de stock/kardex/caja siguen aplicando.';
+  'Idempotencia por p_idempotency_key. p_permitir_stock_negativo habilita stock negativo '
+  'para ventas drenadas de la cola offline (stock optimista §5/§6). '
+  'Triggers de stock/kardex/caja siguen aplicando.';

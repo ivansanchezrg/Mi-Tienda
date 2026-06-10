@@ -77,7 +77,8 @@ export abstract class PaginatedListPage<T> {
             this.items = data;
             this.hasMore = data.length === this.pageSize;
         } catch {
-            await this.ui.showToast('Error al cargar los datos', 'danger');
+            // showError silencia el toast cuando es por falta de red (el banner global ya avisa).
+            await this.ui.showError('Error al cargar los datos. Verifica tu conexión.');
         } finally {
             this.loading = false;
         }

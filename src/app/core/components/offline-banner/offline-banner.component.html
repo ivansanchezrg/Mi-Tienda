@@ -2,5 +2,13 @@
   <div class="offline-banner">
     <ion-icon name="cloud-offline-outline"></ion-icon>
     <span>Sin conexión a internet</span>
+    @if (pendientes > 0) {
+      <button class="offline-banner__cola" (click)="irAPendientes()">{{ pendientes }} en cola</button>
+    }
+  </div>
+} @else if (pendientes > 0) {
+  <div class="offline-banner offline-banner--sync" (click)="irAPendientes()">
+    <ion-icon name="cloud-upload-outline"></ion-icon>
+    <span>Sincronizando {{ pendientes }} venta(s)...</span>
   </div>
 }

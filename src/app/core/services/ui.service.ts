@@ -3,11 +3,13 @@ import { LoadingController, ToastController } from '@ionic/angular/standalone';
 // 1. IMPORTANTE: Importamos los iconos como objetos, no usamos strings
 import { checkmarkCircleOutline, alertCircleOutline } from 'ionicons/icons';
 import { TIMING } from '@core/config/timing.config';
+import { NetworkService } from './network.service';
 
 @Injectable({ providedIn: 'root' })
 export class UiService {
   private loadingCtrl = inject(LoadingController);
   private toastCtrl = inject(ToastController);
+  private network = inject(NetworkService);
 
   // Control de visibilidad de tabs
   tabsVisible = signal(true);
@@ -61,6 +63,12 @@ export class UiService {
 
   /** Muestra Toast de Error con mensaje amigable */
   async showError(message: string) {
+    // Sin red: el banner global (app-offline-banner) ya comunica el estado offline.
+    // Silenciar los errores de red evita el toast redundante "Verifica tu conexión"
+    // al entrar a secciones que requieren servidor. Los errores reales (con red) sí se muestran.
+    if (!this.network.isConnected() && this.esErrorDeRed(message)) {
+      return;
+    }
     const toast = await this.toastCtrl.create({
       message: this.formatErrorMessage(message),
       duration: 5000,
@@ -70,6 +78,22 @@ export class UiService {
       buttons: [{ text: 'OK', role: 'cancel' }]
     });
     await toast.present();
+  }
+
+  /**
+   * Heurística: ¿el mensaje corresponde a un fallo de red/conexión?
+   * Solo se evalúa estando offline. Cubre los pocos `showError` que NO pasan por
+   * SupabaseService.call() (la fuente principal ya silencia los errores de transporte
+   * offline antes de llegar aquí). Las validaciones no contienen estos patrones → se muestran.
+   */
+  private esErrorDeRed(message: string): boolean {
+    const lower = message.toLowerCase();
+    return lower.includes('failed to fetch')
+        || lower.includes('network')
+        || lower.includes('net::')
+        || lower.includes('timeout')
+        || lower.includes('conexión')
+        || lower.includes('conexion');
   }
 
   /** Convierte errores técnicos a mensajes amigables */

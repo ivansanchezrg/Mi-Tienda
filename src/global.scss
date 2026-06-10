@@ -216,3 +216,27 @@ img.img-fade {
   }
 }
 
+
+// Banner offline: cuando ocupa la franja superior, el banner ya reserva el
+// safe-area-inset-top (status bar del celular). Anular el de los toolbars evita
+// contar ese espacio dos veces — sin esto queda un hueco entre banner y header.
+body.offline-banner-visible {
+  --ion-safe-area-top: 0px;
+
+  ion-header ion-toolbar {
+    padding-top: 0;
+  }
+
+  // El header del sidebar usa env(safe-area-inset-top) directo (no la variable),
+  // así que se anula explícitamente — el banner ya reserva ese espacio.
+  .sidebar-header {
+    padding-top: var(--spacing-lg);
+  }
+
+  // Los toasts son overlays flotantes, no contenido empujado por el banner.
+  // Restaurar su safe area real evita que se peguen a la status bar — el override
+  // de arriba es solo para el contenido bajo el banner (headers/sidebar).
+  ion-toast {
+    --ion-safe-area-top: env(safe-area-inset-top);
+  }
+}

@@ -10,6 +10,7 @@ import { phonePortraitOutline, busOutline, listOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
 import { LoggerService } from '@core/services/logger.service';
+import { SupabaseService } from '@core/services/supabase.service';
 import { RecargasService, RecargaHistorial } from '../../../caja/services/recargas.service';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
@@ -44,6 +45,7 @@ export class HistorialRecargasPage {
   private configService = inject(ConfigService);
   private recargasService = inject(RecargasService);
   private logger = inject(LoggerService);
+  private supabase = inject(SupabaseService);
 
   loading = true;
   items: RecargaHistorial[] = [];
@@ -93,7 +95,9 @@ export class HistorialRecargasPage {
       this.agruparPorFecha();
     } catch (error) {
       this.logger.error('HistorialRecargasPage', 'Error al cargar historial', error);
-      await this.ui.showError('Error al cargar el historial de recargas');
+      if (!this.supabase.debeSilenciarErrorOffline(error)) {
+        await this.ui.showError('Error al cargar el historial de recargas');
+      }
     } finally {
       this.loading = false;
     }

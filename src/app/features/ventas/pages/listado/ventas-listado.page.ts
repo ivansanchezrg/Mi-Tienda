@@ -11,7 +11,7 @@ import {
     IonSkeletonText,
     IonInfiniteScroll, IonInfiniteScrollContent,
     IonFab, IonFabButton,
-    ModalController, AlertController
+    ModalController, AlertController, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -59,7 +59,7 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
         EmptyStateComponent
     ]
 })
-export class VentasListadoPage extends PaginatedListPage<Venta> implements OnInit, OnDestroy {
+export class VentasListadoPage extends PaginatedListPage<Venta> implements OnInit, OnDestroy, ViewWillEnter {
 
     private ventasService = inject(VentasService);
     private shareService  = inject(ShareVentaService);
@@ -141,6 +141,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         });
     }
 
+    /** Setup que corre una sola vez (la suscripción de búsqueda + datos del usuario). */
     async ngOnInit() {
         this.searchSub = this.search$
             .pipe(debounceTime(500), distinctUntilChanged())
@@ -149,8 +150,17 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         this.rolUsuario = usuario?.rol ?? null;
         this.usuarioId = usuario?.id ?? null;
         this.esSuperadmin = usuario?.es_superadmin ?? false;
+    }
+
+    /**
+     * Carga la data fresca cada vez que se entra a la sección (Ionic cachea las páginas,
+     * así que ngOnInit solo corre una vez). Primera entrada → skeleton; re-entradas →
+     * refresco silencioso (la lista anterior se ve hasta que llega la fresca).
+     */
+    async ionViewWillEnter() {
+        const esPrimeraCarga = this.items.length === 0;
         await Promise.all([
-            this.cargar(),
+            this.cargar(!esPrimeraCarga),
             this.cargarTurnos()
         ]);
     }

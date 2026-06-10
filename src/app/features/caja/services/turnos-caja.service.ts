@@ -5,6 +5,8 @@ import { SupabaseService } from '@core/services/supabase.service';
 import { UiService } from '@core/services/ui.service';
 import { LoggerService } from '@core/services/logger.service';
 import { ConfigService } from '@core/services/config.service';
+import { TurnoLocalService } from '@core/services/turno-local.service';
+import { NetworkService } from '@core/services/network.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
 import { OperacionCaja } from '../models/operacion-caja.model';
@@ -45,6 +47,8 @@ export class TurnosCajaService {
   private logger = inject(LoggerService);
   private configService = inject(ConfigService);
   private zone = inject(NgZone);
+  private turnoLocal = inject(TurnoLocalService);
+  private network = inject(NetworkService);
 
   // ==========================================
   // ESTADO REACTIVO — turno activo + caja abierta
@@ -130,6 +134,7 @@ export class TurnosCajaService {
     try {
       const turno = await this.obtenerTurnoActivo();
       this._turnoActivo$.next(turno);
+      await this.sincronizarSnapshotLocal(turno);
       this.abrirRealtimeTurnos();
     } catch (err) {
       this.logger.error('TurnosCajaService', 'Error al inicializar estado reactivo', err);
@@ -210,6 +215,7 @@ export class TurnosCajaService {
       if (nuevo && !nuevo.hora_fecha_cierre) {
         const turno = await this.obtenerTurnoActivo();
         this._turnoActivo$.next(turno);
+        await this.sincronizarSnapshotLocal(turno);
         this.logger.info('TurnosCajaService', 'Turno abierto detectado en tiempo real');
       }
       return;
@@ -219,6 +225,7 @@ export class TurnosCajaService {
       // Si el turno que estaba activo se cerro, bajar el estado a null
       if (actual && nuevo && nuevo.id === actual.id && nuevo.hora_fecha_cierre) {
         this._turnoActivo$.next(null);
+        await this.sincronizarSnapshotLocal(null);
         this.logger.info('TurnosCajaService', 'Turno cerrado detectado en tiempo real');
         return;
       }
@@ -226,6 +233,7 @@ export class TurnosCajaService {
       if (!actual && nuevo && !nuevo.hora_fecha_cierre) {
         const turno = await this.obtenerTurnoActivo();
         this._turnoActivo$.next(turno);
+        await this.sincronizarSnapshotLocal(turno);
       }
       return;
     }
@@ -233,6 +241,7 @@ export class TurnosCajaService {
     if (eventType === 'DELETE') {
       if (actual && viejo && viejo.id === actual.id) {
         this._turnoActivo$.next(null);
+        await this.sincronizarSnapshotLocal(null);
         this.logger.warn('TurnosCajaService', 'Turno eliminado en tiempo real');
       }
     }
@@ -265,6 +274,31 @@ export class TurnosCajaService {
   async refrescarTurnoActivo(): Promise<void> {
     const turno = await this.obtenerTurnoActivo();
     this._turnoActivo$.next(turno);
+    await this.sincronizarSnapshotLocal(turno);
+  }
+
+  /**
+   * Sincroniza el snapshot local del turno (turno_activo_local) con el estado real.
+   * Habilita cobrar offline: el POS y el guard leen este snapshot cuando no hay red.
+   *
+   * Solo actúa con red: offline, `turno = null` puede significar "no hay turno" O
+   * "la query falló por falta de red". Borrar el snapshot en ese caso destruiría el
+   * turno válido que habilita el cobro offline. Sin red → no se toca el snapshot.
+   * Con red, la lectura es confiable: hay turno → escribe; no hay → borra.
+   */
+  private async sincronizarSnapshotLocal(turno: TurnoCajaConEmpleado | null): Promise<void> {
+    if (!this.network.isConnected()) return;
+
+    if (turno) {
+      await this.turnoLocal.guardar({
+        turnoId:     turno.id,
+        empleadoId:  turno.empleado_id,
+        numeroTurno: turno.numero_turno,
+        abiertoAt:   Date.now(),
+      });
+    } else {
+      await this.turnoLocal.borrar();
+    }
   }
 
   /**

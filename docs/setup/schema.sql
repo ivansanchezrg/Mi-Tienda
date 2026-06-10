@@ -466,7 +466,11 @@ CREATE TABLE IF NOT EXISTS productos (
     nombre               VARCHAR(150) NOT NULL,
     precio_costo         DECIMAL(12,2) NOT NULL DEFAULT 0,
     precio_venta         DECIMAL(12,2) NOT NULL,
-    stock_actual         DECIMAL(12,2) DEFAULT 0 CONSTRAINT chk_stock_no_negativo CHECK (stock_actual >= 0),
+    -- Sin CHECK de no-negativo: el guardián del stock es el trigger fn_actualizar_stock_venta,
+    -- que respeta la bandera de venta offline (§5/§6 PLAN-OFFLINE-POS). Un CHECK de columna no
+    -- puede leer variables de sesión, así que bloquearía las ventas offline legítimas (stock
+    -- optimista). Las ventas online siguen protegidas por el RAISE del trigger.
+    stock_actual         DECIMAL(12,2) DEFAULT 0,
     stock_minimo         INTEGER DEFAULT 5,
     tiene_iva            BOOLEAN DEFAULT TRUE,
     activo               BOOLEAN DEFAULT TRUE,
@@ -1099,10 +1103,11 @@ CREATE TRIGGER trg_set_codigo_categoria_operacion
 CREATE OR REPLACE FUNCTION fn_actualizar_stock_venta()
 RETURNS TRIGGER AS $$
 DECLARE
-    v_negocio_id    UUID;
-    v_factor        INTEGER;
-    v_cantidad_real DECIMAL(12,2);
-    v_stock_actual  DECIMAL(12,2);
+    v_negocio_id     UUID;
+    v_factor         INTEGER;
+    v_cantidad_real  DECIMAL(12,2);
+    v_stock_actual   DECIMAL(12,2);
+    v_permitir_neg   BOOLEAN;
 BEGIN
     IF NEW.presentacion_id IS NOT NULL THEN
         v_factor := (SELECT factor_conversion FROM producto_presentaciones WHERE id = NEW.presentacion_id);
@@ -1119,7 +1124,13 @@ BEGIN
     v_negocio_id   := (SELECT negocio_id   FROM productos WHERE id = NEW.producto_id);
     v_stock_actual := (SELECT stock_actual  FROM productos WHERE id = NEW.producto_id);
 
-    IF v_stock_actual < v_cantidad_real THEN
+    -- Bandera de venta offline (§5/§6 PLAN-OFFLINE-POS): la setea fn_registrar_venta_pos
+    -- en la misma transacción cuando la venta viene de la cola offline. Permite stock
+    -- negativo porque la venta YA ocurrió físicamente — negarla descuadraría la caja.
+    -- current_setting con true → no lanza si la variable no existe (ventas online normales).
+    v_permitir_neg := COALESCE(current_setting('app.permitir_stock_negativo', true), 'off') = 'on';
+
+    IF v_stock_actual < v_cantidad_real AND NOT v_permitir_neg THEN
         RAISE EXCEPTION 'Stock insuficiente para producto %. Stock actual: %, requerido: %',
             NEW.producto_id, v_stock_actual, v_cantidad_real;
     END IF;

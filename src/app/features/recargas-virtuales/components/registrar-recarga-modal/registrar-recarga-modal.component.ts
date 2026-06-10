@@ -12,6 +12,7 @@ import {
   checkmarkCircleOutline, alertCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { SupabaseService } from '@core/services/supabase.service';
 import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
@@ -41,6 +42,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
 
   private modalCtrl = inject(ModalController);
   private ui = inject(UiService);
+  private supabase = inject(SupabaseService);
   private service = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
 
@@ -87,8 +89,10 @@ export class RegistrarRecargaModalComponent implements OnInit {
         this.saldoCajaBus = saldoCaja;
         this.saldoVirtualSistemaBus = saldoVirtual;
       }
-    } catch {
-      await this.ui.showError('Error al cargar los datos');
+    } catch (error) {
+      if (!this.supabase.debeSilenciarErrorOffline(error)) {
+        await this.ui.showError('Error al cargar los datos');
+      }
     }
   }
 

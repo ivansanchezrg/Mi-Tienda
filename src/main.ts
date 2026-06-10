@@ -4,7 +4,6 @@ import { IonicRouteStrategy, provideIonicAngular } from '@ionic/angular/standalo
 import { LOCALE_ID } from '@angular/core';
 import { registerLocaleData } from '@angular/common';
 import localeEs from '@angular/common/locales/es';
-
 import { routes } from './app/app.routes';
 import { AppComponent } from './app/app.component';
 import { SelectivePreloadStrategy } from './app/core/strategies/selective-preload.strategy';

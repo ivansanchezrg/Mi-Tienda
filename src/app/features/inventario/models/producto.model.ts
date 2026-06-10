@@ -97,7 +97,7 @@ export interface Producto {
 export type ProductoPOS = Pick<Producto,
     'id' | 'nombre' | 'codigo_barras' | 'precio_venta' |
     'stock_actual' | 'stock_minimo' | 'imagen_url' | 'tiene_iva' |
-    'tipo_venta' | 'unidad_medida' | 'producto_template_id'
+    'tipo_venta' | 'unidad_medida' | 'producto_template_id' | 'categoria_id'
 > & {
     producto_template?: (Pick<ProductoTemplate, 'id' | 'nombre' | 'imagen_url'> & {
         template_atributos?: { atributo?: Pick<Atributo, 'nombre'> }[];
