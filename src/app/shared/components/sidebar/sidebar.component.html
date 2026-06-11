@@ -36,6 +36,10 @@
 
   <!-- ACCIONES RÁPIDAS — solo desktop -->
   <div class="quick-actions">
+    <button type="button" class="quick-action-btn" title="Consulta de precio (pistola o teclado)" (click)="onAccionRapida('consulta-precio')">
+      <ion-icon name="pricetag-outline"></ion-icon>
+      <span class="qa-label">Precio</span>
+    </button>
     <button type="button" class="quick-action-btn" title="Calculadora de margen" (click)="onAccionRapida('calculadora')">
       <ion-icon name="calculator-outline"></ion-icon>
       <span class="qa-label">Margen</span>
@@ -44,10 +48,12 @@
       <ion-icon name="create-outline"></ion-icon>
       <span class="qa-label">Nota</span>
     </button>
+    @if (recargasCelularHabilitada || recargasBusHabilitada) {
     <button type="button" class="quick-action-btn" title="Cuadre de caja" (click)="onAccionRapida('cuadre')">
       <ion-icon name="scale-outline"></ion-icon>
       <span class="qa-label">Cuadre</span>
     </button>
+    }
   </div>
 
   <!-- BODY — scrolleable -->

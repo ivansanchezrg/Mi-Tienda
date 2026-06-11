@@ -89,14 +89,21 @@ export class RecargasService {
   }
 
   /**
-   * Obtiene el historial completo de recargas ordenado del más reciente al más antiguo.
-   * Usa el campo venta_dia almacenado en la BD (calculado por la función SQL ejecutar_cierre_diario),
+   * Historial de recargas paginado, del más reciente al más antiguo.
+   * Usa el campo venta_dia almacenado en la BD (calculado por fn_ejecutar_cierre_diario),
    * que ya descuenta correctamente las recargas del proveedor (recargas_virtuales).
    *
-   * @returns {Promise<RecargaHistorial[]>} Lista de recargas con toda la información
+   * @param servicio filtro opcional server-side ('CELULAR' | 'BUS') — el JOIN !inner
+   *                 permite filtrar las filas padre por el código del servicio
    */
-  async obtenerHistorialRecargas(): Promise<RecargaHistorial[]> {
-    const response = await this.supabase.client
+  async obtenerHistorialRecargas(
+    page: number,
+    pageSize: number,
+    servicio?: 'CELULAR' | 'BUS'
+  ): Promise<RecargaHistorial[]> {
+    const from = page * pageSize;
+
+    let query = this.supabase.client
       .from('recargas')
       .select(`
         id,
@@ -108,14 +115,21 @@ export class RecargasService {
         created_at,
         tipos_servicio!inner(codigo)
       `)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (servicio) {
+      query = query.eq('tipos_servicio.codigo', servicio);
+    }
+
+    const response = await query;
 
     if (response.error) {
       this.logger.error('RecargasService', 'Error al obtener historial', response.error);
       throw response.error;
     }
 
-    const recargas: RecargaHistorial[] = (response.data || []).map((r: any) => ({
+    return (response.data || []).map((r: any) => ({
       id: r.id,
       fecha: r.fecha,
       servicio: r.tipos_servicio.codigo,
@@ -125,9 +139,5 @@ export class RecargasService {
       saldo_caja: r.saldo_caja ?? 0,
       created_at: r.created_at
     }));
-
-    return recargas;
   }
-
-
 }

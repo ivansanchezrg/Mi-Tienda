@@ -7,8 +7,20 @@ DROP FUNCTION IF EXISTS public.fn_reparar_deficit_turno(UUID, DECIMAL, UUID, UUI
 DROP FUNCTION IF EXISTS public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMAL);
 
 -- ==========================================
--- FUNCIÓN: fn_reparar_deficit_turno (v4.0 — categorías migradas a categorias_sistema)
+-- FUNCIÓN: fn_reparar_deficit_turno (v4.2 — validación de turno abierto sin filtro de fecha)
 -- ==========================================
+-- CAMBIOS v4.2:
+--   - La validación de turno abierto ya no filtra por fecha: un turno de un día
+--     anterior sin cerrar también bloquea la apertura con mensaje limpio (antes
+--     el INSERT chocaba contra idx_un_turno_abierto_por_caja con unique_violation crudo).
+--
+-- HEREDA DE v4.1:
+--   - Validación de saldo incluye fondo de apertura (déficit + fondo).
+--   - EGRESO FONDO-APERTURA de Tienda cuando p_fondo_apertura > 0.
+--
+-- HEREDA DE v4.0:
+--   - Categorías DEF-RETIRAR y DEF-REPONER migradas a categorias_sistema (UUIDs fijos).
+--
 -- CAMBIOS v3.0:
 --   - Elimina p_fondo_faltante: sin fondo fijo no hay fondo que reponer automáticamente.
 --     El empleado declara el fondo libremente al abrir el próximo turno.
@@ -138,14 +150,15 @@ BEGIN
     (NOW() AT TIME ZONE 'America/Guayaquil')::DATE::TIMESTAMP AT TIME ZONE 'America/Guayaquil'
   );
 
+  -- Sin filtro de fecha: un turno de un día anterior sin cerrar también bloquea
+  -- (mismo criterio que fn_abrir_turno v3.3 — evita el unique_violation crudo
+  -- de idx_un_turno_abierto_por_caja).
   IF EXISTS (
     SELECT 1 FROM turnos_caja
     WHERE negocio_id = v_negocio_id
-      AND hora_fecha_apertura >= v_inicio_dia
-      AND hora_fecha_apertura <  v_inicio_dia + INTERVAL '1 day'
       AND hora_fecha_cierre IS NULL
   ) THEN
-    RETURN json_build_object('success', false, 'error', 'Ya hay un turno abierto hoy');
+    RETURN json_build_object('success', false, 'error', 'Ya hay un turno abierto');
   END IF;
 
   v_numero_turno := (
@@ -207,6 +220,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMA
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_reparar_deficit_turno IS
+  'v4.2 — Validación de turno abierto sin filtro de fecha (cubre turno de día anterior sin cerrar). '
   'v4.1 — Validación de saldo incluye fondo de apertura (p_deficit_varios + p_fondo_apertura). '
   'Agrega EGRESO FONDO-APERTURA de Tienda cuando p_fondo_apertura > 0 (mismo comportamiento que fn_abrir_turno). '
   'v4.0: Categorías migradas a categorias_sistema (UUIDs fijos). '

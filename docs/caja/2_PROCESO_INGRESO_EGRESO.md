@@ -2,9 +2,11 @@
 
 ## ¿Qué es?
 
-Modal para **registrar movimientos manuales de efectivo** en CAJA o CAJA_CHICA. Un ingreso aumenta el saldo de la caja; un egreso lo reduce.
+Modal para **registrar movimientos manuales de efectivo** en las cajas que lo permiten (ver "Cajas habilitadas"). Un ingreso aumenta el saldo de la caja; un egreso lo reduce.
 
-**Punto de entrada:** `OperacionesCajaPage` → toca "⋮" (menú, solo visible si la caja permite operaciones manuales) → ActionSheet → Ingreso / Egreso → abre `OperacionModalComponent`.
+**Puntos de entrada:**
+- `OperacionesCajaPage` → "⋮" → `OptionsModalComponent` (Ingreso / Egreso) → abre `OperacionModalComponent`
+- Home → FAB central → opción de gasto → abre el mismo modal (vía `onOperacion`)
 
 > **Diferencia clave con el cierre diario:** Las operaciones del cierre las calcula el sistema (`categoria_id = NULL`). Las manuales las inicia el usuario (categoría + monto + foto). `fn_reparar_deficit_turno` es el único caso intermedio.
 
@@ -18,33 +20,40 @@ Modal para **registrar movimientos manuales de efectivo** en CAJA o CAJA_CHICA. 
 | `components/operacion-modal/operacion-modal.component.html` | Template del formulario |
 | `services/operaciones-caja.service.ts` | `registrarOperacion()`, `obtenerCategorias()` |
 | `services/cajas.service.ts` | `obtenerCajas()` — para el selector de caja dentro del modal |
-| `core/services/storage.service.ts` | `capturarFoto()`, `uploadImage()`, `getSignedUrl()`, `deleteFile()` |
+| `core/services/storage.service.ts` | `elegirFuenteFoto()`, `uploadImage()`, `getSignedUrl()`, `deleteFile()` |
 | `models/categoria-operacion.model.ts` | `CategoriaOperacion` |
 
 ### Cajas habilitadas
 
-Solo **CAJA**, **CAJA_CHICA** y **VARIOS** aparecen en el selector del modal (`cajasFiltradas`). CAJA_CELULAR y CAJA_BUS no permiten operaciones manuales y quedan excluidas.
+El selector del modal (`cajasFiltradas`) muestra **CAJA**, **CAJA_CHICA**, **VARIOS** y las cajas
+personalizadas (**`CUSTOM_*`**), con dos condiciones por `@Input()`:
+- `excluirCajaChica = true` → oculta CAJA_CHICA (ej: cuando se opera desde fuera del turno)
+- `variosActiva = false` → oculta VARIOS (módulo opt-in no activado)
+
+CAJA_CELULAR y CAJA_BUS no permiten operaciones manuales y quedan excluidas siempre.
+Otros `@Input()`: `cajaIdPreseleccionada` (preselecciona y muestra la mini-card de la caja).
 
 ---
 
 ## 2. Flujo del proceso
 
 ```
-Usuario toca "⋮" en la caja → ActionSheet: Ingreso / Egreso
+Usuario toca "⋮" en la caja → OptionsModalComponent: Ingreso / Egreso
         ↓
 abrirModalOperacion(tipo)
-  └─ obtenerCajas()            → lista de cajas filtradas a CAJA / CAJA_CHICA
-  └─ OperacionModalComponent
-       ├─ ngOnInit: obtenerCategorias(tipo) → categorías filtradas por INGRESO/EGRESO
-       ├─ Usuario completa: categoría + monto + descripción + foto (según reglas)
+  └─ OperacionModalComponent (recibe cajas + flags)
+       ├─ ngOnInit: filtra cajasFiltradas (CAJA/CAJA_CHICA/VARIOS/CUSTOM_* según flags)
+       │            + obtenerCategorias(tipo) → categorías filtradas por INGRESO/EGRESO
+       ├─ Usuario completa: caja + categoría + monto (+ descripción/foto según reglas)
        └─ confirmar() → role: 'confirm', data: OperacionModalResult
         ↓
 ejecutarOperacion(tipo, data)
   └─ registrarOperacion(cajaId, tipo, categoriaId, monto, descripcion, foto)
-       ├─ Si hay foto → storageService.uploadImage(dataUrl) → path en Storage
+       ├─ getUsuarioActual() PRIMERO (si falla, no se sube nada — sin huérfanos)
+       ├─ Si hay foto → uploadImage(rawUrl, 'comprobantes/operaciones') → path en Storage
        ├─ rpc('fn_registrar_operacion_manual', {...})
        │    └─ Si RPC falla y había foto → storageService.deleteFile(path) (limpieza)
-       └─ cargarSaldoCaja() + cargarOperaciones(reset)
+       └─ refresco de saldo + lista de operaciones
 ```
 
 ---
@@ -53,13 +62,20 @@ ejecutarOperacion(tipo, data)
 
 | Campo | INGRESO | EGRESO |
 |---|---|---|
+| Caja | Obligatorio | Obligatorio |
 | Categoría | Obligatorio | Obligatorio |
 | Monto | Obligatorio (> 0) | Obligatorio (> 0, ≤ saldo disponible) |
-| Descripción | Opcional | Obligatorio |
-| Comprobante (foto) | Opcional | Obligatorio |
+| Descripción | Condicional* | Condicional* |
+| Comprobante (foto) | Opcional | Opcional |
 
-- **`montoExcedeSaldo`:** para EGRESO, si `monto > saldoCajaSeleccionada` → error inline + botón deshabilitado. `saldoCajaSeleccionada` viene de la caja actualmente seleccionada en el selector (cargada en `ngOnInit`).
-- El botón "Confirmar" está `[disabled]` mientras cualquier validación falle. `confirmar()` tiene validaciones defensivas adicionales.
+> \* **Regla "otros" (`requiereDescripcion`):** la descripción es obligatoria (mín. 3 caracteres)
+> solo cuando el **nombre** de la categoría seleccionada matchea `/otros?/i` ("Otros Gastos",
+> "Otros Ingresos", etc.), sin importar el tipo. ⚠️ Es una regla por nombre, no por flag: si el
+> usuario crea una categoría que contiene "otro" en el nombre, hereda la obligatoriedad; si
+> renombra "Otros Gastos", la pierde. Mejora futura: flag explícito en la categoría.
+
+- **`montoExcedeSaldo`:** para EGRESO, si `monto > saldoCajaSeleccionada` → error inline + botón deshabilitado. `saldoCajaSeleccionada` se actualiza al cambiar la caja en el selector (subscription a `cajaId`).
+- El botón "Confirmar" está `[disabled]` con `form.invalid || montoExcedeSaldo`. `confirmar()` repite la misma validación defensivamente.
 
 ---
 
@@ -67,20 +83,22 @@ ejecutarOperacion(tipo, data)
 
 La captura y compresión están centralizadas en `StorageService` (ver [CORE-README.md](../core/CORE-README.md#storageservice)).
 
-`OperacionModalComponent` llama a `storageService.capturarFoto(source)` — **no configura `Camera.getPhoto` directamente**. Todos los parámetros de captura viven en un único lugar: `StorageService.capturarFoto()`.
+`OperacionModalComponent` llama a `storageService.elegirFuenteFoto('libre', false, false)` — el
+flujo estándar del proyecto para comprobantes: menú de fuente (cámara/galería) + captura,
+**sin recorte** (`withCrop = false`). No configura `Camera.getPhoto` ni arma menús propios.
 
 El modal mantiene dos propiedades separadas:
 - `fotoPreviewUrl: SafeUrl` — para el `<img [src]>` inmediato (URL nativa via `Capacitor.convertFileSrc`, sin pasar por el bridge)
 - `fotoRawUrl: string` — se pasa al caller al confirmar, quien lo entrega a `uploadImage()`
 
 Flujo completo al registrar un comprobante:
-1. `capturarFoto(source)` → abre cámara/galería → retorna `{ previewUrl, rawUrl }`
+1. `elegirFuenteFoto('libre', false, false)` → menú de fuente → cámara/galería → retorna `{ previewUrl, rawUrl }`
 2. Preview aparece inmediato en la UI (`fotoPreviewUrl`)
 3. Al confirmar: el modal emite `fotoRawUrl` en `OperacionModalResult.fotoComprobante`
-4. `registrarOperacion()` llama `uploadImage(rawUrl, 'comprobantes', 'operaciones')` → comprime a WebP → sube a Storage → retorna `path`
+4. `registrarOperacion()` llama `uploadImage(rawUrl, 'comprobantes/operaciones')` → comprime a WebP → sube a Storage → retorna `path`
 5. El `path` se pasa al RPC — nunca la URL
 
-Cuando el usuario cancela, `capturarFoto()` retorna `null` silenciosamente (la excepción del plugin queda encapsulada en el servicio).
+Cuando el usuario cancela, `elegirFuenteFoto()` retorna `null` silenciosamente (la excepción del plugin queda encapsulada en el servicio).
 
 ---
 
@@ -89,14 +107,18 @@ Cuando el usuario cancela, `capturarFoto()` retorna `null` silenciosamente (la e
 `registrarOperacion()` guarda el **path** en BD (`operaciones_cajas.comprobante_url`), no una URL firmada:
 
 ```
-comprobantes/2026/02/abc123.jpg   ← lo que está en BD
+{negocio_id}/comprobantes/operaciones/2026/05/abc123.webp   ← lo que está en BD
 ```
 
 Para ver la imagen → `storageService.getSignedUrl(path)` genera una URL temporal. Esto evita exponer URLs públicas y permite revocarlas.
 
-**Bucket:** `comprobantes` (privado — requiere signed URL para acceder).
+**Bucket:** único de la plataforma, **`mi-tienda`** (privado), con aislamiento multi-tenant por
+`{negocio_id}/` al inicio del path — el `negocio_id` lo inyecta `StorageService` internamente,
+nunca se pasa como parámetro (ver CLAUDE.md → "Storage multi-tenant").
 
-**Limpieza de huérfanos:** Si el RPC falla después de subir la imagen, `deleteFile(path)` la elimina para no dejar archivos sin registro en BD.
+**Limpieza de huérfanos (2 capas):** (a) el empleado se resuelve ANTES del upload — si la sesión
+está rota no se sube nada; (b) si el RPC falla después de subir, `deleteFile(path)` elimina la
+imagen para no dejar archivos sin registro en BD.
 
 ---
 
@@ -132,7 +154,15 @@ Categorías especiales del sistema (no aparecen en el dropdown del usuario — v
 
 **Nota crítica:** `p_tipo_operacion` es `TEXT`, no `tipo_operacion_caja_enum`. PostgREST no castea automáticamente strings a enums PostgreSQL (genera 400 Bad Request). La función castea internamente: `v_tipo := p_tipo_operacion::tipo_operacion_caja_enum`.
 
-**Restricción de turno (v2.2):** para `CAJA_CHICA`, la función valida que `p_empleado_id` tenga un turno activo hoy (`hora_fecha_cierre IS NULL`). Si el empleado no es el dueño del turno activo, lanza excepción. Esta validación es la última línea de defensa — la UI ya bloquea el acceso via `turnoAjeno=true`.
+**Restricción de turno (v3.2):** para `CAJA_CHICA`, la función valida que `p_empleado_id` tenga
+**el turno activo** (`hora_fecha_cierre IS NULL`, **sin filtro de fecha** — misma definición que
+`obtenerTurnoActivo()`). La versión anterior filtraba por "hoy" casteando el DATE local a
+medianoche UTC (corrimiento de 5h) y rechazaba turnos abiertos después de las ~19:00 hora
+Ecuador — corregido el 2026-06-10. Esta validación es la última línea de defensa — la UI ya
+bloquea el acceso.
+
+**Restricción VARIOS (v3.1):** si la caja es `VARIOS`, valida que `caja_varios_activa = 'true'`
+en `configuraciones` — un negocio sin el módulo activado no puede operar sobre ella ni por RPC.
 
 ---
 

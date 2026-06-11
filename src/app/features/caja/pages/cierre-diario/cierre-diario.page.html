@@ -43,7 +43,7 @@
             <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular"></ion-icon>
             <ion-label position="stacked">
               <strong>Saldo Virtual Celular</strong>
-              <ion-note>Virtual: {{ saldoVirtualActualCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</ion-note>
+              <ion-note>Virtual: ${{ saldoVirtualActualCelular | appCurrency }}</ion-note>
             </ion-label>
             <div class="input-wrapper">
               <span class="currency-prefix">$</span>
@@ -57,7 +57,7 @@
           <div class="alerta-simple danger">
             <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
             <div>
-              <p><strong>⚠️ Venta negativa: {{ ventaCelular | currency:'USD':'symbol-narrow':'1.2-2' }}</strong></p>
+              <p><strong>⚠️ Venta negativa: -${{ -ventaCelular | appCurrency }}</strong></p>
               <p>Registra la recarga del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
             </div>
           </div>
@@ -70,7 +70,7 @@
             <ion-icon slot="start" name="bus-outline" class="item-icon bus"></ion-icon>
             <ion-label position="stacked">
               <strong>Saldo Virtual Bus</strong>
-              <ion-note>Virtual: {{ saldoVirtualActualBus | currency:'USD':'symbol-narrow':'1.2-2' }}</ion-note>
+              <ion-note>Virtual: ${{ saldoVirtualActualBus | appCurrency }}</ion-note>
             </ion-label>
             <div class="input-wrapper">
               <span class="currency-prefix">$</span>
@@ -84,7 +84,7 @@
           <div class="alerta-simple danger">
             <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
             <div>
-              <p><strong>⚠️ Venta negativa: {{ ventaBus | currency:'USD':'symbol-narrow':'1.2-2' }}</strong></p>
+              <p><strong>⚠️ Venta negativa: -${{ -ventaBus | appCurrency }}</strong></p>
               <p>Registra la recarga del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
             </div>
           </div>
@@ -147,19 +147,19 @@
               @if (ventasPosEfectivo > 0) {
               <div class="cajon-row">
                 <span class="cajon-row-label">Ventas POS en efectivo</span>
-                <span class="cajon-row-valor">+{{ ventasPosEfectivo | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
+                <span class="cajon-row-valor">+${{ ventasPosEfectivo | appCurrency }}</span>
               </div>
               }
               @if (otrosIngresos > 0) {
               <div class="cajon-row">
                 <span class="cajon-row-label">Ingresos manuales</span>
-                <span class="cajon-row-valor">+{{ otrosIngresos | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
+                <span class="cajon-row-valor">+${{ otrosIngresos | appCurrency }}</span>
               </div>
               }
               @if (egresos > 0) {
               <div class="cajon-row">
                 <span class="cajon-row-label">Gastos del turno</span>
-                <span class="cajon-row-valor negativo">−{{ egresos | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
+                <span class="cajon-row-valor negativo">−${{ egresos | appCurrency }}</span>
               </div>
               }
             </div>
@@ -172,24 +172,24 @@
               @if (esModoSinPos) {
               <div class="cajon-row">
                 <span class="cajon-row-label">Fondo inicial</span>
-                <span class="cajon-row-valor">{{ fondoApertura | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
+                <span class="cajon-row-valor">${{ fondoApertura | appCurrency }}</span>
               </div>
               <div class="cajon-row cajon-row--total">
                 <span class="cajon-row-label">Total contado</span>
-                <span class="cajon-row-valor primary">{{ efectivoFisico | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
+                <span class="cajon-row-valor primary">${{ efectivoFisico | appCurrency }}</span>
               </div>
               } @else {
               <div class="cajon-row">
                 <span class="cajon-row-label">Acumulado en cajón</span>
-                <span class="cajon-row-valor">{{ saldoCajaChicaDigital | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
+                <span class="cajon-row-valor">${{ saldoCajaChicaDigital | appCurrency }}</span>
               </div>
               <div class="cajon-row">
                 <span class="cajon-row-label">Fondo con que abriste</span>
-                <span class="cajon-row-valor">{{ fondoApertura | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
+                <span class="cajon-row-valor">${{ fondoApertura | appCurrency }}</span>
               </div>
               <div class="cajon-row cajon-row--total">
                 <span class="cajon-row-label">Deberías tener</span>
-                <span class="cajon-row-valor primary">{{ efectivoEsperado | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
+                <span class="cajon-row-valor primary">${{ efectivoEsperado | appCurrency }}</span>
               </div>
               }
             </div>
@@ -203,22 +203,22 @@
                   <span class="cajon-resultado-titulo">Cajón cuadrado</span>
                   <span class="cajon-resultado-sub">Contaste exactamente lo esperado</span>
                 </div>
-                <span class="cajon-resultado-monto">{{ efectivoFisico | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
+                <span class="cajon-resultado-monto">${{ efectivoFisico | appCurrency }}</span>
               </div>
               } @else if (diferencia < 0) {
               <div class="cajon-resultado cajon-resultado--faltante">
                 <ion-icon name="alert-circle-outline"></ion-icon>
                 <div>
-                  <span class="cajon-resultado-titulo">Faltante de {{ diferencia | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
-                  <span class="cajon-resultado-sub">Contaste {{ efectivoFisico | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }} · se registra como deuda</span>
+                  <span class="cajon-resultado-titulo">Faltante de ${{ -diferencia | appCurrency }}</span>
+                  <span class="cajon-resultado-sub">Contaste ${{ efectivoFisico | appCurrency }} · se registra como deuda</span>
                 </div>
               </div>
               } @else {
               <div class="cajon-resultado cajon-resultado--sobrante">
                 <ion-icon name="information-circle-outline"></ion-icon>
                 <div>
-                  <span class="cajon-resultado-titulo">Sobrante de +{{ diferencia | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
-                  <span class="cajon-resultado-sub">Contaste {{ efectivoFisico | currency:'USD':'symbol-narrow':'1.2-2':'en-US' }}</span>
+                  <span class="cajon-resultado-titulo">Sobrante de +${{ diferencia | appCurrency }}</span>
+                  <span class="cajon-resultado-sub">Contaste ${{ efectivoFisico | appCurrency }}</span>
                 </div>
               </div>
               }
@@ -366,7 +366,7 @@
           <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
           Atrás
         </ion-button>
-        <ion-button expand="block" color="success" (click)="confirmarCierre()">
+        <ion-button expand="block" color="success" [disabled]="cerrando" (click)="confirmarCierre()">
           <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
           Cerrar Caja
         </ion-button>

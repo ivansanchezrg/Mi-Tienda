@@ -1,4 +1,4 @@
-<div class="bs-root">
+<div class="bs-root" [class.sin-footer]="modoManual">
 
   <div class="bs-header">
     <div class="bs-header__icon">
@@ -13,6 +13,19 @@
   <div class="bs-content">
     <div class="bs-body">
 
+      <!-- Entrada manual (web/desktop): la pistola de escaneo escribe aquí + Enter -->
+      @if (modoManual) {
+        <div class="codigo-input-wrap">
+          <ion-icon name="barcode-outline"></ion-icon>
+          <input #codigoInput type="text" inputmode="numeric" autocomplete="off"
+            placeholder="Escanea con la pistola o escribe el código"
+            (keyup.enter)="buscarManual(codigoInput.value)">
+          <ion-button size="small" fill="clear" color="warning" (click)="buscarManual(codigoInput.value)">
+            Buscar
+          </ion-button>
+        </div>
+      }
+
       <!-- Buscando -->
       @if (buscando) {
         <div class="estado-container">
@@ -26,8 +39,8 @@
         <div class="resultado">
 
           <div class="producto-fila">
-            @if (productoEncontrado.imagen_url) {
-              <img [src]="productoEncontrado.imagen_url" class="producto-imagen" />
+            @if (imagenUrl) {
+              <img [src]="imagenUrl" class="producto-imagen" />
             } @else {
               <div class="producto-imagen-placeholder">
                 <ion-icon name="cube-outline"></ion-icon>
@@ -77,11 +90,15 @@
     </div>
   </div>
 
+  <!-- Solo modo cámara: reabrir el escáner es la única acción (la ✕ cierra).
+       En modo manual NO hay footer — el input siempre visible es la acción. -->
+  @if (!modoManual) {
   <div class="bs-actions bs-actions--compact">
-    <ion-button expand="block" color="warning" (click)="consultarOtro()">
+    <ion-button color="warning" (click)="consultarOtro()">
       <ion-icon name="barcode-outline" slot="start"></ion-icon>
       Consultar otro
     </ion-button>
   </div>
+  }
 
 </div>

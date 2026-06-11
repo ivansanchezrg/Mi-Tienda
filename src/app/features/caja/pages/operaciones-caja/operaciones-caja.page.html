@@ -10,14 +10,12 @@
       @if (showHeaderBalance) {
         <span class="header-balance">${{ cajaSaldo | appCurrency }}</span>
       }
-      @if (mostrarMenuOpciones) {
-        <app-options-menu
-          triggerId="caja-ops-menu"
-          triggerColor="medium"
-          [options]="opcionesMenu"
-          (optionSelected)="onMenuOpcion($event)">
-        </app-options-menu>
-      }
+      <app-options-menu
+        triggerId="caja-ops-menu"
+        triggerColor="medium"
+        [options]="opcionesMenu"
+        (optionSelected)="onMenuOpcion($event)">
+      </app-options-menu>
     </ion-buttons>
   </ion-toolbar>
 </ion-header>

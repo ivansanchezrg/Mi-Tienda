@@ -12,8 +12,6 @@ import {
 } from '../models/operacion-caja.model';
 import { CategoriaOperacion } from '../models/categoria-operacion.model';
 
-const HOME_MOVIMIENTOS_LIMIT = 5;
-
 @Injectable({
   providedIn: 'root'
 })
@@ -23,53 +21,6 @@ export class OperacionesCajaService {
   private ui = inject(UiService);
   private authService = inject(AuthService);
   private pageSize = PAGINATION_CONFIG.operacionesCaja.pageSize;
-
-  /** Últimos 5 movimientos del día para el widget del home. Excluye APERTURA y CIERRE. */
-  async obtenerUltimosMovimientos(): Promise<OperacionCaja[]> {
-    const data = await this.supabase.call<OperacionCaja[]>(
-      this.supabase.client
-        .from('v_operaciones_cajas')
-        .select('id, fecha, tipo_operacion, monto, descripcion, comprobante_url, categoria, caja, empleado')
-        .not('tipo_operacion', 'in', '(APERTURA,CIERRE)')
-        .gte('fecha', getInicioHaceNDiasISO(0))
-        .lt('fecha', getInicioDiaSiguienteISO())
-        .order('fecha', { ascending: false })
-        .limit(HOME_MOVIMIENTOS_LIMIT)
-    );
-    return data ?? [];
-  }
-
-  async contarMovimientosHoy(): Promise<number> {
-    const { count } = await this.supabase.client
-      .from('operaciones_cajas')
-      .select('id', { count: 'exact', head: true })
-      .not('tipo_operacion', 'in', '(APERTURA,CIERRE)')
-      .gte('fecha', getInicioHaceNDiasISO(0))
-      .lt('fecha', getInicioDiaSiguienteISO());
-    return count ?? 0;
-  }
-
-  /** Todos los movimientos del día (todas las cajas), paginados. Para el modal de historial del home. */
-  async obtenerMovimientosHoy(page: number = 0): Promise<OperacionesPaginadas> {
-    const from = page * this.pageSize;
-    const to   = from + this.pageSize - 1;
-    const result = await this.supabase.client
-      .from('v_operaciones_cajas')
-      .select('id, fecha, tipo_operacion, monto, descripcion, comprobante_url, categoria, caja, empleado', { count: 'exact' })
-      .not('tipo_operacion', 'in', '(APERTURA,CIERRE)')
-      .gte('fecha', getInicioHaceNDiasISO(0))
-      .lt('fecha', getInicioDiaSiguienteISO())
-      .order('fecha', { ascending: false })
-      .range(from, to);
-    const total = result.count ?? 0;
-    return {
-      operaciones: (result.data ?? []) as unknown as OperacionCaja[],
-      total,
-      page,
-      pageSize: this.pageSize,
-      hasMore: from + this.pageSize < total
-    };
-  }
 
   async obtenerCategorias(tipo?: 'INGRESO' | 'EGRESO'): Promise<CategoriaOperacion[]> {
     let query = this.supabase.client
@@ -209,6 +160,14 @@ export class OperacionesCajaService {
     fotoComprobante: string | null
   ): Promise<boolean> {
     try {
+      // Empleado ANTES del upload: si falla aquí (lectura local, barata) no se
+      // sube nada — evita dejar una imagen huérfana en Storage sin registro en BD.
+      const empleado = await this.authService.getUsuarioActual();
+      if (!empleado) {
+        await this.ui.showError('No se pudo obtener información del empleado');
+        return false;
+      }
+
       let pathImagen: string | null = null;
 
       if (fotoComprobante) {
@@ -220,12 +179,6 @@ export class OperacionesCajaService {
           await this.ui.showError('Error al subir el comprobante. Intenta de nuevo.');
           return false;
         }
-      }
-
-      const empleado = await this.authService.getUsuarioActual();
-      if (!empleado) {
-        await this.ui.showError('No se pudo obtener información del empleado');
-        return false;
       }
 
       await this.ui.showLoading(`Registrando ${tipo.toLowerCase()}...`);

@@ -11,6 +11,7 @@ import { DisabledTabComponent } from 'src/app/shared/components/disabled-tab/dis
 import { addIcons } from 'ionicons';
 import { homeOutline, cartOutline, cubeOutline, receiptOutline, add, close, barcodeOutline, createOutline, scaleOutline, calculatorOutline, pricetagOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { ConfigService } from '@core/services/config.service';
 import { CuadreCajaPage } from 'src/app/features/caja/pages/cuadre-caja/cuadre-caja.page';
 import { NuevaNotaModalComponent } from 'src/app/features/notas/components/nueva-nota-modal/nueva-nota-modal.component';
 import { NotasService } from 'src/app/features/notas/services/notas.service';
@@ -39,11 +40,14 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   private modalCtrl = inject(ModalController);
   private notasService = inject(NotasService);
   private authService = inject(AuthService);
+  private configService = inject(ConfigService);
   private scanner = inject(BarcodeScannerService);
 
   posHabilitado = false;
   posDisabledMessage = 'Para usar el POS primero abre la caja desde Inicio';
   esSuperadmin = false;
+  // El cuadre solo tiene sentido con al menos un módulo de recargas activo
+  cuadreDisponible = false;
   private posSub!: Subscription;
   private turnoSub!: Subscription;
 
@@ -67,8 +71,18 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   escaneandoPrecio = false;
 
   async ngOnInit() {
-    const usuario = await this.authService.getUsuarioActual();
+    // Invalidar al montar el layout (PRIMER consumidor de config en el arranque):
+    // garantiza flags de módulos frescos desde BD para el FAB y para el sidebar,
+    // que reusa esta misma carga. Si invalidara solo el sidebar (hijo), llegaría
+    // tarde: se subiría a la carga stale de Preferences iniciada aquí.
+    this.configService.invalidar();
+    const [usuario, config] = await Promise.all([
+      this.authService.getUsuarioActual(),
+      this.configService.get()
+    ]);
     this.esSuperadmin = usuario?.es_superadmin ?? false;
+    this.cuadreDisponible = (config?.recargas_celular_habilitada ?? false)
+                         || (config?.recargas_bus_habilitada ?? false);
 
     // El POS solo se habilita para el empleado que abrio el turno.
     this.posSub = this.turnosCajaService.esMiTurno$.subscribe(esMio => {
@@ -115,13 +129,27 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Escanea un código de barras y si encuentra el producto
-   * abre el bottom sheet con el resultado.
+   * Consulta de precio por código de barras.
+   * Nativo: escanea con la cámara y abre el bottom sheet con el resultado.
+   * Web/desktop: abre el modal en modo manual — la pistola de escaneo (HID)
+   * actúa como teclado y escribe el código en el input del modal.
    */
   async consultarPrecio() {
     this.fabAbierto = false;
-    this.escaneandoPrecio = true;
 
+    if (!this.scanner.isAvailable) {
+      const modal = await this.modalCtrl.create({
+        component: ConsultaPrecioModalComponent,
+        cssClass: 'bottom-sheet-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1,
+        // sin codigoInicial → modo manual
+      });
+      await modal.present();
+      return;
+    }
+
+    this.escaneandoPrecio = true;
     try {
       const codigo = await this.scanner.scan();
       this.escaneandoPrecio = false;  // cerrar overlay antes de abrir el modal

@@ -217,16 +217,18 @@ ion-modal.bottom-sheet-modal {
     }
   }
 
-  // Variante: compacta (botones centrados de ancho fijo)
+  // Variante: compacta (botón centrado, ancho por contenido).
+  // Alto 44px: mínimo táctil (Apple HIG 44pt / Material 48dp / WCAG 2.5.5) —
+  // lo "compacto" lo da el ancho según contenido, no un alto sub-estándar.
   &--compact {
     flex-direction: row;
     justify-content: center;
 
     ion-button {
-      height: 36px;
+      height: 44px;
       font-size: 13px;
-      --padding-start: var(--spacing-lg);
-      --padding-end: var(--spacing-lg);
+      --padding-start: var(--spacing-xl);
+      --padding-end: var(--spacing-xl);
     }
   }
 }

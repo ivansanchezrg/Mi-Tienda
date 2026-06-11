@@ -1,57 +1,16 @@
-// ── Filter toolbar ────────────────────────────────────────────────────────────
+// Filtro por servicio: app-period-filter (shared) — estilos propios del componente.
+// Empty state: app-empty-state (shared) — estilos encapsulados, no agregar aquí.
 
-.filter-toolbar {
-  --min-height: 44px;
-  --background: var(--ion-item-background);
-
-  .filter-tabs {
-    display: flex;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-xs) var(--spacing-lg);
-
-    .filter-tab {
-      background: transparent;
-      border: none;
-      padding: var(--spacing-xs) var(--spacing-md);
-      font-size: 13px;
-      font-weight: var(--font-weight-medium);
-      color: var(--ion-color-medium);
-      border-radius: var(--radius-xs);
-      cursor: pointer;
-      transition: all var(--transition-normal);
-
-      &:hover:not(.active) {
-        background: var(--ion-color-step-150);
-      }
-
-      &.active {
-        background: var(--ion-color-dark);
-        color: var(--ion-color-dark-contrast);
-      }
-    }
-  }
+// Sticky: el filtro queda fijo arriba al hacer scroll (misma receta que operaciones-caja)
+app-period-filter {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: block;
 }
 
-
-// ── Empty state ───────────────────────────────────────────────────────────────
-
-.empty-state {
-  text-align: center;
-  padding: var(--spacing-4xl) var(--spacing-xl);
-
-  ion-icon {
-    font-size: 48px;
-    color: var(--ion-color-medium);
-    opacity: var(--opacity-muted);
-    margin-bottom: var(--spacing-md);
-    display: block;
-  }
-
-  p {
-    font-size: 14px;
-    color: var(--ion-color-medium);
-    margin: 0;
-  }
+.scroll-top-fab {
+  margin-bottom: env(safe-area-inset-bottom);
 }
 
 

@@ -3,7 +3,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonContent, IonMenuButton,
-  IonIcon, ModalController, IonSkeletonText,
+  IonIcon, ModalController, AlertController, IonSkeletonText,
   IonRefresher, IonRefresherContent
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -91,6 +91,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private turnosCajaService = inject(TurnosCajaService);
   private notificacionesService = inject(NotificacionesService);
   private modalCtrl = inject(ModalController);
+  private alertCtrl = inject(AlertController);
   private storageService = inject(StorageService);
   private shareCierreService = inject(ShareCierreService);
   private cdr = inject(ChangeDetectorRef);
@@ -496,14 +497,12 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       return;
     }
 
-    const turnoAjeno = esCajaChica && this.cajaAbierta && !this.esMiTurno;
     const esMiTurnoCajaChica = esCajaChica && this.esMiTurno;
     this.router.navigate([ROUTES.caja.operacionesCaja], {
       queryParams: {
         cajaId: caja.id,
         cajaNombre: caja.nombre,
         cajaCodigo: caja.codigo,
-        ...(turnoAjeno ? { turnoAjeno: true } : {}),
         ...(esMiTurnoCajaChica ? { esMiTurno: true } : {}),
         ...(caja.codigo === 'VARIOS' ? { variosActiva: this.variosActiva } : {}),
       }
@@ -692,6 +691,19 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     if (data === 'enviar') {
       await this.shareCierreService.enviarResumenWhatsApp(datos);
+    }
+
+    // Turno abierto un día anterior: la transferencia diaria a Varios de ese día
+    // no se realizó. Caso excepcional — alert (no toast) para que no se pierda.
+    // La compensación es deliberadamente manual: traspaso Tienda → Varios.
+    if (datos.aperturaEnOtroDia && datos.variosActiva) {
+      const fecha = this.formatearFecha(new Date(datos.horaApertura));
+      const alert = await this.alertCtrl.create({
+        header: 'Transferencia a Varios pendiente',
+        message: `Este turno se abrió el ${fecha} y se cerró hoy. La transferencia diaria a Varios del día anterior no se realizó. Si quieres compensarla, haz un traspaso manual de Tienda a Varios.`,
+        buttons: ['Entendido'],
+      });
+      await alert.present();
     }
   }
 

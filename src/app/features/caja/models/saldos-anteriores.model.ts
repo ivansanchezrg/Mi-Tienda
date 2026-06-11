@@ -12,7 +12,7 @@ export interface DatosCierreDiario {
   saldosVirtuales:      { celular: number; bus: number };
   snapshotVirtuales:    { celular: number; bus: number };
   agregadoVirtualHoy:   { celular: number; bus: number };
-  saldosCajas:          { cajaCHicaDigital: number; cajaCelular: number; cajaBus: number };
+  saldosCajas:          { cajaChicaDigital: number; cajaCelular: number; cajaBus: number };
   saldosAntesCierre:    { caja: number; varios: number };
   transferenciaDiariaVarios: number;
   transferenciaYaHecha: boolean;

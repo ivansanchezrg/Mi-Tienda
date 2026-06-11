@@ -6,12 +6,11 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  closeOutline, phonePortraitOutline, busOutline,
-  cashOutline, scaleOutline, informationCircleOutline, refreshOutline
+  closeOutline, phonePortraitOutline, busOutline, scaleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { ConfigService } from '@core/services/config.service';
 import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
-import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
@@ -24,7 +23,6 @@ import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
     CommonModule,
     ReactiveFormsModule,
     IonButton, IonIcon, IonSkeletonText,
-    CurrencyInputDirective,
     NumbersOnlyDirective,
     AppCurrencyPipe,
   ]
@@ -35,6 +33,7 @@ export class CuadreCajaPage implements OnInit {
   private modalCtrl = inject(ModalController);
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
+  private configService = inject(ConfigService);
   private recargasVirtualesService = inject(RecargasVirtualesService);
 
   form!: FormGroup;
@@ -44,22 +43,24 @@ export class CuadreCajaPage implements OnInit {
   saldoVirtualActualBus = 0;
   loading = true;
 
+  // Solo se muestran los campos de los módulos habilitados en el negocio
+  recargasCelularHabilitada = false;
+  recargasBusHabilitada = false;
+
   constructor() {
     addIcons({
       closeOutline,
       phonePortraitOutline,
       busOutline,
-      cashOutline,
-      scaleOutline,
-      informationCircleOutline,
-      refreshOutline
+      scaleOutline
     });
   }
 
   async ngOnInit() {
+    // Sin Validators.required: no hay submit — el cálculo es reactivo por campo
     this.form = this.fb.group({
-      saldoCelularActual: [null, [Validators.required, Validators.min(0)]],
-      saldoBusActual: [null, [Validators.required, Validators.min(0)]]
+      saldoCelularActual: [null, [Validators.min(0)]],
+      saldoBusActual: [null, [Validators.min(0)]]
     });
 
     await this.cargarDatos();
@@ -69,9 +70,17 @@ export class CuadreCajaPage implements OnInit {
     this.loading = true;
     this.form.disable();
     try {
+      const config = await this.configService.get();
+      this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
+      this.recargasBusHabilitada     = config?.recargas_bus_habilitada ?? false;
+
       const [saldoVirtualCelular, saldoVirtualBus] = await Promise.all([
-        this.recargasVirtualesService.getSaldoVirtualActual('CELULAR'),
-        this.recargasVirtualesService.getSaldoVirtualActual('BUS')
+        this.recargasCelularHabilitada
+          ? this.recargasVirtualesService.getSaldoVirtualActual('CELULAR')
+          : Promise.resolve(0),
+        this.recargasBusHabilitada
+          ? this.recargasVirtualesService.getSaldoVirtualActual('BUS')
+          : Promise.resolve(0)
       ]);
       this.saldoVirtualActualCelular = saldoVirtualCelular;
       this.saldoVirtualActualBus = saldoVirtualBus;

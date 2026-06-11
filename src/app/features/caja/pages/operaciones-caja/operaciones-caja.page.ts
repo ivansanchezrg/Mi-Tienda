@@ -13,11 +13,10 @@ import { addIcons } from 'ionicons';
 import {
   chevronBackOutline, arrowDownOutline, arrowUpOutline,
   lockOpenOutline, lockClosedOutline, createOutline,
-  cashOutline, documentTextOutline, walletOutline,
-  documentAttachOutline, closeOutline, ellipsisVertical, close,
-  timeOutline, eyeOutline, cameraOutline
+  cashOutline, documentTextOutline,
+  documentAttachOutline, ellipsisVertical, close,
+  timeOutline
 } from 'ionicons/icons';
-import { CameraSource } from '@capacitor/camera';
 import { Subscription } from 'rxjs';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { OperacionCaja, FiltroFecha } from '../../models/operacion-caja.model';
@@ -39,8 +38,6 @@ interface OperacionAgrupada {
   fecha: string;
   fechaDisplay: string;
   operaciones: OperacionCaja[];
-  totalIngresos: number;
-  totalEgresos: number;
 }
 
 @Component({
@@ -94,7 +91,6 @@ export class OperacionesCajaPage implements OnDestroy {
   ];
 
   page = 0;
-  total = 0;
   hasMore = false;
   loading = false;
 
@@ -109,9 +105,6 @@ export class OperacionesCajaPage implements OnDestroy {
   // Estado de conexión
   isOnline = true;
 
-  // true si el turno activo de Caja Chica pertenece a otro empleado
-  turnoAjeno = false;
-
   // true si el usuario logueado es quien abrió el turno de Caja Chica
   esMiTurno = false;
 
@@ -120,12 +113,6 @@ export class OperacionesCajaPage implements OnDestroy {
 
   // true si el usuario logueado es ADMIN
   esAdmin = false;
-
-  // El menú ⋮ siempre se muestra. Las opciones internas se filtran según
-  // caja, rol y estado del turno (ver opcionesMenu).
-  get mostrarMenuOpciones(): boolean {
-    return true;
-  }
 
   get opcionesMenu(): MenuOption[] {
     // Cajas digitales: solo edición
@@ -162,9 +149,9 @@ export class OperacionesCajaPage implements OnDestroy {
     addIcons({
       chevronBackOutline, arrowDownOutline, arrowUpOutline,
       lockOpenOutline, lockClosedOutline, createOutline,
-      cashOutline, documentTextOutline, walletOutline,
-      documentAttachOutline, closeOutline, ellipsisVertical, close,
-      timeOutline, eyeOutline, cameraOutline
+      cashOutline, documentTextOutline,
+      documentAttachOutline, ellipsisVertical, close,
+      timeOutline
     });
   }
 
@@ -180,7 +167,6 @@ export class OperacionesCajaPage implements OnDestroy {
     this.cajaId     = params['cajaId']     || '';
     this.cajaNombre = params['cajaNombre'] || '';
     this.cajaCodigo = params['cajaCodigo'] || '';
-    this.turnoAjeno = params['turnoAjeno'] === 'true';
     this.esMiTurno  = params['esMiTurno']  === 'true';
 
     if (!this.cajaId) {
@@ -246,7 +232,6 @@ export class OperacionesCajaPage implements OnDestroy {
         this.operaciones.push(...resultado.operaciones);
       }
 
-      this.total = resultado.total;
       this.hasMore = resultado.hasMore;
 
       this.calcularResumen();
@@ -276,26 +261,20 @@ export class OperacionesCajaPage implements OnDestroy {
 
     for (const op of this.operaciones) {
       const fecha = new Date(op.fecha);
-      const fechaKey = fecha.toISOString().split('T')[0];
+      // Clave en fecha LOCAL — con toISOString() (día UTC) las operaciones
+      // posteriores a las ~19:00 Ecuador caían en el grupo del día siguiente,
+      // duplicando el encabezado de fecha en pantalla.
+      const fechaKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
 
       if (!grupos.has(fechaKey)) {
         grupos.set(fechaKey, {
           fecha: fechaKey,
           fechaDisplay: this.formatFechaGrupo(fecha),
-          operaciones: [],
-          totalIngresos: 0,
-          totalEgresos: 0
+          operaciones: []
         });
       }
 
-      const grupo = grupos.get(fechaKey)!;
-      grupo.operaciones.push(op);
-
-      if (this.esIngresoReal(op.tipo_operacion)) {
-        grupo.totalIngresos += op.monto;
-      } else if (this.esEgresoReal(op.tipo_operacion)) {
-        grupo.totalEgresos += op.monto;
-      }
+      grupos.get(fechaKey)!.operaciones.push(op);
     }
 
     this.operacionesAgrupadas = Array.from(grupos.values());
@@ -310,11 +289,6 @@ export class OperacionesCajaPage implements OnDestroy {
 
   private esEgresoReal(tipo: string): boolean {
     return ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(tipo);
-  }
-
-  async cambiarFiltro(event: any) {
-    this.filtro = event.detail.value as FiltroFecha;
-    await this.cargarOperaciones(true);
   }
 
   async cambiarFiltroDirecto(filtro: string) {
@@ -443,16 +417,14 @@ export class OperacionesCajaPage implements OnDestroy {
   }
 
   async abrirOpcionesComprobante(op: OperacionCaja) {
-    const buttons: any[] = [
-      { text: 'Ver comprobante', handler: () => this.verComprobante(op.comprobante_url!) }
-    ];
-    if (this.storageService.isNative) {
-      buttons.push({ text: 'Cambiar foto', handler: () => this.cambiarComprobante(op, CameraSource.Camera) });
-    }
-    buttons.push({ text: 'Cambiar desde galería', handler: () => this.cambiarComprobante(op, CameraSource.Photos) });
-    buttons.push({ text: 'Cancelar', role: 'cancel' });
-
-    const alert = await this.alertCtrl.create({ header: 'Comprobante', buttons });
+    const alert = await this.alertCtrl.create({
+      header: 'Comprobante',
+      buttons: [
+        { text: 'Ver comprobante', handler: () => this.verComprobante(op.comprobante_url!) },
+        { text: 'Cambiar foto',    handler: () => this.cambiarComprobante(op) },
+        { text: 'Cancelar',        role: 'cancel' },
+      ]
+    });
     await alert.present();
   }
 
@@ -477,8 +449,9 @@ export class OperacionesCajaPage implements OnDestroy {
     }
   }
 
-  private async cambiarComprobante(op: OperacionCaja, source: CameraSource) {
-    const result = await this.storageService.capturarFoto(source);
+  private async cambiarComprobante(op: OperacionCaja) {
+    // Flujo centralizado: menú de fuente + captura, sin recorte (comprobantes)
+    const result = await this.storageService.elegirFuenteFoto('libre', false, false);
     if (!result) return;
 
     await this.ui.showLoading('Actualizando comprobante...');

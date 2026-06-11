@@ -43,5 +43,11 @@ export const PAGINATION_CONFIG = {
    */
   historialTurnos: {
     pageSize: 20
+  },
+  /**
+   * Historial de recargas (snapshots por cierre de turno)
+   */
+  historialRecargas: {
+    pageSize: 20
   }
 } as const;

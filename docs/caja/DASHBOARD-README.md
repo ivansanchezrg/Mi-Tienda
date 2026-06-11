@@ -10,16 +10,16 @@ Feature principal de la app. Contiene el panel de inicio y las operaciones diari
 
 Panel principal con 4 secciones:
 
-| Sección             | Descripción                                                       | Visible                      |
-| ------------------- | ----------------------------------------------------------------- | ---------------------------- |
-| Estado Banner       | Indicador verde/rojo si la caja está abierta o cerrada            | Siempre                      |
-| Saldos              | Lista con saldos de Tienda, Varios, Celular, Bus + total efectivo | Siempre                      |
-| Caja Chica          | Saldo del cajón diario (CAJA_CHICA)                               | Solo si caja abierta         |
-| Operaciones Rápidas | Botones de Ingreso, Egreso, Transferir, Gasto                     | Solo caja abierta            |
-| Cuadre de Caja      | Acceso rápido para iniciar un cuadre                              | Solo caja abierta            |
-| Cierre Diario       | Botón para cerrar o abrir el día                                  | Siempre                      |
+| Sección | Descripción | Visibilidad |
+| --- | --- | --- |
+| Hero card | Total efectivo (display bancario partido) + deltas de ingresos/egresos del día + chip de estado "Caja abierta/cerrada" | Siempre. El total excluye el Cajón cuando no hay turno activo |
+| Mis Cuentas | Grid de cards por caja (base + opt-in + custom) con saldo. Click navega a `OperacionesCajaPage` | Cards según flags de módulos. Cajón con turno cerrado → modal "Cajón cerrado" |
+| Acciones Rápidas | Ingreso, Gasto, Traspaso + botón de turno: **Abrir** (sin turno), **Cerrar** (turno propio) o **Cierre** deshabilitado (turno ajeno) | Siempre. El botón de turno se oculta al superadmin |
+| Últimos 5 Movimientos | Widget de movimientos del día | Siempre |
 
-**Estado "caja abierta"** se lee de `TurnosCajaService.cajaAbierta$` (derivado reactivo de `turnoActivo$`). Cuando no hay turno activo: oculta la fila de Caja Chica y la excluye del cálculo de Total Efectivo. Ver [Estado reactivo de turno](#estado-reactivo-de-turno--single-source-of-truth) más abajo.
+> El **Cuadre de Caja** no es una sección del home — se abre desde el FAB central del tab bar (`main-layout`, opción visible solo con `cuadreDisponible`).
+
+**Estado "caja abierta"** se deriva de `TurnosCajaService.turnoActivo$` (turno con `hora_fecha_cierre IS NULL`). Cuando no hay turno activo: oculta la fila de Caja Chica y la excluye del cálculo de Total Efectivo. Ver [Estado reactivo de turno](#estado-reactivo-de-turno--single-source-of-truth) más abajo.
 
 **Saldos en tiempo real:** Los saldos de las cards de cajas se actualizan automáticamente vía Supabase Realtime (`CajasService.cajas$`) — sin recargar la página ni emitir queries adicionales. Ver [Realtime — tabla cajas](#realtime--tabla-cajas) más abajo.
 
@@ -28,7 +28,7 @@ Panel principal con 4 secciones:
 - Título: **"ÚLTIMOS 5 MOVIMIENTOS"** (fijo, sin contador — el contador generaba confusión al mostrar un número mayor que los 5 visibles).
 - Si `totalMovimientosHoy > 5`, aparece un footer con el hint **"Para ver el historial completo, entra a cada cuenta."** — no hay modal de "Ver todos" (eliminado). El detalle completo vive en cada página de cuenta (OperacionesCajaPage con filtro por caja).
 - El nombre de la cuenta aparece como badge sobre el título de cada movimiento (jerarquía visual: badge → título → motivo → empleado · hora).
-- Al volver de cualquier subpágina (`ionViewWillEnter`), los movimientos se refrescan automáticamente. Los saldos no se re-fetchean — Realtime ya los mantiene actualizados.
+- Al volver de cualquier subpágina (`ionViewWillEnter`), `refrescarMovimientos()` recarga el dashboard con 1 RPC — incluye movimientos **y** saldos de cajas (`fn_home_dashboard` v1.3 los aplica vía `aplicarCajasExternas()`). El Realtime cubre los cambios entre cargas imperativas. Ver [5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md).
 
 **Datos:** Conectado a Supabase mediante servicios. La carga inicial del home (`HomePage.cargarDatos()`) usa la RPC consolidada `fn_home_dashboard` desde 2026-05-30 — 1 round-trip para estado de caja + saldos virtuales CELULAR/BUS + últimos 5 movimientos + count. Ver [PERFORMANCE-STARTUP.md](../guides/PERFORMANCE-STARTUP.md#9-fn_home_dashboard--rpc-consolidada-del-home) para detalle.
 
@@ -36,9 +36,9 @@ Panel principal con 4 secciones:
 
 El modal de notificaciones (`NotificacionesModalComponent`) soporta un ítem expandible para `STOCK_BAJO`: si hay 1 producto navega directo a su Kárdex; si hay 2+ despliega la lista con acceso individual a cada producto.
 
-**Banner "cajón cerrado":** cuando no hay turno activo, hacer click en el banner navega al historial de turnos con `?from=home`. El modal "Cajón cerrado" confirma la acción e incluye una opción "Ver historial de turnos".
+**Cajón con turno cerrado:** al tocar la card del Cajón sin turno activo, el home abre el modal "Cajón cerrado" (`OptionsModalComponent`) con las opciones "Historial de cierres" y "Salir". Si se elige historial, navega con `?from=home` para que el volver regrese al home.
 
-**`VerificarFondoModalComponent`:** llama `TurnosCajaService.abrirTurno()` internamente (ya no lo hace el home). El modal solo se cierra si el turno se abre correctamente; si la apertura falla, permanece abierto para que el usuario corrija.
+**`VerificarFondoModalComponent`:** en el caso **con déficit** llama `repararDeficit()` internamente (apertura atómica) y solo se cierra si todo sale bien; si falla, permanece abierto con el error para que el usuario corrija. En el caso **sin déficit** solo devuelve `fondoApertura` al cerrarse — es el home (`onAbrirCaja()`) quien llama `abrirTurno()`. Ver [8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md).
 
 **Documentación completa:** Ver [8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)
 
@@ -149,7 +149,7 @@ Historial de movimientos por caja con diseño híbrido (Home pattern + empresari
 - 📜 **Scroll infinito** con agrupación por fecha
 - 📱 **Header dinámico** - saldo aparece al hacer scroll
 - 🎨 **Diseño adaptativo** dark/light mode
-- 🔒 **Restricción de turno ajeno:** si se navega a Caja Chica con turno activo de otro empleado (`turnoAjeno=true` en query params), el `⋮` del header queda deshabilitado. La función SQL también lo rechaza como última línea de defensa.
+- 🔒 **Restricción de turno ajeno:** el home pasa `esMiTurno=true` en query params solo cuando el turno del Cajón es del usuario logueado. Sin ese flag, el menú `⋮` de Caja Chica omite "Registrar Ingreso/Egreso" (quedan "Historial de cierres" y, para ADMIN, "Editar caja"). La función SQL también lo rechaza como última línea de defensa.
 - 👤 **Menú por rol:** CELULAR y BUS solo muestran el `⋮` a usuarios con rol `ADMIN`. Para empleados el menú está oculto. El rol se lee desde `AuthService.getUsuarioActual()` (Preferences, sin consulta a BD).
 
 **Documentación completa:** Ver [1_OPERACIONES-CAJA.md](./1_OPERACIONES-CAJA.md)
@@ -198,7 +198,7 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 /caja/recargas-virtuales     → RecargasVirtualesPage
 ```
 
-> **Historial de Turnos:** punto de entrada desde el menú ⋮ del Cajón (OperacionesCajaPage cuando `cajaCodigo === 'CAJA_CHICA'`) y también al hacer click en el banner "cajón cerrado" del home (navega con `?from=home` para que el volver regrese al home). Muestra cierres pasados agrupados por fecha. Al tocar una card se abre `CierreTurnoDetalleModalComponent` con el layout del cierre (Cajón Físico + Saldos al Cierre). La sección "Saldos Virtuales" fue eliminada del modal. El campo `usa_pos` (leído de `fn_listar_cierres_turno`) determina si se muestra el modo B (sin POS): en modo B se oculta la sección de movimientos del turno y el bloque de resultado. Botón para compartir el resumen por WhatsApp. Reconstruye el snapshot desde `operaciones_cajas` + `recargas` vía `fn_listar_cierres_turno`.
+> **Historial de Turnos:** punto de entrada desde el menú ⋮ del Cajón (OperacionesCajaPage cuando `cajaCodigo === 'CAJA_CHICA'`) y también al elegir "Historial de cierres" en el modal "Cajón cerrado" del home (navega con `?from=home` para que el volver regrese al home). Muestra cierres pasados agrupados por fecha. Al tocar una card se abre `CierreTurnoDetalleModalComponent` con el layout del cierre (Cajón Físico + Saldos al Cierre). La sección "Saldos Virtuales" fue eliminada del modal. El campo `usa_pos` (leído de `fn_listar_cierres_turno`) determina si se muestra el modo B (sin POS): en modo B se oculta la sección de movimientos del turno y el bloque de resultado. Botón para compartir el resumen por WhatsApp. Reconstruye el snapshot desde `operaciones_cajas` + `recargas` vía `fn_listar_cierres_turno`.
 
 ---
 
@@ -208,12 +208,13 @@ Desde 2026-04-11 el estado "POS habilitado" ya **no** vive en `configuraciones.p
 
 ### TurnosCajaService como fuente única
 
-`TurnosCajaService` expone dos observables de estado que todo el resto de la app consume:
+`TurnosCajaService` expone el estado del turno que todo el resto de la app consume:
 
 ```typescript
-turnoActivo$: Observable<TurnoCaja | null>     // turno completo o null
-cajaAbierta$: Observable<boolean>              // derivado: turnoActivo !== null
-turnoActivoValue: TurnoCaja | null             // valor sincrono (para guards)
+turnoActivo$: Observable<TurnoCajaConEmpleado | null>  // turno completo (con JOIN empleado) o null
+esMiTurno$:   Observable<boolean>                      // derivado: el turno activo es del usuario logueado
+turnoActivoValue / esMiTurnoValue                      // valores síncronos (guards, código imperativo)
+esperarEstadoListo(): Promise<void>                    // resuelve cuando la carga inicial de BD terminó
 ```
 
 **Arranque del servicio:**
@@ -221,12 +222,7 @@ turnoActivoValue: TurnoCaja | null             // valor sincrono (para guards)
 - El constructor se suscribe a `AuthService.usuarioActual$` y llama `inicializarEstadoReactivo()` al login / `cerrarRealtimeTurnos()` al logout. Se registra en `SupabaseService.registerBeforeCleanup` para limpiar canales antes del sign out.
 - Inversión de dependencia: no es `AuthService` quien llama a `TurnosCajaService` (evita ciclo), sino al revés.
 
-**Realtime:**
-- Canal `turnos-caja-global` filtrado por `hora_fecha_cierre IS NULL`.
-- `INSERT` → si el turno creado está abierto, refresca `turnoActivo$`.
-- `UPDATE` → si el turno en curso se cerró, emite `null`.
-- `DELETE` → si es el turno actual, emite `null`.
-- Requiere `REPLICA IDENTITY FULL` sobre la tabla + política RLS de SELECT — ver [`sql/setup/realtime_turnos_caja.sql`](./sql/setup/realtime_turnos_caja.sql).
+**Realtime:** el canal `turnos-caja-activo` propaga apertura, cierre y eliminación de turnos a todos los dispositivos. Mecánica completa de eventos y setup SQL en [5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md).
 
 **Sincronización proactiva (evita flash de UI incorrecta):**
 - `abrirTurno()` llama `refrescarTurnoActivo()` tras éxito. Retorna `{ ok: boolean, errorHandled: boolean }` (no `boolean`).
@@ -239,7 +235,7 @@ De esta forma la UI reacciona instantáneamente sin esperar el round-trip del ev
 
 | Elemento | Comportamiento cuando NO hay turno activo |
 |----------|-------------------------------------------|
-| Tab "POS" en tab bar | `DisabledTabComponent` — grisado con candado, click muestra toast |
+| Tab "POS" en tab bar | `DisabledTabComponent` — grisado con candado, click muestra toast. También se deshabilita con turno **ajeno** (`posHabilitado = esMiTurno`), con mensaje que incluye el nombre del dueño del turno |
 | Item "POS" en sidebar | Oculto |
 | Caja Chica en home | Oculto |
 | Total efectivo en home | Excluye saldo Caja Chica |
@@ -255,64 +251,21 @@ Ubicación: `src/app/core/guards/caja-abierta.guard.ts`
 canActivate: [cajaAbiertaGuard]
 ```
 
-- Lee `turnoActivoValue` (O(1), sin query).
-- Fallback: primer valor del `turnoActivo$` si el BehaviorSubject aún no emitió.
-- Si no hay turno → toast + redirección a `/caja`.
-- Protege `/pos` de deep-links, historial de navegación o URLs directas.
+- Espera `esperarEstadoListo()` antes de decidir — evita la race condition al hacer refresh (el BehaviorSubject aún no cargó de BD).
+- Permite el paso solo si `esMiTurnoValue` es `true` — el POS es exclusivo del empleado que abrió el turno.
+- Turno abierto por otro empleado → toast con su nombre + redirección a `/caja`.
+- Offline sin turno en memoria → fallback al snapshot local `turno_activo_local` (escrito al abrir turno con red); permite el acceso solo si el turno cacheado es del propio usuario.
+- Sin turno → toast + redirección a `/caja`. Protege `/pos` de deep-links, historial de navegación o URLs directas.
 
 ---
 
 ## Realtime — tabla `cajas`
 
-Los saldos del home se sincronizan en tiempo real via Supabase Realtime. Cualquier cambio en `saldo_actual` (ingreso, egreso, traspaso, cierre) se propaga a todos los dispositivos conectados sin query adicional.
+Los saldos de las cards del home y el header de Operaciones de Caja se sincronizan en tiempo real vía Supabase Realtime (`CajasService.cajas$`). Cualquier cambio en `saldo_actual` (ingreso, egreso, traspaso, cierre) se propaga a todos los dispositivos conectados sin query adicional.
 
-### Setup SQL (ejecutar una sola vez en Supabase)
+La mecánica completa — eventos por canal, setup SQL, `REPLICA IDENTITY FULL`, activación de módulos desde `/admin` y limpieza de canales — está documentada en [5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md).
 
-Archivo: [`sql/setup/realtime_cajas.sql`](./sql/setup/realtime_cajas.sql)
-
-```sql
--- 1. Publicar tabla en el canal Realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE cajas;
-
--- 2. REPLICA IDENTITY FULL — entrega la fila completa en UPDATE (no solo columnas modificadas)
-ALTER TABLE cajas REPLICA IDENTITY FULL;
-
--- 3. La política RLS SELECT ya está definida en docs/setup/02_rls.sql (cajas_select).
---    NO crear una política adicional aquí — múltiples políticas SELECT se combinan con OR
---    y una con USING(true) anularía el filtro de negocio_id, exponiendo datos de todos los negocios.
---    Si existe la política incorrecta del pasado, eliminarla:
-DROP POLICY IF EXISTS "authenticated puede leer cajas" ON cajas;
-```
-
-> **Nota:** Si se re-ejecuta `schema.sql` (reset completo), hay que volver a ejecutar este archivo — `DROP TABLE ... CASCADE` elimina la publicación Realtime y la política RLS automáticamente.
-
-### Flujo en el cliente (`CajasService`)
-
-```
-Supabase Realtime UPDATE en cajas
-  → CajasService recibe el evento
-  → Actualiza cajas$ (BehaviorSubject)
-  → HomePage.ngOnInit() está suscrito a cajas$
-  → Actualiza saldoCaja, saldoCajaChica, etc. + totalSaldos
-  → cdr.markForCheck() — Angular re-renderiza las cards
-```
-
-**Qué eventos propaga:**
-| Evento | Cuándo ocurre |
-|--------|---------------|
-| `UPDATE` | Ingreso, egreso, traspaso, apertura de turno, cierre diario |
-| `INSERT` | Creación de caja custom (`NuevaCajaModalComponent`) o activación de módulo desde `/admin` (`fn_configurar_modulos_admin`) |
-| `UPDATE (activo=false)` | Desactivación de caja (aún no implementado en UI) |
-
-**Activación de módulos desde `/admin` — comportamiento en tiempo real:** cuando el superadmin activa Celular, Bus o Varios, `fn_configurar_modulos_admin` inserta la caja nueva. El INSERT llega por Realtime al `CajasService` del negocio. El subscribe de `cajas$` en `HomePage` detecta que la caja nueva tiene un código de módulo (`VARIOS`, `CAJA_CELULAR`, `CAJA_BUS`) que no estaba en el array anterior, invalida el `ConfigService` y re-lee los flags de configuración — las cards aparecen sin recargar la página.
-
-Al **desactivar** un módulo, la caja no se toca — solo cambia el flag en `configuraciones`. El admin del negocio debe refrescar la página para que la card desaparezca.
-
-**Por qué `REPLICA IDENTITY FULL`:** sin esto, Supabase solo envía las columnas que cambiaron en el UPDATE. `CajasService` necesita la fila completa (id, nombre, código, saldo_actual, color, icono) para reconstruir el estado.
-
-### Limpieza de canales
-
-`CajasService` cierra el canal Realtime en `ngOnDestroy` del componente que lo usa, o via `SupabaseService.registerBeforeCleanup()` al hacer sign out.
+> **Operativo:** tras re-ejecutar `schema.sql`, volver a correr [`sql/setup/realtime_cajas.sql`](./sql/setup/realtime_cajas.sql) y [`sql/setup/realtime_turnos_caja.sql`](./sql/setup/realtime_turnos_caja.sql) — `DROP TABLE ... CASCADE` elimina la publicación Realtime.
 
 ---
 
@@ -323,7 +276,7 @@ Al **desactivar** un módulo, la caja no se toca — solo cambia el flag en `con
 | RecargasService          | `caja/services/recargas.service.ts`               | Operaciones de cierre diario, historial de recargas |
 | CajasService             | `caja/services/cajas.service.ts`                  | Operaciones de cajas, transferencias, saldos        |
 | OperacionesCajaService   | `caja/services/operaciones-caja.service.ts`       | Consulta de operaciones con filtros y paginación    |
-| TurnosCajaService        | `caja/services/turnos-caja.service.ts`            | Gestión de turnos + estado reactivo global (`turnoActivo$`, `cajaAbierta$`) + RPC consolidada del home `obtenerHomeDashboard()`. `abrirTurno()` retorna `{ ok: boolean, errorHandled: boolean }` |
+| TurnosCajaService        | `caja/services/turnos-caja.service.ts`            | Gestión de turnos + estado reactivo global (`turnoActivo$`, `esMiTurno$`) + RPC consolidada del home `obtenerHomeDashboard()`. `abrirTurno()` retorna `{ ok: boolean, errorHandled: boolean }` |
 | ShareCierreService       | `caja/services/share-cierre.service.ts`           | Transfiere datos del cierre entre `CierreDiarioPage` y `HomePage` para abrir el modal de compartir. Métodos: `guardarPendiente(datos)` / `consumirPendiente()` |
 | NotificacionesService    | `core/services/notificaciones.service.ts` ⬆️           | Agrega y expone todas las notificaciones de la app  |
 | RecargasVirtualesService | `recargas-virtuales/services/recargas-virtuales.service.ts` | Gestión de saldo virtual, deudas, liquidaciones     |
@@ -356,10 +309,10 @@ Al **desactivar** un módulo, la caja no se toca — solo cambia el flag en `con
 2. **[2_PROCESO_INGRESO_EGRESO.md](./2_PROCESO_INGRESO_EGRESO.md)** - Sistema completo de operaciones con categorías contables y comprobantes fotográficos
 3. **[3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md)** - Flujo completo del cierre diario, arquitectura del sistema de 4 cajas, validaciones y trazabilidad
 4. **[4_PROCESO_CUADRE_RECARGAS.md](./4_PROCESO_CUADRE_RECARGAS.md)** - Calculadora de verificación de efectivo (solo vista, no guarda)
-5. **[5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md)** - Patrón de actualización de UI post-operación (cargarDatos) y gotcha de Supabase INSERT/UPDATE devuelve data:null
+5. **[5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md)** - Sincronización de UI en 3 capas (Realtime, pull-to-refresh, recarga post-operación), setup SQL de Realtime, stale-while-revalidate del home y gotcha de Supabase data:null
 6. **[RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md)** - Sistema completo de gestión de saldo virtual (CELULAR/BUS), deudas, liquidaciones y comisiones
 7. ~~**GASTOS-DIARIOS-README.md**~~ — **ELIMINADO en v5** (2026-03-06). Los gastos operativos se registran como EGRESO desde CAJA_CHICA en `operacion-modal`.
-8. **[8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)** - Flujo de apertura de turno, modal de verificación de fondo, estados del banner y tabla turnos_caja
+8. **[8_PROCESO_ABRIR_CAJA.md](./8_PROCESO_ABRIR_CAJA.md)** - Flujo de apertura de turno, modal de verificación de fondo, estado del turno en la UI y tabla turnos_caja
 
 ### Otros Recursos
 
@@ -370,7 +323,8 @@ Al **desactivar** un módulo, la caja no se toca — solo cambia el flag en `con
 
 | Función | Versión | Cambio |
 |---------|---------|--------|
-| `fn_abrir_turno` | v3.1 | Si `fondo_apertura > 0`, registra un EGRESO en Tienda usando la categoría `Fondo Apertura Turno`. Valida que Tienda tenga saldo suficiente antes de proceder. |
+| `fn_abrir_turno` | v3.3 | (2026-06-11) Validación de turno abierto sin filtro de fecha — un turno de un día anterior sin cerrar bloquea con mensaje limpio. v3.1: si `fondo_apertura > 0`, registra un EGRESO en Tienda con categoría `Fondo Apertura Turno`, validando saldo suficiente. |
+| `fn_reparar_deficit_turno` | v4.2 | (2026-06-11) Misma validación sin filtro de fecha que `fn_abrir_turno` v3.3. v4.1: validación de saldo incluye déficit + fondo; EGRESO `FONDO-APERTURA` cuando fondo > 0. |
 | `fn_registrar_operacion_manual` | v3.1 | Nueva validación: si la caja destino es VARIOS, verifica que `caja_varios_activa = 'true'` en `configuraciones`. |
 | `fn_ejecutar_cierre_diario` | v6.3 | El depósito de Tienda al cierre lleva `categoria_id`: `Cierre — Ventas con POS` si el turno usó POS, `Cierre — Ventas del dia` si no. |
 | `fn_listar_cierres_turno` | v2.1 | `usa_pos` ahora refleja cualquier movimiento del cajón (ventas POS, ingresos manuales o egresos). Antes solo consideraba ventas POS — dejaba el cuadre desactivado cuando había ingresos/egresos manuales sin POS. |
@@ -392,7 +346,7 @@ Al **desactivar** un módulo, la caja no se toca — solo cambia el flag en `con
 - Constantes centralizadas en tabla `configuraciones`
 - Fácil modificación sin redeploy
 - Claves con prefijo por módulo: `caja_varios_transferencia_dia`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`, `pos_iva_porcentaje`
-- El estado "POS habilitado" ya **no** es una configuración: se deriva automáticamente de `turnos_caja` via `TurnosCajaService.cajaAbierta$` (ver [Estado reactivo de turno](#estado-reactivo-de-turno--single-source-of-truth))
+- El estado "POS habilitado" ya **no** es una configuración: se deriva automáticamente de `turnos_caja` via `TurnosCajaService.turnoActivo$`/`esMiTurno$` (ver [Estado reactivo de turno](#estado-reactivo-de-turno--single-source-of-truth))
 
 ### Transactional PostgreSQL Functions
 
@@ -408,9 +362,9 @@ Al **desactivar** un módulo, la caja no se toca — solo cambia el flag en `con
 
 ### Optimización de Imágenes
 
-- Capacitor Camera con `width/height` límites
-- Quality 80%, max 1200x1600px
-- Resultado: 200-500 KB vs 3-10 MB originales
+- Flujo unificado `StorageService.elegirFuenteFoto()`: captura 1920×1920 quality 92 → cropper → compresión WebP 1600×1600 a 0.92
+- Nunca llamar `Camera.getPhoto` directamente — ver CLAUDE.md → "Imágenes"
+- Resultado: ~200-500 KB vs 3-10 MB originales
 
 ---
 
@@ -448,7 +402,7 @@ Al **desactivar** un módulo, la caja no se toca — solo cambia el flag en `con
 
 ## Estado del Proyecto
 
-**Última actualización:** 2026-06-03 — **v6.5** (widget movimientos: título "ÚLTIMOS 5 MOVIMIENTOS", CIERRE visible, badge de cuenta, hint en lugar de modal "Ver todos"; `MovimientosHoyModalComponent` eliminado; `AppCurrencyPipe` como estándar de display de dinero; `fn_home_dashboard` v1.2 con JOIN a `categorias_sistema`)
+**Última actualización:** 2026-06-11 — **v6.6** (docs consolidadas: [5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md) como único deep-dive de sincronización de UI; aviso `aperturaEnOtroDia` post-cierre cuando el turno se abrió un día anterior; `fn_abrir_turno` v3.3 / `fn_reparar_deficit_turno` v4.2 con validación de turno abierto sin filtro de fecha; eliminados métodos muertos de `OperacionesCajaService`)
 
 **Módulos completados:**
 
@@ -460,8 +414,4 @@ Al **desactivar** un módulo, la caja no se toca — solo cambia el flag en `con
 - ✅ Pagar Deudas con comprobantes
 - ✅ Ingreso/Egreso con categorías contables (reemplaza Gastos Diarios)
 
-**Pendientes:**
-
-- 🔄 Testing completo de flujos end-to-end
-- 🔄 Reportes y estadísticas avanzadas
-- 🔄 Backup automático de datos
+**Pendientes:** el backlog técnico vive en [docs/PENDIENTES.md](../PENDIENTES.md) — ahí están el testing (puntero M-6 de la auditoría), backup automático y reportes avanzados.

@@ -1469,7 +1469,9 @@ NOTIFY pgrst, 'reload schema';
 -- ORDEN DE EJECUCION — ver 01_teardown.sql para la lista completa y ordenada.
 -- FUNCIONES RPC — cada modulo tiene su archivo en docs/*/sql/functions/ (fuente de verdad).
 --   Caja:        fn_abrir_turno, fn_ejecutar_cierre_diario_v5, fn_registrar_operacion_manual,
---                fn_crear_transferencia, fn_verificar_transferencia_caja_chica_hoy, fn_reparar_deficit_turno
+--                fn_crear_transferencia, fn_reparar_deficit_turno, fn_datos_cierre_diario
+--                (fn_verificar_transferencia_caja_chica_hoy: eliminada 2026-06-11 — lógica
+--                 absorbida inline por fn_datos_cierre_diario)
 --   Inventario:  fn_generar_codigo_interno, fn_generar_codigo_interno_presentacion,
 --                fn_crear_producto_simple, fn_crear_producto_con_variantes, fn_ajustar_stock_inventario, fn_listar_productos
 --   POS:         fn_registrar_venta_pos, fn_anular_venta

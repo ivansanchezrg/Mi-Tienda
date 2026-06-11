@@ -37,12 +37,14 @@
         <span class="fab-option-label">Nueva nota</span>
       </div>
       }
-<div class="fab-option" (click)="irACuadre()">
+@if (cuadreDisponible) {
+      <div class="fab-option" (click)="irACuadre()">
         <div class="fab-option-icon tertiary">
           <ion-icon [icon]="scaleIcon"></ion-icon>
         </div>
         <span class="fab-option-label">Cuadre</span>
       </div>
+      }
     </div>
     }
 

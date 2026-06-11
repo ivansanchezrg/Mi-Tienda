@@ -14,7 +14,8 @@
   <div class="bs-content">
     <form [formGroup]="form" class="bs-body">
 
-      <!-- Saldo Celular -->
+      <!-- Saldo Celular — solo si el módulo está habilitado -->
+      @if (recargasCelularHabilitada) {
       <div class="input-group">
         <label class="input-label">
           <ion-icon name="phone-portrait-outline"></ion-icon>
@@ -23,21 +24,23 @@
             @if (loading) {
               <ion-skeleton-text [animated]="true" class="hint-skeleton"></ion-skeleton-text>
             } @else {
-              <p class="input-hint">Último cierre: ${{ saldoVirtualActualCelular | appCurrency }}</p>
+              <p class="input-hint">Saldo según sistema: ${{ saldoVirtualActualCelular | appCurrency }}</p>
             }
           </div>
         </label>
         <div class="amount-wrapper" [class.error]="!ventaCelularValida && saldoCelularActual > 0">
           <span class="currency">$</span>
           <input #saldoCelularInput type="number" inputmode="decimal" placeholder="0.00"
-            formControlName="saldoCelularActual" appCurrencyInput appNumbersOnly>
+            formControlName="saldoCelularActual" appNumbersOnly>
         </div>
         @if (!ventaCelularValida && saldoCelularActual > 0) {
-        <span class="error-text">⚠️ Venta negativa — registrá la recarga del proveedor</span>
+        <span class="error-text">⚠️ Venta negativa — registra la recarga del proveedor</span>
         }
       </div>
+      }
 
-      <!-- Saldo Bus -->
+      <!-- Saldo Bus — solo si el módulo está habilitado -->
+      @if (recargasBusHabilitada) {
       <div class="input-group">
         <label class="input-label">
           <ion-icon name="bus-outline"></ion-icon>
@@ -46,19 +49,20 @@
             @if (loading) {
               <ion-skeleton-text [animated]="true" class="hint-skeleton"></ion-skeleton-text>
             } @else {
-              <p class="input-hint">Último cierre: ${{ saldoVirtualActualBus | appCurrency }}</p>
+              <p class="input-hint">Saldo según sistema: ${{ saldoVirtualActualBus | appCurrency }}</p>
             }
           </div>
         </label>
         <div class="amount-wrapper" [class.error]="!ventaBusValida && saldoBusActual > 0">
           <span class="currency">$</span>
           <input type="number" inputmode="decimal" placeholder="0.00"
-            formControlName="saldoBusActual" appCurrencyInput appNumbersOnly>
+            formControlName="saldoBusActual" appNumbersOnly>
         </div>
         @if (!ventaBusValida && saldoBusActual > 0) {
-        <span class="error-text">⚠️ Venta negativa — registrá la compra de saldo virtual</span>
+        <span class="error-text">⚠️ Venta negativa — registra la compra de saldo virtual</span>
         }
       </div>
+      }
 
       <!-- Resultado -->
       @if (mostrarResultado) {
@@ -91,10 +95,9 @@
     </form>
   </div>
 
-  <!-- Botones -->
-  <div class="bs-actions bs-actions--row">
-    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cerrar</ion-button>
-    <ion-button expand="block" fill="solid" color="tertiary" (click)="nuevaConsulta()">Nueva consulta</ion-button>
+  <!-- Herramienta reactiva: la ✕ cierra; única acción = limpiar (patrón --compact de CLAUDE.md) -->
+  <div class="bs-actions bs-actions--compact">
+    <ion-button color="tertiary" (click)="nuevaConsulta()">Nueva consulta</ion-button>
   </div>
 
 </div>

@@ -125,16 +125,6 @@ app-period-filter {
     color: var(--ion-color-medium);
     text-transform: capitalize;
   }
-
-  .date-totals {
-    display: flex;
-    gap: var(--spacing-sm);
-    font-size: 12px;
-    font-weight: var(--font-weight-semibold);
-
-    .total-in  { color: var(--ion-color-success); }
-    .total-out { color: var(--ion-color-danger); }
-  }
 }
 
 // ── Operations card ───────────────────────────────────────────────────────────

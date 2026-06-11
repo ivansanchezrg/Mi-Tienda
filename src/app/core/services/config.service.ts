@@ -22,6 +22,13 @@ export class ConfigService {
     private cache: Configuracion | null = null;
     private loadingPromise: Promise<Configuracion> | null = null;
 
+    // Generación de invalidación: una carga en vuelo iniciada ANTES de invalidar()
+    // no debe escribir su resultado (stale) en el cache después.
+    private generation = 0;
+    // Momento de la última invalidación: snapshots de Preferences anteriores se
+    // rechazan aunque el remove asíncrono aún no haya aterrizado.
+    private invalidatedAt = 0;
+
     /** TTL: 1 hora. Las configuraciones rara vez cambian; cuando lo hacen, invalidar() las limpia. */
     private readonly TTL_MS = 60 * 60 * 1000;
     private readonly STORAGE_KEY = 'mi-tienda:config-cache:v1';
@@ -58,14 +65,17 @@ export class ConfigService {
      * caso contrario va a BD. Persiste el resultado para cold starts futuros.
      */
     private async cargar(): Promise<Configuracion> {
+        const gen = this.generation;
         const negocioId = this.getNegocioIdActual();
         const desdeCache = await this.leerCachePersistido(negocioId);
 
         if (desdeCache) {
             // Hit: usamos cache persistido y refrescamos BD en background (stale-while-revalidate)
-            this.cache = desdeCache;
-            this.loadingPromise = null;
-            this.refrescarDesdeBdEnBackground(negocioId);
+            if (gen === this.generation) {
+                this.cache = desdeCache;
+                this.loadingPromise = null;
+                this.refrescarDesdeBdEnBackground(negocioId);
+            }
             return desdeCache;
         }
 
@@ -75,13 +85,17 @@ export class ConfigService {
                 this.supabase.client.from('configuraciones').select('clave, valor')
             );
             const config = mapRowsToConfig(rows ?? []);
-            this.cache = config;
-            await this.guardarCachePersistido(negocioId, config);
+            if (gen === this.generation) {
+                this.cache = config;
+                await this.guardarCachePersistido(negocioId, config);
+            }
             return config;
         } catch {
             return CONFIGURACION_DEFAULTS;
         } finally {
-            this.loadingPromise = null;
+            if (gen === this.generation) {
+                this.loadingPromise = null;
+            }
         }
     }
 
@@ -98,6 +112,10 @@ export class ConfigService {
 
             // Invalidación por TTL
             if (Date.now() - snapshot.cached_at > this.TTL_MS) return null;
+
+            // Snapshot anterior a la última invalidar(): rechazar aunque el
+            // Preferences.remove asíncrono aún no haya aterrizado (carrera)
+            if (snapshot.cached_at <= this.invalidatedAt) return null;
 
             return snapshot.data;
         } catch {
@@ -123,11 +141,13 @@ export class ConfigService {
      * Si el snapshot estaba desactualizado, el próximo `get()` ya tendrá el valor fresco en RAM.
      */
     private refrescarDesdeBdEnBackground(negocioId: string | null): void {
+        const gen = this.generation;
         this.supabase
             .call<ConfiguracionRow[]>(
                 this.supabase.client.from('configuraciones').select('clave, valor')
             )
             .then(rows => {
+                if (gen !== this.generation) return; // hubo invalidar() mientras tanto
                 const config = mapRowsToConfig(rows ?? []);
                 this.cache = config;
                 this.guardarCachePersistido(negocioId, config);
@@ -149,11 +169,19 @@ export class ConfigService {
     }
 
     /**
-     * Limpia la cache (RAM + Preferences). Llamar cuando el admin cambia una configuración
-     * desde la app (parametros, módulos, descuentos POS, etc.).
+     * Limpia la cache (RAM + Preferences) Y descarta cualquier carga en vuelo.
+     * Llamar cuando el admin cambia una configuración desde la app, o al montar
+     * una vista que exige flags frescos.
+     *
+     * Sin el descarte de la carga en vuelo, un get() concurrente iniciado ANTES
+     * de invalidar() servía el snapshot viejo a quien llamara get() DESPUÉS
+     * (bug del sidebar con flags de módulos desactualizados, 2026-06-11).
      */
     invalidar(): void {
         this.cache = null;
+        this.loadingPromise = null;
+        this.generation++;
+        this.invalidatedAt = Date.now();
         Preferences.remove({ key: this.STORAGE_KEY }).catch(() => {});
     }
 }

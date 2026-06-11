@@ -7,9 +7,17 @@ DROP FUNCTION IF EXISTS public.fn_abrir_turno();
 DROP FUNCTION IF EXISTS public.fn_abrir_turno(UUID, DECIMAL);
 
 -- ==========================================
--- FUNCIÓN: fn_abrir_turno (v3.0 — fondo de apertura libre)
+-- FUNCIÓN: fn_abrir_turno (v3.3 — validación de turno abierto sin filtro de fecha)
 -- ==========================================
--- CAMBIOS v3.0:
+-- CAMBIOS v3.3:
+--   - La validación de turno abierto ya no filtra por fecha: un turno de un día
+--     anterior sin cerrar también bloquea la apertura con mensaje limpio (antes
+--     el INSERT chocaba contra idx_un_turno_abierto_por_caja con unique_violation crudo).
+--
+-- HEREDA DE v3.2:
+--   - Categoría FONDO-APERTURA migrada a categorias_sistema (UUID fijo).
+--
+-- HEREDA DE v3.0:
 --   - Agrega p_fondo_apertura DECIMAL: el empleado declara cuánto efectivo
 --     deja en el cajón al abrir. Se guarda en turnos_caja.fondo_apertura.
 --   - Elimina lectura de caja_fondo_fijo_diario (ya no existe en configuraciones).
@@ -77,15 +85,16 @@ BEGIN
     (NOW() AT TIME ZONE 'America/Guayaquil')::DATE::TIMESTAMP AT TIME ZONE 'America/Guayaquil'
   );
 
-  -- Validar que no haya turno abierto hoy en este negocio
+  -- Validar que no haya turno abierto en este negocio. Sin filtro de fecha:
+  -- un turno de un día anterior sin cerrar también debe bloquear con mensaje
+  -- limpio — si llegara al INSERT, idx_un_turno_abierto_por_caja lo rechazaría
+  -- con un unique_violation crudo para el usuario.
   IF EXISTS (
     SELECT 1 FROM turnos_caja
-    WHERE negocio_id          = v_negocio_id
-      AND hora_fecha_apertura >= v_inicio_dia
-      AND hora_fecha_apertura <  v_inicio_dia + INTERVAL '1 day'
+    WHERE negocio_id = v_negocio_id
       AND hora_fecha_cierre IS NULL
   ) THEN
-    RETURN json_build_object('success', false, 'error', 'Ya hay un turno abierto hoy');
+    RETURN json_build_object('success', false, 'error', 'Ya hay un turno abierto');
   END IF;
 
   -- Número de turno: siguiente al último del día en este negocio
@@ -151,6 +160,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_abrir_turno(UUID, DECIMAL) TO authenticated
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_abrir_turno IS
+  'v3.3 — Validación de turno abierto sin filtro de fecha (cubre turno de día anterior sin cerrar). '
   'v3.2 — Categoría FONDO-APERTURA migrada a categorias_sistema (UUID fijo). '
   'v3.1 - Apertura atómica de turno de caja con fondo libre. '
   'p_fondo_apertura: monto que el empleado declara en el cajón al abrir. '

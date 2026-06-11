@@ -72,9 +72,9 @@ En `cargarDatosIniciales()` se hace **una sola RPC** `fn_datos_cierre_diario()` 
 
 | Campo | Obligatorio | Descripción |
 | --- | --- | --- |
-| `saldoVirtualCelularFinal` | Sí | Saldo que muestra la app del proveedor celular en este momento. |
-| `saldoVirtualBusFinal` | Sí | Saldo que muestra la máquina de bus en este momento. |
-| `efectivoFisico` | Sí | Total físico contado en el cajón, **incluyendo el fondo declarado al abrir**. Campo `.destacado`. |
+| `saldoVirtualCelularFinal` | Solo si `recargas_celular_habilitada` | Saldo que muestra la app del proveedor celular en este momento. El input ni aparece si el módulo está desactivado (validators dinámicos en `cargarDatosIniciales()`). |
+| `saldoVirtualBusFinal` | Solo si `recargas_bus_habilitada` | Saldo que muestra la máquina de bus en este momento. Ídem. |
+| `efectivoFisico` | Sí (siempre) | Total físico contado en el cajón, **incluyendo el fondo declarado al abrir**. Campo `.destacado`. |
 
 **Feedback en tiempo real:**
 - Ventas negativas → alerta roja; bloquea "Ver Resumen"
@@ -146,6 +146,8 @@ depositoCaja        = efectivoFisico - transferenciaVarios   // todo lo demás v
 **Botón "Cerrar Caja":** alert de confirmación → ejecuta `fn_ejecutar_cierre_diario`.
 
 **Después del cierre exitoso:** la página guarda los datos del cierre con `ShareCierreService.guardarPendiente(datos)` y navega al home. Es el home quien detecta el pendiente con `ShareCierreService.consumirPendiente()` y abre el modal de compartir (opciones "Enviar resumen" / "Omitir"). El texto plano lo construye `ShareCierreService.enviarResumenWhatsApp(datos)`. Los datos incluyen `esModoSinPos` y `observaciones`.
+
+**Turno abierto en un día anterior (`aperturaEnOtroDia`):** al armar `DatosCierreParaCompartir`, la página compara la fecha local de `hora_fecha_apertura` con la fecha del cierre. Si difieren, el turno quedó abierto de un día anterior — ese día la transferencia diaria a Varios no se realizó. Tras cerrarse el modal de compartir, el home muestra un alert informativo ("Transferencia a Varios pendiente") sugiriendo compensarla con un traspaso manual de Tienda a Varios. El resumen de WhatsApp incluye una línea de aviso equivalente. **La compensación es deliberadamente manual** (decidido 2026-06-11): la transferencia a Varios es "una por cierre, máximo una por día" — no se acumula ni se cobra retroactivamente, porque el dinero no se pierde (queda en Tienda) y automatizar el cobro múltiple agregaría modos de fallo al cierre para un caso excepcional.
 
 ---
 
@@ -250,24 +252,19 @@ El `negocio_id` **no se pasa como parámetro** — la función lo lee internamen
 
 ---
 
-## 4. Verificación pre-cierre: `fn_verificar_transferencia_caja_chica_hoy` (v1.2)
+## 4. Verificación pre-cierre: "¿VARIOS ya recibió hoy?"
 
-> 📄 Código fuente: [`docs/caja/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql`](./sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql)
+> ⚠️ **La función `fn_verificar_transferencia_caja_chica_hoy` fue eliminada (2026-06-11).**
+> Su lógica vive ahora **inline en `fn_datos_cierre_diario`** (variable `v_varios_ya_cobro`),
+> que retorna el flag `transferencia_ya_hecha` como parte del snapshot consolidado del wizard.
+> El frontend no hace ninguna llamada separada. Si la función vieja sigue existiendo en
+> Supabase, es huérfana: `DROP FUNCTION IF EXISTS public.fn_verificar_transferencia_caja_chica_hoy(DATE);`
 
-```typescript
-await supabase.rpc('verificar_transferencia_caja_chica_hoy', { p_fecha: fechaHoy })
-// → boolean: true si VARIOS ya recibió su transferencia hoy
-```
+**Cubre dos casos** (ventana del día en UTC calculada desde la fecha local Ecuador):
+1. `TRANSFERENCIA_ENTRANTE` en VARIOS hoy → cierre normal anterior del día
+2. `INGRESO` con `categoria_sistema_id = DEF-REPONER` en VARIOS hoy → reparación de déficit ejecutada al abrir
 
-Usada en `RecargasService.verificarTransferenciaYaHecha()` durante `cargarDatosIniciales()` del cierre.
-
-**Cubre dos casos (v1.2):**
-1. `TRANSFERENCIA_ENTRANTE` en VARIOS para `p_fecha` → cierre normal anterior del día
-2. `INGRESO` con `categoria_sistema_id = DEF-REPONER` en VARIOS para `p_fecha` → reparación de déficit ejecutada al abrir hoy
-
-Si retorna `true`, el cierre muestra `transferenciaCajaChicaYaHecha = true`: el valor de VARIOS en la distribución aparece como "$0.00 — ✅ Ya recibió hoy" en gris (`.muted`), y la alerta de déficit no se muestra.
-
-> ⚠️ La función SQL en Supabase debe estar en versión **1.5** (migrada a `categorias_sistema` — detecta `DEF-REPONER` en lugar de `IN-004`). Si está en versiones anteriores puede no detectar reparaciones como "ya recibidas" y mostrar déficit falsos.
+Si `transferencia_ya_hecha = true`, el cierre muestra `transferenciaCajaChicaYaHecha = true`: el valor de VARIOS en la distribución aparece como "$0.00 — ✅ Ya recibió hoy" en gris (`.muted`), y la alerta de déficit no se muestra.
 
 ---
 
@@ -317,7 +314,7 @@ Al **abrir caja al día siguiente**, `TurnosCajaService.obtenerDeficitTurnoAnter
 
 La función que ejecuta la reparación:
 
-> 📄 [`docs/caja/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql) — v3.0
+> 📄 [`docs/caja/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql) — v4.0 (categorías en `categorias_sistema`)
 
 En una transacción atómica:
 1. **EGRESO** de CAJA por `deficit_varios` — categoría `DEF-RETIRAR` (`categorias_sistema`)
@@ -346,26 +343,27 @@ WHERE (t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = CURRENT_D
 ORDER BY t.numero_turno;
 ```
 
-### Operaciones del cierre por turno
+### Operaciones del día (con categoría resuelta usuario/sistema)
 
 ```sql
+-- Categoría unificada: COALESCE entre categorias_operaciones (manuales)
+-- y categorias_sistema (cierre, fondo, ajustes — categoria_sistema_id)
 SELECT
-  t.numero_turno,
-  e.nombre AS empleado,
   c.nombre AS caja,
   oc.tipo_operacion,
-  co.codigo AS categoria,
+  COALESCE(co.codigo, cs.codigo) AS categoria,
   oc.monto,
   oc.saldo_anterior,
   oc.saldo_actual,
+  e.nombre AS empleado,
   oc.fecha AT TIME ZONE 'America/Guayaquil' AS fecha_local
 FROM operaciones_cajas oc
 JOIN cajas c ON oc.caja_id = c.id
 LEFT JOIN categorias_operaciones co ON oc.categoria_id = co.id
-JOIN turnos_caja t ON oc.tipo_referencia_id IS NOT NULL -- filtra op con referencia al turno
-JOIN usuarios e ON oc.empleado_id = e.id
-WHERE (t.hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = CURRENT_DATE
-ORDER BY t.numero_turno, oc.fecha;
+LEFT JOIN categorias_sistema     cs ON oc.categoria_sistema_id = cs.id
+LEFT JOIN usuarios e ON oc.empleado_id = e.id
+WHERE (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = CURRENT_DATE
+ORDER BY oc.fecha;
 ```
 
 ### Saldos de cajas actuales

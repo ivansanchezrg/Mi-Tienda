@@ -11,8 +11,13 @@ DROP FUNCTION IF EXISTS public.fn_registrar_operacion_manual(UUID, UUID, TEXT, U
 -- Recibe p_tipo_operacion como TEXT (no ENUM) para compatibilidad con PostgREST.
 -- Castea internamente TEXT → tipo_operacion_caja_enum.
 -- Valida saldo suficiente en EGRESO (saldo_nuevo >= 0).
--- Para CAJA_CHICA: valida que p_empleado_id tenga turno activo hoy
+-- Para CAJA_CHICA: valida que p_empleado_id tenga el turno activo
 --   (hora_fecha_cierre IS NULL). Solo el empleado que abrió el turno puede operar.
+--
+-- v3.2 (2026-06-10): la validación del turno ya NO filtra por fecha — el cast del
+--   DATE local a timestamptz quedaba en medianoche UTC (corrimiento de 5h) y
+--   rechazaba turnos abiertos después de las ~19:00 hora Ecuador. Turno activo =
+--   hora_fecha_cierre IS NULL, igual que en el resto del sistema.
 --
 -- CAMBIOS v3.0:
 --   - p_caja_id, p_empleado_id, p_categoria_id: INTEGER → UUID
@@ -71,7 +76,11 @@ BEGIN
     RAISE EXCEPTION 'Tipo de operación no válido: %. Use INGRESO o EGRESO', p_tipo_operacion;
   END;
 
-  -- 0.7. Para CAJA_CHICA: validar que el empleado tenga turno activo hoy
+  -- 0.7. Para CAJA_CHICA: validar que el empleado tenga el turno activo.
+  -- v3.2: SIN filtro de fecha — la definición de turno activo en todo el sistema es
+  -- hora_fecha_cierre IS NULL (igual que obtenerTurnoActivo). El filtro de fecha
+  -- anterior casteaba el DATE local a medianoche UTC (corrimiento de 5h) y rechazaba
+  -- a cajeros con turno abierto después de las ~19:00 hora Ecuador.
   v_caja_codigo := (SELECT codigo FROM cajas WHERE id = p_caja_id AND negocio_id = v_negocio_id);
 
   IF v_caja_codigo = 'CAJA_CHICA' THEN
@@ -80,8 +89,6 @@ BEGIN
       WHERE empleado_id      = p_empleado_id
         AND negocio_id       = v_negocio_id
         AND hora_fecha_cierre IS NULL
-        AND hora_fecha_apertura >= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Guayaquil')::date
-        AND hora_fecha_apertura <  (CURRENT_TIMESTAMP AT TIME ZONE 'America/Guayaquil')::date + INTERVAL '1 day'
     ) THEN
       RAISE EXCEPTION 'Solo el empleado con turno activo puede operar sobre Caja Chica';
     END IF;
@@ -150,9 +157,9 @@ GRANT  EXECUTE ON FUNCTION public.fn_registrar_operacion_manual(UUID, UUID, TEXT
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_registrar_operacion_manual IS
-  'v3.1 - Registra un INGRESO o EGRESO manual en una caja. '
+  'v3.2 - Registra un INGRESO o EGRESO manual en una caja. '
   'Bloqueo FOR UPDATE evita race conditions. '
   'Valida saldo suficiente en EGRESO. '
-  'Para CAJA_CHICA: solo el empleado con turno activo hoy puede operar. '
+  'Para CAJA_CHICA: solo el empleado con turno activo (cierre IS NULL, sin filtro de fecha) puede operar. '
   'Para VARIOS: valida que caja_varios_activa = true en configuraciones. '
   'Para EGRESO con saldo = 0 (déficit), usar reparar_deficit_turno.';

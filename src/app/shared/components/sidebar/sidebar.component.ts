@@ -12,7 +12,7 @@ import {
   personOutline, readerOutline, barcodeOutline, receiptOutline,
   storefrontOutline, calculatorOutline, createOutline, scaleOutline,
   walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline,
-  lockClosedOutline
+  lockClosedOutline, pricetagOutline
 } from 'ionicons/icons';
 import { AuthService } from '../../../features/auth/services/auth.service';
 import { RolUsuario } from '../../../features/auth/models/usuario-actual.model';
@@ -58,7 +58,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private configService = inject(ConfigService);
   private router        = inject(Router);
 
-  @Output() accionRapida = new EventEmitter<'nueva-nota' | 'cuadre' | 'calculadora'>();
+  @Output() accionRapida = new EventEmitter<'nueva-nota' | 'cuadre' | 'calculadora' | 'consulta-precio'>();
 
   // Ruta de configuracion (usada en template)
   readonly configuracionRoute = ROUTES.configuracion.root;
@@ -124,14 +124,13 @@ export class SidebarComponent implements OnInit, OnDestroy {
   recargasBusHabilitada = false;
 
   constructor() {
-    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline, walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline, lockClosedOutline });
+    addIcons({ readerOutline, storefrontOutline, calculatorOutline, createOutline, scaleOutline, walletOutline, shieldCheckmarkOutline, arrowBackOutline, chevronDownOutline, lockClosedOutline, pricetagOutline });
   }
 
   async ngOnInit() {
-    // Invalidar caché antes de leer — garantiza flags frescos desde BD cada vez
-    // que el sidebar se monta, sin depender del TTL de 1 hora del caché.
-    this.configService.invalidar();
-
+    // Los flags frescos los garantiza main-layout (padre), que invalida el caché
+    // al montar ANTES de este ngOnInit. get() aquí reusa esa misma carga desde BD
+    // — no invalidar de nuevo (duplicaría la query y reabriría la carrera).
     const [usuario, config] = await Promise.all([
       this.authService.getUsuarioActual(),
       this.configService.get()
@@ -237,7 +236,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.ui.showToast(msg, 'warning');
   }
 
-  async onAccionRapida(accion: 'nueva-nota' | 'cuadre' | 'calculadora') {
+  async onAccionRapida(accion: 'nueva-nota' | 'cuadre' | 'calculadora' | 'consulta-precio') {
     await this.closeMenu();
     this.accionRapida.emit(accion);
   }

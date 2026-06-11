@@ -115,7 +115,6 @@ NOTAS GENERALES:
     docs/caja/sql/functions/fn_abrir_turno.sql
     docs/caja/sql/functions/fn_registrar_operacion_manual.sql
     docs/caja/sql/functions/fn_crear_transferencia.sql
-    docs/caja/sql/functions/fn_verificar_transferencia_caja_chica_hoy.sql
     docs/caja/sql/functions/fn_ejecutar_cierre_diario_v5.sql
     docs/caja/sql/functions/fn_reparar_deficit_turno.sql
     docs/caja/sql/functions/fn_listar_cierres_turno.sql

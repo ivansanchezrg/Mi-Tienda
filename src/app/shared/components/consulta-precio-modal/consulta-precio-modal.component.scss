@@ -4,6 +4,44 @@
   ion-icon { color: var(--ion-color-warning-shade); }
 }
 
+// Modo manual no tiene bs-actions — safe area en el contenido (CLAUDE.md: modales sin footer)
+.sin-footer .bs-body {
+  padding-bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
+}
+
+// ── Entrada manual (pistola HID / teclado) ─────
+.codigo-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-md) var(--spacing-lg) 0;
+  padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-xs) var(--spacing-md);
+  background: var(--ion-color-step-50, #f5f6f7);
+  border: 1px solid var(--ion-color-step-150);
+  border-radius: var(--radius-sm);
+
+  > ion-icon {
+    font-size: 20px;
+    color: var(--ion-color-medium);
+    flex-shrink: 0;
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 15px;
+    color: var(--ion-text-color);
+
+    &::placeholder {
+      color: var(--ion-color-medium);
+      font-size: 13px;
+    }
+  }
+}
+
 // ── Resultado ──────────────────────────────────
 .resultado {
   padding: var(--spacing-md) var(--spacing-lg) 0;

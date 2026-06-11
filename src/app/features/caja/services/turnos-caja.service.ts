@@ -447,11 +447,9 @@ export class TurnosCajaService {
 
   /**
    * Snapshot consolidado del home en una sola RPC (~250-500ms vs ~400-800ms de
-   * Promise.all con 9 queries individuales). Reemplaza la combinación de:
-   *   - obtenerEstadoCaja()
-   *   - getSaldoVirtualActual('CELULAR' | 'BUS') x2
-   *   - obtenerUltimosMovimientos()
-   *   - contarMovimientosHoy()
+   * Promise.all con 9 queries individuales). Reemplaza las queries que el home
+   * hacía por separado: estado de caja, saldos virtuales CELULAR/BUS, últimos
+   * 5 movimientos y count del día (los métodos cliente fueron eliminados).
    *
    * La RPC filtra todo por get_negocio_id() del JWT. Multi-tenant safe.
    */
@@ -607,7 +605,7 @@ export class TurnosCajaService {
       saldosVirtuales:           { celular: sv.celular ?? 0,  bus: sv.bus ?? 0 },
       snapshotVirtuales:         { celular: sn.celular ?? 0,  bus: sn.bus ?? 0 },
       agregadoVirtualHoy:        { celular: ag.celular ?? 0,  bus: ag.bus ?? 0 },
-      saldosCajas:               { cajaCHicaDigital: sc.caja_chica_digital ?? 0, cajaCelular: sc.caja_celular ?? 0, cajaBus: sc.caja_bus ?? 0 },
+      saldosCajas:               { cajaChicaDigital: sc.caja_chica_digital ?? 0, cajaCelular: sc.caja_celular ?? 0, cajaBus: sc.caja_bus ?? 0 },
       saldosAntesCierre:         { caja: sac.caja ?? 0, varios: sac.varios ?? 0 },
       transferenciaDiariaVarios: data?.transferencia_diaria_varios ?? 0,
       transferenciaYaHecha:      data?.transferencia_ya_hecha      ?? false,

@@ -218,7 +218,14 @@ interface CacheSnapshot {
 **Invalidación:**
 - **Automática al cambiar negocio** — el snapshot guarda `negocio_id`; si no coincide con el JWT actual, se descarta.
 - **Automática en logout** — `registerBeforeCleanup` borra la key.
-- **Manual** (`invalidar()`) — al editar parámetros desde Configuración o cambiar descuentos POS. Limpia RAM y Preferences.
+- **Manual** (`invalidar()`) — al editar parámetros desde Configuración o cambiar descuentos POS. Limpia RAM y Preferences, **y descarta cualquier carga en vuelo** (generación + `invalidatedAt`).
+
+> ⚠️ **Fix 2026-06-11 — carrera de cargas en vuelo:** `invalidar()` no cancelaba la carga ya
+> iniciada por otro consumidor; quien llamaba `get()` después de invalidar se subía a esa promesa
+> vieja (snapshot stale de Preferences). Síntoma real: el sidebar mostraba los módulos
+> desactualizados tras un toggle del superadmin y requería **doble refresh**. Además, la
+> invalidación de montaje vive ahora en `main-layout` (el PRIMER consumidor) — el sidebar reusa
+> esa misma carga fresca en vez de invalidar tarde.
 
 **Stale-while-revalidate:** cuando se sirve del cache persistido, se dispara un refresh contra BD en background. El próximo `get()` (incluso en el mismo cold start) ya tiene el valor fresco en RAM.
 

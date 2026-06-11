@@ -1,4 +1,4 @@
-# Abrir Caja — Referencia Técnica (v6.4 — 2026-06-05 — reparación de déficit incluye EGRESO del fondo)
+# Abrir Caja — Referencia Técnica (v6.5 — 2026-06-11 — UI del home sincronizada; validación de turno abierto sin filtro de fecha)
 
 ## 1. Arquitectura
 
@@ -60,20 +60,23 @@ cargarDatos() → refresca banner en Home
 
 ---
 
-## 3. Estados del banner (Home)
+## 3. Estado del turno en la UI (Home)
 
-El banner usa `estadoCaja.estado` + el getter `esMiTurno` (compara `turnoActivo.empleado_id === empleadoActualId`) para determinar qué mostrar.
+El home expone el estado mediante `estadoCaja.estado` (`SIN_ABRIR` | `TURNO_EN_CURSO` | `CERRADA`) + el getter `esMiTurno` (delegado a `turnosCajaService.esMiTurnoValue`). Se refleja en dos lugares:
 
-| Estado | `esMiTurno` | Título | Subtítulo | Botón | Estilo card |
-| --- | --- | --- | --- | --- | --- |
-| `SIN_ABRIR` | — | Sin Turno Hoy | "Abre Caja Chica para habilitar ventas POS" | Abrir Caja Chica | Normal |
-| `TURNO_EN_CURSO` | `true` | Turno Activo | "Caja Chica abierta · Ventas POS habilitadas" | Cerrar Turno | Normal |
-| `TURNO_EN_CURSO` | `false` | Turno en Progreso | "Caja Chica abierta por [nombre]" | — (sin botón) | Tinte amarillo (`.ajeno`) |
-| `CERRADA` | — | Turno Cerrado | "Caja Chica cerrada · Ventas POS deshabilitadas" | Abrir Caja Chica | Normal |
+**Chip de estado** (hero card): "Caja abierta" (punto verde) cuando `cajaAbierta`, "Caja cerrada" en caso contrario. Solo informativo, sin acción.
 
-> **Turno en Progreso:** cuando el turno activo pertenece a otro empleado, el card muestra la información de forma pasiva (sin acción disponible). El empleado logueado no puede ni abrir ni cerrar — solo el dueño del turno puede cerrarlo.
+**Botón de turno** (4ª acción rápida, oculto para superadmin):
 
-> **Menú ⋮ de Caja Chica en turno ajeno:** cuando el estado es "Turno en Progreso", el botón `⋮` de la tarjeta Caja Chica aparece atenuado (opacity 35%) con cursor prohibido y no abre el popover. Las otras 4 cajas no se ven afectadas. La misma restricción aplica dentro de `OperacionesCajaPage`: si se navega a Caja Chica con turno ajeno, el `⋮` del header queda deshabilitado (`turnoAjeno=true` via query param).
+| Condición | Botón | Acción |
+| --- | --- | --- |
+| `cajaAbierta && esMiTurno` | Cerrar | `onCerrarCaja()` → valida y navega al wizard de cierre |
+| `!cajaAbierta` | Abrir | `onAbrirCaja()` → modal de verificación de fondo |
+| `cajaAbierta && !esMiTurno` (turno ajeno) | Cierre (deshabilitado) | — solo el dueño del turno puede cerrarlo |
+
+> **Cajón con turno cerrado:** las cards de cajas no tienen menú `⋮` — navegan a `OperacionesCajaPage` al tocarlas. Si se toca el Cajón (`CAJA_CHICA`) sin turno activo, el home abre el modal "Cajón cerrado" (`OptionsModalComponent`) con la opción "Historial de cierres".
+
+> **Restricción de turno ajeno en `OperacionesCajaPage`:** el home pasa `esMiTurno: true` en query params **solo** cuando el turno del Cajón es del usuario logueado. Sin ese flag, el menú `⋮` de la página omite "Registrar Ingreso/Egreso" (quedan "Historial de cierres" y, para ADMIN, "Editar caja"). La función SQL rechaza la operación como última línea de defensa.
 
 `turnosHoy` en `EstadoCaja` indica si es el 1° o 2° turno del día.
 
@@ -92,11 +95,12 @@ Delega completamente en la RPC `fn_obtener_deficit_turno_anterior` (v1.0 — 202
 
 1. Si VARIOS no existe (módulo desactivado) → `{ deficit_varios: 0 }`.
 2. Si no hay ningún turno cerrado → `{ deficit_varios: 0 }`.
-3. Calcula la **ventana UTC** del día local del último cierre (UTC-5 Ecuador, sin `AT TIME ZONE` en el `WHERE` — permite usar el índice de `operaciones_cajas.fecha`).
-4. Verifica si VARIOS ya cobró ese día buscando en `operaciones_cajas` cualquiera de:
+3. Si VARIOS se creó **después** del último cierre (módulo recién activado por el superadmin o el onboarding) → `{ deficit_varios: 0 }` — ese día no existía obligación de transferir.
+4. Calcula la **ventana UTC** del día local del último cierre (UTC-5 Ecuador, sin `AT TIME ZONE` en el `WHERE` — permite usar el índice de `operaciones_cajas.fecha`).
+5. Verifica si VARIOS ya cobró ese día buscando en `operaciones_cajas` cualquiera de:
    - `tipo_operacion = 'TRANSFERENCIA_ENTRANTE'` → cierre normal sin déficit
    - `tipo_operacion = 'INGRESO'` + `categoria_sistema_id = DEF-REPONER` → reparación de apertura ya ejecutada hoy
-5. Si no cobró → retorna `caja_varios_transferencia_dia` de `configuraciones`.
+6. Si no cobró → retorna `caja_varios_transferencia_dia` de `configuraciones` (si la clave no existe o es ≤ 0 → `{ deficit_varios: 0 }`).
 
 ```typescript
 // TurnosCajaService — ahora son 5 líneas
@@ -120,11 +124,15 @@ async obtenerDeficitTurnoAnterior(): Promise<{ deficitVarios: number } | null> {
 
 Cuando un cierre tuvo déficit en VARIOS, `fn_reparar_deficit_turno` inserta un `INGRESO` (cat `DEF-REPONER` de `categorias_sistema`) en VARIOS — no una `TRANSFERENCIA_ENTRANTE`. Sin esta verificación doble, el sistema re-detectaría el déficit al re-abrir el mismo día.
 
+### Un día sin cierre NO genera déficit (por diseño)
+
+La transferencia a VARIOS es **"una por cierre, máximo una por día"** — la detección evalúa el día local del **último cierre**, no los días calendario transcurridos. Si un turno se abrió un día y se cerró al siguiente, el día saltado no se acumula ni se cobra retroactivamente: el dinero no se pierde (queda en Tienda en vez de en Varios). El cierre detecta el caso (`aperturaEnOtroDia`) y el home muestra un alert post-cierre sugiriendo compensarlo con un **traspaso manual** de Tienda a Varios. Ver [3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md) → "Turno abierto en un día anterior".
+
 ---
 
 ## 5. Reparación de déficit: `repararDeficit(deficitVarios, fondoApertura)`
 
-Llama a `rpc('reparar_deficit_turno', params)`. Todo en una sola transacción atómica — si algo falla, rollback completo (sin operaciones a medias).
+Llama a `rpc('fn_reparar_deficit_turno', params)`. Todo en una sola transacción atómica — si algo falla, rollback completo (sin operaciones a medias).
 
 > 📄 Código fuente: [`docs/caja/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql)
 
@@ -138,6 +146,7 @@ Llama a `rpc('reparar_deficit_turno', params)`. Todo en una sola transacción at
 }
 ```
 
+> **v4.2:** La validación de turno abierto ya no filtra por fecha — un turno de un día anterior sin cerrar también bloquea con mensaje limpio (mismo criterio que `fn_abrir_turno` v3.3).
 > **v4.1:** Validación de saldo incluye `fondoApertura` (`déficit + fondo`). Agrega EGRESO `FONDO-APERTURA` de Tienda cuando `fondoApertura > 0`, espejando el comportamiento de `fn_abrir_turno`. Saldo retornado (`saldo_tienda_nuevo`) refleja el descuento total.
 > **v4.0:** `p_cat_egreso_id` y `p_cat_ingreso_id` fueron eliminados. Las categorías `DEF-RETIRAR` y `DEF-REPONER` son UUIDs fijos de `categorias_sistema` resueltos internamente por la función.
 
@@ -176,14 +185,15 @@ Si retorna error, el modal muestra el mensaje y el operador debe registrar prime
 
 > 📄 Código fuente: [`docs/caja/sql/functions/fn_abrir_turno.sql`](./sql/functions/fn_abrir_turno.sql)
 
-Delega en `rpc('fn_abrir_turno', { p_empleado_id, p_fondo_apertura })`. La función SQL (v3.1) ejecuta en una sola transacción atómica:
+Delega en `rpc('fn_abrir_turno', { p_empleado_id, p_fondo_apertura })`. La función SQL (v3.3) ejecuta en una sola transacción atómica:
 
-1. Resuelve `caja_id` automáticamente buscando la `CAJA_CHICA` del negocio.
-2. Valida que no exista turno abierto hoy en esa caja (rango `>= inicio_día AND < inicio_día_siguiente`).
-3. Calcula `numero_turno = COUNT(turnos hoy de esa caja) + 1`.
-4. **Si `p_fondo_apertura > 0`:** valida que Tienda (`CAJA`) tenga saldo suficiente, luego registra un `EGRESO` en Tienda con categoría `Fondo Apertura Turno` (trazabilidad contable del efectivo que sale hacia el cajón).
+1. Valida que el empleado tenga membresía activa en el negocio (multi-tenant).
+2. Resuelve `caja_id` automáticamente buscando la `CAJA_CHICA` del negocio.
+3. Valida que no exista **ningún** turno abierto en el negocio (`hora_fecha_cierre IS NULL`, sin filtro de fecha — un turno de un día anterior sin cerrar también bloquea).
+4. Calcula `numero_turno = COUNT(turnos de hoy del negocio) + 1`.
 5. `INSERT turnos_caja` con `hora_fecha_apertura = NOW()`, `caja_id` poblado y `fondo_apertura` declarado por el empleado.
-6. Retorna `{ success: true, turno_id, numero_turno, fondo_apertura }` o `{ success: false, error }`.
+6. **Si `p_fondo_apertura > 0`:** valida que Tienda (`CAJA`) tenga saldo suficiente (`RAISE EXCEPTION` si no alcanza — rollback de todo, incluido el INSERT del turno), luego registra el `EGRESO` en Tienda con categoría `FONDO-APERTURA` (trazabilidad contable del efectivo que sale hacia el cajón).
+7. Retorna `{ success: true, turno_id, numero_turno, fondo_apertura }` o `{ success: false, error }`.
 
 **Ventaja sobre el enfoque anterior** (3 queries separadas): elimina la race condition TOCTOU — el check y el INSERT ocurren en la misma transacción con lock implícito.
 
@@ -209,7 +219,7 @@ Si `fondo_apertura = 0`, no se genera ninguna operación contable al abrir.
 
 ```sql
 CREATE TABLE turnos_caja (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   negocio_id          UUID NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
   caja_id             UUID REFERENCES cajas(id) ON DELETE RESTRICT,  -- nullable hoy, NOT NULL al implementar multicaja
   numero_turno        SMALLINT NOT NULL DEFAULT 1,                   -- 1, 2, 3... por día por caja
@@ -254,7 +264,7 @@ Solo puede existir un turno activo a la vez. La restricción opera en dos capas:
 const turno = await this.turnosCajaService.obtenerTurnoActivo();
 if (turno && turno.empleado_id === this.empleadoId) {
   // Bloquea: el empleado tiene el turno abierto
-  showError('Tienes un turno activo. Realizá el cierre diario antes de cerrar sesión.');
+  showError('Tienes un turno activo. Realiza el cierre diario antes de cerrar sesión.');
   return;
 }
 // Procede con logout
@@ -290,7 +300,7 @@ SELECT
   t.hora_fecha_cierre AT TIME ZONE 'America/Guayaquil' AS cierre_local,
   t.fondo_apertura,
   oc.tipo_operacion,
-  co.codigo AS categoria,
+  cs.codigo AS categoria,
   oc.monto
 FROM turnos_caja t
 LEFT JOIN operaciones_cajas oc
@@ -304,6 +314,7 @@ LEFT JOIN operaciones_cajas oc
       AND oc.categoria_sistema_id = 'a1000001-0000-0000-0000-000000000005'  -- DEF-REPONER
     )
   )
+LEFT JOIN categorias_sistema cs ON cs.id = oc.categoria_sistema_id
 WHERE t.hora_fecha_cierre IS NOT NULL
 ORDER BY t.hora_fecha_cierre DESC
 LIMIT 1;
@@ -316,7 +327,7 @@ LIMIT 1;
 SELECT
   oc.tipo_operacion,
   c.codigo AS caja,
-  co.codigo AS categoria,
+  cs.codigo AS categoria,
   oc.monto,
   oc.descripcion,
   oc.fecha AT TIME ZONE 'America/Guayaquil' AS fecha_local

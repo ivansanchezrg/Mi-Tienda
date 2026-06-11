@@ -5,23 +5,22 @@
     </ion-buttons>
     <ion-title>Historial de Recargas</ion-title>
   </ion-toolbar>
-  @if (recargasCelularHabilitada && recargasBusHabilitada) {
-  <ion-toolbar class="filter-toolbar">
-    <div class="filter-tabs">
-      @for (f of filtros; track f.value) {
-      <button class="filter-tab" [class.active]="filtroActual === f.value" (click)="cambiarFiltro(f.value)">
-        {{ f.label }}
-      </button>
-      }
-    </div>
-  </ion-toolbar>
-  }
 </ion-header>
 
-<ion-content>
+<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
+
+  <!-- Filtro por servicio — solo si ambos módulos están activos -->
+  @if (recargasCelularHabilitada && recargasBusHabilitada) {
+  <app-period-filter
+    [options]="filtros"
+    [selected]="filtroActual"
+    label="Servicio"
+    (selectionChange)="cambiarFiltro($event)">
+  </app-period-filter>
+  }
 
   <!-- SKELETON -->
   @if (loading && items.length === 0) {
@@ -46,10 +45,11 @@
 
   <!-- VACÍO -->
   @if (!loading && items.length === 0) {
-  <div class="empty-state">
-    <ion-icon name="list-outline"></ion-icon>
-    <p>No hay registros de recargas</p>
-  </div>
+  <app-empty-state
+    icon="list-outline"
+    title="Sin recargas"
+    hint="Los registros de cada cierre de turno aparecerán aquí.">
+  </app-empty-state>
   }
 
   <!-- LISTA -->
@@ -65,7 +65,11 @@
 
     <div class="cierre-row">
       <div class="cierre-icono" [class]="item.servicio === 'CELULAR' ? 'celular' : 'bus'">
-        <ion-icon [name]="getIconoServicio(item.servicio)"></ion-icon>
+        @if (item.servicio === 'CELULAR') {
+          <ion-icon name="phone-portrait-outline"></ion-icon>
+        } @else {
+          <ion-icon name="bus-outline"></ion-icon>
+        }
       </div>
 
       <div class="cierre-cuerpo">
@@ -97,6 +101,18 @@
   </ion-card>
 
   }
+  }
+
+  <ion-infinite-scroll threshold="100px" [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent" [loadingText]="loadingMoreText"></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
+  @if (showScrollTop) {
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+    <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+      <ion-icon name="arrow-up-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
   }
 
 </ion-content>

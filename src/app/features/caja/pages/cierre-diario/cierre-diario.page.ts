@@ -13,15 +13,10 @@ import {
   arrowForwardOutline,
   phonePortraitOutline,
   busOutline,
-  walletOutline,
-  archiveOutline,
   checkmarkCircleOutline,
-  cashOutline,
-  trendingUpOutline,
   calculatorOutline,
   informationCircleOutline,
   alertCircleOutline,
-  receiptOutline,
   fileTrayOutline,
   storefrontOutline,
   shieldCheckmarkOutline
@@ -83,6 +78,9 @@ export class CierreDiarioPage implements HasPendingChanges {
   pasoActual = 1;
   totalPasos = 2;
   cargandoDatos = true;
+  // Anti doble-tap en "Cerrar Caja" — bloquea reentradas durante la verificación
+  // de la cola offline y la ejecución del cierre
+  cerrando = false;
 
   // ==========================================
   // DATOS CARGADOS DE LA BD
@@ -141,15 +139,10 @@ export class CierreDiarioPage implements HasPendingChanges {
       arrowForwardOutline,
       phonePortraitOutline,
       busOutline,
-      walletOutline,
-      archiveOutline,
       checkmarkCircleOutline,
-      cashOutline,
-      trendingUpOutline,
       calculatorOutline,
       informationCircleOutline,
       alertCircleOutline,
-      receiptOutline,
       fileTrayOutline,
       storefrontOutline,
       shieldCheckmarkOutline
@@ -216,7 +209,7 @@ export class CierreDiarioPage implements HasPendingChanges {
       this.saldoVirtualActualBus     = datos.saldosVirtuales.bus;
 
       // Saldos de cajas físicas
-      this.saldoCajaChicaDigital    = datos.saldosCajas.cajaCHicaDigital;
+      this.saldoCajaChicaDigital    = datos.saldosCajas.cajaChicaDigital;
       this.saldoAnteriorCajaCelular = datos.saldosCajas.cajaCelular;
       this.saldoAnteriorCajaBus     = datos.saldosCajas.cajaBus;
 
@@ -404,12 +397,14 @@ export class CierreDiarioPage implements HasPendingChanges {
     if (celularInvalid || busInvalid || efectivoCtrl?.invalid) return;
 
     if (this.hayVentaNegativa) {
+      // Texto plano: los toasts/alerts de Ionic en Android sanitizan el HTML y lo
+      // mostrarían como etiquetas literales. Montos siempre via CurrencyService.
       const msgs: string[] = [];
-      if (this.ventaCelular < 0) msgs.push(`<strong>Celular:</strong> venta negativa ($${this.ventaCelular.toFixed(2)})`);
-      if (this.ventaBus    < 0) msgs.push(`<strong>Bus:</strong> venta negativa ($${this.ventaBus.toFixed(2)})`);
+      if (this.ventaCelular < 0) msgs.push(`Celular: venta negativa (-$${this.currencyService.format(Math.abs(this.ventaCelular))})`);
+      if (this.ventaBus    < 0) msgs.push(`Bus: venta negativa (-$${this.currencyService.format(Math.abs(this.ventaBus))})`);
       await this.ui.showError(
-        `<p>No puedes continuar con ventas negativas.</p>${msgs.join('<br>')}
-         <p style="margin-top:12px">Registra las recargas del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>`
+        `No puedes continuar con ventas negativas. ${msgs.join('. ')}. ` +
+        `Registra las recargas del proveedor en Recargas Virtuales antes de cerrar.`
       );
       return;
     }
@@ -422,22 +417,28 @@ export class CierreDiarioPage implements HasPendingChanges {
   // ==========================================
 
   async confirmarCierre() {
-    // Barrera del cierre (§4.7 PLAN-OFFLINE-POS): no cerrar con ventas offline sin sincronizar.
-    // Esas ventas llegarían al servidor DESPUÉS del cierre → el saldo_digital del cajón quedaría
-    // incompleto → cuadre incorrecto y posible FALTANTE_CAJA injusto. Se drena la cola primero.
-    if (!(await this.colaSincronizadaParaCerrar())) return;
+    if (this.cerrando) return;
+    this.cerrando = true;
+    try {
+      // Barrera del cierre (§4.7 PLAN-OFFLINE-POS): no cerrar con ventas offline sin sincronizar.
+      // Esas ventas llegarían al servidor DESPUÉS del cierre → el saldo_digital del cajón quedaría
+      // incompleto → cuadre incorrecto y posible FALTANTE_CAJA injusto. Se drena la cola primero.
+      if (!(await this.colaSincronizadaParaCerrar())) return;
 
-    const alert = await this.alertCtrl.create({
-      header: 'Confirmar Cierre',
-      message: '¿Confirmas el cierre del turno con los valores indicados?',
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Confirmar', role: 'confirm' }
-      ]
-    });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    if (role === 'confirm') await this.ejecutarCierre();
+      const alert = await this.alertCtrl.create({
+        header: 'Confirmar Cierre',
+        message: '¿Confirmas el cierre del turno con los valores indicados?',
+        buttons: [
+          { text: 'Cancelar', role: 'cancel' },
+          { text: 'Confirmar', role: 'confirm' }
+        ]
+      });
+      await alert.present();
+      const { role } = await alert.onDidDismiss();
+      if (role === 'confirm') await this.ejecutarCierre();
+    } finally {
+      this.cerrando = false;
+    }
   }
 
   /**
@@ -514,6 +515,12 @@ export class CierreDiarioPage implements HasPendingChanges {
       await this.ui.hideLoading();
       await this.ui.showSuccess('Cierre guardado correctamente');
 
+      // Fecha local de apertura del turno — si difiere del día del cierre, el
+      // turno quedó abierto de un día anterior y la transferencia diaria a
+      // Varios de ese día no se realizó. El home muestra el aviso post-cierre.
+      const fechaApertura = new Date(this.turnoActivo.hora_fecha_apertura);
+      const aperturaLocal = `${fechaApertura.getFullYear()}-${String(fechaApertura.getMonth() + 1).padStart(2, '0')}-${String(fechaApertura.getDate()).padStart(2, '0')}`;
+
       // Capturar todos los valores del paso 2 ANTES de resetState(),
       // porque resetState() llama cierreForm.reset() y los getters que
       // leen el formulario (efectivoFisico, saldoCelularFinal, etc.) devolverían 0.
@@ -523,6 +530,7 @@ export class CierreDiarioPage implements HasPendingChanges {
         observaciones:     this.cierreForm.get('observaciones')?.value || null,
         cajeroNombre:      this.turnoActivo.empleado?.nombre ?? empleado.nombre,
         horaApertura:      this.turnoActivo.hora_fecha_apertura,
+        aperturaEnOtroDia: aperturaLocal !== fechaLocal,
         fondoApertura:     this.fondoApertura,
         ventasPosEfectivo: this.ventasPosEfectivo,
         otrosIngresos:     this.otrosIngresos,

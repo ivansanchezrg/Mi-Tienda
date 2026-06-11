@@ -420,21 +420,38 @@ await modal.present();
 
 ### `bs-actions` — variantes de layout de botones
 
-| Clase | Layout | Cuándo usar |
-|-------|--------|-------------|
-| `bs-actions` | Columna (apilados) | 3+ botones o textos largos |
-| `bs-actions bs-actions--row` | Fila lado a lado | **Default para 2 botones** (Cancelar/Confirmar) |
-| `bs-actions bs-actions--compact` | Fila centrada, botones chicos | Modales de herramienta (calculadora, cuadre) |
+**El patrón se elige por la NATURALEZA del modal, no por uniformidad** (decidido 2026-06-11):
+
+| Naturaleza del modal | Patrón | Ejemplo |
+|---|---|---|
+| **Formulario transaccional** (guarda/comete datos) | `bs-actions--row` → `[Cancelar] [Confirmar]`, confirmar con `[disabled]` hasta válido | Nueva nota, operación de caja |
+| **Herramienta reactiva** (inputs visibles + resultado en vivo) | `bs-actions--compact` → **UN solo botón** de acción (limpiar/repetir). La ✕ del header cierra | Calculadora margen, cuadre |
+| **Herramienta cuyo input visible ES la acción** | **SIN footer** — el input + su botón inline bastan. Safe area en el contenido (modal sin footer) | Consulta precio (modo manual) |
+
+**Reglas:**
+- **NUNCA un botón "Cerrar" que duplique la ✕ del header** en modales de herramienta. "Cancelar" solo existe en transaccionales (descarte explícito junto al commit).
+- **Alto mínimo táctil 44px en TODAS las variantes** (Apple HIG 44pt / Material 48dp / WCAG 2.5.5). Lo "compacto" de `--compact` es el ancho por contenido + centrado — jamás reducir el alto por estética.
+
+| Clase | Layout | Alto |
+|-------|--------|------|
+| `bs-actions` | Columna (apilados) — 3+ botones o textos largos | 48px |
+| `bs-actions bs-actions--row` | Fila — Cancelar/Confirmar de formularios | 44px |
+| `bs-actions bs-actions--compact` | Botón único centrado, ancho por contenido | 44px |
 
 ```html
-<!-- ✅ 2 botones — fila horizontal -->
+<!-- ✅ Formulario transaccional -->
 <div class="bs-actions bs-actions--row">
   <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
-  <ion-button expand="block" color="primary" (click)="confirmar()">Confirmar</ion-button>
+  <ion-button expand="block" color="primary" [disabled]="!valido" (click)="confirmar()">Guardar</ion-button>
+</div>
+
+<!-- ✅ Herramienta reactiva — sin "Cerrar" (la ✕ ya cierra) -->
+<div class="bs-actions bs-actions--compact">
+  <ion-button color="tertiary" (click)="nuevaConsulta()">Nueva consulta</ion-button>
 </div>
 ```
 
-Definido en `src/theme/custom/modals.scss`. Safe area ya incluida en `.bs-actions` — no agregar `env(safe-area-inset-bottom)` manualmente.
+Definido en `src/theme/custom/modals.scss`. Safe area ya incluida en `.bs-actions` — no agregar `env(safe-area-inset-bottom)` manualmente (en modales SIN footer, agregarla al contenedor del contenido).
 
 ### `OptionsModalComponent` — componente estándar para selects y action sheets
 
@@ -882,7 +899,7 @@ PERFORM public.fn_assert_no_superadmin();
 La función helper está en `docs/setup/fn_assert_no_superadmin.sql` y debe ejecutarse en Supabase **antes** que cualquier función de mutación. Lanza `RAISE EXCEPTION` internamente — esa excepción burbujea automáticamente y aborta la función llamante, independientemente de si retorna `void`, `JSON` o `TABLE`.
 
 **Funciones que SÍ deben bloquearse** — toda función que toque caja, ventas, inventario, clientes, recargas, nómina o notas:
-`fn_abrir_turno`, `fn_ejecutar_cierre_diario_v5`, `fn_cierre_emergencia_turno`, `fn_registrar_operacion_manual`, `fn_crear_transferencia`, `fn_reparar_deficit_turno`, `fn_registrar_venta_pos`, `fn_anular_venta`, `fn_ajustar_stock_inventario`, `fn_crear_producto_simple`, `fn_crear_producto_con_variantes`, `fn_registrar_pago_fiado`, `fn_registrar_recarga_proveedor_celular`, `fn_registrar_pago_proveedor_celular`, `fn_registrar_compra_saldo_bus`, `fn_liquidar_ganancias_bus`, `fn_registrar_adelanto_sueldo`, `fn_pagar_nomina_empleado`, `fn_eliminar_nota`.
+`fn_abrir_turno`, `fn_ejecutar_cierre_diario_v5`, `fn_registrar_operacion_manual`, `fn_crear_transferencia`, `fn_reparar_deficit_turno`, `fn_registrar_venta_pos`, `fn_anular_venta`, `fn_ajustar_stock_inventario`, `fn_crear_producto_simple`, `fn_crear_producto_con_variantes`, `fn_registrar_pago_fiado`, `fn_registrar_recarga_proveedor_celular`, `fn_registrar_pago_proveedor_celular`, `fn_registrar_compra_saldo_bus`, `fn_liquidar_ganancias_bus`, `fn_registrar_adelanto_sueldo`, `fn_pagar_nomina_empleado`, `fn_eliminar_nota`.
 
 **Funciones que NO se bloquean** — funciones de setup/admin que el superadmin usa deliberadamente:
 `fn_configurar_modulos`, `fn_configurar_modulos_admin`, `fn_suspender_usuario`, `fn_actualizar_membresia`, `fn_transferir_empleado`, `fn_set_negocio_activo`, `fn_completar_onboarding`, `fn_suspender_negocio`.
@@ -1267,3 +1284,4 @@ WITH CHECK (
 | Auditoría SQL 2026-05 | `docs/guides/RESUMEN-AUDITORIA-SQL-2026-05-30.md` (documento único — consolidado 2026-06-10) |
 | Performance arranque | `docs/guides/PERFORMANCE-STARTUP.md`                       |
 | Builds Android / entornos | `docs/guides/ANDROID-BUILD.md`                        |
+| Pendientes / backlog técnico | `docs/PENDIENTES.md` (al completar un ítem, borrarlo del archivo) |

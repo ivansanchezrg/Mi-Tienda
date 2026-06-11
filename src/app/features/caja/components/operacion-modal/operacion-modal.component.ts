@@ -4,7 +4,7 @@ import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonIcon, IonSpinner, IonButton,
-  ModalController, AlertController
+  ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -13,7 +13,6 @@ import {
 } from 'ionicons/icons';
 import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 import { Subscription } from 'rxjs';
-import { CameraSource } from '@capacitor/camera';
 import { StorageService } from '@core/services/storage.service';
 import { Caja } from '../../services/cajas.service';
 import { CategoriaOperacion } from '../../models/categoria-operacion.model';
@@ -61,7 +60,6 @@ const CAJA_ICONOS: Record<string, string> = {
 })
 export class OperacionModalComponent implements OnInit, OnDestroy {
   private modalCtrl   = inject(ModalController);
-  private alertCtrl   = inject(AlertController);
   private fb          = inject(FormBuilder);
   private cdr         = inject(ChangeDetectorRef);
   private operacionesService = inject(OperacionesCajaService);
@@ -222,19 +220,8 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   }
 
   async seleccionarFoto() {
-    const buttons: any[] = [];
-    if (this.storageService.isNative) {
-      buttons.push({ text: 'Tomar foto', handler: () => this.tomarFoto(CameraSource.Camera) });
-    }
-    buttons.push({ text: 'Seleccionar de galería', handler: () => this.tomarFoto(CameraSource.Photos) });
-    buttons.push({ text: 'Cancelar', role: 'cancel' });
-
-    const alert = await this.alertCtrl.create({ header: 'Comprobante', buttons });
-    await alert.present();
-  }
-
-  private async tomarFoto(source: CameraSource) {
-    const result = await this.storageService.capturarFoto(source);
+    // Flujo centralizado: menú de fuente + captura, sin recorte (comprobantes)
+    const result = await this.storageService.elegirFuenteFoto('libre', false, false);
     if (result) {
       this.fotoPreviewUrl = result.previewUrl;
       this.fotoRawUrl     = result.rawUrl;

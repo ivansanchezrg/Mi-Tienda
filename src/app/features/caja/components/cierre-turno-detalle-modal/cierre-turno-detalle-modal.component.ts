@@ -106,10 +106,16 @@ export class CierreTurnoDetalleModalComponent {
   // ── Compartir por WhatsApp ──────────────────────────────────
 
   async compartirWhatsApp(): Promise<void> {
+    // Fecha local de apertura vs cierre — el aviso de transferencia a Varios
+    // pendiente aplica también al compartir un cierre desde el historial.
+    const apertura = new Date(this.cierre.hora_fecha_apertura);
+    const cierre   = new Date(this.cierre.hora_fecha_cierre);
+
     await this.shareCierreService.enviarResumenWhatsApp({
       numeroTurno:       this.cierre.numero_turno,
       cajeroNombre:      this.cierre.empleado_nombre,
       horaApertura:      this.cierre.hora_fecha_apertura,
+      aperturaEnOtroDia: apertura.toDateString() !== cierre.toDateString(),
       esModoSinPos:      !this.cierre.usa_pos,
       observaciones:     this.cierre.observaciones,
       fondoApertura:     this.cierre.fondo_apertura,

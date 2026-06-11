@@ -10,6 +10,9 @@ export interface DatosCierreParaCompartir {
   numeroTurno:      number;
   cajeroNombre:     string;
   horaApertura:     string;  // ISO
+  /** true si el turno se abrió en un día local anterior al del cierre —
+   *  la transferencia diaria a Varios de ese día quedó sin realizarse */
+  aperturaEnOtroDia: boolean;
   // Modo de operación
   esModoSinPos:     boolean; // true = cajón sin movimientos (sin POS, sin ingresos manuales, sin egresos)
   // Observaciones del cajero (opcional)
@@ -108,6 +111,11 @@ export class ShareCierreService {
     lineas.push(`${fecha} · Turno #${d.numeroTurno}`);
     lineas.push(`Cajero: ${d.cajeroNombre} · Apertura: ${hora}`);
     lineas.push('');
+
+    if (d.aperturaEnOtroDia && d.variosActiva) {
+      lineas.push(`${E.warning} Turno abierto el ${fecha} y cerrado en un día posterior — la transferencia a Varios del día de apertura quedó pendiente`);
+      lineas.push('');
+    }
 
     // ── Caja del día ──────────────────────────────────────────────
     lineas.push(`${E.caja} *CAJA DEL DÍA*`);

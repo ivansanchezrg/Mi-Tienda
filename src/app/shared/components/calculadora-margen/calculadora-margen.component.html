@@ -64,10 +64,9 @@
     </div>
   </div>
 
-  <!-- Botones -->
-  <div class="bs-actions bs-actions--row">
-    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cerrar</ion-button>
-    <ion-button expand="block" fill="solid" color="success" (click)="limpiar()">Nueva consulta</ion-button>
+  <!-- Herramienta reactiva: la ✕ cierra; única acción = limpiar (patrón --compact de CLAUDE.md) -->
+  <div class="bs-actions bs-actions--compact">
+    <ion-button color="success" (click)="limpiar()">Nueva consulta</ion-button>
   </div>
 
 </div>

@@ -134,7 +134,7 @@ Si deficitVarios = 0 → no hay déficit, abre directo con fondo libre
 | `fn_ejecutar_cierre_diario` | Cierre | Ajuste conteo + distribución cascada + recargas + cierra turno — todo atómico |
 | `fn_registrar_operacion_manual` | Ingreso/Egreso manual | INSERT operacion + UPDATE saldo caja — atómico |
 | `fn_crear_transferencia` | Transferencia entre cajas | EGRESO origen + INGRESO destino — atómico |
-| `fn_verificar_transferencia_caja_chica_hoy` | Pre-cierre | Booleano: ¿VARIOS ya recibió hoy? |
+| `fn_datos_cierre_diario` | Pre-cierre | Snapshot consolidado del wizard de cierre en 1 RPC (incluye "¿VARIOS ya recibió hoy?" — absorbió a la antigua `fn_verificar_transferencia_caja_chica_hoy`) |
 
 ---
 

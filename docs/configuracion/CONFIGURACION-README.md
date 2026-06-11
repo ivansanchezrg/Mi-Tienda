@@ -71,7 +71,7 @@ Prefijo por modulo seguido de guion bajo:
 | `nomina_sueldo_base` | number | `0` | Sueldo base mensual de empleados (precarga al pagar nomina) |
 | `nomina_dia_pago` | number | `1` | Dia del mes en que se realiza el pago de nomina |
 
-> **Nota (2026-04-11):** `pos_habilitado` fue **eliminado** de la tabla. El estado del POS ahora se deriva automaticamente de si hay un turno de caja abierto (`turnos_caja.hora_fecha_cierre IS NULL`) via `TurnosCajaService.cajaAbierta$`. Single Source of Truth — elimina la duplicacion entre `configuraciones` y `turnos_caja`.
+> **Nota (2026-04-11):** `pos_habilitado` fue **eliminado** de la tabla. El estado del POS ahora se deriva automaticamente de si hay un turno de caja abierto (`turnos_caja.hora_fecha_cierre IS NULL`) via `TurnosCajaService.turnoActivo$`/`esMiTurno$`. Single Source of Truth — elimina la duplicacion entre `configuraciones` y `turnos_caja`.
 
 > **Nota (2026-05-01):** `recargas_celular_habilitada` y `recargas_bus_habilitada` reemplazan al flag unificado anterior. Cada modulo es independiente — el superadmin elige cual activar por negocio desde Parametros → Modulos.
 
@@ -109,7 +109,7 @@ this.configService.invalidar(); // limpia cache RAM + Preferences → proxima le
 
 > El cache persistido reduce ~200-400ms del cold start del home. Ver [PERFORMANCE-STARTUP.md](../guides/PERFORMANCE-STARTUP.md#6-cache-persistido-de-configservice-stale-while-revalidate) para detalle.
 
-> El estado reactivo del POS vive en `TurnosCajaService.cajaAbierta$` — no en `ConfigService`.
+> El estado reactivo del POS vive en `TurnosCajaService.turnoActivo$`/`esMiTurno$` — no en `ConfigService`.
 
 ### `ConfiguracionService` (feature — CRUD admin)
 
