@@ -28,13 +28,20 @@ NOTAS GENERALES:
 
   Contiene:
     - Todas las tablas + ENUMs + indices + triggers inline
-    - Vistas con security_barrier
+    - Vistas con security_barrier (incluye v_operaciones_cajas)
     - Helpers JWT (get_negocio_id, get_email, get_rol, get_es_superadmin,
       comparten_negocio)
     - Seeds globales (tipos_servicio, tipos_referencia)
     - Funcion fn_set_negocio_activo (la unica funcion de setup que vive
       directo en schema.sql; el resto vive en 03_functions.sql)
     - FK diferida: negocios.propietario_usuario_id -> usuarios.id
+
+  docs/setup/04_categorias_sistema.sql
+
+  OBLIGATORIO tras schema.sql: seed del catalogo global categorias_sistema
+  (UUIDs fijos). Sin este seed, cierre de turno, nomina, recargas y
+  anulaciones fallan — las funciones referencian estos UUIDs por codigo
+  (CIE-SIN-POS, SALARIOS, VENTA-POS, etc.). Idempotente (ON CONFLICT DO NOTHING).
 
 ================================================================================
 3. ROW LEVEL SECURITY (fuente unica de verdad)
@@ -155,6 +162,9 @@ NOTAS GENERALES:
 ================================================================================
 
   docs/movimientos-empleados/sql/views/v_saldos_empleados.sql
+  docs/caja/sql/views/v_operaciones_cajas.sql
+    (schema.sql ya la crea; este archivo es la fuente de verdad para
+     re-ejecutarla suelta — historial de operaciones con categoria unificada)
 
 ================================================================================
 10. TRIGGERS DE NEGOCIO

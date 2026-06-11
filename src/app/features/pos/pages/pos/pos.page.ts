@@ -1398,7 +1398,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
       if (response.success) {
         localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
-        this.ui.showToast(`Venta #${response.numeroComprobante} registrada`, 'success');
+        if (response.encolada) {
+          // La señal cayó con el cobro en vuelo — la venta quedó en la cola local con la
+          // misma idempotency key (reenviar es seguro) y se sincronizará sola.
+          this.ui.showToast('Conexión inestable — venta guardada, se sincronizará automáticamente', 'success');
+        } else {
+          this.ui.showToast(`Venta #${response.numeroComprobante} registrada`, 'success');
+        }
         this.limpiarCarrito();
       } else {
         this.ui.showToast('No se pudo registrar la venta. Intenta de nuevo.', 'danger');

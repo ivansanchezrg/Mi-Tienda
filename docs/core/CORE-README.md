@@ -384,7 +384,7 @@ this.currencyService.format(1250.5);     // → "1,250.50"
 
 ## Servicios del modo offline (POS)
 
-Capa de datos local que permite cobrar sin internet. Plan completo: `docs/PLAN-OFFLINE-POS-2026-06-08.md`.
+Capa de datos local que permite cobrar sin internet. Plan completo: `docs/guides/PLAN-OFFLINE-POS-2026-06-08.md`.
 
 ### LocalDbService (`core/services/local-db.service.ts`)
 

@@ -362,22 +362,79 @@ Total: 1 RPC + 0-1 queries de notificaciones (depende de flags activos). ~250-50
 
 ---
 
+## Cambios aplicados el 2026-06-10
+
+### 10. Stale-while-revalidate del home dashboard (arranque sin skeleton)
+
+**Archivos:**
+- `src/app/features/caja/services/turnos-caja.service.ts` — snapshot persistido + cache fallback offline
+- `src/app/features/caja/pages/home/home.page.ts` — `cargarDatos()` pinta del snapshot al instante
+
+**Problema:** Tras todas las optimizaciones anteriores, lo único lento que quedaba en el arranque era
+el skeleton del home esperando `fn_home_dashboard`. Y el primer request tras un cold start no cuesta
+solo los ~250-500ms de la RPC: paga además DNS + TLS + handshake HTTP/2 contra Supabase (~300-600ms
+extra en red móvil). Crítico para el caso "la app estaba en reposo, Android mató el proceso, el usuario
+la reabre" — un cold start disfrazado de reapertura.
+
+**Solución:** El mismo patrón que ya usan `ConfigService` (§6) y el catálogo POS (plan offline §13.4),
+aplicado a la pantalla de entrada:
+
+```
+cargarDatos() (no silencioso):
+  ├── ¿Snapshot de HOY del MISMO negocio en Preferences?
+  │     ├── SÍ → aplicarDashboard(snapshot) al instante, SIN skeleton
+  │     │        └── el fetch de siempre corre igual y repinta con datos frescos (~0.5-1s)
+  │     └── NO → skeleton normal (primer arranque del día)
+  └── obtenerHomeDashboard() persiste el snapshot tras cada fetch exitoso
+        └── (también lo refrescan pull-to-refresh, refrescarMovimientos y post-cierre)
+```
+
+**Validez del snapshot (sin TTL arbitrario):**
+- **Mismo `negocio_id`** — invalida automáticamente al cambiar de tenant.
+- **Mismo día local** (`getFechaLocal()`) — los turnos son diarios; un snapshot de ayer pintaría un
+  "turno abierto" que ya no existe. El primer arranque de cada día muestra skeleton (una vez al día).
+- **Logout** — `registerBeforeCleanup` borra la key (mismo mecanismo que ConfigService).
+
+**Bonus offline:** `obtenerHomeDashboard()` ahora sirve el snapshot del día cuando la RPC no responde
+(sin red). Antes, el home offline se pintaba con todo en ceros (los defaults defensivos del null).
+
+**Trade-off aceptado:** durante ~0.5-1s el usuario ve saldos del último fetch del día (no de este
+instante). El refresco en background y el Realtime de cajas lo corrigen de inmediato. Mismo criterio
+ya aceptado para el catálogo POS.
+
+**Impacto:** cold start con sesión válida y snapshot del día → el home aparece **lleno en el primer
+render** (~5-10ms de lectura de Preferences), sin skeleton ni espera de red percibida.
+
+---
+
 ## Estimación de mejora actualizada
 
-| Escenario | Original (pre-2026-05-22) | Post 2026-05-22 | Post 2026-05-30 (parte 1) | **Post 2026-05-30 (parte 2)** |
+| Escenario | Original (pre-2026-05-22) | Post 2026-05-22 | Post 2026-05-30 | **Post 2026-06-10** |
 |---|---|---|---|---|
-| Cold start con sesión válida (caso 95%) | ~5s | ~2s | ~1.5-1.7s | **~1.2-1.5s** |
+| Cold start con sesión válida (caso 95%) | ~5s | ~2s | ~1.2-1.5s | **home visible al primer render** (snapshot del día); datos frescos ~0.5-1s después |
 | Primera instalación / login fresco | ~5s | ~3-3.5s | ~3-3.5s | ~3-3.5s |
-| Re-apertura tras background corto | ~2-3s | ~1-1.5s | ~1-1.5s | **~0.8-1.2s** |
-| Warm restart tras 1+ hora background | ~4-5s | ~2s | ~2s | ~2s |
+| Re-apertura tras background corto | ~2-3s | ~1-1.5s | ~0.8-1.2s | **instantáneo con snapshot** (si Android mató el proceso) |
+| Warm restart tras 1+ hora background | ~4-5s | ~2s | ~2s | ~2s (token) + home pintado del snapshot mientras |
 | Primera navegación a /pos /ventas /inventario | ~400-800ms | ~400-800ms | ~0-100ms (precargado) | ~0-100ms |
-| **Pull-to-refresh en home** | — | ~400-800ms | ~400-800ms | **~250-500ms** |
+| **Pull-to-refresh en home** | — | ~400-800ms | ~250-500ms | ~250-500ms |
+| Primer arranque del día (sin snapshot) | — | — | — | skeleton normal ~1.2-1.5s (una vez al día) |
 
 ---
 
 ## Deuda técnica / próximos pasos
 
-- **Lazy loading de imágenes:** verificar que las `<img>` del catálogo POS y categorías usen `loading="lazy"`. Si el catálogo muestra 30 productos con imagen sin lazy, se descargan las 30 al primer render.
+- **Lazy loading de imágenes en el catálogo POS** — ✅ implementado el 2026-06-10. Detalle en
+  `docs/guides/PLAN-OFFLINE-POS-2026-06-08.md` §13.4 (rendimiento del catálogo POS, no del arranque).
+- **Frescura del home al volver del background (proceso vivo):** al reanudar, solo se renueva la sesión
+  (`refreshSessionOnResume`) — los datos del home quedan como estaban hasta que el usuario navega o hace
+  pull-to-refresh. El Realtime de cajas cubre saldos, pero movimientos/turno pueden quedar viejos. Posible
+  mejora: en el `appStateChange` de `app.component`, refrescar el home silenciosamente si pasó >X min en
+  background. Es frescura, no velocidad — evaluar si vale la complejidad.
+- **Micro: `Network.getStatus()` en `authGuard`:** es un roundtrip al plugin (~10-30ms) por navegación
+  guardada; `NetworkService.isConnected()` ya tiene el valor en memoria. Ganancia marginal.
+- **Pre-calentar el cache del POS al boot:** evaluado el 2026-06-10 y **descartado** — parsear 1-3 MB de
+  JSON en cada arranque (lo necesites o no) compite con el render del home para ahorrar ~50-150ms una vez
+  por sesión. El POS ya pinta de su cache persistido (SQLite/IndexedDB) al entrar. No implementar.
 - **Zoneless Change Detection (Angular 20.2+):** estable para producción según docs oficiales, pero **Ionic 8 no garantiza compatibilidad zoneless** (componentes que dependen de zone.js para propagar eventos). Reevaluar cuando salga Ionic 9 con soporte oficial.
 - **Service Worker / PWA:** solo aplicaría al modo web. La app es Capacitor nativo principalmente — bajo ROI hoy.
 - **Splash screen Android nativo:** evaluar reemplazar el splash de Capacitor por un Android 12+ themed splash. Mejora marginal (~100ms) pero más consistente visualmente.
@@ -411,3 +468,9 @@ Total: 1 RPC + 0-1 queries de notificaciones (depende de flags activos). ~250-50
 | `docs/caja/sql/functions/fn_home_dashboard.sql` | RPC nueva — consolida estado de caja + saldos virtuales + movimientos del home en 1 round-trip |
 | `src/app/features/caja/services/turnos-caja.service.ts` | Método `obtenerHomeDashboard()` + interface `HomeDashboard` |
 | `src/app/features/caja/pages/home/home.page.ts` | `cargarDatos()` ahora usa la RPC consolidada en vez de 8 promesas paralelas |
+
+### Sesión 2026-06-10
+| Archivo | Cambio |
+|---|---|
+| `src/app/features/caja/services/turnos-caja.service.ts` | Snapshot del dashboard en Preferences (`obtenerHomeDashboardCacheado()` + persistencia tras cada fetch + fallback offline + limpieza en logout) |
+| `src/app/features/caja/pages/home/home.page.ts` | `cargarDatos()` pinta del snapshot del día al instante (sin skeleton) y refresca en background |

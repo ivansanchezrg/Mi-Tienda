@@ -1,5 +1,6 @@
 import { Injectable, inject, NgZone } from '@angular/core';
 import { BehaviorSubject, map, distinctUntilChanged, combineLatest, filter, firstValueFrom } from 'rxjs';
+import { Preferences } from '@capacitor/preferences';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseService } from '@core/services/supabase.service';
 import { UiService } from '@core/services/ui.service';
@@ -35,6 +36,17 @@ export interface HomeDashboard {
     celularHabilitada: boolean;
     busHabilitada: boolean;
   };
+}
+
+/**
+ * Snapshot del dashboard persistido en Preferences — habilita el arranque instantáneo
+ * del home (stale-while-revalidate). Válido solo el mismo día local y el mismo negocio:
+ * los turnos son diarios, pintar un "turno abierto" de ayer confunde más de lo que ayuda.
+ */
+interface HomeDashboardSnapshot {
+  negocio_id: string | null;
+  fecha: string;            // 'YYYY-MM-DD' local (getFechaLocal)
+  data: HomeDashboard;
 }
 
 @Injectable({
@@ -109,6 +121,13 @@ export class TurnosCajaService {
     //    SupabaseService expone registerBeforeCleanup como array — no pisa el
     //    listener que ya tiene registrado AuthService.
     this.supabase.registerBeforeCleanup(() => this.cerrarRealtimeTurnos());
+
+    // 3. Borrar el snapshot del home en logout — un usuario que cambia de cuenta
+    //    no debe ver datos del negocio anterior en el primer render del proximo
+    //    cold start (mismo patron que ConfigService).
+    this.supabase.registerBeforeCleanup(() =>
+      Preferences.remove({ key: TurnosCajaService.HOME_DASHBOARD_CACHE_KEY }).catch(() => {})
+    );
   }
 
   /** Valor sincronico del turno activo (util en codigo imperativo). */
@@ -451,6 +470,13 @@ export class TurnosCajaService {
       this.supabase.client.rpc('fn_home_dashboard')
     );
 
+    // Sin respuesta (offline o error de red): servir el último snapshot del día en vez
+    // de pintar el home en ceros. Si tampoco hay snapshot, sigue el flujo con defaults.
+    if (!data) {
+      const cacheado = await this.obtenerHomeDashboardCacheado();
+      if (cacheado) return cacheado;
+    }
+
     // Defaults defensivos si la RPC retornó null (shouldn't happen pero por las dudas)
     const ec  = data?.estado_caja      ?? { turno_activo: null, turnos_hoy: 0, fecha_ultimo_cierre: null };
     const sv  = data?.saldos_virtuales ?? { celular: 0, bus: 0 };
@@ -477,7 +503,7 @@ export class TurnosCajaService {
       estado = 'SIN_ABRIR';
     }
 
-    return {
+    const dashboard: HomeDashboard = {
       estadoCaja: {
         estado,
         turnoActivo:       ec.turno_activo,
@@ -497,6 +523,55 @@ export class TurnosCajaService {
         busHabilitada:     mod.bus_habilitada     ?? false,
       },
     };
+
+    // Persistir solo datos reales del servidor — nunca los defaults de un null
+    if (data) this.guardarHomeDashboardCache(dashboard);
+
+    return dashboard;
+  }
+
+  // ==========================================
+  // SNAPSHOT PERSISTIDO DEL HOME (stale-while-revalidate)
+  // ==========================================
+
+  private static readonly HOME_DASHBOARD_CACHE_KEY = 'mi-tienda:home-dashboard-cache:v1';
+
+  /**
+   * Último snapshot del dashboard persistido en Preferences, o null si no hay,
+   * es de otro día o de otro negocio. El home lo pinta al instante en el cold
+   * start mientras refresca contra el servidor en background.
+   */
+  async obtenerHomeDashboardCacheado(): Promise<HomeDashboard | null> {
+    try {
+      const { value } = await Preferences.get({ key: TurnosCajaService.HOME_DASHBOARD_CACHE_KEY });
+      if (!value) return null;
+
+      const snapshot: HomeDashboardSnapshot = JSON.parse(value);
+
+      // Invalidación automática al cambiar de tenant
+      if (snapshot.negocio_id !== (this.authService.usuarioActualValue?.negocio_id ?? null)) return null;
+
+      // Solo vale el mismo día local — los turnos son diarios, un snapshot de ayer
+      // pintaría un estado de turno que ya no existe
+      if (snapshot.fecha !== getFechaLocal()) return null;
+
+      return snapshot.data;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Persiste el snapshot del dashboard. Best-effort: un fallo no afecta el flujo. */
+  private guardarHomeDashboardCache(dashboard: HomeDashboard): void {
+    const snapshot: HomeDashboardSnapshot = {
+      negocio_id: this.authService.usuarioActualValue?.negocio_id ?? null,
+      fecha:      getFechaLocal(),
+      data:       dashboard,
+    };
+    Preferences.set({
+      key:   TurnosCajaService.HOME_DASHBOARD_CACHE_KEY,
+      value: JSON.stringify(snapshot),
+    }).catch(() => {});
   }
 
   /**

@@ -225,7 +225,11 @@
       "Bash(node -e \"const p=require\\('./node_modules/jeep-sqlite/package.json'\\); console.log\\('version:', p.version\\); console.log\\('sqljs dep:', p.dependencies?.['sql.js']\\)\")",
       "Bash(node -e \"const p=require\\('./node_modules/sql.js/package.json'\\); console.log\\('sql.js instalado:', p.version\\)\")",
       "WebFetch(domain:forum.ionicframework.com)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "PowerShell(Remove-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\AUDITORIA-FUNCIONES-SQL-2026-05-30.md\" -Confirm:$false)",
+      "PowerShell(Remove-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\PLAN-MIGRACION-CATEGORIAS-SISTEMA-2026-06-02.md\" -Confirm:$false)",
+      "PowerShell(Remove-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\PLAN-REFACTOR-NEGOCIOS-2026-06-03.md\" -Confirm:$false)",
+      "PowerShell(Move-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\ANDROID-BUILD.md\" \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\guides\\\\ANDROID-BUILD.md\")"
     ],
     "additionalDirectories": [
       "\\tmp"

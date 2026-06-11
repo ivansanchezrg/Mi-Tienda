@@ -1,8 +1,10 @@
 import { Injectable, inject } from '@angular/core';
+import { filter } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
 import { NetworkService } from './network.service';
 import { LoggerService } from './logger.service';
 import { OutboxService, OutboxVenta } from './outbox.service';
+import { AuthService } from '../../features/auth/services/auth.service';
 
 /**
  * SyncService — drena la cola del OutboxService contra Supabase (§4.4 PLAN-OFFLINE-POS).
@@ -25,6 +27,7 @@ export class SyncService {
     private network  = inject(NetworkService);
     private logger   = inject(LoggerService);
     private outbox   = inject(OutboxService);
+    private auth     = inject(AuthService);
 
     private sincronizando = false;
 
@@ -34,6 +37,18 @@ export class SyncService {
         this.network.getNetworkStatus().subscribe(online => {
             if (online) void this.sincronizar();
         });
+
+        // Arranque en frío: el contador del outbox nace en 0 y este servicio es lazy.
+        // Sin esto, una cola que quedó de una sesión anterior (app cerrada con ventas
+        // pendientes) ni se muestra en el badge ni se drena hasta que alguna página
+        // inyecte el servicio. Al restaurarse la sesión (usuario con negocio activo):
+        // hidratar el badge y drenar lo pendiente.
+        this.auth.usuarioActual$
+            .pipe(filter(u => !!u?.negocio_id))
+            .subscribe(() => {
+                void this.outbox.refrescarContador();
+                void this.sincronizar();
+            });
     }
 
     /**
@@ -94,7 +109,7 @@ export class SyncService {
                 return 'ok';
             }
 
-            if (this.esErrorDeRed(error)) {
+            if (this.supabase.esErrorDeTransporte(error)) {
                 await this.outbox.marcarEstado(venta.idempotencyKey, 'PENDING', { error: error.message });
                 return 'red';
             }
@@ -113,13 +128,4 @@ export class SyncService {
         }
     }
 
-    /** Heurística: errores de transporte/conexión vs errores SQL del servidor. */
-    private esErrorDeRed(error: { message?: string; code?: string }): boolean {
-        const msg = (error.message ?? '').toLowerCase();
-        return msg.includes('failed to fetch')
-            || msg.includes('network')
-            || msg.includes('fetch')
-            || msg.includes('timeout')
-            || error.code === undefined && msg === ''; // sin code ni mensaje → no llegó al servidor
-    }
 }

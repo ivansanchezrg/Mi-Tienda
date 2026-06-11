@@ -8,7 +8,10 @@
 -- Ejecutar UNA SOLA VEZ al inicializar la BD (o en idempotente con ON CONFLICT DO NOTHING).
 -- La tabla ya debe existir (creada en schema.sql, sección 7b).
 --
--- Implementado: 2026-06-02 (migración docs/PLAN-MIGRACION-CATEGORIAS-SISTEMA-2026-06-02.md)
+-- Implementado: 2026-06-02 (separación categorías de sistema vs. usuario — las de
+-- sistema son globales aquí; las de usuario viven en categorias_operaciones por negocio.
+-- operaciones_cajas referencia una u otra vía categoria_id XOR categoria_sistema_id,
+-- y la vista v_operaciones_cajas las unifica para el frontend).
 -- ==========================================
 
 INSERT INTO public.categorias_sistema (id, codigo, tipo, nombre, descripcion)

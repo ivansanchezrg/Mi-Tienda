@@ -1,6 +1,7 @@
 -- ==========================================
--- FUNCIÓN: fn_actualizar_datos_negocio (v1.0 — 2026-06-03)
+-- FUNCIÓN: fn_actualizar_datos_negocio (v1.1 — 2026-06-10)
 -- ==========================================
+-- v1.1: RUC validado como 13 DÍGITOS reales (regex), no solo longitud 13.
 -- Actualiza los datos de identidad del negocio activo en la tabla `negocios`.
 -- Reemplaza el UPSERT en `configuraciones` para nombre, teléfono y dirección,
 -- que ahora viven en `negocios` como fuente de verdad.
@@ -75,7 +76,7 @@ BEGIN
         RAISE EXCEPTION 'El nombre del negocio no puede estar vacío';
     END IF;
 
-    IF p_ruc IS NOT NULL AND TRIM(p_ruc) <> '' AND LENGTH(TRIM(p_ruc)) <> 13 THEN
+    IF p_ruc IS NOT NULL AND TRIM(p_ruc) <> '' AND TRIM(p_ruc) !~ '^\d{13}$' THEN
         RAISE EXCEPTION 'El RUC debe tener exactamente 13 dígitos';
     END IF;
 
@@ -125,7 +126,7 @@ GRANT EXECUTE ON FUNCTION public.fn_actualizar_datos_negocio(
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_actualizar_datos_negocio IS
-    'v1.0 — Actualiza datos de identidad del negocio activo en tabla negocios. '
+    'v1.1 — Actualiza datos de identidad del negocio activo en tabla negocios. '
     'Fuente de verdad: negocios (no configuraciones). '
     'Solo ADMIN del negocio activo puede ejecutar. Superadmin bloqueado. '
     'Campos SRI opcionales — NULL mantiene el valor existente.';

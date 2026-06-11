@@ -4,6 +4,9 @@ Migración del modelo actual (1 turno por negocio) al modelo multicaja (1 turno 
 Diseñado para ser **transparente hacia atrás**: tiendas con 1 cajero no cambian su flujo en absoluto.
 
 **Estado general:** `[~] Preparación BD completada — Fases 1-2 parcialmente ejecutadas`
+**Última revisión:** 2026-06-10 — prep BD verificada contra el código ✅; agregada sección
+"Realidades post-plan" (offline POS, fn_home_dashboard, funciones nuevas mono-caja) que las
+Fases 3-9 deben incorporar antes de implementarse.
 
 ---
 
@@ -99,6 +102,45 @@ Ejecutar estos archivos en el **SQL Editor de Supabase**, en este orden:
 - Columna `caja_id` en `turnos_caja` pasar de nullable a `NOT NULL` (un simple `ALTER TABLE ... SET NOT NULL` cuando todos los turnos estén poblados).
 - Cambiar firma de `fn_abrir_turno` para aceptar `p_caja_id` explícito (en lugar del auto-resolve actual).
 - Resto del plan (Fases 1–9 abajo).
+
+---
+
+## ⚠️ Realidades post-plan a incorporar (revisión 2026-06-10)
+
+Este plan se escribió el 2026-05-27. Desde entonces se construyeron features que **asumen
+mono-caja** y que las Fases 3-9 DEBEN contemplar — implementarlas tal como están escritas
+abajo rompería estas piezas en silencio:
+
+### A. Capa offline del POS (2026-06-10 — ver `PLAN-OFFLINE-POS-2026-06-08.md`)
+
+| Pieza | Supuesto mono-caja que rompe | Qué necesita multicaja |
+|---|---|---|
+| `TurnoLocalService` / tabla local `turno_activo_local` | `negocio_id` es PRIMARY KEY — "1 turno abierto por negocio" explícito en el schema local (`local-db.service.ts`) | Snapshot con `caja_id`; la clave pasa a ser el turno del EMPLEADO (o negocio+caja). Migrar el schema local (SQLite/IndexedDB) con versión nueva |
+| `PosService.resolverTurno()` | Lee `turnosService.turnoActivoValue` (turno global único) | Resolver el turno DEL empleado actual desde el mapa `_turnosActivosPorCaja$` (Fase 4.1f) |
+| Barrera del cierre (`colaSincronizadaParaCerrar()` en `cierre-diario.page.ts`) | `outbox.cantidadPendientes()` cuenta TODAS las ventas en cola del negocio | Contar solo las del `turno_id`/caja que se cierra — sin esto, cerrar la caja A se bloquea por ventas en cola de la caja B |
+| `cajaAbiertaGuard` (fallback offline) | Valida `snapshot.empleadoId === usuario.id` sobre el único snapshot | Sigue válido si el snapshot pasa a ser "el turno del empleado"; revisar al cambiar la clave |
+| `OutboxService` | Guarda `turno_id` por venta — OK | Sin cambio (la caja viaja implícita en el turno) |
+
+### B. `fn_home_dashboard` + cache del home (2026-05-30 / 2026-06-10)
+
+La Fase 6 dice "cargar con `getCajasConTurno()`", pero el home real ya no funciona así:
+usa la RPC consolidada `fn_home_dashboard` (que devuelve UN `turno_activo` global en
+`estado_caja`) + snapshot stale-while-revalidate en Preferences (`obtenerHomeDashboardCacheado()`,
+ver `PERFORMANCE-STARTUP.md` §10). **La Fase 6 real es evolucionar `fn_home_dashboard`**
+(estado de turno POR caja en el JSON) y adaptar `aplicarDashboard()`/el snapshot — no
+reemplazar la carga por queries sueltas.
+
+### C. Funciones nuevas con supuesto mono-caja (no listadas en las fases)
+
+- `fn_obtener_deficit_turno_anterior` (2026-06-03) — busca el último turno del NEGOCIO;
+  con multicaja el déficit es por caja.
+- `fn_listar_cierres_turno` v2.1 + historial de turnos (v6.3) — listan cierres por negocio;
+  necesitarán filtro/columna de caja en la UI.
+- `fn_datos_cierre_diario` — consolida datos del cierre asumiendo el turno único.
+
+> Regla para quien implemente: antes de empezar la Fase 3, re-auditar
+> `grep -r "CAJA_CHICA" docs/**/sql src/` — toda referencia hardcodeada es un candidato
+> a romperse con un segundo cajón.
 
 ---
 
@@ -273,7 +315,7 @@ Revisar específicamente:
 
 La función abre un nuevo turno internamente. Necesita saber a qué caja:
 
-Firma actual: recibe parámetros de déficit sin caja.
+Firma actual (tras migración de categorías 2026-06-02): `(p_empleado_id UUID, p_deficit_varios DECIMAL, p_fondo_apertura DECIMAL)` — las categorías de ajuste son constantes internas de `categorias_sistema`.
 Firma nueva: agregar `p_caja_id UUID`.
 
 El INSERT de `turnos_caja` interno debe incluir `caja_id = p_caja_id`.

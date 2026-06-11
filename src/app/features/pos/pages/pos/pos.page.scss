@@ -956,6 +956,11 @@ ion-toolbar {
     display: flex;
     flex-direction: column;
     aspect-ratio: 3 / 4;
+    // El browser salta layout/paint de las cards fuera del viewport — clave con
+    // catálogos grandes (grid sin virtualización). Sin saltos de scroll: aspect-ratio
+    // + ancho del grid fijan la geometría sin depender del contenido.
+    content-visibility: auto;
+    contain-intrinsic-size: auto 200px;
     border-radius: 10px;
     overflow: hidden;
     cursor: pointer;

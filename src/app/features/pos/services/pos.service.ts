@@ -1,7 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { TurnosCajaService } from '../../caja/services/turnos-caja.service';
-import { NetworkService } from '../../../core/services/network.service';
 import { TurnoLocalService } from '../../../core/services/turno-local.service';
 import { OutboxService, OutboxVentaPayload } from '../../../core/services/outbox.service';
 import { SyncService } from '../../../core/services/sync.service';
@@ -27,7 +26,6 @@ export interface VentaPayload {
 export class PosService {
     private supabase = inject(SupabaseService);
     private turnosService = inject(TurnosCajaService);
-    private network = inject(NetworkService);
     private turnoLocal = inject(TurnoLocalService);
     private outbox = inject(OutboxService);
     private sync = inject(SyncService);
@@ -37,17 +35,15 @@ export class PosService {
     // ==========================================
 
     /**
-     * Resuelve el turno al que colgar la venta.
-     * Online: consulta el servidor (fuente de verdad). Offline: lee el snapshot local
-     * (turno_activo_local) — escrito al abrir turno con red. Sin esto el cobro offline
-     * es imposible: consultar el servidor sin red devuelve null → SIN_TURNO.
+     * Resuelve el turno al que colgar la venta — sin roundtrip al servidor por venta (§4.6).
+     * 1) Estado en memoria de TurnosCajaService (lo mantienen la query inicial + Realtime).
+     * 2) Snapshot local (turno_activo_local) — cold start sin red.
+     * Consultar el servidor aquí era el modo de fallo con señal intermitente: el fetch
+     * moría en vuelo y la venta se rechazaba con SIN_TURNO aunque el turno existiera.
      */
     private async resolverTurno(): Promise<{ id: string; empleado_id: string }> {
-        if (this.network.isConnected()) {
-            const turno = await this.turnosService.obtenerTurnoActivo();
-            if (!turno) throw new Error('SIN_TURNO');
-            return { id: turno.id, empleado_id: turno.empleado_id };
-        }
+        const turno = this.turnosService.turnoActivoValue;
+        if (turno) return { id: turno.id, empleado_id: turno.empleado_id };
 
         const snapshot = await this.turnoLocal.obtener();
         if (!snapshot) throw new Error('SIN_TURNO');
@@ -65,13 +61,12 @@ export class PosService {
         }));
     }
 
-    /**
-     * Encola una venta para sincronizar (cobro offline, local-first §4.1).
-     * Guarda el payload crudo en el outbox y dispara el sync (no-op si sigue sin red).
-     * El turno se resuelve del snapshot local. Devuelve true si se encoló.
-     */
-    async encolarVentaOffline(carrito: CartItem[], payload: VentaPayload): Promise<boolean> {
-        const turno = await this.resolverTurno();
+    /** Arma el payload crudo y lo mete en el outbox; dispara el sync (no-op sin red). */
+    private async encolarVenta(
+        turno: { id: string; empleado_id: string },
+        carrito: CartItem[],
+        payload: VentaPayload
+    ): Promise<boolean> {
         const outboxPayload: OutboxVentaPayload = {
             turnoId:         turno.id,
             empleadoId:      turno.empleado_id,
@@ -93,40 +88,65 @@ export class PosService {
         return encolada;
     }
 
+    /**
+     * Encola una venta para sincronizar (cobro offline, local-first §4.1).
+     * Guarda el payload crudo en el outbox y dispara el sync (no-op si sigue sin red).
+     * El turno se resuelve de memoria/snapshot local. Devuelve true si se encoló.
+     */
+    async encolarVentaOffline(carrito: CartItem[], payload: VentaPayload): Promise<boolean> {
+        const turno = await this.resolverTurno();
+        return this.encolarVenta(turno, carrito, payload);
+    }
+
     async procesarVenta(carrito: CartItem[], payload: VentaPayload) {
-        // 1. Resolver el turno (servidor online, snapshot local offline)
+        // 1. Resolver el turno (memoria → snapshot local, sin query al servidor)
         const turno = await this.resolverTurno();
 
         // 2. Preparar los items del carrito para el JSONB del RPC
         const items = this.mapearItems(carrito);
 
-        // 3. Llamar a la función PostgreSQL (1 sola llamada — transacción atómica)
-        const resultado = await this.supabase.call<{ success: boolean; venta_id: string; numero_comprobante: number }>(
-            this.supabase.client.rpc('fn_registrar_venta_pos', {
-                p_turno_id:          turno.id,
-                p_empleado_id:       turno.empleado_id,
-                p_cliente_id:        payload.clienteId ?? null,
-                p_tipo_comprobante:  payload.tipoComprobante,
-                p_total:             payload.total,
-                p_subtotal:          payload.subtotal,
-                p_descuento:         payload.descuento,
-                p_descuento_pct:     payload.descuentoPct,
-                p_base_iva_0:        payload.baseIva0,
-                p_base_iva_15:       payload.baseIva15,
-                p_iva_valor:         payload.ivaValor,
-                p_metodo_pago:       payload.metodoPago,
-                p_items:             items,
-                p_idempotency_key:   payload.idempotencyKey
-            })
-            // showLoading no va aquí — pos.page.ts ya bloquea la pantalla proactivamente
-        );
+        // 3. RPC directo (sin supabase.call) — necesitamos el error crudo para distinguir
+        //    transporte vs datos. showLoading no va aquí: pos.page.ts ya bloquea la pantalla.
+        const { data, error } = await this.supabase.client.rpc('fn_registrar_venta_pos', {
+            p_turno_id:          turno.id,
+            p_empleado_id:       turno.empleado_id,
+            p_cliente_id:        payload.clienteId ?? null,
+            p_tipo_comprobante:  payload.tipoComprobante,
+            p_total:             payload.total,
+            p_subtotal:          payload.subtotal,
+            p_descuento:         payload.descuento,
+            p_descuento_pct:     payload.descuentoPct,
+            p_base_iva_0:        payload.baseIva0,
+            p_base_iva_15:       payload.baseIva15,
+            p_iva_valor:         payload.ivaValor,
+            p_metodo_pago:       payload.metodoPago,
+            p_items:             items,
+            p_idempotency_key:   payload.idempotencyKey
+        });
 
-        if (!resultado || !resultado.success) {
-            return { success: false, ventaId: null, numeroComprobante: null };
+        if (error) {
+            // Error de transporte = la "ventana de la muerte" (§4.1): el request murió en
+            // vuelo y no se sabe si el servidor procesó. Encolar con la MISMA idempotency
+            // key es siempre seguro — si la venta sí llegó, el sync recibirá `duplicado: true`.
+            if (this.supabase.esErrorDeTransporte(error)) {
+                const encolada = await this.encolarVenta(turno, carrito, payload);
+                if (encolada) {
+                    return { success: true, encolada: true, ventaId: null, numeroComprobante: null };
+                }
+            }
+            const rawMsg = error.message || 'Error al registrar la venta';
+            const superadminMatch = rawMsg.match(/superadmin_blocked:\s*(.+)/i);
+            throw new Error(superadminMatch ? superadminMatch[1].trim() : rawMsg);
+        }
+
+        const resultado = data as { success: boolean; venta_id: string; numero_comprobante: number } | null;
+        if (!resultado?.success) {
+            return { success: false, encolada: false, ventaId: null, numeroComprobante: null };
         }
 
         return {
             success:           true,
+            encolada:          false,
             ventaId:           resultado.venta_id,
             numeroComprobante: resultado.numero_comprobante,
         };

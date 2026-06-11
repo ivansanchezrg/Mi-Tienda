@@ -173,4 +173,4 @@ Resumen de pasos:
 | Arquitectura de cajas | [ARQUITECTURA.md](docs/guides/ARQUITECTURA.md) |
 | Sistema de diseno | [DESIGN.md](docs/guides/DESIGN.md) |
 | Schema completo de BD | [schema.sql](docs/setup/schema.sql) |
-| Auditoria de produccion | [AUDITORIA-PRODUCCION-2026-05-07.md](docs/AUDITORIA-PRODUCCION-2026-05-07.md) |
+| Auditoria de produccion | [AUDITORIA-PRODUCCION-2026-05-07.md](docs/guides/AUDITORIA-PRODUCCION-2026-05-07.md) |

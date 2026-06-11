@@ -1263,6 +1263,7 @@ WITH CHECK (
 | Layout              | `docs/layout/LAYOUT-README.md`                             |
 | Historial Recargas  | `docs/historial-recargas/HISTORIAL-RECARGAS-README.md`     |
 | Crear Negocio       | `docs/crear-negocio/CREAR-NEGOCIO-README.md`               |
-| Auditoría producción | `docs/AUDITORIA-PRODUCCION-2026-05-07.md`                 |
-| Auditoría SQL 2026-05 | `docs/RESUMEN-AUDITORIA-SQL-2026-05-30.md` (detalle: `AUDITORIA-FUNCIONES-SQL-2026-05-30.md`, `CORRECCIONES-SQL-2026-05-30.md`) |
+| Auditoría producción | `docs/guides/AUDITORIA-PRODUCCION-2026-05-07.md`          |
+| Auditoría SQL 2026-05 | `docs/guides/RESUMEN-AUDITORIA-SQL-2026-05-30.md` (documento único — consolidado 2026-06-10) |
 | Performance arranque | `docs/guides/PERFORMANCE-STARTUP.md`                       |
+| Builds Android / entornos | `docs/guides/ANDROID-BUILD.md`                        |

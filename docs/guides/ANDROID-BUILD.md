@@ -24,12 +24,21 @@ Ambas apps coexisten en el dispositivo sin pisarse — tienen `applicationId` di
 
 ## Credenciales
 
-Cada entorno tiene su propio archivo de credenciales (ambos en `.gitignore`):
+Cada entorno tiene su propio archivo de credenciales (los 3 listados en `.gitignore`):
 
-| Archivo | Entorno | Plantilla |
-|---------|---------|-----------|
-| `src/environments/environment.ts` | Producción | `environment.example.ts` |
-| `src/environments/environment.test.ts` | Test | `environment.test.example.ts` |
+| Archivo | Rol | Plantilla |
+|---------|-----|-----------|
+| `src/environments/environment.ts` | Base / desarrollo (`ng serve` sin configuración) | `environment.example.ts` |
+| `src/environments/environment.prod.ts` | **Producción** — el build prod lo sustituye vía `fileReplacements` (angular.json) | `environment.example.ts` |
+| `src/environments/environment.test.ts` | Test y Test Device (`fileReplacements` de ambas configs) | `environment.test.example.ts` |
+
+> ⚠️ **Pendiente de seguridad (C-1 de `AUDITORIA-PRODUCCION-2026-05-07.md`):**
+> `environment.ts` y `environment.prod.ts` están en `.gitignore` pero **siguen trackeados
+> en git** (el gitignore no des-trackea lo ya commiteado) — sus credenciales viven en el
+> repositorio y su historial. Antes de cualquier release: rotar la anon key en Supabase,
+> `git rm --cached` de ambos y limpiar el historial con `git filter-repo` (paso a paso en
+> la auditoría, hallazgo C-1). `environment.test.ts` sí está limpio (nunca fue trackeado).
+> Borrar esta nota cuando C-1 quede resuelto.
 
 Para obtener las credenciales de un proyecto:
 1. Ir a [supabase.com/dashboard](https://supabase.com/dashboard)

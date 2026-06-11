@@ -3,10 +3,9 @@
 > Documento de decisión + plan de implementación.
 > Creado: 2026-06-08. Reescrito: 2026-06-09. **Actualizado: 2026-06-10** con estado real de implementación
 > (incluye fixes de rendimiento offline del catálogo: cache RAM, no-firmar-offline y cache de URLs firmadas).
-> **Estado: ✅ IMPLEMENTACIÓN COMPLETA — Fases 1-8 hechas.**
-> (Cobro offline end-to-end: outbox + sync + BD stock negativo + barrera del cierre + UI Pendientes.
-> ⚠️ Pendiente ejecutar en Supabase los cambios de BD de la Fase 6 — ver §6. Sin eso, las ventas
-> offline se rechazan al sincronizar si el stock real bajó.)
+> **Estado: ✅ IMPLEMENTACIÓN COMPLETA — Fases 1-8 hechas. Cambios de BD de la Fase 6 ejecutados
+> en Supabase (2026-06-10).** (Cobro offline end-to-end: outbox + sync + BD stock negativo +
+> barrera del cierre + UI Pendientes + endurecimiento post-revisión §15.)
 > Objetivo: que el POS **nunca pierda una venta** cuando no hay internet o la señal es intermitente,
 > sincronizando contra Supabase apenas vuelve la red.
 
@@ -47,7 +46,7 @@ local con SQLite** (nativo en móvil, IndexedDB en web vía el mismo plugin). Ra
   "Pendientes" en `ventas` + badge en banner (§7); no cerrar turno con cola pendiente (§4.7).
 - **Desktop Windows nativo (.exe):** diferido. Hoy se cubre con PWA (web + IndexedDB). El puente
   `@capacitor-community/electron` está **abandonado** (solo Capacitor 5) — si se necesita .exe a futuro,
-  la ruta es Electron directo, fuera del alcance de este plan. Ver §13.
+  la ruta es Electron directo, fuera del alcance de este plan. Ver §16.
 
 ---
 
@@ -188,7 +187,7 @@ Automática **apenas hay red de cualquier tipo** (WiFi o datos móviles) vía
 `Network.addListener('networkStatusChange')` ([network.service.ts:25](../../src/app/core/services/network.service.ts#L25)).
 El cajero no hace nada. Botón "Sincronizar ahora" como respaldo.
 
-- **FIFO estricto:** el trigger `fn_actualizar_saldo_caja_venta` ([schema.sql:1157](setup/schema.sql#L1157)) suma
+- **FIFO estricto:** el trigger `fn_actualizar_saldo_caja_venta` ([schema.sql:1157](../setup/schema.sql#L1157)) suma
   cada venta EFECTIVO al saldo del cajón en orden de inserción. Sincronizar fuera de orden = ledger incoherente.
 - **Red vs datos:** error de conexión → `PENDING`, reintenta con **backoff exponencial + jitter** (5s, 15s,
   45s…). Error de validación del servidor → `ERROR` (dead-letter), NO reintenta en loop, visible en tab Pendientes.
@@ -218,7 +217,7 @@ atributos + presentaciones ya anidados por el servidor), NO las 7 tablas crudas.
 
 ### 4.6 Turno offline — se cachea el turno YA ABIERTO, no la apertura
 
-`fn_abrir_turno` ([fn_abrir_turno.sql](caja/sql/functions/fn_abrir_turno.sql)) mueve dinero real (EGRESO de
+`fn_abrir_turno` ([fn_abrir_turno.sql](../caja/sql/functions/fn_abrir_turno.sql)) mueve dinero real (EGRESO de
 Tienda + valida saldo) y genera el `turno_id` en el servidor. **No se abre turno offline.** El flujo real:
 mañana abre (online) → vende todo el día (aquí entra offline) → noche cierra (online).
 
@@ -305,8 +304,8 @@ producto y pagó). Negarla al sincronizar descuadraría la caja. El negativo es 
 que corrige con un ajuste de inventario.
 
 > ⚠️ **No es trivial:** la BD prohíbe stock negativo en dos capas — `chk_stock_no_negativo CHECK (stock_actual >= 0)`
-> ([schema.sql:469](setup/schema.sql#L469)) y `RAISE EXCEPTION 'Stock insuficiente'` en el trigger
-> `fn_actualizar_stock_venta` ([schema.sql:1099](setup/schema.sql#L1099)). Hay que relajar ambas **solo para la
+> ([schema.sql:469](../setup/schema.sql#L469)) y `RAISE EXCEPTION 'Stock insuficiente'` en el trigger
+> `fn_actualizar_stock_venta` ([schema.sql:1099](../setup/schema.sql#L1099)). Hay que relajar ambas **solo para la
 > ruta offline** vía `p_permitir_stock_negativo` (ver §6).
 
 ---
@@ -325,11 +324,16 @@ Verificado contra `docs/setup/schema.sql` y las funciones SQL reales.
 > Todas son aditivas y se aplican en Supabase SQL Editor. `fn_registrar_venta_pos` ya tiene la idempotencia y la
 > validación multi-tenant — solo se le agrega el parámetro y se propaga al trigger vía variable de sesión.
 
-**Implementación real (2026-06-10) — ejecutar en Supabase SQL Editor, 2 archivos:**
+**Implementación real (2026-06-10) — ✅ ambos archivos YA EJECUTADOS en Supabase SQL Editor:**
 
 1. `docs/pos/sql/migrations/2026-06-10_stock_negativo_offline.sql` — quita el CHECK + recrea el
    trigger `fn_actualizar_stock_venta` con la bandera. Archivo autocontenido e idempotente.
 2. `docs/pos/sql/functions/fn_registrar_venta_pos.sql` — función v3.1 con `p_permitir_stock_negativo`.
+
+> ⚠️ **Nota de alcance del cambio:** al eliminar `chk_stock_no_negativo`, el único guardián del
+> stock a nivel BD es el trigger de ventas. Otras rutas que mutan stock (ajustes de inventario,
+> compras) ya no tienen backstop de columna — dependen de su propia validación. Aceptado
+> conscientemente (§11).
 
 > El paso del trigger NO se copia desde `schema.sql` (ese es el archivo de reset completo). El archivo de
 > migración tiene la función lista para pegar tal cual en una BD con datos.
@@ -384,7 +388,9 @@ siguiendo ese mismo patrón (componente en `components/`, rutas planas, cada pá
 | `offline-banner.component` | Badge "N en cola" (offline) + barra "Sincronizando N" (online drenando) → enlazan a Pendientes | ✅ Fase 8 |
 | `pos.page.ts` — `ejecutarCobro()` / `cobrarOffline()` | Híbrido: online directo (nº comprobante), offline encola local-first | ✅ Fase 4 |
 | `TurnoLocalService` (core) | Creado — CRUD del snapshot `turno_activo_local` (`guardar`/`obtener`/`borrar`) | ✅ Fase 3 |
-| `pos.service.ts` — `procesarVenta()` | `resolverTurno()`: online consulta servidor, offline lee snapshot local. Encolar → Fase 4 | ✅ Fase 3 (parcial) |
+| `pos.service.ts` — `procesarVenta()` | `resolverTurno()`: memoria (Realtime) → snapshot local, **sin roundtrip al servidor por venta**. RPC directo con clasificación transporte/datos: error de transporte → encola con la misma idempotency key (§15.2) | ✅ Fase 3 + §15.2 |
+| `app.component.ts` | Instancia `SyncService` en el bootstrap (drenado al arranque, §15.1) | ✅ §15.1 |
+| `sync.service.ts` | Suscripción a `usuarioActual$`: hidrata el contador del outbox + drena la cola al restaurar sesión. Clasificación de errores unificada con `SupabaseService.esErrorDeTransporte()` | ✅ §15.1 |
 | `turnos-caja.service.ts` | `sincronizarSnapshotLocal()` solo con red: escribe al abrir, borra al cerrar. Cableado en `inicializarEstadoReactivo`, `refrescarTurnoActivo`, `handleTurnoChange` | ✅ Fase 3 |
 | `caja-abierta.guard.ts` | Sin red: fallback a `turno_activo_local` (valida que sea del propio empleado) | ✅ Fase 3 |
 | `clientes.service.ts` — `obtenerConsumidorFinal()` | Cache en `localStorage` por negocio → habilita cobro offline (el CF se sirve del cache sin red) | ✅ Refinamiento UX |
@@ -403,7 +409,7 @@ siguiendo ese mismo patrón (componente en `components/`, rutas planas, cada pá
 | **3** | Turno local — `TurnoLocalService`, snapshot sincronizado en `TurnosCajaService`, lectura local en `PosService`, fallback en `cajaAbiertaGuard` | ✅ **Completada** |
 | **4** | OutboxService + cobro local-first — `OutboxService`, `ejecutarCobro()` híbrido (online directo, offline encola) | ✅ **Completada** |
 | **5** | SyncService — push automático al volver red, FIFO estricto, distinción red/datos (dead-letter) | ✅ **Completada** |
-| **6** | Cambios de BD — `p_permitir_stock_negativo` en RPC + variable de sesión en trigger + quitar CHECK | ✅ **Completada (código)** — ⚠️ ejecutar en Supabase |
+| **6** | Cambios de BD — `p_permitir_stock_negativo` en RPC + variable de sesión en trigger + quitar CHECK | ✅ **Completada — ejecutada en Supabase (2026-06-10)** |
 | **7** | Barrera del cierre — guardia `colaSincronizadaParaCerrar()` en `cierre-diario.page` (drena o bloquea) | ✅ **Completada** |
 | **8** | UI — tab "Pendientes" en `ventas` (solo visible con cola) + `VentasPendientesPage` + badge en `OfflineBannerComponent` | ✅ **Completada** |
 
@@ -421,7 +427,7 @@ siguiendo ese mismo patrón (componente en `components/`, rutas planas, cada pá
 | Hallazgo | Implicación |
 |----------|-------------|
 | `fn_registrar_venta_pos` asigna `numero_comprobante` atómicamente (`UPDATE secuencias_comprobantes +1`) | La numeración no puede generarse offline → servidor única fuente de verdad. Refuerza local-first (encolar, no calcular). |
-| `idempotency_key UUID UNIQUE` ([schema.sql:603](setup/schema.sql#L603)) + doble guarda en la función | Reenviar es 100% seguro. Cimiento del outbox. |
+| `idempotency_key UUID UNIQUE` ([schema.sql:603](../setup/schema.sql#L603)) + doble guarda en la función | Reenviar es 100% seguro. Cimiento del outbox. |
 | Venta dispara 3 triggers (stock, kardex, saldo cajón) | No replicar en SQLite. SQLite solo guarda el payload crudo. |
 | `chk_stock_no_negativo` + `RAISE` en trigger | Stock negativo prohibido hoy → relajar para ruta offline (§5, §6). |
 | `fn_abrir_turno` mueve dinero + genera `turno_id` | Abrir turno offline imposible → se cachea el turno ya abierto (§4.6). |
@@ -516,9 +522,75 @@ método de pintado reutilizado (`publicarCatalogoConImagenesProgresivas()` en `p
 > El método único elimina la duplicación que existía entre `refrescarCatalogo` y el resto de cargas. La lógica
 > financiera no cambia — solo el **orden de pintado** (mostrar antes, resolver detalles después).
 
+**✅ Implementado (2026-06-10) — lazy loading de imágenes + render diferido del grid:**
+antes el grid disparaba **todas** las descargas de imagen en el primer render (fotos WebP 1600px usadas
+como thumbs de ~110px: ~8-15 MB con 100 productos, ~80-150 MB proyectado a 1000) y pintaba todas las
+cards del DOM aunque solo ~15 quepan en pantalla. Dos cambios baratos lo resuelven:
+
+1. `loading="lazy"` en los 4 `<img>` del POS (grid simple + template, lista y panel desktop) — el
+   browser solo descarga las imágenes cercanas al viewport. Ahorra datos del cajero y egress de Storage.
+2. `content-visibility: auto` + `contain-intrinsic-size` en `.catalogo-card` — el browser salta el
+   layout/paint de las cards fuera de pantalla. Seguro sin saltos de scroll (aspect-ratio + ancho del
+   grid fijan la geometría). Pospone la necesidad de virtual scroll real por mucho tiempo.
+
+**Próximo cuello de botella a escala (no urgente, anotado):** `resolverImagenesCatalogo()` firma las
+URLs de TODOS los productos en background (`createSignedUrl` × N). Son requests JSON pequeños, pero a
+1000 productos es un burst de 1000+ llamadas a Storage. Optimización futura: firmar bajo demanda
+(viewport) o miniaturas reales generadas al subir. No implementar hasta que el catálogo lo justifique.
+
 ---
 
-## 14. Desktop Windows (.exe) — diferido
+## 15. Endurecimiento post-revisión (2026-06-10)
+
+Dos brechas detectadas en revisión profesional del código ya implementado. Ambas tocaban la promesa
+central del plan ("nunca perder una venta / sync apenas vuelve la red") y fueron corregidas.
+
+### 15.1 Drenado al arranque en frío (cola invisible tras reiniciar la app)
+
+**Brecha:** `SyncService` es `providedIn: 'root'` (lazy) — solo se instanciaba cuando alguna página
+lo inyectaba (POS, Pendientes, cierre). Además `OutboxService._pendientes$` nace en `0` y nadie
+llamaba `refrescarContador()` al boot. Escenario real: vender offline → cerrar la app → reabrirla
+con red → si el usuario no entraba al POS, **las ventas ni se sincronizaban ni aparecían en el
+badge** (parecían perdidas; la barrera del cierre las atrapaba recién al cerrar turno).
+
+**Fix (2 piezas):**
+1. `app.component.ts` inyecta `SyncService` en el bootstrap (mismo patrón que `TurnosCajaService`).
+2. El constructor de `SyncService` se suscribe a `auth.usuarioActual$` (filtrando usuario con
+   `negocio_id`): al restaurarse la sesión → `outbox.refrescarContador()` (hidrata el badge) +
+   `sincronizar()` (drena lo que quedó de la sesión anterior). Ambos son no-op/baratos si la cola
+   está vacía o no hay red.
+
+### 15.2 Ventana de la muerte residual en la ruta online
+
+**Brecha:** el local-first solo aplicaba si `isConnected()` ya era `false` ANTES de cobrar. Con señal
+intermitente (el caso de uso declarado del plan) el flujo online fallaba en dos puntos:
+- `resolverTurno()` consultaba el servidor por el turno en cada venta → el fetch moría en vuelo →
+  `SIN_TURNO` falso aunque el turno existiera. (El plan §4.6 ya decía "procesarVenta() YA NO consulta
+  el servidor" — la implementación había quedado a medias: solo evitaba la query estando offline.)
+- Si el RPC de la venta moría en vuelo, la venta NO se encolaba — toast de error y el cajero debía
+  recobrar, con riesgo de duplicar si el servidor sí había procesado.
+
+**Fix (en `pos.service.ts`):**
+1. `resolverTurno()` ya no toca la red: lee el estado en memoria de `TurnosCajaService` (mantenido
+   por la query inicial + Realtime) y cae al snapshot `turno_activo_local`. Bonus de rendimiento:
+   un roundtrip menos por venta.
+2. `procesarVenta()` llama al RPC directo (sin `supabase.call()`, que se traga el error crudo) y
+   clasifica con `SupabaseService.esErrorDeTransporte()`:
+   - **Transporte** (request murió en vuelo, no se sabe si el servidor procesó) → encola en el
+     outbox con la **misma idempotency key** y retorna `{ success: true, encolada: true }`. Reenviar
+     es siempre seguro: si la venta sí llegó, el sync recibe `duplicado: true` y la descarta.
+   - **Datos** (validación del servidor) → throw con el mensaje real (incluye extracción de
+     `superadmin_blocked:`). La página muestra un solo toast (antes `call()` + página duplicaban).
+3. `pos.page.ts`: si `response.encolada` → toast "Conexión inestable — venta guardada, se
+   sincronizará automáticamente" en vez del número de comprobante.
+
+**Además:** `SyncService` dejó de usar su heurística propia `esErrorDeRed()` (el `includes('fetch')`
+amplio podía clasificar un error de datos como red → reintento infinito) y usa el helper ya
+probado `SupabaseService.esErrorDeTransporte()` — un solo clasificador en toda la app.
+
+---
+
+## 16. Desktop Windows (.exe) — diferido
 
 - **Hoy:** Windows se cubre con **PWA** (la app web instalable) + IndexedDB. Suficiente — en desktop casi siempre
   hay internet, el offline es crítico en el celular del cajero, no en la PC del mostrador.
@@ -529,5 +601,5 @@ método de pintado reutilizado (`publicarCatalogoConImagenesProgresivas()` en `p
 
 ---
 
-*Plan reescrito para revisión. No se ha tocado código (working tree limpio en `8d9e409`). Espera aprobación
-final para implementar.*
+*Implementación completa (Fases 1-8 + refinamientos §13 + endurecimiento §15). BD de la Fase 6
+ejecutada en Supabase el 2026-06-10. El documento refleja el estado real del código.*

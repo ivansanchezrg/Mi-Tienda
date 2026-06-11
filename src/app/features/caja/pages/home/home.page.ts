@@ -286,13 +286,25 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   /**
    * Carga inicial del home: dashboard + notificaciones + usuario + config.
    *
+   * Stale-while-revalidate: si hay un snapshot del dashboard de hoy (mismo negocio),
+   * pinta el home al instante sin skeleton y el fetch de abajo actúa como refresco
+   * en background. Sin snapshot (primer arranque del día), skeleton normal.
+   *
    * @param silencioso true → no muestra skeleton (para pull-to-refresh). El spinner
    *                  nativo del ion-refresher hace de indicador visual.
    */
   async cargarDatos(silencioso = false) {
     if (!silencioso) {
-      this.cargando = true;
-      this.cargandoMovimientos = true;
+      const snapshot = await this.turnosCajaService.obtenerHomeDashboardCacheado();
+      if (snapshot) {
+        this.aplicarDashboard(snapshot);
+        this.cargando = false;
+        this.cargandoMovimientos = false;
+        this.cdr.detectChanges();
+      } else {
+        this.cargando = true;
+        this.cargandoMovimientos = true;
+      }
     }
     try {
       // 1 RPC consolidada (fn_home_dashboard) + 2 fuentes ligeras en paralelo.

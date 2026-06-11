@@ -43,6 +43,9 @@ DROP FUNCTION IF EXISTS fn_set_updated_at() CASCADE;
 
 -- Vistas (recreadas mas abajo)
 DROP VIEW IF EXISTS v_saldos_empleados CASCADE;
+DROP VIEW IF EXISTS v_operaciones_cajas CASCADE;
+-- v_productos_completos: eliminada del schema (2026-06-10) — nunca tuvo consumidores.
+-- El DROP queda para limpiar BDs que aún la tengan.
 DROP VIEW IF EXISTS v_productos_completos CASCADE;
 
 -- Tablas (orden: mas dependiente -> menos)
@@ -279,7 +282,7 @@ CREATE TABLE IF NOT EXISTS configuraciones (
 );
 
 -- 7b. categorias_sistema — Catálogo global de categorías del sistema (sin negocio_id).
--- UUIDs fijos predefinidos. No editable desde la UI. Ver migrations/001_categorias_sistema.sql.
+-- UUIDs fijos predefinidos. No editable desde la UI. Seed: docs/setup/04_categorias_sistema.sql.
 CREATE TABLE IF NOT EXISTS public.categorias_sistema (
     id          UUID        PRIMARY KEY,
     codigo      VARCHAR(30) NOT NULL UNIQUE,
@@ -361,7 +364,7 @@ CREATE INDEX IF NOT EXISTS idx_recargas_virtuales_ganancia_pendiente
 CREATE TABLE IF NOT EXISTS operaciones_cajas (
     id                 UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     negocio_id         UUID NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
-    fecha              TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    fecha              TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     caja_id            UUID NOT NULL REFERENCES cajas(id),
     empleado_id        UUID REFERENCES usuarios(id),
     tipo_operacion     tipo_operacion_caja_enum NOT NULL,
@@ -391,7 +394,7 @@ CREATE TABLE IF NOT EXISTS movimientos_empleados (
     id                 UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     negocio_id         UUID NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
     empleado_id        UUID NOT NULL REFERENCES usuarios(id),
-    fecha              TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    fecha              TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     tipo_movimiento    tipo_movimiento_empleado_enum NOT NULL,
     monto              DECIMAL(12,2) NOT NULL CHECK (monto > 0),
     turno_id           UUID REFERENCES turnos_caja(id),
@@ -585,7 +588,7 @@ CREATE TABLE IF NOT EXISTS ventas (
     turno_id         UUID NOT NULL REFERENCES turnos_caja(id),
     cliente_id       UUID REFERENCES clientes(id),
     empleado_id      UUID NOT NULL REFERENCES usuarios(id),
-    fecha            TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    fecha            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     subtotal         DECIMAL(12,2) NOT NULL CHECK (subtotal >= 0),
     descuento        DECIMAL(12,2) DEFAULT 0 CHECK (descuento >= 0),
     descuento_pct    SMALLINT DEFAULT 0 CHECK (descuento_pct >= 0 AND descuento_pct <= 100),
@@ -624,7 +627,7 @@ CREATE TABLE IF NOT EXISTS kardex_inventario (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     negocio_id      UUID NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
     producto_id     UUID NOT NULL REFERENCES productos(id),
-    fecha           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    fecha           TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     tipo_movimiento VARCHAR(20) CHECK (tipo_movimiento IN ('VENTA', 'COMPRA', 'AJUSTE_POSITIVO', 'AJUSTE_NEGATIVO', 'ANULACION_VENTA')),
     cantidad        DECIMAL(12,2) NOT NULL,
     stock_anterior  DECIMAL(12,2) NOT NULL,
@@ -643,7 +646,7 @@ CREATE TABLE IF NOT EXISTS cuentas_cobrar (
     monto       DECIMAL(12,2) NOT NULL CHECK (monto > 0),
     metodo_pago VARCHAR(20) NOT NULL DEFAULT 'EFECTIVO'
                     CHECK (metodo_pago IN ('EFECTIVO', 'DEUNA', 'TRANSFERENCIA')),
-    fecha       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    fecha       TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     observaciones TEXT,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -694,27 +697,12 @@ GRANT EXECUTE ON FUNCTION public.comparten_negocio(UUID) TO authenticated;
 -- RLS inyecta WHERE negocio_id = public.get_negocio_id() en todas las queries.
 -- ==========================================
 
--- Indices simples de negocio (habilitados para RLS)
-CREATE INDEX IF NOT EXISTS idx_cajas_negocio                ON cajas(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_configuraciones_negocio      ON configuraciones(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_cat_operaciones_negocio      ON categorias_operaciones(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_turnos_negocio               ON turnos_caja(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_recargas_negocio             ON recargas(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_recargas_virt_negocio        ON recargas_virtuales(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_operaciones_negocio          ON operaciones_cajas(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_mov_empleados_negocio        ON movimientos_empleados(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_categorias_prod_negocio      ON categorias_productos(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_atributos_negocio            ON atributos(negocio_id);
+-- Indices simples de negocio — SOLO donde ningun PK/UNIQUE/indice compuesto
+-- empieza por negocio_id (migration 004, 2026-06-10): un indice (negocio_id)
+-- es redundante si existe un compuesto con negocio_id como primera columna —
+-- Postgres usa ese para los filtros RLS y el simple solo encarece cada escritura.
 CREATE INDEX IF NOT EXISTS idx_atrib_opciones_negocio       ON atributo_opciones(negocio_id);
 CREATE INDEX IF NOT EXISTS idx_templates_negocio            ON producto_templates(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_productos_negocio            ON productos(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_presentaciones_negocio       ON producto_presentaciones(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_clientes_negocio             ON clientes(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_ventas_negocio               ON ventas(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_kardex_negocio               ON kardex_inventario(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_negocio       ON cuentas_cobrar(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_secuencias_negocio           ON secuencias_comprobantes(negocio_id);
-CREATE INDEX IF NOT EXISTS idx_notas_negocio                ON notas(negocio_id);
 
 -- Indices compuestos por tenant (patrones de acceso frecuentes)
 CREATE INDEX IF NOT EXISTS idx_turnos_negocio_empleado          ON turnos_caja(negocio_id, empleado_id);
@@ -738,6 +726,7 @@ CREATE INDEX IF NOT EXISTS idx_operaciones_negocio_caja         ON operaciones_c
 CREATE INDEX IF NOT EXISTS idx_operaciones_negocio_caja_f       ON operaciones_cajas(negocio_id, caja_id, fecha DESC);
 CREATE INDEX IF NOT EXISTS idx_operaciones_negocio_empl         ON operaciones_cajas(negocio_id, empleado_id);
 CREATE INDEX IF NOT EXISTS idx_operaciones_negocio_categoria    ON operaciones_cajas(negocio_id, categoria_id);
+CREATE INDEX IF NOT EXISTS idx_operaciones_negocio_cat_sist     ON operaciones_cajas(negocio_id, categoria_sistema_id) WHERE categoria_sistema_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_mov_empl_negocio_empl_est        ON movimientos_empleados(negocio_id, empleado_id, estado_liquidacion);
 CREATE INDEX IF NOT EXISTS idx_mov_empl_negocio_fecha           ON movimientos_empleados(negocio_id, empleado_id, fecha DESC);
 CREATE INDEX IF NOT EXISTS idx_mov_empl_negocio_turno           ON movimientos_empleados(negocio_id, turno_id) WHERE turno_id IS NOT NULL;
@@ -782,7 +771,7 @@ CREATE INDEX IF NOT EXISTS idx_usuario_negocios_lookup          ON usuario_negoc
 -- y filtre datos de otro tenant antes de aplicar el WHERE del usuario.
 -- ==========================================
 
-CREATE OR REPLACE VIEW v_saldos_empleados WITH (security_barrier=true) AS
+CREATE OR REPLACE VIEW v_saldos_empleados WITH (security_invoker=true, security_barrier=true) AS
 SELECT
     un.negocio_id,
     u.id   AS empleado_id,
@@ -810,29 +799,45 @@ ORDER BY u.nombre;
 -- Empleados transferidos (activo=FALSE) no aparecen — sus movimientos
 -- PENDIENTE siguen en este negocio y son visibles via query directa.
 
-CREATE OR REPLACE VIEW v_productos_completos WITH (security_invoker=true, security_barrier=true) AS
+-- v_productos_completos: ELIMINADA (2026-06-10). Nunca tuvo consumidores — la idea de
+-- "campos efectivos" (COALESCE template/producto) se implementó directamente en
+-- fn_listar_productos v2.0 y fn_catalogo_productos_pos. El DROP de la sección inicial
+-- limpia las BDs que aún la tengan.
+
+-- Historial de operaciones con categoría unificada (usuario XOR sistema).
+-- Consumida por operaciones-caja.service.ts. Fuente: docs/caja/sql/views/v_operaciones_cajas.sql
+CREATE OR REPLACE VIEW v_operaciones_cajas WITH (security_invoker=true, security_barrier=true) AS
 SELECT
-    p.id,
-    p.negocio_id,
-    p.producto_template_id,
-    p.nombre,
-    p.codigo_barras,
-    p.precio_costo,
-    p.precio_venta,
-    p.stock_actual,
-    p.stock_minimo,
-    p.tiene_iva,
-    p.activo,
-    p.imagen_url,
-    p.updated_at,
-    p.created_at,
-    -- Campos efectivos: template si es variante, propios si es simple
-    COALESCE(t.categoria_id,  p.categoria_id)  AS categoria_id,
-    COALESCE(t.tipo_venta,    p.tipo_venta)     AS tipo_venta,
-    COALESCE(t.unidad_medida, p.unidad_medida)  AS unidad_medida,
-    t.nombre AS template_nombre
-FROM productos p
-LEFT JOIN producto_templates t ON t.id = p.producto_template_id;
+    oc.id,
+    oc.negocio_id,
+    oc.fecha,
+    oc.caja_id,
+    oc.empleado_id,
+    oc.tipo_operacion,
+    oc.monto,
+    oc.saldo_anterior,
+    oc.saldo_actual,
+    oc.categoria_id,
+    oc.categoria_sistema_id,
+    oc.tipo_referencia_id,
+    oc.referencia_id,
+    oc.descripcion,
+    oc.comprobante_url,
+    -- Orden verificado contra la vista viva: categoria, caja, empleado (no reordenar)
+    CASE
+        WHEN cat.id   IS NOT NULL THEN json_build_object('id', cat.id,   'nombre', cat.nombre,   'codigo', cat.codigo,   'tipo', cat.tipo)
+        WHEN cat_s.id IS NOT NULL THEN json_build_object('id', cat_s.id, 'nombre', cat_s.nombre, 'codigo', cat_s.codigo, 'tipo', cat_s.tipo)
+        ELSE NULL
+    END AS categoria,
+    json_build_object('id', c.id, 'nombre', c.nombre, 'codigo', c.codigo) AS caja,
+    CASE WHEN u.id IS NULL THEN NULL
+         ELSE json_build_object('id', u.id, 'nombre', u.nombre)
+    END AS empleado
+FROM operaciones_cajas oc
+INNER JOIN cajas c        ON c.id  = oc.caja_id
+LEFT  JOIN usuarios u     ON u.id  = oc.empleado_id
+LEFT  JOIN categorias_operaciones cat   ON cat.id   = oc.categoria_id
+LEFT  JOIN categorias_sistema     cat_s ON cat_s.id = oc.categoria_sistema_id;
 
 -- ==========================================
 -- TRIGGERS

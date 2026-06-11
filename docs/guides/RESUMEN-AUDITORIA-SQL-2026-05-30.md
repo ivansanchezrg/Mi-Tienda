@@ -1,9 +1,11 @@
 # Resumen Auditoría SQL — 2026-05-30
 
 Auditoría completa de las 35 funciones SQL del proyecto.
-Para detalle completo ver:
-- `docs/AUDITORIA-FUNCIONES-SQL-2026-05-30.md`
-- `docs/CORRECCIONES-SQL-2026-05-30.md`
+
+> **Documento único de la auditoría** (consolidado 2026-06-10): los documentos de detalle
+> (`AUDITORIA-FUNCIONES-SQL-2026-05-30.md`, `CORRECCIONES-SQL-2026-05-30.md`) se eliminaron —
+> todo su trabajo está cerrado y aplicado en Supabase. Lo único vivo que contenían (los
+> pendientes de severidad baja y el veredicto de la re-auditoría multi-tenant) se absorbió aquí.
 
 ---
 
@@ -73,20 +75,70 @@ Estas funciones tenían `EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'Error...'` 
 
 ---
 
-## ⚠️ Funciones NO modificadas (pendientes documentados)
+## 🔐 Re-auditoría exhaustiva multi-tenant (2026-05-30, segunda pasada)
 
-Bugs/mejoras conocidos que NO se aplicaron — abordar en sesión dedicada con pruebas E2E:
+Foco específico: aislamiento multi-tenant (fugas cross-tenant) y escalabilidad. 4 hallazgos
+nuevos, todos corregidos y ejecutados en Supabase:
 
-| Función | Pendiente | Riesgo |
-|---|---|---|
-| `fn_reporte_ventas_periodo` | 15 queries duplicadas sobre `ventas` — consolidar en 1 con `FILTER` | Performance crítica con miles de ventas |
-| `fn_listar_productos` | Subqueries N+1 en SELECT — usar `LEFT JOIN LATERAL` | Performance en pantalla más usada |
-| `fn_liquidar_ganancias` | Calcula `SUM` sin lock antes de transferir | Race condition (bajo: solo admin la dispara) |
-| `fn_pagar_nomina_empleado` / `fn_registrar_adelanto_sueldo` | Caché de saldos tras `FOR UPDATE` — usar `RETURNING` | Robustez teórica |
-| `fn_registrar_compra_saldo_bus` / `fn_registrar_recarga_proveedor_celular` | 2-3 SELECT secuenciales — consolidar en CTE | Performance puntual |
-| `fn_registrar_operacion_manual` / `fn_reparar_deficit_turno` | No valida `p_categoria_id` por negocio | Bajo (FK garantiza existencia) |
-| `fn_registrar_pago_fiado` | Lee `cajas.saldo_actual` sin `FOR UPDATE` antes de UPDATE | Race condition leve |
-| `fn_listar_clientes_con_saldo` | Llama `get_negocio_id()` 3 veces (redundante) + falta `DROP FUNCTION IF EXISTS` | Cosmético |
+| # | Función | Hallazgo | Severidad |
+|---|---|---|---|
+| 1 | `fn_pagar_nomina_empleado` | `p_empleado_id` no se validaba contra el negocio activo | 🟠 Alto |
+| 2 | `fn_registrar_adelanto_sueldo` | Mismo problema con `p_empleado_id` | 🟠 Alto |
+| 3 | `fn_registrar_compra_saldo_bus` | Turno abierto sin filtro `negocio_id` + `AT TIME ZONE` en WHERE | 🔴 Crítico |
+| 4 | `fn_configurar_modulos_admin` | `ON CONFLICT DO NOTHING` ineficaz (sin UNIQUE en nombre) → duplicados | 🟡 Medio |
+
+**Veredicto: CONFIANZA ALTA para producción multi-tenant.** 33/35 funciones con aislamiento
+correcto de origen; las restantes corregidas. Los generadores de código fueron falsa alarma
+(SEQUENCE global + `UNIQUE (negocio_id, codigo)` garantizan unicidad).
+
+---
+
+## ⚠️ Pendientes documentados — sin aplicar (severidad baja)
+
+Hallazgos que **no se aplicaron** porque el beneficio no compensa el riesgo de regresión.
+Listos para una sesión futura, con el porqué y el cómo.
+
+> Actualizado 2026-06-10 al consolidar: se quitaron de esta lista los ítems ya resueltos
+> post-auditoría — `fn_reporte_ventas_periodo` (v1.9), `fn_listar_productos` (v2.0) y el
+> lock de `fn_liquidar_ganancias` (v2.3).
+
+### 1. `fn_registrar_adelanto_sueldo` y `fn_pagar_nomina_empleado` — caché de saldos
+
+Leen el saldo en variable tras `FOR UPDATE` y luego hacen UPDATEs con esa variable.
+**Por qué no se tocó:** el lock se mantiene hasta COMMIT — el valor cacheado siempre es
+correcto. El fix (usar `RETURNING`) era estético.
+**Si se quisiera:** `UPDATE cajas SET saldo_actual = saldo_actual + v_delta ... RETURNING saldo_actual INTO v_nuevo`.
+
+### 2. `fn_registrar_compra_saldo_bus` y `fn_registrar_recarga_proveedor_celular` — SELECTs secuenciales
+
+2-3 SELECTs secuenciales sobre `recargas` (snapshots de saldo).
+**Por qué no se tocó:** funcionan correctamente; consolidar en CTE daría ganancia marginal
+(pocas filas, índices en su lugar).
+
+### 3. `fn_registrar_operacion_manual` y `fn_reparar_deficit_turno` — validación de categoría
+
+Aceptan `p_categoria_id` sin validar que pertenezca al negocio del JWT.
+**Por qué no se tocó:** la FK garantiza existencia; la operación se registra en la caja del
+propio negocio (que sí se valida). Impacto real: categoría "extranjera" invisible en los
+reportes de ese negocio.
+**Si se quisiera:** `IF NOT EXISTS (SELECT 1 FROM categorias_operaciones WHERE id = p_categoria_id AND negocio_id = v_negocio_id) THEN RAISE EXCEPTION ...`.
+
+### 4. `fn_registrar_pago_fiado` — FOR UPDATE en cajas
+
+Lee `cajas.saldo_actual` (CAJA_CHICA) sin `FOR UPDATE` antes del UPDATE final.
+**Por qué no se tocó:** race leve — solo afectaría el `saldo_anterior` registrado en
+`operaciones_cajas`, no el saldo final (el UPDATE usa expresión relativa, atómica).
+**Si se quisiera:** `PERFORM id FROM cajas WHERE id = v_caja_id FOR UPDATE;` antes de leer.
+
+### 5. `fn_listar_clientes_con_saldo` — limpieza menor
+
+Llama `get_negocio_id()` 3 veces (redundante) y no tiene `DROP FUNCTION IF EXISTS` al inicio.
+**Por qué no se tocó:** cosmético; `CREATE OR REPLACE` cubre mientras la firma no cambie.
+
+### 6. `fn_listar_productos` — paginación con `p_from`/`p_to`
+
+Usa índices absolutos en vez de `page`/`pageSize` como el resto del proyecto.
+**Por qué no se tocó:** no es bug; cambiarlo implica refactor del servicio y consumidores.
 
 ---
 

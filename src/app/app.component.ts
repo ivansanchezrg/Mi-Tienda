@@ -7,6 +7,7 @@ import { SplashScreen } from '@capacitor/splash-screen';
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 import { PluginListenerHandle } from '@capacitor/core';
 import { SupabaseService } from './core/services/supabase.service';
+import { SyncService } from './core/services/sync.service';
 import { TurnosCajaService } from './features/caja/services/turnos-caja.service';
 import { Capacitor } from '@capacitor/core';
 import { OfflineBannerComponent } from './core/components/offline-banner/offline-banner.component';
@@ -29,6 +30,12 @@ export class AppComponent implements OnDestroy {
   // AuthService antes de cualquier login. providedIn:'root' es lazy, sin esta
   // inyeccion el servicio no existe hasta que alguna pagina lo pida.
   private turnosCaja = inject(TurnosCajaService);
+
+  // SyncService tambien debe nacer en el bootstrap: escucha la red y la sesion
+  // para drenar la cola de ventas offline. Sin esta inyeccion, una cola que quedo
+  // de una sesion anterior no se sincroniza ni aparece en el badge del banner
+  // hasta que el usuario entre al POS, a Pendientes o al cierre.
+  private syncService = inject(SyncService);
 
   private wheelListener = (event: WheelEvent) => {
     const target = event.target as HTMLElement;

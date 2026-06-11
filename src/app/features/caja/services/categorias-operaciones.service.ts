@@ -9,8 +9,8 @@ export class CategoriasOperacionesService {
   private auth = inject(AuthService);
 
   /**
-   * Obtiene TODAS las categorías (incluyendo las del sistema).
-   * Sin filtro por seleccionable — uso exclusivo del CRUD de admin.
+   * Obtiene todas las categorías de usuario del negocio. Las de sistema viven
+   * en la tabla global categorias_sistema y no se gestionan desde esta pantalla.
    * Orden: EGRESO primero, luego INGRESO; dentro de cada tipo por código.
    */
   async getCategorias(): Promise<CategoriaOperacion[]> {

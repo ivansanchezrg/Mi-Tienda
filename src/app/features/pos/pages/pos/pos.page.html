@@ -163,7 +163,7 @@
                 (click)="editarCantidad(item)">
                 <div slot="start" class="item-thumb">
                   @if (item.imagen_url) {
-                    <img [src]="item.imagen_url" [alt]="item.nombre"
+                    <img [src]="item.imagen_url" [alt]="item.nombre" loading="lazy"
                       class="img-fade" (load)="$event.target['classList'].add('img-loaded')" />
                   } @else {
                     <ion-icon name="cube-outline"></ion-icon>
@@ -305,7 +305,7 @@
                 }
                 <div class="catalogo-card-img">
                   @if (item.producto.imagen_url) {
-                    <img [src]="item.producto.imagen_url" [alt]="item.producto.nombre"
+                    <img [src]="item.producto.imagen_url" [alt]="item.producto.nombre" loading="lazy"
                       class="img-fade" (load)="$event.target['classList'].add('img-loaded')" />
                   } @else {
                     <span class="catalogo-card-placeholder-nombre">{{ item.producto.nombre }}</span>
@@ -340,7 +340,7 @@
                 }
                 <div class="catalogo-card-img">
                   @if (item.templateImagenUrl) {
-                    <img [src]="item.templateImagenUrl" [alt]="item.templateNombre"
+                    <img [src]="item.templateImagenUrl" [alt]="item.templateNombre" loading="lazy"
                       class="img-fade" (load)="$event.target['classList'].add('img-loaded')" />
                   } @else {
                     <span class="catalogo-card-placeholder-nombre">{{ item.templateNombre }}</span>
@@ -427,7 +427,7 @@
             [class.panel-item--loading]="editandoItemKey === itemKey">
             <div class="panel-item-thumb">
               @if (item.imagen_url) {
-                <img [src]="item.imagen_url" [alt]="item.nombre"
+                <img [src]="item.imagen_url" [alt]="item.nombre" loading="lazy"
                   class="img-fade" (load)="$event.target['classList'].add('img-loaded')" />
               } @else {
                 <ion-icon name="cube-outline"></ion-icon>

@@ -253,7 +253,7 @@ Migración: `docs/pos/sql/migrations/001_add_idempotency_key.sql`
 secuencias SRI). El POS las bloquea con toast sin encolar. El catálogo, las búsquedas y el Consumidor Final se
 sirven del cache local. Stock offline es optimista (se permite negativo al sincronizar — ver §5/§6 del plan).
 
-> Arquitectura completa: `docs/PLAN-OFFLINE-POS-2026-06-08.md`. Servicios involucrados en
+> Arquitectura completa: `docs/guides/PLAN-OFFLINE-POS-2026-06-08.md`. Servicios involucrados en
 > `docs/core/CORE-README.md` → "Servicios del modo offline".
 
 ---
