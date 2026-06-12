@@ -235,12 +235,9 @@
     </div>
   </div>
 
-  <!-- Acciones -->
-  <div class="bs-actions bs-actions--row">
-    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">
-      Cerrar
-    </ion-button>
-    <ion-button expand="block" color="success" (click)="compartirWhatsApp()">
+  <!-- Acciones — herramienta de lectura: un solo botón de acción, la ✕ cierra -->
+  <div class="bs-actions bs-actions--compact">
+    <ion-button color="success" (click)="compartirWhatsApp()">
       <ion-icon slot="start" name="logo-whatsapp"></ion-icon>
       Compartir
     </ion-button>

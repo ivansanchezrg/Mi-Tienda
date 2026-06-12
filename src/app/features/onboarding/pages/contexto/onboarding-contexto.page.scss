@@ -1,8 +1,3 @@
-.brand-name {
-  color: var(--ion-color-primary);
-  font-weight: 700;
-}
-
 // Cards de contexto
 .ctx-cards {
   display: flex;
@@ -67,7 +62,7 @@
   }
 
   p {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--ion-color-medium);
     margin: 0;
     line-height: 1.5;
@@ -110,12 +105,18 @@
   ion-icon { font-size: 14px; }
 }
 
+// Variante del conector para la rama opcional (Varios) — tinte warning como su card
+.ctx-arrow--optional {
+  color: var(--ion-color-warning-shade);
+  background: rgba(var(--ion-color-warning-rgb), 0.10);
+}
+
 // Nota al pie
 .ctx-footer-hint {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ion-color-medium);
   background: rgba(var(--ion-color-primary-rgb), 0.05);
   border-radius: 10px;

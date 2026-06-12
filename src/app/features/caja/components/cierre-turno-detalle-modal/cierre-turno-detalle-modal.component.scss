@@ -306,39 +306,6 @@
   }
 }
 
-// ── Saldos Virtuales ──────────────────────────────────────────
-.virtual-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-
-  &__nombre {
-    font-size: 14px;
-    font-weight: var(--font-weight-semibold);
-    color: var(--ion-text-color);
-  }
-
-  &__valor {
-    font-size: 13px;
-    color: var(--ion-color-medium);
-
-    strong {
-      color: var(--ion-text-color);
-      font-weight: var(--font-weight-bold);
-    }
-  }
-
-  &__arrow {
-    margin: 0 6px;
-    color: var(--ion-color-medium);
-  }
-
-  & + .virtual-row {
-    border-top: 1px solid var(--ion-color-step-50);
-  }
-}
-
 // ── Observaciones ─────────────────────────────────────────────
 .observaciones-text {
   font-size: 14px;

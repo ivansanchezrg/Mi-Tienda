@@ -68,6 +68,12 @@ ejecutarOperacion(tipo, data)
 | Descripción | Condicional* | Condicional* |
 | Comprobante (foto) | Opcional | Opcional |
 
+> **UI (2026-06-11):** los campos obligatorios no llevan badge — solo los opcionales marcan
+> "Opcional" (la validación bloquea el botón hasta que el form sea válido). Labels en lenguaje
+> de pregunta: caja = "¿A qué caja entra?" / "¿De qué caja sale?"; **"Categoría" se muestra como
+> "Motivo"** en la UI (la BD y el código siguen usando `categoria`). El header lleva subtítulo
+> explicativo y bajo el monto se muestra el saldo resultante en vivo ("Tienda quedará en $X").
+
 > \* **Regla "otros" (`requiereDescripcion`):** la descripción es obligatoria (mín. 3 caracteres)
 > solo cuando el **nombre** de la categoría seleccionada matchea `/otros?/i` ("Otros Gastos",
 > "Otros Ingresos", etc.), sin importar el tipo. ⚠️ Es una regla por nombre, no por flag: si el

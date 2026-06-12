@@ -35,6 +35,16 @@
   (rama `!scanner.isAvailable`), `sidebar.component.html` (acción rápida "Precio").
 - Origen: 2026-06-11 (solo falta el hardware — no hay trabajo de código pendiente).
 
+### Paginación del historial de cierres de turno (baja prioridad)
+- **Qué:** `HistorialTurnosPage` carga todo el rango de una vez y `fn_listar_cierres_turno` no tiene `LIMIT` — con el filtro "Todo", a 1-2 cierres/día el payload crece sin tope (~1,000 filas × 30 campos en 2 años). Paginar (RPC con `LIMIT/OFFSET` + infinite scroll) o capear el filtro "Todo" a N meses.
+- **Archivos:** `src/app/features/caja/pages/historial-turnos/historial-turnos.page.ts`, `docs/caja/sql/functions/fn_listar_cierres_turno.sql`.
+- Origen: revisión de implementación 2026-06-11 (hoy es aceptable; revisar cuando haya un año de datos).
+
+### Onboarding — actualizar copys de Caja Varios tras el cambio de potestad
+- **Qué:** cuando se implemente que Caja Varios pasa a ser activable/desactivable por el ADMIN del negocio (ya no por el superadmin), volver al onboarding y corregir los textos que quedaron escritos para el modelo viejo: el hint "Una vez activada, la caja no se puede desactivar." y la card "Ahora no" que dice "Si la necesitas después, se activa con ayuda de soporte" (pasará a ser "Podrás activarla cuando quieras desde Parámetros").
+- **Archivos:** `src/app/features/onboarding/pages/caja/onboarding-caja.page.html` (radio cards + hint), `docs/onboarding/ONBOARDING-README.md` (tabla de configuraciones: fila `caja_varios_activa`).
+- Origen: decisión 2026-06-11 — Caja Varios deja de ser opt-in permanente del superadmin y pasa a potestad del dueño/admin del negocio (toggle en Parámetros, con salvaguarda de saldo > 0).
+
 ### Regla "otros" de descripción obligatoria → flag explícito
 - **Qué:** `requiereDescripcion` decide por regex `/otros?/i` sobre el NOMBRE de la categoría — frágil ante renombres/creaciones del usuario. Migrar a flag en `categorias_operaciones` (ej: `requiere_descripcion BOOLEAN`).
 - **Archivos:** `operacion-modal.component.ts`, schema + migración, CRUD de categorías.
@@ -58,6 +68,11 @@
 ---
 
 ## 🟢 Producto (aspiracional, sin diseño)
+
+### Tour de primera vez post-onboarding
+- **Qué:** tras crear el primer negocio, el usuario aterriza en `/caja` solo con un toast de celebración. Un tour guiado de 3-4 highlights (abrir caja, registrar venta, ver movimientos) completaría la activación. Sin diseño aún.
+- **Archivos:** `home.page.ts` (detección primera visita), componente de tour nuevo.
+- Origen: revisión UX del onboarding 2026-06-11 (se implementó la versión mínima: toast "¡{nombre} está listo! 🎉").
 
 ### Backup automático de datos
 - **Qué:** respaldo programado/exportable de los datos del negocio. Sin diseño aún.

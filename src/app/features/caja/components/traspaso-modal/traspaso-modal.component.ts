@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { IonIcon, IonButton, IonSpinner, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, swapHorizontalOutline, cashOutline, fileTrayOutline, archiveOutline, arrowDownOutline } from 'ionicons/icons';
+import { closeOutline, swapHorizontalOutline, cashOutline, fileTrayOutline, archiveOutline, arrowDownOutline, checkmarkCircle } from 'ionicons/icons';
 import { Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
@@ -54,7 +54,7 @@ export class TraspasoModalComponent implements OnInit {
   }
 
   constructor() {
-    addIcons({ closeOutline, swapHorizontalOutline, cashOutline, fileTrayOutline, archiveOutline, arrowDownOutline });
+    addIcons({ closeOutline, swapHorizontalOutline, cashOutline, fileTrayOutline, archiveOutline, arrowDownOutline, checkmarkCircle });
   }
 
   ngOnInit() {
@@ -80,6 +80,38 @@ export class TraspasoModalComponent implements OnInit {
 
   get montoExcedeSaldo(): boolean {
     return (this.form?.get('monto')?.value ?? 0) > this.saldoOrigen;
+  }
+
+  get saldoDestino(): number {
+    const id = this.form?.get('destinoId')?.value;
+    return this.cajas.find(c => c.id === id)?.saldo_actual ?? 0;
+  }
+
+  get nombreOrigen(): string {
+    const id = this.form?.get('origenId')?.value;
+    return this.cajas.find(c => c.id === id)?.nombre ?? '';
+  }
+
+  get nombreDestino(): string {
+    const id = this.form?.get('destinoId')?.value;
+    return this.cajas.find(c => c.id === id)?.nombre ?? '';
+  }
+
+  /** Preview de saldos resultantes — visible cuando el traspaso está completo y es válido */
+  get mostrarPreview(): boolean {
+    const monto = this.form?.get('monto')?.value ?? 0;
+    return !!this.form?.get('origenId')?.value
+        && !!this.form?.get('destinoId')?.value
+        && monto > 0
+        && !this.montoExcedeSaldo;
+  }
+
+  get saldoOrigenDespues(): number {
+    return this.saldoOrigen - (this.form?.get('monto')?.value ?? 0);
+  }
+
+  get saldoDestinoDespues(): number {
+    return this.saldoDestino + (this.form?.get('monto')?.value ?? 0);
   }
 
   iconoCaja(codigo: string, icono?: string): string {

@@ -4,7 +4,13 @@
     <div class="bs-header__icon">
       <ion-icon name="swap-horizontal-outline"></ion-icon>
     </div>
-    <span class="bs-header__title">Traspaso entre cajas</span>
+    <div class="tm-header-text">
+      <span class="bs-header__title tm-title">
+        Traspaso entre cajas
+        <ion-icon name="swap-horizontal-outline" class="tm-title__icon"></ion-icon>
+      </span>
+      <span class="tm-header-subtitle">Mueve dinero de una caja a otra</span>
+    </div>
     <button class="bs-header__close" (click)="cancelar()">
       <ion-icon name="close-outline"></ion-icon>
     </button>
@@ -15,7 +21,7 @@
 
       <!-- Desde -->
       <div class="field-group">
-        <span class="field-label">Desde <span class="badge-required">Obligatorio</span></span>
+        <span class="field-label">Desde</span>
         <div class="caja-scroll" appHorizontalScroll>
           @for (caja of cajasDisponibles; track caja.id) {
             <button
@@ -40,6 +46,9 @@
                 <span class="caja-mini-card__name">{{ caja.nombre }}</span>
                 <span class="caja-mini-card__saldo">${{ caja.saldo_actual | appCurrency }}</span>
               </div>
+              @if (form.get('origenId')?.value === caja.id) {
+                <ion-icon name="checkmark-circle" class="caja-mini-card__check"></ion-icon>
+              }
             </button>
           }
         </div>
@@ -53,7 +62,7 @@
 
       <!-- Hacia -->
       <div class="field-group">
-        <span class="field-label">Hacia <span class="badge-required">Obligatorio</span></span>
+        <span class="field-label">Hacia</span>
         @if (!form.get('origenId')?.value) {
           <p class="caja-scroll__hint">Elige primero la caja origen</p>
         } @else {
@@ -80,6 +89,9 @@
                   <span class="caja-mini-card__name">{{ caja.nombre }}</span>
                   <span class="caja-mini-card__saldo">${{ caja.saldo_actual | appCurrency }}</span>
                 </div>
+                @if (form.get('destinoId')?.value === caja.id) {
+                  <ion-icon name="checkmark-circle" class="caja-mini-card__check"></ion-icon>
+                }
               </button>
             }
           </div>
@@ -89,7 +101,7 @@
 
       <!-- Monto -->
       <div class="field-group">
-        <span class="field-label">Monto <span class="badge-required">Obligatorio</span></span>
+        <span class="field-label">Monto</span>
         <div class="amount-row" [class.amount-row--error]="montoExcedeSaldo">
           <span class="amount-currency">$</span>
           <input
@@ -104,6 +116,17 @@
           <span class="field-error">
             Saldo insuficiente en origen (${{ saldoOrigen | appCurrency }})
           </span>
+        } @else if (mostrarPreview) {
+          <div class="traspaso-preview">
+            <div class="traspaso-preview__row">
+              <span>{{ nombreOrigen }}</span>
+              <span>quedará en <strong>${{ saldoOrigenDespues | appCurrency }}</strong></span>
+            </div>
+            <div class="traspaso-preview__row">
+              <span>{{ nombreDestino }}</span>
+              <span>quedará en <strong>${{ saldoDestinoDespues | appCurrency }}</strong></span>
+            </div>
+          </div>
         }
       </div>
 

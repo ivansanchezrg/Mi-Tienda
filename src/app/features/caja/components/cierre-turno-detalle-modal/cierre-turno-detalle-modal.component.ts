@@ -14,8 +14,7 @@ import {
   alertCircleOutline,
   informationCircleOutline,
   documentTextOutline,
-  logoWhatsapp,
-  cellularOutline
+  logoWhatsapp
 } from 'ionicons/icons';
 import { CierreTurnoSnapshot } from '../../models/cierre-turno.model';
 import { ShareCierreService } from '../../services/share-cierre.service';
@@ -48,8 +47,7 @@ export class CierreTurnoDetalleModalComponent {
       alertCircleOutline,
       informationCircleOutline,
       documentTextOutline,
-      logoWhatsapp,
-      cellularOutline
+      logoWhatsapp
     });
   }
 
@@ -72,9 +70,7 @@ export class CierreTurnoDetalleModalComponent {
   }
 
   get tieneMovimientos(): boolean {
-    return this.cierre.ventas_pos_efectivo > 0
-        || this.cierre.otros_ingresos > 0
-        || this.cierre.egresos > 0;
+    return this.cierre.usa_pos;
   }
 
   get hasDiferencia(): boolean {
@@ -96,11 +92,10 @@ export class CierreTurnoDetalleModalComponent {
   }
 
   get esModoSinPos(): boolean {
-    // Sin cuadre cuando el cajón no tuvo ningún movimiento durante el turno:
-    // ni ventas POS, ni ingresos manuales, ni egresos.
-    return this.cierre.ventas_pos_efectivo === 0
-        && this.cierre.otros_ingresos      === 0
-        && this.cierre.egresos             === 0;
+    // usa_pos (fn_listar_cierres_turno v2.1) refleja cualquier movimiento del
+    // cajón: ventas POS, ingresos manuales o egresos. Única fuente de verdad —
+    // no recalcular desde los montos.
+    return !this.cierre.usa_pos;
   }
 
   // ── Compartir por WhatsApp ──────────────────────────────────

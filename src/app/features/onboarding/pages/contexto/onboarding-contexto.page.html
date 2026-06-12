@@ -2,8 +2,8 @@
   <div class="onboarding-wrapper">
 
     <div class="onboarding-progress">
-      <ion-progress-bar value="0.75"></ion-progress-bar>
-      <span class="step-label">Paso 2 de 2</span>
+      <ion-progress-bar [value]="2 / 3"></ion-progress-bar>
+      <span class="step-label">Paso 2 de 3</span>
     </div>
 
     <div class="onboarding-spacer"></div>
@@ -12,8 +12,8 @@
       <div class="onboarding-icon">
         <ion-icon name="cash-outline"></ion-icon>
       </div>
-      <h1 class="onboarding-title">Así organiza tu dinero</h1>
-      <p class="onboarding-subtitle"><span class="brand-name">NexoPOS</span> usa tres cajas para que siempre sepas dónde está cada dólar.</p>
+      <h1 class="onboarding-title">Así se organizará tu dinero</h1>
+      <p class="onboarding-subtitle"><span class="brand-name">{{ nombreNegocio }}</span> usará dos cajas — y una tercera opcional — para que siempre sepas dónde está cada dólar.</p>
     </div>
 
     <div class="ctx-cards">
@@ -44,6 +44,12 @@
         </div>
       </div>
 
+      <div class="ctx-arrow ctx-arrow--optional">
+        <ion-icon name="arrow-forward-outline"></ion-icon>
+        <span>También al cerrar el día</span>
+        <ion-icon name="arrow-forward-outline"></ion-icon>
+      </div>
+
       <div class="ctx-card ctx-card--optional">
         <div class="ctx-card-icon ctx-card-icon--orange">
           <ion-icon name="shield-checkmark-outline"></ion-icon>
@@ -60,7 +66,7 @@
     </div>
 
     <p class="ctx-footer-hint">
-      <ion-icon name="arrow-forward-outline"></ion-icon>
+      <ion-icon name="information-circle-outline"></ion-icon>
       Al abrir tu primer turno, tú decides con cuánto efectivo inicia el Cajón.
     </p>
 
@@ -68,6 +74,11 @@
       <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
       Entendido, configurar mi caja
     </ion-button>
+
+    <button class="onboarding-logout" (click)="volver()">
+      <ion-icon name="arrow-back-outline"></ion-icon>
+      Atrás
+    </button>
 
   </div>
 </ion-content>

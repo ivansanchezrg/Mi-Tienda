@@ -9,7 +9,17 @@
         <ion-icon name="arrow-up-outline"></ion-icon>
       }
     </div>
-    <span class="bs-header__title">{{ titulo }}</span>
+    <div class="om-header-text">
+      <span class="bs-header__title om-title">
+        {{ titulo }}
+        @if (esIngreso) {
+          <ion-icon name="trending-up-outline" class="om-title__icon om-title__icon--ingreso"></ion-icon>
+        } @else {
+          <ion-icon name="trending-down-outline" class="om-title__icon om-title__icon--egreso"></ion-icon>
+        }
+      </span>
+      <span class="om-header-subtitle">{{ subtitulo }}</span>
+    </div>
     <button class="bs-header__close" (click)="cancelar()">
       <ion-icon name="close-outline"></ion-icon>
     </button>
@@ -20,7 +30,7 @@
 
       <!-- Paso 1: Caja -->
       <div class="field-group">
-        <span class="field-label">Caja <span class="badge-required">Obligatorio</span></span>
+        <span class="field-label">{{ esIngreso ? '¿A qué caja entra?' : '¿De qué caja sale?' }}</span>
         @if (cajaIdPreseleccionada) {
           <div class="caja-scroll">
             <div class="caja-mini-card caja-mini-card--selected caja-mini-card--fixed">
@@ -39,6 +49,7 @@
                 <span class="caja-mini-card__name">{{ cajaPreseleccionada?.nombre }}</span>
                 <span class="caja-mini-card__saldo">${{ (cajaPreseleccionada?.saldo_actual ?? 0) | appCurrency }}</span>
               </div>
+              <ion-icon name="checkmark-circle" class="caja-mini-card__check"></ion-icon>
             </div>
           </div>
         } @else {
@@ -65,6 +76,9 @@
                   <span class="caja-mini-card__name">{{ caja.nombre }}</span>
                   <span class="caja-mini-card__saldo">${{ caja.saldo_actual | appCurrency }}</span>
                 </div>
+                @if (form.get('cajaId')?.value === caja.id) {
+                  <ion-icon name="checkmark-circle" class="caja-mini-card__check"></ion-icon>
+                }
               </button>
             }
           </div>
@@ -74,7 +88,7 @@
 
       <!-- Paso 2: Categoría -->
       <div class="field-group">
-        <span class="field-label">Categoría <span class="badge-required">Obligatorio</span></span>
+        <span class="field-label">Motivo</span>
         @if (cargandoCategorias) {
           <div class="loading-row">
             <ion-spinner name="crescent"></ion-spinner>
@@ -94,7 +108,6 @@
       <div class="field-group">
         <span class="field-label">
           {{ esIngreso ? 'Monto a ingresar' : 'Monto a retirar' }}
-          <span class="badge-required">Obligatorio</span>
         </span>
         <div class="amount-row" [class.amount-row--error]="montoExcedeSaldo">
           <span class="amount-currency">$</span>
@@ -108,13 +121,17 @@
         </div>
         @if (montoExcedeSaldo) {
           <span class="field-error">El monto excede el saldo disponible (${{ saldoCajaSeleccionada | appCurrency }})</span>
+        } @else if (saldoResultante !== null) {
+          <span class="saldo-preview">
+            {{ nombreCajaSeleccionada }} quedará en <strong>${{ saldoResultante | appCurrency }}</strong>
+          </span>
         }
       </div>
 
       <!-- Paso 4: Descripción — solo si categoría es "Otros" -->
       @if (requiereDescripcion) {
         <div class="field-group">
-          <span class="field-label">Descripción <span class="badge-required">Obligatorio</span></span>
+          <span class="field-label">Descripción</span>
           <textarea
             placeholder="¿De qué se trata este {{ esIngreso ? 'ingreso' : 'egreso' }}?"
             formControlName="descripcion"

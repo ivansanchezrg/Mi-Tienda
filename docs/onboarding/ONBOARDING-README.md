@@ -1,6 +1,6 @@
 # Onboarding — Wizard de creación de negocio
 
-Wizard reutilizable de 2 pasos para crear un negocio. Es el **único punto de entrada** para crear negocios en toda la plataforma — no existe otro flujo paralelo. Desde onboarding inicial hasta sucursales creadas por el superadmin, todo usa las mismas páginas y la misma función SQL: `fn_completar_onboarding`.
+Wizard reutilizable para crear un negocio: **3 pasos en modo `inicial`** (incluye una pantalla educativa del sistema de cajas) y **2 pasos en modos `sucursal-*`** (la pantalla educativa se salta — el creador ya conoce el sistema). Es el **único punto de entrada** para crear negocios en toda la plataforma — no existe otro flujo paralelo. Desde onboarding inicial hasta sucursales creadas por el superadmin, todo usa las mismas páginas y la misma función SQL: `fn_completar_onboarding`.
 
 ---
 
@@ -22,17 +22,26 @@ El wizard se puede iniciar desde 4 contextos distintos. El modo determina quién
 ## Arquitectura del wizard
 
 ```
-OnboardingService          ← estado compartido entre los 2 pasos (draft + mode)
+OnboardingService          ← estado compartido entre pasos (draft + mode)
      │
      ├─ Paso 1: OnboardingNegocioPage   (/onboarding/negocio o /crear-negocio/negocio)
-     │     Nombre, teléfono, dirección
+     │     SOLO el nombre del negocio (2026-06-11: teléfono/dirección/correo
+     │     eliminados del funnel — se completan en Configuración → Parámetros)
      │     + Email/nombre del admin (solo en modo sucursal-superadmin)
      │
-     └─ Paso 2: OnboardingCajaPage      (/onboarding/caja o /crear-negocio/caja)
-           Toggle Caja Varios (opt-in) + monto diario si está activa
-           Sueldo base de nómina
+     ├─ Paso educativo: OnboardingContextoPage   (SOLO modo inicial)
+     │     Explica el sistema de 3 cajas (Cajón → Tienda → Varios opcional)
+     │     En modos sucursal-* se salta: negocio → caja directo
+     │
+     └─ Paso final: OnboardingCajaPage   (/onboarding/caja o /crear-negocio/caja)
+           Radio-cards Caja Varios (opt-in) + monto diario si está activa
+           (2026-06-11: sueldo base eliminado del funnel — se envía 0 y se
+           configura en Parámetros cuando el negocio contrate empleados)
            → onboardingService.completar() → fn_completar_onboarding (atómico)
+           → modo inicial: activa JWT + toast "¡{nombre} está listo! 🎉"
 ```
+
+**Numeración de pasos:** dinámica por modo — `inicial` muestra "Paso 1/2/3 de 3" (barra 0.33/0.66/1); `sucursal-*` muestra "Paso 1/2 de 2" (barra 0.5/1). El CTA final también es por modo: "Crear mi negocio" / "Crear sucursal" / "Crear negocio".
 
 ### Por qué dos módulos de rutas (`onboarding/` y `crear-negocio/`)
 
@@ -86,6 +95,8 @@ export interface OnboardingData {
 
 El draft vive en `OnboardingService._draft` (en memoria, no en Preferences). Si el usuario recarga la página a mitad del wizard, el draft se pierde. Esto es intencional: el wizard es una operación corta y no vale la pena persistirlo en disco. `ngOnInit()` de cada paso restaura el draft si existe.
 
+**Guard de draft perdido (2026-06-11):** los pasos 2 y 3 (`OnboardingContextoPage`, `OnboardingCajaPage`) verifican en `ngOnInit()` que `draft.nombre` exista. Si el usuario recargó la página (draft vacío), redirigen al paso 1 con `replaceUrl` — sin esto, `completar()` enviaría `nombre: ''` a la función SQL y el usuario quedaría atrapado en un error sin salida. La ruta del paso 1 se resuelve por URL (`/crear-negocio` vs `/onboarding`) porque el modo en memoria también se pierde al recargar.
+
 ---
 
 ## Paso 1 — Datos del negocio (`OnboardingNegocioPage`)
@@ -121,10 +132,10 @@ private async resolverMode(): Promise<OnboardingMode> {
 
 ### Verificación de email (modo sucursal-superadmin)
 
-Cuando el superadmin ingresa el email del admin, el wizard verifica si ese email ya está registrado en `usuarios`:
+Cuando el superadmin ingresa el email del admin, el wizard verifica si ese email ya está registrado en `usuarios`. La verificación dispara **automáticamente al dejar de escribir** (`debounceTime(600)` sobre `valueChanges`) y también al perder foco (blur como vía rápida; el debounce solo dispara si el estado sigue `pendiente`, evitando doble RPC):
 
 ```
-superadmin escribe email → pierde foco → verificarEmail()
+superadmin escribe email → 600ms sin teclear (o blur) → verificarEmail()
   │
   ├─ Email inválido → estado 'pendiente', no avanza
   │
@@ -150,7 +161,7 @@ superadmin escribe email → pierde foco → verificarEmail()
 
 - Botón "Continuar" → guarda paso 1 en draft → navega al paso 2
 - Botón atrás:
-  - `inicial` → `logoutSilent()` (el usuario no tiene negocio, cerrar sesión es lo correcto)
+  - `inicial` → alert de confirmación ("¿Cerrar sesión?") antes de `logoutSilent()` — un toque accidental no debe expulsar al prospecto en pleno funnel de captación
   - `sucursal-admin` / `sucursal-superadmin` desde sidebar → `/caja`
   - `sucursal-superadmin` desde `/admin` → `/admin`
 

@@ -1,14 +1,14 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, Validators, AbstractControl, ValidationErrors, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
-  IonContent, IonButton, IonIcon, IonSpinner, IonProgressBar
+  IonContent, IonButton, IonIcon, IonProgressBar
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   walletOutline, arrowForwardOutline, arrowBackOutline,
-  shieldCheckmarkOutline, peopleOutline, checkmarkCircle
+  shieldCheckmarkOutline, checkmarkCircle
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { OnboardingService } from '../../services/onboarding.service';
@@ -30,10 +30,10 @@ function variosMontoValidator(control: AbstractControl): ValidationErrors | null
   standalone: true,
   imports: [
     CommonModule, ReactiveFormsModule,
-    IonContent, IonButton, IonIcon, IonSpinner, IonProgressBar
+    IonContent, IonButton, IonIcon, IonProgressBar
   ]
 })
-export class OnboardingCajaPage {
+export class OnboardingCajaPage implements OnInit {
   private fb                = inject(FormBuilder);
   private router            = inject(Router);
   private ui                = inject(UiService);
@@ -41,19 +41,47 @@ export class OnboardingCajaPage {
 
   guardando = false;
 
+  // El sueldo base NO se pide aquí (fricción de captación) — fn_completar_onboarding
+  // recibe 0 y el admin lo configura en Parámetros cuando contrate empleados.
   form = this.fb.group({
-    variosActiva:     [false],
-    montoVarios:      [null as number | null, [Validators.min(0.01)]],
-    nominaSueldoBase: [null as number | null, [Validators.required, Validators.min(0)]]
+    variosActiva: [false],
+    montoVarios:  [null as number | null, [Validators.min(0.01)]],
   }, { validators: variosMontoValidator });
 
   constructor() {
-    addIcons({ walletOutline, arrowForwardOutline, arrowBackOutline, shieldCheckmarkOutline, peopleOutline, checkmarkCircle });
+    addIcons({ walletOutline, arrowForwardOutline, arrowBackOutline, shieldCheckmarkOutline, checkmarkCircle });
     // Restaurar borrador si el usuario volvió
     const d = this.onboardingService.draft;
-    if (d.variosActiva     !== undefined) this.form.patchValue({ variosActiva: d.variosActiva });
-    if (d.montoVarios      !== undefined) this.form.patchValue({ montoVarios: d.montoVarios });
-    if (d.nominaSueldoBase !== undefined) this.form.patchValue({ nominaSueldoBase: d.nominaSueldoBase });
+    if (d.variosActiva !== undefined) this.form.patchValue({ variosActiva: d.variosActiva });
+    if (d.montoVarios  !== undefined) this.form.patchValue({ montoVarios: d.montoVarios });
+  }
+
+  ngOnInit() {
+    // El draft vive solo en memoria: si el usuario recarga en este paso, el nombre
+    // del negocio se perdió y completar() fallaría sin salida. Volver al paso 1.
+    if (!this.onboardingService.draft.nombre) {
+      const paso1 = this.router.url.includes('/crear-negocio')
+        ? ROUTES.crearNegocio.negocio
+        : ROUTES.onboarding.negocio;
+      this.router.navigate([paso1], { replaceUrl: true });
+    }
+  }
+
+  /** Nombre del paso 1 — mantiene el hilo narrativo hasta el cierre del wizard. */
+  get nombreNegocio(): string {
+    return this.onboardingService.draft.nombre || 'Tu negocio';
+  }
+
+  /** Pasos del wizard: inicial tiene 3 (incluye la pantalla educativa), sucursal 2. */
+  get progressLabel(): string {
+    return this.onboardingService.mode === 'inicial' ? 'Paso 3 de 3' : 'Paso 2 de 2';
+  }
+
+  /** CTA con sentido de entrega según el modo — "Finalizar" cierra un trámite, esto entrega algo. */
+  get textoBotonFinal(): string {
+    if (this.onboardingService.mode === 'inicial') return 'Crear mi negocio';
+    if (this.onboardingService.mode === 'sucursal-admin') return 'Crear sucursal';
+    return 'Crear negocio';
   }
 
   get usaVarios(): boolean { return !!this.form.value.variosActiva; }
@@ -66,11 +94,11 @@ export class OnboardingCajaPage {
     return this.form.hasError('variosMontoRequerido') && this.form.touched;
   }
 
-  /** Navega al paso 1 segun la ruta base actual (mantiene el modo del wizard). */
+  /** Navega al paso anterior según el modo — en sucursal la pantalla educativa se salta. */
   volver() {
     const ruta = this.onboardingService.mode === 'inicial'
       ? ROUTES.onboarding.contexto
-      : ROUTES.crearNegocio.contexto;
+      : ROUTES.crearNegocio.negocio;
     this.router.navigate([ruta], { replaceUrl: true });
   }
 
@@ -85,8 +113,11 @@ export class OnboardingCajaPage {
     this.onboardingService.guardarPaso2({
       variosActiva,
       montoVarios,
-      nominaSueldoBase: Number(this.form.value.nominaSueldoBase ?? 0)
+      nominaSueldoBase: 0
     });
+
+    // Capturar el nombre ANTES de completar — activarYFinalizar() limpia el draft.
+    const nombreNegocio = this.onboardingService.draft.nombre ?? '';
 
     this.guardando = true;
     await this.ui.showLoading('Creando el negocio...');
@@ -106,6 +137,9 @@ export class OnboardingCajaPage {
         const ok = await this.onboardingService.activarYFinalizar(negocioId);
         if (!ok) {
           await this.ui.showError('Negocio creado pero no se pudo activar la sesión. Cierra sesión e ingresa de nuevo.');
+        } else {
+          // Momento de celebración — el usuario aterriza en su negocio recién creado
+          await this.ui.showSuccess(`¡${nombreNegocio} está listo! 🎉`);
         }
       } else {
         // Sucursal: NO activa el JWT del nuevo negocio

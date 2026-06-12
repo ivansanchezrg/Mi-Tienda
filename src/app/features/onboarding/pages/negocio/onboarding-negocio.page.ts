@@ -3,14 +3,14 @@ import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
-  IonContent, IonButton, IonIcon, IonProgressBar, IonSpinner
+  IonContent, IonButton, IonIcon, IonProgressBar, IonSpinner, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   storefrontOutline, arrowForwardOutline, logOutOutline, arrowBackOutline,
-  checkmarkCircle, personAddOutline, searchOutline, informationCircleOutline
+  checkmarkCircle, personAddOutline, informationCircleOutline
 } from 'ionicons/icons';
-import { Subscription } from 'rxjs';
+import { Subscription, debounceTime } from 'rxjs';
 import { AuthService } from '../../../auth/services/auth.service';
 import { OnboardingService, OnboardingMode, NegocioResumen } from '../../services/onboarding.service';
 import { ROUTES } from '@core/config/routes.config';
@@ -46,18 +46,18 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
   private route             = inject(ActivatedRoute);
   private authService       = inject(AuthService);
   private onboardingService = inject(OnboardingService);
+  private alertCtrl         = inject(AlertController);
 
   // Detectado en ngOnInit segun la ruta y query params
   mode: OnboardingMode = 'inicial';
 
-  // Form base — campos extra (adminEmail, adminNombre) solo si mode === 'sucursal-superadmin'
+  // Form base — campos extra (adminEmail, adminNombre) solo si mode === 'sucursal-superadmin'.
+  // Teléfono/dirección/correo NO se piden aquí (fricción de captación) —
+  // se completan después en Configuración → Parámetros del Negocio.
   form = this.fb.group({
-    nombre:              ['', [Validators.required, Validators.minLength(2), Validators.maxLength(80)]],
-    telefono:            ['', [Validators.maxLength(20)]],
-    direccion:           ['', [Validators.maxLength(200)]],
-    correoElectronico:   ['', [Validators.email, Validators.maxLength(100)]],
-    adminEmail:          ['', [Validators.email, Validators.maxLength(100)]],
-    adminNombre:         ['', [Validators.maxLength(100)]],
+    nombre:      ['', [Validators.required, Validators.minLength(2), Validators.maxLength(80)]],
+    adminEmail:  ['', [Validators.email, Validators.maxLength(100)]],
+    adminNombre: ['', [Validators.maxLength(100)]],
   });
 
   // Estado de verificacion del email (solo aplica en modo sucursal-superadmin)
@@ -68,11 +68,12 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
   negociosExistentes: NegocioResumen[] = [];
 
   private emailSub?: Subscription;
+  private emailVerifSub?: Subscription;
 
   constructor() {
     addIcons({
       storefrontOutline, arrowForwardOutline, logOutOutline, arrowBackOutline,
-      checkmarkCircle, personAddOutline, searchOutline, informationCircleOutline
+      checkmarkCircle, personAddOutline, informationCircleOutline
     });
   }
 
@@ -94,16 +95,21 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
           this.form.controls.adminNombre.setValue('', { emitEvent: false });
         }
       });
+
+      // Verificacion automatica al dejar de escribir — el blur queda como via rapida.
+      // Solo dispara si nadie verifico antes (un blur previo deja el estado fuera de 'pendiente').
+      this.emailVerifSub = this.form.controls.adminEmail.valueChanges
+        .pipe(debounceTime(600))
+        .subscribe(() => {
+          if (this.verificacion === 'pendiente') this.verificarEmail();
+        });
     }
 
     // Restaurar draft si volvemos del paso 2
     const d = this.onboardingService.draft;
-    if (d.nombre)              this.form.patchValue({ nombre: d.nombre });
-    if (d.telefono)            this.form.patchValue({ telefono: d.telefono });
-    if (d.direccion)           this.form.patchValue({ direccion: d.direccion });
-    if (d.correoElectronico)   this.form.patchValue({ correoElectronico: d.correoElectronico });
-    if (d.adminEmail)          this.form.patchValue({ adminEmail: d.adminEmail });
-    if (d.adminNombre)         this.form.patchValue({ adminNombre: d.adminNombre });
+    if (d.nombre)      this.form.patchValue({ nombre: d.nombre });
+    if (d.adminEmail)  this.form.patchValue({ adminEmail: d.adminEmail });
+    if (d.adminNombre) this.form.patchValue({ adminNombre: d.adminNombre });
 
     // Si volvemos del paso 2 con email guardado, re-validar para reconstruir UI
     if (this.mode === 'sucursal-superadmin' && d.adminEmail) {
@@ -113,6 +119,7 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.emailSub?.unsubscribe();
+    this.emailVerifSub?.unsubscribe();
   }
 
   /**
@@ -157,9 +164,18 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
   }
 
   get subtitulo(): string {
-    if (this.mode === 'inicial')         return 'Primero, cuéntanos cómo se llama tu negocio.';
+    if (this.mode === 'inicial')         return 'Cuéntanos cómo se llama tu negocio. Te toma menos de un minuto.';
     if (this.mode === 'sucursal-admin')  return 'Configura los datos de tu nueva sucursal.';
     return 'Datos del negocio y del administrador que lo gestionará.';
+  }
+
+  /** Pasos del wizard: inicial tiene 3 (incluye la pantalla educativa), sucursal 2. */
+  get progressValue(): number {
+    return this.mode === 'inicial' ? 1 / 3 : 0.5;
+  }
+
+  get progressLabel(): string {
+    return this.mode === 'inicial' ? 'Paso 1 de 3' : 'Paso 1 de 2';
   }
 
   get textoBotonContinuar(): string {
@@ -179,16 +195,6 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
     if (c.hasError('required'))  return 'Ingresa el nombre del negocio.';
     if (c.hasError('minlength')) return 'Mínimo 2 caracteres.';
     if (c.hasError('maxlength')) return 'Máximo 80 caracteres.';
-    return null;
-  }
-
-  get correoElectronicoCtrl() { return this.form.controls.correoElectronico; }
-
-  get errorCorreoElectronico(): string | null {
-    const c = this.correoElectronicoCtrl;
-    if (!c.touched || c.valid) return null;
-    if (c.hasError('email'))     return 'Ingresa un correo electrónico válido.';
-    if (c.hasError('maxlength')) return 'Máximo 100 caracteres.';
     return null;
   }
 
@@ -273,19 +279,23 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
     if (!this.puedeContinuar) return;
 
     this.onboardingService.guardarPaso1({
-      nombre:              this.form.value.nombre!.trim(),
-      telefono:            this.form.value.telefono?.trim() ?? '',
-      direccion:           this.form.value.direccion?.trim() ?? '',
-      correoElectronico:   this.form.value.correoElectronico?.trim() ?? '',
-      adminEmail:          this.form.value.adminEmail?.trim() ?? '',
-      adminNombre:         this.form.value.adminNombre?.trim() ?? '',
+      nombre:      this.form.value.nombre!.trim(),
+      // Datos de contacto: no se piden en el onboarding — el usuario los completa
+      // después en Configuración → Parámetros del Negocio.
+      telefono:          '',
+      direccion:         '',
+      correoElectronico: '',
+      adminEmail:  this.form.value.adminEmail?.trim() ?? '',
+      adminNombre: this.form.value.adminNombre?.trim() ?? '',
       // En modo sucursal-superadmin el propietario es el mismo admin (mismo dueño solicitando sucursal).
       propietarioEmail: this.form.value.adminEmail?.trim() ?? '',
     });
 
+    // La pantalla educativa (contexto) solo aplica al primer onboarding —
+    // en modos sucursal el creador ya conoce el sistema de cajas.
     const siguienteRuta = this.mode === 'inicial'
       ? ROUTES.onboarding.contexto
-      : ROUTES.crearNegocio.contexto;
+      : ROUTES.crearNegocio.caja;
 
     this.router.navigate([siguienteRuta], { replaceUrl: true });
   }
@@ -293,7 +303,17 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
   /** Solo en mode = 'inicial' tiene sentido cerrar sesion. En los otros modos volvemos atras. */
   async accionAtras() {
     if (this.mode === 'inicial') {
-      await this.authService.logoutSilent();
+      // Confirmar antes de expulsar al usuario — un toque accidental aqui
+      // lo saca de la app justo en el momento de captacion.
+      const alert = await this.alertCtrl.create({
+        header: '¿Cerrar sesión?',
+        message: 'Tu negocio aún no se ha creado. Cuando vuelvas a ingresar podrás continuar desde aquí.',
+        buttons: [
+          { text: 'Seguir aquí', role: 'cancel' },
+          { text: 'Cerrar sesión', role: 'destructive', handler: () => { this.authService.logoutSilent(); } }
+        ]
+      });
+      await alert.present();
     } else if (this.mode === 'sucursal-superadmin' && this.router.url.includes('/crear-negocio') && this.route.snapshot.queryParamMap.get('context') === 'admin') {
       this.router.navigate([ROUTES.admin]);
     } else {
@@ -303,9 +323,5 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
 
   get textoBotonAtras(): string {
     return this.mode === 'inicial' ? 'Cerrar sesión' : 'Cancelar';
-  }
-
-  get iconoBotonAtras(): string {
-    return this.mode === 'inicial' ? 'log-out-outline' : 'arrow-back-outline';
   }
 }

@@ -9,7 +9,8 @@ import {
 import { addIcons } from 'ionicons';
 import {
   closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle,
-  chevronDownOutline, cashOutline, fileTrayOutline, archiveOutline
+  chevronDownOutline, cashOutline, fileTrayOutline, archiveOutline, checkmarkCircle,
+  trendingUpOutline, trendingDownOutline
 } from 'ionicons/icons';
 import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 import { Subscription } from 'rxjs';
@@ -84,7 +85,8 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   constructor() {
     addIcons({
       closeOutline, arrowDownOutline, arrowUpOutline, cameraOutline, closeCircle,
-      chevronDownOutline, cashOutline, fileTrayOutline, archiveOutline
+      chevronDownOutline, cashOutline, fileTrayOutline, archiveOutline, checkmarkCircle,
+      trendingUpOutline, trendingDownOutline
     });
   }
 
@@ -147,6 +149,27 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
     return this.esIngreso ? 'Registrar Ingreso' : 'Registrar Egreso';
   }
 
+  /** Explica la operación en lenguaje simple — conecta "Gasto" del home con "Egreso" */
+  get subtitulo(): string {
+    return this.esIngreso
+      ? 'Dinero que entra a una caja'
+      : 'Dinero que sale: gastos, pagos, retiros';
+  }
+
+  get nombreCajaSeleccionada(): string {
+    const id = this.form?.get('cajaId')?.value;
+    return this.cajas.find(c => c.id === id)?.nombre ?? '';
+  }
+
+  /** Saldo de la caja tras aplicar el monto — null si aún no hay datos o el monto excede */
+  get saldoResultante(): number | null {
+    const monto = this.form?.get('monto')?.value ?? 0;
+    if (!this.form?.get('cajaId')?.value || monto <= 0 || this.montoExcedeSaldo) return null;
+    return this.esIngreso
+      ? this.saldoCajaSeleccionada + monto
+      : this.saldoCajaSeleccionada - monto;
+  }
+
   get montoExcedeSaldo(): boolean {
     if (this.esIngreso) return false;
     return (this.form.get('monto')?.value ?? 0) > this.saldoCajaSeleccionada;
@@ -154,8 +177,8 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
 
   get categoriaLabel(): string {
     const id = this.form?.get('categoriaId')?.value;
-    if (!id) return 'Seleccionar categoría';
-    return this.categorias.find(c => c.id === id)?.nombre ?? 'Seleccionar categoría';
+    if (!id) return '¿Cuál es el motivo?';
+    return this.categorias.find(c => c.id === id)?.nombre ?? '¿Cuál es el motivo?';
   }
 
   get requiereDescripcion(): boolean {
@@ -188,7 +211,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
     const modal = await this.modalCtrl.create({
       component: OptionsModalComponent,
       componentProps: {
-        title: 'Categoría',
+        title: 'Motivo',
         groups,
         selectedValue: this.form.get('categoriaId')?.value
           ? String(this.form.get('categoriaId')!.value)

@@ -2,8 +2,8 @@
   <div class="onboarding-wrapper">
 
     <div class="onboarding-progress">
-      <ion-progress-bar value="0.5"></ion-progress-bar>
-      <span class="step-label">Paso 1 de 2</span>
+      <ion-progress-bar [value]="progressValue"></ion-progress-bar>
+      <span class="step-label">{{ progressLabel }}</span>
     </div>
 
     <div class="onboarding-spacer"></div>
@@ -28,8 +28,9 @@
     <form [formGroup]="form" class="onboarding-form" (ngSubmit)="continuar()">
 
       <div class="field-group">
-        <label class="field-label">Nombre del negocio <span class="required">*</span></label>
+        <label class="field-label" for="ob-nombre">Nombre del negocio</label>
         <input
+          id="ob-nombre"
           type="text"
           formControlName="nombre"
           placeholder="Ej: Tienda Don Juan"
@@ -41,48 +42,11 @@
         }
       </div>
 
-      <div class="field-group">
-        <label class="field-label">Teléfono <span class="optional">(opcional)</span></label>
-        <input
-          type="tel"
-          formControlName="telefono"
-          placeholder="Ej: 0999 123 456"
-          autocomplete="off"
-          maxlength="20">
-        <span class="field-hint">Para que tus clientes puedan contactarte.</span>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">Dirección <span class="optional">(opcional)</span></label>
-        <input
-          type="text"
-          formControlName="direccion"
-          placeholder="Ej: Av. Principal 123"
-          autocomplete="off"
-          maxlength="200">
-        <span class="field-hint">Aparece en reportes y comprobantes.</span>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">Correo electrónico <span class="optional">(opcional)</span></label>
-        <input
-          type="email"
-          formControlName="correoElectronico"
-          placeholder="Ej: contacto@minegocio.com"
-          autocomplete="off"
-          maxlength="100"
-          [class.invalid]="correoElectronicoCtrl.touched && correoElectronicoCtrl.invalid">
-        @if (errorCorreoElectronico) {
-          <span class="field-error">{{ errorCorreoElectronico }}</span>
-        } @else {
-          <span class="field-hint">Aparece en comprobantes para que tus clientes puedan contactarte.</span>
-        }
-      </div>
-
       @if (esModoSuperadmin) {
         <div class="field-group">
-          <label class="field-label">Email del administrador <span class="required">*</span></label>
+          <label class="field-label" for="ob-admin-email">Email del administrador</label>
           <input
+            id="ob-admin-email"
             type="email"
             formControlName="adminEmail"
             placeholder="dueño@ejemplo.com"
@@ -94,13 +58,8 @@
             <span class="field-error">{{ errorAdminEmail }}</span>
           }
 
-          <!-- Estados de verificación del email -->
-          @if (verificacion === 'pendiente' && adminEmailCtrl.value && !adminEmailCtrl.invalid) {
-            <span class="verif-status verif-status--pendiente">
-              <ion-icon name="search-outline"></ion-icon>
-              Verificando — sal del campo para validar el email.
-            </span>
-          } @else if (verificacion === 'verificando') {
+          <!-- Estados de verificación del email (se verifica solo al dejar de escribir) -->
+          @if (verificacion === 'verificando') {
             <span class="verif-status verif-status--pendiente">
               <ion-spinner name="crescent"></ion-spinner>
               Consultando...
@@ -155,15 +114,14 @@
         <!-- Campo "Nombre del administrador" — solo visible cuando corresponde -->
         @if (verificacion === 'nuevo' || verificacion === 'error') {
           <div class="field-group">
-            <label class="field-label">
+            <label class="field-label" for="ob-admin-nombre">
               Nombre del administrador
-              @if (verificacion === 'nuevo') {
-                <span class="required">*</span>
-              } @else {
+              @if (verificacion !== 'nuevo') {
                 <span class="optional">(opcional)</span>
               }
             </label>
             <input
+              id="ob-admin-nombre"
               type="text"
               formControlName="adminNombre"
               placeholder="Ej: Juan Pérez"
@@ -173,8 +131,9 @@
           </div>
         } @else if (verificacion === 'existe' && nombreEncontrado) {
           <div class="field-group">
-            <label class="field-label">Nombre del administrador</label>
+            <label class="field-label" for="ob-admin-nombre-ro">Nombre del administrador</label>
             <input
+              id="ob-admin-nombre-ro"
               type="text"
               [value]="nombreEncontrado"
               [disabled]="true"
@@ -196,7 +155,11 @@
     </form>
 
     <button class="onboarding-logout" (click)="accionAtras()">
-      <ion-icon [name]="iconoBotonAtras"></ion-icon>
+      @if (mode === 'inicial') {
+        <ion-icon name="log-out-outline"></ion-icon>
+      } @else {
+        <ion-icon name="arrow-back-outline"></ion-icon>
+      }
       {{ textoBotonAtras }}
     </button>
 
