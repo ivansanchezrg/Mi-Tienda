@@ -20,7 +20,7 @@ import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } f
  * Reemplaza las múltiples llamadas paralelas que hacía home.cargarDatos().
  * v1.3: incluye cajas[] para que cargarDatos() sea la única fuente de verdad del Home.
  * v1.4: incluye modulos con flags de visibilidad con fuente de verdad correcta por caja:
- *   - variosActiva:        existencia real en BD (irreversible)
+ *   - variosActiva:        cajas.activo en BD (reversible via fn_configurar_caja_varios)
  *   - celularHabilitada:   flag en configuraciones (puede existir en BD pero desactivada)
  *   - busHabilitada:       flag en configuraciones (igual que celular)
  */
@@ -294,6 +294,17 @@ export class TurnosCajaService {
     const turno = await this.obtenerTurnoActivo();
     this._turnoActivo$.next(turno);
     await this.sincronizarSnapshotLocal(turno);
+  }
+
+  /**
+   * Sincroniza turnoActivo$ con un turno conocido sin hacer query extra.
+   * Solo lo llama home.page.ts cuando detecta que el servidor reporta un turno
+   * activo pero el BehaviorSubject está vacío — escenario de cold start offline
+   * donde inicializarEstadoReactivo() falló sin red y la primera carga exitosa
+   * llega después de recuperar conexión.
+   */
+  sincronizarTurnoDesdeHome(turno: TurnoCajaConEmpleado): void {
+    this._turnoActivo$.next(turno);
   }
 
   /**

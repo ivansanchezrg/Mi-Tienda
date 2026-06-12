@@ -55,48 +55,6 @@
           </button>
         </div>
 
-        <div class="modulo-row">
-          <div class="modulo-info">
-            <div class="modulo-icon modulo-icon--varios">
-              <ion-icon name="archive-outline"></ion-icon>
-            </div>
-            <div class="modulo-text">
-              <span class="modulo-label">Caja Varios</span>
-              <span class="modulo-desc">Fondo de emergencia · Una vez activa no se puede desactivar</span>
-            </div>
-          </div>
-          <button
-            class="toggle-btn"
-            [class.toggle-btn--on]="varios"
-            (click)="!varios && (varios = true)"
-            [disabled]="guardando || varios">
-            <span class="toggle-knob"></span>
-          </button>
-        </div>
-
-        @if (varios) {
-        <div class="varios-monto-group">
-          <label class="varios-monto-label">Monto diario a separar</label>
-          <div class="varios-monto-input">
-            <span class="varios-monto-prefix">$</span>
-            <input
-              type="number"
-              inputmode="decimal"
-              min="0.01"
-              step="0.01"
-              placeholder="0.00"
-              [(ngModel)]="variosMonto"
-              [disabled]="guardando"
-              autocomplete="off">
-          </div>
-          @if (variosMontoInvalido) {
-          <span class="varios-monto-error">Ingresa un monto mayor a $0</span>
-          } @else {
-          <span class="varios-monto-hint">Se descuenta del cajón automáticamente al cerrar el día</span>
-          }
-        </div>
-        }
-
       </div>
 
       <div class="comprobante-section">

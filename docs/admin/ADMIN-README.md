@@ -124,9 +124,11 @@ Para volver a `/admin`: botón en el sidebar → `irAlPanelAdmin()`.
 
 Menú ⋯ → "Módulos" → `ModulosNegocioModalComponent` → `fn_configurar_modulos_admin`.
 
+> **2026-06-11:** el modal solo gestiona **Celular, Bus y tipo de comprobante**. La Caja Varios pasó a potestad del ADMIN del negocio (`fn_configurar_caja_varios`, Parámetros → Caja Varios, reversible). El campo `varios` de `ModulosNegocio` se conserva como dato informativo (resumen de módulos del listado), leído de `configuraciones` al cargar.
+
 La función crea la caja (`INSERT ... ON CONFLICT DO NOTHING`) y actualiza los flags en `configuraciones`. Las categorías de sistema (`PAGO-PROV-CEL`, `COMPRA-BUS`) ya existen globalmente en `categorias_sistema` — no se crean por negocio.
 
-**Visibilidad de cajas en el home del admin del negocio:** cuando se activa un módulo, `fn_configurar_modulos_admin` inserta la caja nueva. Supabase Realtime propaga el INSERT al `CajasService` del negocio (`cajas$`). El subscribe de `cajas$` en `HomePage` detecta que llegó una caja de módulo que no estaba antes (`VARIOS`, `CAJA_CELULAR`, `CAJA_BUS`), invalida el `ConfigService` y re-lee los flags — las cards aparecen sin recargar la página.
+**Visibilidad de cajas en el home del admin del negocio:** cuando se activa un módulo, `fn_configurar_modulos_admin` inserta la caja nueva. Supabase Realtime propaga el INSERT al `CajasService` del negocio (`cajas$`). El subscribe de `cajas$` en `HomePage` detecta que llegó una caja de módulo que no estaba antes (`CAJA_CELULAR`, `CAJA_BUS`), invalida el `ConfigService` y re-lee los flags — las cards aparecen sin recargar la página.
 
 Al **desactivar** un módulo, solo cambia el flag en `configuraciones` (la caja no se toca). El admin del negocio debe refrescar la página para que las cards desaparezcan.
 

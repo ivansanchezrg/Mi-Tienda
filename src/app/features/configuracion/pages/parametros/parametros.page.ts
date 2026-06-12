@@ -2,10 +2,10 @@ import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
-  IonSpinner, IonSkeletonText, IonIcon
+  IonSpinner, IonSkeletonText, IonIcon, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { storefrontOutline, walletOutline, archiveOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline, documentTextOutline } from 'ionicons/icons';
+import { storefrontOutline, archiveOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline, documentTextOutline } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
@@ -15,12 +15,13 @@ import { SupabaseService } from '@core/services/supabase.service';
 
 // Sección 'negocio' ahora usa fn_actualizar_datos_negocio (tabla negocios).
 // El resto de secciones siguen usando configuraciones (tabla configuraciones).
-type Seccion = 'negocio' | 'sri' | 'caja' | 'bus' | 'pos' | 'nomina';
+// La Caja Varios no está aquí: usa su propio flujo via fn_configurar_caja_varios
+// (activa/desactiva la caja física + flag + monto en una sola transacción).
+type Seccion = 'negocio' | 'sri' | 'bus' | 'pos' | 'nomina';
 
 const CAMPOS_POR_SECCION: Record<Seccion, string[]> = {
   negocio: ['nombre', 'telefono', 'direccion', 'correo_electronico'],
   sri:     ['ruc', 'razon_social', 'nombre_comercial', 'codigo_establecimiento', 'codigo_punto_emision', 'ambiente_sri', 'obligado_contabilidad'],
-  caja:    ['caja_varios_transferencia_dia'],
   bus:     ['bus_alerta_saldo_bajo', 'bus_dias_antes_facturacion'],
   pos:     ['pos_descuentos_habilitados', 'pos_descuento_maximo_pct', 'pos_umbral_monto_descuento', 'pos_iva_porcentaje'],
   nomina:  ['nomina_sueldo_base', 'nomina_dia_pago'],
@@ -29,7 +30,6 @@ const CAMPOS_POR_SECCION: Record<Seccion, string[]> = {
 const MENSAJES_SECCION: Record<Seccion, string> = {
   negocio: 'Datos del negocio guardados',
   sri:     'Datos SRI guardados',
-  caja:    'Parámetros de caja guardados',
   bus:     'Parámetros de bus guardados',
   pos:     'Configuración POS guardada',
   nomina:  'Configuración de nómina guardada',
@@ -48,7 +48,7 @@ const MENSAJES_SECCION: Record<Seccion, string> = {
 })
 export class ParametrosPage implements OnInit, OnDestroy {
   constructor() {
-    addIcons({ storefrontOutline, walletOutline, archiveOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline, documentTextOutline });
+    addIcons({ storefrontOutline, archiveOutline, busOutline, cartOutline, peopleOutline, phonePortraitOutline, appsOutline, documentTextOutline });
   }
 
   private fb                   = inject(FormBuilder);
@@ -57,6 +57,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
   private authService          = inject(AuthService);
   private supabase             = inject(SupabaseService);
   private ui                   = inject(UiService);
+  private alertCtrl            = inject(AlertController);
   private sub!: Subscription;
   private scrollTimeout?: ReturnType<typeof setTimeout>;
 
@@ -66,21 +67,32 @@ export class ParametrosPage implements OnInit, OnDestroy {
   esAdmin                   = false;
   recargasCelularHabilitada = false;
   recargasBusHabilitada     = false;
-  variosActiva              = false;
-  variosMonto               = 0;
   guardandoModulos          = false;
   tipoComprobanteActual: 'TICKET' | 'NOTA_VENTA' | 'FACTURA' = 'TICKET';
+
+  // Caja Varios — potestad del admin del negocio (fn_configurar_caja_varios).
+  // Estado staged: el cambio se aplica al pulsar Guardar, no al mover el toggle.
+  variosActiva          = false;
+  variosMonto           = 0;
+  variosActivaGuardada  = false;
+  variosMontoGuardado   = 0;
+  guardandoVarios       = false;
 
   get variosMontoInvalido(): boolean {
     return this.variosActiva && this.variosMonto <= 0;
   }
 
+  get variosTieneCambios(): boolean {
+    if (this.variosActiva !== this.variosActivaGuardada) return true;
+    return this.variosActiva && Number(this.variosMonto) !== Number(this.variosMontoGuardado);
+  }
+
   guardando: Record<string, boolean> = {
-    negocio: false, sri: false, caja: false, bus: false, pos: false, nomina: false,
+    negocio: false, sri: false, bus: false, pos: false, nomina: false,
   };
 
   tieneCambios: Record<string, boolean> = {
-    negocio: false, sri: false, caja: false, bus: false, pos: false, nomina: false,
+    negocio: false, sri: false, bus: false, pos: false, nomina: false,
   };
 
   private savedValues: Record<string, Record<string, any>> = {};
@@ -100,8 +112,6 @@ export class ParametrosPage implements OnInit, OnDestroy {
       codigo_punto_emision:   ['001', [Validators.required, Validators.maxLength(3), Validators.pattern(/^\d{3}$/)]],
       ambiente_sri:           [1],
       obligado_contabilidad:  [false],
-      // Sección caja — tabla configuraciones
-      caja_varios_transferencia_dia: [null, [Validators.required, Validators.min(0)]],
       // Sección bus — tabla configuraciones
       bus_alerta_saldo_bajo:       [null, [Validators.required, Validators.min(0)]],
       bus_dias_antes_facturacion:  [null, [Validators.required, Validators.min(1)]],
@@ -199,9 +209,10 @@ export class ParametrosPage implements OnInit, OnDestroy {
         this.recargasBusHabilitada     = config.recargas_bus_habilitada;
         this.variosActiva              = config.caja_varios_activa;
         this.variosMonto               = config.caja_varios_transferencia_dia ?? 0;
+        this.variosActivaGuardada      = this.variosActiva;
+        this.variosMontoGuardado       = this.variosMonto;
         this.tipoComprobanteActual     = config.pos_tipo_comprobante;
         this.form.patchValue({
-          caja_varios_transferencia_dia: config.caja_varios_transferencia_dia,
           bus_alerta_saldo_bajo:         config.bus_alerta_saldo_bajo,
           bus_dias_antes_facturacion:    config.bus_dias_antes_facturacion,
           pos_descuentos_habilitados:    config.pos_descuentos_habilitados,
@@ -224,15 +235,12 @@ export class ParametrosPage implements OnInit, OnDestroy {
 
   async guardarModulos() {
     if (this.guardandoModulos) return;
-    if (this.variosMontoInvalido) return;
     this.guardandoModulos = true;
     try {
       await this.supabase.call(
         this.supabase.client.rpc('fn_configurar_modulos', {
-          p_celular:      this.recargasCelularHabilitada,
-          p_bus:          this.recargasBusHabilitada,
-          p_varios:       this.variosActiva,
-          p_varios_monto: this.variosActiva ? this.variosMonto : 0
+          p_celular: this.recargasCelularHabilitada,
+          p_bus:     this.recargasBusHabilitada
         }),
         'Módulos actualizados'
       );
@@ -241,6 +249,56 @@ export class ParametrosPage implements OnInit, OnDestroy {
       await this.ui.showError('Error al guardar los módulos.');
     } finally {
       this.guardandoModulos = false;
+    }
+  }
+
+  /**
+   * Activa/desactiva la Caja Varios via fn_configurar_caja_varios (potestad del admin).
+   * Desactivar pide confirmación; la BD valida la salvaguarda (saldo debe ser $0)
+   * y el toast muestra su mensaje si bloquea.
+   */
+  async guardarVarios() {
+    if (this.guardandoVarios || this.variosMontoInvalido) return;
+
+    const desactivando = this.variosActivaGuardada && !this.variosActiva;
+    if (desactivando) {
+      const alert = await this.alertCtrl.create({
+        header: '¿Desactivar Caja Varios?',
+        message: 'El cierre diario dejará de apartar dinero y la caja se ocultará del inicio. ' +
+                 'Su historial se conserva y podrás activarla de nuevo cuando quieras. ' +
+                 'Requiere que la caja tenga saldo $0.',
+        buttons: [
+          { text: 'Cancelar', role: 'cancel' },
+          { text: 'Desactivar', role: 'destructive' }
+        ]
+      });
+      await alert.present();
+      const { role } = await alert.onDidDismiss();
+      if (role !== 'destructive') return;
+    }
+
+    this.guardandoVarios = true;
+    try {
+      const resultado = await this.supabase.call(
+        this.supabase.client.rpc('fn_configurar_caja_varios', {
+          p_activar: this.variosActiva,
+          p_monto:   this.variosActiva ? Number(this.variosMonto) : 0
+        }),
+        this.variosActiva ? 'Caja Varios activada' : 'Caja Varios desactivada'
+      );
+
+      // call() retorna null si hubo error (el toast ya se mostró con el mensaje de la BD,
+      // p. ej. la salvaguarda de saldo > 0). Solo consolidar estado si fue exitoso.
+      if (resultado !== null) {
+        this.variosActivaGuardada = this.variosActiva;
+        this.variosMontoGuardado  = this.variosMonto;
+        this.configService.invalidar();
+      } else {
+        this.variosActiva = this.variosActivaGuardada;
+        this.variosMonto  = this.variosMontoGuardado;
+      }
+    } finally {
+      this.guardandoVarios = false;
     }
   }
 

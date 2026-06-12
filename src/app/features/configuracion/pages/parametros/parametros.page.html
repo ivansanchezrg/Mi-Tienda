@@ -145,33 +145,49 @@
         }
       </div>
 
-      <!-- ── SECCIÓN: CAJA (solo si Varios está activa) ──────────────────────────────── -->
-      @if (variosActiva) {
+      <!-- ── SECCIÓN: CAJA VARIOS (potestad del admin — reversible) ──────────────────── -->
       <div class="section-card">
         <div class="section-header">
-          <ion-icon name="wallet-outline"></ion-icon>
-          <span>Cajón diario</span>
+          <ion-icon name="archive-outline"></ion-icon>
+          <span>Caja Varios</span>
         </div>
 
+        <div class="input-group" [class.last]="!variosActiva && !variosTieneCambios">
+          <label class="toggle-row">
+            <span class="input-label">Activar Caja Varios</span>
+            <label class="toggle-switch">
+              <input type="checkbox" [(ngModel)]="variosActiva" [ngModelOptions]="{standalone: true}" [disabled]="guardandoVarios">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          <span class="input-hint">Fondo de emergencia: en cada cierre se aparta un monto fijo del cajón a esta caja. Para desactivarla, su saldo debe estar en $0.</span>
+        </div>
+
+        @if (variosActiva) {
         <div class="input-group last">
-          <label class="input-label">Transferencia diaria a Varios</label>
+          <label class="input-label">Monto diario a separar</label>
           <div class="input-with-prefix">
             <span class="prefix">$</span>
-            <input type="number" inputmode="decimal" step="0.01" min="0"
-              formControlName="caja_varios_transferencia_dia" autocomplete="off">
+            <input type="number" inputmode="decimal" step="0.01" min="0.01"
+              [(ngModel)]="variosMonto" [ngModelOptions]="{standalone: true}"
+              [disabled]="guardandoVarios" autocomplete="off" placeholder="0.00">
           </div>
-          <span class="input-hint">Monto fijo que se transfiere a Varios (fondo emergencia) en cada cierre</span>
+          @if (variosMontoInvalido) {
+          <span style="font-size:11px;color:var(--ion-color-danger);padding:0 2px">Ingresa un monto mayor a $0</span>
+          } @else {
+          <span class="input-hint">Se descuenta del cajón automáticamente al cerrar el día</span>
+          }
         </div>
+        }
 
-        @if (tieneCambios['caja']) {
-        <div id="footer-caja" class="section-footer">
-          <button type="button" class="section-save-btn" [disabled]="guardando['caja']" (click)="guardarSeccion('caja')">
-            @if (guardando['caja']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+        @if (variosTieneCambios) {
+        <div id="footer-varios" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardandoVarios || variosMontoInvalido" (click)="guardarVarios()">
+            @if (guardandoVarios) { <ion-spinner name="crescent"></ion-spinner> } Guardar
           </button>
         </div>
         }
       </div>
-      }
 
       <!-- ── SECCIÓN: MÓDULOS — solo superadmin ──────────────────────────── -->
       @if (esSuperadmin) {
@@ -195,7 +211,7 @@
           <span class="input-hint">Habilita CAJA_CELULAR, historial de recargas y deudas con proveedor.</span>
         </div>
 
-        <div class="input-group">
+        <div class="input-group last">
           <label class="toggle-row">
             <span class="input-label">
               <ion-icon name="bus-outline" style="vertical-align: middle; margin-right: 5px;"></ion-icon>
@@ -208,49 +224,6 @@
           </label>
           <span class="input-hint">Habilita CAJA_BUS, saldo virtual y liquidación de ganancias.</span>
         </div>
-
-        <div class="input-group">
-          <label class="toggle-row">
-            <span class="input-label">
-              <ion-icon name="archive-outline" style="vertical-align: middle; margin-right: 5px;"></ion-icon>
-              Caja Varios
-            </span>
-            <label class="toggle-switch">
-              <input type="checkbox" [(ngModel)]="variosActiva" [ngModelOptions]="{standalone: true}" [disabled]="variosActiva">
-              <span class="toggle-track"></span>
-            </label>
-          </label>
-          <span class="input-hint">Habilita la caja de fondo de emergencia. Una vez activa no se puede desactivar.</span>
-        </div>
-
-        @if (variosActiva) {
-        <div class="input-group last">
-          <label class="input-label">Monto diario a separar</label>
-          <div class="input-with-prefix">
-            <span class="prefix">$</span>
-            <input type="number" inputmode="decimal" step="0.01" min="0.01"
-              [(ngModel)]="variosMonto" [ngModelOptions]="{standalone: true}"
-              autocomplete="off" placeholder="0.00">
-          </div>
-          @if (variosMontoInvalido) {
-          <span style="font-size:11px;color:var(--ion-color-danger);padding:0 2px">Ingresa un monto mayor a $0</span>
-          } @else {
-          <span class="input-hint">Se descuenta del cajón automáticamente al cerrar el día</span>
-          }
-        </div>
-        }
-
-        @if (variosActiva) {
-        <div class="section-footer">
-          @if (guardandoModulos) {
-          <ion-spinner name="crescent" style="width:18px;height:18px;color:var(--ion-color-primary)"></ion-spinner>
-          } @else {
-          <button type="button" class="section-save-btn" (click)="guardarModulos()" [disabled]="variosMontoInvalido">
-            Guardar
-          </button>
-          }
-        </div>
-        }
       </div>
       }
 

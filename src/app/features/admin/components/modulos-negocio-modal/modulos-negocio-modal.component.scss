@@ -50,11 +50,6 @@
     background: rgba(var(--ion-color-warning-rgb), 0.12);
     ion-icon { color: var(--ion-color-warning); }
   }
-
-  &--varios {
-    background: rgba(var(--ion-color-tertiary-rgb), 0.12);
-    ion-icon { color: var(--ion-color-tertiary); }
-  }
 }
 
 .modulo-text {
@@ -115,65 +110,6 @@
   .toggle-btn--on & {
     transform: translateX(20px);
   }
-}
-
-// ── Input monto Varios ──────────────────────────────────────────
-.varios-monto-group {
-  padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-md);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.varios-monto-label {
-  font-size: 12px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--ion-color-medium);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.varios-monto-input {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  background: var(--ion-color-step-50, rgba(var(--ion-color-medium-rgb), 0.06));
-  border: 1.5px solid var(--ion-color-step-150, rgba(var(--ion-color-medium-rgb), 0.2));
-  border-radius: var(--radius-md);
-  padding: 10px var(--spacing-md);
-
-  &:focus-within {
-    border-color: var(--ion-color-tertiary);
-  }
-}
-
-.varios-monto-prefix {
-  font-size: 15px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--ion-color-medium);
-  flex-shrink: 0;
-}
-
-.varios-monto-input input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-size: 15px;
-  color: var(--ion-color-dark);
-  outline: none;
-  min-width: 0;
-
-  &::placeholder { color: var(--ion-color-medium); }
-}
-
-.varios-monto-hint {
-  font-size: 11px;
-  color: var(--ion-color-medium);
-}
-
-.varios-monto-error {
-  font-size: 11px;
-  color: var(--ion-color-danger);
 }
 
 // ── Tipo de comprobante ────────────────────────────────────────────────────────

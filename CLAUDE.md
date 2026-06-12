@@ -8,12 +8,12 @@ Contexto rápido del proyecto para IAs. Lee esto antes de cualquier tarea.
 
 App de gestión para tiendas minoristas. Maneja caja (hasta **5 cajas** físicas/virtuales: CAJA, CAJA_CHICA, VARIOS, CAJA_CELULAR, CAJA_BUS), ventas POS, recargas de saldo celular/bus e inventario.
 
-Un negocio recién creado tiene solo **3 cajas base** (CAJA, CAJA_CHICA, VARIOS). VARIOS, CAJA_CELULAR y CAJA_BUS son **opt-in por negocio**:
+Un negocio recién creado tiene solo **2 cajas base** (CAJA, CAJA_CHICA). VARIOS, CAJA_CELULAR y CAJA_BUS son **opt-in por negocio**:
 
-- **VARIOS** — opcional desde el onboarding (toggle "Activar Caja Varios"). Si no se activó en el onboarding, solo el superadmin puede activarla después desde Parámetros → Módulos. Una vez activa **no se puede desactivar**. Flag: `caja_varios_activa`.
+- **VARIOS** — opcional desde el onboarding (radio cards "Caja Varios"). Desde 2026-06-11 es **potestad del ADMIN del negocio** (antes superadmin): la activa/desactiva cuando quiera desde Parámetros → Caja Varios via `fn_configurar_caja_varios`. **Reversible** — desactivar exige saldo $0 (salvaguarda) y oculta la caja con `cajas.activo = FALSE` conservando su historial. Flag: `caja_varios_activa` (siempre en sync con `cajas.activo` de la fila VARIOS).
 - **CAJA_CELULAR / CAJA_BUS** — solo el superadmin las habilita por negocio desde Parámetros → Módulos (sección visible únicamente para superadmin). Cada una es independiente. Flags: `recargas_celular_habilitada`, `recargas_bus_habilitada`.
 
-Funciones SQL involucradas: `fn_completar_onboarding` (3 cajas + Varios opcional), `fn_configurar_modulos` (superadmin, desde negocio), `fn_configurar_modulos_admin` (superadmin, desde `/admin`).
+Funciones SQL involucradas: `fn_completar_onboarding` (2 cajas base + Varios opcional), `fn_configurar_caja_varios` (admin del negocio, Varios), `fn_configurar_modulos` (superadmin, celular/bus desde negocio), `fn_configurar_modulos_admin` (superadmin, celular/bus desde `/admin`).
 
 **Es una SaaS multi-tenant y multiplataforma** — no es un e-commerce. Es una herramienta interna de administración que puede servir a múltiples negocios independientes desde una sola instancia.
 
@@ -899,7 +899,7 @@ PERFORM public.fn_assert_no_superadmin();
 La función helper está en `docs/setup/fn_assert_no_superadmin.sql` y debe ejecutarse en Supabase **antes** que cualquier función de mutación. Lanza `RAISE EXCEPTION` internamente — esa excepción burbujea automáticamente y aborta la función llamante, independientemente de si retorna `void`, `JSON` o `TABLE`.
 
 **Funciones que SÍ deben bloquearse** — toda función que toque caja, ventas, inventario, clientes, recargas, nómina o notas:
-`fn_abrir_turno`, `fn_ejecutar_cierre_diario_v5`, `fn_registrar_operacion_manual`, `fn_crear_transferencia`, `fn_reparar_deficit_turno`, `fn_registrar_venta_pos`, `fn_anular_venta`, `fn_ajustar_stock_inventario`, `fn_crear_producto_simple`, `fn_crear_producto_con_variantes`, `fn_registrar_pago_fiado`, `fn_registrar_recarga_proveedor_celular`, `fn_registrar_pago_proveedor_celular`, `fn_registrar_compra_saldo_bus`, `fn_liquidar_ganancias_bus`, `fn_registrar_adelanto_sueldo`, `fn_pagar_nomina_empleado`, `fn_eliminar_nota`.
+`fn_abrir_turno`, `fn_ejecutar_cierre_diario_v5`, `fn_registrar_operacion_manual`, `fn_crear_transferencia`, `fn_reparar_deficit_turno`, `fn_registrar_venta_pos`, `fn_anular_venta`, `fn_ajustar_stock_inventario`, `fn_crear_producto_simple`, `fn_crear_producto_con_variantes`, `fn_registrar_pago_fiado`, `fn_registrar_recarga_proveedor_celular`, `fn_registrar_pago_proveedor_celular`, `fn_registrar_compra_saldo_bus`, `fn_liquidar_ganancias_bus`, `fn_registrar_adelanto_sueldo`, `fn_pagar_nomina_empleado`, `fn_eliminar_nota`, `fn_configurar_caja_varios`.
 
 **Funciones que NO se bloquean** — funciones de setup/admin que el superadmin usa deliberadamente:
 `fn_configurar_modulos`, `fn_configurar_modulos_admin`, `fn_suspender_usuario`, `fn_actualizar_membresia`, `fn_transferir_empleado`, `fn_set_negocio_activo`, `fn_completar_onboarding`, `fn_suspender_negocio`.
@@ -1133,6 +1133,7 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 > No renombrar los códigos de BD. Solo los labels de UI difieren.
 > **v5 (2026-03-06):** `CAJA_CHICA` es ahora el cajón físico diario. `VARIOS` es el fondo de emergencia (antes era `CAJA_CHICA` en BD).
 > **2026-05-01:** VARIOS pasa a opt-in. CELULAR/BUS solo se crean si el superadmin habilita el módulo en Parámetros → Módulos. Las funciones SQL del cierre ya manejan el caso "Varios desactivada" (`caja_varios_activa = false` → `transferencia_diaria = 0` en cascada).
+> **2026-06-11:** VARIOS pasa a potestad del ADMIN del negocio — activable/desactivable desde Parámetros → Caja Varios (`fn_configurar_caja_varios`, reversible). Desactivar exige saldo $0 y pone `cajas.activo = FALSE` (oculta sin borrar historial). El superadmin ya no gestiona Varios.
 > **v6.3 (2026-05-30):** `fn_ejecutar_cierre_diario` simplificó la distribución — todo el efectivo se deposita al cerrar, sin retener el fondo en el cajón. El fondo del próximo turno lo declara el empleado al abrir (`turnos_caja.fondo_apertura`).
 
 ---

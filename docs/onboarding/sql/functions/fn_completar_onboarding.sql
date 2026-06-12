@@ -55,11 +55,14 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    v_negocio_id          UUID;
-    v_usuario_id          UUID;          -- usuario admin del nuevo negocio
-    v_propietario_id      UUID;          -- usuario dueño/propietario del nuevo negocio
-    v_propietario_email   VARCHAR;       -- email normalizado del propietario
+    v_negocio_id           UUID;
+    v_usuario_id           UUID;          -- usuario admin del nuevo negocio
+    v_propietario_id       UUID;          -- usuario dueño/propietario del nuevo negocio
+    v_propietario_email    VARCHAR;       -- email normalizado del propietario
     v_caller_es_superadmin BOOLEAN;
+    v_slug_base            VARCHAR;
+    v_slug                 VARCHAR;
+    v_slug_n               INT;
 BEGIN
     -- ── Validaciones ──
     IF TRIM(p_nombre_negocio) = '' OR p_nombre_negocio IS NULL THEN
@@ -127,13 +130,22 @@ BEGIN
     END IF;
 
     -- ── 3. Negocio ──
+    -- Generar slug único: si "tienda-ivan" ya existe → "tienda-ivan-2", "tienda-ivan-3", etc.
+    v_slug_base := TRIM(BOTH '-' FROM REGEXP_REPLACE(LOWER(TRIM(p_nombre_negocio)), '[^a-z0-9]+', '-', 'g'));
+    v_slug      := v_slug_base;
+    v_slug_n    := 2;
+    WHILE EXISTS (SELECT 1 FROM negocios WHERE slug = v_slug) LOOP
+        v_slug   := v_slug_base || '-' || v_slug_n;
+        v_slug_n := v_slug_n + 1;
+    END LOOP;
+
     -- nombre, telefono y direccion son fuente de verdad en negocios (no en configuraciones).
     v_negocio_id := gen_random_uuid();
     INSERT INTO negocios (id, nombre, slug, telefono, direccion, correo_electronico, propietario_usuario_id)
     VALUES (
         v_negocio_id,
         TRIM(p_nombre_negocio),
-        TRIM(BOTH '-' FROM REGEXP_REPLACE(LOWER(TRIM(p_nombre_negocio)), '[^a-z0-9]+', '-', 'g')),
+        v_slug,
         NULLIF(TRIM(COALESCE(p_negocio_telefono, '')), ''),
         NULLIF(TRIM(COALESCE(p_negocio_direccion, '')), ''),
         NULLIF(TRIM(COALESCE(p_negocio_correo, '')), ''),

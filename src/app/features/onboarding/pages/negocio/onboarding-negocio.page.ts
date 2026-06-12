@@ -164,9 +164,9 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
   }
 
   get subtitulo(): string {
-    if (this.mode === 'inicial')         return 'Cuéntanos cómo se llama tu negocio. Te toma menos de un minuto.';
-    if (this.mode === 'sucursal-admin')  return 'Configura los datos de tu nueva sucursal.';
-    return 'Datos del negocio y del administrador que lo gestionará.';
+    if (this.mode === 'inicial')         return '¿Cómo se llama tu negocio? Con eso es suficiente para empezar.';
+    if (this.mode === 'sucursal-admin')  return 'Dale un nombre a tu nueva sucursal. El resto lo configuras después.';
+    return 'Ingresa el nombre del negocio y el email del administrador que lo va a gestionar.';
   }
 
   /** Pasos del wizard: inicial tiene 3 (incluye la pantalla educativa), sucursal 2. */
@@ -184,9 +184,9 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
 
   get infoBannerDescripcion(): string {
     if (this.mode === 'sucursal-superadmin') {
-      return 'Este negocio tendrá su propio administrador, caja, inventario y empleados, totalmente independiente.';
+      return 'Este negocio tendrá su propio administrador, caja, inventario y empleados — completamente independiente de los demás.';
     }
-    return 'La sucursal funcionará de forma independiente: caja, inventario y empleados propios, separados del negocio actual.';
+    return 'La nueva sucursal funciona de forma independiente: tiene su propia caja, inventario y equipo, separados del negocio actual.';
   }
 
   get errorNombre(): string | null {

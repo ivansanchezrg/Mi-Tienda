@@ -252,14 +252,15 @@ export class AdminDashboardPage implements OnInit {
     });
 
     await modal.present();
-    const { data, role } = await modal.onDidDismiss<{ celular: boolean; bus: boolean; varios: boolean; varios_monto: number; tipo_comprobante: 'TICKET' | 'NOTA_VENTA' | 'FACTURA' }>();
+    const { data, role } = await modal.onDidDismiss<{ celular: boolean; bus: boolean; tipo_comprobante: 'TICKET' | 'NOTA_VENTA' | 'FACTURA' }>();
 
     if (role === 'confirm' && data) {
+      // Varios ya no se gestiona desde aquí (potestad del admin del negocio) —
+      // su valor leído de BD se conserva solo como dato informativo del resumen.
       negocio.modulos = {
+        ...negocio.modulos,
         celular:          data.celular,
         bus:              data.bus,
-        varios:           data.varios,
-        varios_monto:     data.varios_monto ?? 0,
         tipo_comprobante: data.tipo_comprobante ?? 'TICKET'
       };
     }

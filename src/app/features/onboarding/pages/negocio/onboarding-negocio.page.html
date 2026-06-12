@@ -88,13 +88,13 @@
                   }
                 </ul>
                 <span class="negocios-existentes-footer">
-                  {{ negociosExistentes.length === 1 ? 'La nueva sucursal se sumará al actual.' : 'La nueva sucursal se sumará a los anteriores.' }}
+                  {{ negociosExistentes.length === 1 ? 'El nuevo negocio se agregará a ese.' : 'El nuevo negocio se agregará a los existentes.' }}
                 </span>
               } @else {
                 <span class="negocios-existentes-titulo">
-                  {{ nombreEncontrado }} aún no tiene ningún negocio activo.
+                  {{ nombreEncontrado }} aún no tiene negocios registrados.
                 </span>
-                <span class="negocios-existentes-footer">Este será su primer negocio en la plataforma.</span>
+                <span class="negocios-existentes-footer">Este será su primer negocio en el sistema.</span>
               }
             </div>
           } @else if (verificacion === 'nuevo') {

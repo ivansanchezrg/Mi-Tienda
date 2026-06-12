@@ -25,7 +25,7 @@
           Caja Varios
           <span class="varios-badge">Opcional</span>
         </span>
-        <p class="varios-desc">Cada noche al cerrar, se aparta automáticamente un monto que tú defines para imprevistos, vueltos o compras urgentes. El dinero queda en una caja separada, visible en tu dashboard.</p>
+        <p class="varios-desc">Al cerrar cada turno, el sistema aparta automáticamente el monto que definas. El dinero queda en una caja separada, visible en tu dashboard.</p>
 
         <div class="varios-cards" role="radiogroup" aria-label="Caja Varios">
           <div class="varios-card" role="radio" tabindex="0"
@@ -40,7 +40,7 @@
               </div>
               <div class="varios-card-body">
                 <strong>Sí, quiero separar un fondo</strong>
-                <span>Recomendado para tiendas con gastos frecuentes</span>
+                <span>Ideal para cubrir gastos inesperados sin tocar la caja principal</span>
               </div>
               @if (usaVarios) {
                 <ion-icon name="checkmark-circle" class="varios-card-check"></ion-icon>
@@ -66,7 +66,7 @@
                 @if (variosMontoError) {
                   <span class="field-error">Ingresa un monto mayor a $0.</span>
                 } @else {
-                  <span class="field-hint">Este monto se descuenta del cajón automáticamente al cerrar el día. Una vez activada, la caja no se puede desactivar.</span>
+                  <span class="field-hint">Este monto se descuenta del Cajón automáticamente al cerrar cada turno. Puedes cambiarlo o desactivarlo cuando quieras desde Parámetros.</span>
                 }
               </div>
             }
@@ -82,7 +82,7 @@
               </div>
               <div class="varios-card-body">
                 <strong>Ahora no</strong>
-                <span>Si la necesitas después, se activa con ayuda de soporte</span>
+                <span>Podrás activarla cuando quieras desde Parámetros</span>
               </div>
               @if (!usaVarios) {
                 <ion-icon name="checkmark-circle" class="varios-card-check"></ion-icon>

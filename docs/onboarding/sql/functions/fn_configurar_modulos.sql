@@ -5,25 +5,27 @@
 -- Idempotente: crea cajas/categorías si no existen (ON CONFLICT DO NOTHING).
 -- Opera sobre el negocio activo del JWT — no acepta negocio_id externo.
 --
+-- 2026-06-11: la Caja Varios ya NO se gestiona aquí — pasó a potestad del
+-- ADMIN del negocio via fn_configurar_caja_varios (reversible, con salvaguarda
+-- de saldo). Esta función queda solo para los módulos de plataforma
+-- CELULAR y BUS. Firma anterior (con p_varios) eliminada.
+--
 -- Parámetros:
---   p_celular       BOOLEAN        — true = activar, false = desactivar
---   p_bus           BOOLEAN        — true = activar, false = desactivar
---   p_varios        BOOLEAN        — true = activar (irreversible), false = sin cambio
---   p_varios_monto  DECIMAL(12,2)  — monto diario a transferir a VARIOS al cierre (requerido si p_varios = true)
+--   p_celular  BOOLEAN  — true = activar, false = desactivar
+--   p_bus      BOOLEAN  — true = activar, false = desactivar
 --
 -- Retorna: JSON con { success }
 -- =============================================================================
 
--- Eliminar función anterior (firma de 2 y 3 parámetros con nombre viejo, y firma sin monto)
+-- Eliminar firmas anteriores
 DROP FUNCTION IF EXISTS public.fn_habilitar_recargas(BOOLEAN, BOOLEAN);
 DROP FUNCTION IF EXISTS public.fn_habilitar_recargas(BOOLEAN, BOOLEAN, BOOLEAN);
 DROP FUNCTION IF EXISTS public.fn_configurar_modulos(BOOLEAN, BOOLEAN, BOOLEAN);
+DROP FUNCTION IF EXISTS public.fn_configurar_modulos(BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL);
 
 CREATE OR REPLACE FUNCTION public.fn_configurar_modulos(
-    p_celular      BOOLEAN,
-    p_bus          BOOLEAN,
-    p_varios       BOOLEAN          DEFAULT FALSE,
-    p_varios_monto DECIMAL(12,2)    DEFAULT 0
+    p_celular BOOLEAN,
+    p_bus     BOOLEAN
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -70,39 +72,18 @@ BEGIN
         ON CONFLICT (negocio_id, clave) DO NOTHING;
     END IF;
 
-    -- ── Módulo VARIOS (irreversible: solo se activa, nunca se desactiva) ──
-    IF p_varios THEN
-        IF p_varios_monto IS NULL OR p_varios_monto <= 0 THEN
-            RAISE EXCEPTION 'Para activar Caja Varios debés indicar un monto diario mayor a $0';
-        END IF;
-
-        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno, icono, color)
-        VALUES (v_negocio_id, 'VARIOS', 'Varios', 'Fondo de emergencia', 0, FALSE, 'archive-outline', '#7044ff')
-        ON CONFLICT (negocio_id, codigo) DO NOTHING;
-    END IF;
-
     -- ── Flags de configuración ──
     INSERT INTO configuraciones (negocio_id, clave, valor) VALUES
     (v_negocio_id, 'recargas_celular_habilitada', p_celular::TEXT),
     (v_negocio_id, 'recargas_bus_habilitada',     p_bus::TEXT)
     ON CONFLICT (negocio_id, clave) DO UPDATE SET valor = EXCLUDED.valor;
 
-    IF p_varios THEN
-        INSERT INTO configuraciones (negocio_id, clave, valor)
-        VALUES (v_negocio_id, 'caja_varios_activa', 'true')
-        ON CONFLICT (negocio_id, clave) DO UPDATE SET valor = 'true';
-
-        INSERT INTO configuraciones (negocio_id, clave, valor)
-        VALUES (v_negocio_id, 'caja_varios_transferencia_dia', p_varios_monto::TEXT)
-        ON CONFLICT (negocio_id, clave) DO UPDATE SET valor = EXCLUDED.valor;
-    END IF;
-
     RETURN json_build_object('success', TRUE);
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.fn_configurar_modulos(BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.fn_configurar_modulos(BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL) FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.fn_configurar_modulos(BOOLEAN, BOOLEAN, BOOLEAN, DECIMAL) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_configurar_modulos(BOOLEAN, BOOLEAN) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.fn_configurar_modulos(BOOLEAN, BOOLEAN) FROM authenticated;
+GRANT  EXECUTE ON FUNCTION public.fn_configurar_modulos(BOOLEAN, BOOLEAN) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

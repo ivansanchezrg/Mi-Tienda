@@ -349,8 +349,16 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       ? this.formatearFecha(new Date(dashboard.estadoCaja.fechaUltimoCierre + 'T00:00:00'))
       : 'Hoy es tu primer turno';
 
+    // Resincronizar turnoActivo$ si el servidor reporta un turno activo pero el
+    // BehaviorSubject está vacío — ocurre cuando inicializarEstadoReactivo() falló
+    // sin red (cold start offline) y la primera carga exitosa llega después.
+    const turnoServidor = dashboard.estadoCaja.turnoActivo ?? null;
+    if (turnoServidor && !this.turnosCajaService.turnoActivoValue) {
+      this.turnosCajaService.sincronizarTurnoDesdeHome(turnoServidor);
+    }
+
     // Flags de visibilidad — fuente de verdad correcta por módulo:
-    //   VARIOS:   existencia real en BD (irreversible; si está en el array → activa)
+    //   VARIOS:   cajas.activo en BD (reversible via fn_configurar_caja_varios)
     //   CELULAR/BUS: flag de configuraciones (puede existir en BD pero estar desactivada)
     this.variosActiva              = dashboard.modulos.variosActiva;
     this.recargasCelularHabilitada = dashboard.modulos.celularHabilitada;

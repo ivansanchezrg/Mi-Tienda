@@ -231,7 +231,9 @@ BEGIN
 
     -- ════════════════════════════════════════════════════════════════
     -- 5. FLAGS DE MÓDULOS — fuente de verdad para visibilidad de cards
-    --    VARIOS:        existencia de la caja (es irreversible; si existe → activa)
+    --    VARIOS:        cajas.activo = TRUE (reversible desde 2026-06-11 via
+    --                   fn_configurar_caja_varios; desactivar pone activo = FALSE
+    --                   conservando el historial)
     --    CAJA_CELULAR:  flag recargas_celular_habilitada (puede estar en BD pero desactivada)
     --    CAJA_BUS:      flag recargas_bus_habilitada     (igual que celular)
     -- ════════════════════════════════════════════════════════════════
@@ -264,7 +266,7 @@ BEGIN
             ) c
         ), '[]'::JSON),
         'modulos', json_build_object(
-            -- VARIOS: existencia real de la caja (irreversible — si existe, está activa)
+            -- VARIOS: caja existente y activa (reversible via fn_configurar_caja_varios)
             'varios_activa', EXISTS (
                 SELECT 1 FROM cajas
                 WHERE negocio_id = v_negocio_id AND codigo = 'VARIOS' AND activo = TRUE
@@ -290,8 +292,8 @@ NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_home_dashboard IS
 'v1.4 — Agrega modulos: flags de visibilidad con fuente de verdad correcta por caja.
-VARIOS: existencia real en BD (irreversible). CELULAR/BUS: flag en configuraciones
-(pueden existir en BD pero estar desactivadas via fn_configurar_modulos).
+VARIOS: cajas.activo = TRUE (reversible via fn_configurar_caja_varios desde 2026-06-11).
+CELULAR/BUS: flag en configuraciones (pueden existir en BD pero estar desactivadas).
 v1.3 — Agrega saldos_cajas: lista completa de cajas activas. cargarDatos() del
 Home es la unica fuente de verdad sin depender del timing del Realtime.
 v1.2 — Movimientos: JOIN a categorias_sistema para mostrar nombre correcto.

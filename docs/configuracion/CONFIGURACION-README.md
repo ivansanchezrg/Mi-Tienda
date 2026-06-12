@@ -58,8 +58,8 @@ Prefijo por modulo seguido de guion bajo:
 
 | Clave | Tipo | Default | Descripcion |
 |-------|------|---------|-------------|
-| `caja_varios_activa` | boolean | `false` | Si la caja VARIOS esta activa para este negocio. Una vez `true` no se puede revertir. |
-| `caja_varios_transferencia_dia` | number | `0` | Transferencia diaria a caja VARIOS ($) — solo aplica si `caja_varios_activa = true` |
+| `caja_varios_activa` | boolean | `false` | Si la caja VARIOS esta activa para este negocio. Reversible: el ADMIN la activa/desactiva via `fn_configurar_caja_varios` (desactivar exige saldo $0). |
+| `caja_varios_transferencia_dia` | number | `0` | Transferencia diaria a caja VARIOS ($) — solo aplica si `caja_varios_activa = true`. Se conserva al desactivar para facilitar reactivacion. |
 | `recargas_celular_habilitada` | boolean | `false` | Habilita el modulo de recargas CELULAR (crea CAJA_CELULAR + categorias). Solo lo activa el superadmin. |
 | `recargas_bus_habilitada` | boolean | `false` | Habilita el modulo de recargas BUS (crea CAJA_BUS + categorias). Solo lo activa el superadmin. |
 | `bus_alerta_saldo_bajo` | number | `10` | Umbral de alerta saldo bajo bus ($) |
@@ -164,7 +164,7 @@ Formulario reactivo (`FormGroup`) agrupado en secciones visuales. Cada seccion (
 |---------|-------|--------|--------|-------------|
 | Negocio | `storefront-outline` | Nombre, Telefono, Direccion, Correo | tabla `negocios` | Todos |
 | Datos SRI | `document-text-outline` | RUC, Razon social, Nombre comercial, Cod. establecimiento, Cod. punto emision, Ambiente SRI, Obligado contabilidad | tabla `negocios` | Todos |
-| Caja | `wallet-outline` | Transferencia diaria a Varios | tabla `configuraciones` | Solo si `caja_varios_activa = true` |
+| Caja Varios | `archive-outline` | Toggle activar/desactivar + Monto diario a separar | RPC `fn_configurar_caja_varios` | Todos (la BD exige rol ADMIN y bloquea superadmin) |
 | Modulos | `apps-outline` | Toggles: Recargas Celular, Recargas Bus | tabla `configuraciones` | **Solo superadmin** |
 | Bus | `bus-outline` | Alerta saldo bajo, Dias antes facturacion | tabla `configuraciones` | Solo si `recargas_bus_habilitada` |
 | POS | `cart-outline` | Descuentos, Porcentaje, Monto minimo, IVA | tabla `configuraciones` | Todos |
@@ -172,7 +172,8 @@ Formulario reactivo (`FormGroup`) agrupado en secciones visuales. Cada seccion (
 
 **Comportamiento condicional de secciones**:
 - POS: `pos_descuentos_habilitados = OFF` → oculta los campos de porcentaje y monto minimo. El campo IVA siempre es visible.
-- Modulos: los toggles de cada modulo (Celular, Bus, Varios) llaman directamente a `fn_configurar_modulos` (sin boton Guardar). La funcion crea las cajas y categorias solo del modulo activado y actualiza los flags correspondientes.
+- Modulos: los toggles de cada modulo (Celular, Bus) llaman directamente a `fn_configurar_modulos` (sin boton Guardar). La funcion crea las cajas y categorias solo del modulo activado y actualiza los flags correspondientes.
+- Caja Varios (2026-06-11 — potestad del admin, antes del superadmin): estado staged — el toggle y el monto se aplican al pulsar Guardar via `fn_configurar_caja_varios`. Desactivar pide confirmacion (`AlertController`); si la caja tiene saldo > 0 la BD bloquea con mensaje claro (toast) y el toggle se revierte. Activar exige monto > 0.
 - Bus: la seccion entera depende de `recargas_bus_habilitada`. Si esta OFF, no aparece.
 
 **Flujo de guardado por seccion:**
@@ -274,7 +275,8 @@ Setup ejecutado una sola vez: [`sql/setup/realtime_configuraciones.sql`](./sql/s
 | Funcion | Donde vive | Quien puede ejecutarla | Que hace |
 |---------|-----------|------------------------|----------|
 | `fn_completar_onboarding` | `docs/onboarding/sql/functions/` | Cualquier authenticated (con email propio) o superadmin | Crea negocio + 3 cajas base (CAJA, CAJA_CHICA, VARIOS opcional) + categorias + configuraciones iniciales en una sola transaccion. |
-| `fn_configurar_modulos` | `docs/onboarding/sql/functions/` | Solo superadmin (desde dentro del negocio) | Habilita los modulos CELULAR, BUS y/o VARIOS. Crea las cajas y categorias del modulo activado y actualiza los flags. Parametros: `p_celular BOOLEAN`, `p_bus BOOLEAN`, `p_varios BOOLEAN`. |
+| `fn_configurar_caja_varios` | `docs/configuracion/sql/functions/` | Solo ADMIN del negocio (superadmin bloqueado) | Activa/desactiva la Caja Varios (reversible). Activar: crea o reactiva la caja + flag + monto. Desactivar: exige saldo $0 y pone `cajas.activo = FALSE` conservando historial. Parametros: `p_activar BOOLEAN`, `p_monto DECIMAL`. |
+| `fn_configurar_modulos` | `docs/onboarding/sql/functions/` | Solo superadmin (desde dentro del negocio) | Habilita los modulos CELULAR y/o BUS. Crea las cajas y categorias del modulo activado y actualiza los flags. Parametros: `p_celular BOOLEAN`, `p_bus BOOLEAN`. |
 | `fn_configurar_modulos_admin` | `docs/admin/sql/functions/` | Solo superadmin (desde `/admin`) | Igual que `fn_configurar_modulos` pero opera sobre un negocio especificado por parametro, sin necesitar JWT del negocio. |
 
 > Los flags `recargas_celular_habilitada`, `recargas_bus_habilitada` y `caja_varios_activa` se leen via `ConfigService.get()` desde el dashboard, sidebar, paginas de recargas e historial para ocultar UI y saltear queries de modulos inactivos.

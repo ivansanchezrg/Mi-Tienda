@@ -282,12 +282,14 @@ Superadmin:
 
 **Archivo:** `docs/onboarding/sql/functions/fn_configurar_modulos.sql`
 
-Habilita los módulos opcionales `CAJA_CELULAR`, `CAJA_BUS` y/o `VARIOS` para un negocio existente. Solo el superadmin puede ejecutarla. Se llama desde Parámetros → Módulos en el panel del negocio.
+Habilita los módulos opcionales `CAJA_CELULAR` y/o `CAJA_BUS` para un negocio existente. Solo el superadmin puede ejecutarla. Se llama desde Parámetros → Módulos en el panel del negocio.
 
-**Parámetros:** `p_celular BOOLEAN`, `p_bus BOOLEAN`, `p_varios BOOLEAN`
+> **2026-06-11:** la Caja Varios ya no se gestiona aquí — pasó a potestad del ADMIN del negocio via `fn_configurar_caja_varios` (Parámetros → Caja Varios; reversible, con salvaguarda de saldo $0). Ver `docs/configuracion/sql/functions/fn_configurar_caja_varios.sql`.
+
+**Parámetros:** `p_celular BOOLEAN`, `p_bus BOOLEAN`
 
 - Crea la caja física (`cajas`) si no existe
-- Actualiza las configuraciones `recargas_celular_habilitada`, `recargas_bus_habilitada`, `caja_varios_activa` según corresponda
+- Actualiza las configuraciones `recargas_celular_habilitada` y `recargas_bus_habilitada`
 
 ---
 
@@ -314,7 +316,7 @@ Los módulos los leen via `ConfigService.get()`.
 
 | Clave | Valor inicial | Quién puede cambiarla después |
 |-------|--------------|-------------------------------|
-| `caja_varios_activa` | Toggle del wizard | Solo superadmin via `fn_configurar_modulos` / `fn_configurar_modulos_admin` (una vez activa, no se puede desactivar) |
+| `caja_varios_activa` | Toggle del wizard | Admin del negocio via `fn_configurar_caja_varios` (Parámetros → Caja Varios; reversible — desactivar exige saldo $0) |
 | `caja_varios_transferencia_dia` | Monto del wizard (o 0) | Admin en Parámetros |
 | `recargas_celular_habilitada` | `false` | Solo superadmin via `fn_configurar_modulos` / `fn_configurar_modulos_admin` |
 | `recargas_bus_habilitada` | `false` | Solo superadmin via `fn_configurar_modulos` / `fn_configurar_modulos_admin` |
