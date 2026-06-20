@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { suscripcionGuard } from './core/guards/suscripcion.guard';
 
 export const routes: Routes = [
   {
@@ -21,8 +22,18 @@ export const routes: Routes = [
     loadChildren: () => import('./features/crear-negocio/crear-negocio.routes').then(m => m.CREAR_NEGOCIO_ROUTES)
   },
   {
-    path: '',
+    // Pantalla de suscripcion: bloqueo "Suscribete" (vencida) + vista "Mi Plan".
+    // Fuera del layout (sin tab bar/sidebar) y SIN suscripcionGuard — es el destino
+    // del bloqueo, protegerla con ese guard causaria un loop infinito.
+    path: 'suscripcion',
     canActivate: [authGuard],
+    loadChildren: () => import('./features/suscripcion/suscripcion.routes').then(m => m.SUSCRIPCION_ROUTES)
+  },
+  {
+    // La app del negocio: authGuard (sesion) + suscripcionGuard (cobro al dia).
+    // Si la suscripcion esta bloqueada, suscripcionGuard redirige a /suscripcion.
+    path: '',
+    canActivate: [authGuard, suscripcionGuard],
     loadChildren: () => import('./features/layout/layout.routes').then(m => m.LAYOUT_ROUTES)
   }
 ];

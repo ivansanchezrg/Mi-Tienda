@@ -79,6 +79,17 @@
 
 ---
 
+### Bloqueo técnico por dispositivo y multisucursal según plan (plan MAX)
+- **Qué:** el plan MAX muestra bloques visuales de Multisucursal, Multiplataforma e IA como marketing puro — sin bloqueo técnico real. Implementar cuando MAX esté en producción con clientes reales:
+  - **Multiplataforma:** detectar `Capacitor.isNativePlatform()`, verificar feature key `movil: true` en `planes.features`, redirigir a suscripción si no la tiene.
+  - **Multisucursal:** agregar campo `max_negocios` a tabla `planes`, validar en `fn_completar_onboarding` que `COUNT(negocios del propietario) < max_negocios`, y ocultar "Nueva sucursal" en el sidebar si se alcanzó el límite.
+  - **IA:** feature key `ia: true` ya en el JSON de features; implementar cuando el módulo esté construido.
+- **Archivos:** `suscripcion.guard.ts`, `suscripcion.service.ts` (`tieneFeature()`), `suscripcion.page.html` (bloques `susc-plan__extra-bloque`), `fn_completar_onboarding.sql`, `selector-negocio-modal.component.ts`, seed de `planes`.
+- **Detalle:** `docs/PLAN-PLANES-SUSCRIPCION.md` §Restricción por dispositivo.
+- Origen: 2026-06-15 (bloques visuales implementados; bloqueo técnico diferido hasta tener plan MAX en producción).
+
+---
+
 ## 🔵 Punteros a pendientes documentados en otros archivos
 
 | Tema | Dónde está el detalle |

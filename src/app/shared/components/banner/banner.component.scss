@@ -1,0 +1,95 @@
+:host {
+  display: block;
+}
+
+// La franja del safe-area superior (status bar de Android) la reserva el consumidor
+// togglando una clase en <body> (ej: offline-banner-visible). Ver app.component.scss.
+
+.app-banner {
+  // Flujo normal (no fixed): empuja el contenido vía el flex de ion-app, no se monta encima.
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+
+  min-height: 44px;
+  box-sizing: border-box;
+  padding-left: var(--spacing-lg);
+  padding-right: var(--spacing-lg);
+
+  font-size: 13px;
+  font-weight: var(--font-weight-medium);
+
+  animation: bannerSlideDown var(--transition-slow) ease-out;
+
+  ion-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  // Variantes de color (semánticas)
+  &--warning {
+    background: var(--ion-color-warning);
+    color: var(--ion-color-warning-contrast);
+  }
+
+  &--primary {
+    background: var(--ion-color-primary);
+    color: var(--ion-color-primary-contrast);
+  }
+
+  &--danger {
+    background: var(--ion-color-danger);
+    color: var(--ion-color-danger-contrast);
+  }
+
+  &--success {
+    background: var(--ion-color-success);
+    color: var(--ion-color-success-contrast);
+  }
+
+  &--clickeable {
+    cursor: pointer;
+  }
+
+  &__texto {
+    text-align: center;
+  }
+
+  &__accion {
+    flex-shrink: 0;
+    margin-left: var(--spacing-sm);
+    // CTA descubrible: fondo blanco sólido + texto del color del banner = botón
+    // inconfundible sobre cualquier variante de color, sin parecer texto plano.
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #fff;
+    color: var(--banner-accion-color, var(--ion-color-dark));
+    border: none;
+    border-radius: 999px;          // pill
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: var(--font-weight-semibold);
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  }
+
+  // El texto del botón toma el color del banner (contraste garantizado con el fondo blanco).
+  &--warning &__accion { --banner-accion-color: var(--ion-color-warning-shade); }
+  &--primary &__accion { --banner-accion-color: var(--ion-color-primary-shade); }
+  &--danger  &__accion { --banner-accion-color: var(--ion-color-danger-shade); }
+  &--success &__accion { --banner-accion-color: var(--ion-color-success-shade); }
+}
+
+@keyframes bannerSlideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

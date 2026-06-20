@@ -18,20 +18,24 @@ El superadmin es el único rol que puede:
 
 ---
 
+> **Panel con tabs internas (refactor 2026-06-13):** `/admin` ya no es una sola página. Tiene 4 tabs internas (patrón chrome-tabs, rutas planas, `AdminTabsComponent` detecta la activa por `NavigationEnd`): **Negocios** (lo de este README) · **Suscripciones** · **Planes** · **Cobro**. Las 3 últimas son del módulo de monetización — ver [SUSCRIPCION-README.md](../suscripcion/SUSCRIPCION-README.md). Cada página incluye `<app-admin-tabs>` en su header y está protegida por `superadminGuard`.
+
 ## Estructura de archivos
 
 ```
 features/admin/
+├── components/
+│   └── admin-tabs/                 ← AdminTabsComponent (tabs internas del panel)
 └── pages/
-    └── dashboard/
-        ├── admin-dashboard.page.ts    ← lógica completa
-        ├── admin-dashboard.page.html  ← listado + cards
-        └── admin-dashboard.page.scss  ← estilos
+    └── negocios/
+        ├── admin-negocios.page.ts    ← lógica completa (clase AdminNegociosPage)
+        ├── admin-negocios.page.html  ← listado + cards
+        └── admin-negocios.page.scss  ← estilos
+        (tabs suscripciones/planes/configuracion → SUSCRIPCION-README.md)
 
 docs/admin/
 └── sql/
     ├── functions/
-    │   ├── fn_suspender_usuario.sql         ← suspender/reactivar un usuario globalmente
     │   └── fn_consultar_usuario_por_email.sql
     └── setup/
         └── realtime_negocios.sql            ← habilitar Realtime en tabla negocios
@@ -40,7 +44,7 @@ docs/setup/
 └── 03_functions.sql   ← contiene fn_set_negocio_activo (bloquea si negocio/usuario suspendido)
 ```
 
-> **Nota:** `fn_suspender_negocio` no tiene archivo propio — la suspensión de negocios se ejecuta como UPDATE directo sobre la tabla `negocios` desde `AdminDashboardPage` via query directa `supabase.client.from('negocios').update(...)`. Solo `fn_suspender_usuario` requiere función SQL por las protecciones adicionales (no auto-suspensión, no suspender otro superadmin).
+> **Nota (2026-06-16):** la suspensión de propietarios ya NO se hace con `fn_suspender_usuario` (eliminada — ponía `usuarios.activo = false`, muro seco). Ahora es **por cobro**: `fn_suspender_propietario_suscripcion` (módulo suscripción) marca `SUSPENDIDA` la suscripción de todos los negocios del propietario, mostrando la pantalla de cobro. Ver `SUSCRIPCION-README.md` → "Suspensión por propietario".
 
 ---
 
@@ -60,51 +64,25 @@ El superadmin llega a `/admin` sin `negocio_id` en el JWT — opera fuera de cua
 
 ### 2. Listado de negocios
 
-`AdminDashboardPage.cargar()` ejecuta:
+`AdminNegociosPage.cargar()` trae negocios y suscripciones **en paralelo** (`Promise.all`) y las mergea por `negocio_id`:
 
 ```typescript
-this.supabase.client
-  .from('negocios')
-  .select(`
-    id, nombre, slug, propietario_usuario_id, created_at,
-    propietario:usuarios!propietario_usuario_id (nombre, email, activo),
-    configuraciones (clave, valor)
-  `)
-  .order('created_at', { ascending: true })
+const [respNegocios, suscripciones] = await Promise.all([
+  this.supabase.client
+    .from('negocios')
+    .select(`
+      id, nombre, slug, propietario_usuario_id, created_at,
+      propietario:usuarios!propietario_usuario_id (nombre, email),
+      configuraciones (clave, valor)
+    `)
+    .order('created_at', { ascending: true }),
+  this.suscripcion.listarSuscripcionesAdmin(),
+]);
 ```
 
-El JOIN embebido `propietario:usuarios!...` trae `nombre`, `email` y `activo` del propietario. El join a `configuraciones` permite leer los flags de módulos (`recargas_celular_habilitada`, `recargas_bus_habilitada`, `caja_varios_activa`, `caja_varios_transferencia_dia`). Los negocios se agrupan visualmente por propietario usando `propietariosAgrupados` (getter calculado).
+El JOIN embebido `propietario:usuarios!...` trae `nombre` y `email` del propietario (`activo` ya no existe — columna eliminada). El join a `configuraciones` permite leer los flags de módulos (`recargas_celular_habilitada`, `recargas_bus_habilitada`, `caja_varios_activa`, `caja_varios_transferencia_dia`). Los negocios se agrupan visualmente por propietario usando `propietariosAgrupados` (getter calculado), que también deriva `PropietarioGrupo.suspendido` (true si **todos** sus negocios tienen `suscripcion.estado === 'SUSPENDIDA'`).
 
-**Modelo** (`features/admin/models/negocio-admin.model.ts`):
-
-```typescript
-export interface ModulosNegocio {
-  celular:      boolean;
-  bus:          boolean;
-  varios:       boolean;
-  varios_monto: number;
-}
-
-export interface NegocioAdmin {
-  id:                     string;
-  nombre:                 string;
-  slug:                   string;
-  propietario_usuario_id: string;
-  propietario_nombre:     string;
-  propietario_email:      string;
-  propietario_activo:     boolean;
-  created_at:             string;
-  modulos:                ModulosNegocio;
-}
-
-export interface PropietarioGrupo {
-  usuario_id: string;
-  nombre:     string;
-  email:      string;
-  activo:     boolean;
-  negocios:   NegocioAdmin[];
-}
-```
+**Modelo:** `features/admin/models/negocio-admin.model.ts` (fuente de verdad — `NegocioAdmin`, `ModulosNegocio`, `PropietarioGrupo`, `SuscripcionNegocio`). Además de los datos de control e identidad del negocio, `ModulosNegocio` incluye `varios_monto` y `tipo_comprobante`. `NegocioAdmin.suscripcion` (tipo `SuscripcionNegocio | null`) viene de `SuscripcionAdmin` (módulo suscripción) — ver [SUSCRIPCION-README.md](../suscripcion/SUSCRIPCION-README.md).
 
 ### 3. Entrar a operar en un negocio
 
@@ -144,105 +122,56 @@ El wizard (`/crear-negocio?context=admin`) opera en modo `sucursal-superadmin`. 
 
 ---
 
-## Suspensión de negocios y usuarios
+## Suspensión de propietarios (por cobro)
 
-El menú de opciones (⋯) de cada negocio abre `OptionsModalComponent` con las opciones disponibles. La acción de suspensión de propietario está implementada:
+> **Cambio 2026-06-16:** la suspensión del propietario desde `/admin` ya NO usa `fn_suspender_usuario` (eliminada). La suscripción se paga **por propietario, no por sucursal**, así que suspender es una acción de cobro que afecta a **todos** sus negocios.
 
-| Acción | Función SQL | Efecto |
-|--------|------------|--------|
-| Suspender / Reactivar propietario | `fn_suspender_usuario` | Bloquea al propietario en **todos sus negocios** (campo `activo` en tabla `usuarios`). |
+El menú de opciones (⋯) de la tab Negocios tiene **dos niveles**:
 
-La acción muestra un `AlertController` de confirmación antes de ejecutarse.
+| Menú | Acción | Función SQL | Efecto |
+|------|--------|------------|--------|
+| Header del propietario | Registrar pago | `fn_registrar_pago_propietario` | Renueva la suscripción de **todos** los negocios del propietario a la vez (mismo plan, periodo y vencimiento). |
+| Header del propietario | Suspender / Reactivar negocio(s) | `fn_suspender_propietario_suscripcion` | Marca `SUSPENDIDA`/`ACTIVA` la suscripción de **todos** los negocios del propietario. Cada sucursal muestra la pantalla de cobro. |
+| Fila del negocio | Ingresar · Módulos | — | El pago y la suspensión NO viven aquí: ambos son por dueño, no por sucursal. |
 
-> **Nota:** La suspensión directa de un negocio (sin suspender al propietario) no está expuesta en el menú de opciones actualmente. Se puede hacer con UPDATE directo sobre `negocios.activo` desde SQL si se necesita.
+Pago y suspensión son acciones del **propietario** (la suscripción se paga por dueño). La suspensión muestra un `AlertController` de confirmación antes de ejecutarse. Ver detalle completo en `SUSCRIPCION-README.md` → "Suspensión por propietario" y "Registrar un pago".
 
-### Diferencia entre los dos tipos de suspensión
+### `usuarios.activo` — eliminada (2026-06-16)
 
-```
-Suspensión de negocio (UPDATE directo en negocios)
-  → UPDATE negocios SET activo = false WHERE id = p_negocio_id
-  → Afecta: todos los usuarios de ESE negocio específico
-  → Caso de uso: negocio moroso, cierre temporal, fraude del negocio
+La columna `usuarios.activo` (suspensión global del propietario) **ya no existe**. Ninguna función SQL la escribe ni la lee. Su infraestructura asociada se eliminó del frontend:
 
-Suspensión de usuario (fn_suspender_usuario)
-  → UPDATE usuarios SET activo = false WHERE id = p_usuario_id
-  → Afecta: el propietario en TODOS sus negocios
-  → Caso de uso: fraude del propietario, múltiples negocios comprometidos
-```
+- ~~Canal `usuario-activo-{id}` reaccionando a `activo=false`~~ — el canal `usuario-activo-{id}` sigue existiendo (detecta `DELETE` del usuario y cambios de nombre en tiempo real), pero ya no tiene rama de suspensión.
+- ~~`handleUsuarioDesactivado('usuario')` / `/auth/pending?motivo=usuario`~~ — eliminados. `PendingPage` ahora es de un solo propósito: membresía removida.
+- ~~Validación en `fn_set_negocio_activo`~~ — eliminada.
 
-### Cómo el sistema bloquea el acceso
+**Lo que reemplaza cada caso de suspensión hoy:**
 
-La verificación ocurre en `fn_set_negocio_activo` (llamada al activar o cambiar de negocio):
+| Antes (eliminado) | Ahora |
+|---|---|
+| `fn_suspender_usuario` → `usuarios.activo=false` → muro seco `/auth/pending` | `fn_suspender_propietario_suscripcion` → `suscripciones.estado='SUSPENDIDA'` en todos sus negocios → pantalla de cobro `/suscripcion` (WhatsApp + cuentas) |
 
-```sql
--- Bloquea si el usuario está suspendido globalmente
-IF (SELECT activo FROM usuarios WHERE id = p_usuario_id) = FALSE THEN
-    RAISE EXCEPTION 'Usuario suspendido y no puede acceder';
-END IF;
+### Membresía (empleado removido de un negocio) — esto sí sigue igual
 
--- Bloquea si el negocio está suspendido (excepto superadmin)
-IF (SELECT activo FROM negocios WHERE id = p_negocio_id) = FALSE
-   AND NOT v_es_superadmin THEN
-    RAISE EXCEPTION 'Negocio no existe o no esta activo';
-END IF;
-```
-
-### Detección en tiempo real (Realtime)
-
-Los usuarios activos se enteran de la suspensión en segundos via Supabase Realtime — no tienen que esperar al próximo login ni a que el JWT expire.
-
-**Canal `usuario-activo-{id}`** (tabla `usuarios`):
-- Si `activo` pasa a `false` → `handleUsuarioDesactivado('usuario')` → redirige a `/auth/pending?motivo=usuario`
-- La sesión OAuth **no se cierra** — el usuario puede tocar "Verificar estado" cuando lo reactiven sin re-autenticarse
-
-**Canal `membresia-activa-{usuarioId}-{negocioId}`** (tabla `usuario_negocios`):
-- Si `activo` pasa a `false` → `handleUsuarioDesactivado('membresia')` → redirige a `/auth/pending?motivo=membresia`
+- **Canal `membresia-activa-{usuarioId}-{negocioId}`** (tabla `usuario_negocios`): si `activo` → `false`, `handleUsuarioDesactivado()` redirige a `/auth/pending?motivo=membresia`.
 
 ```
-Superadmin suspende propietario desde /admin
-  └─ fn_suspender_usuario → UPDATE usuarios SET activo = false
-       └─ Realtime notifica al cliente del usuario activo
-            └─ iniciarRealtimeUsuario() handler (activo = false)
-                 └─ handleUsuarioDesactivado('usuario')
-                      └─ cerrarRealtimeUsuario() + Preferences.remove
-                           └─ toast "Tu cuenta fue suspendida por el administrador."
-                                └─ navigate /auth/pending?motivo=usuario
-
 Admin desactiva membresía desde /usuarios
   └─ fn_actualizar_membresia → UPDATE usuario_negocios SET activo = false
        └─ Realtime notifica al cliente del usuario activo
             └─ iniciarRealtimeMembresia() handler (activo = false)
-                 └─ handleUsuarioDesactivado('membresia')
-                      └─ cerrarRealtimeUsuario() + Preferences.remove
-                           └─ toast "Tu acceso a este negocio fue removido por el administrador."
-                                └─ navigate /auth/pending?motivo=membresia
+                 └─ handleUsuarioDesactivado()
+                      └─ navigate /auth/pending?motivo=membresia
 ```
 
 Para que Realtime funcione, la tabla `usuario_negocios` debe estar publicada con `REPLICA IDENTITY FULL`. Ver `docs/usuarios/sql/setup/realtime_usuario_negocios.sql`.
 
 ---
 
-## Pantalla `/auth/pending` — mensajes contextuales
+## Pantalla `/auth/pending` — solo membresía removida
 
-La página muestra UI diferente según el query param `motivo`:
+`PendingPage` ya no distingue motivos — siempre es el caso "tu acceso a este negocio fue removido" (icono `ban-outline`, título "Acceso removido"). El botón "Verificar estado" llama `authService.validarUsuario()` directo (sin consulta intermedia a BD).
 
-| `motivo` | Icono | Título | Mensaje | Botón "Verificar" |
-|----------|-------|--------|---------|-------------------|
-| `usuario` | `ban-outline` | Cuenta suspendida | "Tu cuenta fue suspendida por el administrador. Contactalo para que te reactive." | ✅ Visible |
-| `membresia` | `ban-outline` | Acceso removido | "Tu acceso a este negocio fue removido. Contacta al administrador si crees que es un error." | ❌ Oculto |
-
-**Lógica del botón "Verificar estado"** (`reintentar()`):
-
-```
-1. Consulta directa a BD (NO usa retorno de validarUsuario)
-   - motivo=usuario → SELECT activo FROM usuarios WHERE email = email_jwt
-
-2. Si sigue suspendido → toast contextual "sigue suspendido" + no navega
-
-3. Si fue reactivado → llama validarUsuario() que navega al selector o /caja
-```
-
-El motivo para consultar BD directo en lugar de interpretar el retorno de `validarUsuario()`: esa función retorna `false` tanto cuando el usuario sigue suspendido **como** cuando navega al selector de negocios (múltiples negocios) — ambos casos producirían el toast de error incorrecto.
+> La suspensión por cobro (propietario) NO usa esta pantalla — usa `ROUTES.suscripcion` vía `suscripcionGuard`.
 
 ---
 
@@ -261,38 +190,20 @@ El selector muestra **todos** los negocios del usuario (activos y suspendidos) p
 
 ## Funciones SQL
 
-### `fn_suspender_usuario(p_usuario_id UUID, p_activo BOOLEAN)`
+### `fn_suspender_propietario_suscripcion(p_propietario_id UUID, p_suspender BOOLEAN, p_nota TEXT)`
 
-**Archivo:** `docs/admin/sql/functions/fn_suspender_usuario.sql`
+**Archivo:** `docs/suscripcion/sql/functions/fn_suspender_propietario_suscripcion.sql`
 
 - Solo ejecutable por superadmin (valida internamente)
-- Protecciones:
-  - No puede suspender a otro superadmin
-  - No puede suspenderse a sí mismo
-- `UPDATE usuarios SET activo = p_activo WHERE id = p_usuario_id`
-- Retorna `{ success, usuario_id, nombre, email, activo }`
-- El Realtime de `usuarios` propaga el cambio a usuarios activos en segundos
+- Recorre **todos** los negocios del propietario e inserta una fila nueva en `suscripciones` con `estado = 'SUSPENDIDA'` (o `'ACTIVA'` al reactivar), conservando plan y `vence_el`. Historial intacto.
+- Negocios sin suscripción previa se omiten.
+- Retorna `{ success, propietario_id, estado, negocios_afectados }`
 
 ### `fn_set_negocio_activo` (en `docs/setup/03_functions.sql`)
 
-Llamada al activar o cambiar de negocio. Bloquea el acceso si:
-- `usuarios.activo = false` (suspensión global del usuario)
-- `negocios.activo = false` (suspensión del negocio), salvo superadmin
+Llamada al activar o cambiar de negocio. Valida que el usuario tenga membresía activa en ese negocio (excepto superadmin). **Ya no valida** `usuarios.activo` ni `negocios.activo` (ambas columnas eliminadas).
 
----
-
-## Setup necesario en Supabase
-
-Al crear el schema desde cero o tras un reset, ejecutar en este orden:
-
-```sql
--- 1. Columna activo en usuarios (si no existe)
-ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE;
-
--- 2. Crear funciones
--- docs/admin/sql/functions/fn_suspender_usuario.sql
--- docs/admin/sql/functions/fn_consultar_usuario_por_email.sql
-```
+> El bloqueo por **suscripción suspendida** (cobro) NO ocurre aquí — lo maneja el `suscripcionGuard` vía `fn_estado_suscripcion`, redirigiendo a la pantalla de cobro.
 
 ---
 
@@ -300,11 +211,12 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TR
 
 | Archivo | Qué tiene |
 |---------|-----------|
-| `features/admin/pages/dashboard/admin-dashboard.page.ts` | Listado de negocios agrupados por propietario, `entrarNegocio()`, `crearNegocio()`, `abrirOpciones()`, `abrirModulos()`, `toggleUsuario()`, getter `propietariosAgrupados` |
+| `features/admin/pages/negocios/admin-negocios.page.ts` | Listado de negocios por propietario, `entrarNegocio()`, `crearNegocio()`, `abrirOpciones()` (negocio), `abrirOpcionesPropietario()` (propietario), `registrarPago()`, `toggleSuspensionPropietario()`, getter `propietariosAgrupados` |
+| `features/admin/components/admin-tabs/admin-tabs.component.ts` | Tabs internas del panel: Negocios / Planes / Cobro |
 | `features/auth/services/auth.service.ts` | `iniciarRealtimeNegocio()`, `cerrarRealtimeNegocio()`, `handleUsuarioDesactivado()`, `cambiarNegocio()`, `irAlPanelAdmin()` |
 | `features/auth/pages/pending/pending.page.ts` | Pantalla de suspensión con mensajes contextuales por `motivo` |
 | `features/auth/pages/seleccionar-negocio/seleccionar-negocio.page.ts` | Selector con badges de negocios suspendidos, bloqueo de tap en suspendidos |
-| `docs/admin/sql/functions/fn_suspender_usuario.sql` | Suspender/reactivar propietario globalmente |
+| `docs/suscripcion/sql/functions/fn_suspender_propietario_suscripcion.sql` | Suspender/reactivar por cobro todos los negocios de un propietario |
 | `docs/admin/sql/setup/realtime_negocios.sql` | Publicar tabla `negocios` en Realtime |
 | `docs/setup/03_functions.sql` | `fn_set_negocio_activo` — valida suspensión al activar negocio |
 | `docs/setup/02_rls.sql` | Políticas RLS de `negocios` (3 ramas: JWT, superadmin vía tabla, membresías) |

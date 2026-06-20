@@ -1,0 +1,339 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <!-- Modo informativo: flecha para volver al home (esta pantalla vive fuera del
+         layout, no hay sidebar que abrir). En bloqueo: sin botón, para que no escape. -->
+    @if (!bloqueada) {
+      <ion-buttons slot="start">
+        <ion-button (click)="volverAlHome()">
+          <ion-icon name="arrow-back-outline" slot="icon-only"></ion-icon>
+        </ion-button>
+      </ion-buttons>
+    }
+    <ion-title>{{ bloqueada ? 'Suscripción' : 'Planes y precios' }}</ion-title>
+  </ion-toolbar>
+
+  <!-- Toggle Mensual/Anual anclado al header — permanece visible al hacer scroll.
+       Solo se muestra en modo informativo y cuando hay planes con precio anual. -->
+  @if (!bloqueada && !loading && hayPlanesAnuales) {
+    <ion-toolbar class="susc-toolbar-periodo">
+      <div class="susc-periodo">
+        <button
+          type="button"
+          class="susc-periodo__btn"
+          [class.susc-periodo__btn--activo]="periodoVista === 'MENSUAL'"
+          (click)="setPeriodoVista('MENSUAL')">
+          Mensual
+        </button>
+        <button
+          type="button"
+          class="susc-periodo__btn"
+          [class.susc-periodo__btn--activo]="periodoVista === 'ANUAL'"
+          (click)="setPeriodoVista('ANUAL')">
+          Anual
+          <span class="susc-periodo__badge">Ahorra</span>
+        </button>
+      </div>
+    </ion-toolbar>
+  }
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <div class="page-container">
+
+    @if (loading) {
+      <ion-card class="susc-skeleton">
+        <ion-skeleton-text [animated]="true" style="width: 60%; height: 22px;"></ion-skeleton-text>
+        <ion-skeleton-text [animated]="true" style="width: 90%; height: 16px; margin-top: 12px;"></ion-skeleton-text>
+        <ion-skeleton-text [animated]="true" style="width: 80%; height: 16px;"></ion-skeleton-text>
+      </ion-card>
+    }
+
+    <!-- ============ MODO BLOQUEO: "Suscríbete" ============ -->
+    @else if (bloqueada) {
+      <div class="susc-block">
+
+        <!-- Ícono + título — varían según el origen del bloqueo.
+             Trial vencido: tono de "fin de prueba / invitación a contratar" (no de alerta). -->
+        <div class="susc-block__icon" [class.susc-block__icon--trial]="esTrialVencido">
+          @if (esTrialVencido) {
+            <ion-icon name="sparkles-outline"></ion-icon>
+          } @else {
+            <ion-icon name="alert-circle-outline"></ion-icon>
+          }
+        </div>
+        <h2 class="susc-block__title">{{ bloqueoTitulo }}</h2>
+        <p class="susc-block__subtitle">{{ bloqueoSubtitulo }}</p>
+
+        <!-- Plan + precio: contexto de cuánto deben -->
+        @if (estado?.precio !== undefined) {
+          <div class="susc-block__monto">
+            <span class="susc-block__monto-label">{{ estado!.plan_nombre ?? 'Tu plan' }}</span>
+            <span class="susc-block__monto-valor">
+              ${{ estado!.precio! | appCurrency }}
+              <small> / {{ estado!.periodo === 'ANUAL' ? 'año' : 'mes' }}</small>
+            </span>
+          </div>
+        }
+
+        <!-- Paso 1: instrucciones de pago -->
+        <div class="susc-block__pasos">
+          <div class="susc-block__paso">
+            <div class="susc-block__paso-num">1</div>
+            <div class="susc-block__paso-texto">
+              <strong>Realiza tu pago</strong>
+              <span>Puedes hacerlo por transferencia o depósito a cualquiera de las siguientes cuentas:</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cuentas bancarias -->
+        @if (config?.cuentas_bancarias?.length) {
+          <div class="susc-accounts">
+            @for (cta of config!.cuentas_bancarias; track cta.numero) {
+              <ion-card class="susc-account">
+                <div class="susc-account__banco">{{ cta.banco }}</div>
+                <div class="susc-account__row">
+                  <span class="susc-account__label">Cuenta {{ cta.tipo }}</span>
+                  <button class="susc-account__num" (click)="copiarCuenta(cta.numero)">
+                    {{ cta.numero }}
+                    <ion-icon name="copy-outline"></ion-icon>
+                  </button>
+                </div>
+                <div class="susc-account__row">
+                  <span class="susc-account__label">Titular</span>
+                  <span class="susc-account__val">{{ cta.titular }}</span>
+                </div>
+                <div class="susc-account__row">
+                  <span class="susc-account__label">Cédula</span>
+                  <span class="susc-account__val">{{ cta.cedula }}</span>
+                </div>
+              </ion-card>
+            }
+          </div>
+        }
+
+        <!-- Paso 2: contactar con comprobante -->
+        <div class="susc-block__pasos">
+          <div class="susc-block__paso">
+            <div class="susc-block__paso-num">2</div>
+            <div class="susc-block__paso-texto">
+              <strong>Envía tu comprobante</strong>
+              <span>{{ bloqueoPaso2Texto }}</span>
+            </div>
+          </div>
+        </div>
+
+        <ion-button expand="block" color="success" class="susc-block__wa" (click)="contactarWhatsApp()">
+          <ion-icon name="logo-whatsapp" slot="start"></ion-icon>
+          {{ bloqueoBotonLabel }}
+        </ion-button>
+
+        <!-- Única salida desde el bloqueo -->
+        <ion-button expand="block" fill="clear" color="medium" class="susc-block__logout" (click)="cerrarSesion()">
+          <ion-icon name="log-out-outline" slot="start"></ion-icon>
+          Cerrar sesión
+        </ion-button>
+
+      </div>
+    }
+
+    <!-- ============ MODO INFORMATIVO: "Mi Plan" + catálogo ============ -->
+    @else {
+
+      @if (!estado?.tiene_suscripcion) {
+        <p class="susc-empty">Este negocio aún no tiene una suscripción registrada.</p>
+      }
+
+      <!-- Una sola lista: plan actual primero, luego los superiores (ascendente).
+           Sin tira separada arriba — el plan actual ya es una tarjeta, no se duplica.
+           Sin título/subtítulo de sección — el header "Planes y precios" ya da el contexto. -->
+      @if (planes.length) {
+
+<div class="susc-planes">
+          @for (plan of planesOrdenados; track plan.id) {
+            <div
+              class="susc-plan"
+              [class.susc-plan--actual]="esPlanVigente(plan)"
+              [class.susc-plan--recomendado]="esRecomendado(plan)">
+
+              <!-- Pill "Recomendado" flotante sobre la tarjeta -->
+              @if (esRecomendado(plan)) {
+                <div class="susc-plan__flag">
+                  <ion-icon name="sparkles-outline"></ion-icon>
+                  Recomendado
+                </div>
+              }
+
+              <!-- ── Bloque superior: nombre + descripción ── -->
+              <div class="susc-plan__top">
+                <span class="susc-plan__nombre">{{ plan.nombre }}</span>
+                @if (plan.descripcion) {
+                  <p class="susc-plan__desc">{{ plan.descripcion }}</p>
+                }
+              </div>
+
+              <!-- ── Precio protagonista (según el periodo del toggle global) ── -->
+              <div class="susc-plan__precio-bloque">
+                <div class="susc-plan__precio-linea">
+                  <span class="susc-plan__monto">${{ precioDe(plan) | appCurrency }}</span>
+                  <span class="susc-plan__periodo">/ {{ periodoLabelDe(plan) }}</span>
+                </div>
+                @if (periodoVista === 'ANUAL' && plan.precio_anual == null) {
+                  <span class="susc-plan__solo-mensual">Solo mensual</span>
+                }
+                @if (equivalenteMensual(plan); as eqMensual) {
+                  <span class="susc-plan__equivalente">≈ ${{ eqMensual | appCurrency }}/mes facturado anual</span>
+                }
+                @if (ahorroAnual(plan); as ahorro) {
+                  <span class="susc-plan__ahorro">Ahorras ${{ ahorro | appCurrency }} al año</span>
+                }
+              </div>
+
+              <!-- ── Estado del plan vigente (badge + vencimiento) ── -->
+              @if (esPlanVigente(plan) && estado?.tiene_suscripcion) {
+                <div class="susc-plan__estado">
+                  @if (estadoLabel) {
+                    <span class="susc-badge" [class.susc-badge--trial]="esTrial">{{ estadoLabel }}</span>
+                  }
+                  @if (estado!.vence_el) {
+                    <span class="susc-plan__estado-txt" [class.susc-plan__estado-txt--alerta]="trialPorVencer">
+                      {{ esTrial ? 'Tu prueba termina el' : 'Vence' }}
+                      {{ estado!.vence_el | date:'dd/MM/yyyy' }}
+                      @if (estado!.dias_restantes !== undefined) {
+                        · {{ estado!.dias_restantes }} días restantes
+                      }
+                    </span>
+                  }
+                </div>
+              }
+
+              <!-- ── CTA: planes que el usuario no tiene vigentes en esta vista ── -->
+              @if (!esPlanVigente(plan)) {
+                <ion-button
+                  expand="block"
+                  [fill]="esRecomendado(plan) ? 'solid' : 'outline'"
+                  class="susc-plan__cta"
+                  (click)="solicitarPlan(plan)">
+                  <ion-icon name="arrow-up-circle-outline" slot="start"></ion-icon>
+                  {{ esPlanActual(plan) ? 'Cambiar a anual' : 'Quiero este plan' }}
+                </ion-button>
+              }
+
+              @if (esPlanVigente(plan)) {
+                @if (esTrial) {
+                  <!-- TRIAL: el cliente aún no ha pagado. La tarjeta vende — CTA de compra. -->
+                  <div class="susc-plan__actual-badge susc-plan__actual-badge--trial">
+                    <ion-icon name="sparkles-outline"></ion-icon>
+                    Estás probando este plan
+                  </div>
+                  <ion-button
+                    expand="block"
+                    color="primary"
+                    class="susc-plan__cta"
+                    (click)="activarPlan()">
+                    <ion-icon name="logo-whatsapp" slot="start"></ion-icon>
+                    Activar mi plan
+                  </ion-button>
+                } @else {
+                  <!-- ACTIVA: el cliente ya paga este plan. La tarjeta tranquiliza — CTA de mantenimiento. -->
+                  <div class="susc-plan__actual-badge">
+                    <ion-icon name="checkmark-circle-outline"></ion-icon>
+                    Tu plan actual · {{ estado?.periodo === 'ANUAL' ? 'Anual' : 'Mensual' }}
+                  </div>
+                  <ion-button
+                    expand="block"
+                    fill="outline"
+                    color="success"
+                    class="susc-plan__cta"
+                    (click)="renovarPlan()">
+                    <ion-icon name="logo-whatsapp" slot="start"></ion-icon>
+                    Renovar plan
+                  </ion-button>
+                }
+              }
+
+              <!-- ── Separador + features ── -->
+              @if (featuresNuevasDe(plan).length || plan.codigo === 'MAX') {
+                <div class="susc-plan__divider"></div>
+
+                <!-- Encabezado "Todo lo del X, más:" solo si hereda de un plan inferior -->
+                @if (planPredecesorNombre(plan); as predecesor) {
+                  <p class="susc-plan__hereda">Todo lo del {{ predecesor }}, más:</p>
+                }
+
+                <ul class="susc-plan__features">
+                  @for (feat of featuresNuevasDe(plan); track feat) {
+                    <li>
+                      <ion-icon name="checkmark-circle-outline"></ion-icon>
+                      {{ feat }}
+                    </li>
+                  }
+                </ul>
+
+                <!-- Bloques exclusivos del plan MAX — marketing puro, sin bloqueo técnico aún -->
+                @if (plan.codigo === 'MAX') {
+
+                  <!-- Multisucursal -->
+                  <div class="susc-plan__extra-bloque">
+                    <div class="susc-plan__extra-header">
+                      <div class="susc-plan__extra-icon">
+                        <ion-icon name="business-outline"></ion-icon>
+                      </div>
+                      <div>
+                        <p class="susc-plan__extra-titulo">Multisucursal</p>
+                        <p class="susc-plan__extra-desc">Gestiona todos tus negocios desde una sola cuenta</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Multiplataforma -->
+                  <div class="susc-plan__extra-bloque">
+                    <div class="susc-plan__extra-header">
+                      <div class="susc-plan__extra-icon">
+                        <ion-icon name="layers-outline"></ion-icon>
+                      </div>
+                      <div>
+                        <p class="susc-plan__extra-titulo">Multiplataforma</p>
+                        <p class="susc-plan__extra-desc">Celular, tablet y web — donde estés</p>
+                      </div>
+                    </div>
+                    <div class="susc-plan__multi-icons">
+                      <div class="susc-plan__multi-device">
+                        <ion-icon name="phone-portrait-outline"></ion-icon>
+                        <span>Celular</span>
+                      </div>
+                      <div class="susc-plan__multi-device">
+                        <ion-icon name="tablet-portrait-outline"></ion-icon>
+                        <span>Tablet</span>
+                      </div>
+                      <div class="susc-plan__multi-device">
+                        <ion-icon name="desktop-outline"></ion-icon>
+                        <span>Web</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Inteligencia artificial -->
+                  <div class="susc-plan__extra-bloque susc-plan__extra-bloque--ia">
+                    <div class="susc-plan__extra-header">
+                      <div class="susc-plan__extra-icon susc-plan__extra-icon--ia">
+                        <ion-icon name="sparkles-outline"></ion-icon>
+                      </div>
+                      <div>
+                        <p class="susc-plan__extra-titulo">Inteligencia artificial</p>
+                        <p class="susc-plan__extra-desc">Análisis e insights automáticos para tu negocio</p>
+                      </div>
+                    </div>
+                    <span class="susc-plan__proximamente">Próximamente</span>
+                  </div>
+
+                }
+              }
+            </div>
+          }
+        </div>
+      }
+    }
+
+  </div>
+</ion-content>

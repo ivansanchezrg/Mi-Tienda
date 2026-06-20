@@ -4,6 +4,18 @@ import { AuthService } from '../../auth/services/auth.service';
 import { LoggerService } from '@core/services/logger.service';
 
 /**
+ * Error de creacion de negocio con un mensaje ya listo para mostrar al usuario
+ * (ej: limite de sucursales del plan alcanzado). La pagina lo distingue de un
+ * error tecnico para mostrar el texto tal cual en un toast.
+ */
+export class OnboardingNegocioError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OnboardingNegocioError';
+  }
+}
+
+/**
  * Modos del wizard de creacion de negocio.
  *
  * - `inicial`        — Onboarding del primer negocio del usuario (no tiene ningun negocio aun).
@@ -109,11 +121,18 @@ export class OnboardingService {
 
       if (error) {
         this.logger.error('OnboardingService', 'Error en fn_completar_onboarding', error);
+        // Errores de negocio con prefijo conocido: se muestran tal cual al usuario.
+        // 'limite_negocios:' = plan sin cupo para mas sucursales.
+        // 'onboarding_error:' = problema de configuracion de la plataforma (sin planes, etc).
+        const m = error.message?.match(/(?:limite_negocios|onboarding_error):\s*(.+)/i);
+        if (m) throw new OnboardingNegocioError(m[1].trim());
         return null;
       }
 
       return (result as any).negocio_id as string;
     } catch (err) {
+      // Los errores de negocio (mensaje listo para el usuario) se propagan intactos.
+      if (err instanceof OnboardingNegocioError) throw err;
       this.logger.error('OnboardingService', 'Error inesperado en completar', err);
       return null;
     }

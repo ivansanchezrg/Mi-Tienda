@@ -6,6 +6,17 @@ export interface ModulosNegocio {
   tipo_comprobante:  'TICKET' | 'NOTA_VENTA' | 'FACTURA';
 }
 
+/** Estado de suscripción de un negocio (subset de SuscripcionAdmin, anidado en NegocioAdmin). */
+export interface SuscripcionNegocio {
+  estado:         string;          // ACTIVA | TRIAL | VENCIDA | SUSPENDIDA | CANCELADA | SIN_SUSCRIPCION
+  plan_codigo:    string | null;
+  plan_nombre:    string | null;
+  precio:         number | null;
+  periodo:        'MENSUAL' | 'ANUAL' | null;
+  vence_el:       string | null;
+  dias_restantes: number | null;
+}
+
 export interface NegocioAdmin {
   id:                     string;
   nombre:                 string;
@@ -25,15 +36,18 @@ export interface NegocioAdmin {
   propietario_usuario_id: string;
   propietario_nombre:     string;
   propietario_email:      string;
-  propietario_activo:     boolean;
   created_at:             string;
   modulos:                ModulosNegocio;
+  suscripcion:            SuscripcionNegocio | null;
 }
 
 export interface PropietarioGrupo {
   usuario_id: string;
   nombre:     string;
   email:      string;
-  activo:     boolean;
+  /** Derivado: el propietario está suspendido por cobro si TODOS sus negocios
+   *  tienen la suscripción en estado SUSPENDIDA. Controla el estilo del header
+   *  y el texto del menú (Suspender ↔ Reactivar). */
+  suspendido: boolean;
   negocios:   NegocioAdmin[];
 }

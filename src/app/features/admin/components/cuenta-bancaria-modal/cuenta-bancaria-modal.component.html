@@ -1,0 +1,42 @@
+<div class="bs-root">
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="card-outline"></ion-icon>
+    </div>
+    <span class="bs-header__title">{{ esEdicion ? 'Editar cuenta' : 'Nueva cuenta' }}</span>
+    <button class="bs-header__close" (click)="cerrar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <div class="bs-body">
+
+      <label class="cb-label">Banco</label>
+      <input class="cb-input" type="text" [(ngModel)]="banco" placeholder="Cooperativa JEP, Pichincha…" autocomplete="off" />
+
+      <label class="cb-label">Tipo de cuenta</label>
+      <select class="cb-input cb-select" [(ngModel)]="tipo">
+        <option value="Ahorros">Ahorros</option>
+        <option value="Corriente">Corriente</option>
+      </select>
+
+      <label class="cb-label">Número de cuenta</label>
+      <input class="cb-input" type="text" inputmode="numeric" [(ngModel)]="numero" placeholder="1234567890" autocomplete="off" />
+
+      <label class="cb-label">Titular</label>
+      <input class="cb-input" type="text" [(ngModel)]="titular" placeholder="Nombre del titular" autocomplete="off" />
+
+      <label class="cb-label">Cédula / RUC del titular</label>
+      <input class="cb-input" type="text" inputmode="numeric" [(ngModel)]="cedula" placeholder="0102030405" autocomplete="off" />
+
+    </div>
+  </div>
+
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
+    <ion-button expand="block" color="primary" [disabled]="!valido" (click)="confirmar()">
+      {{ esEdicion ? 'Guardar' : 'Agregar' }}
+    </ion-button>
+  </div>
+</div>

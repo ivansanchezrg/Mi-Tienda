@@ -7,8 +7,13 @@
 -- por un unico round-trip a la BD.
 --
 -- Retorna en un solo JSON:
---   - datos del usuario (id, nombre, email, es_superadmin, activo)
+--   - datos del usuario (id, nombre, email, es_superadmin)
 --   - todas sus membresias con nombre del negocio embebido
+--
+-- Nota (2026-06-16): ya no retorna `activo` (columna eliminada de usuarios).
+-- La suspension global del propietario ahora es por cobro (suscripciones,
+-- fn_estado_suscripcion); la suspension de un empleado es por membresia
+-- (usuario_negocios.activo, ya incluida en v_membresias).
 --
 -- Usado SOLO en el slow path de authGuard (primera instalacion, logout,
 -- JWT expirado). El fast path (JWT + cache valido) ya no llama a este RPC.
@@ -38,7 +43,7 @@ BEGIN
   v_usuario := (
     SELECT row_to_json(u)
     FROM (
-      SELECT id, nombre, email, es_superadmin, activo
+      SELECT id, nombre, email, es_superadmin
       FROM usuarios
       WHERE email = v_email
     ) u

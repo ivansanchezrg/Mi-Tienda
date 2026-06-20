@@ -67,9 +67,11 @@ ion-content {
     margin-bottom: 7px;
   }
 
-  // Input de texto simple
+  // Input de texto simple y select nativo
   > input[type="text"],
-  > input[type="tel"] {
+  > input[type="tel"],
+  > input[type="email"],
+  > select {
     width: 100%;
     padding: 13px 14px;
     border: 1.5px solid var(--ion-color-step-200);
@@ -81,10 +83,19 @@ ion-content {
     outline: none;
     box-sizing: border-box;
     transition: border-color 0.15s;
+    appearance: none;
 
     &:focus {
       border-color: var(--ion-color-primary);
     }
+  }
+
+  // Select: flecha custom alineada a la derecha
+  > select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 512 512'%3E%3Cpath fill='%23999' d='M256 294.1L383 167c9.4-9.4 24.6-9.4 33.9 0s9.3 24.6 0 33.9l-144 144c-9.4 9.4-24.6 9.4-33.9 0L95 200.9c-9.4-9.4-9.3-24.5 0-33.9s24.5-9.3 33.9 0L256 294.1z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 40px;
   }
 
   // Input con prefijo ($) o sufijo (días)

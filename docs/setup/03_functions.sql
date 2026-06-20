@@ -27,9 +27,12 @@
 --
 -- Seguridad:
 --   - SECURITY DEFINER para poder actualizar auth.users.raw_app_meta_data
---   - Valida usuario no suspendido (usuarios.activo)
 --   - Valida que el usuario tenga membresia activa en ese negocio
 --   - Un superadmin puede activar cualquier negocio (para soporte/admin)
+--
+-- Nota (2026-06-16): ya no valida usuarios.activo (columna eliminada). La
+-- suspension global del propietario ahora es por cobro — la bloquea
+-- suscripcionGuard via fn_estado_suscripcion, no esta funcion.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.fn_set_negocio_activo(
@@ -46,7 +49,8 @@ DECLARE
     v_rol            TEXT;
     v_es_superadmin  BOOLEAN;
     v_negocio_nombre VARCHAR;
-    v_activo         BOOLEAN;
+    v_negocio_slug   VARCHAR;
+    v_activo         BOOLEAN;  -- activo de usuario_negocios (membresia), no de usuarios
 BEGIN
     v_email := (auth.jwt() ->> 'email');
 
@@ -61,15 +65,9 @@ BEGIN
         RAISE EXCEPTION 'Usuario % no encontrado en la tabla de usuarios.', v_email;
     END IF;
 
-    -- Bloquear usuarios suspendidos globalmente (excepto superadmin)
-    IF NOT COALESCE(v_es_superadmin, FALSE) THEN
-        IF NOT COALESCE((SELECT activo FROM usuarios WHERE id = v_usuario_id), TRUE) THEN
-            RAISE EXCEPTION 'El usuario % esta suspendido y no puede acceder a ningun negocio.', v_email;
-        END IF;
-    END IF;
-
-    -- Verificar que el negocio existe
+    -- Verificar que el negocio existe y obtener nombre + slug
     v_negocio_nombre := (SELECT nombre FROM negocios WHERE id = p_negocio_id);
+    v_negocio_slug   := (SELECT slug   FROM negocios WHERE id = p_negocio_id);
 
     IF v_negocio_nombre IS NULL THEN
         RAISE EXCEPTION 'El negocio % no existe.', p_negocio_id;
@@ -100,6 +98,7 @@ BEGIN
     SET raw_app_meta_data = raw_app_meta_data
         || jsonb_build_object(
             'negocio_id',    p_negocio_id::TEXT,
+            'negocio_slug',  v_negocio_slug,
             'rol',           v_rol,
             'es_superadmin', COALESCE(v_es_superadmin, FALSE)
         )
@@ -112,6 +111,7 @@ BEGIN
     RETURN json_build_object(
         'success',         TRUE,
         'negocio_id',      p_negocio_id,
+        'negocio_slug',    v_negocio_slug,
         'rol',             v_rol,
         'negocio_nombre',  v_negocio_nombre,
         'mensaje',         'Negocio activado. Llamar a supabase.auth.refreshSession() para aplicar el nuevo JWT.'

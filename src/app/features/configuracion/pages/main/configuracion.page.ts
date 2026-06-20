@@ -6,7 +6,7 @@ import {
   AlertController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { settingsOutline, constructOutline, documentTextOutline, trashOutline, listOutline, chevronForwardOutline, receiptOutline, pricetagOutline } from 'ionicons/icons';
+import { settingsOutline, constructOutline, documentTextOutline, trashOutline, listOutline, chevronForwardOutline, receiptOutline, pricetagOutline, cardOutline } from 'ionicons/icons';
 import { LoggerService } from '@core/services/logger.service';
 import { UiService } from '@core/services/ui.service';
 import { LogsModalComponent } from '../../components/logs-modal/logs-modal.component';
@@ -30,7 +30,7 @@ export class ConfiguracionPage {
   private router    = inject(Router);
 
   constructor() {
-    addIcons({ settingsOutline, constructOutline, documentTextOutline, trashOutline, listOutline, chevronForwardOutline, receiptOutline, pricetagOutline });
+    addIcons({ settingsOutline, constructOutline, documentTextOutline, trashOutline, listOutline, chevronForwardOutline, receiptOutline, pricetagOutline, cardOutline });
   }
 
   ionViewWillEnter() {
@@ -43,6 +43,10 @@ export class ConfiguracionPage {
 
   irA(ruta: 'parametros' | 'categorias-operaciones' | 'categorias-productos') {
     this.router.navigate([ROUTES.configuracion.root, ruta]);
+  }
+
+  irAMiPlan() {
+    this.router.navigate([ROUTES.suscripcion]);
   }
 
   async verLogs() {

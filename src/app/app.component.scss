@@ -6,9 +6,10 @@ ion-app {
   flex-direction: column;
 }
 
-// app-offline-banner es un hijo de flujo normal — solo ocupa espacio
-// cuando hay banner visible (su contenido interno aparece con @if).
-app-offline-banner {
+// Los banners son hijos de flujo normal — solo ocupan espacio cuando su
+// contenido interno aparece (con @if). flex-shrink:0 evita que se compriman.
+app-offline-banner,
+app-suscripcion-banner {
   flex-shrink: 0;
 }
 

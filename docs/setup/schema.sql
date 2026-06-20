@@ -165,8 +165,8 @@ GRANT EXECUTE ON FUNCTION public.get_email()               TO authenticated;
 -- propietario_usuario_id: dueño original del negocio. Se setea al crearlo y no se modifica.
 --   Cuando se crea una sucursal, hereda el mismo propietario del negocio origen.
 --   Solo el superadmin puede operar sobre un negocio sin ser su propietario.
--- Nota: la columna `activo` fue eliminada. La suspensión de acceso se gestiona únicamente
---   a través de usuarios.activo (suspensión del propietario/usuario, via fn_suspender_usuario).
+-- Nota: la columna `activo` de negocios fue eliminada. La suspensión de un negocio se
+--   gestiona via su suscripción (fn_suspender_propietario_suscripcion, módulo suscripción).
 --
 -- Datos de identidad del negocio (fuente de verdad — no duplicar en configuraciones):
 --   nombre, telefono, direccion, correo_electronico — datos comerciales básicos
@@ -197,15 +197,15 @@ CREATE TABLE IF NOT EXISTS negocios (
 );
 
 -- 2. usuarios — perfil global (1 registro por email, sin negocio_id)
--- rol y activo en usuario_negocios son por negocio. activo aqui es suspension global del usuario.
--- activo = FALSE: el usuario no puede entrar a ningun negocio (suspension de plataforma).
--- Solo el superadmin puede cambiar este flag (via fn_suspender_usuario).
+-- rol y activo en usuario_negocios son por negocio (suspension de un empleado puntual).
+-- Nota (2026-06-16): columna `activo` (suspension global del propietario) eliminada.
+-- La suspension global ahora es por cobro — ver tabla `suscripciones` y
+-- fn_suspender_propietario_suscripcion (docs/suscripcion/sql/functions/).
 CREATE TABLE IF NOT EXISTS usuarios (
     id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     nombre        VARCHAR(255) NOT NULL,
     email         VARCHAR(100) NOT NULL UNIQUE,  -- Email Google OAuth (antes 'usuario')
     es_superadmin BOOLEAN DEFAULT FALSE,          -- acceso global al sistema
-    activo        BOOLEAN NOT NULL DEFAULT TRUE,  -- FALSE = suspendido globalmente por superadmin
     created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -244,6 +244,106 @@ CREATE TABLE IF NOT EXISTS tipos_referencia (
     descripcion TEXT,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- ==========================================
+-- MONETIZACION / SUSCRIPCIONES (Grupo C/D — catalogos globales + estado por tenant)
+-- Sistema de planes de cobro del SaaS. Ver docs/PLAN-PLANES-SUSCRIPCION.md
+-- Nota de terminologia: "suscripcion"/"plan" != "membresia" (usuario_negocios = rol).
+-- ==========================================
+
+-- 6. planes — catalogo global de planes de suscripcion (sin negocio_id, solo lectura)
+-- features (JSONB): mapa de que modulos/secciones desbloquea el plan, ej { "pos": true, "ia": false }.
+-- trial_dias: dias de prueba al asignar este plan (15 para el Basico).
+-- precio/trial_dias son editables por el superadmin desde /admin sin tocar codigo.
+-- Precio dual: precio_mensual obligatorio; precio_anual opcional (NULL = el plan no
+-- ofrece pago anual). El periodo lo elige el cliente al pagar, no lo define el plan.
+CREATE TABLE IF NOT EXISTS planes (
+    id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    codigo         VARCHAR(50)   NOT NULL UNIQUE,           -- 'BASICO' | 'PRO' | ...
+    nombre         VARCHAR(100)  NOT NULL,                  -- 'Plan Basico'
+    descripcion    TEXT,                                    -- texto comercial para la seccion de planes
+    precio_mensual DECIMAL(12,2) NOT NULL DEFAULT 0,        -- precio del periodo mensual
+    precio_anual   DECIMAL(12,2),                           -- NULL = no se ofrece anual
+    trial_dias     INT           NOT NULL DEFAULT 0,
+    features       JSONB         NOT NULL DEFAULT '{}',     -- { "pos": true, "ia": false, ... }
+    max_negocios   INT,                                     -- tope de negocios por propietario (NULL = ilimitado). PRO=1, MAX=3
+    activo         BOOLEAN       NOT NULL DEFAULT TRUE,     -- false = ya no se ofrece (no se borra)
+    orden          INT           NOT NULL DEFAULT 0,        -- orden de presentacion al cliente
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 7. metodos_pago_suscripcion — catalogo global de metodos de pago (sin negocio_id, solo lectura)
+-- El superadmin gestiona el catalogo (CRUD) desde /admin. icono = ionicon para la UI.
+CREATE TABLE IF NOT EXISTS metodos_pago_suscripcion (
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    codigo     VARCHAR(50)  NOT NULL UNIQUE,               -- 'TRANSFERENCIA' | 'DEPOSITO' | 'EFECTIVO' | 'PAYPHONE' ...
+    nombre     VARCHAR(100) NOT NULL,                      -- 'Transferencia bancaria'
+    icono      VARCHAR(50)  NOT NULL DEFAULT 'cash-outline',
+    activo     BOOLEAN      NOT NULL DEFAULT TRUE,
+    orden      INT          NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 8. config_plataforma — datos de cobro globales (singleton, editable solo por superadmin)
+-- Los datos de cobro (WhatsApp + cuentas bancarias del titular) son los mismos para toda la
+-- plataforma. Singleton: una sola fila (id = 1) garantizado por el CHECK.
+-- cuentas_bancarias (JSONB): lista de cuentas, cada una { banco, tipo, numero, titular, cedula }.
+-- Los textos de la pantalla de bloqueo NO viven aqui: son contextuales por estado
+-- (trial vencido / vencida / suspendida) y se definen en el frontend (suscripcion.page).
+CREATE TABLE IF NOT EXISTS config_plataforma (
+    id                 INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    whatsapp_cobro     VARCHAR(20),                         -- '593987654321' (formato Ecuador, sin +)
+    cuentas_bancarias  JSONB NOT NULL DEFAULT '[]',
+    updated_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 9. suscripciones — ESTADO ACTUAL de la suscripcion por negocio (UNA fila por negocio)
+-- Modelo: estado mutable (se hace UPDATE, no INSERT). negocio_id es UNIQUE → una sola
+-- fila por negocio es la fuente de verdad. El historial financiero (cada pago) vive en
+-- la tabla suscripcion_pagos (abajo) — aqui NO se acumulan filas.
+-- Estado ALMACENADO: TRIAL | ACTIVA | SUSPENDIDA | CANCELADA. 'VENCIDA' NO se guarda:
+--   se deriva comparando vence_el con NOW() en fn_estado_suscripcion (evita inconsistencia + jobs).
+--   SUSPENDIDA: bloqueo manual del superadmin (abuso/fraude), independiente del vencimiento.
+--   CANCELADA:  reservado para cancelacion self-service futura (hoy sin uso).
+CREATE TABLE IF NOT EXISTS suscripciones (
+    id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    negocio_id     UUID NOT NULL UNIQUE REFERENCES negocios(id) ON DELETE CASCADE,  -- 1 fila por negocio
+    plan_id        UUID NOT NULL REFERENCES planes(id),
+    estado         VARCHAR(20) NOT NULL DEFAULT 'TRIAL'
+                   CHECK (estado IN ('TRIAL', 'ACTIVA', 'SUSPENDIDA', 'CANCELADA')),
+    periodo_contratado VARCHAR(20) NOT NULL DEFAULT 'MENSUAL'  -- periodo vigente (MENSUAL | ANUAL)
+                   CHECK (periodo_contratado IN ('MENSUAL', 'ANUAL')),
+    inicia_el      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),  -- inicio del periodo vigente
+    vence_el       TIMESTAMP WITH TIME ZONE NOT NULL,        -- fecha de corte
+    actualizada_por UUID REFERENCES usuarios(id),            -- ultimo superadmin que modifico el estado
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_suscripciones_negocio ON suscripciones(negocio_id);
+
+-- 9b. suscripcion_pagos — HISTORIAL FINANCIERO inmutable (libro de cobros)
+-- Cada pago registrado por el superadmin (o, a futuro, un webhook de pasarela) inserta
+-- UNA fila. Nunca se modifica ni borra. Es la fuente de verdad contable: sumar ingresos
+-- es SUM(monto) sin trucos. Ligado al PROPIETARIO (la suscripcion se paga por dueño, no
+-- por sucursal: un pago cubre todos sus negocios) y a la suscripcion del negocio "ancla"
+-- para trazabilidad. negocio_id permite filtrar pagos por negocio en reportes.
+CREATE TABLE IF NOT EXISTS suscripcion_pagos (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    propietario_id  UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,  -- dueño que pago
+    negocio_id      UUID REFERENCES negocios(id) ON DELETE SET NULL,          -- negocio ancla (para reportes)
+    plan_id         UUID NOT NULL REFERENCES planes(id),
+    periodo         VARCHAR(20) NOT NULL CHECK (periodo IN ('MENSUAL', 'ANUAL')),
+    monto           DECIMAL(12,2) NOT NULL DEFAULT 0,         -- monto real cobrado en este pago
+    metodo_pago_id  UUID REFERENCES metodos_pago_suscripcion(id),
+    vence_el        TIMESTAMP WITH TIME ZONE NOT NULL,        -- vencimiento resultante de este pago
+    nota            TEXT,                                     -- referencia / comprobante
+    registrada_por  UUID REFERENCES usuarios(id),             -- superadmin que registro el pago
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_suscripcion_pagos_propietario ON suscripcion_pagos(propietario_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_suscripcion_pagos_negocio     ON suscripcion_pagos(negocio_id, created_at DESC);
 
 -- ==========================================
 -- TABLAS CON negocio_id (Grupo A — 21 tablas)
@@ -1221,6 +1321,22 @@ INSERT INTO tipos_referencia (tabla, descripcion) VALUES
 ('movimientos_empleados', 'Egresos de caja originados desde adelantos o pago de nomina')
 ON CONFLICT (tabla) DO NOTHING;
 
+-- Monetizacion: plan Basico, metodos de pago y config singleton
+INSERT INTO planes (codigo, nombre, descripcion, precio_mensual, precio_anual, trial_dias, features, max_negocios, orden) VALUES
+('BASICO', 'Plan Basico', 'Acceso completo al sistema de gestion.', 9.99, 99.99, 15,
+ '{"pos": true, "inventario": true, "recargas": true, "clientes": true, "reportes": true}', 1, 1)
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO metodos_pago_suscripcion (codigo, nombre, icono, orden) VALUES
+('TRANSFERENCIA', 'Transferencia bancaria', 'swap-horizontal-outline', 1),
+('DEPOSITO',      'Deposito bancario',      'cash-outline',            2),
+('EFECTIVO',      'Efectivo',               'wallet-outline',          3)
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO config_plataforma (id, whatsapp_cobro, cuentas_bancarias)
+VALUES (1, '', '[]')
+ON CONFLICT (id) DO NOTHING;
+
 -- ==========================================
 -- TRIGGER: PROTEGER SUPERADMIN
 -- Impide cambiar es_superadmin via UPDATE directo en la tabla usuarios.
@@ -1250,8 +1366,9 @@ CREATE TRIGGER trg_proteger_superadmin_update
 
 -- fn_set_negocio_activo — Escribe negocio_id + rol en app_metadata del JWT.
 -- El frontend llama supabase.auth.refreshSession() despues para aplicarlo.
--- Nota: ya no valida negocios.activo (columna eliminada). Solo valida:
---   - usuario no suspendido (usuarios.activo)
+-- Nota (2026-06-16): ya no valida negocios.activo ni usuarios.activo (ambas
+-- columnas eliminadas). La suspension global del propietario ahora es por
+-- cobro (suscripciones) — la bloquea suscripcionGuard, no esta funcion. Solo valida:
 --   - negocio existe
 --   - usuario tiene membresia activa (excepto superadmin)
 CREATE OR REPLACE FUNCTION public.fn_set_negocio_activo(
@@ -1280,13 +1397,6 @@ BEGIN
 
     IF v_usuario_id IS NULL THEN
         RAISE EXCEPTION 'Usuario % no encontrado en la tabla de usuarios.', v_email;
-    END IF;
-
-    -- Bloquear usuarios suspendidos globalmente (excepto superadmin)
-    IF NOT COALESCE(v_es_superadmin, FALSE) THEN
-        IF NOT COALESCE((SELECT activo FROM usuarios WHERE id = v_usuario_id), TRUE) THEN
-            RAISE EXCEPTION 'El usuario % esta suspendido y no puede acceder a ningun negocio.', v_email;
-        END IF;
     END IF;
 
     -- Verificar que el negocio existe (sin filtrar por activo — columna eliminada)
@@ -1375,6 +1485,17 @@ END $$;
 -- REPLICA IDENTITY FULL: necesario para que el filtro por usuario_id + negocio_id funcione
 -- en eventos UPDATE. Sin esto el evento no incluye esas columnas y el canal no hace match.
 ALTER TABLE usuario_negocios REPLICA IDENTITY FULL;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'suscripciones') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE suscripciones;
+    END IF;
+END $$;
+
+-- REPLICA IDENTITY FULL: el canal suscripcion-negocio-{id} escucha INSERT (la fila nueva
+-- ya trae todas las columnas, basta para el filtro negocio_id). Se deja FULL por consistencia
+-- con el resto de tablas Realtime y por si en el futuro se escucha UPDATE.
+ALTER TABLE suscripciones REPLICA IDENTITY FULL;
 
 -- ==========================================
 -- SEED DEV — Superadmin para desarrollo

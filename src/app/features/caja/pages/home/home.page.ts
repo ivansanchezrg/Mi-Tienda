@@ -62,6 +62,7 @@ import { ShareCierreService, DatosCierreParaCompartir } from '../../services/sha
 import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 import { CurrencyService } from '@core/services/currency.service';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
+import { NetworkService } from '@core/services/network.service';
 
 @Component({
   selector: 'app-home',
@@ -96,11 +97,23 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private shareCierreService = inject(ShareCierreService);
   private cdr = inject(ChangeDetectorRef);
   readonly currency = inject(CurrencyService);
+  private network = inject(NetworkService);
 
   // ── Subscripciones (cleanup en ngOnDestroy) ────────────────────────────────
   private queryParamsSub?: Subscription;
   private turnoSub?: Subscription;
   private cajasSub?: Subscription;
+  private networkSub?: Subscription;
+
+  /**
+   * Último estado de red confirmado por una emisión real del NetworkService.
+   * Empieza en `undefined` (desconocido) a propósito: NO lo inicializamos desde
+   * isConnected(), porque el BehaviorSubject de NetworkService arranca en `true`
+   * por defecto y el valor real (offline) puede no haber llegado todavía. Dejamos
+   * que la primera emisión de la suscripción lo establezca, así el flanco
+   * offline→online se detecta sin importar el timing del Network.getStatus() nativo.
+   */
+  private ultimoEstadoRed?: boolean;
 
   // ── Mapa tipo-UI → código DB (única fuente de verdad para navegación) ──────
   private readonly TIPO_CODIGO: Record<string, string> = {
@@ -256,12 +269,47 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       }
       this.cdr.markForCheck();
     });
+
+    // Re-disparo al recuperar la red — cubre el cold start offline: si la app
+    // arrancó sin red, el guard offline emitió el usuario pero la carga del turno
+    // (inicializarEstadoReactivo) y el dashboard fallaron sin red. Al volver online
+    // reactivamos toda la cadena. El estado de red se rastrea DENTRO de la
+    // suscripción (no se pre-calcula con isConnected()) para que el flanco
+    // offline→online se detecte aunque el valor real llegue tarde.
+    this.networkSub = this.network.getNetworkStatus().subscribe(async online => {
+      const veniaDeOffline = this.ultimoEstadoRed === false;
+      this.ultimoEstadoRed = online;
+      if (online && veniaDeOffline) {
+        await this.reactivarTrasReconexion();
+      }
+    });
+  }
+
+  /**
+   * Reactiva la cadena reactiva del home tras recuperar la conexión en un arranque
+   * offline. Orden importante:
+   *  1. Re-hidratar el usuario desde cache y abrir los canales Realtime de usuario
+   *     (iniciarRealtimeDesdeCache es idempotente) — garantiza usuarioActualValue
+   *     poblado, base de que esMiTurno pueda evaluar a true.
+   *  2. Reabrir el canal Realtime de turnos con conexión limpia (el que se intentó
+   *     abrir sin red pudo quedar en CHANNEL_ERROR y no reconectar solo).
+   *  3. Recargar el estado del turno desde BD (reintenta la query que falló offline).
+   *  4. Recargar el dashboard completo (cargarDatos → aplicarDashboard reconcilia
+   *     turnoActivo$ con el servidor y repinta saldos, movimientos y el botón de turno).
+   */
+  private async reactivarTrasReconexion(): Promise<void> {
+    const usuario = await this.authService.getUsuarioActual();
+    if (usuario) this.authService.iniciarRealtimeDesdeCache(usuario);
+    await this.turnosCajaService.reabrirRealtimeTurnos();
+    await this.turnosCajaService.inicializarEstadoReactivo();
+    await this.cargarDatos();
   }
 
   ngOnDestroy() {
     this.queryParamsSub?.unsubscribe();
     this.turnoSub?.unsubscribe();
     this.cajasSub?.unsubscribe();
+    this.networkSub?.unsubscribe();
   }
 
   private async manejarAccion(action: string) {
@@ -349,11 +397,16 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       ? this.formatearFecha(new Date(dashboard.estadoCaja.fechaUltimoCierre + 'T00:00:00'))
       : 'Hoy es tu primer turno';
 
-    // Resincronizar turnoActivo$ si el servidor reporta un turno activo pero el
-    // BehaviorSubject está vacío — ocurre cuando inicializarEstadoReactivo() falló
-    // sin red (cold start offline) y la primera carga exitosa llega después.
+    // Reconciliar turnoActivo$ con lo que reporta el servidor. El dashboard es la
+    // fuente de verdad fresca; el BehaviorSubject puede haber quedado desincronizado
+    // cuando inicializarEstadoReactivo() falló sin red (cold start offline) o emitió
+    // un valor obsoleto. Sin esto, `cajaAbierta` (de estadoCaja) y `esMiTurno`
+    // (de turnoActivo$) discrepan y el botón de turno muestra el estado equivocado.
+    // Reconciliamos en ambos sentidos: servidor con turno → empuja el turno;
+    // servidor sin turno pero subject con turno fantasma → lo limpia.
     const turnoServidor = dashboard.estadoCaja.turnoActivo ?? null;
-    if (turnoServidor && !this.turnosCajaService.turnoActivoValue) {
+    const turnoLocal = this.turnosCajaService.turnoActivoValue;
+    if (turnoServidor?.id !== turnoLocal?.id) {
       this.turnosCajaService.sincronizarTurnoDesdeHome(turnoServidor);
     }
 
@@ -598,6 +651,16 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   async onAbrirCaja() {
+    // Abrir turno es una escritura: requiere red. Sin conexión no abrimos el modal
+    // de verificación de fondo — además de ser inútil (fn_abrir_turno fallaría),
+    // la verificación de déficit del cierre anterior no se puede consultar offline
+    // y abriríamos un turno con un déficit pendiente silenciado. El usuario ya ve
+    // el aviso "Sin conexión" en el home, así que el mensaje cierra el porqué.
+    if (!this.network.isConnected()) {
+      await this.ui.showError('Sin conexión a internet. No puedes abrir un turno.');
+      return;
+    }
+
     if (this.estadoCaja.estado === 'TURNO_EN_CURSO') {
       const nombre = this.estadoCaja.empleadoNombre || 'otro empleado';
       await this.ui.showError(`Ya hay un turno abierto por ${nombre}. Solo ese empleado puede cerrarlo.`);
@@ -622,6 +685,14 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   async onCerrarCaja() {
+    // Cerrar turno es una escritura (verifica cierre + navega al wizard que ejecuta
+    // fn_ejecutar_cierre_diario): requiere red. Sin conexión bloqueamos en la puerta,
+    // mismo criterio que abrir turno e ingreso/egreso.
+    if (!this.network.isConnected()) {
+      await this.ui.showError('Sin conexión a internet. No puedes cerrar el turno.');
+      return;
+    }
+
     if (this.estadoCaja.estado !== 'TURNO_EN_CURSO') {
       await this.ui.showToast('No hay un turno activo en este momento.', 'warning');
       return;

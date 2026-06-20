@@ -1,0 +1,90 @@
+<div class="bs-root">
+
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="card-outline"></ion-icon>
+    </div>
+    <span class="bs-header__title">Coordinar pago</span>
+    <button class="bs-header__close" (click)="cerrar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <div class="bs-body">
+
+      <!-- Resumen del pago -->
+      <div class="cp-resumen">
+        <div class="cp-resumen__plan">{{ contexto.planNombre }}</div>
+        <div class="cp-resumen__precio">
+          ${{ contexto.precio | appCurrency }}
+          <span class="cp-resumen__periodo">/ {{ periodoLabel }}</span>
+        </div>
+        <div class="cp-resumen__meta">
+          <span class="cp-resumen__accion">{{ accionLabel }}</span>
+          <span class="cp-resumen__sep">·</span>
+          <span class="cp-resumen__negocio">{{ contexto.negocioNombre }}</span>
+        </div>
+      </div>
+
+      <p class="cp-hint">{{ preguntaMetodo }}</p>
+
+      <div class="cp-metodos">
+        @for (m of metodos; track m.value) {
+          <button
+            class="cp-metodo"
+            [class.cp-metodo--activo]="metodoSeleccionado === m.value"
+            (click)="metodoSeleccionado = m.value; referencia = ''">
+            <div class="cp-metodo__icon">
+              <ion-icon [name]="m.icon"></ion-icon>
+            </div>
+            <div class="cp-metodo__texto">
+              <span class="cp-metodo__label">{{ m.label }}</span>
+              <span class="cp-metodo__desc">{{ m.desc }}</span>
+            </div>
+            @if (metodoSeleccionado === m.value) {
+              <ion-icon name="checkmark-circle-outline" class="cp-metodo__check"></ion-icon>
+            }
+          </button>
+        }
+      </div>
+
+      <!-- Referencia: obligatoria para transferencia o depósito -->
+      @if (necesitaReferencia) {
+        <div class="cp-referencia">
+          <label class="cp-referencia__label">Número de comprobante</label>
+          <input
+            class="cp-referencia__input"
+            type="text"
+            placeholder="Ej: 00234567"
+            [(ngModel)]="referencia"
+            autocomplete="off"
+            maxlength="60">
+          <p class="cp-referencia__hint">
+            Recuerda enviar la foto del comprobante en el chat de WhatsApp para validar tu pago.
+          </p>
+        </div>
+      }
+
+      <!-- Aviso para efectivo -->
+      @if (metodoSeleccionado === 'EFECTIVO') {
+        <div class="cp-aviso">
+          <ion-icon name="cash-outline"></ion-icon>
+          <p>Nuestro equipo coordinará contigo la visita para el cobro.</p>
+        </div>
+      }
+
+    </div>
+  </div>
+
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">
+      Cancelar
+    </ion-button>
+    <ion-button expand="block" color="success" [disabled]="!puedeEnviar" (click)="enviar()">
+      <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
+      {{ botonLabel }}
+    </ion-button>
+  </div>
+
+</div>

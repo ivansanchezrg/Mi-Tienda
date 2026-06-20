@@ -414,6 +414,80 @@ render** (~5-10ms de lectura de Preferences), sin skeleton ni espera de red perc
 
 ---
 
+## Cambios aplicados el 2026-06-13
+
+### 11. Arranque offline: hidratar el usuario + reactivar la cadena del turno al volver la red
+
+**Archivos:**
+- `src/app/core/guards/auth.guard.ts` — la rama offline emite el usuario del cache en `usuarioActual$`
+- `src/app/features/auth/services/auth.service.ts` — `hidratarUsuarioOffline()` (emite sin Realtime)
+- `src/app/features/caja/pages/home/home.page.ts` — detección robusta del flanco de red + `reactivarTrasReconexion()` + reconciliación de `turnoActivo$`
+- `src/app/features/caja/services/turnos-caja.service.ts` — `reabrirRealtimeTurnos()`, Realtime se abre aunque la query falle, `sincronizarTurnoDesdeHome()` acepta `null`
+
+**Síntoma reportado:** al cerrar la app, apagar la red, abrirla sin internet y luego reconectar, el
+home se pintaba pero el botón de turno mostraba **"Cierre" deshabilitado** (el `@else` del template,
+sin `(click)`) en vez de "Cerrar"/"Abrir" funcional. Solo se corregía cerrando y reabriendo la app ya
+con red.
+
+**Causa raíz (la profunda):** el botón "Cierre" deshabilitado aparece cuando `cajaAbierta === true`
+**y** `esMiTurno === false`. Y `esMiTurno` (`turnosCajaService.esMiTurnoValue`) compara
+`turno.empleado_id === usuario.id` — **requiere que `usuarioActualValue` esté poblado.** El problema:
+
+- **El guard offline nunca emitía el usuario.** Solo la rama **online** del guard llama
+  `iniciarRealtimeDesdeCache()` (que hace `_usuarioActual$.next(usuario)`). La rama offline
+  (`auth.guard.ts`, sin red + sesión local) retornaba `true` sin emitir nada → `usuarioActual$`
+  quedaba en `null`.
+- En cascada: `TurnosCajaService` (suscrito a `usuarioActual$` en su constructor) **nunca recibía el
+  usuario** → `inicializarEstadoReactivo()` no corría → `_turnoActivo$` quedaba en `null` → y aunque
+  el dashboard luego reportara el turno, `esMiTurnoValue` daba `false` porque `usuario` era `null`.
+- Al volver la red, el dashboard repintaba `cajaAbierta = true` (de `estadoCaja`), pero `usuarioActual$`
+  seguía sin emitirse (la rama online del guard no se re-ejecuta), así que `esMiTurno` permanecía
+  `false`. De ahí el botón "Cierre" muerto hasta reiniciar.
+
+**Causa secundaria (race de red):** el intento previo de re-disparo se inicializaba con
+`estabaOffline = !this.network.isConnected()`. Pero `NetworkService.isOnline$` es un
+`BehaviorSubject(true)` y `Network.getStatus()` lo actualiza de forma **async**: en el arranque
+offline, `isConnected()` podía devolver el `true` por defecto antes de que el valor real (`false`)
+llegara → `estabaOffline` quedaba en `false` → el flanco offline→online nunca se detectaba.
+
+**Solución:**
+
+1. **El guard offline hidrata el usuario.** Nueva `AuthService.hidratarUsuarioOffline(usuario)` emite
+   el `UsuarioActual` del cache en `usuarioActual$` **sin** abrir Realtime (no hay red). La rama
+   offline del guard la llama. Así `TurnosCajaService` recibe el usuario y `usuarioActualValue` queda
+   poblado — base para que `esMiTurno` pueda ser `true` en cuanto haya un turno.
+
+2. **Detección del flanco de red sin race.** El home ya no pre-calcula el estado con `isConnected()`.
+   Rastrea `ultimoEstadoRed` **dentro** de la suscripción a `getNetworkStatus()` (empieza en
+   `undefined`); solo reacciona cuando llega `true` y el valor previo confirmado era `false`. El
+   `BehaviorSubject` entrega la secuencia completa, así que el `false` real siempre se registra antes
+   del `true` de reconexión — el flanco se detecta sin importar el timing del plugin nativo.
+
+3. **Reactivación completa al reconectar** (`reactivarTrasReconexion()`): (a) re-hidrata el usuario y
+   abre los canales Realtime de usuario (idempotente); (b) reabre el canal Realtime de turnos con
+   conexión limpia (`reabrirRealtimeTurnos()` — el canal abierto sin red pudo quedar en
+   `CHANNEL_ERROR`); (c) reintenta `inicializarEstadoReactivo()`; (d) recarga el dashboard.
+
+4. **`inicializarEstadoReactivo()` abre el Realtime aunque la query falle.** Antes, `abrirRealtimeTurnos()`
+   estaba después de `obtenerTurnoActivo()` dentro del `try` — sin red, la excepción saltaba el canal.
+   Ahora se abre en el `finally` (es idempotente y no depende del turno).
+
+5. **Fuente única de verdad del turno:** `aplicarDashboard()` reconcilia `turnoActivo$` con el servidor
+   comparando por `id` en ambos sentidos (`turnoServidor?.id !== turnoLocal?.id`); `sincronizarTurnoDesdeHome()`
+   acepta `null` para limpiar un turno fantasma.
+
+**Por qué NO se quitó el caché (decisión de diseño):** el síntoma parecía culpa del caché, pero el
+caché es justo lo que evita ver el home **vacío en ceros** mientras no hay red. El problema era la
+*hidratación del estado reactivo offline* y la *revalidación al reconectar*, no el *almacenamiento*.
+La jerarquía sana queda: caché (pinta ya) → hidratación del usuario offline (la cadena reactiva no
+queda muerta) → revalidación al volver la red (reactiva turno + dashboard) → fuente única del turno
+(el botón nunca discrepa) → pull-to-refresh (override manual).
+
+**Impacto:** arrancar sin red y reconectar deja el home y el botón de turno en el estado correcto sin
+reiniciar la app ni navegar.
+
+---
+
 ## Estimación de mejora actualizada
 
 | Escenario | Original (pre-2026-05-22) | Post 2026-05-22 | Post 2026-05-30 | **Post 2026-06-10** |
@@ -481,3 +555,11 @@ render** (~5-10ms de lectura de Preferences), sin skeleton ni espera de red perc
 |---|---|
 | `src/app/features/caja/services/turnos-caja.service.ts` | Snapshot del dashboard en Preferences (`obtenerHomeDashboardCacheado()` + persistencia tras cada fetch + fallback offline + limpieza en logout) |
 | `src/app/features/caja/pages/home/home.page.ts` | `cargarDatos()` pinta del snapshot del día al instante (sin skeleton) y refresca en background |
+
+### Sesión 2026-06-13
+| Archivo | Cambio |
+|---|---|
+| `src/app/core/guards/auth.guard.ts` | La rama offline llama `hidratarUsuarioOffline()` para emitir el usuario del cache en `usuarioActual$` (antes offline no se emitía → `esMiTurno` quedaba muerto) |
+| `src/app/features/auth/services/auth.service.ts` | `hidratarUsuarioOffline(usuario)` — emite `usuarioActual$` sin abrir Realtime (idempotente) |
+| `src/app/features/caja/pages/home/home.page.ts` | Detección del flanco de red sin race (rastrea `ultimoEstadoRed` dentro de la suscripción) + `reactivarTrasReconexion()` (re-hidrata usuario, reabre Realtime, reinicia turno, recarga dashboard); `aplicarDashboard()` reconcilia `turnoActivo$` por `id` en ambos sentidos |
+| `src/app/features/caja/services/turnos-caja.service.ts` | `reabrirRealtimeTurnos()` (canal limpio sin tocar `turnoActivo$`); `inicializarEstadoReactivo()` abre el Realtime en `finally` (aunque la query falle offline); `sincronizarTurnoDesdeHome()` acepta `null` |

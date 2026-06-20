@@ -11,13 +11,14 @@ import { SyncService } from './core/services/sync.service';
 import { TurnosCajaService } from './features/caja/services/turnos-caja.service';
 import { Capacitor } from '@capacitor/core';
 import { OfflineBannerComponent } from './core/components/offline-banner/offline-banner.component';
+import { SuscripcionBannerComponent } from './core/components/suscripcion-banner/suscripcion-banner.component';
 import { ROUTES } from './core/config/routes.config';
 
 @Component({
   selector: 'app-root',
   templateUrl: 'app.component.html',
   styleUrl: 'app.component.scss',
-  imports: [IonApp, IonRouterOutlet, OfflineBannerComponent],
+  imports: [IonApp, IonRouterOutlet, OfflineBannerComponent, SuscripcionBannerComponent],
 })
 export class AppComponent implements OnDestroy {
 

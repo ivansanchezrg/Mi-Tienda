@@ -230,7 +230,8 @@
       "PowerShell(Remove-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\PLAN-MIGRACION-CATEGORIAS-SISTEMA-2026-06-02.md\" -Confirm:$false)",
       "PowerShell(Remove-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\PLAN-REFACTOR-NEGOCIOS-2026-06-03.md\" -Confirm:$false)",
       "PowerShell(Move-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\ANDROID-BUILD.md\" \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\guides\\\\ANDROID-BUILD.md\")",
-      "PowerShell(Remove-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\caja\\\\PLAN-HISTORIAL-TURNOS.md\" -Confirm:$false)"
+      "PowerShell(Remove-Item \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\docs\\\\caja\\\\PLAN-HISTORIAL-TURNOS.md\" -Confirm:$false)",
+      "Bash(grep -n \"saveUsuarioActual\\\\|_usuarioActual\\\\$.next\\\\|iniciarRealtimeDesdeCache\" \"c:\\\\Users\\\\ivan\\\\Desktop\\\\Proyectos\\\\mi-tienda\\\\src\\\\app\\\\features\\\\auth\\\\services\\\\auth.service.ts\")"
     ],
     "additionalDirectories": [
       "\\tmp"

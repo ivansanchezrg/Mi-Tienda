@@ -1,0 +1,80 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-title>
+      <div class="admin-title">
+        <ion-icon name="shield-checkmark-outline"></ion-icon>
+        Panel Admin
+      </div>
+    </ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="salir()" fill="clear" color="medium">Salir</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  <app-admin-tabs></app-admin-tabs>
+  <!-- Franja blanca: fusiona las esquinas cóncavas de la pestaña activa -->
+  <div class="admin-subheader"></div>
+</ion-header>
+
+<ion-content color="light">
+
+  @if (loading) {
+    <div class="cfg-wrap">
+      <ion-skeleton-text animated style="width: 100%; height: 48px; border-radius: 12px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width: 100%; height: 80px; border-radius: 12px; margin-top: 12px;"></ion-skeleton-text>
+    </div>
+  } @else {
+    <div class="cfg-wrap">
+
+      <!-- WhatsApp -->
+      <label class="cfg-label">WhatsApp de cobro</label>
+      <div class="cfg-wa">
+        <ion-icon name="logo-whatsapp"></ion-icon>
+        <input class="cfg-input" type="tel" inputmode="numeric" [(ngModel)]="whatsapp"
+          placeholder="593987654321 (sin +)" autocomplete="off" />
+      </div>
+      <p class="cfg-hint">Formato Ecuador con código país: 593 + número sin el 0 inicial.</p>
+
+      <!-- Cuentas bancarias -->
+      <div class="cfg-cuentas-head">
+        <label class="cfg-label cfg-label--inline">Cuentas bancarias</label>
+        <button class="cfg-add" (click)="agregarCuenta()">
+          <ion-icon name="add-outline"></ion-icon>
+          <span>Agregar</span>
+        </button>
+      </div>
+
+      @if (cuentas.length === 0) {
+        <p class="cfg-empty">Aún no hay cuentas. Agrega una para que el negocio pueda transferir.</p>
+      } @else {
+        @for (cuenta of cuentas; track $index) {
+          <div class="cfg-cuenta">
+            <div class="cfg-cuenta__info">
+              <span class="cfg-cuenta__banco">{{ cuenta.banco }} · {{ cuenta.tipo }}</span>
+              <span class="cfg-cuenta__num">{{ cuenta.numero }}</span>
+              <span class="cfg-cuenta__titular">{{ cuenta.titular }} — {{ cuenta.cedula }}</span>
+            </div>
+            <div class="cfg-cuenta__acciones">
+              <button (click)="editarCuenta(cuenta, $index)">
+                <ion-icon name="create-outline"></ion-icon>
+              </button>
+              <button (click)="eliminarCuenta($index)">
+                <ion-icon name="trash-outline" color="danger"></ion-icon>
+              </button>
+            </div>
+          </div>
+        }
+      }
+
+    </div>
+  }
+
+</ion-content>
+
+@if (!loading) {
+  <ion-footer class="cfg-footer">
+    <ion-button expand="block" color="primary" [disabled]="guardando" (click)="guardar()">
+      <ion-icon name="save-outline" slot="start"></ion-icon>
+      Guardar cambios
+    </ion-button>
+  </ion-footer>
+}

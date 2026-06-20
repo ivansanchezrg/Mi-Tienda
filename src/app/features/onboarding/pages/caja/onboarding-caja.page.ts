@@ -11,7 +11,7 @@ import {
   shieldCheckmarkOutline, checkmarkCircle
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { OnboardingService } from '../../services/onboarding.service';
+import { OnboardingService, OnboardingNegocioError } from '../../services/onboarding.service';
 import { ROUTES } from '@core/config/routes.config';
 
 function variosMontoValidator(control: AbstractControl): ValidationErrors | null {
@@ -147,8 +147,16 @@ export class OnboardingCajaPage implements OnInit {
         await this.ui.showSuccess('Negocio creado correctamente.');
         this.onboardingService.reset();
         // Vuelve al lugar correcto segun el modo
-        const destino = mode === 'sucursal-superadmin' ? ROUTES.admin : ROUTES.home;
+        const destino = mode === 'sucursal-superadmin' ? ROUTES.admin.root : ROUTES.home;
         this.router.navigate([destino], { replaceUrl: true });
+      }
+    } catch (err) {
+      // Límite de sucursales del plan (u otro error de negocio): mostrar el mensaje tal cual.
+      if (err instanceof OnboardingNegocioError) {
+        await this.ui.hideLoading();
+        await this.ui.showError(err.message);
+      } else {
+        throw err;
       }
     } finally {
       // Para 'inicial' showLoading ya se cerro al activar el JWT (cambio de pagina).

@@ -56,10 +56,10 @@ export class SelectorNegocioPage implements OnInit {
         return;
       }
 
-      // Obtener usuario_id y estado de suspensión global
+      // Obtener usuario_id
       const { data: userData } = await this.supabase.client
         .from('usuarios')
-        .select('id, activo, es_superadmin')
+        .select('id, es_superadmin')
         .eq('email', user.email)
         .maybeSingle();
 
@@ -68,13 +68,7 @@ export class SelectorNegocioPage implements OnInit {
         return;
       }
 
-      // Usuario suspendido globalmente → pending
-      if (userData.activo === false && !userData.es_superadmin) {
-        this.router.navigate([ROUTES.auth.pending], { replaceUrl: true, queryParams: { motivo: 'usuario' } });
-        return;
-      }
-
-      // Abrir canal Realtime para detectar suspensión mientras está en esta pantalla
+      // Abrir canal Realtime (cambios de nombre, eliminación) mientras está en esta pantalla
       if (!userData.es_superadmin) {
         this.authService.iniciarRealtimeUsuario(userData.id);
       }

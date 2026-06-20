@@ -18,6 +18,12 @@
   gap: 2px;
   background: var(--ion-color-step-100);
   position: relative;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .chrome-tab {
@@ -35,6 +41,8 @@
   cursor: pointer;
   transition: color var(--transition-fast);
   z-index: 1;
+  flex: 0 0 auto;
+  white-space: nowrap;
 
   ion-icon {
     font-size: 16px;

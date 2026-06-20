@@ -502,6 +502,63 @@ CREATE POLICY "tipos_referencia_select" ON tipos_referencia FOR SELECT TO authen
 
 
 -- =============================================================================
+-- MONETIZACION / SUSCRIPCIONES
+-- planes, metodos_pago_suscripcion, config_plataforma: catalogos/config globales.
+--   SELECT abierto a authenticated (el cliente necesita leer su plan y los datos de cobro,
+--   incluso suspendido). Escritura SOLO superadmin (gestiona catalogo y datos de cobro).
+-- suscripciones: por tenant. El negocio ve la suya; el superadmin ve todas (via tabla
+--   usuarios, NO get_es_superadmin() del JWT — en /admin el claim puede estar desactualizado).
+--   Escrituras SOLO via funciones SECURITY DEFINER (fn_registrar_pago_propietario, etc.) —
+--   cubiertas por la RESTRICTIVE superadmin_no_write mas abajo.
+-- =============================================================================
+
+-- planes
+ALTER TABLE planes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "planes_select" ON planes;
+DROP POLICY IF EXISTS "planes_admin"  ON planes;
+CREATE POLICY "planes_select" ON planes FOR SELECT TO authenticated USING (true);
+CREATE POLICY "planes_admin"  ON planes FOR ALL TO authenticated
+    USING (public.get_es_superadmin()) WITH CHECK (public.get_es_superadmin());
+
+-- metodos_pago_suscripcion
+ALTER TABLE metodos_pago_suscripcion ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "metodos_pago_select" ON metodos_pago_suscripcion;
+DROP POLICY IF EXISTS "metodos_pago_admin"  ON metodos_pago_suscripcion;
+CREATE POLICY "metodos_pago_select" ON metodos_pago_suscripcion FOR SELECT TO authenticated USING (true);
+CREATE POLICY "metodos_pago_admin"  ON metodos_pago_suscripcion FOR ALL TO authenticated
+    USING (public.get_es_superadmin()) WITH CHECK (public.get_es_superadmin());
+
+-- config_plataforma
+ALTER TABLE config_plataforma ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "config_plataforma_select" ON config_plataforma;
+DROP POLICY IF EXISTS "config_plataforma_admin"  ON config_plataforma;
+CREATE POLICY "config_plataforma_select" ON config_plataforma FOR SELECT TO authenticated USING (true);
+CREATE POLICY "config_plataforma_admin"  ON config_plataforma FOR ALL TO authenticated
+    USING (public.get_es_superadmin()) WITH CHECK (public.get_es_superadmin());
+
+-- suscripciones
+ALTER TABLE suscripciones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "suscripciones_select" ON suscripciones;
+CREATE POLICY "suscripciones_select" ON suscripciones FOR SELECT TO authenticated
+USING (
+    negocio_id = public.get_negocio_id()
+    OR EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true)
+);
+
+-- suscripcion_pagos: historial financiero. El negocio ve los pagos de su propio negocio;
+-- el superadmin ve todos (via tabla usuarios, NO get_es_superadmin() — en /admin el claim
+-- puede estar desactualizado). Escrituras SOLO via funciones SECURITY DEFINER (cubiertas
+-- por la RESTRICTIVE mas abajo).
+ALTER TABLE suscripcion_pagos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "suscripcion_pagos_select" ON suscripcion_pagos;
+CREATE POLICY "suscripcion_pagos_select" ON suscripcion_pagos FOR SELECT TO authenticated
+USING (
+    negocio_id = public.get_negocio_id()
+    OR EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true)
+);
+
+
+-- =============================================================================
 -- BLOQUEO SUPERADMIN — writes directos desde servicios Angular
 -- =============================================================================
 -- El superadmin entra a los negocios solo para revisar datos.
@@ -625,6 +682,24 @@ DROP POLICY IF EXISTS "superadmin_no_write" ON ventas_detalles;
 CREATE POLICY "superadmin_no_write" ON ventas_detalles AS RESTRICTIVE FOR ALL TO authenticated
     USING (true)
     WITH CHECK (NOT EXISTS (SELECT 1 FROM usuarios WHERE email = public.get_email() AND es_superadmin = true));
+
+-- suscripciones: bloqueo TOTAL de escritura directa desde el cliente (no solo superadmin).
+-- Las suscripciones SOLO se crean/modifican via funciones SECURITY DEFINER
+-- (fn_completar_onboarding, fn_registrar_pago_propietario, fn_suspender_propietario_suscripcion),
+-- que bypassan RLS. Sin esta RESTRICTIVE, un ADMIN de negocio podria insertarse a si mismo
+-- una suscripcion 'ACTIVA' con vence_el lejano y saltarse el cobro. WITH CHECK (false)
+-- niega todo INSERT/UPDATE/DELETE directo; las funciones SECURITY DEFINER no se ven afectadas.
+DROP POLICY IF EXISTS "suscripciones_no_write" ON suscripciones;
+CREATE POLICY "suscripciones_no_write" ON suscripciones AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (false);
+
+-- suscripcion_pagos: mismo bloqueo total. El historial financiero solo lo escriben las
+-- funciones SECURITY DEFINER (fn_registrar_pago_propietario). Nadie inserta pagos a mano.
+DROP POLICY IF EXISTS "suscripcion_pagos_no_write" ON suscripcion_pagos;
+CREATE POLICY "suscripcion_pagos_no_write" ON suscripcion_pagos AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (false);
 
 
 NOTIFY pgrst, 'reload schema';

@@ -203,13 +203,6 @@ export class AuthService {
     const data       = rpcData?.usuario   ?? null;
     const membresias = rpcData?.membresias ?? [];
 
-    // Usuario suspendido globalmente (activo = false) — excepto superadmin
-    if (data && data.activo === false && !data.es_superadmin) {
-      this.logger.warn('AuthService', 'Usuario suspendido — redirigiendo a pending');
-      this.router.navigate([ROUTES.auth.pending], { replaceUrl: true, queryParams: { motivo: 'usuario' } });
-      return false;
-    }
-
     // Usuario no existe → auto-registro mínimo
     if (!data) {
       this.logger.info('AuthService', 'Auto-registro de nuevo usuario');
@@ -283,15 +276,19 @@ export class AuthService {
         id: this.usuarioBase.id,
         nombre: this.usuarioBase.nombre,
         email: this.usuarioBase.email,
-        activo: true,
         rol: 'ADMIN',
         es_superadmin: true,
         negocio_id: '',
-        negocio_nombre: ''
+        negocio_nombre: '',
+        negocio_slug: '',
       };
       await this.saveUsuarioActual(usuarioAdmin);
+      // Marcar auth activa: sin esto, al próximo cold start el authGuard ve
+      // hasActiveAuth() === false y manda al login (el superadmin en /admin no
+      // pasa por activarNegocio(), que es donde el resto de cuentas lo escriben).
+      await Preferences.set({ key: this.AUTENTICADO_KEY, value: 'true' });
       this.validadoEnEstaSesion = true;
-      this.router.navigate([ROUTES.admin], { replaceUrl: true });
+      this.router.navigate([ROUTES.admin.root], { replaceUrl: true });
       return true;
     }
 
@@ -339,20 +336,25 @@ export class AuthService {
         id: this.usuarioBase!.id,
         nombre: this.usuarioBase!.nombre,
         email: this.usuarioBase!.email,
-        activo: true,
         rol: negocio.rol,
         es_superadmin: this.usuarioBase!.es_superadmin,
         negocio_id: negocio.negocio_id,
-        negocio_nombre: negocio.negocio_nombre
+        negocio_nombre: negocio.negocio_nombre,
+        negocio_slug: jwtMeta?.['negocio_slug'] ?? '',
       };
       await this.saveUsuarioActual(usuarioCompleto);
+      // Marcar auth activa: el fast-path no pasa por activarNegocio() (que es donde
+      // se escribe normalmente), así que sin esto el próximo cold start vería
+      // hasActiveAuth() === false y mandaría al login pese a tener sesión válida.
+      await Preferences.set({ key: this.AUTENTICADO_KEY, value: 'true' });
       this.iniciarRealtimeUsuario(this.usuarioBase!.id);
       this.iniciarRealtimeMembresia(this.usuarioBase!.id, negocio.negocio_id);
       this.validadoEnEstaSesion = true;
       this.negociosDisponibles = [];
       this.usuarioBase = null;
     } else {
-      // JWT no coincide: actualizar claims vía RPC (flujo completo)
+      // JWT no coincide: actualizar claims vía RPC (flujo completo).
+      // activarNegocio() ya escribe AUTENTICADO_KEY internamente.
       this.logger.info('AuthService', 'JWT desactualizado — actualizando claims');
       await this.activarNegocio(negocio, false);
     }
@@ -396,7 +398,7 @@ export class AuthService {
       };
     }
 
-    const { error: rpcError } = await this.supabase.client
+    const { data: rpcData, error: rpcError } = await this.supabase.client
       .rpc('fn_set_negocio_activo', { p_negocio_id: negocio.negocio_id });
 
     if (rpcError) {
@@ -410,7 +412,7 @@ export class AuthService {
       return;
     }
 
-    // Refrescar sesión para que el JWT incluya el nuevo negocio_id + rol
+    // Refrescar sesión para que el JWT incluya el nuevo negocio_id + negocio_slug + rol
     // Las RLS de todas las tablas dependen de get_negocio_id() que lee el JWT.
     const { error: refreshError } = await this.supabase.client.auth.refreshSession();
     if (refreshError) {
@@ -423,11 +425,11 @@ export class AuthService {
       id: this.usuarioBase.id,
       nombre: this.usuarioBase.nombre,
       email: this.usuarioBase.email,
-      activo: true,
       rol: negocio.rol,
       es_superadmin: this.usuarioBase.es_superadmin,
       negocio_id: negocio.negocio_id,
-      negocio_nombre: negocio.negocio_nombre
+      negocio_nombre: negocio.negocio_nombre,
+      negocio_slug: (rpcData as any)?.negocio_slug ?? '',
     };
 
     await this.saveUsuarioActual(usuarioCompleto);
@@ -451,9 +453,12 @@ export class AuthService {
   /**
    * Abre un canal de Realtime que escucha cambios en el registro del usuario
    * actual en la tabla `usuarios`.
-   * - UPDATE activo=false → handleUsuarioDesactivado() → /auth/pending (sesión OAuth intacta)
    * - DELETE → handleExpiredSession() → /auth/login
-   * - UPDATE otros campos (nombre, etc.) → actualiza cache + emite en usuarioActual$
+   * - UPDATE (nombre, etc.) → actualiza cache + emite en usuarioActual$
+   *
+   * Nota (2026-06-16): ya no detecta suspensión global (usuarios.activo eliminado).
+   * Esa dimensión la cubre el Realtime de `suscripciones` (suspensión por cobro) y
+   * el de `usuario_negocios` (membresía/empleado).
    *
    * Es idempotente: si ya hay un canal abierto para el mismo usuario, no hace nada.
    */
@@ -472,14 +477,7 @@ export class AuthService {
               const nuevo = payload.new as Partial<UsuarioActual> | null;
               if (!nuevo) return;
 
-              // Caso 1: usuario desactivado → sacar de la app (conservar sesión OAuth)
-              if (nuevo.activo === false) {
-                this.logger.warn('AuthService', 'Usuario desactivado en tiempo real');
-                await this.handleUsuarioDesactivado();
-                return;
-              }
-
-              // Caso 2: cambio de nombre u otros campos → actualizar cache + UI
+              // Cambio de nombre u otros campos → actualizar cache + UI
               this.logger.info('AuthService', 'Datos del usuario actualizados en tiempo real');
               const actual = await this.getUsuarioActual();
               if (actual) {
@@ -487,7 +485,6 @@ export class AuthService {
                   ...actual,
                   id: nuevo.id ?? actual.id,
                   nombre: nuevo.nombre ?? actual.nombre,
-                  activo: nuevo.activo ?? actual.activo,
                   es_superadmin: (nuevo as any).es_superadmin ?? actual.es_superadmin
                 };
                 await this.saveUsuarioActual(actualizado);
@@ -558,7 +555,7 @@ export class AuthService {
               if (nuevo.negocio_id !== negocioId) return;
               if (nuevo.activo === false) {
                 this.logger.warn('AuthService', 'Membresía del usuario desactivada en tiempo real');
-                await this.handleUsuarioDesactivado('membresia');
+                await this.handleUsuarioDesactivado();
               }
             });
           }
@@ -626,6 +623,24 @@ export class AuthService {
   }
 
   /**
+   * Arranque offline: emite el UsuarioActual del cache en usuarioActual$ SIN abrir
+   * canales Realtime (no funcionarían sin red). Esto despierta la cadena reactiva
+   * que depende del usuario — en particular TurnosCajaService, que necesita
+   * usuarioActualValue poblado para que esMiTurno funcione cuando vuelva la red.
+   *
+   * Sin esto, al arrancar sin red el guard offline retorna true pero nunca emite
+   * el usuario, dejando usuarioActual$ en null: el estado del turno (y el botón
+   * Abrir/Cerrar del home) queda muerto hasta reiniciar la app con conexión.
+   *
+   * Idempotente: si ya hay el mismo usuario emitido, no re-emite.
+   */
+  hidratarUsuarioOffline(usuario: UsuarioActual): void {
+    if (!usuario.id) return;
+    if (this._usuarioActual$.value?.id === usuario.id) return;
+    this._usuarioActual$.next(usuario);
+  }
+
+  /**
    * Valida el usuario contra la BD en background sin bloquear la navegación.
    * Si detecta suspensión o inconsistencia, redirige via los mismos mecanismos
    * que el flujo síncrono (validarUsuario → handleUsuarioDesactivado → /auth/pending).
@@ -642,22 +657,17 @@ export class AuthService {
   }
 
   /**
-   * Maneja desactivación via Realtime.
+   * Maneja la desactivación de la membresía (usuario_negocios.activo=false) via
+   * Realtime — el admin removió al usuario del negocio actual.
    * NO cierra la sesión OAuth — el usuario puede tocar "Reintentar" si lo reactivan.
-   *
-   * @param motivo 'usuario' = suspensión global (usuarios.activo=false)
-   *               'membresia' = removido del negocio (usuario_negocios.activo=false)
    */
-  private async handleUsuarioDesactivado(motivo: 'usuario' | 'membresia' = 'usuario'): Promise<void> {
-    this.logger.warn('AuthService', `Procesando desactivación: motivo=${motivo}`);
+  private async handleUsuarioDesactivado(): Promise<void> {
+    this.logger.warn('AuthService', 'Procesando desactivación de membresía');
     this.validadoEnEstaSesion = false;
     await this.cerrarRealtimeUsuario();
     await Preferences.remove({ key: this.USUARIO_KEY }).catch(() => {});
-    const msg = motivo === 'membresia'
-      ? 'Tu acceso a este negocio fue removido por el administrador.'
-      : 'Tu cuenta fue suspendida por el administrador.';
-    await this.ui.showToast(msg, 'warning');
-    this.router.navigate([ROUTES.auth.pending], { replaceUrl: true, queryParams: { motivo } });
+    await this.ui.showToast('Tu acceso a este negocio fue removido por el administrador.', 'warning');
+    this.router.navigate([ROUTES.auth.pending], { replaceUrl: true, queryParams: { motivo: 'membresia' } });
   }
 
   /** Cierra sesión sin mostrar loading (uso interno) */
@@ -701,7 +711,7 @@ export class AuthService {
       rolEfectivo = membresia.rol as 'ADMIN' | 'EMPLEADO';
     }
 
-    const { error: rpcError } = await this.supabase.client
+    const { data: rpcData, error: rpcError } = await this.supabase.client
       .rpc('fn_set_negocio_activo', { p_negocio_id: negocioId });
 
     if (rpcError) {
@@ -721,6 +731,7 @@ export class AuthService {
       ...actual,
       negocio_id:     negocioId,
       negocio_nombre: negocioNombre,
+      negocio_slug:   (rpcData as any)?.negocio_slug ?? actual.negocio_slug ?? '',
       rol:            rolEfectivo
     };
 
@@ -750,12 +761,13 @@ export class AuthService {
       ...actual,
       negocio_id: '',
       negocio_nombre: '',
+      negocio_slug: '',
       rol: 'ADMIN'
     };
     await this.saveUsuarioActual(sinNegocio);
 
     this.logger.info('AuthService', 'Superadmin → panel admin');
-    this.router.navigate([ROUTES.admin], { replaceUrl: true });
+    this.router.navigate([ROUTES.admin.root], { replaceUrl: true });
   }
 
   /** Cierra sesión directo, sin confirmación (para pantallas pre-app como pending) */

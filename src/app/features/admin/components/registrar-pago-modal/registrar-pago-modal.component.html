@@ -1,0 +1,93 @@
+<div class="bs-root">
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="card-outline"></ion-icon>
+    </div>
+    <span class="bs-header__title">Registrar pago</span>
+    <button class="bs-header__close" (click)="cerrar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <div class="bs-body">
+
+      <p class="rp-negocio">{{ propietarioNombre }}</p>
+      <p class="rp-alcance">{{ alcanceTexto }}</p>
+
+      @if (cargando) {
+        <p class="rp-cargando">Cargando…</p>
+      } @else {
+
+        <!-- Plan -->
+        <label class="rp-label">Plan</label>
+        <select class="rp-select" [(ngModel)]="planId" (ngModelChange)="onPlanChange()">
+          @for (p of planes; track p.id) {
+            <option [value]="p.id">{{ p.nombre }}</option>
+          }
+        </select>
+
+        <!-- Periodo (toggle) -->
+        <label class="rp-label">Periodo</label>
+        <div class="rp-periodo">
+          <button
+            type="button"
+            class="rp-periodo__btn"
+            [class.rp-periodo__btn--activo]="periodo === 'MENSUAL'"
+            (click)="setPeriodo('MENSUAL')">
+            Mensual
+          </button>
+          <button
+            type="button"
+            class="rp-periodo__btn"
+            [class.rp-periodo__btn--activo]="periodo === 'ANUAL'"
+            [disabled]="!planTieneAnual"
+            (click)="setPeriodo('ANUAL')">
+            Anual
+          </button>
+        </div>
+        @if (!planTieneAnual) {
+          <p class="rp-hint">Este plan solo se ofrece mensual.</p>
+        }
+
+        <!-- Método de pago -->
+        <label class="rp-label">Método de pago</label>
+        <select class="rp-select" [(ngModel)]="metodoPagoId">
+          @for (m of metodos; track m.id) {
+            <option [value]="m.id">{{ m.nombre }}</option>
+          }
+        </select>
+
+        <!-- Monto -->
+        <label class="rp-label">Monto recibido</label>
+        <div class="rp-monto">
+          <span class="rp-monto__signo">$</span>
+          <input
+            class="rp-monto__input"
+            type="text"
+            inputmode="decimal"
+            appCurrencyInput
+            [(ngModel)]="montoInput"
+            placeholder="0.00">
+        </div>
+
+        <!-- Nota -->
+        <label class="rp-label">Referencia / nota (opcional)</label>
+        <input
+          class="rp-nota"
+          type="text"
+          [(ngModel)]="nota"
+          placeholder="Ej: transferencia banco Pichincha #12345"
+          autocomplete="off">
+      }
+
+    </div>
+  </div>
+
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
+    <ion-button expand="block" color="primary" [disabled]="!valido || guardando" (click)="confirmar()">
+      Registrar pago
+    </ion-button>
+  </div>
+</div>

@@ -1,10 +1,10 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
-import { IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { cloudOfflineOutline, cloudUploadOutline } from 'ionicons/icons';
 import { NetworkService } from '@core/services/network.service';
 import { OutboxService } from '@core/services/outbox.service';
+import { BannerComponent } from '@shared/components/banner/banner.component';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -12,7 +12,7 @@ import { Subscription } from 'rxjs';
   templateUrl: './offline-banner.component.html',
   styleUrls: ['./offline-banner.component.scss'],
   standalone: true,
-  imports: [IonIcon]
+  imports: [BannerComponent]
 })
 export class OfflineBannerComponent implements OnInit, OnDestroy {
   private networkService = inject(NetworkService);

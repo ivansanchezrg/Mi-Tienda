@@ -26,8 +26,7 @@
 --   8. docs/onboarding/sql/functions/fn_configurar_modulos.sql
 --   9. docs/admin/sql/functions/fn_configurar_modulos_admin.sql
 --  10. docs/admin/sql/functions/fn_consultar_usuario_por_email.sql
---  11. docs/admin/sql/functions/fn_suspender_usuario.sql
---  12. docs/usuarios/sql/functions/fn_actualizar_membresia.sql
+--  11. docs/usuarios/sql/functions/fn_actualizar_membresia.sql
 --  13. docs/usuarios/sql/functions/fn_transferir_empleado.sql
 --  14. docs/*/sql/functions/*.sql                (resto de funciones de modulos)
 --  15. docs/*/sql/setup/realtime_*.sql
@@ -96,7 +95,7 @@ DECLARE
         'fn_transferir_empleado',
         -- Admin
         'fn_consultar_usuario_por_email',
-        'fn_suspender_usuario',
+        'fn_suspender_usuario',                     -- legacy (reemplazada por fn_suspender_propietario_suscripcion, 2026-06-16)
         -- Notas
         'fn_eliminar_nota',
         -- Usuarios helpers
@@ -117,7 +116,14 @@ DECLARE
         'fn_habilitar_recargas',
         'fn_habilitar_recargas_admin',
         'fn_configurar_modulos',
-        'fn_configurar_modulos_admin'
+        'fn_configurar_modulos_admin',
+        -- Suscripciones / Monetizacion
+        'fn_estado_suscripcion',
+        'fn_registrar_pago_propietario',            -- pago por dueño (renueva todos sus negocios)
+        'fn_registrar_pago_suscripcion',            -- eliminada 2026-06-16 (reemplazada por fn_registrar_pago_propietario); se deja para limpiar BD vieja
+        'fn_suspender_suscripcion',                 -- legacy (reemplazada por fn_suspender_propietario_suscripcion, 2026-06-16)
+        'fn_suspender_propietario_suscripcion',     -- suspende todos los negocios del propietario
+        'fn_listar_suscripciones_admin'
     ];
     v_nombre TEXT;
     v_oid    OID;
@@ -238,9 +244,14 @@ DROP TABLE IF EXISTS public.recargas_virtuales          CASCADE;
 DROP TABLE IF EXISTS public.categorias_operaciones      CASCADE;
 DROP TABLE IF EXISTS public.cajas                       CASCADE;
 DROP TABLE IF EXISTS public.configuraciones             CASCADE;
+DROP TABLE IF EXISTS public.suscripcion_pagos           CASCADE;
+DROP TABLE IF EXISTS public.suscripciones               CASCADE;
 DROP TABLE IF EXISTS public.usuario_negocios            CASCADE;
 DROP TABLE IF EXISTS public.usuarios                    CASCADE;
 DROP TABLE IF EXISTS public.negocios                    CASCADE;
+DROP TABLE IF EXISTS public.config_plataforma           CASCADE;
+DROP TABLE IF EXISTS public.metodos_pago_suscripcion    CASCADE;
+DROP TABLE IF EXISTS public.planes                      CASCADE;
 DROP TABLE IF EXISTS public.tipos_referencia            CASCADE;
 DROP TABLE IF EXISTS public.tipos_servicio              CASCADE;
 -- Vestigios legacy

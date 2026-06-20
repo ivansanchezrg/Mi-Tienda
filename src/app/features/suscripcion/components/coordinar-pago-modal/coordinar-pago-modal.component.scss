@@ -1,0 +1,214 @@
+.bs-header__icon {
+  background: rgba(var(--ion-color-success-rgb), 0.1);
+  ion-icon { color: var(--ion-color-success); }
+}
+
+// ── Resumen del pago ─────────────────────────────────
+
+.cp-resumen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  background: rgba(var(--ion-color-success-rgb), 0.06);
+  border: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
+  text-align: center;
+}
+
+.cp-resumen__plan {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-success-shade);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.cp-resumen__precio {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ion-color-dark);
+  line-height: 1;
+}
+
+.cp-resumen__periodo {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ion-color-medium);
+}
+
+.cp-resumen__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.cp-resumen__accion {
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-success-shade);
+}
+
+.cp-resumen__sep {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+.cp-resumen__negocio {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+// ── Hint inicial ──────────────────────────────────────
+
+.cp-hint {
+  margin: 0 0 var(--spacing-md);
+  font-size: 14px;
+  color: var(--ion-color-medium);
+}
+
+// ── Opciones de método de pago ────────────────────────
+
+.cp-metodos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.cp-metodo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  padding: 12px var(--spacing-md);
+  border: 1.5px solid rgba(var(--ion-color-medium-rgb), 0.2);
+  border-radius: var(--radius-md);
+  background: var(--ion-item-background);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &--activo {
+    border-color: var(--ion-color-success);
+    background: rgba(var(--ion-color-success-rgb), 0.05);
+
+    .cp-metodo__icon {
+      background: rgba(var(--ion-color-success-rgb), 0.12);
+      ion-icon { color: var(--ion-color-success); }
+    }
+
+    .cp-metodo__label { color: var(--ion-color-success-shade); }
+  }
+}
+
+.cp-metodo__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(var(--ion-color-medium-rgb), 0.1);
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+
+  ion-icon {
+    font-size: 20px;
+    color: var(--ion-color-medium);
+    transition: color 0.15s ease;
+  }
+}
+
+.cp-metodo__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cp-metodo__label {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-dark);
+  transition: color 0.15s ease;
+}
+
+.cp-metodo__desc {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+.cp-metodo__check {
+  font-size: 20px;
+  color: var(--ion-color-success);
+  flex-shrink: 0;
+}
+
+// ── Campo de referencia ───────────────────────────────
+
+.cp-referencia {
+  margin-top: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.cp-referencia__label {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-dark);
+}
+
+
+.cp-referencia__input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid rgba(var(--ion-color-medium-rgb), 0.2);
+  border-radius: 12px;
+  background: var(--ion-item-background);
+  font-size: 14px;
+  color: var(--ion-color-dark);
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+
+  &::placeholder { color: var(--ion-color-medium); }
+  &:focus { border-color: var(--ion-color-success); }
+}
+
+.cp-referencia__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+}
+
+// ── Aviso efectivo ────────────────────────────────────
+
+.cp-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-lg);
+  padding: 12px var(--spacing-md);
+  border-radius: var(--radius-md);
+  background: rgba(var(--ion-color-warning-rgb), 0.08);
+
+  ion-icon {
+    font-size: 18px;
+    color: var(--ion-color-warning-shade);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ion-color-warning-shade);
+    line-height: 1.4;
+  }
+}

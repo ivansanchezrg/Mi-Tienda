@@ -6,7 +6,14 @@
 export const ROUTES = {
   home: '/caja',
 
-  admin: '/admin',
+  // Panel del superadmin con tabs internas (negocios / planes / configuración).
+  // La gestión de suscripciones (registrar pago, suspender negocio) vive dentro
+  // del menú de cada negocio en la tab Negocios — no hay tab separada.
+  admin: {
+    root:          '/admin',
+    planes:        '/admin/planes',
+    configuracion: '/admin/configuracion',
+  },
 
   auth: {
     login:              '/auth/login',
@@ -36,6 +43,9 @@ export const ROUTES = {
   },
 
   pos: '/pos',
+
+  /** Pantalla de suscripción: bloqueo "Suscríbete" (vencida) + vista informativa "Mi Plan". */
+  suscripcion: '/suscripcion',
 
   inventario: {
     root:   '/inventario',

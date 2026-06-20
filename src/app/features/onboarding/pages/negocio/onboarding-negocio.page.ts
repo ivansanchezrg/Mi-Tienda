@@ -315,7 +315,7 @@ export class OnboardingNegocioPage implements OnInit, OnDestroy {
       });
       await alert.present();
     } else if (this.mode === 'sucursal-superadmin' && this.router.url.includes('/crear-negocio') && this.route.snapshot.queryParamMap.get('context') === 'admin') {
-      this.router.navigate([ROUTES.admin]);
+      this.router.navigate([ROUTES.admin.root]);
     } else {
       this.router.navigate([ROUTES.home]);
     }

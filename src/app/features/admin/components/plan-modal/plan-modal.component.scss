@@ -1,0 +1,108 @@
+.bs-header__icon {
+  background: rgba(var(--ion-color-tertiary-rgb), 0.1);
+  ion-icon { color: var(--ion-color-tertiary); }
+}
+
+.pm-label {
+  display: block;
+  margin: var(--spacing-md) 0 var(--spacing-xs);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+
+  &:first-of-type { margin-top: 0; }
+}
+
+.pm-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+}
+
+.pm-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid rgba(var(--ion-color-medium-rgb), 0.2);
+  border-radius: 12px;
+  background: var(--ion-item-background);
+  font-size: 14px;
+  color: var(--ion-text-color);
+  outline: none;
+
+  &:focus { border-color: var(--ion-color-primary); }
+  &:disabled { opacity: 0.6; }
+  &::placeholder { color: var(--ion-color-medium); }
+}
+
+.pm-select {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.pm-row {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.pm-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.pm-monto {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 14px;
+  border: 1.5px solid rgba(var(--ion-color-medium-rgb), 0.2);
+  border-radius: 12px;
+  background: var(--ion-item-background);
+
+  span {
+    font-size: 15px;
+    color: var(--ion-color-medium);
+  }
+
+  input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 15px;
+    color: var(--ion-text-color);
+    min-width: 0;
+  }
+}
+
+.pm-features {
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid rgba(var(--ion-color-medium-rgb), 0.15);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.pm-feature {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--ion-text-color);
+  border-bottom: 1px solid rgba(var(--ion-color-medium-rgb), 0.1);
+
+  &:last-child { border-bottom: none; }
+
+  ion-toggle {
+    --handle-spacing: 2px;
+    padding: 0;
+  }
+
+  &--activo {
+    margin-top: var(--spacing-md);
+    border: 1.5px solid rgba(var(--ion-color-medium-rgb), 0.15);
+    border-radius: 12px;
+  }
+}

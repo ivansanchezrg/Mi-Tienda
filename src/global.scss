@@ -217,13 +217,20 @@ img.img-fade {
 }
 
 
-// Banner offline: cuando ocupa la franja superior, el banner ya reserva el
-// safe-area-inset-top (status bar del celular). Anular el de los toolbars evita
-// contar ese espacio dos veces — sin esto queda un hueco entre banner y header.
-body.offline-banner-visible {
+// Banner superior (offline o suscripción): cuando ocupa la franja superior, el
+// banner ya reserva el safe-area-inset-top (status bar del celular). Anular el de
+// los toolbars evita contar ese espacio dos veces — sin esto queda un hueco entre
+// banner y header. Aplica a CUALQUIER banner global superior; al agregar uno nuevo
+// que reserve safe-area-top, sumar su clase de body a este selector.
+body.offline-banner-visible,
+body.suscripcion-banner-visible {
   --ion-safe-area-top: 0px;
 
-  ion-header ion-toolbar {
+  // Solo los headers de PÁGINA (dentro del router-outlet) pierden el safe-area:
+  // están bajo el banner, que ya reservó esa franja. Los modales/overlays viven
+  // FUERA del router-outlet (en ion-app > ion-modal) y NO se ven afectados — así
+  // su header conserva el safe-area real y no se pega a la status bar.
+  ion-router-outlet ion-header ion-toolbar {
     padding-top: 0;
   }
 
@@ -233,10 +240,11 @@ body.offline-banner-visible {
     padding-top: var(--spacing-lg);
   }
 
-  // Los toasts son overlays flotantes, no contenido empujado por el banner.
-  // Restaurar su safe area real evita que se peguen a la status bar — el override
-  // de arriba es solo para el contenido bajo el banner (headers/sidebar).
-  ion-toast {
+  // Los toasts y modales son overlays flotantes, NO contenido empujado por el
+  // banner — se renderizan encima de todo. Restaurar el safe-area real evita que
+  // su header se pegue a la status bar (la hora del teléfono sobre el modal).
+  ion-toast,
+  ion-modal {
     --ion-safe-area-top: env(safe-area-inset-top);
   }
 }

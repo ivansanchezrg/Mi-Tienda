@@ -1,0 +1,12 @@
+:host {
+  display: block;
+}
+
+// Reserva el safe-area-top (status bar) mientras el aviso es visible — mismo
+// patrón que offline-banner. La presentación vive en BannerComponent (app-banner).
+// No coexiste con el offline-banner: este se oculta sin conexión (ver el .ts),
+// así que nunca hay dos banners reservando el safe-area a la vez.
+:host-context(body.suscripcion-banner-visible) {
+  padding-top: env(safe-area-inset-top);
+  background: var(--app-bg);
+}

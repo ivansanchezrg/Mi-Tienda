@@ -107,7 +107,6 @@ NOTAS GENERALES:
 
   Admin / Usuarios:
     docs/admin/sql/functions/fn_consultar_usuario_por_email.sql
-    docs/admin/sql/functions/fn_suspender_usuario.sql
     docs/usuarios/sql/functions/fn_actualizar_membresia.sql
     docs/usuarios/sql/functions/fn_transferir_empleado.sql
 
@@ -156,6 +155,12 @@ NOTAS GENERALES:
   Notas:
     (sin funciones — DELETE directo con RLS desde 2026-05-07)
 
+  Suscripciones / Monetizacion:
+    docs/suscripcion/sql/functions/fn_estado_suscripcion.sql
+    docs/suscripcion/sql/functions/fn_registrar_pago_propietario.sql   (pago / renovacion por dueño)
+    docs/suscripcion/sql/functions/fn_suspender_propietario_suscripcion.sql
+    docs/suscripcion/sql/functions/fn_listar_suscripciones_admin.sql
+
 ================================================================================
 9. VISTAS
 ================================================================================
@@ -181,6 +186,7 @@ NOTAS GENERALES:
   docs/caja/sql/setup/realtime_turnos_caja.sql
   docs/caja/sql/setup/realtime_cajas.sql
   docs/usuarios/sql/setup/realtime_usuario_negocios.sql
+  docs/suscripcion/sql/setup/realtime_suscripciones.sql
 
   IMPORTANTE: cada vez que se re-ejecuta schema.sql, los DROP TABLE CASCADE
   borran las publicaciones Realtime y hay que volver a correr estos archivos.
@@ -195,6 +201,50 @@ NOTAS GENERALES:
   docs/ventas/sql/seeds/seed_ventas_prueba.sql
     (requiere que ya exista al menos un negocio creado via
      fn_completar_onboarding)
+
+================================================================================
+13. MIGRACIONES INCREMENTALES (PRODUCCION — NO destructivas)
+================================================================================
+
+  Las migraciones en docs/setup/migrations/ son para aplicar cambios sobre una
+  BD que YA tiene datos reales, SIN ejecutar el teardown/schema (que borrarian todo).
+  Son idempotentes (IF NOT EXISTS / ON CONFLICT / OR REPLACE) y re-ejecutables.
+
+  001_planes_suscripciones.sql — Sistema de planes y suscripciones (monetizacion).
+    Crea: planes, metodos_pago_suscripcion, config_plataforma, suscripciones + RLS + seeds.
+    Tras ejecutar el archivo de migracion, ejecutar tambien (funciones, fuente de verdad):
+      docs/onboarding/sql/functions/fn_completar_onboarding.sql   (REEMPLAZO)
+      docs/suscripcion/sql/functions/fn_estado_suscripcion.sql
+      docs/suscripcion/sql/functions/fn_registrar_pago_propietario.sql
+      docs/suscripcion/sql/functions/fn_suspender_propietario_suscripcion.sql
+    El bloque 5 de la migracion crea suscripcion para los negocios existentes
+    (evita que se autobloqueen al activar el guard del frontend).
+
+  002_planes_precio_anual.sql — Precio dual (mensual + anual) en planes.
+    Ver docs/setup/migrations/002_planes_precio_anual.sql (cabecera del archivo).
+
+  003_planes_max_negocios.sql — Limite de negocios por plan (PRO=1, MAX=3).
+    Tras ejecutar, re-ejecutar:
+      docs/onboarding/sql/functions/fn_completar_onboarding.sql   (REEMPLAZO)
+
+  004_eliminar_usuarios_activo.sql — Elimina usuarios.activo (suspension global obsoleta,
+    reemplazada por suspension de suscripcion por propietario).
+    ANTES de ejecutar: reactivar manualmente cualquier usuario con activo=false que
+    deba seguir operando (UPDATE usuarios SET activo = true WHERE activo = false).
+    Tras ejecutar, re-ejecutar (toman la nueva firma sin `activo`):
+      docs/setup/03_functions.sql                          (fn_set_negocio_activo)
+      docs/auth/sql/functions/fn_validar_sesion.sql
+
+  005_suscripciones_estado_pagos.sql — Modelo de 2 tablas: estado + historial financiero.
+    suscripciones pasa a 1 fila por negocio (negocio_id UNIQUE, estado mutable via UPDATE);
+    crea suscripcion_pagos (libro de cobros inmutable); quita config_plataforma.mensaje_suspension;
+    pone REPLICA IDENTITY FULL en suscripciones (Realtime escucha UPDATE).
+    Tras ejecutar, re-ejecutar las 5 funciones (usan el nuevo modelo):
+      docs/onboarding/sql/functions/fn_completar_onboarding.sql
+      docs/suscripcion/sql/functions/fn_registrar_pago_propietario.sql
+      docs/suscripcion/sql/functions/fn_suspender_propietario_suscripcion.sql
+      docs/suscripcion/sql/functions/fn_estado_suscripcion.sql
+      docs/suscripcion/sql/functions/fn_listar_suscripciones_admin.sql
 
 ================================================================================
 DESPUES DE TODOS LOS PASOS

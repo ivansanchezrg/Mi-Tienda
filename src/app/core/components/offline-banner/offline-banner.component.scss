@@ -3,68 +3,11 @@
 }
 
 // Solo cuando el banner está visible reserva la franja del safe area superior
-// (status bar del celular) con el color de fondo de la app — NO rojo. Sin banner
-// (online) el :host no ocupa espacio y no empuja el contenido. La clase la togglea
-// OfflineBannerComponent. env(...) vale 0 en web/desktop.
+// (status bar del celular) con el color de fondo de la app — NO el color del banner.
+// Sin banner (online) el :host no ocupa espacio y no empuja el contenido.
+// La clase la togglea OfflineBannerComponent. env(...) vale 0 en web/desktop.
+// La presentación (animación, alto, colores) vive en BannerComponent (app-banner).
 :host-context(body.offline-banner-visible) {
   padding-top: env(safe-area-inset-top);
   background: var(--app-bg);
-}
-
-.offline-banner {
-  // Flujo normal (no fixed): empuja el contenido hacia abajo via el flex
-  // de ion-app en vez de montarse encima. Ver app.component.scss.
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-
-  min-height: 44px;
-  box-sizing: border-box;
-  padding-left: var(--spacing-lg);
-  padding-right: var(--spacing-lg);
-
-  // Sin conexión: warning (ámbar) — es un aviso de estado, no un error.
-  background: var(--ion-color-warning);
-  color: var(--ion-color-warning-contrast);
-
-  font-size: 13px;
-  font-weight: var(--font-weight-medium);
-
-  animation: slideDown var(--transition-slow) ease-out;
-
-  ion-icon {
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-
-  // Sincronizando: primary (azul) — comunica actividad en progreso,
-  // distinto del ámbar del estado "sin conexión".
-  &--sync {
-    background: var(--ion-color-primary);
-    color: var(--ion-color-primary-contrast);
-    cursor: pointer;
-  }
-
-  &__cola {
-    margin-left: var(--spacing-sm);
-    background: rgba(255, 255, 255, 0.25);
-    color: inherit;
-    border: none;
-    border-radius: var(--radius-sm);
-    padding: 2px 8px;
-    font-size: 12px;
-    font-weight: var(--font-weight-medium);
-  }
-}
-
-@keyframes slideDown {
-  from {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }

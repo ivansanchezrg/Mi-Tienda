@@ -154,10 +154,15 @@ export class TurnosCajaService {
       const turno = await this.obtenerTurnoActivo();
       this._turnoActivo$.next(turno);
       await this.sincronizarSnapshotLocal(turno);
-      this.abrirRealtimeTurnos();
     } catch (err) {
+      // Sin red la query del turno falla; no es fatal. El estado se reconcilia
+      // cuando vuelve la conexión (home llama de nuevo a inicializarEstadoReactivo).
       this.logger.error('TurnosCajaService', 'Error al inicializar estado reactivo', err);
     } finally {
+      // El canal Realtime se abre SIEMPRE, aunque la query haya fallado: es
+      // idempotente y no depende del resultado del turno. Así, cuando la red
+      // vuelve, los cambios de turnos_caja se propagan sin esperar otra llamada.
+      this.abrirRealtimeTurnos();
       this._inicializado$.next(true);
     }
   }
@@ -267,6 +272,28 @@ export class TurnosCajaService {
   }
 
   /**
+   * Reabre el canal de Realtime de turnos con una conexión limpia, SIN resetear
+   * turnoActivo$ (a diferencia de cerrarRealtimeTurnos, que es para logout).
+   *
+   * Necesario tras recuperar la red en un arranque offline: el canal que se intentó
+   * abrir sin conexión puede haber quedado en estado CHANNEL_ERROR y no reconectar
+   * solo. Lo cerramos y reabrimos para garantizar que los cambios de turnos_caja
+   * vuelvan a propagarse.
+   */
+  async reabrirRealtimeTurnos(): Promise<void> {
+    if (this.canalTurnos) {
+      try {
+        await this.supabase.client.removeChannel(this.canalTurnos);
+      } catch (err) {
+        this.logger.error('TurnosCajaService', 'Error al cerrar canal Realtime turnos (reabrir)', err);
+      } finally {
+        this.canalTurnos = null;
+      }
+    }
+    this.abrirRealtimeTurnos();
+  }
+
+  /**
    * Cierra el canal de Realtime y resetea el estado.
    * Se llama automaticamente via registerBeforeCleanup cuando la sesion
    * se limpia (logout, JWT expirado, etc.).
@@ -297,13 +324,15 @@ export class TurnosCajaService {
   }
 
   /**
-   * Sincroniza turnoActivo$ con un turno conocido sin hacer query extra.
-   * Solo lo llama home.page.ts cuando detecta que el servidor reporta un turno
-   * activo pero el BehaviorSubject está vacío — escenario de cold start offline
-   * donde inicializarEstadoReactivo() falló sin red y la primera carga exitosa
-   * llega después de recuperar conexión.
+   * Sincroniza turnoActivo$ con el estado que reporta el servidor (fn_home_dashboard),
+   * sin hacer query extra. Lo llama home.page.ts para reconciliar el BehaviorSubject
+   * cuando quedó desincronizado: escenario de cold start offline donde
+   * inicializarEstadoReactivo() falló sin red y la primera carga exitosa llega
+   * después de recuperar conexión, o cuando el subject conserva un turno obsoleto.
+   *
+   * Acepta null para el caso inverso (servidor sin turno → limpiar turno fantasma).
    */
-  sincronizarTurnoDesdeHome(turno: TurnoCajaConEmpleado): void {
+  sincronizarTurnoDesdeHome(turno: TurnoCajaConEmpleado | null): void {
     this._turnoActivo$.next(turno);
   }
 

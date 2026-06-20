@@ -63,6 +63,18 @@ DECLARE
     v_slug_base            VARCHAR;
     v_slug                 VARCHAR;
     v_slug_n               INT;
+    v_plan_basico_id       UUID;          -- plan PRO (plan de entrada para todo negocio nuevo)
+    v_trial_dias           INT;           -- dias de trial del plan PRO
+    v_negocios_actuales    INT;           -- negocios que ya tiene el propietario
+    v_max_negocios         INT;           -- tope del plan vigente del propietario (NULL = ilimitado)
+    -- Herencia de suscripcion: si el propietario YA tiene una suscripcion vigente
+    -- (caso MAX creando su 2do/3er negocio), el negocio nuevo la hereda en vez de
+    -- arrancar su propio trial — asi todos sus negocios comparten plan y vencimiento.
+    v_sub                  RECORD;        -- fila temporal del FOR loop de suscripcion heredada
+    v_sub_plan_id          UUID;          -- plan de la suscripcion vigente del propietario
+    v_sub_estado           TEXT;          -- estado guardado de esa suscripcion
+    v_sub_periodo          TEXT;          -- periodo_contratado de esa suscripcion
+    v_sub_vence_el         TIMESTAMPTZ;   -- vencimiento comun a heredar
 BEGIN
     -- ── Validaciones ──
     IF TRIM(p_nombre_negocio) = '' OR p_nombre_negocio IS NULL THEN
@@ -126,6 +138,35 @@ BEGIN
                 v_propietario_email,
                 FALSE
             );
+        END IF;
+    END IF;
+
+    -- ── 2b. Limite de negocios por plan ──
+    -- La suscripcion se paga por propietario, no por sucursal. El plan define
+    -- cuantos negocios puede tener (PRO = 1, MAX = 3; NULL = ilimitado).
+    -- Se cuentan TODOS los negocios del propietario (sin importar su estado).
+    -- El limite es absoluto: aplica tambien al superadmin creando para un dueño.
+    -- Si el propietario aun no tiene negocios (primer negocio), no hay tope que
+    -- validar y se omite la consulta del plan.
+    v_negocios_actuales := (SELECT COUNT(*) FROM negocios WHERE propietario_usuario_id = v_propietario_id);
+
+    IF v_negocios_actuales > 0 THEN
+        -- Tope del plan vigente del propietario. La suscripcion es por dueño, asi que
+        -- cualquiera de sus negocios refleja el mismo plan; tomamos la suscripcion
+        -- mas reciente de cualquiera de ellos.
+        v_max_negocios := (
+            SELECT pl.max_negocios
+            FROM suscripciones s
+            JOIN negocios  n  ON n.id = s.negocio_id
+            JOIN planes    pl ON pl.id = s.plan_id
+            WHERE n.propietario_usuario_id = v_propietario_id
+            ORDER BY s.created_at DESC
+            LIMIT 1
+        );
+
+        -- NULL = ilimitado (o el plan no define tope) → no se valida.
+        IF v_max_negocios IS NOT NULL AND v_negocios_actuales >= v_max_negocios THEN
+            RAISE EXCEPTION 'limite_negocios: Tu plan permite hasta % negocio(s). Actualiza tu plan para agregar mas sucursales.', v_max_negocios;
         END IF;
     END IF;
 
@@ -226,6 +267,65 @@ BEGIN
     (v_negocio_id, 'nomina_sueldo_base',            p_nomina_sueldo_base::TEXT),
     (v_negocio_id, 'nomina_dia_pago',               '1')
     ON CONFLICT (negocio_id, clave) DO NOTHING;
+
+    -- ── 8b. Suscripcion del negocio nuevo ──
+    -- La suscripcion se paga POR PROPIETARIO, no por sucursal. Dos casos:
+    --
+    --   A) El propietario YA tiene otros negocios con suscripcion (ej: plan MAX creando
+    --      su 2da/3ra sucursal): el negocio nuevo HEREDA plan + estado + periodo + vence_el
+    --      de la suscripcion mas reciente. Todos los negocios del dueño comparten plan y
+    --      vencimiento — se suspenden y renuevan juntos.
+    --
+    --   B) Es el PRIMER negocio del propietario: nace en TRIAL con el plan PRO.
+    --      trial_dias del plan PRO define la duracion del periodo de prueba.
+    --
+    -- Ambos casos son OBLIGATORIOS — si no se puede crear la suscripcion, la funcion
+    -- falla con error explicito y hace rollback de todo lo creado hasta ese punto.
+    -- 'VENCIDA' no se guarda: se deriva de vence_el en fn_estado_suscripcion.
+    FOR v_sub IN
+        SELECT s.plan_id, s.estado, s.periodo_contratado, s.vence_el
+        FROM suscripciones s
+        JOIN negocios n ON n.id = s.negocio_id
+        WHERE n.propietario_usuario_id = v_propietario_id
+          AND n.id <> v_negocio_id
+        ORDER BY s.created_at DESC
+        LIMIT 1
+    LOOP
+        v_sub_plan_id  := v_sub.plan_id;
+        v_sub_estado   := v_sub.estado;
+        v_sub_periodo  := v_sub.periodo_contratado;
+        v_sub_vence_el := v_sub.vence_el;
+    END LOOP;
+
+    -- UNA fila de suscripcion por negocio (negocio_id es UNIQUE). El negocio es recien
+    -- creado, asi que no existe fila previa; el INSERT directo basta. No se registra pago
+    -- aqui: el trial / la herencia no son cobros (el historial vive en suscripcion_pagos).
+    IF v_sub_plan_id IS NOT NULL THEN
+        -- Caso A — heredar la suscripcion vigente del propietario.
+        IF v_sub_vence_el IS NULL THEN
+            RAISE EXCEPTION 'onboarding_error: La suscripcion existente del propietario no tiene fecha de vencimiento. Corrija la suscripcion antes de crear una sucursal.';
+        END IF;
+        INSERT INTO suscripciones (negocio_id, plan_id, estado, periodo_contratado, inicia_el, vence_el)
+        VALUES (v_negocio_id, v_sub_plan_id, v_sub_estado, COALESCE(v_sub_periodo, 'MENSUAL'), NOW(), v_sub_vence_el);
+    ELSE
+        -- Caso B — primer negocio: siempre arranca en TRIAL con el plan PRO.
+        -- PRO es el plan de entrada del producto — no es configurable por el propietario.
+        v_plan_basico_id := (SELECT id        FROM planes WHERE codigo = 'PRO' AND activo = TRUE);
+        v_trial_dias     := (SELECT trial_dias FROM planes WHERE codigo = 'PRO' AND activo = TRUE);
+
+        IF v_plan_basico_id IS NULL THEN
+            RAISE EXCEPTION 'onboarding_error: El plan PRO no existe o esta desactivado. El superadmin debe verificar la configuracion de planes antes de continuar.';
+        END IF;
+
+        INSERT INTO suscripciones (negocio_id, plan_id, estado, inicia_el, vence_el)
+        VALUES (
+            v_negocio_id,
+            v_plan_basico_id,
+            'TRIAL',
+            NOW(),
+            NOW() + (COALESCE(v_trial_dias, 0) || ' days')::INTERVAL
+        );
+    END IF;
 
     -- ── 9. Secuencias de comprobantes ──
     INSERT INTO secuencias_comprobantes (negocio_id, tipo_documento, ultimo_valor) VALUES

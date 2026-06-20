@@ -1,0 +1,607 @@
+.page-container {
+  padding: var(--spacing-md);
+  max-width: 960px;   // móvil: queda acotado; desktop: permite 2-3 tarjetas side-by-side
+  margin: 0 auto;
+}
+
+// Skeleton de carga (ambos modos comparten este placeholder).
+.susc-skeleton {
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+}
+
+// ============ Modo informativo: Mi Plan + catálogo ============
+
+// Badge de estado (TRIAL/ACTIVA) — compartido con la tira del plan actual.
+.susc-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  background: rgba(var(--ion-color-success-rgb), 0.15);
+  color: var(--ion-color-success-shade);
+
+  &--trial {
+    background: rgba(var(--ion-color-warning-rgb), 0.18);
+    color: var(--ion-color-warning-shade);
+  }
+}
+
+.susc-empty {
+  text-align: center;
+  color: var(--ion-color-medium);
+  font-size: 14px;
+  margin-top: var(--spacing-md);
+}
+
+// Toolbar extra dentro del header que aloja el toggle Mensual/Anual.
+// Sin borde inferior propio — ion-header ya lo gestiona.
+.susc-toolbar-periodo {
+  --min-height: auto;
+  --padding-top: 6px;
+  --padding-bottom: 10px;
+  --background: var(--ion-toolbar-background, var(--ion-background-color));
+}
+
+// ── Toggle global Mensual / Anual (segmented control) ──
+.susc-periodo {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--ion-color-step-100, #ececec);
+  max-width: 320px;
+  margin: 0 auto;
+
+  &__btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 14px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    font-size: 14px;
+    font-weight: var(--font-weight-medium);
+    color: var(--ion-color-medium);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &--activo {
+      background: var(--ion-background-color, #fff);
+      color: var(--ion-color-dark);
+      font-weight: var(--font-weight-semibold);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    }
+  }
+
+  &__badge {
+    font-size: 10px;
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(var(--ion-color-success-rgb), 0.15);
+    color: var(--ion-color-success-shade);
+  }
+}
+
+// ── Catálogo de planes (protagonista visual) ──
+
+// Móvil: columna única. Tablet/desktop (≥600px): grid de columnas iguales,
+// máximo 3 columnas para que las tarjetas no queden demasiado angostas.
+.susc-planes {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-md);
+  align-items: start;   // tarjetas de diferente alto no se estiran
+  padding-top: 16px;    // espacio para que el pill "Recomendado" sobresalga por encima del grid
+
+  @media (min-width: 600px) {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+.susc-plan {
+  position: relative;
+  padding: var(--spacing-lg);
+  padding-top: calc(var(--spacing-lg) + 4px); // espacio para el pill "Recomendado"
+  border-radius: var(--radius-lg);
+  background: var(--ion-card-background, #fff);
+  border: 1.5px solid var(--ion-color-step-150, #e6e6e6);
+  display: flex;
+  flex-direction: column;
+
+  // Recomendado: borde primary + sombra sutil para que "salte" visualmente.
+  // En móvil (columna única) el pill sobresale hacia el card de arriba — margin-top lo compensa.
+  // En desktop (grid multi-columna) el padding-top del grid ya da el espacio, no hace falta.
+  &--recomendado {
+    border-color: var(--ion-color-primary);
+    box-shadow: 0 4px 20px rgba(var(--ion-color-primary-rgb), 0.14);
+    margin-top: 8px;
+
+    @media (min-width: 600px) {
+      margin-top: 0;
+    }
+  }
+
+  // Actual: fondo levemente gris, sin competir con las tarjetas de upsell.
+  &--actual {
+    background: var(--ion-color-step-50, #f8f8f8);
+    border-style: dashed;
+  }
+
+  // ── Pill flotante "Recomendado" ──
+  &__flag {
+    position: absolute;
+    top: -12px;
+    left: var(--spacing-lg);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: var(--ion-color-primary);
+    color: var(--ion-color-primary-contrast);
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.3px;
+
+    ion-icon { font-size: 12px; }
+  }
+
+  // ── Bloque superior: nombre + descripción breve ──
+  &__top {
+    margin-bottom: var(--spacing-sm);
+  }
+
+  &__nombre {
+    display: block;
+    font-size: 18px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-dark);
+  }
+
+  &__desc {
+    margin: 4px 0 0;
+    color: var(--ion-color-medium);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  // ── Precio protagonista (inspirado en Anthropic: número grande, unidad pequeña) ──
+  &__precio-bloque {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: var(--spacing-sm) 0 var(--spacing-md);
+  }
+
+  &__precio-linea {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  &__monto {
+    font-size: 32px;
+    font-weight: var(--font-weight-bold);
+    color: var(--ion-color-dark);
+    line-height: 1;
+  }
+
+  &__periodo {
+    font-size: 13px;
+    color: var(--ion-color-medium);
+  }
+
+  // Badge "Solo mensual" — aparece cuando el toggle está en ANUAL pero el plan no lo ofrece
+  &__solo-mensual {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: var(--font-weight-medium);
+    color: var(--ion-color-medium);
+    background: var(--ion-color-step-100, #ebebeb);
+    border-radius: 999px;
+    padding: 2px 8px;
+    align-self: flex-start;
+
+    &::before {
+      content: '—';
+      font-size: 10px;
+    }
+  }
+
+  // Equivalente mensual del precio anual ("≈ $8.33/mes facturado anual")
+  &__equivalente {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+  }
+
+  // Ahorro anual destacado en verde
+  &__ahorro {
+    font-size: 12px;
+    font-weight: var(--font-weight-medium);
+    color: var(--ion-color-success-shade);
+  }
+
+  // ── Estado + vencimiento + días (solo tarjeta del plan actual) ──
+  &__estado {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+
+    &-txt {
+      color: var(--ion-color-medium);
+      font-size: 13px;
+
+      // Trial por vencer (≤3 días): la fecha se resalta para empujar la conversión.
+      &--alerta {
+        color: var(--ion-color-danger);
+        font-weight: var(--font-weight-semibold);
+      }
+    }
+  }
+
+  // ── CTA ──
+  &__cta {
+    margin-bottom: var(--spacing-sm);
+    --border-radius: var(--radius-md);
+  }
+
+  // ── "Tu plan actual" chip (reemplaza al CTA en la tarjeta activa) ──
+  &__actual-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: var(--font-weight-medium);
+    color: var(--ion-color-success-shade);
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    border-radius: 999px;
+    padding: 5px 12px;
+    margin-bottom: var(--spacing-sm);
+    align-self: flex-start;
+
+    ion-icon { font-size: 15px; }
+
+    // Trial: el chip vende en vez de confirmar — color ámbar (igual que el badge de prueba).
+    &--trial {
+      color: var(--ion-color-warning-shade);
+      background: rgba(var(--ion-color-warning-rgb), 0.15);
+    }
+  }
+
+  // Periodo contratado real dentro del badge "Tu plan actual" (ej: "· Mensual")
+  &__actual-periodo {
+    font-weight: var(--font-weight-regular);
+    opacity: 0.75;
+  }
+
+  // ── Separador antes de la lista de features ──
+  &__divider {
+    height: 1px;
+    background: var(--ion-color-step-100, #ebebeb);
+    margin: var(--spacing-sm) 0 var(--spacing-md);
+  }
+
+  // ── "Todo lo del X, más:" ──
+  &__hereda {
+    margin: 0 0 var(--spacing-sm);
+    font-size: 12px;
+    font-weight: var(--font-weight-medium);
+    color: var(--ion-color-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  // ── Bloques exclusivos del plan MAX (multisucursal, multiplataforma, IA) ──
+  &__extra-bloque {
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    background: rgba(var(--ion-color-primary-rgb), 0.05);
+    border: 1px solid rgba(var(--ion-color-primary-rgb), 0.12);
+
+    // IA: tono diferente para marcar que es "próximamente"
+    &--ia {
+      background: rgba(var(--ion-color-tertiary-rgb), 0.05);
+      border-color: rgba(var(--ion-color-tertiary-rgb), 0.15);
+    }
+  }
+
+  &__extra-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  &__extra-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: rgba(var(--ion-color-primary-rgb), 0.12);
+
+    ion-icon {
+      font-size: 18px;
+      color: var(--ion-color-primary);
+    }
+
+    // Ícono de IA en tertiary
+    &--ia {
+      background: rgba(var(--ion-color-tertiary-rgb), 0.12);
+      ion-icon { color: var(--ion-color-tertiary); }
+    }
+  }
+
+  &__extra-titulo {
+    margin: 0;
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-dark);
+  }
+
+  &__extra-desc {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--ion-color-medium);
+    line-height: 1.3;
+  }
+
+  // Badge "Próximamente" para IA
+  &__proximamente {
+    display: inline-block;
+    margin-top: var(--spacing-xs, 6px);
+    margin-left: calc(36px + var(--spacing-sm)); // alinea bajo el texto, no el ícono
+    font-size: 10px;
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--ion-color-tertiary-shade);
+    background: rgba(var(--ion-color-tertiary-rgb), 0.12);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  // Íconos de dispositivos — dentro del bloque multiplataforma
+  &__multi-icons {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-xs, 6px);
+    border-top: 1px solid rgba(var(--ion-color-primary-rgb), 0.1);
+  }
+
+  &__multi-device {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+
+    ion-icon {
+      font-size: 24px;
+      color: var(--ion-color-primary);
+    }
+
+    span {
+      font-size: 11px;
+      color: var(--ion-color-medium);
+      font-weight: var(--font-weight-medium);
+    }
+  }
+
+  // ── Lista de features ──
+  &__features {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: 14px;
+      line-height: 1.4;
+
+      ion-icon {
+        font-size: 16px;
+        color: var(--ion-color-success);
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+    }
+  }
+}
+
+// ============ Modo bloqueo: Suscríbete ============
+.susc-block {
+  text-align: center;
+  padding-top: var(--spacing-lg);
+
+  &__icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto var(--spacing-md);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--ion-color-danger-rgb), 0.12);
+
+    ion-icon {
+      font-size: 48px;
+      color: var(--ion-color-danger);
+    }
+
+    // Trial vencido: no es una alerta, es una invitación a contratar → tono primary.
+    &--trial {
+      background: rgba(var(--ion-color-primary-rgb), 0.12);
+      ion-icon { color: var(--ion-color-primary); }
+    }
+  }
+
+  &__title {
+    margin: 0 0 var(--spacing-sm);
+    font-size: 20px;
+    font-weight: var(--font-weight-semibold);
+  }
+
+  &__subtitle {
+    margin: 0 0 var(--spacing-lg);
+    color: var(--ion-color-medium);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  &__msg {
+    color: var(--ion-color-medium);
+    font-size: 15px;
+    line-height: 1.5;
+    margin: 0 0 var(--spacing-lg);
+  }
+
+  &__monto {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    background: var(--ion-color-step-50, #f7f7f7);
+
+    &-label {
+      font-size: 13px;
+      color: var(--ion-color-medium);
+    }
+
+    &-valor {
+      font-size: 26px;
+      font-weight: var(--font-weight-semibold);
+      color: var(--ion-color-primary);
+
+      small {
+        font-size: 14px;
+        font-weight: var(--font-weight-regular);
+        color: var(--ion-color-medium);
+      }
+    }
+  }
+
+  &__pasos {
+    margin: var(--spacing-md) 0 var(--spacing-sm);
+    text-align: left;
+  }
+
+  &__paso {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+
+  &__paso-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--ion-color-primary);
+    color: var(--ion-color-primary-contrast);
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  &__paso-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+
+    strong {
+      font-size: 14px;
+      font-weight: var(--font-weight-semibold);
+      color: var(--ion-color-dark);
+    }
+
+    span {
+      font-size: 13px;
+      color: var(--ion-color-medium);
+      line-height: 1.4;
+    }
+  }
+
+  &__wa {
+    --border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-lg);
+  }
+
+  &__logout {
+    margin-top: var(--spacing-lg);
+  }
+}
+
+.susc-accounts {
+  text-align: left;
+  margin-bottom: var(--spacing-md);
+}
+
+.susc-account {
+  padding: var(--spacing-md);
+  margin: 0 0 var(--spacing-sm);
+  border-radius: var(--radius-md);
+
+  &__banco {
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    padding: 3px 0;
+    font-size: 14px;
+  }
+
+  &__label { color: var(--ion-color-medium); }
+
+  &__val { font-weight: var(--font-weight-medium); }
+
+  &__num {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    color: var(--ion-color-primary);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-size: 14px;
+    font-weight: var(--font-weight-medium);
+    font-family: inherit;
+
+    ion-icon { font-size: 15px; }
+  }
+}
+
+// Safe area: la pantalla de bloqueo no vive dentro de tabs → compensar barra Android.
+ion-content {
+  --padding-bottom: env(safe-area-inset-bottom);
+}

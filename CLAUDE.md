@@ -23,6 +23,7 @@ Funciones SQL involucradas: `fn_completar_onboarding` (2 cajas base + Varios opc
 - Supabase expone `get_negocio_id()` y `get_email()` como funciones helper que leen el JWT
 - Toda query filtra automáticamente por `negocio_id` vía RLS — **nunca hardcodear** un `negocio_id` en código
 - El superadmin puede operar dentro de cualquier negocio cambiando el `negocio_id` del JWT (`cambiarNegocio()`)
+- **Claims en `app_metadata` del JWT** (escritos por `fn_set_negocio_activo`): `negocio_id`, `negocio_slug`, `rol`, `es_superadmin`. El `negocio_slug` es el identificador URL-safe único del negocio (ej: `'tienda-ivan'`) — se usa en mensajes WhatsApp para identificar al negocio sin exponer el UUID. Se lee de `AuthService.usuarioActualValue?.negocio_slug` (campo `string` en `UsuarioActual`)
 - **Al agregar una tabla nueva:** siempre crear la política RLS correspondiente con `negocio_id = get_negocio_id()` **y** agregar la política RESTRICTIVE `superadmin_no_write` (ver abajo) en `docs/setup/02_rls.sql`
 - **Al agregar una función SQL nueva:** usar `SECURITY DEFINER` + `SET search_path = public` y filtrar por `get_negocio_id()` internamente
 - **Al agregar una función SQL de mutación:** llamar `PERFORM public.fn_assert_no_superadmin();` al inicio (antes de cualquier otra lógica). Ejecutar `docs/setup/fn_assert_no_superadmin.sql` en Supabase si la función helper aún no existe
@@ -81,7 +82,8 @@ Funciones exentas de `fn_assert_no_superadmin` (el superadmin sí las ejecuta): 
 | Módulo              | Estado           |
 | ------------------- | ---------------- |
 | `auth`              | ✅ Completo                                  |
-| `admin`             | ✅ Panel superadmin (lista negocios, crear negocio, suspender/reactivar). Ruta: `/admin`. Guard: `superadminGuard` |
+| `admin`             | ✅ Panel superadmin con tabs: Negocios / Suscripciones / Planes / Cobro. Ruta: `/admin`. Guard: `superadminGuard` |
+| `suscripcion`       | ✅ Monetización SaaS — bloqueo por vencimiento, pantalla "Suscríbete" + "Mi Plan" (toggle Mensual/Anual sticky en header, badge "Solo mensual", bloques marketing plan MAX), banner preventivo, gestión desde `/admin`. Planes: **PRO** y **MAX**. Guard: `suscripcionGuard` (encadenado tras `authGuard`). Fase 7 (feature gates) pendiente. |
 | `crear-negocio`     | ✅ Wizard reutilizable (`/crear-negocio?context=admin\|sucursal`). Reusa páginas del onboarding inicial cambiando el modo via `OnboardingService.setMode()` |
 | `caja`              | ✅ Completo (v6.3 — 5 cajas, cierre wizard 2p, historial de turnos) |
 | `recargas-virtuales`| ✅ Completo                                  |
@@ -1285,4 +1287,6 @@ WITH CHECK (
 | Auditoría SQL 2026-05 | `docs/guides/RESUMEN-AUDITORIA-SQL-2026-05-30.md` (documento único — consolidado 2026-06-10) |
 | Performance arranque | `docs/guides/PERFORMANCE-STARTUP.md`                       |
 | Builds Android / entornos | `docs/guides/ANDROID-BUILD.md`                        |
+| Planes / Suscripciones | `docs/PLAN-PLANES-SUSCRIPCION.md` (monetización SaaS — plan por fases) |
+| Suscripciones (módulo) | `docs/suscripcion/SUSCRIPCION-README.md` |
 | Pendientes / backlog técnico | `docs/PENDIENTES.md` (al completar un ítem, borrarlo del archivo) |
