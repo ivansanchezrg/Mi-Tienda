@@ -31,7 +31,7 @@ export const suscripcionGuard: CanActivateFn = async () => {
 
   const estado = await suscripcion.getEstado();
   if (estado.bloqueada) {
-    return router.createUrlTree([ROUTES.suscripcion]);
+    return router.createUrlTree([ROUTES.suscripcion.root]);
   }
   return true;
 };

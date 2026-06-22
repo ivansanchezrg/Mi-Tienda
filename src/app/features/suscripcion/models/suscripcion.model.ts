@@ -102,3 +102,19 @@ export interface SuscripcionAdmin {
   vence_el:           string | null;
   dias_restantes:     number | null;
 }
+
+/**
+ * Fila de la tabla suscripcion_pagos (historial de cobros), con los catálogos
+ * embebidos vía join (plan + método de pago) para mostrar directamente en la UI.
+ * Es inmutable desde el cliente — solo la escribe fn_registrar_pago_propietario.
+ */
+export interface SuscripcionPago {
+  id:           string;
+  created_at:   string;   // fecha del pago (ISO)
+  monto:        number;
+  periodo:      'MENSUAL' | 'ANUAL';
+  vence_el:     string;   // vencimiento resultante de este pago
+  nota:         string | null;
+  plan_nombre:  string;
+  metodo_pago_nombre: string | null;
+}

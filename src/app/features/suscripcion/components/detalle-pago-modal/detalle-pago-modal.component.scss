@@ -1,0 +1,75 @@
+.bs-header__icon {
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    ion-icon { color: var(--ion-color-success); }
+}
+
+// ── Monto protagonista ───────────────────────────────────────────────────────
+.dp-monto {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0 18px;
+    text-align: center;
+}
+
+.dp-monto__valor {
+    font-size: 34px;
+    font-weight: var(--font-weight-extrabold);
+    color: var(--app-text);
+    letter-spacing: -0.5px;
+}
+
+.dp-monto__plan {
+    font-size: 13px;
+    color: var(--app-text-soft);
+}
+
+// ── Ficha de detalle ──────────────────────────────────────────────────────────
+.dp-ficha {
+    display: flex;
+    flex-direction: column;
+    background: var(--app-surface-tint);
+    border: 1px solid var(--app-divider);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.dp-ficha__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--app-divider);
+
+    &:last-child { border-bottom: none; }
+
+    &--nota {
+        align-items: flex-start;
+        .dp-ficha__val { text-align: right; max-width: 60%; }
+    }
+}
+
+.dp-ficha__label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--app-text-soft);
+    flex-shrink: 0;
+
+    ion-icon {
+        font-size: 16px;
+        color: var(--app-text-muted);
+    }
+}
+
+.dp-ficha__val {
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--app-text);
+    text-align: right;
+    word-break: break-word;
+}

@@ -44,8 +44,9 @@ ionViewWillEnter()
         ↓
 Página muestra:
   ├─ Balance card: saldo actual + resumen del período (total INGRESOS y EGRESOS del filtro activo)
-  ├─ Filtros sticky: Hoy / Semana / Mes / Todo
-  └─ Lista agrupada por fecha con scroll infinito
+  ├─ Filtros sticky: Todo / Hoy (default: Todo)
+  └─ Lista agrupada por fecha con scroll infinito — cada fila muestra el saldo
+     resultante de la caja tras esa operación (op.saldo_actual), bajo el monto
         ↓
 Usuario toca "⋮" → OptionsMenuComponent con opciones filtradas (ver tabla de cajas)
   └─ onMenuOpcion(option)
@@ -83,12 +84,14 @@ Al cambiar filtro → `cargarOperaciones(reset=true)` → `currentPage = 0`, ree
 
 Query con JOIN a `cajas`, `empleados` y `categorias_operaciones`. Ordenado por `fecha DESC`.
 
-| Filtro | Rango |
-|---|---|
-| `hoy` | Desde las 00:00 del día actual |
-| `semana` | Últimos 7 días |
-| `mes` | Últimos 30 días |
-| `todas` | Sin filtro de fecha |
+El tipo `FiltroFecha` (`models/operacion-caja.model.ts`) sigue soportando `'hoy' | 'semana' | 'mes' | 'todas'`, pero la UI solo ofrece **Todo / Hoy** (`readonly periodos` en la página, 2026-06-22) — para una caja individual no hay una pregunta real de negocio que responda "esta semana" o "este mes"; el análisis por período vive en Ventas → Resumen. El default cambió de `'hoy'` a `'todas'` (se entra a auditar el historial completo, no solo el turno actual).
+
+| Filtro | Rango | ¿Disponible en la UI? |
+|---|---|---|
+| `hoy` | Desde las 00:00 del día actual | Sí |
+| `semana` | Últimos 7 días | No (sigue soportado por el servicio/tipo, sin botón) |
+| `mes` | Últimos 30 días | No (idem) |
+| `todas` | Sin filtro de fecha | Sí — default |
 
 ---
 

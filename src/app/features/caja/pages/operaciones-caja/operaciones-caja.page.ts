@@ -81,13 +81,14 @@ export class OperacionesCajaPage implements OnDestroy {
 
   operaciones: OperacionCaja[] = [];
   operacionesAgrupadas: OperacionAgrupada[] = [];
-  filtro: FiltroFecha = 'hoy';
+  filtro: FiltroFecha = 'todas';
 
+  // Solo Hoy/Todo: para una caja individual no hay una pregunta real de negocio
+  // que responda "esta semana" o "este mes" — el análisis por período vive en
+  // Ventas → Resumen. Aquí se entra a ver el turno actual o a auditar el historial completo.
   readonly periodos: PeriodOption[] = [
-    { value: 'hoy',    label: 'Hoy' },
-    { value: 'semana', label: 'Semana' },
-    { value: 'mes',    label: 'Mes' },
     { value: 'todas',  label: 'Todo' },
+    { value: 'hoy',    label: 'Hoy' },
   ];
 
   page = 0;

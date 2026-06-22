@@ -51,7 +51,10 @@
 
     <div class="section-title">Acciones</div>
 
-    @if (!esSuperadmin) {
+    <!-- Sin @if (!esSuperadmin): la BD bloquea via fn_assert_no_superadmin en las
+         funciones de mutación (fn_registrar_recarga_proveedor_celular,
+         fn_pagar_proveedor_celular). El superadmin debe ver el flujo completo
+         para dar soporte; si intenta ejecutar, recibe el toast de error de la BD. -->
     <div class="action-card-large" (click)="abrirModalRecarga()">
       <div class="action-icon celular">
         <ion-icon name="phone-portrait-outline"></ion-icon>
@@ -74,7 +77,6 @@
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
-    }
     }
 
     @if (totalMovimientosCelular > 0) {
@@ -161,7 +163,8 @@
 
     <div class="section-title">Acciones</div>
 
-    @if (!esSuperadmin) {
+    <!-- Sin @if (!esSuperadmin): la BD bloquea via fn_assert_no_superadmin en
+         fn_registrar_compra_saldo_bus — ver nota equivalente en la tab CELULAR. -->
     <div class="action-card-large" (click)="abrirModalCompraBus()">
       <div class="action-icon bus">
         <ion-icon name="bus-outline"></ion-icon>
@@ -172,7 +175,6 @@
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
     </div>
-    }
 
     @if (totalMovimientosBus > 0) {
     <div class="action-card-large" (click)="abrirHistorial('BUS')">

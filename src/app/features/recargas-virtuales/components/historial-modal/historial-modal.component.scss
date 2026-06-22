@@ -60,6 +60,9 @@ ion-content {
   letter-spacing: 0.5px;
   color: var(--ion-color-medium);
   border-bottom: 1px solid var(--ion-color-step-100);
+
+  // Bus no tiene columna "Proveedor" — una menos que Celular.
+  &--bus { grid-template-columns: 1fr 1fr 1fr 1fr; }
 }
 
 .tabla-fila {
@@ -70,6 +73,8 @@ ion-content {
   border-bottom: 1px solid var(--ion-color-step-50);
 
   &:last-of-type { border-bottom: none; }
+
+  &--bus { grid-template-columns: 1fr 1fr 1fr 1fr; }
 }
 
 .tabla-fecha {
@@ -120,6 +125,31 @@ ion-content {
     background: rgba(var(--ion-color-success-rgb), 0.1);
     color: var(--ion-color-success);
   }
+}
+
+// ── Aviso: ganancia atrapada hasta pagar al proveedor ──────────────────────────
+
+.proveedor-pendiente-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(var(--ion-color-warning-rgb), 0.08);
+  border: 1px solid rgba(var(--ion-color-warning-rgb), 0.25);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+
+  ion-icon {
+    font-size: 17px;
+    color: var(--ion-color-warning);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  strong { color: var(--ion-text-color); font-weight: 700; }
 }
 
 .totales-section {

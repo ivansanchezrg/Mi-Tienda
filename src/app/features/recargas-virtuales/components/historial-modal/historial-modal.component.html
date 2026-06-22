@@ -25,8 +25,10 @@
       @if (historial.length > 0) {
         <ion-card class="historial-card">
 
-          <!-- Header de columnas -->
-          <div class="tabla-header">
+          <!-- Header de columnas — Bus no tiene etapa de "pago a proveedor" (nace
+               disponible de inmediato), por eso no muestra esa columna: a diferencia
+               de Celular, en Bus siempre sería el mismo valor y no aporta información. -->
+          <div class="tabla-header" [class.tabla-header--bus]="tipo === 'BUS'">
             <span>Fecha</span>
             @if (tipo === 'CELULAR') {
               <span>Saldo recibido</span>
@@ -36,14 +38,13 @@
             } @else {
               <span>Depósito</span>
               <span>Ganancia</span>
-              <span>Compra</span>
               <span>Ganancia</span>
             }
           </div>
 
           <!-- Filas -->
           @for (r of historial; track r.id) {
-          <div class="tabla-fila">
+          <div class="tabla-fila" [class.tabla-fila--bus]="tipo === 'BUS'">
             <span class="tabla-fecha">{{ formatearFecha(r.fecha) }}</span>
 
             @if (tipo === 'CELULAR') {
@@ -53,22 +54,17 @@
               </span>
             } @else {
               <span class="tabla-monto">${{ r.monto_a_pagar | appCurrency }}</span>
-              <span class="tabla-ganancia" [class.bus]="r.pagado_proveedor" [class.muted]="!r.pagado_proveedor">
-                ${{ r.ganancia | appCurrency }}
-              </span>
+              <span class="tabla-ganancia bus">${{ r.ganancia | appCurrency }}</span>
             }
 
-            <!-- Columna: estado pago proveedor -->
-            <span class="tabla-badge"
-              [class.pagado]="r.pagado_proveedor"
-              [class.pendiente]="!r.pagado_proveedor && tipo === 'CELULAR'"
-              [class.sin-liquidar]="!r.pagado_proveedor && tipo === 'BUS'">
-              @if (tipo === 'CELULAR') {
+            @if (tipo === 'CELULAR') {
+              <!-- Columna: estado pago proveedor (solo Celular) -->
+              <span class="tabla-badge"
+                [class.pagado]="r.pagado_proveedor"
+                [class.pendiente]="!r.pagado_proveedor">
                 {{ r.pagado_proveedor ? 'Pagado' : 'Pendiente' }}
-              } @else {
-                {{ r.pagado_proveedor ? 'Comprado' : 'Pendiente' }}
-              }
-            </span>
+              </span>
+            }
 
             <!-- Columna: estado ganancia liquidada -->
             <span class="tabla-badge"
@@ -77,6 +73,17 @@
               {{ r.ganancia_liquidada ? 'Liquidado' : 'Pendiente' }}
             </span>
           </div>
+          }
+
+          <!-- Aviso: ganancia atrapada hasta pagar al proveedor (solo CELULAR) -->
+          @if (gananciaSinPagarProveedor > 0) {
+            <div class="proveedor-pendiente-banner">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+              <span>
+                <strong>${{ gananciaSinPagarProveedor | appCurrency }}</strong> en ganancia no se puede liquidar todavía —
+                primero debes pagar al proveedor esas recargas.
+              </span>
+            </div>
           }
 
           <!-- Totales -->
@@ -111,8 +118,12 @@
             }
           </div>
 
-          <!-- Botón liquidar -->
-          @if (!esSuperadmin && puedeLiquidar) {
+          <!-- Botón liquidar — visible siempre que haya pendiente, sin exigir saldo
+               suficiente. Si la caja origen no alcanza, confirmarLiquidacion() lo
+               explica con un toast antes de abrir la confirmación (el botón nunca
+               desaparece sin que el usuario sepa por qué). Sin @if (!esSuperadmin):
+               la BD bloquea via fn_assert_no_superadmin en fn_liquidar_ganancias. -->
+          @if (puedeLiquidar) {
           <ion-button
             expand="block"
             [color]="tipo === 'CELULAR' ? 'primary' : 'secondary'"

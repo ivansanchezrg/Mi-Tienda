@@ -142,6 +142,9 @@
           <span class="op-amount" [attr.data-type]="op.tipo_operacion | operacionLabel:'color'">
             {{ op.tipo_operacion | operacionLabel:'signo' }}${{ op.monto | appCurrency }}
           </span>
+          @if (op.saldo_actual !== null) {
+            <span class="op-saldo">${{ op.saldo_actual | appCurrency }}</span>
+          }
         </div>
 
       </div>

@@ -22,6 +22,7 @@ import { ROUTES } from '@core/config/routes.config';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 import { EstadoSuscripcionResult, ConfigPlataforma, Plan } from '../../models/suscripcion.model';
 import { ContextoPago } from '../../components/coordinar-pago-modal/coordinar-pago-modal.component';
+import { SuscripcionTabsComponent } from '../../components/suscripcion-tabs/suscripcion-tabs.component';
 
 /** Etiquetas legibles de cada feature, para listar qué incluye un plan en su tarjeta. */
 const FEATURE_LABELS: Record<string, string> = {
@@ -62,6 +63,7 @@ const FEATURE_LABELS: Record<string, string> = {
     IonHeader, IonToolbar, IonTitle, IonContent, IonButtons,
     IonCard, IonIcon, IonButton, IonSkeletonText,
     AppCurrencyPipe,
+    SuscripcionTabsComponent,
   ],
 })
 export class SuscripcionPage implements OnInit, OnDestroy {

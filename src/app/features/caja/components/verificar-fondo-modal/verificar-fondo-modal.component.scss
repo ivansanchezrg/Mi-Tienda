@@ -46,6 +46,23 @@
     strong { color: var(--app-text); font-weight: var(--font-weight-semibold); }
 }
 
+.vfm-deficit-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.vfm-deficit-action {
+    color: var(--app-text);
+    font-weight: var(--font-weight-medium);
+}
+
+.vfm-deficit-note {
+    font-size: 12px;
+    color: var(--app-text-soft);
+    line-height: 1.4;
+}
+
 // ── Banner de error ──────────────────────────────────────────────────────────
 .vfm-error {
     display: flex;

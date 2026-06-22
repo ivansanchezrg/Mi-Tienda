@@ -18,7 +18,6 @@ import {
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
 import { SupabaseService } from '@core/services/supabase.service';
-import { AuthService } from '../../../auth/services/auth.service';
 import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { RegistrarRecargaModalComponent } from '../../components/registrar-recarga-modal/registrar-recarga-modal.component';
 import { HistorialModalComponent } from '../../components/historial-modal/historial-modal.component';
@@ -46,14 +45,12 @@ export class RecargasVirtualesPage {
   private ui = inject(UiService);
   private supabase = inject(SupabaseService);
   private configService = inject(ConfigService);
-  private authService = inject(AuthService);
   private service = inject(RecargasVirtualesService);
   private modalCtrl = inject(ModalController);
   private alertCtrl = inject(AlertController);
 
   tabActivo: TabActivo = 'CELULAR';
   loading = true;
-  esSuperadmin = false;
   recargasCelularHabilitada = false;
   recargasBusHabilitada = false;
   cajaVariosActiva = false;
@@ -85,8 +82,6 @@ export class RecargasVirtualesPage {
 
   async ionViewWillEnter() {
     this.ui.hideTabs();
-    const usuario = await this.authService.getUsuarioActual();
-    this.esSuperadmin = usuario?.es_superadmin ?? false;
 
     const config = await this.configService.get();
     this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
@@ -234,12 +229,15 @@ export class RecargasVirtualesPage {
         tipo,
         cajaSaldo:        esCelular ? this.cajaCelularSaldo : this.cajaBusSaldo,
         cajaVariosActiva: this.cajaVariosActiva,
-        esSuperadmin:     this.esSuperadmin,
+        pendientes:       esCelular ? this.pendientesCelular : this.pendientesBus,
       }
     });
     await modal.present();
-    const { data } = await modal.onWillDismiss();
-    if (data?.liquidado) await this.cargarDatos();
+    // Siempre recarga al cerrar — el modal pudo cambiar el estado del negocio (pagar
+    // al proveedor desde otra pantalla mientras estaba abierto, etc.), no solo cuando
+    // confirma la liquidación. Garantiza que la próxima apertura reciba @Input frescos.
+    await modal.onWillDismiss();
+    await this.cargarDatos();
   }
 
   // ==========================================

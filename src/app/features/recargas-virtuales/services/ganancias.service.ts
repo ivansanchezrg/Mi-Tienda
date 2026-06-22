@@ -4,9 +4,11 @@ import { SupabaseService } from '@core/services/supabase.service';
 /**
  * Calcula ganancias BUS pendientes de liquidar para notificaciones.
  *
- * BUS: la ganancia está pendiente mientras pagado_proveedor=false.
- * Al liquidar, fn_liquidar_ganancias marca pagado_proveedor=true y
- * ganancia_liquidada=true en una sola operación atómica.
+ * BUS nace con pagado_proveedor=true desde el INSERT (fn_registrar_compra_saldo_bus
+ * v4.1+) — no tiene etapa de pago a proveedor, a diferencia de CELULAR. La ganancia
+ * está pendiente de liquidar mientras ganancia_liquidada=false, sin importar
+ * pagado_proveedor (mismo criterio que RecargasVirtualesService.obtenerPendientes()).
+ * Al liquidar, fn_liquidar_ganancias marca ganancia_liquidada=true atómicamente.
  *
  * CELULAR no se calcula aquí — su ganancia pendiente se filtra por
  * pagado_proveedor=true AND ganancia_liquidada=false, y se calcula
@@ -35,7 +37,7 @@ export class GananciasService {
   }
 
   /**
-   * Total de ganancia BUS pendiente de liquidar (filas con pagado_proveedor=false).
+   * Total de ganancia BUS pendiente de liquidar (filas con ganancia_liquidada=false).
    * @returns Suma de ganancia o null si no hay nada pendiente.
    */
   async calcularGananciaBusPendiente(): Promise<number | null> {
@@ -46,7 +48,7 @@ export class GananciasService {
         .from('recargas_virtuales')
         .select('ganancia')
         .eq('tipo_servicio_id', tipoId)
-        .eq('pagado_proveedor', false)
+        .eq('ganancia_liquidada', false)
     );
 
     if (!result || result.length === 0) return null;
@@ -60,35 +62,27 @@ export class GananciasService {
 
   /**
    * Ganancia BUS acumulada del mes en curso. Usada para el recordatorio de fin
-   * de mes en notificaciones. La comisión se lee una vez de tipos_servicio.
+   * de mes en notificaciones. La ganancia ya viene calculada y guardada por fila
+   * (fn_registrar_compra_saldo_bus v4.1+) — se suma directo, sin recalcular con
+   * el % de comisión actual (evita divergir si la comisión cambia después).
    */
   async calcularGananciaBusMesActual(): Promise<number> {
     const inicioMes = this.formatMesPrimerDia(new Date());
     const finMes    = this.primerDiaSiguienteMes(new Date());
     const tipoId    = await this.getTipoBusId();
 
-    const [comisionRes, comprasRes] = await Promise.all([
+    const result = await this.supabase.call<Array<{ ganancia: number }>>(
       this.supabase.client
-        .from('tipos_servicio')
-        .select('porcentaje_comision')
-        .eq('id', tipoId)
-        .single(),
-      this.supabase.call<Array<{ monto_a_pagar: number }>>(
-        this.supabase.client
-          .from('recargas_virtuales')
-          .select('monto_a_pagar')
-          .eq('tipo_servicio_id', tipoId)
-          .eq('pagado_proveedor', false)
-          .gte('fecha', inicioMes)
-          .lt('fecha', finMes)
-      )
-    ]);
+        .from('recargas_virtuales')
+        .select('ganancia')
+        .eq('tipo_servicio_id', tipoId)
+        .gte('fecha', inicioMes)
+        .lt('fecha', finMes)
+    );
 
-    if (!comprasRes || comprasRes.length === 0) return 0;
+    if (!result || result.length === 0) return 0;
 
-    const comision     = comisionRes.data?.porcentaje_comision ?? 1;
-    const totalCompras = comprasRes.reduce((sum, r) => sum + Number(r.monto_a_pagar), 0);
-    return Math.round(totalCompras * (comision / 100) * 100) / 100;
+    return Math.round(result.reduce((sum, r) => sum + Number(r.ganancia), 0) * 100) / 100;
   }
 
   private formatMesPrimerDia(d: Date): string {

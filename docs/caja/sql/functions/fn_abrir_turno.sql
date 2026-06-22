@@ -7,9 +7,15 @@ DROP FUNCTION IF EXISTS public.fn_abrir_turno();
 DROP FUNCTION IF EXISTS public.fn_abrir_turno(UUID, DECIMAL);
 
 -- ==========================================
--- FUNCIÓN: fn_abrir_turno (v3.3 — validación de turno abierto sin filtro de fecha)
+-- FUNCIÓN: fn_abrir_turno (v3.4 — mensaje de turno abierto incluye el empleado)
 -- ==========================================
--- CAMBIOS v3.3:
+-- CAMBIOS v3.4:
+--   - El rechazo por turno ya abierto ahora nombra al empleado que lo tiene
+--     ("Ya hay un turno abierto por X"). El frontend muestra este mensaje tal cual
+--     (turnos-caja.service propaga data.error → home lo presenta), cubriendo el caso
+--     de carrera en que otro dispositivo abrió el turno y el Realtime local aún no llegó.
+--
+-- HEREDA DE v3.3:
 --   - La validación de turno abierto ya no filtra por fecha: un turno de un día
 --     anterior sin cerrar también bloquea la apertura con mensaje limpio (antes
 --     el INSERT chocaba contra idx_un_turno_abierto_por_caja con unique_violation crudo).
@@ -48,6 +54,7 @@ DECLARE
   v_caja_id           UUID;
   v_caja_tienda_id    UUID;
   v_saldo_tienda      DECIMAL(12,2);
+  v_empleado_abierto  TEXT;
   -- UUID fijo de categorias_sistema para FONDO-APERTURA
   v_cat_fondo_id      CONSTANT UUID := 'a1000001-0000-0000-0000-000000000007';
 BEGIN
@@ -88,13 +95,26 @@ BEGIN
   -- Validar que no haya turno abierto en este negocio. Sin filtro de fecha:
   -- un turno de un día anterior sin cerrar también debe bloquear con mensaje
   -- limpio — si llegara al INSERT, idx_un_turno_abierto_por_caja lo rechazaría
-  -- con un unique_violation crudo para el usuario.
-  IF EXISTS (
-    SELECT 1 FROM turnos_caja
-    WHERE negocio_id = v_negocio_id
-      AND hora_fecha_cierre IS NULL
-  ) THEN
-    RETURN json_build_object('success', false, 'error', 'Ya hay un turno abierto');
+  -- con un unique_violation crudo para el usuario. Resolvemos el nombre del
+  -- empleado que tiene el turno para que el mensaje explique la causa real
+  -- (cubre el caso de abrir desde un dispositivo distinto al que ya abrió).
+  v_empleado_abierto := (
+    SELECT COALESCE(u.nombre, 'otro empleado')
+    FROM turnos_caja t
+    LEFT JOIN usuarios u ON u.id = t.empleado_id
+    WHERE t.negocio_id = v_negocio_id
+      AND t.hora_fecha_cierre IS NULL
+    LIMIT 1
+  );
+
+  -- v_empleado_abierto solo es NULL si NO existe ningún turno abierto (el LEFT JOIN
+  -- + COALESCE garantizan un texto cuando sí lo hay). Así la salvaguarda no depende
+  -- de que el empleado siga existiendo en usuarios.
+  IF v_empleado_abierto IS NOT NULL THEN
+    RETURN json_build_object(
+      'success', false,
+      'error',   'Ya hay un turno abierto por ' || v_empleado_abierto
+    );
   END IF;
 
   -- Número de turno: siguiente al último del día en este negocio
@@ -160,6 +180,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_abrir_turno(UUID, DECIMAL) TO authenticated
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_abrir_turno IS
+  'v3.4 — El rechazo por turno ya abierto nombra al empleado que lo tiene ("Ya hay un turno abierto por X"). '
   'v3.3 — Validación de turno abierto sin filtro de fecha (cubre turno de día anterior sin cerrar). '
   'v3.2 — Categoría FONDO-APERTURA migrada a categorias_sistema (UUID fijo). '
   'v3.1 - Apertura atómica de turno de caja con fondo libre. '

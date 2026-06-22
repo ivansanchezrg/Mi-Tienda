@@ -59,14 +59,15 @@ export class HistorialTurnosPage {
   cierres: CierreTurnoSnapshot[] = [];
   cierresAgrupados: CierresAgrupados[] = [];
   loading = false;
-  filtro: FiltroFecha = 'hoy';
+  filtro: FiltroFecha = 'todas';
   showScrollTop = false;
 
+  // Solo Hoy/Todo — mismo criterio que Operaciones de Caja: no hay una
+  // pregunta real de negocio que responda "esta semana" o "este mes" para
+  // un historial de cierres; se entra a ver el turno actual o a auditar todo.
   readonly periodos: PeriodOption[] = [
-    { value: 'hoy',    label: 'Hoy' },
-    { value: 'semana', label: 'Semana' },
-    { value: 'mes',    label: 'Mes' },
     { value: 'todas',  label: 'Todo' },
+    { value: 'hoy',    label: 'Hoy' },
   ];
 
   constructor() {

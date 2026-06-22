@@ -1,18 +1,24 @@
 -- ==========================================
 -- FUNCIÓN: fn_registrar_compra_saldo_bus
--- VERSIÓN: 4.0
--- FECHA: 2026-03-03
+-- VERSIÓN: 4.1
+-- FECHA: 2026-06-22
 -- ==========================================
--- CAMBIOS v4.0 — Ganancia BUS como deuda pendiente de cobro:
---   pagado_proveedor     = false  → ganancia pendiente de cobrar al proveedor
---   pagado_proveedor     = true   → ganancia ya cobrada (via liquidar_ganancias_bus)
---   monto_a_pagar        = p_monto  → monto completo pagado al proveedor (mismo que monto_virtual)
---   ganancia             = 0  → no se guarda por fila; se calcula al liquidar como ROUND(SUM(monto_a_pagar)*comision%, 2)
---   fecha_pago_proveedor, operacion_pago_id = NULL (se setean cuando se liquida)
+-- CAMBIOS v4.1 — Fix: BUS nace con pagado_proveedor=true (alineado con fn_liquidar_ganancias v2.0+):
+--   El modelo se unificó hace tiempo (fn_liquidar_ganancias v2.0: "CELULAR unificado con BUS",
+--   ambos servicios filtran pagado_proveedor=true AND ganancia_liquidada=false para liquidar),
+--   pero esta función seguía insertando pagado_proveedor=false (modelo viejo, con una etapa
+--   de "deuda pendiente de cobro" que ya no existe — nunca hay un fn_pagar_proveedor_bus que
+--   la pase a true). Resultado: ninguna fila BUS era liquidable jamás — fn_liquidar_ganancias
+--   siempre respondía "No hay ganancias BUS pendientes de liquidar" aunque el modal mostrara
+--   un monto pendiente > 0.
+--   pagado_proveedor = true desde el INSERT → la ganancia queda disponible para liquidar
+--   de inmediato (BUS no tiene paso intermedio de "pagar al proveedor", a diferencia de
+--   CELULAR que sí lo tiene vía fn_pagar_proveedor_celular).
 --
---   La liquidación (liquidar_ganancias_bus) hace:
---     ROUND(SUM(monto_a_pagar) WHERE tipo=BUS AND pagado_proveedor=false, 2)
---     + TRANSFERENCIA CAJA_BUS → caja destino (atómica con UPDATE pagado_proveedor=true)
+-- HEREDA DE v4.0 — Ganancia BUS guardada por fila (no se recalcula al liquidar):
+--   monto_a_pagar        = p_monto  → monto completo pagado al proveedor (mismo que monto_virtual)
+--   ganancia             = ROUND(p_monto * comision%, 2), calculada y guardada en el INSERT
+--   fecha_pago_proveedor, operacion_pago_id = NULL (sin uso real — no hay etapa de pago a proveedor en BUS)
 --
 -- CAMBIOS v3.1 — Fix timestamp mini cierre:
 --   recargas_virtuales usa clock_timestamp() en lugar de NOW() para garantizar
@@ -282,11 +288,13 @@ BEGIN
     id, negocio_id, fecha, tipo_servicio_id, empleado_id,
     monto_virtual, monto_a_pagar, ganancia,
     pagado_proveedor, observaciones, created_at
-    -- fecha_pago_proveedor, operacion_pago_id: NULL hasta que se liquide
+    -- fecha_pago_proveedor, operacion_pago_id: sin uso real en BUS (no hay etapa de pago a proveedor)
   ) VALUES (
     v_recarga_id, v_negocio_id, p_fecha, v_tipo_bus_id, p_empleado_id,
     p_monto, p_monto, v_ganancia,
-    false, p_observaciones, clock_timestamp()
+    true, p_observaciones, clock_timestamp()
+    -- pagado_proveedor=true: BUS no tiene paso intermedio, la ganancia queda disponible
+    -- de inmediato para fn_liquidar_ganancias (ver CAMBIOS v4.1 arriba).
     -- clock_timestamp() avanza en tiempo real (NOW() es estable en transacción)
     -- Garantiza created_at > snapshot del mini cierre → getSaldoVirtualActual lo cuenta correctamente
   );
@@ -319,9 +327,11 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.fn_registrar_compra_saldo_bus IS
-'v4.0 - Ganancia BUS como deuda pendiente: pagado_proveedor=false, monto_a_pagar=monto_completo, ganancia=0.
-La liquidación (liquidar_ganancias_bus) calcula ROUND(SUM(monto_a_pagar)*comision%, 2) WHERE pagado_proveedor=false,
-transfiere ese total de CAJA_BUS→caja destino y marca pagado_proveedor=true en una transacción atómica.
+'v4.1 - Fix: pagado_proveedor=true desde el INSERT (antes false, dejaba las filas BUS
+permanentemente fuera del filtro de fn_liquidar_ganancias, que exige pagado_proveedor=true
+para ambos servicios desde su v2.0). BUS no tiene etapa de pago a proveedor — la ganancia
+queda disponible para liquidar de inmediato.
+v4.0 - Ganancia BUS guardada por fila: monto_a_pagar=monto_completo, ganancia=ROUND(monto*comision%,2).
 v3.1 - Fix timestamp: clock_timestamp() garantiza created_at > snapshot del mini cierre.
 v3.0 - Mini cierre integrado: con p_saldo_virtual_maquina y ventas > 0 crea snapshot
 en recargas (ON CONFLICT acumula) + INGRESO por ventas + EGRESO por compra. CAJA_BUS nunca negativa.';

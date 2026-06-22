@@ -45,7 +45,10 @@ export const ROUTES = {
   pos: '/pos',
 
   /** Pantalla de suscripción: bloqueo "Suscríbete" (vencida) + vista informativa "Mi Plan". */
-  suscripcion: '/suscripcion',
+  suscripcion: {
+    root:      '/suscripcion',
+    historial: '/suscripcion/historial',
+  },
 
   inventario: {
     root:   '/inventario',

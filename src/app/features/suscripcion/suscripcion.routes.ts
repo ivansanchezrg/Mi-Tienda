@@ -6,4 +6,9 @@ export const SUSCRIPCION_ROUTES: Routes = [
     loadComponent: () =>
       import('./pages/suscripcion/suscripcion.page').then(m => m.SuscripcionPage),
   },
+  {
+    path: 'historial',
+    loadComponent: () =>
+      import('./pages/historial-pagos/historial-pagos.page').then(m => m.HistorialPagosPage),
+  },
 ];

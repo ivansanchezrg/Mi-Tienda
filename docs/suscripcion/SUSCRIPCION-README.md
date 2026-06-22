@@ -138,6 +138,9 @@ if (this.suscripcion.tieneFeature('ia')) { ... }
 
 // Config de cobro para pantalla de bloqueo
 const config = await this.suscripcion.getConfigPlataforma();
+
+// Historial de pagos del negocio activo, paginado (tab "Pagos")
+const pagos = await this.suscripcion.listarPagos(page, pageSize); // → SuscripcionPago[]
 ```
 
 **Estrategia de cache:** RAM + TTL 5 min. El guard se ejecuta en cada navegación; sin cache serían decenas de queries por sesión. Patrón idéntico a `ConfigService`. Se invalida al cambiar de negocio o tras registrar un pago.
@@ -152,7 +155,7 @@ El TTL de 5 min y el chequeo solo-en-navegación son insuficientes para una acci
   - `getEstado()` mantiene además una **red de seguridad** idempotente: si el guard corre antes de que `usuarioActual$` emita, también intenta abrir el canal. No abre duplicados (es idempotente por `negocio_id`).
 - Escucha **`*`** (INSERT + UPDATE) en `suscripciones`. Modelo de estado mutable: el onboarding crea la fila (INSERT) y cada pago/suspensión/reactivación la **actualiza** (UPDATE).
 - Al detectar un cambio, fuerza `getEstado(true)` (relectura real vía `fn_estado_suscripcion`, no confía en el payload crudo) y reacciona en **ambas direcciones** (el superadmin está exento de toda redirección, igual que el guard):
-  - **Quedó bloqueada** (suspensión / vencimiento) → navega a `ROUTES.suscripcion`, salvo que ya esté ahí.
+  - **Quedó bloqueada** (suspensión / vencimiento) → navega a `ROUTES.suscripcion.root`, salvo que ya esté ahí.
   - **Se desbloqueó** (pago / reactivación) **y venía bloqueada** y sigue varado en `/suscripcion` → navega a `ROUTES.home`. Solo redirige si **venía** bloqueado: si el usuario entró voluntariamente a "Mi Plan" (vigente) y solo cambió de plan, no se lo mueve. Para distinguirlo, captura `cache.bloqueada` **antes** de forzar la relectura.
 - El canal se cierra en `registerBeforeCleanup` (logout / cambio de cuenta), igual que el resto de canales del proyecto.
 - Requiere que `suscripciones` esté publicada en `supabase_realtime` con `REPLICA IDENTITY FULL`. **FULL es obligatorio** ahora que se escucha UPDATE: sin él, el payload del UPDATE no trae la fila completa y el handler no podría leer el nuevo `estado`. Vive en **dos lugares** (idempotentes): el bloque Realtime de `docs/setup/schema.sql` (para que sobreviva un reset completo — `DROP TABLE CASCADE` borra la publicación) y el script suelto `docs/suscripcion/sql/setup/realtime_suscripciones.sql` (para aplicarlo a una BD existente). La RLS `suscripciones_select` ya permite que el negocio lea su propia fila, así que Realtime entrega el evento sin cambios adicionales de RLS.
@@ -171,7 +174,7 @@ Guard independiente (responsabilidad única: ¿el negocio pagó?). Se encadena *
 **Comportamiento:**
 - Superadmin → deja pasar siempre (exento).
 - Sin negocio activo → deja pasar (el authGuard ya manejó eso).
-- `bloqueada === true` → redirige a `ROUTES.suscripcion`.
+- `bloqueada === true` → redirige a `ROUTES.suscripcion.root`.
 - Error de red → **fail-open** (deja pasar).
 
 ---
@@ -188,9 +191,15 @@ src/app/
 │       └── suscripcion-banner.component.scss
 └── features/
     ├── suscripcion/
-    │   ├── models/suscripcion.model.ts       ← Plan, MetodoPago, EstadoSuscripcionResult, etc.
-    │   ├── pages/suscripcion/                ← pantalla dual (bloqueo / Mi Plan)
-    │   └── suscripcion.routes.ts
+    │   ├── models/suscripcion.model.ts       ← Plan, MetodoPago, EstadoSuscripcionResult, SuscripcionPago, etc.
+    │   ├── components/
+    │   │   ├── suscripcion-tabs/             ← tabs internas "Mi Plan" / "Pagos" (router-driven, patrón chrome-tabs)
+    │   │   ├── coordinar-pago-modal/         ← modal de método de pago (WhatsApp)
+    │   │   └── detalle-pago-modal/           ← detalle de un pago del historial (solo lectura)
+    │   ├── pages/
+    │   │   ├── suscripcion/                  ← pantalla dual (bloqueo / Mi Plan), con tabs en modo informativo
+    │   │   └── historial-pagos/               ← listado paginado de suscripcion_pagos (tab "Pagos")
+    │   └── suscripcion.routes.ts             ← '' (Mi Plan) + 'historial' (Pagos)
     └── admin/
         ├── components/
         │   ├── registrar-pago-modal/         ← modal superadmin: registrar pago
@@ -213,14 +222,35 @@ docs/suscripcion/
 
 ## Pantalla de bloqueo (`SuscripcionPage`)
 
-Ruta: `ROUTES.suscripcion` (`/suscripcion`). Vive **fuera** del layout con tabs para evitar que el guard la proteja a sí misma (loop de redirección).
+Ruta: `ROUTES.suscripcion.root` (`/suscripcion`). `ROUTES.suscripcion` es un objeto `{ root, historial }` (antes era un string único — cambió al agregar el historial de pagos). Vive **fuera** del layout con tabs para evitar que el guard la proteja a sí misma (loop de redirección).
 
 La página tiene **dos modos** según el estado de la suscripción:
 
 | Modo | Condición | Qué muestra | Salida del header |
 |------|-----------|-------------|-------------------|
 | **Bloqueo** | `bloqueada === true` | Título/subtítulo/CTA **según el origen** (trial vencido / vencida / suspendida) + pasos de pago (cuentas + WhatsApp) | Ninguna (no debe escapar; solo "Cerrar sesión" en el cuerpo) |
-| **Planes y precios** | `bloqueada === false` | Lista única de planes (el actual + mejoras disponibles) — **catálogo de venta (upsell)** | Flecha "volver" → `ROUTES.home` |
+| **Planes y precios** | `bloqueada === false` | Tabs internas "Mi Plan" / "Pagos" + lista de planes (el actual + mejoras disponibles) — **catálogo de venta (upsell)** | Flecha "volver" → `ROUTES.home` |
+
+### Tabs internas — "Mi Plan" / "Pagos" (solo modo informativo)
+
+`SuscripcionTabsComponent` (`components/suscripcion-tabs/`) — mismo patrón router-driven que `VentasTabsComponent` (clases globales `chrome-tabs`/`chrome-tab`, detecta la ruta activa con `NavigationEnd`, sin `@Input()`). Cada página incluye el componente en su propio `ion-header`:
+
+| Tab | Ruta | Página |
+|-----|------|--------|
+| Mi Plan | `ROUTES.suscripcion.root` (`/suscripcion`) | `SuscripcionPage` (modo informativo) |
+| Pagos | `ROUTES.suscripcion.historial` (`/suscripcion/historial`) | `HistorialPagosPage` |
+
+Las tabs **no aparecen en modo bloqueo** — no hay nada que navegar mientras la cuenta está bloqueada, la pantalla "Suscríbete" es de salida única hacia el pago.
+
+### Historial de pagos (`HistorialPagosPage`)
+
+Lista paginada (`PaginatedListPage<SuscripcionPago>`, infinite scroll) de la tabla `suscripcion_pagos` — historial financiero que **ya existía en BD** (escrita por `fn_registrar_pago_propietario`) pero nunca se leía desde el frontend hasta esta feature.
+
+- **Lectura:** `SuscripcionService.listarPagos(page, pageSize)` — query directa paginada (`.range()`) con joins a `planes` y `metodos_pago_suscripcion`. No hay función SQL nueva: el RLS de SELECT en `suscripcion_pagos` ya filtra por `negocio_id = get_negocio_id()` (o superadmin), y es un CRUD de 1 tabla con joins simples.
+- **Listado:** fecha, plan + periodo, monto, badge "Pagado" (siempre — la fila solo existe si el pago se registró), botón "Ver".
+- **"Ver" abre `DetallePagoModalComponent`** (`bottom-sheet-modal`, sin footer — la ✕ del header cierra): monto protagonista + ficha con fecha de pago, método de pago, vigencia resultante (`vence_el`) y nota/referencia si existe.
+- **No hay PDF ni comprobante adjunto** — el modelo de cobro es 100% manual (WhatsApp + superadmin registra), `nota` es texto libre con la referencia que el superadmin anotó al cobrar.
+- Empty state si el negocio aún no tiene pagos registrados (ej. está en TRIAL).
 
 **Encabezado contextual del modo bloqueo** (getters en `SuscripcionPage`, derivados de `estado.estado`):
 
@@ -304,7 +334,7 @@ Se muestra cuando `dias_restantes <= 7` y la suscripción **no está bloqueada**
 - No superadmin.
 - Con conexión (sin red no tiene sentido pedir renovar — y el banner offline ya ocupa la franja).
 
-Tocar el banner lleva a `ROUTES.suscripcion` (modo "Mi Plan").
+Tocar el banner lleva a `ROUTES.suscripcion.root` (modo "Mi Plan").
 
 **Convención de colores de banners (no reusar entre tipos):**
 
@@ -397,6 +427,7 @@ await this.suscripcion.guardarConfigPlataforma(config);
 | `CuentaBancaria` | Objeto dentro del JSONB `config_plataforma.cuentas_bancarias`. |
 | `ConfigPlataforma` | Datos de cobro globales (WhatsApp + cuentas bancarias). |
 | `SuscripcionAdmin` | Fila del listado del panel admin (`fn_listar_suscripciones_admin`). |
+| `SuscripcionPago` | Fila de `suscripcion_pagos` con joins embebidos (`plan_nombre`, `metodo_pago_nombre`) — historial de pagos. |
 | `PlanFeatures` | `Record<string, boolean>` — mapa de features del plan. |
 
 ---

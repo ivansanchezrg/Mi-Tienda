@@ -47,10 +47,15 @@ onAbrirCaja()
   │    → dismiss { confirmado: true, fondoApertura }
   │    → HOME llama abrirTurno(fondoApertura) → fn_abrir_turno(empleado, fondoApertura)
   │       ├─ Si ok: cargarDatos() → refresca home
-  │       └─ Si error: muestra toast (errorHandled) o mensaje genérico
+  │       └─ Si error: muestra errorMsg (mensaje real de la BD, ej. "Ya hay un
+  │          turno abierto por X") si errorHandled=false; si errorHandled=true,
+  │          supabase.call() ya mostró el toast — no se duplica (fix 2026-06-22)
   │
   └─ Con déficit de VARIOS (hayDeficit = true)
-       → "Se tomará $X de Tienda para reponer Varios"
+       → Banner: "Toma $X en efectivo de Tienda y colócalos en Varios." +
+         nota secundaria "El sistema registra el movimiento automáticamente
+         al abrir." (fix 2026-06-22 — antes "Se tomará $X de Tienda para
+         reponer Varios", redacción ambigua que no instruía la acción física)
        → MODAL llama repararDeficit(deficitVarios, fondoApertura)
        → dismiss { confirmado: true, turnoId: uuid }  ← ya abierto atómicamente
        → home detecta turnoId → NO llama abrirTurno()
@@ -146,7 +151,7 @@ Llama a `rpc('fn_reparar_deficit_turno', params)`. Todo en una sola transacción
 }
 ```
 
-> **v4.2:** La validación de turno abierto ya no filtra por fecha — un turno de un día anterior sin cerrar también bloquea con mensaje limpio (mismo criterio que `fn_abrir_turno` v3.3).
+> **v4.2:** La validación de turno abierto ya no filtra por fecha — un turno de un día anterior sin cerrar también bloquea con mensaje limpio (mismo criterio que `fn_abrir_turno` v3.3+).
 > **v4.1:** Validación de saldo incluye `fondoApertura` (`déficit + fondo`). Agrega EGRESO `FONDO-APERTURA` de Tienda cuando `fondoApertura > 0`, espejando el comportamiento de `fn_abrir_turno`. Saldo retornado (`saldo_tienda_nuevo`) refleja el descuento total.
 > **v4.0:** `p_cat_egreso_id` y `p_cat_ingreso_id` fueron eliminados. Las categorías `DEF-RETIRAR` y `DEF-REPONER` son UUIDs fijos de `categorias_sistema` resueltos internamente por la función.
 
@@ -185,11 +190,11 @@ Si retorna error, el modal muestra el mensaje y el operador debe registrar prime
 
 > 📄 Código fuente: [`docs/caja/sql/functions/fn_abrir_turno.sql`](./sql/functions/fn_abrir_turno.sql)
 
-Delega en `rpc('fn_abrir_turno', { p_empleado_id, p_fondo_apertura })`. La función SQL (v3.3) ejecuta en una sola transacción atómica:
+Delega en `rpc('fn_abrir_turno', { p_empleado_id, p_fondo_apertura })`. La función SQL (v3.4) ejecuta en una sola transacción atómica:
 
 1. Valida que el empleado tenga membresía activa en el negocio (multi-tenant).
 2. Resuelve `caja_id` automáticamente buscando la `CAJA_CHICA` del negocio.
-3. Valida que no exista **ningún** turno abierto en el negocio (`hora_fecha_cierre IS NULL`, sin filtro de fecha — un turno de un día anterior sin cerrar también bloquea).
+3. Valida que no exista **ningún** turno abierto en el negocio (`hora_fecha_cierre IS NULL`, sin filtro de fecha — un turno de un día anterior sin cerrar también bloquea). **v3.4 (2026-06-22):** el mensaje de rechazo incluye el nombre del empleado que tiene el turno (`'Ya hay un turno abierto por ' || nombre`, vía `LEFT JOIN usuarios` + `COALESCE('otro empleado')`) — antes decía solo "Ya hay un turno abierto", sin contexto de quién ni desde qué dispositivo.
 4. Calcula `numero_turno = COUNT(turnos de hoy del negocio) + 1`.
 5. `INSERT turnos_caja` con `hora_fecha_apertura = NOW()`, `caja_id` poblado y `fondo_apertura` declarado por el empleado.
 6. **Si `p_fondo_apertura > 0`:** valida que Tienda (`CAJA`) tenga saldo suficiente (`RAISE EXCEPTION` si no alcanza — rollback de todo, incluido el INSERT del turno), luego registra el `EGRESO` en Tienda con categoría `FONDO-APERTURA` (trazabilidad contable del efectivo que sale hacia el cajón).
@@ -197,7 +202,10 @@ Delega en `rpc('fn_abrir_turno', { p_empleado_id, p_fondo_apertura })`. La funci
 
 **Ventaja sobre el enfoque anterior** (3 queries separadas): elimina la race condition TOCTOU — el check y el INSERT ocurren en la misma transacción con lock implícito.
 
-`abrirTurno()` retorna `{ ok: boolean, errorHandled: boolean }`. La llamada ocurre en el **home** (`onAbrirCaja()`) cuando el modal devuelve el resultado sin déficit — el modal no llama `abrirTurno()` directamente. Si `ok === false` y `errorHandled === false`, el home muestra un toast genérico; si `errorHandled === true`, `SupabaseService.call()` ya mostró el error al usuario.
+`abrirTurno()` retorna `{ ok: boolean, errorHandled: boolean, errorMsg?: string }` (firma ampliada 2026-06-22 — antes no tenía `errorMsg` y el home mostraba un texto genérico de "verifica tu conexión" incluso cuando la BD sí había respondido con un motivo de negocio concreto). La llamada ocurre en el **home** (`onAbrirCaja()`) cuando el modal devuelve el resultado sin déficit — el modal no llama `abrirTurno()` directamente.
+
+- `errorHandled === true` → fallo de transporte (sin red/JWT); `SupabaseService.call()` ya mostró el toast. El home no muestra nada adicional.
+- `errorHandled === false` → la BD rechazó por una regla de negocio (ej. "Ya hay un turno abierto por X"); el home muestra `errorMsg` tal cual (nunca redacta su propio texto) y refresca `cargarDatos()` para sincronizar el chip de estado — cubre el caso de carrera donde otro dispositivo abrió el turno y el Realtime local aún no había llegado.
 
 ---
 

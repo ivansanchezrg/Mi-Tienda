@@ -1,0 +1,10 @@
+<div class="chrome-tabs">
+  <button class="chrome-tab" [class.active]="activeTab === 'plan'" (click)="navigateTo('plan')">
+    <ion-icon name="card-outline"></ion-icon>
+    <span>Mi Plan</span>
+  </button>
+  <button class="chrome-tab" [class.active]="activeTab === 'historial'" (click)="navigateTo('historial')">
+    <ion-icon name="receipt-outline"></ion-icon>
+    <span>Pagos</span>
+  </button>
+</div>

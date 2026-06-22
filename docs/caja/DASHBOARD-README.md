@@ -145,7 +145,7 @@ Historial de movimientos por caja con diseño híbrido (Home pattern + empresari
 **Características:**
 
 - 💰 **Balance card** con saldo disponible y resumen de entradas/salidas
-- 🔍 **Filtros sticky** (Hoy, Semana, Mes, Todo) estilo bancario
+- 🔍 **Filtros sticky** (Todo, Hoy) estilo bancario — default "Todo" (2026-06-22; antes 4 opciones con default "Hoy")
 - 📜 **Scroll infinito** con agrupación por fecha
 - 📱 **Header dinámico** - saldo aparece al hacer scroll
 - 🎨 **Diseño adaptativo** dark/light mode
@@ -323,7 +323,7 @@ La mecánica completa — eventos por canal, setup SQL, `REPLICA IDENTITY FULL`,
 
 | Función | Versión | Cambio |
 |---------|---------|--------|
-| `fn_abrir_turno` | v3.3 | (2026-06-11) Validación de turno abierto sin filtro de fecha — un turno de un día anterior sin cerrar bloquea con mensaje limpio. v3.1: si `fondo_apertura > 0`, registra un EGRESO en Tienda con categoría `Fondo Apertura Turno`, validando saldo suficiente. |
+| `fn_abrir_turno` | v3.4 | (2026-06-22) El rechazo por turno ya abierto incluye el nombre del empleado ("Ya hay un turno abierto por X") — antes solo "Ya hay un turno abierto", causaba que el frontend mostrara un mensaje genérico de conexión en vez del motivo real (race condition con otro dispositivo). `TurnosCajaService.abrirTurno()` retorna `{ ok, errorHandled, errorMsg? }` y propaga ese mensaje; `home.page.ts → onAbrirCaja()` lo muestra y refresca el estado. v3.3: validación de turno abierto sin filtro de fecha — un turno de un día anterior sin cerrar bloquea con mensaje limpio. v3.1: si `fondo_apertura > 0`, registra un EGRESO en Tienda con categoría `Fondo Apertura Turno`, validando saldo suficiente. |
 | `fn_reparar_deficit_turno` | v4.2 | (2026-06-11) Misma validación sin filtro de fecha que `fn_abrir_turno` v3.3. v4.1: validación de saldo incluye déficit + fondo; EGRESO `FONDO-APERTURA` cuando fondo > 0. |
 | `fn_registrar_operacion_manual` | v3.1 | Nueva validación: si la caja destino es VARIOS, verifica que `caja_varios_activa = 'true'` en `configuraciones`. |
 | `fn_ejecutar_cierre_diario` | v6.3 | El depósito de Tienda al cierre lleva `categoria_id`: `Cierre — Ventas con POS` si el turno usó POS, `Cierre — Ventas del dia` si no. |
@@ -402,7 +402,9 @@ La mecánica completa — eventos por canal, setup SQL, `REPLICA IDENTITY FULL`,
 
 ## Estado del Proyecto
 
-**Última actualización:** 2026-06-11 — **v6.6** (docs consolidadas: [5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md) como único deep-dive de sincronización de UI; aviso `aperturaEnOtroDia` post-cierre cuando el turno se abrió un día anterior; `fn_abrir_turno` v3.3 / `fn_reparar_deficit_turno` v4.2 con validación de turno abierto sin filtro de fecha; eliminados métodos muertos de `OperacionesCajaService`)
+**Última actualización:** 2026-06-22 — **v6.7** (`fn_abrir_turno` v3.4: mensaje de turno ya abierto incluye el empleado, `abrirTurno()` propaga `errorMsg` real de la BD en vez de texto genérico de conexión; banner de déficit en `verificar-fondo-modal` reescrito para distinguir la acción física manual de la contable automática; filtros de Operaciones de Caja e Historial de Turnos reducidos a Todo/Hoy con default "Todo"; cada fila de Operaciones de Caja muestra el saldo resultante de la operación)
+
+**Histórico:** 2026-06-11 — v6.6 (docs consolidadas: [5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md) como único deep-dive de sincronización de UI; aviso `aperturaEnOtroDia` post-cierre cuando el turno se abrió un día anterior; `fn_abrir_turno` v3.3 / `fn_reparar_deficit_turno` v4.2 con validación de turno abierto sin filtro de fecha; eliminados métodos muertos de `OperacionesCajaService`)
 
 **Módulos completados:**
 

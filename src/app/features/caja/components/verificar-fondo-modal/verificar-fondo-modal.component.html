@@ -29,7 +29,14 @@
       @if (hayDeficit) {
         <div class="vfm-deficit-banner">
           <ion-icon name="alert-circle-outline"></ion-icon>
-          <span>Se tomará <strong>${{ deficitVarios | appCurrency }}</strong> de Tienda para reponer Varios al abrir</span>
+          <div class="vfm-deficit-text">
+            <span class="vfm-deficit-action">
+              Toma <strong>${{ deficitVarios | appCurrency }}</strong> en efectivo de <strong>Tienda</strong> y colócalos en <strong>Varios</strong>.
+            </span>
+            <span class="vfm-deficit-note">
+              Repone el faltante que quedó del turno anterior. El sistema registra el movimiento automáticamente al abrir.
+            </span>
+          </div>
         </div>
       }
 

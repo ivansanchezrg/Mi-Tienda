@@ -383,12 +383,16 @@ export class TurnosCajaService {
    * Una sola transacción reemplaza las 3 queries separadas del enfoque anterior
    * (check open → count → insert), eliminando la race condition TOCTOU.
    *
-   * Retorna false tanto si ya hay turno abierto como si hay error de conexión —
-   * home.page.ts maneja el error verificando si el turno existe tras el fallo.
+   * Contrato del retorno:
+   *  - `errorHandled: true`  → fue un fallo de transporte (sin red / JWT / error SQL crudo);
+   *    supabase.call() ya mostró el toast y retornó null. El home no debe mostrar nada.
+   *  - `errorHandled: false` + `errorMsg` → la BD rechazó la operación por una regla de
+   *    negocio (ej. "Ya hay un turno abierto por X"). El mensaje lo redacta fn_abrir_turno;
+   *    el home solo lo muestra tal cual. Nunca inventar aquí el texto del error.
    */
-  async abrirTurno(fondoApertura: number = 0): Promise<{ ok: boolean; errorHandled: boolean }> {
+  async abrirTurno(fondoApertura: number = 0): Promise<{ ok: boolean; errorHandled: boolean; errorMsg?: string }> {
     const empleado = await this.authService.getUsuarioActual();
-    if (!empleado) return { ok: false, errorHandled: false };
+    if (!empleado) return { ok: false, errorHandled: false, errorMsg: 'No se pudo obtener el empleado actual' };
 
     const response = await this.supabase.call(
       this.supabase.client.rpc('fn_abrir_turno', {
@@ -397,12 +401,15 @@ export class TurnosCajaService {
       })
     );
 
-    // response === null → supabase.call() ya mostró el toast del error SQL
+    // response === null → supabase.call() ya mostró el toast del error de transporte
     if (response === null) return { ok: false, errorHandled: true };
 
     const data = response as any;
-    // success: false → turno ya existía (race condition); home verifica cuál es el caso
-    if (!data?.success) return { ok: false, errorHandled: false };
+    // success: false → la BD rechazó por regla de negocio. Propagar su mensaje (data.error)
+    // — es la fuente de verdad y describe la causa real (turno ya abierto, saldo, etc.).
+    if (!data?.success) {
+      return { ok: false, errorHandled: false, errorMsg: data?.error ?? 'No se pudo abrir el turno' };
+    }
 
     await this.refrescarTurnoActivo();
     await this.ui.showSuccess('Caja abierta');

@@ -49,5 +49,11 @@ export const PAGINATION_CONFIG = {
    */
   historialRecargas: {
     pageSize: 20
+  },
+  /**
+   * Historial de pagos de suscripción
+   */
+  historialPagosSuscripcion: {
+    pageSize: 20
   }
 } as const;

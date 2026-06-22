@@ -673,9 +673,16 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     // Caso sin déficit: el modal devuelve fondoApertura y el home ejecuta abrirTurno()
     // Caso con déficit: el modal ya ejecutó repararDeficit() internamente (turnoId viene poblado)
     if (!resultado.turnoId) {
-      const { ok, errorHandled } = await this.turnosCajaService.abrirTurno(resultado.fondoApertura);
+      const { ok, errorHandled, errorMsg } = await this.turnosCajaService.abrirTurno(resultado.fondoApertura);
       if (!ok) {
-        if (!errorHandled) await this.ui.showError('Error al abrir el turno. Verifica tu conexión e intenta de nuevo.');
+        // errorHandled → transporte (sin red/JWT): supabase.call() ya mostró el toast.
+        // Si no, la BD rechazó por regla de negocio: mostramos su mensaje real (ej. "Ya
+        // hay un turno abierto por X") y refrescamos para sincronizar el estado del chip
+        // —cubre el caso de carrera donde otro dispositivo abrió y Realtime aún no llegó.
+        if (!errorHandled) {
+          await this.ui.showError(errorMsg ?? 'No se pudo abrir el turno. Intenta de nuevo.');
+          await this.cargarDatos();
+        }
         return;
       }
     }

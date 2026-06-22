@@ -46,7 +46,7 @@ export class ConfiguracionPage {
   }
 
   irAMiPlan() {
-    this.router.navigate([ROUTES.suscripcion]);
+    this.router.navigate([ROUTES.suscripcion.root]);
   }
 
   async verLogs() {

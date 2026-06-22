@@ -9,8 +9,14 @@
         </ion-button>
       </ion-buttons>
     }
-    <ion-title>{{ bloqueada ? 'Suscripción' : 'Planes y precios' }}</ion-title>
+    <ion-title>Suscripción</ion-title>
   </ion-toolbar>
+
+  <!-- Tabs internas Mi Plan / Historial — solo en modo informativo. En bloqueo no hay
+       nada que navegar (la pantalla "Suscríbete" es de salida única hacia el pago). -->
+  @if (!bloqueada) {
+    <app-suscripcion-tabs></app-suscripcion-tabs>
+  }
 
   <!-- Toggle Mensual/Anual anclado al header — permanece visible al hacer scroll.
        Solo se muestra en modo informativo y cuando hay planes con precio anual. -->

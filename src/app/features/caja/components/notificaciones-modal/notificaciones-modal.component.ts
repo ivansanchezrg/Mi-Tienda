@@ -70,7 +70,10 @@ export class NotificacionesModalComponent {
       return;
     }
     await this.modalCtrl.dismiss({ reload: false });
-    const tab = notif.tipo === 'SALDO_BAJO_BUS' ? 'BUS' : 'CELULAR';
-    await this.router.navigate([ROUTES.recargasVirtuales], { queryParams: { tab } });
+    // Todas las notificaciones de este bloque son de BUS (saldo bajo, ganancia
+    // pendiente de liquidar, recordatorio de fin de mes) — nunca de CELULAR.
+    // Antes el default caía en 'CELULAR' para cualquier tipo que no fuera
+    // SALDO_BAJO_BUS, mandando a la tab equivocada para FACTURACION_BUS_*.
+    await this.router.navigate([ROUTES.recargasVirtuales], { queryParams: { tab: 'BUS' } });
   }
 }

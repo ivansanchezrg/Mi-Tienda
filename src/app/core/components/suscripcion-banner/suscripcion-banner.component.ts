@@ -129,7 +129,7 @@ export class SuscripcionBannerComponent implements OnInit, OnDestroy {
   }
 
   irAMiPlan() {
-    this.router.navigate([ROUTES.suscripcion]);
+    this.router.navigate([ROUTES.suscripcion.root]);
   }
 
   ngOnDestroy() {

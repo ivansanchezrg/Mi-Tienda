@@ -13,6 +13,7 @@ import {
   SuscripcionAdmin,
   Plan,
   MetodoPago,
+  SuscripcionPago,
 } from '../../features/suscripcion/models/suscripcion.model';
 
 /**
@@ -242,6 +243,34 @@ export class SuscripcionService {
     return data ?? [];
   }
 
+  /**
+   * Historial de pagos del negocio activo (tabla suscripcion_pagos), paginado.
+   * Query directa con joins simples — la tabla es de solo lectura desde el cliente
+   * (RLS bloquea INSERT/UPDATE/DELETE; solo fn_registrar_pago_propietario escribe).
+   * RLS de SELECT ya filtra por negocio_id = get_negocio_id() (o superadmin).
+   */
+  async listarPagos(page: number, pageSize: number): Promise<SuscripcionPago[]> {
+    const desde = page * pageSize;
+    const hasta = desde + pageSize - 1;
+    const data = await this.supabase.call<any[]>(
+      this.supabase.client
+        .from('suscripcion_pagos')
+        .select('id, created_at, monto, periodo, vence_el, nota, planes(nombre), metodos_pago_suscripcion(nombre)')
+        .order('created_at', { ascending: false })
+        .range(desde, hasta)
+    );
+    return (data ?? []).map(row => ({
+      id:                 row.id,
+      created_at:         row.created_at,
+      monto:              row.monto,
+      periodo:            row.periodo,
+      vence_el:           row.vence_el,
+      nota:               row.nota,
+      plan_nombre:        row.planes?.nombre ?? 'Plan',
+      metodo_pago_nombre: row.metodos_pago_suscripcion?.nombre ?? null,
+    }));
+  }
+
   /** Crea o actualiza un plan (upsert por id). Escritura directa — RLS planes_admin (superadmin). */
   async guardarPlan(plan: Partial<Plan>): Promise<boolean> {
     const esNuevo = !plan.id;
@@ -342,13 +371,13 @@ export class SuscripcionService {
               // negocio para soporte), igual exención que suscripcionGuard.
               if (this.auth.usuarioActualValue?.es_superadmin) return;
 
-              const enPantallaSuscripcion = this.router.url.startsWith(ROUTES.suscripcion);
+              const enPantallaSuscripcion = this.router.url.startsWith(ROUTES.suscripcion.root);
 
               if (estado.bloqueada) {
                 // Quedó bloqueada (suspensión / vencimiento) → a la pantalla de cobro,
                 // salvo que ya esté ahí (evita una navegación redundante).
                 if (!enPantallaSuscripcion) {
-                  this.router.navigate([ROUTES.suscripcion], { replaceUrl: true });
+                  this.router.navigate([ROUTES.suscripcion.root], { replaceUrl: true });
                 }
               } else if (estabaBloqueada && enPantallaSuscripcion) {
                 // Transición bloqueo→vigente (pago / reactivación) y el usuario sigue

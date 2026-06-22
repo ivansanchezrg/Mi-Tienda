@@ -58,6 +58,19 @@ export interface LiquidacionResult {
   message: string;
 }
 
+/** Retorno de fn_registrar_compra_saldo_bus. */
+export interface CompraSaldoBusResult {
+  success: boolean;
+  recarga_id: string;
+  operacion_id: string;
+  monto: number;
+  saldo_anterior: number;
+  saldo_nuevo: number;
+  venta_bus_incluida: number;
+  mini_cierre: boolean;
+  message: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RecargasVirtualesService {
   private supabase = inject(SupabaseService);
@@ -121,22 +134,20 @@ export class RecargasVirtualesService {
 
   /**
    * Filas pendientes de liquidar ganancia de un servicio.
-   * CELULAR: pagado_proveedor=true AND ganancia_liquidada=false
-   * BUS:     pagado_proveedor=false (no tiene paso intermedio)
+   * Ambos servicios: pagado_proveedor=true AND ganancia_liquidada=false — mismo
+   * filtro que fn_liquidar_ganancias (BD), desde su unificación v2.0. BUS no tiene
+   * paso intermedio de pago a proveedor: nace directo en pagado_proveedor=true
+   * (fn_registrar_compra_saldo_bus v4.1).
    */
   async obtenerPendientes(servicio: 'CELULAR' | 'BUS'): Promise<RecargaVirtual[]> {
     const tipoId = await this.getTipoServicioId(servicio);
-    const query = this.supabase.client
+    const response = await this.supabase.client
       .from('recargas_virtuales')
       .select('*')
       .eq('tipo_servicio_id', tipoId)
-      .eq('ganancia_liquidada', false);
-
-    const filtrado = servicio === 'CELULAR'
-      ? query.eq('pagado_proveedor', true)
-      : query.eq('pagado_proveedor', false);
-
-    const response = await filtrado.order('fecha', { ascending: true });
+      .eq('ganancia_liquidada', false)
+      .eq('pagado_proveedor', true)
+      .order('fecha', { ascending: true });
 
     if (response.error) throw response.error;
 
@@ -260,8 +271,11 @@ export class RecargasVirtualesService {
    * Ambos servicios: filtra pagado_proveedor=false, marca pagado+liquidado en un paso.
    * Caja destino calculada por el SQL: VARIOS si está activa, sino CAJA (Tienda).
    */
-  async liquidarGanancias(servicio: 'CELULAR' | 'BUS', empleadoId: string): Promise<LiquidacionResult> {
-    const result = await this.supabase.call<LiquidacionResult>(
+  async liquidarGanancias(servicio: 'CELULAR' | 'BUS', empleadoId: string): Promise<LiquidacionResult | null> {
+    // result === null → supabase.call() ya mostró el toast con el mensaje real del
+    // RAISE EXCEPTION (ej. "No hay ganancias CELULAR pendientes de liquidar"). El caller
+    // no debe mostrar un segundo toast genérico — solo propagar null para abortar en silencio.
+    return this.supabase.call<LiquidacionResult>(
       this.supabase.client.rpc('fn_liquidar_ganancias', {
         p_servicio:    servicio,
         p_empleado_id: empleadoId
@@ -269,12 +283,6 @@ export class RecargasVirtualesService {
       undefined,
       { showLoading: true }
     );
-
-    if (!result) {
-      throw new Error(`Error al liquidar ganancias ${servicio}: respuesta vacía del servidor`);
-    }
-
-    return result;
   }
 
   async registrarCompraSaldoBus(params: {
@@ -283,7 +291,7 @@ export class RecargasVirtualesService {
     monto: number;
     observaciones?: string;
     saldo_virtual_maquina?: number;
-  }): Promise<any> {
+  }): Promise<CompraSaldoBusResult | null> {
     await this.ui.showLoading();
     try {
       const response = await this.supabase.client.rpc('fn_registrar_compra_saldo_bus', {
@@ -302,7 +310,7 @@ export class RecargasVirtualesService {
         }
       }
 
-      return await this.supabase.call(Promise.resolve(response));
+      return await this.supabase.call<CompraSaldoBusResult>(Promise.resolve(response));
     } finally {
       await this.ui.hideLoading();
     }
