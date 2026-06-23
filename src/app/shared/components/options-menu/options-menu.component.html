@@ -1,29 +1,32 @@
-<!-- Botón disparador ⋮ -->
-<ion-button [id]="triggerId" fill="clear" [color]="triggerColor" [class.disabled-menu]="disabled">
+<!-- Botón disparador ⋮ — stopPropagation evita que el click burbujee al contenedor padre -->
+<ion-button [id]="triggerId" fill="clear" [color]="triggerColor" [class.disabled-menu]="disabled"
+    (click)="$event.stopPropagation()">
     <ion-icon slot="icon-only" name="ellipsis-vertical-outline"></ion-icon>
 </ion-button>
 
-<!-- Popover -->
-<ion-popover [trigger]="disabled ? undefined : triggerId" triggerAction="click" [dismissOnSelect]="true">
+<!-- Popover — dropdown desde el borde inferior del trigger hacia abajo-izquierda -->
+<ion-popover [trigger]="disabled ? undefined : triggerId" triggerAction="click"
+    side="bottom" alignment="end" [dismissOnSelect]="false">
     <ng-template>
-        <ion-list lines="none" class="options-list">
-            @for (option of options; track option.value) {
-              @if (option.separator) {
-                <hr class="options-separator">
-              } @else {
-                <ion-item button (click)="onSelect(option)">
-                    <ion-icon [name]="option.icon" slot="start"
-                        [color]="option.active ? 'primary' : (option.color ?? 'medium')">
-                    </ion-icon>
-                    <ion-label [color]="option.active ? 'primary' : option.color">
-                        {{ option.label }}
-                    </ion-label>
-                    @if (option.active) {
-                    <ion-icon name="checkmark-outline" slot="end" color="primary"></ion-icon>
+        <div class="menu-popover">
+            <div class="menu-options">
+                @for (option of options; track option.value) {
+                    @if (option.separator) {
+                        <div class="menu-divider"></div>
+                    } @else {
+                        <button class="menu-option" [class.menu-option--danger]="option.color === 'danger'"
+                            (click)="onSelect(option, $event)">
+                            <div class="menu-option__icon" [class.menu-option__icon--danger]="option.color === 'danger'">
+                                <ion-icon [name]="option.icon"></ion-icon>
+                            </div>
+                            <span class="menu-option__label">{{ option.label }}</span>
+                            @if (option.active) {
+                                <ion-icon name="checkmark-outline" class="menu-option__check"></ion-icon>
+                            }
+                        </button>
                     }
-                </ion-item>
-              }
-            }
-        </ion-list>
+                }
+            </div>
+        </div>
     </ng-template>
 </ion-popover>

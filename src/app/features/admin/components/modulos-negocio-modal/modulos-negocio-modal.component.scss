@@ -1,0 +1,164 @@
+// El bs-header__icon usa el color primary por defecto desde modals.scss — no necesita override.
+
+.modal-negocio-nombre {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  padding: 0 2px;
+}
+
+.modulos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modulo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: var(--ion-color-step-50, rgba(var(--ion-color-medium-rgb), 0.04));
+}
+
+.modulo-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex: 1;
+  min-width: 0;
+}
+
+.modulo-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  ion-icon { font-size: 20px; }
+
+  &--celular {
+    background: rgba(var(--ion-color-secondary-rgb), 0.12);
+    ion-icon { color: var(--ion-color-secondary); }
+  }
+
+  &--bus {
+    background: rgba(var(--ion-color-warning-rgb), 0.12);
+    ion-icon { color: var(--ion-color-warning); }
+  }
+}
+
+.modulo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.modulo-label {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-dark);
+}
+
+.modulo-desc {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// ── Toggle custom ──────────────────────────────────────────
+.toggle-btn {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border-radius: 13px;
+  border: none;
+  background: rgba(var(--ion-color-medium-rgb), 0.25);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+  padding: 0;
+
+  &--on {
+    background: var(--ion-color-primary);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ion-color-light, #fff);
+  box-shadow: var(--shadow-level-1);
+  transition: transform 0.2s ease;
+
+  .toggle-btn--on & {
+    transform: translateX(20px);
+  }
+}
+
+// ── Tipo de comprobante ────────────────────────────────────────────────────────
+
+.comprobante-section {
+  padding: 16px 20px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comprobante-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ion-color-dark);
+}
+
+.comprobante-options {
+  display: flex;
+  gap: 8px;
+}
+
+.comprobante-opt {
+  flex: 1;
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1.5px solid var(--ion-color-light-shade);
+  background: var(--ion-color-light);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ion-color-medium-shade);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+
+  &--active {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.08);
+    color: var(--ion-color-primary);
+    font-weight: 600;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.comprobante-hint {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+}

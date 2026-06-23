@@ -55,20 +55,13 @@
 
     } @else {
     @for (cat of categoriasFiltradas; track cat.id) {
-    <div class="categoria-item" [class.inactiva]="!cat.activo" [class.clickable]="cat.seleccionable"
+    <div class="categoria-item" [class.inactiva]="!cat.activo" [class.clickable]="true"
       (click)="onItemClick(cat)">
 
       <!-- Información -->
       <div class="cat-info">
         <div class="cat-badges">
           <span class="cat-codigo">{{ cat.codigo }}</span>
-
-          @if (!cat.seleccionable) {
-          <span class="badge-sistema">
-            <ion-icon name="lock-closed-outline"></ion-icon>
-            Sistema
-          </span>
-          }
 
           @if (!cat.activo) {
           <span class="badge-inactiva">Inactiva</span>
@@ -80,10 +73,7 @@
         }
       </div>
 
-      <!-- Chevron solo para ítems editables -->
-      @if (cat.seleccionable) {
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
-      }
 
     </div>
     }

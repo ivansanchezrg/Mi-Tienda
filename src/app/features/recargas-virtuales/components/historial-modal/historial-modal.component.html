@@ -24,55 +24,116 @@
 
       @if (historial.length > 0) {
         <ion-card class="historial-card">
-          @for (r of historial; track r.id; let last = $last) {
-            <div class="historial-row">
 
-              <!-- Icono según estado — nombres estáticos para Android -->
-              <div class="historial-icon"
-                [class.pagado]="r.pagado"
-                [class.pendiente]="!r.pagado && tipo === 'CELULAR'"
-                [class.bus]="!r.pagado && tipo === 'BUS'">
-                @if (r.pagado) {
-                  <ion-icon name="checkmark-circle-outline"></ion-icon>
-                } @else if (tipo === 'CELULAR') {
-                  <ion-icon name="alert-circle-outline"></ion-icon>
-                } @else {
-                  <ion-icon name="bus-outline"></ion-icon>
-                }
-              </div>
+          <!-- Header de columnas — Bus no tiene etapa de "pago a proveedor" (nace
+               disponible de inmediato), por eso no muestra esa columna: a diferencia
+               de Celular, en Bus siempre sería el mismo valor y no aporta información. -->
+          <div class="tabla-header" [class.tabla-header--bus]="tipo === 'BUS'">
+            <span>Fecha</span>
+            @if (tipo === 'CELULAR') {
+              <span>Saldo recibido</span>
+              <span>Ganancia</span>
+              <span>Proveedor</span>
+              <span>Ganancia</span>
+            } @else {
+              <span>Depósito</span>
+              <span>Ganancia</span>
+              <span>Ganancia</span>
+            }
+          </div>
 
-              <!-- Detalles -->
-              <div class="historial-details">
-                <div class="historial-fecha">{{ formatearFecha(r.fecha) }}</div>
-                @if (tipo === 'CELULAR') {
-                  <div class="historial-sub">
-                    Virtual: ${{ r.monto_virtual | number:'1.2-2' }} · Deuda: ${{ r.monto_a_pagar | number:'1.2-2' }}
-                  </div>
-                } @else {
-                  <div class="historial-sub">
-                    ${{ r.monto_virtual | number:'1.2-2' }}
-                    @if (r.observaciones) { · {{ r.observaciones }} }
-                  </div>
-                }
-                @if (r.empleado_nombre) {
-                  <div class="historial-sub">Por: {{ r.empleado_nombre }}</div>
-                }
-              </div>
+          <!-- Filas -->
+          @for (r of historial; track r.id) {
+          <div class="tabla-fila" [class.tabla-fila--bus]="tipo === 'BUS'">
+            <span class="tabla-fecha">{{ formatearFecha(r.fecha) }}</span>
 
-              <!-- Badge estado -->
-              @if (tipo === 'CELULAR') {
-                <div class="historial-badge" [class.pagado]="r.pagado" [class.pendiente]="!r.pagado">
-                  {{ r.pagado ? 'Pagado' : 'Pendiente' }}
-                </div>
-              } @else {
-                <div class="historial-badge" [class.pagado]="r.pagado" [class.sin-liquidar]="!r.pagado">
-                  {{ r.pagado ? 'Liquidado' : 'Sin liquidar' }}
-                </div>
-              }
+            @if (tipo === 'CELULAR') {
+              <span class="tabla-monto">${{ r.monto_virtual | appCurrency }}</span>
+              <span class="tabla-ganancia" [class.celular]="r.pagado_proveedor" [class.muted]="!r.pagado_proveedor">
+                ${{ r.ganancia | appCurrency }}
+              </span>
+            } @else {
+              <span class="tabla-monto">${{ r.monto_a_pagar | appCurrency }}</span>
+              <span class="tabla-ganancia bus">${{ r.ganancia | appCurrency }}</span>
+            }
 
-            </div>
-            @if (!last) { <div class="divider"></div> }
+            @if (tipo === 'CELULAR') {
+              <!-- Columna: estado pago proveedor (solo Celular) -->
+              <span class="tabla-badge"
+                [class.pagado]="r.pagado_proveedor"
+                [class.pendiente]="!r.pagado_proveedor">
+                {{ r.pagado_proveedor ? 'Pagado' : 'Pendiente' }}
+              </span>
+            }
+
+            <!-- Columna: estado ganancia liquidada -->
+            <span class="tabla-badge"
+              [class.liquidado]="r.ganancia_liquidada"
+              [class.sin-liquidar]="!r.ganancia_liquidada">
+              {{ r.ganancia_liquidada ? 'Liquidado' : 'Pendiente' }}
+            </span>
+          </div>
           }
+
+          <!-- Aviso: ganancia atrapada hasta pagar al proveedor (solo CELULAR) -->
+          @if (gananciaSinPagarProveedor > 0) {
+            <div class="proveedor-pendiente-banner">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+              <span>
+                <strong>${{ gananciaSinPagarProveedor | appCurrency }}</strong> en ganancia no se puede liquidar todavía —
+                primero debes pagar al proveedor esas recargas.
+              </span>
+            </div>
+          }
+
+          <!-- Totales -->
+          <div class="totales-section">
+            @if (totalLiquidado > 0) {
+              <div class="total-col">
+                <div class="total-col-label">
+                  <span class="total-dot liquidado"></span>
+                  <span>Ya transferido</span>
+                </div>
+                <span class="total-col-monto liquidado">${{ totalLiquidado | appCurrency }}</span>
+              </div>
+            }
+            @if (totalPorLiquidar > 0) {
+              <div class="total-col">
+                <div class="total-col-label">
+                  <span class="total-dot" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'"></span>
+                  <span>Por liquidar</span>
+                </div>
+                <span class="total-col-monto" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'">
+                  ${{ totalPorLiquidar | appCurrency }}
+                </span>
+              </div>
+            }
+            @if (totalLiquidado > 0 && totalPorLiquidar > 0) {
+              <div class="total-col">
+                <div class="total-col-label">
+                  <span>Total ganancia</span>
+                </div>
+                <span class="total-col-monto total">${{ totalGanancia | appCurrency }}</span>
+              </div>
+            }
+          </div>
+
+          <!-- Botón liquidar — visible siempre que haya pendiente, sin exigir saldo
+               suficiente. Si la caja origen no alcanza, confirmarLiquidacion() lo
+               explica con un toast antes de abrir la confirmación (el botón nunca
+               desaparece sin que el usuario sepa por qué). Sin @if (!esSuperadmin):
+               la BD bloquea via fn_assert_no_superadmin en fn_liquidar_ganancias. -->
+          @if (puedeLiquidar) {
+          <ion-button
+            expand="block"
+            [color]="tipo === 'CELULAR' ? 'primary' : 'secondary'"
+            class="liquidar-btn"
+            (click)="confirmarLiquidacion()">
+            Transferir ${{ totalPorLiquidar | appCurrency }} a {{ nombreCajaDestino }}
+            <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
+          </ion-button>
+          }
+
         </ion-card>
       } @else {
         @if (tipo === 'CELULAR') {

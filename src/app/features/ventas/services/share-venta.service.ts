@@ -1,9 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 import { Venta } from '../models/venta.model';
 import { CurrencyService } from '../../../core/services/currency.service';
-import { ConfigService } from '../../../core/services/config.service';
+import { AuthService } from '../../auth/services/auth.service';
+import { ConfiguracionService } from '../../configuracion/services/configuracion.service';
+import { DatosNegocio } from '../../configuracion/models/configuracion.model';
 import { formatFechaHoraEC } from '../../../core/utils/date.util';
 
 const TEMP_FILE = 'comprobante-venta.jpg';
@@ -40,23 +43,28 @@ class NullCanvas {
 @Injectable({ providedIn: 'root' })
 export class ShareVentaService {
 
-    private currency = inject(CurrencyService);
-    private config   = inject(ConfigService);
+    private currency       = inject(CurrencyService);
+    private auth           = inject(AuthService);
+    private configuracion  = inject(ConfiguracionService);
 
     private readonly CANVAS_WIDTH = 400;
     private readonly PADDING = 28;
     private readonly CONTENT_WIDTH = this.CANVAS_WIDTH - (this.PADDING * 2);
 
     async compartirVenta(venta: Venta): Promise<void> {
-        const nombreNegocio = await this.config.getNombreNegocio();
+        const [usuario, datosNegocio] = await Promise.all([
+            this.auth.getUsuarioActual(),
+            this.configuracion.getDatosNegocio()
+        ]);
+        const nombreNegocio = datosNegocio?.nombre ?? usuario?.negocio_nombre ?? '';
 
         // Pasada 1: medir altura real con NullCanvas
-        const measuredY = this.renderVenta(new NullCanvas() as any, venta, nombreNegocio);
+        const measuredY = this.renderVenta(new NullCanvas() as any, venta, nombreNegocio, datosNegocio);
         const totalHeight = measuredY + 20; // margen inferior de seguridad
 
         // Pasada 2: dibujar en canvas real con la altura exacta
         const base64 = await this.drawToCanvas(totalHeight, (ctx) => {
-            this.renderVenta(ctx, venta, nombreNegocio);
+            this.renderVenta(ctx, venta, nombreNegocio, datosNegocio);
         });
 
         const label = this.getLabelTipo(venta.tipo_comprobante);
@@ -69,16 +77,17 @@ export class ShareVentaService {
     // Retorna el y final para que la primera pasada calcule la altura exacta.
     // ─────────────────────────────────────────────────────────────────────────
 
-    private renderVenta(ctx: CanvasRenderingContext2D, venta: Venta, nombreNegocio: string): number {
-        const esFactura       = venta.tipo_comprobante === 'FACTURA';
+    private renderVenta(ctx: CanvasRenderingContext2D, venta: Venta, nombreNegocio: string, negocio: DatosNegocio | null = null): number {
+        const esFactura        = venta.tipo_comprobante === 'FACTURA';
+        const esNotaVenta      = venta.tipo_comprobante === 'NOTA_VENTA';
         const tieneClienteReal = !!venta.cliente_nombre && venta.cliente_nombre !== 'Consumidor Final';
-        const mostrarCliente  = esFactura || tieneClienteReal;
-        const esFiado         = venta.metodo_pago === 'FIADO';
-        const esAnulada       = venta.estado === 'ANULADA';
-        const totalAbonado    = venta.total_abonado ?? 0;
-        const totalPendiente  = venta.total - totalAbonado;
-        const estadoPago      = venta.estado_pago ?? 'NO_APLICA';
-        const detalles        = venta.ventas_detalles ?? [];
+        const mostrarCliente   = esFactura || tieneClienteReal;
+        const esFiado          = venta.metodo_pago === 'FIADO';
+        const esAnulada        = venta.estado === 'ANULADA';
+        const totalAbonado     = venta.total_abonado ?? 0;
+        const totalPendiente   = venta.total - totalAbonado;
+        const estadoPago       = venta.estado_pago ?? 'NO_APLICA';
+        const detalles         = venta.ventas_detalles ?? [];
 
         let y = 40;
 
@@ -94,8 +103,29 @@ export class ShareVentaService {
         }
 
         // ─── Cabecera ────────────────────────────────────────────────────────
+        // Nombre del negocio — siempre
         this.drawCenteredText(ctx, nombreNegocio, y, '22px', '800');
         y += 26;
+
+        // Para FACTURA y NOTA_VENTA: mostrar RUC y razón social si están configurados
+        if ((esFactura || esNotaVenta) && negocio?.ruc) {
+            this.drawCenteredText(ctx, `RUC: ${negocio.ruc}`, y, '11px', 'normal', '#666');
+            y += 16;
+        }
+        if ((esFactura || esNotaVenta) && negocio?.razon_social) {
+            this.drawCenteredText(ctx, negocio.razon_social, y, '11px', 'normal', '#666');
+            y += 16;
+        }
+
+        // Dirección y teléfono — en todos los tipos de comprobante
+        if (negocio?.direccion) {
+            this.drawCenteredText(ctx, negocio.direccion, y, '11px', 'normal', '#888');
+            y += 16;
+        }
+        if (negocio?.telefono) {
+            this.drawCenteredText(ctx, `Tel: ${negocio.telefono}`, y, '11px', 'normal', '#888');
+            y += 16;
+        }
 
         const labelTipo = this.getLabelTipo(venta.tipo_comprobante);
         const numStr    = venta.numero_comprobante ? ` #${venta.numero_comprobante}` : '';
@@ -314,12 +344,14 @@ export class ShareVentaService {
     private drawFooter(ctx: CanvasRenderingContext2D, y: number): number {
         y = this.drawDashedLine(ctx, y);
         y += 24;
-        const hoy = new Date();
-        const d   = hoy.getDate().toString().padStart(2, '0');
-        const m   = (hoy.getMonth() + 1).toString().padStart(2, '0');
-        const h   = hoy.getHours().toString().padStart(2, '0');
-        const min = hoy.getMinutes().toString().padStart(2, '0');
-        this.drawCenteredText(ctx, `Generado: ${d}/${m}/${hoy.getFullYear()} ${h}:${min}`, y, '11px', 'normal', '#aaa');
+        // Hora de generación en zona Ecuador — new Date() usa hora local del dispositivo
+        // que puede diferir del servidor; toLocaleString fuerza la zona correcta.
+        const ahora = new Date().toLocaleString('es-EC', {
+            timeZone: 'America/Guayaquil',
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: false
+        });
+        this.drawCenteredText(ctx, `Generado: ${ahora}`, y, '11px', 'normal', '#aaa');
         y += 18;
         this.drawCenteredText(ctx, 'Este documento no es un comprobante fiscal', y, '11px', 'normal', '#aaa');
         y += 18;
@@ -344,21 +376,27 @@ export class ShareVentaService {
     }
 
     private async saveAndShare(base64: string, titulo: string): Promise<void> {
-        await Filesystem.writeFile({
-            path: TEMP_FILE,
-            data: base64,
-            directory: Directory.Cache,
-        });
-
-        const { uri } = await Filesystem.getUri({
-            path: TEMP_FILE,
-            directory: Directory.Cache,
-        });
-
-        // Cerrar loading ANTES de abrir el share sheet nativo.
-        // Share.share() resuelve cuando el usuario vuelve a la app, no al compartir.
-        await Share.share({ title: titulo, files: [uri], dialogTitle: titulo });
-        Filesystem.deleteFile({ path: TEMP_FILE, directory: Directory.Cache }).catch(() => {});
+        if (Capacitor.isNativePlatform()) {
+            await Filesystem.writeFile({
+                path: TEMP_FILE,
+                data: base64,
+                directory: Directory.Cache,
+            });
+            const { uri } = await Filesystem.getUri({
+                path: TEMP_FILE,
+                directory: Directory.Cache,
+            });
+            // Cerrar loading ANTES de abrir el share sheet nativo.
+            // Share.share() resuelve cuando el usuario vuelve a la app, no al compartir.
+            await Share.share({ title: titulo, files: [uri], dialogTitle: titulo });
+            Filesystem.deleteFile({ path: TEMP_FILE, directory: Directory.Cache }).catch(() => {});
+        } else {
+            // Web: descarga directa como imagen
+            const link = document.createElement('a');
+            link.href = `data:image/jpeg;base64,${base64}`;
+            link.download = `${titulo}.jpg`;
+            link.click();
+        }
     }
 
     private getLabelTipo(tipo: string): string {
@@ -368,7 +406,7 @@ export class ShareVentaService {
     }
 
     private getLabelMetodo(metodo: string): string {
-        if (metodo === 'DEUNA')         return 'Tarjeta / DeUna';
+        if (metodo === 'DEUNA')         return 'Deuna';
         if (metodo === 'TRANSFERENCIA') return 'Transferencia';
         if (metodo === 'FIADO')         return 'Fiado';
         return 'Efectivo';

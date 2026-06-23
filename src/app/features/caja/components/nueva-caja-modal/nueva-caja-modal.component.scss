@@ -1,0 +1,241 @@
+// ── Layout completo: viene de theme/custom/modals.scss (clases bs-*) ─────────
+// Solo CSS específico del componente abajo.
+
+// ── Campos del formulario ─────────────────────────────────────────────────────
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-required {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--ion-color-danger);
+  background: rgba(var(--ion-color-danger-rgb), 0.10);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.badge-optional {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--app-text-muted);
+  background: var(--app-surface-tint);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.field-error {
+  font-size: 12px;
+  color: var(--ion-color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.text-input {
+  width: 100%;
+  padding: 11px 14px;
+  font-size: 15px;
+  border: 1.5px solid var(--app-divider);
+  border-radius: var(--radius-md);
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+
+  &:focus { border-color: var(--ion-color-primary); }
+
+  &::placeholder {
+    color: var(--app-text-muted);
+    opacity: 0.6;
+  }
+}
+
+// ── Apariencia — preview + color + ícono ─────────────────────────────────────
+
+.appearance-preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--app-surface-tint);
+  border-radius: var(--radius-md);
+}
+
+.preview-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+  ion-icon {
+    font-size: 26px;
+    color: #fff;
+  }
+}
+
+.preview-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.preview-name {
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text);
+}
+
+.preview-sub {
+  font-size: 12px;
+  color: var(--app-text-muted);
+}
+
+.picker-label {
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  color: var(--app-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: -2px;
+}
+
+// ── Selector de color ─────────────────────────────────────────────────────────
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 30px));
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.color-option {
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  padding: 0;
+
+  &--selected {
+    border-color: var(--app-text);
+    transform: scale(1.12);
+  }
+
+  &:active { transform: scale(0.90); }
+}
+
+// ── Selector de ícono ─────────────────────────────────────────────────────────
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+}
+
+.icon-option {
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--app-divider);
+  background: var(--app-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  ion-icon {
+    font-size: 18px;
+    color: var(--app-text-soft);
+  }
+
+  &--selected {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.08);
+
+    ion-icon { color: var(--ion-color-primary); }
+  }
+
+  &:active { transform: scale(0.93); }
+}
+
+.toggle-icons-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  color: var(--ion-color-primary);
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+
+  ion-icon { font-size: 14px; }
+}
+
+// ── Monto ─────────────────────────────────────────────────────────────────────
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 14px 16px;
+  border: 1.5px solid var(--app-divider);
+  border-radius: var(--radius-md);
+  background: var(--app-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:focus-within {
+    border-color: var(--ion-color-primary);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.10);
+  }
+}
+
+.amount-currency {
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text-muted);
+}
+
+.amount-row input {
+  flex: 1;
+  border: none;
+  padding: 0;
+  font-size: 28px;
+  font-weight: var(--font-weight-extrabold);
+  background: transparent;
+  color: var(--app-text);
+  outline: none;
+  letter-spacing: -0.5px;
+
+  &::placeholder {
+    color: var(--app-text-muted);
+    opacity: 0.5;
+  }
+}

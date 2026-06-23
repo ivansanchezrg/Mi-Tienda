@@ -1,128 +1,266 @@
 -- ==========================================
--- SEED: Productos de prueba — Inventario (v8 - Presentaciones)
+-- SEED: Productos de prueba — Inventario
+-- Version: 2.1 (schema v11 — multi-tenant, UUID)
 -- ==========================================
--- Cubre todos los flujos del modulo de inventario:
---   1. Productos UNIDAD normales (varios estados de stock)
---   2. Producto PESO (granel en libras)
---   3. Producto con presentaciones: Cigarro suelto + Cajetilla x10 + Cajetilla x20
---   4. Producto con presentaciones: Huevo suelto + Cubeta x30
---   5. Stock bajo y agotado (para probar badges visuales)
+-- Cubre los 4 flujos reales del modulo de inventario:
 --
--- ⚠️  Ejecutar DESPUES del schema.sql y de que existan las categorias.
--- ⚠️  Requiere que las categorias semilla esten creadas (schema.sql las inserta).
---     1=Bebidas | 2=Snacks | 3=Abarrotes | 4=Lacteos | 5=Limpieza | 6=Aseo Personal | 7=Panaderia
+--   CASO 1: Producto simple           → fn_crear_producto_simple (sin presentaciones)
+--   CASO 2: Producto con variantes    → fn_crear_producto_con_variantes
+--   CASO 3: Producto con presentaciones → fn_crear_producto_simple (con presentaciones)
+--   CASO 4: Variante con presentaciones → fn_crear_producto_con_variantes (SKU con presentaciones)
 --
--- Para limpiar: DELETE FROM productos WHERE codigo_barras LIKE 'TEST-%';
+-- COMO EJECUTAR:
+--   1. Abrir Supabase SQL Editor
+--   2. Reemplazar '<REEMPLAZAR-CON-NEGOCIO-ID>' con el UUID real del negocio (2 lugares: set_config + DO $$)
+--   3. Ejecutar el bloque set_config PRIMERO (simula el JWT que leen las funciones SQL)
+--   4. Ejecutar el bloque DO $$ en la misma sesion
+--
+-- POR QUE set_config:
+--   Las funciones usan get_negocio_id() = auth.jwt()->'app_metadata'->>'negocio_id'.
+--   El SQL Editor de Supabase no tiene JWT de usuario — set_config inyecta el claim
+--   en la sesion actual para que auth.jwt() lo devuelva correctamente.
+--
+-- LIMPIEZA:
+--   DELETE FROM producto_templates WHERE nombre IN ('TEST-TAPIOCA', 'TEST-GASEOSA COLA') AND negocio_id = '<tu-negocio-id>';
+--   DELETE FROM productos WHERE nombre LIKE 'TEST-%' AND negocio_id = '<tu-negocio-id>';
+--   DELETE FROM atributos WHERE nombre IN ('SABOR', 'TAMANIO') AND negocio_id = '<tu-negocio-id>';
 -- ==========================================
 
--- ==========================================
--- 1. UNIDAD — stock normal
--- ==========================================
-INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva, tipo_venta, unidad_medida) VALUES
-(1, 'TEST-001', 'Coca-Cola 600ml',         0.55, 0.75, 48, 10, TRUE,  'UNIDAD', 'und'),
-(1, 'TEST-002', 'Agua sin Gas 500ml',      0.20, 0.35, 60, 12, FALSE, 'UNIDAD', 'und'),
-(1, 'TEST-003', 'Gatorade Limon 500ml',    0.80, 1.25, 24,  6, TRUE,  'UNIDAD', 'und'),
-(2, 'TEST-004', 'Doritos 50g',             0.35, 0.50, 40, 10, TRUE,  'UNIDAD', 'und'),
-(2, 'TEST-005', 'Chifles Sal 100g',        0.45, 0.65, 30,  8, TRUE,  'UNIDAD', 'und'),
-(3, 'TEST-006', 'Arroz 1kg',               0.85, 1.10, 80, 20, FALSE, 'UNIDAD', 'und'),
-(3, 'TEST-007', 'Aceite El Cocinero 1L',   1.80, 2.50, 18,  5, FALSE, 'UNIDAD', 'und'),
-(4, 'TEST-008', 'Leche Toni 1L',           0.90, 1.20, 36, 10, FALSE, 'UNIDAD', 'und'),
-(5, 'TEST-009', 'Fabuloso 500ml',          1.10, 1.75, 20,  5, TRUE,  'UNIDAD', 'und'),
-(6, 'TEST-010', 'Jabon Protex 100g',       0.60, 0.90, 25,  8, TRUE,  'UNIDAD', 'und'),
-(7, 'TEST-011', 'Pan de Sal (unidad)',      0.10, 0.15, 50, 20, FALSE, 'UNIDAD', 'und');
+-- ── PASO 1: Simular JWT con negocio_id (ejecutar antes del DO $$) ──
+-- Reemplazar el UUID con el negocio real
+SELECT set_config(
+    'request.jwt.claims',
+    json_build_object(
+        'app_metadata', json_build_object(
+            'negocio_id', '<REEMPLAZAR-CON-NEGOCIO-ID>',
+            'rol',        'ADMIN'
+        )
+    )::text,
+    true  -- true = solo esta sesion (se resetea al cerrar)
+);
 
--- ==========================================
--- 2. UNIDAD — stock bajo (para badge warning)
--- ==========================================
-INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva, tipo_venta, unidad_medida) VALUES
-(1, 'TEST-020', 'Jugo Del Valle 300ml',    0.45, 0.65,  3, 10, TRUE,  'UNIDAD', 'und'),
-(2, 'TEST-021', 'Galletas Festival 100g',  0.55, 0.80,  2,  8, TRUE,  'UNIDAD', 'und'),
-(3, 'TEST-022', 'Atun Real 170g',          0.90, 1.40,  4,  6, FALSE, 'UNIDAD', 'und');
-
--- ==========================================
--- 3. UNIDAD — stock agotado (para badge danger)
--- ==========================================
-INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva, tipo_venta, unidad_medida) VALUES
-(1, 'TEST-030', 'Red Bull 250ml',          1.20, 1.75,  0,  5, TRUE,  'UNIDAD', 'und'),
-(5, 'TEST-031', 'Cloro Olimpia 1L',        0.70, 1.10,  0,  3, TRUE,  'UNIDAD', 'und');
-
--- ==========================================
--- 4. PESO — granel (para badge y flujo PESO en POS)
--- ==========================================
-INSERT INTO productos (categoria_id, codigo_barras, nombre, precio_costo, precio_venta, stock_actual, stock_minimo, tiene_iva, tipo_venta, unidad_medida) VALUES
-(3, 'TEST-040', 'Azucar Granel',           0.40, 0.55, 25.00, 5, FALSE, 'PESO', 'lb'),
-(3, 'TEST-041', 'Arroz Granel',            0.70, 0.90, 40.00, 8, FALSE, 'PESO', 'lb'),
-(3, 'TEST-042', 'Frejol Rojo Granel',      0.85, 1.10, 15.50, 5, FALSE, 'PESO', 'lb');
-
--- ==========================================
--- 5. PRESENTACIONES — Cigarro con Cajetilla x10 y x20
---    Stock vive en el producto base (cigarro suelto = 200 und)
---    Presentaciones son formas de venta alternativas con factor y precio propio
--- ==========================================
+-- ── PASO 2: Seed de productos ──
 DO $$
 DECLARE
-    v_cigarro_id UUID;
-    v_categoria_snacks INTEGER;
+    -- ── CONFIGURACION: reemplazar con el UUID real del negocio ──
+    v_negocio_id  UUID := '<REEMPLAZAR-CON-NEGOCIO-ID>';
+
+    -- Variables compartidas
+    v_cat_bebida  UUID;
+    v_cat_snack   UUID;
+    v_result      JSON;
+
+    -- Atributos
+    v_sabor_id      UUID;
+    v_fresa_id      UUID;
+    v_chocolate_id  UUID;
+    v_vainilla_id   UUID;
+    v_tamanio_id    UUID;
+    v_500g_id       UUID;
+    v_1kg_id        UUID;
+    v_330ml_id      UUID;
+    v_600ml_id      UUID;
 BEGIN
-    SELECT id INTO v_categoria_snacks FROM categorias_productos WHERE nombre = 'Snacks' LIMIT 1;
 
-    -- Producto base: cigarro suelto (stock real aqui)
-    INSERT INTO productos (
-        categoria_id, codigo_barras, nombre,
-        precio_costo, precio_venta,
-        stock_actual, stock_minimo,
-        tiene_iva, tipo_venta, unidad_medida
-    ) VALUES (
-        v_categoria_snacks, 'TEST-050', 'Cigarro Marlboro',
-        0.15, 0.25,
-        200, 20,
-        TRUE, 'UNIDAD', 'und'
-    )
-    RETURNING id INTO v_cigarro_id;
+    -- ── Categorias (buscar o usar la primera disponible del negocio) ──
+    v_cat_bebida := (SELECT id FROM categorias_productos
+                     WHERE negocio_id = v_negocio_id AND LOWER(nombre) LIKE '%bebida%' LIMIT 1);
+    v_cat_bebida := COALESCE(v_cat_bebida,
+                     (SELECT id FROM categorias_productos WHERE negocio_id = v_negocio_id LIMIT 1));
 
-    -- Presentacion 1: Cajetilla x10 (principal)
-    INSERT INTO producto_presentaciones (
-        producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal
-    ) VALUES (
-        v_cigarro_id, 'Cajetilla x10', 10, 2.30, 'TEST-051', TRUE
+    v_cat_snack  := (SELECT id FROM categorias_productos
+                     WHERE negocio_id = v_negocio_id
+                       AND (LOWER(nombre) LIKE '%snack%' OR LOWER(nombre) LIKE '%abarrot%') LIMIT 1);
+    v_cat_snack  := COALESCE(v_cat_snack, v_cat_bebida);
+
+    IF v_cat_bebida IS NULL THEN
+        RAISE EXCEPTION 'No hay categorias de productos para el negocio %. Ejecutar fn_completar_onboarding primero.', v_negocio_id;
+    END IF;
+
+
+    -- ══════════════════════════════════════════════════════
+    -- CASO 1 — Producto simple sin presentaciones
+    -- Escenario: agua embotellada unitaria. Flujo mas comun
+    -- en cualquier tienda de barrio (95% de los productos).
+    -- ══════════════════════════════════════════════════════
+    v_result := public.fn_crear_producto_simple(
+        p_nombre          := 'TEST-AGUA SIN GAS 500ML',
+        p_categoria_id    := v_cat_bebida,
+        p_tiene_iva       := FALSE,
+        p_tipo_venta      := 'UNIDAD',
+        p_unidad_medida   := 'und',
+        p_codigo_barras   := 'TEST-P1-001',
+        p_precio_costo    := 0.20,
+        p_precio_venta    := 0.35,
+        p_stock_actual    := 60,
+        p_stock_minimo    := 12,
+        p_presentaciones  := '[]'::JSON
     );
+    RAISE NOTICE 'Caso 1 (simple): %', v_result;
 
-    -- Presentacion 2: Cajetilla x20
-    INSERT INTO producto_presentaciones (
-        producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal
-    ) VALUES (
-        v_cigarro_id, 'Cajetilla x20', 20, 4.50, 'TEST-052', FALSE
+
+    -- ══════════════════════════════════════════════════════
+    -- CASO 2 — Producto con variantes (sin presentaciones)
+    -- Escenario: tapioca en 3 sabores x 2 tamanios = 6 SKUs.
+    -- ══════════════════════════════════════════════════════
+
+    -- Atributo SABOR (con negocio_id)
+    v_sabor_id := (SELECT id FROM atributos WHERE nombre = 'SABOR' AND negocio_id = v_negocio_id);
+    IF v_sabor_id IS NULL THEN
+        v_sabor_id := gen_random_uuid();
+        INSERT INTO atributos (id, negocio_id, nombre) VALUES (v_sabor_id, v_negocio_id, 'SABOR');
+    END IF;
+
+    INSERT INTO atributo_opciones (negocio_id, atributo_id, valor) VALUES (v_negocio_id, v_sabor_id, 'FRESA')
+        ON CONFLICT (atributo_id, valor) DO NOTHING;
+    v_fresa_id := (SELECT id FROM atributo_opciones WHERE atributo_id = v_sabor_id AND valor = 'FRESA');
+
+    INSERT INTO atributo_opciones (negocio_id, atributo_id, valor) VALUES (v_negocio_id, v_sabor_id, 'CHOCOLATE')
+        ON CONFLICT (atributo_id, valor) DO NOTHING;
+    v_chocolate_id := (SELECT id FROM atributo_opciones WHERE atributo_id = v_sabor_id AND valor = 'CHOCOLATE');
+
+    INSERT INTO atributo_opciones (negocio_id, atributo_id, valor) VALUES (v_negocio_id, v_sabor_id, 'VAINILLA')
+        ON CONFLICT (atributo_id, valor) DO NOTHING;
+    v_vainilla_id := (SELECT id FROM atributo_opciones WHERE atributo_id = v_sabor_id AND valor = 'VAINILLA');
+
+    -- Atributo TAMANIO (con negocio_id)
+    v_tamanio_id := (SELECT id FROM atributos WHERE nombre = 'TAMANIO' AND negocio_id = v_negocio_id);
+    IF v_tamanio_id IS NULL THEN
+        v_tamanio_id := gen_random_uuid();
+        INSERT INTO atributos (id, negocio_id, nombre) VALUES (v_tamanio_id, v_negocio_id, 'TAMANIO');
+    END IF;
+
+    INSERT INTO atributo_opciones (negocio_id, atributo_id, valor) VALUES (v_negocio_id, v_tamanio_id, '500G')
+        ON CONFLICT (atributo_id, valor) DO NOTHING;
+    v_500g_id := (SELECT id FROM atributo_opciones WHERE atributo_id = v_tamanio_id AND valor = '500G');
+
+    INSERT INTO atributo_opciones (negocio_id, atributo_id, valor) VALUES (v_negocio_id, v_tamanio_id, '1KG')
+        ON CONFLICT (atributo_id, valor) DO NOTHING;
+    v_1kg_id := (SELECT id FROM atributo_opciones WHERE atributo_id = v_tamanio_id AND valor = '1KG');
+
+    v_result := public.fn_crear_producto_con_variantes(
+        p_nombre           := 'TEST-TAPIOCA',
+        p_categoria_id     := v_cat_snack,
+        p_tiene_iva        := TRUE,
+        p_tipo_venta       := 'UNIDAD',
+        p_unidad_medida    := 'und',
+        p_atributos_template := json_build_array(
+            json_build_object('atributo_nombre', 'SABOR',
+                'opcion_ids', json_build_array(v_fresa_id::text, v_chocolate_id::text, v_vainilla_id::text)),
+            json_build_object('atributo_nombre', 'TAMANIO',
+                'opcion_ids', json_build_array(v_500g_id::text, v_1kg_id::text))
+        ),
+        p_variantes := json_build_array(
+            json_build_object('nombre','TEST-TAPIOCA FRESA 500G','precio_costo',0.55,'precio_venta',0.85,
+                'stock_actual',40,'stock_minimo',10,'codigo_barras','TEST-P2-001',
+                'opcion_ids',json_build_array(v_fresa_id::text,v_500g_id::text),'presentaciones','[]'::JSON),
+            json_build_object('nombre','TEST-TAPIOCA FRESA 1KG','precio_costo',1.00,'precio_venta',1.55,
+                'stock_actual',20,'stock_minimo',5,'codigo_barras','TEST-P2-002',
+                'opcion_ids',json_build_array(v_fresa_id::text,v_1kg_id::text),'presentaciones','[]'::JSON),
+            json_build_object('nombre','TEST-TAPIOCA CHOCOLATE 500G','precio_costo',0.55,'precio_venta',0.85,
+                'stock_actual',35,'stock_minimo',10,'codigo_barras','TEST-P2-003',
+                'opcion_ids',json_build_array(v_chocolate_id::text,v_500g_id::text),'presentaciones','[]'::JSON),
+            json_build_object('nombre','TEST-TAPIOCA CHOCOLATE 1KG','precio_costo',1.00,'precio_venta',1.55,
+                'stock_actual',15,'stock_minimo',5,'codigo_barras','TEST-P2-004',
+                'opcion_ids',json_build_array(v_chocolate_id::text,v_1kg_id::text),'presentaciones','[]'::JSON),
+            json_build_object('nombre','TEST-TAPIOCA VAINILLA 500G','precio_costo',0.55,'precio_venta',0.85,
+                'stock_actual',25,'stock_minimo',10,'codigo_barras','TEST-P2-005',
+                'opcion_ids',json_build_array(v_vainilla_id::text,v_500g_id::text),'presentaciones','[]'::JSON),
+            json_build_object('nombre','TEST-TAPIOCA VAINILLA 1KG','precio_costo',1.00,'precio_venta',1.55,
+                'stock_actual',10,'stock_minimo',5,'codigo_barras','TEST-P2-006',
+                'opcion_ids',json_build_array(v_vainilla_id::text,v_1kg_id::text),'presentaciones','[]'::JSON)
+        )
     );
+    RAISE NOTICE 'Caso 2 (variantes): %', v_result;
+
+
+    -- ══════════════════════════════════════════════════════
+    -- CASO 3 — Producto simple CON presentaciones
+    -- Escenario: cigarro suelto + cajetilla x10 + cajetilla x20.
+    -- Stock siempre en unidades sueltas.
+    -- ══════════════════════════════════════════════════════
+    v_result := public.fn_crear_producto_simple(
+        p_nombre          := 'TEST-CIGARRO MARLBORO',
+        p_categoria_id    := v_cat_snack,
+        p_tiene_iva       := TRUE,
+        p_tipo_venta      := 'UNIDAD',
+        p_unidad_medida   := 'und',
+        p_codigo_barras   := 'TEST-P3-000',
+        p_precio_costo    := 0.15,
+        p_precio_venta    := 0.25,
+        p_stock_actual    := 200,
+        p_stock_minimo    := 20,
+        p_presentaciones  := json_build_array(
+            json_build_object('nombre','CAJETILLA X10','factor_conversion',10,
+                'precio_costo',1.50,'precio_venta',2.30,'codigo_barras','TEST-P3-010'),
+            json_build_object('nombre','CAJETILLA X20','factor_conversion',20,
+                'precio_costo',3.00,'precio_venta',4.50,'codigo_barras','TEST-P3-020')
+        )::JSON
+    );
+    RAISE NOTICE 'Caso 3 (presentaciones): %', v_result;
+
+
+    -- ══════════════════════════════════════════════════════
+    -- CASO 4 — Variantes CON presentaciones por SKU
+    -- Escenario: gaseosa en 330ML y 600ML, cada una suelto o pack x6.
+    -- ══════════════════════════════════════════════════════
+
+    -- Reusar TAMANIO ya creado (o crear si no existe, cubierto arriba)
+    -- Opciones nuevas: 330ML y 600ML
+    INSERT INTO atributo_opciones (negocio_id, atributo_id, valor) VALUES (v_negocio_id, v_tamanio_id, '330ML')
+        ON CONFLICT (atributo_id, valor) DO NOTHING;
+    v_330ml_id := (SELECT id FROM atributo_opciones WHERE atributo_id = v_tamanio_id AND valor = '330ML');
+
+    INSERT INTO atributo_opciones (negocio_id, atributo_id, valor) VALUES (v_negocio_id, v_tamanio_id, '600ML')
+        ON CONFLICT (atributo_id, valor) DO NOTHING;
+    v_600ml_id := (SELECT id FROM atributo_opciones WHERE atributo_id = v_tamanio_id AND valor = '600ML');
+
+    v_result := public.fn_crear_producto_con_variantes(
+        p_nombre           := 'TEST-GASEOSA COLA',
+        p_categoria_id     := v_cat_bebida,
+        p_tiene_iva        := TRUE,
+        p_tipo_venta       := 'UNIDAD',
+        p_unidad_medida    := 'und',
+        p_atributos_template := json_build_array(
+            json_build_object('atributo_nombre','TAMANIO',
+                'opcion_ids',json_build_array(v_330ml_id::text,v_600ml_id::text))
+        ),
+        p_variantes := json_build_array(
+            json_build_object('nombre','TEST-GASEOSA COLA 330ML','precio_costo',0.42,'precio_venta',0.65,
+                'stock_actual',72,'stock_minimo',12,'codigo_barras','TEST-P4-330',
+                'opcion_ids',json_build_array(v_330ml_id::text),
+                'presentaciones',json_build_array(
+                    json_build_object('nombre','PACK X6','factor_conversion',6,
+                        'precio_costo',2.52,'precio_venta',3.60,'codigo_barras','TEST-P4-330-P6')
+                )),
+            json_build_object('nombre','TEST-GASEOSA COLA 600ML','precio_costo',0.55,'precio_venta',0.85,
+                'stock_actual',48,'stock_minimo',12,'codigo_barras','TEST-P4-600',
+                'opcion_ids',json_build_array(v_600ml_id::text),
+                'presentaciones',json_build_array(
+                    json_build_object('nombre','PACK X6','factor_conversion',6,
+                        'precio_costo',3.30,'precio_venta',4.80,'codigo_barras','TEST-P4-600-P6')
+                ))
+        )
+    );
+    RAISE NOTICE 'Caso 4 (variantes + presentaciones): %', v_result;
+
 END $$;
 
--- ==========================================
--- 6. PRESENTACIONES — Huevo con Cubeta x30
--- ==========================================
-DO $$
-DECLARE
-    v_huevo_id UUID;
-    v_categoria_lacteos INTEGER;
-BEGIN
-    SELECT id INTO v_categoria_lacteos FROM categorias_productos WHERE nombre = 'Lácteos' LIMIT 1;
 
-    -- Producto base: huevo suelto
-    INSERT INTO productos (
-        categoria_id, codigo_barras, nombre,
-        precio_costo, precio_venta,
-        stock_actual, stock_minimo,
-        tiene_iva, tipo_venta, unidad_medida
-    ) VALUES (
-        v_categoria_lacteos, 'TEST-060', 'Huevo',
-        0.12, 0.18,
-        360, 30,
-        FALSE, 'UNIDAD', 'und'
-    )
-    RETURNING id INTO v_huevo_id;
-
-    -- Presentacion: Cubeta x30
-    INSERT INTO producto_presentaciones (
-        producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal
-    ) VALUES (
-        v_huevo_id, 'Cubeta x30', 30, 5.00, 'TEST-061', TRUE
-    );
-END $$;
+-- ══════════════════════════════════════════════════════
+-- VERIFICACION — ejecutar por separado reemplazando el negocio_id
+-- ══════════════════════════════════════════════════════
+-- SELECT
+--     p.nombre                                        AS producto,
+--     COALESCE(pt.nombre, '—')                        AS template,
+--     p.precio_costo                                  AS costo,
+--     p.precio_venta                                  AS venta,
+--     p.stock_actual                                  AS stock,
+--     COUNT(pp.id)                                    AS presentaciones
+-- FROM productos p
+-- LEFT JOIN producto_templates pt ON pt.id = p.producto_template_id
+-- LEFT JOIN producto_presentaciones pp ON pp.producto_id = p.id
+-- WHERE p.nombre LIKE 'TEST-%'
+--   AND p.negocio_id = '<REEMPLAZAR-CON-NEGOCIO-ID>'
+-- GROUP BY p.id, p.nombre, pt.nombre, p.precio_costo, p.precio_venta, p.stock_actual
+-- ORDER BY pt.nombre NULLS LAST, p.nombre;

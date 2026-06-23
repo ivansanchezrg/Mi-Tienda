@@ -1,0 +1,597 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     HEADER
+════════════════════════════════════════════════════════════════ -->
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>{{ tituloHeader }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<!-- Skeleton solo cuando se entra con tipo pre-seleccionado y las categorías aún cargan -->
+@if (!listo && paso >= 1) {
+<ion-content color="light">
+  <div class="pc-container">
+    <div class="pc-card">
+      <ion-skeleton-text animated style="width:40%;height:18px;margin-bottom:16px;border-radius:8px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width:100%;height:56px;margin-bottom:12px;border-radius:12px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width:100%;height:56px;margin-bottom:12px;border-radius:12px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width:100%;height:56px;border-radius:12px;"></ion-skeleton-text>
+    </div>
+  </div>
+</ion-content>
+}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PASO 0 — Selección de tipo de producto
+════════════════════════════════════════════════════════════════ -->
+@if (listo && paso === 0) {
+<ion-content color="light">
+  <div class="pc-container pc-container--tipo">
+
+    @if (codigoCapturado) {
+    <div class="tipo-codigo-chip">
+      <ion-icon name="barcode-outline"></ion-icon>
+      <div class="tipo-codigo-chip__body">
+        <span class="tipo-codigo-chip__label">Código capturado</span>
+        <span class="tipo-codigo-chip__value">{{ codigoCapturado }}</span>
+      </div>
+    </div>
+    }
+
+    <div class="tipo-header">
+      <h2 class="tipo-titulo">¿Cómo se vende este producto?</h2>
+      <p class="tipo-subtitulo">Elige la opción que mejor describa lo que vas a registrar.</p>
+    </div>
+
+    <div class="tipo-cards">
+
+      <!-- Producto simple — RECOMENDADO -->
+      <div class="tipo-card tipo-card--featured" [class.tipo-card--expanded]="ejemplosExpandidos === 'simple'">
+        <button type="button" class="tipo-card__main" (click)="elegirTipo('simple')">
+          <div class="tipo-card__icon tipo-card__icon--simple">
+            <ion-icon name="cube-outline"></ion-icon>
+          </div>
+          <div class="tipo-card__body">
+            <h3 class="tipo-card__titulo">
+              Producto simple
+              <span class="tipo-card__badge">
+                <ion-icon name="sparkles-outline"></ion-icon>
+                Más común
+              </span>
+            </h3>
+            <p class="tipo-card__desc">Se vende siempre igual. Un solo precio, una sola forma.</p>
+          </div>
+          <div class="tipo-card__arrow">
+            <ion-icon name="chevron-forward-outline"></ion-icon>
+          </div>
+        </button>
+        <button type="button" class="tipo-card__ejemplos-toggle" (click)="toggleEjemplos('simple', $event)">
+          <ion-icon [name]="ejemplosExpandidos === 'simple' ? 'chevron-up-outline' : 'chevron-down-outline'"></ion-icon>
+          <span>{{ ejemplosExpandidos === 'simple' ? 'Ocultar ejemplos' : 'Ver ejemplos' }}</span>
+        </button>
+        @if (ejemplosExpandidos === 'simple') {
+        <div class="tipo-card__ejemplos">
+          <p class="tipo-ejemplo-item"><ion-icon name="ellipse" class="tipo-ejemplo-dot"></ion-icon>Caramelos y chicles sueltos</p>
+          <p class="tipo-ejemplo-item"><ion-icon name="ellipse" class="tipo-ejemplo-dot"></ion-icon>Fundas de papas o galletas</p>
+          <p class="tipo-ejemplo-item"><ion-icon name="ellipse" class="tipo-ejemplo-dot"></ion-icon>Jabón de tocador, vela, fósforos</p>
+          <p class="tipo-ejemplo-item"><ion-icon name="ellipse" class="tipo-ejemplo-dot"></ion-icon>Escobas, trapeadores, baldes</p>
+        </div>
+        }
+      </div>
+
+      <!-- Diferentes tamaños o empaques -->
+      <div class="tipo-card" [class.tipo-card--expanded]="ejemplosExpandidos === 'simple-presentaciones'">
+        <button type="button" class="tipo-card__main" (click)="elegirTipo('simple-presentaciones')">
+          <div class="tipo-card__icon tipo-card__icon--presentaciones">
+            <ion-icon name="layers-outline"></ion-icon>
+          </div>
+          <div class="tipo-card__body">
+            <h3 class="tipo-card__titulo">Tamaños o empaques distintos</h3>
+            <p class="tipo-card__desc">Mismo producto, varias presentaciones (suelto, funda, caja…).</p>
+          </div>
+          <div class="tipo-card__arrow">
+            <ion-icon name="chevron-forward-outline"></ion-icon>
+          </div>
+        </button>
+        <button type="button" class="tipo-card__ejemplos-toggle" (click)="toggleEjemplos('simple-presentaciones', $event)">
+          <ion-icon [name]="ejemplosExpandidos === 'simple-presentaciones' ? 'chevron-up-outline' : 'chevron-down-outline'"></ion-icon>
+          <span>{{ ejemplosExpandidos === 'simple-presentaciones' ? 'Ocultar ejemplos' : 'Ver ejemplos' }}</span>
+        </button>
+        @if (ejemplosExpandidos === 'simple-presentaciones') {
+        <div class="tipo-card__ejemplos">
+          <p class="tipo-ejemplo-item"><strong>Cigarrillos</strong><span class="tipo-ejemplo-detail">unidad · cajetilla 10 · cajetilla 20 · cartón</span></p>
+          <p class="tipo-ejemplo-item"><strong>Coca-Cola</strong><span class="tipo-ejemplo-detail">350ml · 1L · 2L · 3L</span></p>
+          <p class="tipo-ejemplo-item"><strong>Arroz</strong><span class="tipo-ejemplo-detail">libra suelta · funda 5lb · quintal</span></p>
+          <p class="tipo-ejemplo-item"><strong>Huevos</strong><span class="tipo-ejemplo-detail">unidad · cubeta de 30</span></p>
+          <p class="tipo-ejemplo-item"><strong>Aceite</strong><span class="tipo-ejemplo-detail">botella · galón</span></p>
+          <p class="tipo-ejemplo-item"><strong>Leche</strong><span class="tipo-ejemplo-detail">funda · galón</span></p>
+        </div>
+        }
+      </div>
+
+      <!-- Variantes -->
+      <div class="tipo-card" [class.tipo-card--expanded]="ejemplosExpandidos === 'variantes'">
+        <button type="button" class="tipo-card__main" (click)="elegirTipo('variantes')">
+          <div class="tipo-card__icon tipo-card__icon--variantes">
+            <ion-icon name="color-palette-outline"></ion-icon>
+          </div>
+          <div class="tipo-card__body">
+            <h3 class="tipo-card__titulo">Sabores, colores o tallas</h3>
+            <p class="tipo-card__desc">Combinaciones que cambian el producto (talla × color, sabor × tamaño…).</p>
+          </div>
+          <div class="tipo-card__arrow">
+            <ion-icon name="chevron-forward-outline"></ion-icon>
+          </div>
+        </button>
+        <button type="button" class="tipo-card__ejemplos-toggle" (click)="toggleEjemplos('variantes', $event)">
+          <ion-icon [name]="ejemplosExpandidos === 'variantes' ? 'chevron-up-outline' : 'chevron-down-outline'"></ion-icon>
+          <span>{{ ejemplosExpandidos === 'variantes' ? 'Ocultar ejemplos' : 'Ver ejemplos' }}</span>
+        </button>
+        @if (ejemplosExpandidos === 'variantes') {
+        <div class="tipo-card__ejemplos">
+          <p class="tipo-ejemplo-item"><strong>Camisetas</strong><span class="tipo-ejemplo-detail">talla (S/M/L) × color (rojo/azul)</span></p>
+          <p class="tipo-ejemplo-item"><strong>Yogurt</strong><span class="tipo-ejemplo-detail">sabor (fresa/durazno) × tamaño (200ml/1L)</span></p>
+          <p class="tipo-ejemplo-item"><strong>Helados</strong><span class="tipo-ejemplo-detail">sabor × presentación (cono/vaso/litro)</span></p>
+          <p class="tipo-ejemplo-item"><strong>Zapatos</strong><span class="tipo-ejemplo-detail">talla × color</span></p>
+        </div>
+        }
+      </div>
+
+    </div>
+
+  </div>
+</ion-content>
+}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PASO 1 SIMPLE — Todo el formulario en una sola página
+════════════════════════════════════════════════════════════════ -->
+@if (listo && paso === 1 && tipoProducto === 'simple') {
+<ion-content color="light">
+  <form [formGroup]="simpleForm" class="pc-container" (ngSubmit)="guardarSimple()">
+
+    <div class="pc-card">
+      <h3 class="pc-section-title">Información del producto</h3>
+      <app-producto-info-form
+        [formGroup]="simpleForm"
+        [categorias]="categorias"
+        modo="crear"
+        [fotoPreviewUrl]="fotoPreviewUrl"
+        [fotoRawUrl]="fotoRawUrl"
+        [esVariante]="false"
+        (fotoSeleccionada)="onFotoSeleccionada($event)"
+        (fotoRemovida)="onFotoRemovida()">
+      </app-producto-info-form>
+    </div>
+
+    <div class="pc-card">
+      <h3 class="pc-section-title">Precio</h3>
+      <app-producto-precios-form [formGroup]="simpleForm">
+      </app-producto-precios-form>
+    </div>
+
+    <div class="pc-card">
+      <app-producto-inventario-form [formGroup]="simpleForm" modo="crear">
+      </app-producto-inventario-form>
+    </div>
+
+    @if (mostrarPresentaciones) {
+    <div class="pc-card pc-card--highlight">
+      <app-producto-presentaciones
+        [nombreProducto]="simpleForm.get('nombre')?.value || ''"
+        [precioCosto]="currencyService.parse(simpleForm.get('precio_costo')?.value ?? 0)"
+        modo="crear"
+        [(presentacionesNuevas)]="presentacionesNuevas">
+      </app-producto-presentaciones>
+    </div>
+    }
+
+    <div class="pc-submit-wrap">
+      <ion-button expand="block" type="submit" color="primary"
+        [disabled]="simpleForm.invalid || guardando || (mostrarPresentaciones && presentacionesNuevas.length === 0)">
+        @if (guardando) {
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+          Guardando...
+        } @else {
+          <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+          Guardar producto
+        }
+      </ion-button>
+    </div>
+
+  </form>
+</ion-content>
+}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PASO 1 VARIANTES — Info + Precios + Imagen
+════════════════════════════════════════════════════════════════ -->
+@if (listo && paso === 1 && tipoProducto === 'variantes') {
+<ion-content color="light">
+  <div class="pc-container">
+
+    <div class="pc-card">
+      <h3 class="pc-section-title">Información del producto</h3>
+      <app-producto-info-form
+        [formGroup]="simpleForm"
+        [categorias]="categorias"
+        modo="crear"
+        [fotoPreviewUrl]="templateFotoPreviewUrl"
+        [fotoRawUrl]="templateFotoRawUrl"
+        [esVariante]="true"
+        (fotoSeleccionada)="onFotoSeleccionadaTemplate($event)"
+        (fotoRemovida)="removerFotoTemplate()">
+      </app-producto-info-form>
+    </div>
+
+    <div class="pc-card">
+      <h3 class="pc-section-title">Precios base</h3>
+      <p class="pc-section-hint">Punto de partida para todas las variantes. Puedes ajustar cada una en el paso siguiente.</p>
+      <div class="row-2col">
+        <div class="input-group m-0">
+          <ion-item class="custom-input flat-item" lines="none"
+            [class.ion-invalid]="esCampoInvalidoTemplate('precio_costo_base')">
+            <ion-input appNumbersOnly appCurrencyInput [formControl]="$any(templateForm.get('precio_costo_base'))"
+              label="Precio costo *" labelPlacement="floating"
+              inputmode="decimal" (ionInput)="onCostoChange()">
+            </ion-input>
+          </ion-item>
+          @if (esCampoInvalidoTemplate('precio_costo_base')) {
+          <p class="error-msg">Ingresa un precio valido.</p>
+          }
+        </div>
+        <div class="input-group m-0">
+          <ion-item class="custom-input flat-item" lines="none"
+            [class.ion-invalid]="esCampoInvalidoTemplate('precio_venta_base')">
+            <ion-input appNumbersOnly appCurrencyInput [formControl]="$any(templateForm.get('precio_venta_base'))"
+              label="Precio venta *" labelPlacement="floating"
+              inputmode="decimal" (ionInput)="onPrecioVentaChange()">
+            </ion-input>
+          </ion-item>
+          @if (esCampoInvalidoTemplate('precio_venta_base')) {
+          <p class="error-msg">Ingresa un precio valido.</p>
+          }
+        </div>
+      </div>
+      @if (costoActual > 0) {
+      <div class="margen-row">
+        <span class="margen-row-label">Margen de ganancia</span>
+        <div class="margen-badge">
+          <ion-icon name="trending-up-outline"></ion-icon>
+          <span class="margen-badge-pct">{{ margenPct }}%</span>
+          @if (margenAbsoluto > 0) { <span class="margen-badge-abs">+${{ currencyService.format(margenAbsoluto) }}</span> }
+        </div>
+      </div>
+      }
+      <div class="input-group m-0 mt-md">
+        <ion-item class="custom-input flat-item" lines="none">
+          <ion-input appNumbersOnly [formControl]="$any(templateForm.get('stock_minimo'))"
+            label="Stock minimo por variante" labelPlacement="floating"
+            type="text" inputmode="numeric">
+          </ion-input>
+        </ion-item>
+      </div>
+    </div>
+
+  </div>
+</ion-content>
+
+<ion-footer class="ion-no-border pc-footer">
+  <ion-toolbar>
+    <ion-button expand="block" color="primary" (click)="avanzarDesdeDatosBase()">
+      Continuar <ion-icon slot="end" name="chevron-forward-outline"></ion-icon>
+    </ion-button>
+  </ion-toolbar>
+</ion-footer>
+}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PASOS 2 y 3 VARIANTES
+════════════════════════════════════════════════════════════════ -->
+@if (tipoProducto === 'variantes' && paso >= 2) {
+
+<!-- Stepper -->
+<div class="stepper-wrap">
+  <div class="stepper">
+    <button class="stepper-step" [class.done]="paso > 2" [class.active]="paso === 2"
+      [disabled]="paso <= 2" (click)="navegarAPaso(2)">
+      <div class="stepper-dot">
+        @if (paso > 2) { <ion-icon name="checkmark-outline"></ion-icon> } @else { <span>1</span> }
+      </div>
+      <p class="stepper-label">Atributos</p>
+    </button>
+    <div class="stepper-line" [class.filled]="paso > 2"></div>
+    <button class="stepper-step" [class.active]="paso === 3" [disabled]="paso < 3">
+      <div class="stepper-dot"><span>2</span></div>
+      <p class="stepper-label">Variantes</p>
+    </button>
+  </div>
+</div>
+
+<ion-content color="light">
+
+  <!-- ── Paso 2: Atributos ── -->
+  @if (paso === 2) {
+  <div class="pc-container">
+
+    <!-- Atributos -->
+    @if (atributosEditor.length === 0 && !mostrarInputTipo) {
+    <div class="atributos-empty-state">
+      <div class="aes-icon-wrap"><ion-icon name="color-palette-outline"></ion-icon></div>
+      <h3 class="aes-title">Define los tipos de variante</h3>
+      <p class="aes-hint">Por ejemplo: <strong>Talla</strong> con S, M, L — o <strong>Color</strong> con Rojo, Azul.</p>
+      <button class="aes-btn" (click)="toggleInputTipo()">
+        <ion-icon name="add-outline"></ion-icon> Agregar primer tipo
+      </button>
+    </div>
+    }
+
+    @for (editor of atributosEditor; track editor.atributo.id) {
+    <div class="pc-card atributo-card">
+
+      <!-- Header: nombre del tipo + eliminar tipo -->
+      <div class="atributo-header">
+        <div class="atributo-tipo-label">
+          <ion-icon name="pricetag-outline"></ion-icon>
+          <span>{{ editor.atributo.nombre }}</span>
+        </div>
+        <button class="icon-btn icon-btn--danger" (click)="quitarTipo(editor.atributo.id)">
+          <ion-icon name="trash-outline"></ion-icon>
+        </button>
+      </div>
+
+      <!-- Chips inline + input en la misma área -->
+      <div class="chips-input-area" (click)="enfocarInputOpcion(editor.atributo.id)">
+        @for (op of editor.opciones; track op.id) {
+        <div class="opcion-chip" (click)="$event.stopPropagation()">
+          <span class="chip-valor">{{ op.valor }}</span>
+          <button class="chip-remove" (click)="quitarOpcion(editor.atributo.id, op.id)">
+            <ion-icon name="close-outline"></ion-icon>
+          </button>
+        </div>
+        }
+        <input
+          appUppercaseInput
+          class="chips-input"
+          [id]="'opcion-input-' + editor.atributo.id"
+          [value]="tipoEnEdicion === editor.atributo.id ? textoNuevaOpcion : ''"
+          [placeholder]="editor.opciones.length === 0 ? 'Ej: S, M, L...' : ''"
+          (focus)="abrirEdicionOpciones(editor.atributo.id)"
+          (input)="onOpcionInput($any($event).target.value)"
+          (keydown.enter)="$event.preventDefault(); opcionNoCoincideExacto && crearYAgregarOpcion(textoNuevaOpcion)"
+          autocomplete="off">
+        @if (tipoEnEdicion === editor.atributo.id && buscandoOpcion) {
+          <ion-spinner name="crescent" style="width:16px;height:16px;flex-shrink:0"></ion-spinner>
+        }
+      </div>
+
+      <!-- Advertencia: sin opciones -->
+      @if (editor.opciones.length === 0 && tipoEnEdicion !== editor.atributo.id) {
+      <p class="opciones-req-hint">
+        <ion-icon name="warning-outline"></ion-icon> Agrega al menos una opcion
+      </p>
+      }
+
+      <!-- Sugerencias y crear nuevo (solo cuando este tipo está activo) -->
+      @if (tipoEnEdicion === editor.atributo.id) {
+        @if (opcionesSugeridas.length > 0) {
+        <div class="sugerencias-list mt-sm">
+          @for (op of opcionesSugeridas; track op.id) {
+          <button class="sugerencia-item" (click)="agregarOpcion(op)">
+            <ion-icon name="add-outline"></ion-icon> {{ op.valor }}
+          </button>
+          }
+        </div>
+        }
+        @if (opcionNoCoincideExacto) {
+        <button class="crear-nuevo-btn mt-sm" (click)="crearYAgregarOpcion(textoNuevaOpcion)">
+          <ion-icon name="sparkles-outline"></ion-icon> Crear "{{ textoNuevaOpcion.toUpperCase().trim() }}"
+        </button>
+        }
+      }
+
+    </div>
+    }
+
+    <!-- Agregar nuevo tipo de variante -->
+    @if (atributosEditor.length > 0 || mostrarInputTipo) {
+    <div class="pc-card add-tipo-card" [class.add-tipo-card--compact]="atributosEditor.length > 0 && !mostrarInputTipo">
+      <button class="add-input-label" (click)="toggleInputTipo()">
+        <ion-icon name="add-outline"></ion-icon> Agregar tipo de variante
+      </button>
+      @if (mostrarInputTipo) {
+      <div class="search-input-row mt-sm">
+        <ion-item class="search-input flat-item" lines="none">
+          <ion-input appUppercaseInput [value]="textoNuevoTipo"
+            (ionInput)="onTipoInput($event.detail.value || '')"
+            (keyup.enter)="tipoNoCoincideExacto && crearYAgregarTipo(textoNuevoTipo)"
+            placeholder="Ej: SABOR, COLOR, TALLA...">
+          </ion-input>
+          @if (buscandoTipo) { <ion-spinner slot="end" name="crescent" style="width:18px;height:18px;"></ion-spinner> }
+        </ion-item>
+      </div>
+      @if (atributosSugeridos.length > 0) {
+      <div class="sugerencias-list mt-sm">
+        @for (atr of atributosSugeridos; track atr.id) {
+        <button class="sugerencia-item" (click)="agregarTipo(atr)">
+          <ion-icon name="pricetag-outline"></ion-icon> {{ atr.nombre }}
+        </button>
+        }
+      </div>
+      }
+      @if (tipoNoCoincideExacto) {
+      <button class="crear-nuevo-btn mt-sm" (click)="crearYAgregarTipo(textoNuevoTipo)">
+        <ion-icon name="sparkles-outline"></ion-icon> Crear tipo "{{ textoNuevoTipo.toUpperCase().trim() }}"
+      </button>
+      }
+      }
+    </div>
+    }
+
+    @if (totalCombinaciones > 0) {
+    <div class="combinaciones-badge mb-md">
+      <ion-icon name="cube-outline"></ion-icon>
+      <span>Se generaran <strong>{{ totalCombinaciones }}</strong> variante{{ totalCombinaciones !== 1 ? 's' : '' }}</span>
+    </div>
+    }
+
+  </div>
+  }
+
+  <!-- ── Paso 3: SKUs ── -->
+  @if (paso === 3) {
+  <div class="pc-container">
+
+    <div class="info-banner mb-md">
+      <ion-icon name="information-circle-outline"></ion-icon>
+      <span>Revisa las variantes generadas. Ajusta precios, stock y agrega presentaciones si las necesitas.</span>
+    </div>
+
+    @for (sku of skusGenerados; track sku.nombre) {
+    <div class="pc-card sku-card" [class.sku-card--off]="!sku.seleccionado">
+      <div class="sku-header">
+        <div class="sku-identity">
+          <span class="sku-nombre">{{ nombreBase }}</span>
+          @for (label of sku.labels; track label) { <span class="sku-chip">{{ label }}</span> }
+        </div>
+        <ion-toggle [checked]="sku.seleccionado" (ionChange)="toggleSKU(sku)" color="primary"></ion-toggle>
+      </div>
+
+      @if (sku.seleccionado) {
+      <div class="sku-fields">
+        <div class="sku-field">
+          <p class="field-label">Costo</p>
+          <ion-item class="custom-input flat-item sku-input" lines="none">
+            <span slot="start" class="sku-currency-prefix">$</span>
+            <ion-input appNumbersOnly appCurrencyInput [value]="currencyService.format(sku.precio_costo)"
+              (ionInput)="parsearPrecio($any($event).detail.value, sku, 'costo')"
+              inputmode="decimal" style="--padding-start: 2px">
+            </ion-input>
+          </ion-item>
+        </div>
+        <div class="sku-field">
+          <p class="field-label">
+            Venta
+            @if (sku.margen > 0) {
+            <span class="sku-margen-badge" [class.sku-margen-badge--ok]="sku.margen >= 15" [class.sku-margen-badge--low]="sku.margen > 0 && sku.margen < 15">
+              {{ sku.margen }}%
+            </span>
+            } @else if (sku.margen <= 0 && sku.precio_venta > 0) {
+            <span class="sku-margen-badge sku-margen-badge--neg">sin margen</span>
+            }
+          </p>
+          <ion-item class="custom-input flat-item sku-input" lines="none">
+            <span slot="start" class="sku-currency-prefix">$</span>
+            <ion-input appNumbersOnly appCurrencyInput [value]="currencyService.format(sku.precio_venta)"
+              (ionInput)="parsearPrecio($any($event).detail.value, sku, 'venta')"
+              inputmode="decimal" style="--padding-start: 2px">
+            </ion-input>
+          </ion-item>
+        </div>
+        <div class="sku-field">
+          <p class="field-label">Stock</p>
+          <ion-item class="custom-input flat-item sku-input" lines="none">
+            <ion-input appNumbersOnly [value]="sku.stock_actual"
+              (ionInput)="sku.stock_actual = +($any($event).detail.value || 0)"
+              type="text" inputmode="numeric">
+            </ion-input>
+          </ion-item>
+        </div>
+      </div>
+
+      <div class="sku-barcode-row">
+        <ion-item class="custom-input flat-item sku-barcode-input" lines="none">
+          <ion-input [(ngModel)]="sku.codigo_barras" placeholder="Codigo de barras (opcional)" inputmode="numeric"></ion-input>
+          @if (barcodeScanner.isAvailable) {
+          <ion-button fill="clear" slot="end" (click)="escanearCodigoSku(sku)" [disabled]="escaneando">
+            <ion-icon slot="icon-only" name="barcode-outline" color="primary"></ion-icon>
+          </ion-button>
+          }
+        </ion-item>
+      </div>
+
+      <div class="sku-imagen-row">
+        @if (!sku.imagenPreviewUrl) {
+        <button type="button" class="sku-imagen-btn" (click)="seleccionarFotoSku(sku)">
+          <ion-icon name="image-outline"></ion-icon>
+          <span>Agregar imagen</span>
+          <span class="sku-opcional">Opcional</span>
+        </button>
+        } @else {
+        <div class="sku-imagen-preview">
+          <img [src]="sku.imagenPreviewUrl" alt="Imagen variante">
+          <button type="button" class="sku-imagen-remove" (click)="removerFotoSku(sku)">
+            <ion-icon name="close-circle"></ion-icon>
+          </button>
+        </div>
+        }
+      </div>
+
+      <!-- Presentaciones del SKU -->
+      <div class="sku-presentaciones">
+        <button type="button" class="sku-pres-toggle" (click)="sku.mostrarPresentaciones = !sku.mostrarPresentaciones">
+          <ion-icon name="layers-outline"></ion-icon>
+          <span>
+            Presentaciones
+            @if (sku.presentaciones.length > 0) {
+              <span class="sku-pres-count">({{ sku.presentaciones.length }})</span>
+            } @else {
+              <span class="sku-opcional">Opcional</span>
+            }
+          </span>
+          @if (sku.mostrarPresentaciones) {
+            <ion-icon name="chevron-up-outline" class="sku-pres-arrow"></ion-icon>
+          } @else {
+            <ion-icon name="chevron-down-outline" class="sku-pres-arrow"></ion-icon>
+          }
+        </button>
+        @if (sku.mostrarPresentaciones) {
+        <div class="sku-pres-body">
+          <app-producto-presentaciones
+            [nombreProducto]="sku.nombre"
+            [precioCosto]="sku.precio_costo"
+            modo="crear"
+            [(presentacionesNuevas)]="sku.presentaciones">
+          </app-producto-presentaciones>
+        </div>
+        }
+      </div>
+      }
+
+    </div>
+    }
+
+  </div>
+  }
+
+  <app-scanner-overlay [visible]="escaneando" (cerrar)="escaneando = false"></app-scanner-overlay>
+
+</ion-content>
+
+<ion-footer class="ion-no-border pc-footer">
+  <ion-toolbar>
+    @if (paso === 2) {
+    <ion-button expand="block" color="primary" [disabled]="!puedeAvanzarAlPaso3" (click)="avanzarAlPaso3()">
+      Previsualizar variantes <ion-icon slot="end" name="chevron-forward-outline"></ion-icon>
+    </ion-button>
+    @if (!puedeAvanzarAlPaso3) {
+    <p class="footer-hint">Agrega al menos un tipo y una opcion para continuar.</p>
+    }
+    }
+    @if (paso === 3) {
+    <ion-button expand="block" color="primary"
+      [disabled]="guardando || skusSeleccionados.length === 0 || !skusValidos" (click)="guardarVariantes()">
+      @if (guardando) { <ion-spinner slot="start" name="crescent"></ion-spinner> }
+      Crear {{ skusSeleccionados.length }} variante{{ skusSeleccionados.length !== 1 ? 's' : '' }}
+      @if (!guardando) { <ion-icon slot="end" name="checkmark-circle-outline"></ion-icon> }
+    </ion-button>
+    }
+  </ion-toolbar>
+</ion-footer>
+
+}

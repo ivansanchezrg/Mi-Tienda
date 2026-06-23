@@ -1,5 +1,10 @@
 -- ==========================================
--- FUNCIÓN: fn_ajustar_stock_inventario (v1.0)
+-- FUNCIÓN: fn_ajustar_stock_inventario (v1.1)
+-- ==========================================
+-- v1.1 (2026-05-30) — SEGURIDAD MULTI-TENANT:
+--   Agrega filtro p.negocio_id = v_negocio_id en la lectura, lock y
+--   actualización de productos. Sin este filtro un usuario podía
+--   ajustar stock de productos de otro tenant si conocía el UUID.
 -- ==========================================
 -- Ajusta el stock de un producto manualmente y registra el movimiento
 -- en kardex_inventario (auditoría). Usado desde la página de Kárdex.
@@ -17,6 +22,8 @@
 --   p_observaciones   — Motivo del ajuste (obligatorio)
 -- ==========================================
 
+DROP FUNCTION IF EXISTS public.fn_ajustar_stock_inventario(UUID, TEXT, DECIMAL, TEXT);
+
 CREATE OR REPLACE FUNCTION public.fn_ajustar_stock_inventario(
     p_producto_id     UUID,
     p_tipo_movimiento TEXT,
@@ -29,10 +36,14 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_negocio_id     UUID;
     v_stock_anterior DECIMAL(12,2);
     v_stock_nuevo    DECIMAL(12,2);
     v_delta          DECIMAL(12,2);
 BEGIN
+    PERFORM public.fn_assert_no_superadmin();
+
+    v_negocio_id := public.get_negocio_id();
 
     -- 1. Validaciones básicas
     IF p_cantidad IS NULL OR p_cantidad <= 0 THEN
@@ -47,12 +58,18 @@ BEGIN
         RAISE EXCEPTION 'Tipo de movimiento inválido: %. Use COMPRA, AJUSTE_POSITIVO o AJUSTE_NEGATIVO', p_tipo_movimiento;
     END IF;
 
-    -- 2. Leer stock actual y bloquear la fila (FOR UPDATE evita race conditions)
-    SELECT stock_actual
-    INTO   v_stock_anterior
-    FROM   productos
-    WHERE  id = p_producto_id
-    FOR UPDATE;
+    -- 2. Leer stock actual y bloquear la fila (FOR UPDATE evita race conditions).
+    -- ⚠️  Supabase no soporta SELECT ... INTO — usar := (SELECT ...)
+    -- ⚠️  Multi-tenant: filtrar por negocio_id es obligatorio aunque RLS exista,
+    --     porque SECURITY DEFINER bypasea RLS.
+    PERFORM id FROM productos
+      WHERE id = p_producto_id AND negocio_id = v_negocio_id
+      FOR UPDATE;
+
+    v_stock_anterior := (
+        SELECT stock_actual FROM productos
+        WHERE id = p_producto_id AND negocio_id = v_negocio_id
+    );
 
     IF v_stock_anterior IS NULL THEN
         RAISE EXCEPTION 'Producto no encontrado: %', p_producto_id;
@@ -71,13 +88,14 @@ BEGIN
         RAISE EXCEPTION 'Stock insuficiente. Stock actual: %, ajuste solicitado: -%', v_stock_anterior, p_cantidad;
     END IF;
 
-    -- 4. Actualizar stock
+    -- 4. Actualizar stock (con filtro de negocio para defensa en profundidad)
     UPDATE productos
     SET    stock_actual = v_stock_nuevo
-    WHERE  id = p_producto_id;
+    WHERE  id = p_producto_id AND negocio_id = v_negocio_id;
 
     -- 5. Registrar en kardex
     INSERT INTO kardex_inventario (
+        negocio_id,
         producto_id,
         tipo_movimiento,
         cantidad,
@@ -85,6 +103,7 @@ BEGIN
         stock_nuevo,
         observaciones
     ) VALUES (
+        v_negocio_id,
         p_producto_id,
         p_tipo_movimiento,
         p_cantidad,
@@ -100,9 +119,6 @@ BEGIN
         'stock_anterior', v_stock_anterior,
         'delta',         v_delta
     );
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al ajustar stock: %', SQLERRM;
 END;
 $$;
 

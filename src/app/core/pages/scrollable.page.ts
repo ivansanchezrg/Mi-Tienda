@@ -1,6 +1,6 @@
 import { Directive, ViewChild } from '@angular/core';
 import { IonContent } from '@ionic/angular/standalone';
-import { ViewWillEnter } from '@ionic/angular';
+import { ViewWillEnter } from '@ionic/angular/standalone';
 
 /**
  * Clase base para páginas que necesitan resetear el scroll al entrar.

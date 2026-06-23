@@ -1,0 +1,55 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/configuracion"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Categorías de Producto</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="page-container">
+
+    @if (loading) {
+    <div class="skeleton-list">
+      @for (i of [1,2,3,4,5,6]; track i) {
+      <div class="categoria-item">
+        <ion-skeleton-text animated style="width: 60%; height: 18px; border-radius: 4px;"></ion-skeleton-text>
+        <ion-skeleton-text animated style="width: 24px; height: 24px; border-radius: 50%; margin-left: auto;"></ion-skeleton-text>
+      </div>
+      }
+    </div>
+
+    } @else if (categorias.length === 0) {
+    <app-empty-state
+      icon="pricetag-outline"
+      title="Sin categorías"
+      hint="Crea la primera categoría de producto con el botón +">
+    </app-empty-state>
+
+    } @else {
+    @for (cat of categorias; track cat.id) {
+    <div class="categoria-item" (click)="onItemClick(cat)">
+      <div class="cat-info">
+        <p class="cat-nombre">{{ cat.nombre }}</p>
+      </div>
+      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
+    </div>
+    }
+    }
+
+  </div>
+
+  <!-- FAB: Nueva categoría -->
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button (click)="abrirModalNueva()" color="primary">
+      <ion-icon name="add-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+
+</ion-content>

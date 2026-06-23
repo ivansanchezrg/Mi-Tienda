@@ -1,85 +1,72 @@
-<div class="modal-wrapper">
+<div class="bs-root">
 
-  <div class="modal-header">
-    <div class="modal-header-icon">
+  <div class="bs-header">
+    <div class="bs-header__icon">
       <ion-icon name="calculator-outline"></ion-icon>
     </div>
-    <span class="modal-header-title">Calc. Margen</span>
-    <button class="modal-close-btn" (click)="cerrar()">
+    <span class="bs-header__title">Calculadora de margen</span>
+    <button class="bs-header__close" (click)="cerrar()">
       <ion-icon name="close-outline"></ion-icon>
     </button>
   </div>
 
-  <!-- Inputs -->
-  <div class="calc-inputs">
-    <div class="calc-field">
-      <label class="calc-label">Costo ($)</label>
-      <input
-        #costoInput
-        class="calc-input"
-        type="number"
-        inputmode="decimal"
-        placeholder="0.00"
-        [(ngModel)]="costo"
-        (ngModelChange)="onCostoChange()"
-        min="0">
-    </div>
+  <div class="bs-content">
+    <div class="bs-body">
 
-    <div class="calc-field">
-      <label class="calc-label">Precio de venta ($)</label>
-      <input
-        class="calc-input destacado"
-        type="number"
-        inputmode="decimal"
-        placeholder="0.00"
-        [(ngModel)]="precioVenta"
-        (ngModelChange)="onPrecioVentaChange()"
-        min="0">
-    </div>
-  </div>
+      <!-- Inputs -->
+      <div class="calc-inputs">
+        <div class="calc-field">
+          <label class="calc-label">Costo ($)</label>
+          <input
+            #costoInput
+            class="calc-input"
+            type="number"
+            inputmode="decimal"
+            placeholder="0.00"
+            [(ngModel)]="costo"
+            (ngModelChange)="onCostoChange()"
+            min="0">
+        </div>
 
-  <!-- Slider de margen -->
-  <div class="slider-section">
-    <div class="slider-header">
-      <span class="slider-label">Ganancia sobre costo</span>
-      <span class="slider-value" [class]="margenColor">{{ margenPct }}%</span>
-    </div>
+        @if (costo && costo > 0) {
+        <div class="calc-field">
+          <label class="calc-label">Precio de venta ($)</label>
+          <input
+            class="calc-input destacado"
+            type="text"
+            inputmode="decimal"
+            placeholder="0.00"
+            [(ngModel)]="precioVenta"
+            (ngModelChange)="onPrecioVentaChange()"
+            (blur)="onPrecioBlur()">
+        </div>
+        }
+      </div>
 
-    <input
-      class="margen-slider"
-      type="range"
-      min="0"
-      max="100"
-      step="1"
-      [(ngModel)]="margenPct"
-      (ngModelChange)="onSliderChange()">
+      <!-- Resultado -->
+      @if (costo && costo > 0 && precioVentaNum > 0) {
+      <div class="resultado-card" [class.danger-card]="margenColor === 'danger'" [class.warning-card]="margenColor === 'warning'" [class.success-card]="margenColor === 'success'">
+        <div class="resultado-cols">
+          <div class="resultado-col">
+            <span class="resultado-col-label">Ganancia</span>
+            <span class="resultado-col-valor">{{ ganancia }}</span>
+          </div>
+          <div class="resultado-col-divider"></div>
+          <div class="resultado-col">
+            <span class="resultado-col-label">Margen</span>
+            <span class="resultado-col-valor" [class.danger]="margenColor === 'danger'" [class.warning]="margenColor === 'warning'" [class.success]="margenColor === 'success'">{{ margenPct }}%</span>
+          </div>
+        </div>
+        <span class="resultado-tag" [class.danger]="margenColor === 'danger'" [class.warning]="margenColor === 'warning'" [class.success]="margenColor === 'success'">{{ margenLabel }}</span>
+      </div>
+      }
 
-    <div class="slider-ticks">
-      <span>0%</span>
-      <span>25%</span>
-      <span>50%</span>
-      <span>75%</span>
-      <span>100%</span>
-    </div>
-  </div>
-
-  <!-- Resultado -->
-  @if (costo && precioVenta && precioVenta > 0) {
-  <div class="resultado-card" [class]="margenColor + '-card'">
-    <div class="resultado-row">
-      <span class="resultado-label">Ganancia</span>
-      <span class="resultado-valor">${{ ganancia.toFixed(2) }}</span>
-    </div>
-    <div class="resultado-row">
-      <span class="resultado-label">{{ margenLabel }}</span>
-      <span class="resultado-badge" [class]="margenColor">{{ margenPct }}% margen</span>
     </div>
   </div>
-  }
 
-  <!-- Botones -->
-  <div class="modal-actions modal-actions--compact">
-    <ion-button fill="solid" color="success" (click)="limpiar()">Limpiar</ion-button>
+  <!-- Herramienta reactiva: la ✕ cierra; única acción = limpiar (patrón --compact de CLAUDE.md) -->
+  <div class="bs-actions bs-actions--compact">
+    <ion-button color="success" (click)="limpiar()">Nueva consulta</ion-button>
   </div>
 
 </div>

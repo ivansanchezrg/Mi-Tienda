@@ -1,0 +1,88 @@
+<div class="bs-root">
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="pricetags-outline"></ion-icon>
+    </div>
+    <span class="bs-header__title">{{ esEdicion ? 'Editar plan' : 'Nuevo plan' }}</span>
+    <button class="bs-header__close" (click)="cerrar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <div class="bs-body">
+
+      <label class="pm-label">Código</label>
+      <input class="pm-input" type="text" [(ngModel)]="codigo" placeholder="PRO, MAX…"
+        [disabled]="esEdicion" autocomplete="off" />
+      @if (esEdicion) {
+        <p class="pm-hint">El código no se puede cambiar.</p>
+      }
+
+      <label class="pm-label">Nombre</label>
+      <input class="pm-input" type="text" [(ngModel)]="nombre" placeholder="Plan PRO" autocomplete="off" />
+
+      <label class="pm-label">Descripción</label>
+      <input class="pm-input" type="text" [(ngModel)]="descripcion" placeholder="Texto comercial (opcional)" autocomplete="off" />
+
+      <div class="pm-row">
+        <div class="pm-col">
+          <label class="pm-label">Precio mensual</label>
+          <div class="pm-monto">
+            <span>$</span>
+            <input type="text" inputmode="decimal" appCurrencyInput [(ngModel)]="precioMensualInput" placeholder="0.00" />
+          </div>
+        </div>
+        <div class="pm-col">
+          <label class="pm-label">Precio anual</label>
+          <div class="pm-monto">
+            <span>$</span>
+            <input type="text" inputmode="decimal" appCurrencyInput [(ngModel)]="precioAnualInput" placeholder="Opcional" />
+          </div>
+        </div>
+      </div>
+      <p class="pm-hint">Deja el precio anual vacío si este plan solo se ofrece mensual.</p>
+
+      <div class="pm-row">
+        <div class="pm-col">
+          <label class="pm-label">Días de prueba</label>
+          <input class="pm-input" type="number" inputmode="numeric" [(ngModel)]="trialDias" min="0" />
+        </div>
+        <div class="pm-col">
+          <label class="pm-label">Orden</label>
+          <input class="pm-input" type="number" inputmode="numeric" [(ngModel)]="orden" min="0" />
+        </div>
+      </div>
+
+      <label class="pm-label">Máximo de negocios</label>
+      <input class="pm-input" type="number" inputmode="numeric" [(ngModel)]="maxNegociosInput" min="1" placeholder="Vacío = ilimitado" />
+      <p class="pm-hint">Cuántas sucursales puede tener un propietario con este plan. Vacío = sin límite.</p>
+
+      <label class="pm-label">Funciones incluidas</label>
+      <div class="pm-features">
+        @for (f of featuresDisponibles; track f.key) {
+          <div class="pm-feature">
+            <span>{{ f.label }}</span>
+            <ion-toggle
+              [checked]="features[f.key] === true"
+              (ionChange)="toggleFeature(f.key, $event.detail.checked)">
+            </ion-toggle>
+          </div>
+        }
+      </div>
+
+      <div class="pm-feature pm-feature--activo">
+        <span>Plan activo (se ofrece)</span>
+        <ion-toggle [(ngModel)]="activo"></ion-toggle>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
+    <ion-button expand="block" color="primary" [disabled]="!valido || guardando" (click)="confirmar()">
+      {{ esEdicion ? 'Guardar' : 'Crear plan' }}
+    </ion-button>
+  </div>
+</div>

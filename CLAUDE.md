@@ -6,9 +6,62 @@ Contexto rápido del proyecto para IAs. Lee esto antes de cualquier tarea.
 
 ## Qué es este proyecto
 
-App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sistema de **5 cajas** físicas/virtuales: CAJA, CAJA_CHICA, VARIOS, CAJA_CELULAR, CAJA_BUS), ventas POS, recargas de saldo celular/bus e inventario.
+App de gestión para tiendas minoristas. Maneja caja (hasta **5 cajas** físicas/virtuales: CAJA, CAJA_CHICA, VARIOS, CAJA_CELULAR, CAJA_BUS), ventas POS, recargas de saldo celular/bus e inventario.
 
-**No es un e-commerce ni una web app.** Es una herramienta interna de administración para una sola tienda.
+Un negocio recién creado tiene solo **2 cajas base** (CAJA, CAJA_CHICA). VARIOS, CAJA_CELULAR y CAJA_BUS son **opt-in por negocio**:
+
+- **VARIOS** — opcional desde el onboarding (radio cards "Caja Varios"). Desde 2026-06-11 es **potestad del ADMIN del negocio** (antes superadmin): la activa/desactiva cuando quiera desde Parámetros → Caja Varios via `fn_configurar_caja_varios`. **Reversible** — desactivar exige saldo $0 (salvaguarda) y oculta la caja con `cajas.activo = FALSE` conservando su historial. Flag: `caja_varios_activa` (siempre en sync con `cajas.activo` de la fila VARIOS).
+- **CAJA_CELULAR / CAJA_BUS** — solo el superadmin las habilita por negocio desde Parámetros → Módulos (sección visible únicamente para superadmin). Cada una es independiente. Flags: `recargas_celular_habilitada`, `recargas_bus_habilitada`.
+
+Funciones SQL involucradas: `fn_completar_onboarding` (2 cajas base + Varios opcional), `fn_configurar_caja_varios` (admin del negocio, Varios), `fn_configurar_modulos` (superadmin, celular/bus desde negocio), `fn_configurar_modulos_admin` (superadmin, celular/bus desde `/admin`).
+
+**Es una SaaS multi-tenant y multiplataforma** — no es un e-commerce. Es una herramienta interna de administración que puede servir a múltiples negocios independientes desde una sola instancia.
+
+### Multi-tenant
+- Cada negocio es un tenant aislado identificado por `negocio_id` en el JWT
+- La BD usa RLS (Row Level Security) en todas las tablas para aislar datos entre negocios
+- Supabase expone `get_negocio_id()` y `get_email()` como funciones helper que leen el JWT
+- Toda query filtra automáticamente por `negocio_id` vía RLS — **nunca hardcodear** un `negocio_id` en código
+- El superadmin puede operar dentro de cualquier negocio cambiando el `negocio_id` del JWT (`cambiarNegocio()`)
+- **Claims en `app_metadata` del JWT** (escritos por `fn_set_negocio_activo`): `negocio_id`, `negocio_slug`, `rol`, `es_superadmin`. El `negocio_slug` es el identificador URL-safe único del negocio (ej: `'tienda-ivan'`) — se usa en mensajes WhatsApp para identificar al negocio sin exponer el UUID. Se lee de `AuthService.usuarioActualValue?.negocio_slug` (campo `string` en `UsuarioActual`)
+- **Al agregar una tabla nueva:** siempre crear la política RLS correspondiente con `negocio_id = get_negocio_id()` **y** agregar la política RESTRICTIVE `superadmin_no_write` (ver abajo) en `docs/setup/02_rls.sql`
+- **Al agregar una función SQL nueva:** usar `SECURITY DEFINER` + `SET search_path = public` y filtrar por `get_negocio_id()` internamente
+- **Al agregar una función SQL de mutación:** llamar `PERFORM public.fn_assert_no_superadmin();` al inicio (antes de cualquier otra lógica). Ejecutar `docs/setup/fn_assert_no_superadmin.sql` en Supabase si la función helper aún no existe
+
+### Superadmin — bloqueo en escrituras directas (RLS RESTRICTIVE)
+
+Además del bloqueo en funciones RPC (`fn_assert_no_superadmin`), toda tabla mutable tiene una política RESTRICTIVE que bloquea INSERT/UPDATE/DELETE directos desde el cliente Angular:
+
+```sql
+-- En docs/setup/02_rls.sql — patrón para cada tabla nueva
+DROP POLICY IF EXISTS "superadmin_no_write" ON mi_tabla;
+CREATE POLICY "superadmin_no_write" ON mi_tabla AS RESTRICTIVE FOR ALL TO authenticated
+    USING (true)
+    WITH CHECK (NOT EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE email = public.get_email() AND es_superadmin = true
+    ));
+```
+
+**Por qué `WITH CHECK` y no `PERFORM`:** RLS no soporta `PERFORM` — solo expresiones booleanas. La subquery `NOT EXISTS` replica el mismo check que `fn_assert_no_superadmin()`.
+
+**Tablas cubiertas actualmente** (en `02_rls.sql`): `clientes`, `productos`, `categorias_productos`, `producto_presentaciones`, `atributos`, `atributo_opciones`, `categorias_operaciones`, `movimientos_empleados`, `notas`, `configuraciones`, `turnos_caja`, `cajas`, `operaciones_cajas`, `ventas`, `recargas`, `recargas_virtuales`, `kardex_inventario`, `cuentas_cobrar`, `producto_atributos`, `ventas_detalles`.
+
+Funciones exentas de `fn_assert_no_superadmin` (el superadmin sí las ejecuta): `fn_configurar_modulos`, `fn_configurar_modulos_admin`, `fn_suspender_negocio`, `fn_set_negocio_activo`, `fn_completar_onboarding`, `fn_actualizar_membresia`, `fn_transferir_empleado`, `fn_suspender_usuario`.
+
+**Mensaje de error al usuario:** `fn_assert_no_superadmin` lanza `RAISE EXCEPTION 'superadmin_blocked: Esta acción no está disponible en modo supervisión'`. El prefijo `superadmin_blocked:` es detectado en dos lugares:
+- `SupabaseService.call()` — extrae el texto después del prefijo y lo muestra como toast limpio (cubre todos los servicios que usan `call()`)
+- Servicios que usan `.client.rpc()` directo — extraen el texto con el mismo regex: `rawMsg.match(/superadmin_blocked:\s*(.+)/i)`
+
+**No ocultar botones en el frontend:** el superadmin ve el flujo completo para poder entender y dar soporte a los usuarios. La BD es el único guardián. Si intenta ejecutar una acción, recibe el toast de error automáticamente.
+
+### Multiplataforma
+- **Android**: APK vía Capacitor — plataforma principal, toda decisión UI/UX debe funcionar aquí primero
+- **Web**: funciona en browser (PWA-like), usado en desktop y tablet
+- **iOS**: compatible pero no es el foco actual
+- Ionic 8 en modo `md` (Material Design) en todas las plataformas — no depender de comportamientos específicos de `ios` mode
+- En desktop/tablet (≥992px) el split pane está activo y el sidebar es fijo — no asumir que el menú siempre es un drawer
+- Safe area (`env(safe-area-inset-bottom)`) aplica en Android y iOS — ver sección "Safe area en Android"
 
 ---
 
@@ -17,7 +70,7 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 | Componente   | Versión | Notas                          |
 | ------------ | ------- | ------------------------------ |
 | Angular      | 20.x    | Standalone components SIEMPRE  |
-| Ionic        | 8.x     | Componentes nativos Android    |
+| Ionic        | 8.x     | Multiplataforma — modo `md` en todas las plataformas |
 | Capacitor    | 8.x     | Empaquetado APK                |
 | Supabase JS  | 2.x     | Auth + DB + Storage            |
 | Node.js      | 22.x    |                                |
@@ -29,17 +82,78 @@ App móvil Android (APK) para gestión de una tienda minorista. Maneja caja (sis
 | Módulo              | Estado           |
 | ------------------- | ---------------- |
 | `auth`              | ✅ Completo                                  |
-| `dashboard`         | ✅ Completo (v5 — 5 cajas, cierre wizard 2p) |
+| `admin`             | ✅ Panel superadmin con tabs: Negocios / Suscripciones / Planes / Cobro. Ruta: `/admin`. Guard: `superadminGuard` |
+| `suscripcion`       | ✅ Monetización SaaS — bloqueo por vencimiento, pantalla "Suscríbete" + "Mi Plan" (toggle Mensual/Anual sticky en header, badge "Solo mensual", bloques marketing plan MAX), banner preventivo, gestión desde `/admin`. Planes: **PRO** y **MAX**. Guard: `suscripcionGuard` (encadenado tras `authGuard`). Fase 7 (feature gates) pendiente. |
+| `crear-negocio`     | ✅ Wizard reutilizable (`/crear-negocio?context=admin\|sucursal`). Reusa páginas del onboarding inicial cambiando el modo via `OnboardingService.setMode()` |
+| `caja`              | ✅ Completo (v6.3 — 5 cajas, cierre wizard 2p, historial de turnos) |
 | `recargas-virtuales`| ✅ Completo                                  |
-| `usuarios`          | ✅ Completo                                  |
+| `usuarios`          | ✅ Completo (solo Equipo — gestión de empleados del negocio activo) |
 | `inventario`        | ✅ Completo                                  |
 | `pos`               | ✅ Completo (descuentos, idempotencia, escáner) |
-| `cuentas-cobrar`    | ✅ Completo                                  |
-| `clientes`          | ✅ Completo                                  |
+| `clientes`          | ✅ Completo (listado + créditos/fiados unificados)           |
 | `configuracion`     | ✅ Completo (parámetros negocio, categorías)  |
-| `movimientos-empleados` | 🚧 Frontend nuevo (cuenta corriente empleados, nomina). No requiere turno abierto. |
+| `movimientos-empleados` | ✅ Completo (cuenta corriente empleados, adelantos, ajustes, pago nómina con preview). No requiere turno abierto. |
 | ~~`reportes`~~      | ❌ Eliminado (2026-03-26) — el resumen diario se integró como panel colapsable en `ventas` |
 | ~~`gastos-diarios`~~| ❌ Eliminado en v5 (2026-03-06) — los gastos van como EGRESO en `operacion-modal` |
+
+---
+
+## Arquitectura de roles y rutas
+
+La app tiene **3 niveles de acceso** con rutas separadas:
+
+| Nivel | Flag | Ruta | Guard |
+|-------|------|------|-------|
+| `es_superadmin = true` | Campo en `usuarios` | `/admin` | `superadminGuard` |
+| `rol = 'ADMIN'` en `usuario_negocios` | JWT claim | `/caja` + rutas protegidas con `roleGuard(['ADMIN'])` | `authGuard` |
+| `rol = 'EMPLEADO'` en `usuario_negocios` | JWT claim | `/caja` + rutas de empleado | `authGuard` |
+
+**Flujo de login post-validación:**
+```
+validarUsuario()
+    ├── es_superadmin + sin negocio cacheado → /admin
+    ├── sin negocios → /auth/crear-negocio (onboarding)
+    ├── 1 negocio   → activar directo → /caja
+    └── N negocios  → /auth/seleccionar-negocio → /caja
+```
+
+**`/admin`** — Panel del superadmin (sin `negocio_id` en JWT):
+- Lista todos los negocios de la plataforma (incluye los suspendidos, marcados con badge)
+- Botón "Crear negocio" → navega al wizard `/crear-negocio?context=admin` (mismas páginas del onboarding inicial, en modo `sucursal-superadmin`). Pide email del admin del nuevo negocio.
+- Botón "Suspender / Reactivar" por cada negocio → llama a `fn_suspender_negocio` (solo superadmin). Cuando un negocio está suspendido, su propietario, admins y empleados no pueden entrar; solo el superadmin sí.
+- Toca un negocio → `cambiarNegocio()` → JWT actualizado con ese `negocio_id` → `/caja` para operar dentro del negocio como ADMIN
+- `irAlPanelAdmin()` en `AuthService` para volver a `/admin` desde dentro de un negocio
+
+**Superadmin y membresías — reglas críticas:**
+- El superadmin **puede no tener membresía** en `usuario_negocios` para un negocio dado. `fn_set_negocio_activo` le asigna rol `ADMIN` virtual si no tiene membresía.
+- `get_es_superadmin()` lee del JWT (`app_metadata`). Cuando el superadmin está en `/admin` (sin haber pasado por `fn_set_negocio_activo`), ese claim puede estar desactualizado. **Nunca usar `get_es_superadmin()` en RLS de tablas que el superadmin necesita leer desde `/admin`** — usar `EXISTS (SELECT 1 FROM usuarios WHERE email = get_email() AND es_superadmin = true)` en su lugar.
+- La RLS de `negocios` usa la verificación contra tabla `usuarios` por este motivo (ver `02_rls.sql`).
+- `validarUsuario()` en `AuthService` maneja el caso: superadmin con `negocio_id` cacheado pero sin membresía → re-activa usando el cache directamente sin buscar en `usuario_negocios`.
+
+**`/caja` y resto** — App del negocio activo (con `negocio_id` en JWT, RLS filtra automáticamente):
+- El módulo `usuarios/` solo gestiona el Equipo del negocio activo
+- El módulo `admin/` NO aparece en el sidebar ni en las rutas de layout
+
+---
+
+## Creación de negocios — wizard único reutilizable
+
+Toda creación de negocio (onboarding inicial Y sucursales desde dentro de la app) usa el **mismo wizard** y la **misma función SQL**: `fn_completar_onboarding`. Single source of truth — no hay duplicación de pasos, validaciones ni configuraciones por defecto.
+
+| Punto de entrada | Ruta | Modo | Quién es ADMIN del nuevo negocio | Quién es propietario |
+|------------------|------|------|----------------------------------|----------------------|
+| Onboarding del primer negocio (usuario sin negocios) | `/onboarding/negocio` | `inicial` | El usuario logueado | El usuario logueado |
+| Sidebar → "Nueva sucursal" (admin común) | `/crear-negocio?context=sucursal` | `sucursal-admin` | El usuario logueado | El usuario logueado |
+| Sidebar → "Nueva sucursal" (superadmin operando dentro de un negocio) | `/crear-negocio?context=sucursal` | `sucursal-superadmin` | El superadmin pide email manual | El propietario del negocio actual (heredado) |
+| `/admin` → "Crear negocio" (superadmin) | `/crear-negocio?context=admin` | `sucursal-superadmin` | Email ingresado manualmente | Mismo email del admin (o explícito) |
+
+**Tabla `negocios.propietario_usuario_id`:** dueño del negocio, NOT NULL, FK con `ON DELETE RESTRICT`. Se setea al crear y no se modifica. Permite identificar al "dueño original" cuando un superadmin necesita actuar en su nombre.
+
+**Tabla `negocios.activo`:** flag de suspensión. `false` = bloqueado para todos sus usuarios; solo el superadmin puede entrar (para reactivarlo). Solo el superadmin lo cambia, vía `fn_suspender_negocio`. La validación se hace en `fn_set_negocio_activo` antes de actualizar el JWT.
+
+**OnboardingService.mode:** el servicio mantiene el modo del wizard en memoria (`inicial` | `sucursal-admin` | `sucursal-superadmin`). `OnboardingNegocioPage.ngOnInit()` lo resuelve desde la URL + query params + `es_superadmin` y llama `setMode()`. `OnboardingCajaPage` lee el modo al finalizar para decidir si activa el JWT del nuevo negocio (solo `inicial`) o vuelve al lugar anterior con un toast (modos `sucursal-*`).
+
+> **Eliminado en 2026-05-02:** `fn_crear_negocio` (función SQL duplicada que creaba negocios con configuraciones desactualizadas y siempre 5 cajas), `crear-negocio-modal` y `crear-sucursal-modal` (componentes de modal que solo pedían el nombre), `negocio.service.ts.crearSucursal()`. Todo unificado en el wizard reutilizable.
 
 ---
 
@@ -50,12 +164,13 @@ src/app/
 ├── core/
 │   ├── services/          # Servicios globales (ver abajo)
 │   ├── config/            # pagination.config.ts — PAGINATION_CONFIG (pageSize por módulo)
-│   ├── guards/            # auth, public, role, pending-changes
+│   │                      # routes.config.ts — ROUTES (todas las rutas de la app)
+│   ├── guards/            # auth, public, role, pending-changes, superadmin
 │   └── utils/             # date.util.ts, cedula.util.ts
 ├── features/              # Módulos (cada uno tiene pages/, services/, models/, components/)
 ├── shared/
 │   ├── components/        # sidebar, under-construction, options-menu, options-modal, empty-state
-│   ├── directives/        # currency-input, numbers-only, scroll-reset
+│   ├── directives/        # currency-input, numbers-only, scroll-reset, uppercase-input, horizontal-scroll
 │   └── pages/             # paginated-list.page.ts (clase base listas paginadas)
 └── environments/
     ├── environment.example.ts   # Plantilla (en git)
@@ -70,13 +185,66 @@ src/app/
 | ------------------------- | ----------------------------------------------------------- |
 | `SupabaseService`         | Todas las queries y auth. Usar siempre `.call()` o `.rpc()`. Tiene listener global de auth (TOKEN_REFRESHED, SIGNED_OUT), detección de JWT expirado en `call()`, refresh proactivo al volver del background (`refreshSessionOnResume()`), y `handleExpiredSession()` como punto centralizado de limpieza de sesión |
 | `UiService`               | Loading, toasts, alertas, confirmaciones, `hideTabs()`/`showTabs()` para ocultar tabs en páginas de detalle |
-| `ConfigService`           | Lee tabla `configuraciones` (clave/valor con prefijo por módulo: `negocio_`, `caja_`, `bus_`, `pos_`, `nomina_`) con cache en memoria. Métodos: `get()`, `getNombreNegocio()`, `invalidar()` |
-| `CurrencyService`         | Formateo de moneda: `format(value)` y `parse(value)`. No formatear manualmente |
-| `StorageService`          | Sube imágenes a Supabase Storage con compresión automática. `uploadImage(dataUrl, bucket, subfolder)` |
+| `ConfigService`           | Lee tabla `configuraciones` (clave/valor con prefijo por módulo: `caja_`, `bus_`, `pos_`, `nomina_`) con cache en memoria. Métodos: `get()`, `invalidar()`. **No** leer nombre/teléfono/dirección del negocio de aquí — viven en `negocios`. Nombre: `authService.usuarioActualValue?.negocio_nombre`. Resto de datos: `ConfiguracionService.getDatosNegocio()` |
+| `CurrencyService`         | Formateo de moneda. Métodos: `format(value)` (display estándar `1,250.00`), `parse(value)` (string → number), `parteEntera(monto)` (entero truncado con `Math.floor`, sin redondeo), `centavos(monto)` (2 dígitos decimales). No formatear moneda manualmente — ver patrón abajo |
+| `StorageService`          | Flujo completo de imágenes: captura (cámara/galería) → cropper integrado (5 ratios) → compresión WebP → upload a Supabase Storage. Bucket único `mi-tienda` aislado por `negocio_id`. Métodos clave: `elegirFuenteFoto()`, `recortarImagen()`, `mostrarOpcionesImagen()`, `uploadImage()`, `replaceImage()`. Ver sección "Storage multi-tenant" |
 | `GananciasService`        | Lógica de comisiones recargas virtuales (liquidación BUS mensual) |
 | `RecargasVirtualesService`| Operaciones de saldo celular/bus                            |
 | `LoggerService`           | Logs estructurados a filesystem con rotación (no usar console.log directo) |
 | `NetworkService`          | Estado de conectividad: `isOnline$: BehaviorSubject<boolean>` |
+
+---
+
+## Formateo de dinero — patrón obligatorio
+
+Toda cantidad de dinero visible al usuario debe usar `CurrencyService` o `AppCurrencyPipe`. **Nunca** usar `| number:'1.2-2'`, `| number:'1.0-0'`, ni `.toFixed()` en templates.
+
+### Por qué `number:'1.0-0'` está prohibido
+
+`0.71 | number:'1.0-0'` redondea matemáticamente a `1`, luego `centavos(0.71)` devuelve `71` → el usuario ve `$1.71` en lugar de `$0.71`. `Math.floor` trunca sin redondear, lo que es siempre correcto para dinero.
+
+### Display estándar (la mayoría de los casos)
+
+Usar `AppCurrencyPipe` en el template. Requiere importar en el componente:
+
+```typescript
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
+// En imports[]: AppCurrencyPipe
+```
+
+```html
+<!-- ✅ Display estándar: $1,250.00 -->
+${{ monto | appCurrency }}
+```
+
+### Display bancario partido (saldos grandes con énfasis visual)
+
+Para cards de saldo donde entero y centavos tienen tamaños tipográficos distintos. Requiere inyectar `CurrencyService` como `readonly currency`:
+
+```typescript
+readonly currency = inject(CurrencyService);
+```
+
+```html
+<!-- ✅ Display bancario: parte entera grande, centavos pequeños -->
+<span class="cc-currency">$</span>{{ currency.parteEntera(saldo) }}<span class="cc-cents">.{{ currency.centavos(saldo) }}</span>
+```
+
+### Parse (input del usuario → número)
+
+```typescript
+private currency = inject(CurrencyService);
+const monto = this.currency.parse(this.form.get('monto')?.value); // "1,250.50" → 1250.5
+```
+
+### Regla — cuándo usar cada uno
+
+| Caso | Usar |
+|------|------|
+| Lista, tabla, label, toast, alerta | `\| appCurrency` |
+| Card de saldo con tipografía partida | `currency.parteEntera()` + `currency.centavos()` |
+| Convertir input de usuario a número | `currency.parse()` |
+| Texto en TS (mensajes, logs) | `currency.format(value)` |
 
 ---
 
@@ -134,6 +302,42 @@ export class MiComponent {
 
 > **Importante:** antes de borrar un icono de `addIcons()`, buscar su nombre string en los `.html` del componente. Los bindings `[name]="variable"` no aparecen en análisis estático.
 
+### Rutas — SIEMPRE usar `ROUTES` de `core/config/routes.config.ts`
+
+Todas las rutas de la app están centralizadas en `src/app/core/config/routes.config.ts`.
+**Nunca escribir strings de ruta directamente** en `navigate()`, `navigateForward()`, `navigateBack()` ni `routerLink`.
+
+```typescript
+// ❌ Incorrecto — string hardcodeado
+this.navCtrl.navigateBack('/inventario');
+this.router.navigate(['/caja']);
+[routerLink]="'/configuracion'"
+
+// ✅ Correcto — siempre via ROUTES
+import { ROUTES } from '@core/config/routes.config';
+this.navCtrl.navigateBack(ROUTES.inventario.root);
+this.router.navigate([ROUTES.home]);
+[routerLink]="configuracionRoute"  // propiedad del componente = ROUTES.configuracion.root
+```
+
+**Al agregar una ruta nueva** (nueva página, nueva feature, nueva subruta):
+1. Agregar la constante en `routes.config.ts` bajo la clave del módulo correspondiente
+2. Si es una función con parámetro (detalle con `:id`), usar la forma `(id: string) => \`/ruta/${id}\``
+3. Usar `ROUTES` en todos los archivos que naveguen a esa ruta
+
+```typescript
+// routes.config.ts — estructura para un módulo nuevo
+miFeature: {
+  root:    '/mi-feature',
+  detalle: (id: string) => `/mi-feature/${id}`,
+  nuevo:   '/mi-feature/nuevo',
+},
+```
+
+**Módulo `@core/config`** — el alias `@core` apunta a `src/app/core/`. Usar siempre el alias en features y shared, ruta relativa solo en core mismo.
+
+---
+
 ### Modales — NUNCA usar sheet modals (`breakpoints`)
 Los sheet modals (`breakpoints + initialBreakpoint`) bloquean el scroll interno en Android: Ionic interpreta el swipe como gesto de cierre hasta llegar al tope. Sin `breakpoints`, el modal es full-height por defecto en Android (md mode) y el scroll funciona nativamente.
 
@@ -165,49 +369,91 @@ const modal = await this.modalCtrl.create({
   - **Confirmaciones simples (texto plano)**: usar `AlertController`. Los alerts NO renderizan HTML custom en Android — Ionic sanitiza el `message` y muestra las etiquetas como texto. `IonicSafeString` tampoco funciona de forma confiable. **Si necesitas UI custom (estilos, layout, tipografía grande), usar un `ModalController` con componente dedicado.**
   - **Overlays que SÍ funcionan**: `AlertController`, `ModalController`, `LoadingController`, `ToastController`.
 
-### `bottom-sheet-modal` — patrón para modales compactos sin scroll
+### `bottom-sheet-modal` — patrón estándar para todos los modales
 
-Para modales compactos (formularios cortos, confirmaciones con UI custom) que deben abrirse desde abajo y ajustarse al contenido:
+Única clase para todos los modales que se abren desde abajo. Se adapta al contenido (`--height: auto`) y activa scroll automáticamente cuando supera el 90% de la pantalla.
 
 ```typescript
 const modal = await this.modalCtrl.create({
   component: MiModalComponent,
-  cssClass: 'bottom-sheet-modal',   // ← clase global en theme/custom/modals.scss
+  cssClass: 'bottom-sheet-modal',
   breakpoints: [0, 1],
-  initialBreakpoint: 1
+  initialBreakpoint: 1,
+  // backdropDismiss: false  ← solo si la operación es destructiva
 });
+await modal.present();
 ```
 
-**Template del componente** — `div` directo, sin `ion-content`:
+**Template del componente** — estructura `bs-*`, **nunca `ion-content`**:
 ```html
-<div class="modal-wrapper">
-  <div class="modal-header">
-    <div class="modal-header-icon">  <!-- color en SCSS local del componente -->
+<div class="bs-root">
+  <div class="bs-header">
+    <div class="bs-header__icon">  <!-- color en SCSS local del componente -->
       <ion-icon name="mi-icono"></ion-icon>
     </div>
-    <span class="modal-header-title">Título</span>
-    <button class="modal-close-btn" (click)="cerrar()">
+    <span class="bs-header__title">Título</span>
+    <button class="bs-header__close" (click)="cerrar()">
       <ion-icon name="close-outline"></ion-icon>
     </button>
   </div>
-  <!-- contenido -->
-  <div class="modal-actions">
+  <div class="bs-content">
+    <div class="bs-body">
+      <!-- campos, listas, formulario... -->
+    </div>
+  </div>
+  <div class="bs-actions bs-actions--row">
     <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
     <ion-button expand="block" color="primary" (click)="confirmar()">Confirmar</ion-button>
   </div>
 </div>
 ```
 
+**Por qué `div` y no `ion-content`:** `ion-content` colapsa a 0px con `--height: auto` porque necesita una altura de referencia. `div.bs-content` con `overflow-y: auto` resuelve el scroll sin ese problema.
+
 **SCSS local** — solo el color del icono, todo lo demás viene de `modals.scss`:
 ```scss
-.modal-header-icon {
+.bs-header__icon {
   background: rgba(var(--ion-color-primary-rgb), 0.1);
   ion-icon { color: var(--ion-color-primary); }
 }
 ```
 
-> **NO usar** en modales con scroll largo — bloquea el swipe en Android (misma regla de `breakpoints`).
-> Ejemplos actuales: `NuevaNotaModalComponent`, `CuadreCajaPage`.
+**No importar `IonContent`** en el componente del modal — ni en el `import` TS ni en `imports[]` del decorador.
+
+### `bs-actions` — variantes de layout de botones
+
+**El patrón se elige por la NATURALEZA del modal, no por uniformidad** (decidido 2026-06-11):
+
+| Naturaleza del modal | Patrón | Ejemplo |
+|---|---|---|
+| **Formulario transaccional** (guarda/comete datos) | `bs-actions--row` → `[Cancelar] [Confirmar]`, confirmar con `[disabled]` hasta válido | Nueva nota, operación de caja |
+| **Herramienta reactiva** (inputs visibles + resultado en vivo) | `bs-actions--compact` → **UN solo botón** de acción (limpiar/repetir). La ✕ del header cierra | Calculadora margen, cuadre |
+| **Herramienta cuyo input visible ES la acción** | **SIN footer** — el input + su botón inline bastan. Safe area en el contenido (modal sin footer) | Consulta precio (modo manual) |
+
+**Reglas:**
+- **NUNCA un botón "Cerrar" que duplique la ✕ del header** en modales de herramienta. "Cancelar" solo existe en transaccionales (descarte explícito junto al commit).
+- **Alto mínimo táctil 44px en TODAS las variantes** (Apple HIG 44pt / Material 48dp / WCAG 2.5.5). Lo "compacto" de `--compact` es el ancho por contenido + centrado — jamás reducir el alto por estética.
+
+| Clase | Layout | Alto |
+|-------|--------|------|
+| `bs-actions` | Columna (apilados) — 3+ botones o textos largos | 48px |
+| `bs-actions bs-actions--row` | Fila — Cancelar/Confirmar de formularios | 44px |
+| `bs-actions bs-actions--compact` | Botón único centrado, ancho por contenido | 44px |
+
+```html
+<!-- ✅ Formulario transaccional -->
+<div class="bs-actions bs-actions--row">
+  <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()">Cancelar</ion-button>
+  <ion-button expand="block" color="primary" [disabled]="!valido" (click)="confirmar()">Guardar</ion-button>
+</div>
+
+<!-- ✅ Herramienta reactiva — sin "Cerrar" (la ✕ ya cierra) -->
+<div class="bs-actions bs-actions--compact">
+  <ion-button color="tertiary" (click)="nuevaConsulta()">Nueva consulta</ion-button>
+</div>
+```
+
+Definido en `src/theme/custom/modals.scss`. Safe area ya incluida en `.bs-actions` — no agregar `env(safe-area-inset-bottom)` manualmente (en modales SIN footer, agregarla al contenedor del contenido).
 
 ### `OptionsModalComponent` — componente estándar para selects y action sheets
 
@@ -320,6 +566,63 @@ Ubicación: `shared/components/empty-state/`. Usar siempre que una lista no teng
 - Estilos encapsulados en el componente — **no agregar `.empty-state` en el SCSS de la página**
 - Para estados vacíos dentro de modales o contenedores pequeños: `style="min-height: auto"` inline
 - Los iconos usados frecuentemente ya están registrados en el componente. Si necesitas uno nuevo, agrégalo en `empty-state.component.ts`
+
+### `OperacionLabelPipe` — Display de operaciones de caja
+
+**Archivo:** `src/app/shared/pipes/operacion-label.pipe.ts`
+
+Pipe standalone centralizado para mostrar registros de `operaciones_cajas`. Reemplaza toda la lógica duplicada de label/color/signo que antes vivía en cada página.
+
+```typescript
+import { OperacionLabelPipe } from '@shared/pipes/operacion-label.pipe';
+// En imports[] del componente:  OperacionLabelPipe
+```
+
+**Modos:**
+
+| Expresión | Retorna |
+|---|---|
+| `(tipo \| operacionLabel:descripcion)` | Label legible — traspasos muestran contraparte: `"Traspaso hacia Cajón"` |
+| `(descripcion \| operacionLabel:'motivo')` | Texto tras el `·`, o `''` si no hay |
+| `(tipo \| operacionLabel:'color')` | Color Ionic: `'success'`, `'danger'`, `'warning'`, `'primary'`, `'medium'` |
+| `(tipo \| operacionLabel:'signo')` | `'+'`, `'-'`, o `''` |
+
+**Patrón completo:**
+```html
+<!-- Label: categoría si existe, label contextual si no -->
+{{ op.categoria?.nombre || (op.tipo_operacion | operacionLabel:op.descripcion) }}
+
+<!-- Motivo — solo renderizar si hay texto -->
+@if (op.descripcion | operacionLabel:'motivo') {
+  <p>{{ op.descripcion | operacionLabel:'motivo' }}</p>
+}
+
+<!-- Color en data-attribute + monto con signo -->
+<span [attr.data-type]="op.tipo_operacion | operacionLabel:'color'">
+  {{ op.tipo_operacion | operacionLabel:'signo' }}${{ op.monto | number:'1.2-2' }}
+</span>
+```
+
+**Cómo se genera la descripción:** `fn_crear_transferencia` escribe `"hacia Cajón · motivo"` (SALIENTE) y `"desde Tienda · motivo"` (ENTRANTE). El pipe parsea el `·` para separar contraparte de motivo. Registros sin descripción retornan los labels genéricos sin error.
+
+**Patrón obligatorio en funciones SQL** al insertar en `operaciones_cajas`:
+
+| Tipo de operación | Formato del campo `descripcion` | Ejemplo |
+|---|---|---|
+| `TRANSFERENCIA_SALIENTE` | `'hacia [nombre destino] · [motivo]'` | `'hacia Cajón · Fondo de emergencia'` |
+| `TRANSFERENCIA_ENTRANTE` | `'desde [nombre origen] · [motivo]'` | `'desde Cajón · Fondo de emergencia'` |
+| `INGRESO` / `EGRESO` / `CIERRE` / `APERTURA` / `AJUSTE` | Texto libre sin `·` | `'Venta celular del turno 2026-06-04'` |
+
+El separador `·` **solo** se usa en transferencias. En otros tipos, el texto libre se muestra completo. Para motivo opcional en SQL:
+```sql
+'hacia ' || v_destino.nombre
+  || CASE WHEN TRIM(COALESCE(p_descripcion, '')) <> ''
+          THEN ' · ' || p_descripcion ELSE '' END
+```
+
+Ver documentación completa en `docs/shared/SHARED-README.md` → sección **Pipes**.
+
+---
 
 ### Loading + Pull-to-Refresh sin doble spinner
 ```typescript
@@ -503,6 +806,25 @@ if (result !== null) { /* éxito — result puede ser [] o null */ }
 // O mejor: agregar .select() al final para obtener el registro creado
 ```
 
+### RLS OR clause en `usuario_negocios` — multiplicación de filas (multi-tenant)
+
+La política RLS de `usuario_negocios` tiene una cláusula OR:
+```sql
+negocio_id = get_negocio_id()
+OR usuario_id = (SELECT id FROM usuarios WHERE email = get_email())
+```
+
+La segunda rama devuelve **todas las membresías propias del usuario autenticado** (no solo la del negocio activo).
+Cualquier vista o query que haga JOIN con `usuario_negocios` sin filtrar explícitamente por `negocio_id` recibirá una fila por cada negocio donde el usuario tenga membresía — multiplicando los resultados.
+
+**Síntoma**: un admin con 3 negocios ve sus propios datos repetidos 3 veces en una vista.
+
+**Regla**: toda vista o query que haga JOIN con `usuario_negocios` DEBE incluir:
+```sql
+WHERE un.negocio_id = public.get_negocio_id()
+```
+Ejemplo: `v_saldos_empleados` lo requiere aunque la RLS ya filtre — sin ese WHERE, retorna una fila por negocio del admin.
+
 ---
 
 ## Eficiencia de API — evitar abuso de requests
@@ -566,6 +888,67 @@ Usar el mismo patrón si se necesita cache para otros datos de baja frecuencia d
 - Documentar las funciones en `docs/<modulo>/sql/functions/`
 - Templates completos y criterios de decisión en `docs/ESTRUCTURA-PROYECTO.md`
 
+### Superadmin — bloqueo obligatorio en funciones de mutación
+
+**Toda función SQL que mute datos operativos del negocio debe bloquear al superadmin.** El superadmin entra a un negocio solo para revisar datos — no para ejecutar operaciones.
+
+Llamar a la función helper centralizada **al inicio de la función**, antes de cualquier otra lógica. Un solo `PERFORM`, un solo lugar de mantenimiento:
+
+```sql
+PERFORM public.fn_assert_no_superadmin();
+```
+
+La función helper está en `docs/setup/fn_assert_no_superadmin.sql` y debe ejecutarse en Supabase **antes** que cualquier función de mutación. Lanza `RAISE EXCEPTION` internamente — esa excepción burbujea automáticamente y aborta la función llamante, independientemente de si retorna `void`, `JSON` o `TABLE`.
+
+**Funciones que SÍ deben bloquearse** — toda función que toque caja, ventas, inventario, clientes, recargas, nómina o notas:
+`fn_abrir_turno`, `fn_ejecutar_cierre_diario_v5`, `fn_registrar_operacion_manual`, `fn_crear_transferencia`, `fn_reparar_deficit_turno`, `fn_registrar_venta_pos`, `fn_anular_venta`, `fn_ajustar_stock_inventario`, `fn_crear_producto_simple`, `fn_crear_producto_con_variantes`, `fn_registrar_pago_fiado`, `fn_registrar_recarga_proveedor_celular`, `fn_registrar_pago_proveedor_celular`, `fn_registrar_compra_saldo_bus`, `fn_liquidar_ganancias_bus`, `fn_registrar_adelanto_sueldo`, `fn_pagar_nomina_empleado`, `fn_eliminar_nota`, `fn_configurar_caja_varios`.
+
+**Funciones que NO se bloquean** — funciones de setup/admin que el superadmin usa deliberadamente:
+`fn_configurar_modulos`, `fn_configurar_modulos_admin`, `fn_suspender_usuario`, `fn_actualizar_membresia`, `fn_transferir_empleado`, `fn_set_negocio_activo`, `fn_completar_onboarding`, `fn_suspender_negocio`.
+
+### Dónde vive cada función SQL
+
+| Archivo | Qué contiene |
+|---------|-------------|
+| `docs/setup/03_functions.sql` | **Solo funciones de setup inicial** — las que deben existir para que la app funcione desde cero (auth, negocios, cajas). Se ejecutan junto con el schema al hacer un reset completo de Supabase. |
+| `docs/<modulo>/sql/functions/fn_nombre.sql` | **Funciones de feature** — una función por archivo, en la carpeta del módulo al que pertenece. Ejemplos: `docs/usuarios/sql/functions/fn_transferir_empleado.sql`, `docs/caja/sql/functions/fn_ejecutar_cierre_diario.sql`. |
+
+**Regla:** si la función se necesita antes de que exista cualquier dato de negocio → `03_functions.sql`. Si es lógica de negocio de un módulo específico → carpeta del módulo.
+
+**Al crear una función nueva de feature:**
+1. Crear el archivo en `docs/<modulo>/sql/functions/fn_nombre.sql`
+2. Ejecutarlo directamente en Supabase SQL Editor (no agregarlo a `03_functions.sql`)
+3. El archivo queda como fuente de verdad — si se necesita re-ejecutar, se hace desde ahí
+
+### Asignación de variables en plpgsql — NUNCA `SELECT ... INTO`
+
+En Supabase, **cualquier** `SELECT ... INTO variable` causa el error `relation "variable" does not exist` porque el parser interpreta la variable como una tabla. Esto aplica a todos los casos: columna única, agregados, EXISTS, múltiples variables.
+
+```sql
+-- ❌ Rompe en Supabase — parser interpreta v_caja_id como tabla
+SELECT id INTO v_caja_id FROM cajas WHERE codigo = 'CAJA';
+
+-- ❌ También rompe — mismo bug con agregados
+SELECT COUNT(*) + 1 INTO v_numero_turno FROM turnos_caja WHERE ...;
+
+-- ❌ También rompe — mismo bug con EXISTS
+SELECT EXISTS (...) INTO v_existe;
+
+-- ❌ También rompe — mismo bug con múltiples variables
+SELECT id, nombre INTO v_id, v_nombre FROM cajas WHERE ...;
+
+-- ✅ Correcto — siempre usar := (SELECT ...)
+v_caja_id      := (SELECT id FROM cajas WHERE codigo = 'CAJA');
+v_numero_turno := (SELECT COUNT(*) + 1 FROM turnos_caja WHERE ...);
+v_existe       := EXISTS (SELECT 1 FROM tabla WHERE ...);
+
+-- ✅ Para FOR UPDATE (lock de fila): PERFORM + := separados
+PERFORM id FROM cajas WHERE id = v_id FOR UPDATE;
+v_saldo := (SELECT saldo_actual FROM cajas WHERE id = v_id);
+```
+
+**Regla absoluta:** Usar `:= (SELECT ...)` para toda asignación de variable en plpgsql. `SELECT ... INTO` no funciona en Supabase en ningún caso.
+
 ### Cuándo usar cada enfoque
 
 | Caso | Usar | Por qué |
@@ -578,6 +961,39 @@ Usar el mismo patrón si se necesita cache para otros datos de baja frecuencia d
 ---
 
 ## Reglas críticas
+
+### IDs — SIEMPRE `string` (UUID), nunca `number`
+
+El schema usa UUIDs en todas las PKs y FKs desde la migración v11. Toda entidad de BD tiene `id: string`, nunca `id: number`.
+
+**Al revisar o crear cualquier módulo, verificar:**
+- Modelos (`*.model.ts`): todos los campos `id`, `*_id` que mapeen a columnas de BD → `string`
+- Servicios: parámetros como `cajaId`, `empleadoId`, `categoriaId`, etc. → `string`
+- Páginas/componentes: propiedades que reciben IDs de route params o `@Input()` → `string`
+- Route params: nunca usar `Number(params['id']) || 0` — mantener como `string` directamente
+- Funciones SQL (`p_*_id`): los parámetros que reciben UUIDs → `UUID` en plpgsql
+
+```typescript
+// ❌ Incorrecto — rompe con UUID: "invalid input syntax for type uuid: '0'"
+cajaId: number = 0;
+this.cajaId = Number(params['cajaId']) || 0;
+async registrar(cajaId: number, categoriaId: number): Promise<void>
+
+// ✅ Correcto
+cajaId: string = '';
+this.cajaId = params['cajaId'] || '';
+async registrar(cajaId: string, categoriaId: string): Promise<void>
+```
+
+**Excepción legítima:** campos que son cantidades o contadores reales (`monto: number`, `saldo_actual: number`, `numero_turno: number`) siguen siendo `number`.
+
+```sql
+-- ❌ Incorrecto en función SQL
+p_caja_id INTEGER
+
+-- ✅ Correcto
+p_caja_id UUID
+```
 
 ### Fechas — NUNCA `toISOString()`
 ```typescript
@@ -597,15 +1013,23 @@ getInicioDiaSiguienteDeISO(fechaLocal) // → ISO del día siguiente de una fech
 .lt('fecha', getInicioDiaSiguienteISO())
 ```
 
-### Imágenes — NUNCA foto a resolución completa
+### Imágenes — usar siempre `StorageService.elegirFuenteFoto()`
 ```typescript
-// ✅ Siempre con límites (reduce de 5MB a ~300KB)
-Camera.getPhoto({ quality: 80, width: 1200, height: 1600, correctOrientation: true });
+// ✅ Flujo completo: elegir fuente → cropper → blob listo para uploadImage()
+const result = await this.storageService.elegirFuenteFoto();   // ratio 'cuadrado' default
+if (result) { this.fotoPreviewUrl = result.previewUrl; this.fotoRawUrl = result.rawUrl; }
+
+// ✅ Comprobantes (sin recorte): tercer parámetro withCrop = false
+const result = await this.storageService.elegirFuenteFoto('libre', false, false);
 ```
+El servicio fija internamente `quality: 92`, `1920×1920` para la captura y `1600×1600` WebP `0.92` para la compresión final. **No llamar `Camera.getPhoto` directamente** — pierdes el cropper, los límites de calidad y el flujo unificado.
 
 ### Configuración — NUNCA hardcodear valores de negocio
-Los valores de negocio viven en la tabla `configuraciones` (clave/valor). Leerlos con `ConfigService.get()`, no hardcodearlos.
-Convención de claves: prefijo por módulo (`negocio_nombre`, `caja_fondo_fijo_diario`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`, `nomina_sueldo_base`).
+
+**Datos de identidad del negocio** (nombre, teléfono, dirección, correo, RUC, razón social, datos SRI) → viven en tabla `negocios`. Leer con `ConfiguracionService.getDatosNegocio()` o el nombre directamente de `authService.usuarioActualValue?.negocio_nombre`. Editar con `ConfiguracionService.actualizarDatosNegocio()` (llama `fn_actualizar_datos_negocio`).
+
+**Parámetros operativos** (flags de módulos, montos, umbrales, POS, nómina) → viven en tabla `configuraciones`. Leerlos con `ConfigService.get()`, no hardcodearlos.
+Convención de claves: prefijo por módulo (`caja_varios_transferencia_dia`, `bus_alerta_saldo_bajo`, `pos_descuentos_habilitados`, `nomina_sueldo_base`).
 
 ---
 
@@ -636,7 +1060,7 @@ Cada opción usa `.fab-option` con `.fab-option-icon.<color>` para el círculo d
 
 Todo elemento que tenga **fondo propio y toque el borde inferior de la pantalla** debe compensar la barra de navegación de Android (botones físicos o gesto swipe).
 
-**Regla**: se aplica a `ion-footer`, FABs, tabs y cualquier panel anclado al fondo.
+**Regla**: se aplica a `ion-footer`, FABs, tabs, footers de modales y cualquier panel anclado al fondo.
 
 ```scss
 // Si el elemento ya tiene padding-bottom:
@@ -647,6 +1071,29 @@ padding-bottom: env(safe-area-inset-bottom);
 ```
 
 `env(safe-area-inset-bottom)` vale `0` en dispositivos sin barra → no rompe el layout.
+
+**Modales con footer custom:** los modales que tienen su propio footer (botón de acción al fondo) también necesitan safe area, ya que se renderizan sobre el tab bar pero fuera de su flujo. Usar `calc()` con el spacing ya existente:
+
+```scss
+// ✅ Footer de modal con padding propio
+.vsm-footer {
+    padding: var(--spacing-sm) var(--spacing-md);
+    padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom));
+}
+
+// ✅ .bs-actions ya incluye env(safe-area-inset-bottom) en modals.scss — no agregar de nuevo
+```
+
+> Los modales que usan `.bs-actions` (patrón `bottom-sheet-modal`) ya tienen safe area en `modals.scss`. Solo los footers custom necesitan agregarlo manualmente.
+
+**Modales sin `bs-actions` (solo contenido, sin botones al fondo):** el último elemento visible queda pegado a la barra de Android. Agregar `padding-bottom: env(safe-area-inset-bottom)` al contenedor más externo del contenido (normalmente la card o el wrapper principal dentro de `.bs-content`):
+
+```scss
+// ✅ Modal sin footer de acciones — safe area en el contenedor del contenido
+.mi-card {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+```
 
 **Excepción — páginas dentro de tabs:** `ion-tab-bar` ya compensa el safe area internamente. Los footers de páginas que viven dentro de tabs **NO deben sumar** `env(safe-area-inset-bottom)` — se duplica el espacio. Solo usar `padding-bottom` normal. Los elementos `position: fixed` (overlays, scanners) sí lo necesitan porque están fuera del flujo del tab bar.
 
@@ -670,39 +1117,144 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 | Tab bar principal | `main-layout.page.scss` | ✅ |
 | Sidebar footer | `sidebar.component.scss` | ✅ |
 | FAB global | `global.scss` | ✅ |
+| Footer modal variantes POS | `variante-selector-modal.component.scss` | ✅ |
+| `.bs-actions` (bottom-sheet-modal) | `theme/custom/modals.scss` | ✅ |
 
 ---
 
-## Nombres de cajas (UI vs BD) — 5 cajas en v5
+## Nombres de cajas (UI vs BD) — hasta 5 cajas
 
-| Código BD      | Nombre en UI | Subtítulo       | Rol                                      |
-| -------------- | ------------ | --------------- | ---------------------------------------- |
-| `CAJA`         | Tienda       | Efectivo        | Vault de depósitos acumulados            |
-| `CAJA_CHICA`   | Cajón        | Cajón diario    | Efectivo del día (ventas POS + recargas) |
-| `VARIOS`       | Varios       | Fondo emergencia| Ex-CAJA_CHICA. Fondo fijo de gastos.    |
-| `CAJA_CELULAR` | Celular      | Saldo digital   | Efectivo recargas celular                |
-| `CAJA_BUS`     | Bus          | Saldo digital   | Efectivo recargas bus                    |
+| Código BD      | Nombre en UI | Subtítulo       | Rol                                      | Tipo       |
+| -------------- | ------------ | --------------- | ---------------------------------------- | ---------- |
+| `CAJA`         | Tienda       | Efectivo        | Vault de depósitos acumulados            | Base       |
+| `CAJA_CHICA`   | Cajón        | Cajón diario    | Efectivo del día (ventas POS + recargas) | Base       |
+| `VARIOS`       | Varios       | Fondo emergencia| Fondo de emergencia para gastos imprevistos | Opt-in   |
+| `CAJA_CELULAR` | Celular      | Saldo digital   | Efectivo recargas celular                | Opt-in (superadmin) |
+| `CAJA_BUS`     | Bus          | Saldo digital   | Efectivo recargas bus                    | Opt-in (superadmin) |
 
 > No renombrar los códigos de BD. Solo los labels de UI difieren.
 > **v5 (2026-03-06):** `CAJA_CHICA` es ahora el cajón físico diario. `VARIOS` es el fondo de emergencia (antes era `CAJA_CHICA` en BD).
+> **2026-05-01:** VARIOS pasa a opt-in. CELULAR/BUS solo se crean si el superadmin habilita el módulo en Parámetros → Módulos. Las funciones SQL del cierre ya manejan el caso "Varios desactivada" (`caja_varios_activa = false` → `transferencia_diaria = 0` en cascada).
+> **2026-06-11:** VARIOS pasa a potestad del ADMIN del negocio — activable/desactivable desde Parámetros → Caja Varios (`fn_configurar_caja_varios`, reversible). Desactivar exige saldo $0 y pone `cajas.activo = FALSE` (oculta sin borrar historial). El superadmin ya no gestiona Varios.
+> **v6.3 (2026-05-30):** `fn_ejecutar_cierre_diario` simplificó la distribución — todo el efectivo se deposita al cerrar, sin retener el fondo en el cajón. El fondo del próximo turno lo declara el empleado al abrir (`turnos_caja.fondo_apertura`).
+
+---
+
+## Storage multi-tenant — patrón obligatorio
+
+Toda subida de archivos usa un **único bucket `mi-tienda`** con aislamiento por `negocio_id` al inicio del path. Nunca crear buckets separados por módulo ni por negocio.
+
+### Estructura de paths
+
+```
+mi-tienda/
+  {negocio_id}/
+    comprobantes/YYYY/MM/operaciones/{uuid}.webp   ← comprobantes de caja
+    productos/{categoria}/{uuid}.webp              ← fotos de productos
+```
+
+### API de StorageService
+
+```typescript
+// Flujo completo: elegir fuente → cropper → blob listo para uploadImage()
+// initialRatio default 'cuadrado' (ideal catálogo); lockRatio para fijar; withCrop:false para comprobantes
+const result = await this.storageService.elegirFuenteFoto();
+if (!result) return;
+this.fotoPreviewUrl = result.previewUrl; // SafeUrl → <img [src]>
+this.fotoRawUrl     = result.rawUrl;     // blob: URL → uploadImage()
+
+// Re-cropear una imagen existente (sin retomar foto) — para "Recortar de nuevo"
+const result = await this.storageService.recortarImagen(this.fotoRawUrl ?? imagenUrlExistente);
+
+// Menú estándar "Recortar / Cambiar / Quitar"
+const accion = await this.storageService.mostrarOpcionesImagen();
+// → 'recortar' | 'cambiar' | 'quitar' | null
+
+// Subir imagen — negocio_id se inyecta internamente
+const path = await this.storageService.uploadImage(rawUrl, 'comprobantes/operaciones');
+const path = await this.storageService.uploadImage(rawUrl, `productos/${subfolder}`, false);
+
+// Reemplazar imagen + eliminar la anterior atómicamente
+const path = await this.storageService.replaceImage(rawUrl, 'productos/bebidas', oldPath, false);
+
+// Resolver path → URL firmada (acepta lista en paralelo)
+const url  = await this.storageService.getSignedUrl(path);
+const urls = await this.storageService.resolveImageUrls([path1, path2, path3]);
+
+// Eliminar (rollback si RPC falla, o al limpiar)
+await this.storageService.deleteFile(path);
+```
+
+Detalles del pipeline (calidad, blob URLs, ratios, menú "Recortar/Cambiar/Quitar"): ver [docs/core/CORE-README.md](docs/core/CORE-README.md) → StorageService y [docs/shared/SHARED-README.md](docs/shared/SHARED-README.md) → `app-image-cropper-modal`.
+
+### Reglas críticas
+
+- **Nunca pasar `bucket` como parámetro** — el bucket (`mi-tienda`) es constante definido en `StorageService`. Los callers solo pasan `subfolder`.
+- **Nunca pasar `negocio_id` como parámetro** — `StorageService` lo lee directamente de `AuthService.usuarioActualValue?.negocio_id`.
+- **Subfolder describe el tipo de contenido**, no el negocio: `'comprobantes/operaciones'`, `'productos/bebidas'`.
+- **Rollback obligatorio**: si el RPC falla después de un upload exitoso, llamar `deleteFile(path)` para no dejar huérfanos en Storage.
+- **El path que retorna `uploadImage()` es lo que se guarda en BD** — nunca guardar URLs firmadas ni públicas en la base de datos.
+
+### RLS de Storage — leer siempre del JWT, nunca de `auth.users`
+
+Las políticas RLS sobre `storage.objects` deben leer el `negocio_id` **del JWT del request**, no haciendo una subquery a `auth.users`. La subquery a `auth.users` falla silenciosamente porque en el contexto de un request de Storage el rol es `authenticated` y `auth.uid()` puede no resolver correctamente dentro de esa subquery.
+
+```sql
+-- ❌ Incorrecto — subquery a auth.users falla en contexto Storage
+WITH CHECK (
+    bucket_id = 'mi-tienda'
+    AND (storage.foldername(name))[1] = (
+        SELECT raw_app_meta_data->>'negocio_id'
+        FROM auth.users WHERE id = auth.uid()
+    )
+);
+
+-- ✅ Correcto — leer directamente del JWT (mismo mecanismo que get_negocio_id())
+WITH CHECK (
+    bucket_id = 'mi-tienda'
+    AND (storage.foldername(name))[1] = (auth.jwt() -> 'app_metadata' ->> 'negocio_id')
+);
+```
+
+`auth.jwt() -> 'app_metadata' ->> 'negocio_id'` es exactamente lo que usa `public.get_negocio_id()` — la fuente de verdad para RLS en toda la app. Las políticas de Storage siguen el mismo patrón. Ver `docs/setup/03_storage_rls.sql`.
+
+### Al agregar un nuevo tipo de archivo
+
+1. Definir el subfolder descriptivo (ej: `'notas/adjuntos'`)
+2. Llamar `uploadImage(rawUrl, 'notas/adjuntos')` — el path resultante será `{negocio_id}/notas/adjuntos/YYYY/MM/{uuid}.webp`
+3. Guardar el path en BD
+4. Para visualizar: `getSignedUrl(path)` si el bucket es privado, `getPublicUrl(path)` si es público
 
 ---
 
 ## No hacer
 
+- No hardcodear strings de rutas en `navigate()`, `navigateForward()`, `navigateBack()` ni `routerLink` — usar siempre `ROUTES` de `core/config/routes.config.ts`
 - No usar `new Date().toISOString()` para fechas locales
 - No subir fotos a resolución completa
 - No hardcodear valores de negocio en código
 - No hacer múltiples INSERT/UPDATE sueltos para operaciones relacionadas → usar función SQL
 - No usar constructor para inyección de dependencias → usar `inject()`
 - No crear componentes sin `standalone: true`
-- No formatear moneda manualmente → usar `CurrencyService`
+- No formatear moneda manualmente → usar `AppCurrencyPipe` (`| appCurrency`) en templates o `CurrencyService.format()` en TS. Nunca `| number:'1.2-2'`, `| number:'1.0-0'` ni `.toFixed()` en templates — ver sección "Formateo de dinero"
 - No mostrar `console.log` en producción → usar `LoggerService`
 - No dejar footers/paneles inferiores sin `env(safe-area-inset-bottom)` → ver sección "Safe area en Android"
 - No usar `ActionSheetController`, `PopoverController` ni `ion-select` → usar `OptionsModalComponent` (modo acción o modo selección). `<select>` nativo solo dentro de formularios con `formControlName`
 - No dejar botones de acción habilitados durante operaciones async → usar flag `guardando`/`procesando` + `[disabled]`
 - No crear subscriptions (`.subscribe()`) sin cleanup en `ngOnDestroy()` → evitar memory leaks
 - No usar `console.error()` en servicios → usar `LoggerService.error()` para que quede en los logs del dispositivo
+- No crear funciones SQL de mutación sin `PERFORM public.fn_assert_no_superadmin();` al inicio
+- No agregar una tabla nueva sin su política RESTRICTIVE `superadmin_no_write` en `docs/setup/02_rls.sql`
+- No envolver el cuerpo de una función SQL con `EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'Error...'` — enmascara el `SQLSTATE` original y rompe el debugging en producción. Dejá que el error propague con su mensaje real. Solo es válido `EXCEPTION WHEN unique_violation` (u otras condiciones específicas) cuando manejás un caso concreto, p.ej. idempotencia.
+- No confiar en RLS dentro de funciones `SECURITY DEFINER` — `SECURITY DEFINER` bypassa RLS. Toda función de este tipo DEBE filtrar manualmente por `negocio_id = public.get_negocio_id()` en cada query, y validar la pertenencia al negocio de todo ID externo que reciba (`p_turno_id`, `p_categoria_id`, `p_empleado_id`, etc.). Sin esto un usuario puede pasar IDs de otro tenant y mutar datos cruzados.
+- No crear políticas RLS adicionales en los scripts de Realtime (`realtime_*.sql`) — las políticas `*_select` de `02_rls.sql` ya cubren el acceso. Una política extra con `USING (true)` se combina con OR con la existente y anula el filtro de `negocio_id`, exponiendo datos de todos los negocios a cualquier usuario autenticado. Realtime respeta las políticas ya existentes sin necesitar una propia. Si existe una política así del pasado, eliminarla con `DROP POLICY IF EXISTS`.
+- No usar `(fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha` en cláusulas WHERE — la conversión rompe el uso del índice y degrada a sequential scan. Convertir el rango a UTC en variables antes del WHERE y comparar `fecha >= v_inicio_utc AND fecha < v_fin_utc`.
+- No ocultar botones de acción al superadmin en el frontend — la seguridad está en la BD (RLS + `fn_assert_no_superadmin`). El superadmin necesita ver el flujo completo para dar soporte. Si intenta ejecutar una acción, recibe el toast de error de la BD.
+- No llamar a `Camera.getPhoto` directamente — usar siempre `StorageService.elegirFuenteFoto()` (incluye selección de fuente + cropper). `capturarFoto()` es API de bajo nivel solo para casos puntuales sin cropper
+- No pasar `bucket` ni `negocio_id` a los métodos de `StorageService` — el bucket es `mi-tienda` (constante interna) y el `negocio_id` se inyecta automáticamente. Solo pasar el `subfolder` descriptivo
+- No guardar URLs firmadas ni URLs públicas en la BD — guardar siempre el `path` que retorna `uploadImage()`
+- No usar `IonInfiniteScroll` fuera de `ion-content` — lanza error en runtime. En modales bottom-sheet (que usan `div.bs-content` con `overflow-y: auto`), reemplazar por un botón "Cargar más" nativo
+- No agregar scroll horizontal manual con `wheel` en desktop — usar la directiva `appHorizontalScroll` de `shared/directives/horizontal-scroll.directive.ts`
 
 ---
 
@@ -710,20 +1262,31 @@ bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 
 | Módulo              | Doc principal                                              |
 | ------------------- | ---------------------------------------------------------- |
-| Dashboard           | `docs/dashboard/DASHBOARD-README.md`                       |
+| Caja                | `docs/caja/DASHBOARD-README.md`                            |
 | Auth                | `docs/auth/AUTH-README.md`                                 |
+| Usuarios            | `docs/usuarios/USUARIOS-README.md`                         |
 | Recargas Virtuales  | `docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md`     |
 | Inventario          | `docs/inventario/INVENTARIO-README.md`                     |
 | POS                 | `docs/pos/POS-README.md`                                   |
 | Ventas              | `docs/ventas/VENTAS-README.md`                             |
-| Cuentas por Cobrar  | `docs/cuentas-cobrar/CUENTAS-COBRAR-README.md`             |
-| Clientes            | `docs/clientes/CLIENTES-README.md`                         |
+| Clientes y Créditos | `docs/clientes/CLIENTES-README.md`                         |
 | Core/Servicios      | `docs/core/CORE-README.md`                                 |
-| Sistema de diseño   | `docs/DESIGN.md`                                           |
+| Sistema de diseño   | `docs/guides/DESIGN.md`                                    |
 | Shared              | `docs/shared/SHARED-README.md`                             |
-| Estructura/Patrones | `docs/ESTRUCTURA-PROYECTO.md`                              |
-| Schema BD           | `docs/schema.sql`                                          |
+| Estructura/Patrones | `docs/guides/ESTRUCTURA-PROYECTO.md`                       |
+| Schema BD           | `docs/setup/schema.sql`                                    |
 | Configuracion       | `docs/configuracion/CONFIGURACION-README.md`               |
-| Arquitectura cajas  | `docs/ARQUITECTURA.md`                                     |
-| Mov. Empleados      | `docs/movimientos-empleados/PLAN-IMPLEMENTACION.md`        |
+| Arquitectura cajas  | `docs/guides/ARQUITECTURA.md`                              |
+| Mov. Empleados      | `docs/movimientos-empleados/MOVIMIENTOS-EMPLEADOS-README.md` |
 | App icon & splash   | `docs/assets/ASSETS-README.md`                             |
+| Notas               | `docs/notas/NOTAS-README.md`                               |
+| Layout              | `docs/layout/LAYOUT-README.md`                             |
+| Historial Recargas  | `docs/historial-recargas/HISTORIAL-RECARGAS-README.md`     |
+| Crear Negocio       | `docs/crear-negocio/CREAR-NEGOCIO-README.md`               |
+| Auditoría producción | `docs/guides/AUDITORIA-PRODUCCION-2026-05-07.md`          |
+| Auditoría SQL 2026-05 | `docs/guides/RESUMEN-AUDITORIA-SQL-2026-05-30.md` (documento único — consolidado 2026-06-10) |
+| Performance arranque | `docs/guides/PERFORMANCE-STARTUP.md`                       |
+| Builds Android / entornos | `docs/guides/ANDROID-BUILD.md`                        |
+| Planes / Suscripciones | `docs/PLAN-PLANES-SUSCRIPCION.md` (monetización SaaS — plan por fases) |
+| Suscripciones (módulo) | `docs/suscripcion/SUSCRIPCION-README.md` |
+| Pendientes / backlog técnico | `docs/PENDIENTES.md` (al completar un ítem, borrarlo del archivo) |

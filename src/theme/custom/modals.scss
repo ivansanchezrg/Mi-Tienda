@@ -1,9 +1,54 @@
 /**
- * Modals — Estilos globales de modales
+ * Modals — Estilos globales de modales bottom-sheet
  * ============================================================================
- * Clases reutilizables para todos los modales de la app.
- * Los estilos de modal van aquí porque los overlays de Ionic escapan el
- * encapsulamiento de componentes (shadow DOM) y deben definirse globalmente.
+ * Los overlays de Ionic escapan el encapsulamiento de componentes (shadow DOM)
+ * y deben definirse globalmente. Aquí vive TODO el layout de modales bottom-sheet.
+ *
+ * ── Patrón estándar para todo modal bottom-sheet ──────────────────────────────
+ *
+ * 1. Apertura desde el código (ModalController):
+ *    ```ts
+ *    const modal = await this.modalCtrl.create({
+ *      component: MiModalComponent,
+ *      cssClass: 'bottom-sheet-modal',
+ *      breakpoints: [0, 1],
+ *      initialBreakpoint: 1,
+ *    });
+ *    ```
+ *
+ * 2. Template del componente (HTML):
+ *    ```html
+ *    <div class="bs-root">
+ *      <div class="bs-header">
+ *        <div class="bs-header__icon"><ion-icon name="..."></ion-icon></div>
+ *        <span class="bs-header__title">Título</span>
+ *        <button class="bs-header__close" (click)="cerrar()">
+ *          <ion-icon name="close-outline"></ion-icon>
+ *        </button>
+ *      </div>
+ *      <div class="bs-content">
+ *        <div class="bs-body">
+ *          <!-- form, campos, lista... -->
+ *        </div>
+ *      </div>
+ *      <div class="bs-actions bs-actions--row">
+ *        <ion-button fill="outline" (click)="cerrar()">Cancelar</ion-button>
+ *        <ion-button (click)="confirmar()">Confirmar</ion-button>
+ *      </div>
+ *    </div>
+ *    ```
+ *
+ * 3. SCSS local del componente — SOLO color del icono propio:
+ *    ```scss
+ *    .bs-header__icon {
+ *      background: rgba(var(--ion-color-primary-rgb), 0.10);
+ *      ion-icon { color: var(--ion-color-primary); }
+ *    }
+ *    ```
+ *
+ * Nota: usar div nativo para .bs-content (no ion-content) — ion-content
+ * colapsa a 0px con --height:auto porque no tiene referencia de altura.
+ * El scroll lo maneja overflow-y:auto del div.
  */
 
 // ── Date Picker (ion-datetime-button en Ventas) ───────────────────────────
@@ -13,37 +58,193 @@
   align-items: flex-end;
 }
 
+// ── Image Cropper Modal — fullscreen con fondo negro ─────────────────────
+// ImageCropperModalComponent: ocupa toda la pantalla para maximizar el área de recorte.
+// En Android el modal cubre status bar y nav bar — el header maneja safe-area-inset-top
+// y .icm-actions maneja safe-area-inset-bottom. El fondo negro se extiende edge-to-edge.
+ion-modal.image-cropper-modal {
+  --width: 100vw;
+  --height: 100vh;
+  --max-width: 100vw;
+  --max-height: 100vh;
+  --border-radius: 0;
+  --background: #000;
+  // Cubrir toda la pantalla incluyendo status bar (Android) y safe areas
+  align-items: stretch;
+  justify-content: stretch;
+
+  @media (min-width: 768px) {
+    --width: 540px;
+    --height: 720px;
+    --max-width: 540px;
+    --max-height: 720px;
+    --border-radius: 20px;
+    --box-shadow: var(--shadow-level-4);
+    align-items: center;
+    justify-content: center;
+  }
+
+  // Forzar que el wrapper interno también ocupe 100% sin respetar margins
+  &::part(content) {
+    width: 100%;
+    height: 100%;
+  }
+}
+
 // ── Options Modal (menú contextual tipo bottom sheet) ─────────────────────
 // OptionsModalComponent: lista corta de acciones, sin scroll interno.
 ion-modal.options-modal {
   --height: auto;
   --border-radius: var(--radius-xl, 16px) var(--radius-xl, 16px) 0 0;
-  --box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+  --box-shadow: var(--shadow-level-3);
 }
 
-// ── Bottom Sheet Modal — clase genérica reutilizable ──────────────────────
-// Usar con: breakpoints: [0,1] + initialBreakpoint: 1 + div.modal-wrapper (sin ion-content).
-// NO usar para modales con scroll interno largo → bloquea el swipe en Android.
-// Ejemplos: nueva-nota-modal, cuadre-caja.
+// ── Bottom Sheet — se ajusta al contenido, scroll cuando supera el tope ──
+// Patrón: div.bs-root → div.bs-content (overflow-y:auto) → div.bs-actions
+// NO usar ion-content adentro — colapsa con --height:auto.
 ion-modal.bottom-sheet-modal {
   --height: auto;
-  --border-radius: var(--radius-xl, 16px) var(--radius-xl, 16px) 0 0;
-  --box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+  --background: transparent;
+  --box-shadow: var(--shadow-level-3);
+
+  @media (min-width: 768px) {
+    --max-width: 520px;
+  }
+
+  .bs-root {
+    max-height: 90svh;
+    border-radius: 16px 16px 0 0;
+
+    @media (min-width: 768px) {
+      max-height: 680px;
+      border-radius: 16px;
+    }
+  }
 }
 
-// ── Estructura interna estándar ───────────────────────────────────────────
-// .modal-wrapper   → div raíz que reemplaza ion-content
-// .modal-header    → fila icono + título + botón X
-// .modal-actions   → fila de botones al pie
-// El color de .modal-header-icon es específico de cada componente (SCSS local).
+// ─────────────────────────────────────────────────────────────────────────────
+// Estructura interna estándar — clases bs-* (Bottom Sheet)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Raíz: ocupa todo el espacio asignado por el sheet, header/footer fijos
+.bs-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--app-bg);
+  overflow: hidden;
+}
+
+// Header fijo arriba — icono + título + botón cerrar
+.bs-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 20px var(--spacing-xl) 16px;
+  flex-shrink: 0;
+}
+
+.bs-header__icon {
+  display: none;
+}
+
+.bs-header__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ion-text-color);
+  flex: 1;
+}
+
+.bs-header__close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  ion-icon {
+    font-size: 22px;
+    color: var(--ion-color-medium);
+    --ionicon-stroke-width: 56;
+  }
+}
+
+// Área scrollable — div nativo con overflow-y: auto (no ion-content: colapsa con --height:auto)
+.bs-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+// Wrapper del contenido dentro de ion-content (padding y gaps)
+.bs-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  padding: 4px var(--spacing-xl) 24px;
+}
+
+// Footer fijo al pie con safe-area
+.bs-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-xl);
+  padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--app-divider);
+  flex-shrink: 0;
+  background: var(--app-bg);
+
+  ion-button {
+    --border-radius: var(--radius-sm, 14px);
+    height: 48px;
+    margin: 0;
+  }
+
+  // Variante: botones en fila (2 acciones cortas tipo Cancelar/Confirmar)
+  &--row {
+    flex-direction: row;
+
+    ion-button {
+      flex: 1;
+      height: 44px;
+      font-size: 14px;
+    }
+  }
+
+  // Variante: compacta (botón centrado, ancho por contenido).
+  // Alto 44px: mínimo táctil (Apple HIG 44pt / Material 48dp / WCAG 2.5.5) —
+  // lo "compacto" lo da el ancho según contenido, no un alto sub-estándar.
+  &--compact {
+    flex-direction: row;
+    justify-content: center;
+
+    ion-button {
+      height: 44px;
+      font-size: 13px;
+      --padding-start: var(--spacing-xl);
+      --padding-end: var(--spacing-xl);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY — clases viejas, mantener mientras se migran los modales
+// TODO: eliminar cuando ya nadie use .modal-wrapper / .modal-header / .modal-actions
+// ─────────────────────────────────────────────────────────────────────────────
 
 .modal-wrapper {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
   padding: var(--spacing-xl);
-  background: var(--ion-color-light);
-
+  padding-top: 28px;
+  background: var(--app-bg);
 }
 
 .modal-header {
@@ -61,9 +262,7 @@ ion-modal.bottom-sheet-modal {
   justify-content: center;
   flex-shrink: 0;
 
-  ion-icon {
-    font-size: 18px;
-  }
+  ion-icon { font-size: 18px; }
 }
 
 .modal-header-title {
@@ -78,7 +277,7 @@ ion-modal.bottom-sheet-modal {
   height: 36px;
   border-radius: 50%;
   border: none;
-  background: var(--ion-color-step-100, #f0f0f0);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -86,8 +285,9 @@ ion-modal.bottom-sheet-modal {
   flex-shrink: 0;
 
   ion-icon {
-    font-size: 20px;
+    font-size: 22px;
     color: var(--ion-color-medium);
+    --ionicon-stroke-width: 56;
   }
 }
 
@@ -102,7 +302,6 @@ ion-modal.bottom-sheet-modal {
     height: 52px;
   }
 
-  // Variante horizontal — botones en fila, más compactos
   &--row {
     flex-direction: row;
 
@@ -113,8 +312,6 @@ ion-modal.bottom-sheet-modal {
     }
   }
 
-  // Variante compacta — botones de ancho fijo, alineados a la derecha
-  // Para modales de herramienta/info (calculadora, cuadre)
   &--compact {
     flex-direction: row;
     justify-content: center;

@@ -3,22 +3,11 @@
     <div class="auth-card">
 
       <div class="pending-icon-wrap">
-        <ion-icon name="time-outline"></ion-icon>
+        <ion-icon [name]="icono"></ion-icon>
       </div>
 
-      @if (esNuevo) {
-        <h1>Registro exitoso</h1>
-        <p class="pending-message">
-          Tu cuenta fue creada. Un administrador debe
-          aprobarla antes de que puedas ingresar.
-        </p>
-      } @else {
-        <h1>Aprobación pendiente</h1>
-        <p class="pending-message">
-          Tu solicitud está siendo revisada.<br>
-          Volvé a intentarlo cuando el administrador te dé acceso.
-        </p>
-      }
+      <h1>{{ titulo }}</h1>
+      <p class="pending-message">{{ mensaje }}</p>
 
       <div class="pending-actions">
         <ion-button expand="block" (click)="reintentar()" [disabled]="verificando">

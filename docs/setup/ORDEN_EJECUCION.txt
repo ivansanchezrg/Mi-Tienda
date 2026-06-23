@@ -1,0 +1,263 @@
+================================================================================
+ORDEN DE EJECUCION EN SUPABASE — Mi Tienda
+================================================================================
+
+Fecha: 2026-05-30
+Proposito: Reset completo de la base de datos en dev. Ejecutar en este orden
+exacto desde el SQL Editor de Supabase. Cada bloque depende de los anteriores.
+
+NOTAS GENERALES:
+  - El paso 1 (teardown) es DESTRUCTIVO. Solo en dev / staging.
+  - Despues de cada bloque conviene refrescar el cache de PostgREST
+    ("Database > API" en Supabase). Las funciones ya emiten NOTIFY pgrst,
+    'reload schema' al final, pero un refresh manual no esta de mas.
+  - Si algun script falla a medias, revisar el error, corregir y re-ejecutar.
+    Todos los scripts son idempotentes (DROP IF EXISTS + CREATE OR REPLACE).
+
+================================================================================
+1. TEARDOWN (solo dev — destruye todo)
+================================================================================
+
+  docs/setup/01_teardown.sql
+
+================================================================================
+2. SCHEMA + DATOS GLOBALES
+================================================================================
+
+  docs/setup/schema.sql
+
+  Contiene:
+    - Todas las tablas + ENUMs + indices + triggers inline
+    - Vistas con security_barrier (incluye v_operaciones_cajas)
+    - Helpers JWT (get_negocio_id, get_email, get_rol, get_es_superadmin,
+      comparten_negocio)
+    - Seeds globales (tipos_servicio, tipos_referencia)
+    - Funcion fn_set_negocio_activo (la unica funcion de setup que vive
+      directo en schema.sql; el resto vive en 03_functions.sql)
+    - FK diferida: negocios.propietario_usuario_id -> usuarios.id
+
+  docs/setup/04_categorias_sistema.sql
+
+  OBLIGATORIO tras schema.sql: seed del catalogo global categorias_sistema
+  (UUIDs fijos). Sin este seed, cierre de turno, nomina, recargas y
+  anulaciones fallan — las funciones referencian estos UUIDs por codigo
+  (CIE-SIN-POS, SALARIOS, VENTA-POS, etc.). Idempotente (ON CONFLICT DO NOTHING).
+
+================================================================================
+3. ROW LEVEL SECURITY (fuente unica de verdad)
+================================================================================
+
+  docs/setup/02_rls.sql
+
+  Cubre todas las tablas en un solo archivo:
+    - Identidad: usuarios, usuario_negocios, negocios
+    - Tablas con negocio_id: cajas, configuraciones, turnos_caja, ventas, etc.
+    - Pivots sin negocio_id: ventas_detalles, producto_atributos, etc.
+    - Catalogos globales (solo lectura): tipos_servicio, tipos_referencia
+
+================================================================================
+4. STORAGE RLS (politicas del bucket mi-tienda)
+================================================================================
+
+  docs/setup/03_storage_rls.sql
+
+  Crea las 4 politicas RLS sobre storage.objects para el bucket 'mi-tienda':
+    INSERT / SELECT / UPDATE / DELETE — solo dentro de la carpeta {negocio_id}/
+  Prerequisito: el bucket 'mi-tienda' debe existir en Supabase Storage.
+  No es destructivo — se puede re-ejecutar si se necesita recrear las politicas.
+
+================================================================================
+5. FUNCIONES DE SETUP (compartidas globalmente)
+================================================================================
+
+  docs/setup/03_functions.sql
+
+  Incluye fn_set_negocio_activo y otras funciones de uso global.
+
+  docs/setup/fn_assert_no_superadmin.sql
+
+  IMPORTANTE: debe ejecutarse antes de cualquier funcion de modulo.
+  Todas las funciones de mutacion la llaman con PERFORM al inicio.
+
+================================================================================
+6. TRIGGERS DE PROTECCION (auth — antes de crear negocios/usuarios)
+================================================================================
+
+  docs/auth/sql/setup/trigger_proteger_superadmin.sql
+    (incluye politica RLS DELETE que blinda al superadmin)
+  docs/auth/sql/setup/trigger_proteger_propietario.sql
+
+================================================================================
+7. FUNCIONES DEL FLUJO DE CREACION DE NEGOCIOS / TENANCY
+================================================================================
+
+  Orden importante (la primera depende de las tablas, las siguientes pueden ir
+  en cualquier orden entre si):
+
+  docs/onboarding/sql/functions/fn_completar_onboarding.sql
+  docs/onboarding/sql/functions/fn_configurar_modulos.sql
+  docs/admin/sql/functions/fn_configurar_modulos_admin.sql
+
+================================================================================
+8. FUNCIONES DE MODULOS (orden libre — solo dependen de schema + RLS)
+================================================================================
+
+  Auth:
+    docs/auth/sql/functions/fn_validar_sesion.sql
+
+  Admin / Usuarios:
+    docs/admin/sql/functions/fn_consultar_usuario_por_email.sql
+    docs/usuarios/sql/functions/fn_actualizar_membresia.sql
+    docs/usuarios/sql/functions/fn_transferir_empleado.sql
+
+  Caja (turnos, operaciones, cierre diario):
+    docs/caja/sql/functions/fn_abrir_turno.sql
+    docs/caja/sql/functions/fn_registrar_operacion_manual.sql
+    docs/caja/sql/functions/fn_crear_transferencia.sql
+    docs/caja/sql/functions/fn_ejecutar_cierre_diario_v5.sql
+    docs/caja/sql/functions/fn_reparar_deficit_turno.sql
+    docs/caja/sql/functions/fn_listar_cierres_turno.sql
+    docs/caja/sql/functions/fn_home_dashboard.sql
+
+  Inventario:
+    docs/inventario/sql/functions/fn_generar_codigo_interno.sql
+    docs/inventario/sql/functions/fn_generar_codigo_interno_presentacion.sql
+    docs/inventario/sql/functions/fn_listar_productos.sql
+    docs/inventario/sql/functions/fn_crear_producto_simple.sql
+    docs/inventario/sql/functions/fn_crear_producto_con_variantes.sql
+    docs/inventario/sql/functions/fn_ajustar_stock_inventario.sql
+
+  POS:
+    docs/pos/sql/functions/fn_buscar_productos_pos.sql
+    docs/pos/sql/functions/fn_catalogo_productos_pos.sql
+    docs/pos/sql/functions/fn_registrar_venta_pos.sql
+
+  Recargas Virtuales:
+    docs/recargas-virtuales/sql/functions/fn_registrar_recarga_proveedor_celular.sql
+    docs/recargas-virtuales/sql/functions/fn_pagar_proveedor_celular.sql
+    docs/recargas-virtuales/sql/functions/fn_registrar_compra_saldo_bus.sql
+    docs/recargas-virtuales/sql/functions/fn_liquidar_ganancias.sql
+
+  Clientes / Cuentas por Cobrar:
+    docs/clientes/sql/functions/fn_listar_clientes_con_saldo.sql
+    docs/clientes/sql/functions/fn_registrar_pago_fiado.sql
+    docs/clientes/sql/functions/fn_resumir_cuentas_cobrar.sql
+
+  Ventas:
+    docs/ventas/sql/functions/fn_listar_ventas.sql
+    docs/ventas/sql/functions/fn_reporte_ventas_periodo.sql
+    docs/ventas/sql/functions/fn_anular_venta.sql
+
+  Movimientos Empleados:
+    docs/movimientos-empleados/sql/functions/fn_registrar_adelanto_sueldo.sql
+    docs/movimientos-empleados/sql/functions/fn_pagar_nomina_empleado.sql
+
+  Notas:
+    (sin funciones — DELETE directo con RLS desde 2026-05-07)
+
+  Suscripciones / Monetizacion:
+    docs/suscripcion/sql/functions/fn_estado_suscripcion.sql
+    docs/suscripcion/sql/functions/fn_registrar_pago_propietario.sql   (pago / renovacion por dueño)
+    docs/suscripcion/sql/functions/fn_suspender_propietario_suscripcion.sql
+    docs/suscripcion/sql/functions/fn_listar_suscripciones_admin.sql
+
+================================================================================
+9. VISTAS
+================================================================================
+
+  docs/movimientos-empleados/sql/views/v_saldos_empleados.sql
+  docs/caja/sql/views/v_operaciones_cajas.sql
+    (schema.sql ya la crea; este archivo es la fuente de verdad para
+     re-ejecutarla suelta — historial de operaciones con categoria unificada)
+
+================================================================================
+10. TRIGGERS DE NEGOCIO
+================================================================================
+
+  docs/configuracion/sql/triggers/trg_set_codigo_categoria_operacion.sql
+  docs/pos/sql/triggers/trg_actualizar_caja_por_venta.sql
+  docs/pos/sql/triggers/trg_descontar_stock_venta.sql
+
+================================================================================
+11. REALTIME (publicar tablas para websocket)
+================================================================================
+
+  docs/configuracion/sql/setup/realtime_configuraciones.sql
+  docs/caja/sql/setup/realtime_turnos_caja.sql
+  docs/caja/sql/setup/realtime_cajas.sql
+  docs/usuarios/sql/setup/realtime_usuario_negocios.sql
+  docs/suscripcion/sql/setup/realtime_suscripciones.sql
+
+  IMPORTANTE: cada vez que se re-ejecuta schema.sql, los DROP TABLE CASCADE
+  borran las publicaciones Realtime y hay que volver a correr estos archivos.
+  Sintoma si se olvidan: cambios en BD no se propagan en tiempo real;
+  hay que navegar/refrescar para verlos.
+
+================================================================================
+12. SEEDS DE DESARROLLO (opcional, solo en dev)
+================================================================================
+
+  docs/inventario/sql/seeds/seed_productos_prueba.sql
+  docs/ventas/sql/seeds/seed_ventas_prueba.sql
+    (requiere que ya exista al menos un negocio creado via
+     fn_completar_onboarding)
+
+================================================================================
+13. MIGRACIONES INCREMENTALES (PRODUCCION — NO destructivas)
+================================================================================
+
+  Las migraciones en docs/setup/migrations/ son para aplicar cambios sobre una
+  BD que YA tiene datos reales, SIN ejecutar el teardown/schema (que borrarian todo).
+  Son idempotentes (IF NOT EXISTS / ON CONFLICT / OR REPLACE) y re-ejecutables.
+
+  001_planes_suscripciones.sql — Sistema de planes y suscripciones (monetizacion).
+    Crea: planes, metodos_pago_suscripcion, config_plataforma, suscripciones + RLS + seeds.
+    Tras ejecutar el archivo de migracion, ejecutar tambien (funciones, fuente de verdad):
+      docs/onboarding/sql/functions/fn_completar_onboarding.sql   (REEMPLAZO)
+      docs/suscripcion/sql/functions/fn_estado_suscripcion.sql
+      docs/suscripcion/sql/functions/fn_registrar_pago_propietario.sql
+      docs/suscripcion/sql/functions/fn_suspender_propietario_suscripcion.sql
+    El bloque 5 de la migracion crea suscripcion para los negocios existentes
+    (evita que se autobloqueen al activar el guard del frontend).
+
+  002_planes_precio_anual.sql — Precio dual (mensual + anual) en planes.
+    Ver docs/setup/migrations/002_planes_precio_anual.sql (cabecera del archivo).
+
+  003_planes_max_negocios.sql — Limite de negocios por plan (PRO=1, MAX=3).
+    Tras ejecutar, re-ejecutar:
+      docs/onboarding/sql/functions/fn_completar_onboarding.sql   (REEMPLAZO)
+
+  004_eliminar_usuarios_activo.sql — Elimina usuarios.activo (suspension global obsoleta,
+    reemplazada por suspension de suscripcion por propietario).
+    ANTES de ejecutar: reactivar manualmente cualquier usuario con activo=false que
+    deba seguir operando (UPDATE usuarios SET activo = true WHERE activo = false).
+    Tras ejecutar, re-ejecutar (toman la nueva firma sin `activo`):
+      docs/setup/03_functions.sql                          (fn_set_negocio_activo)
+      docs/auth/sql/functions/fn_validar_sesion.sql
+
+  005_suscripciones_estado_pagos.sql — Modelo de 2 tablas: estado + historial financiero.
+    suscripciones pasa a 1 fila por negocio (negocio_id UNIQUE, estado mutable via UPDATE);
+    crea suscripcion_pagos (libro de cobros inmutable); quita config_plataforma.mensaje_suspension;
+    pone REPLICA IDENTITY FULL en suscripciones (Realtime escucha UPDATE).
+    Tras ejecutar, re-ejecutar las 5 funciones (usan el nuevo modelo):
+      docs/onboarding/sql/functions/fn_completar_onboarding.sql
+      docs/suscripcion/sql/functions/fn_registrar_pago_propietario.sql
+      docs/suscripcion/sql/functions/fn_suspender_propietario_suscripcion.sql
+      docs/suscripcion/sql/functions/fn_estado_suscripcion.sql
+      docs/suscripcion/sql/functions/fn_listar_suscripciones_admin.sql
+
+================================================================================
+DESPUES DE TODOS LOS PASOS
+================================================================================
+
+  - Refrescar PostgREST en Supabase (Database > API > Reload schema cache)
+  - Recargar la app en el browser / reiniciar la app movil para que los
+    canales Realtime se conecten a las nuevas publicaciones.
+  - Verificar policies con:
+
+      SELECT tablename, policyname, cmd
+      FROM pg_policies
+      WHERE schemaname = 'public'
+      ORDER BY tablename, cmd;
+
+================================================================================

@@ -1,0 +1,91 @@
+<div class="bs-root">
+
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="phone-portrait-outline"></ion-icon>
+    </div>
+    <span class="bs-header__title">Módulos</span>
+    <button class="bs-header__close" (click)="cerrar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <div class="bs-body">
+
+      <p class="modal-negocio-nombre">{{ negocio.nombre }}</p>
+
+      <div class="modulos-list">
+
+        <div class="modulo-row">
+          <div class="modulo-info">
+            <div class="modulo-icon modulo-icon--celular">
+              <ion-icon name="phone-portrait-outline"></ion-icon>
+            </div>
+            <div class="modulo-text">
+              <span class="modulo-label">Recargas Celular</span>
+              <span class="modulo-desc">Habilita caja, historial y deudas con proveedor</span>
+            </div>
+          </div>
+          <button
+            class="toggle-btn"
+            [class.toggle-btn--on]="celular"
+            (click)="celular = !celular"
+            [disabled]="guardando">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+
+        <div class="modulo-row">
+          <div class="modulo-info">
+            <div class="modulo-icon modulo-icon--bus">
+              <ion-icon name="bus-outline"></ion-icon>
+            </div>
+            <div class="modulo-text">
+              <span class="modulo-label">Recargas Bus</span>
+              <span class="modulo-desc">Habilita caja, saldo virtual y liquidación mensual</span>
+            </div>
+          </div>
+          <button
+            class="toggle-btn"
+            [class.toggle-btn--on]="bus"
+            (click)="bus = !bus"
+            [disabled]="guardando">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+
+      </div>
+
+      <div class="comprobante-section">
+        <div class="comprobante-section-label">Tipo de comprobante</div>
+        <div class="comprobante-options">
+          <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'TICKET'"
+            (click)="tipoComprobante = 'TICKET'" [disabled]="guardando" type="button">
+            Ticket
+          </button>
+          <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'NOTA_VENTA'"
+            (click)="tipoComprobante = 'NOTA_VENTA'" [disabled]="guardando" type="button">
+            Nota de Venta
+          </button>
+          <button class="comprobante-opt" [class.comprobante-opt--active]="tipoComprobante === 'FACTURA'"
+            (click)="tipoComprobante = 'FACTURA'" [disabled]="guardando" type="button">
+            Factura
+          </button>
+        </div>
+        <span class="comprobante-hint">Según el régimen tributario del negocio (SRI)</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cerrar()" [disabled]="guardando">
+      Cancelar
+    </ion-button>
+    <ion-button expand="block" color="primary" (click)="guardar()" [disabled]="guardando">
+      {{ guardando ? 'Guardando...' : 'Guardar' }}
+    </ion-button>
+  </div>
+
+</div>

@@ -1,6 +1,20 @@
+<!-- Sin conexión: warning (ámbar). Si hay cola, botón "N en cola". -->
 @if (isOffline) {
-  <div class="offline-banner">
-    <ion-icon name="cloud-offline-outline"></ion-icon>
-    <span>Sin conexión a internet</span>
-  </div>
+  <app-banner
+    color="warning"
+    icono="cloud-offline-outline"
+    texto="Sin conexión a internet"
+    [accionTexto]="pendientes > 0 ? pendientes + ' en cola' : ''"
+    (accion)="irAPendientes()">
+  </app-banner>
+}
+<!-- Online drenando la cola: primary (azul), todo el banner clickeable. -->
+@else if (pendientes > 0) {
+  <app-banner
+    color="primary"
+    icono="cloud-upload-outline"
+    [texto]="'Sincronizando ' + pendientes + ' venta(s)...'"
+    [clickeable]="true"
+    (accion)="irAPendientes()">
+  </app-banner>
 }

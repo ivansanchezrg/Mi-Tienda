@@ -26,7 +26,7 @@
           autocomplete="off"
           autofocus>
         @if (form.get('nombre')?.invalid && form.get('nombre')?.touched) {
-          <span class="input-error">Ingresá el nombre del usuario</span>
+          <span class="input-error">Ingresa el nombre del usuario</span>
         }
       </div>
 
@@ -39,11 +39,11 @@
         <input
           type="text"
           placeholder="Ej: maria@tienda.com"
-          formControlName="usuario"
+          formControlName="email"
           autocomplete="off"
           autocapitalize="none">
-        @if (form.get('usuario')?.invalid && form.get('usuario')?.touched) {
-          <span class="input-error">Ingresá un email válido (ej: maria@gmail.com)</span>
+        @if (form.get('email')?.invalid && form.get('email')?.touched) {
+          <span class="input-error">Ingresa un email válido (ej: maria@gmail.com)</span>
         }
       </div>
 

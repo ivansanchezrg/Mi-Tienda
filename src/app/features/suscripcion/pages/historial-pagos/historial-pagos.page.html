@@ -1,0 +1,85 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon name="arrow-back-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Suscripción</ion-title>
+  </ion-toolbar>
+  <app-suscripcion-tabs></app-suscripcion-tabs>
+</ion-header>
+
+<ion-content #content [fullscreen]="true" [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content pullingIcon="chevron-down-circle-outline" refreshingSpinner="crescent" refreshingText="Cargando...">
+    </ion-refresher-content>
+  </ion-refresher>
+
+  <div class="page-container">
+
+    <!-- Skeleton -->
+    @if (loading) {
+      <div class="hp-list">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="hp-row hp-row--skeleton">
+            <div class="hp-row__icon">
+              <ion-skeleton-text [animated]="true" style="width: 20px; height: 20px; border-radius: 4px;"></ion-skeleton-text>
+            </div>
+            <div class="hp-row__main">
+              <ion-skeleton-text [animated]="true" style="width: 110px; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+              <ion-skeleton-text [animated]="true" style="width: 70px; height: 11px; border-radius: 4px; margin-top: 6px;"></ion-skeleton-text>
+            </div>
+            <ion-skeleton-text [animated]="true" style="width: 50px; height: 14px; border-radius: 4px;"></ion-skeleton-text>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Vacío -->
+    @else if (pagos.length === 0) {
+      <app-empty-state
+        icon="receipt-outline"
+        title="Sin pagos registrados"
+        hint="Cuando se registre un pago de tu suscripción, aparecerá aquí con su fecha, monto y método.">
+      </app-empty-state>
+    }
+
+    <!-- Listado -->
+    @else {
+      <div class="hp-list">
+        @for (pago of pagos; track pago.id) {
+          <button type="button" class="hp-row" (click)="abrirDetalle(pago)">
+            <div class="hp-row__icon">
+              <ion-icon name="checkmark-circle-outline"></ion-icon>
+            </div>
+            <div class="hp-row__main">
+              <span class="hp-row__fecha">{{ pago.created_at | date:'d MMM yyyy' }}</span>
+              <span class="hp-row__plan">{{ pago.plan_nombre }} · {{ pago.periodo === 'ANUAL' ? 'Anual' : 'Mensual' }}</span>
+            </div>
+            <div class="hp-row__end">
+              <span class="hp-row__monto">${{ pago.monto | appCurrency }}</span>
+              <span class="hp-row__estado">Pagado</span>
+            </div>
+            <ion-icon name="chevron-forward-outline" class="hp-row__chevron"></ion-icon>
+          </button>
+        }
+      </div>
+    }
+
+    <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+      <ion-infinite-scroll-content loadingSpinner="crescent" [loadingText]="loadingMoreText"></ion-infinite-scroll-content>
+    </ion-infinite-scroll>
+
+  </div>
+
+  @if (showScrollTop) {
+    <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+      <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+        <ion-icon name="arrow-up-outline"></ion-icon>
+      </ion-fab-button>
+    </ion-fab>
+  }
+
+</ion-content>

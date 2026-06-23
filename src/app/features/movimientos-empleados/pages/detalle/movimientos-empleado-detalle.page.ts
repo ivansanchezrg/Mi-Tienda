@@ -7,7 +7,7 @@ import {
   IonButton,
   IonSkeletonText, IonRefresher, IonRefresherContent,
   IonInfiniteScroll, IonInfiniteScrollContent,
-  ModalController, AlertController, NavController,
+  ModalController, NavController,
   ViewWillEnter, ViewWillLeave
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -15,7 +15,8 @@ import {
   walletOutline, chevronDownCircleOutline, personOutline,
   ellipsisHorizontalOutline, cashOutline, createOutline,
   alertCircleOutline, starOutline, checkmarkCircleOutline,
-  arrowUpOutline, arrowDownOutline, readerOutline, closeOutline
+  arrowUpOutline, arrowDownOutline, readerOutline, closeOutline,
+  arrowForwardCircleOutline
 } from 'ionicons/icons';
 import { MovimientosEmpleadosService } from '../../services/movimientos-empleados.service';
 import {
@@ -29,6 +30,8 @@ import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { AdelantoModalComponent } from '../../components/adelanto-modal/adelanto-modal.component';
+import { AjusteModalComponent } from '../../components/ajuste-modal/ajuste-modal.component';
+import { ROUTES } from '../../../../core/config/routes.config';
 import { PagarNominaModalComponent } from '../../components/pagar-nomina-modal/pagar-nomina-modal.component';
 
 @Component({
@@ -52,20 +55,20 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
 
   private route = inject(ActivatedRoute);
   private service = inject(MovimientosEmpleadosService);
-  public currencyService = inject(CurrencyService);
+  protected currencyService = inject(CurrencyService);
   private ui = inject(UiService);
-  private modalCtrl = inject(ModalController);
   private authService = inject(AuthService);
-  private alertCtrl = inject(AlertController);
+  private modalCtrl = inject(ModalController);
   private navCtrl = inject(NavController);
 
-  empleadoId = 0;
+  empleadoId = '';
   empleadoNombre = '';
   saldo = 0;
   movimientos: MovimientoEmpleado[] = [];
   loading = true;
   hasMore = true;
   verLiquidados = false;
+  esSuperadmin = false;
 
   private page = 0;
   private readonly pageSize = PAGINATION_CONFIG.movimientosEmpleados.pageSize;
@@ -77,12 +80,15 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
       walletOutline, chevronDownCircleOutline, personOutline,
       ellipsisHorizontalOutline, cashOutline, createOutline,
       alertCircleOutline, starOutline, checkmarkCircleOutline,
-      arrowUpOutline, arrowDownOutline, readerOutline, closeOutline
+      arrowUpOutline, arrowDownOutline, readerOutline, closeOutline,
+      arrowForwardCircleOutline
     });
   }
 
   async ngOnInit() {
-    this.empleadoId = Number(this.route.snapshot.paramMap.get('empleadoId'));
+    this.empleadoId = this.route.snapshot.paramMap.get('empleadoId') ?? '';
+    const usuario = await this.authService.getUsuarioActual();
+    this.esSuperadmin = usuario?.es_superadmin ?? false;
     await this.cargarDatos();
   }
 
@@ -111,7 +117,7 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
 
       if (!empleado) {
         await this.ui.showError('Empleado no encontrado');
-        this.navCtrl.back();
+        this.navCtrl.navigateBack(ROUTES.movimientosEmpleados.root);
         return;
       }
 
@@ -210,61 +216,17 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
   }
 
   private async abrirAjustar() {
-    const groups: ModalOptionGroup[] = [{
-      options: [
-        { label: 'Abono (a favor del empleado)', icon: 'arrow-down-outline', value: 'AJUSTE_ABONO' },
-        { label: 'Cargo (en contra del empleado)', icon: 'arrow-up-outline', value: 'AJUSTE_CARGO', color: 'danger' },
-      ]
-    }];
-
-    const tipoModal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
-      componentProps: { title: 'Tipo de ajuste', groups },
-      cssClass: 'options-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
+    const modal = await this.modalCtrl.create({
+      component: AjusteModalComponent,
+      componentProps: {
+        empleadoId: this.empleadoId,
+        empleadoNombre: this.empleadoNombre
+      }
     });
 
-    await tipoModal.present();
-    const { data: tipo } = await tipoModal.onDidDismiss();
-    if (!tipo) return;
-
-    const esCargo = tipo === 'AJUSTE_CARGO';
-    const alert = await this.alertCtrl.create({
-      header: esCargo ? 'Cargo al empleado' : 'Abono al empleado',
-      inputs: [
-        { name: 'monto', type: 'number', placeholder: 'Monto', min: 0.01 },
-        { name: 'descripcion', type: 'text', placeholder: 'Descripcion (requerida)' }
-      ],
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Registrar', role: 'confirm' }
-      ]
-    });
-
-    await alert.present();
-    const { data: formData, role } = await alert.onDidDismiss();
-    if (role !== 'confirm') return;
-
-    const monto = parseFloat(formData?.values?.monto);
-    const descripcion = formData?.values?.descripcion?.trim();
-
-    if (!monto || monto <= 0) {
-      await this.ui.showError('El monto debe ser mayor a cero');
-      return;
-    }
-    if (!descripcion) {
-      await this.ui.showError('La descripcion es requerida para ajustes');
-      return;
-    }
-
-    const usuario = await this.authService.getUsuarioActual();
-    if (!usuario) return;
-
-    const ok = await this.service.ajustarCuenta(
-      this.empleadoId, monto, tipo as 'AJUSTE_ABONO' | 'AJUSTE_CARGO', descripcion, usuario.id
-    );
-    if (ok) await this.cargarDatos(true);
+    await modal.present();
+    const { data } = await modal.onDidDismiss();
+    if (data?.registrado) await this.cargarDatos(true);
   }
 
   // ── Helpers template ──

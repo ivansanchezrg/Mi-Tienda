@@ -34,8 +34,8 @@ export class RegistrarUsuarioModalComponent {
 
   form: FormGroup = this.fb.group({
     nombre: ['', [Validators.required, Validators.minLength(2)]],
-    usuario: ['', [Validators.required, Validators.email]],
-    rol: ['EMPLEADO', Validators.required]
+    email:  ['', [Validators.required, Validators.email]],
+    rol:    ['EMPLEADO', Validators.required]
   });
 
   constructor() {
@@ -56,21 +56,48 @@ export class RegistrarUsuarioModalComponent {
     try {
       const dto: CreateUsuarioDto = {
         nombre: this.form.value.nombre.trim(),
-        usuario: this.form.value.usuario.trim(),
-        rol: this.form.value.rol
+        email:  this.form.value.email.trim(),
+        rol:    this.form.value.rol
       };
 
       const created = await this.usuarioService.create(dto);
-      if (!created) {
-        await this.ui.showError('No se pudo registrar el usuario.');
-        return;
-      }
-
       this.modalCtrl.dismiss(created, 'confirm');
-    } catch {
-      await this.ui.showError('Error al registrar el usuario. Verificá tu conexión.');
+    } catch (err: any) {
+      const mensaje = this.traducirError(err?.message ?? '');
+      await this.ui.showError(mensaje);
     } finally {
       this.guardando = false;
     }
+  }
+
+  /**
+   * Mapea mensajes tecnicos del backend a textos amigables para el usuario final.
+   * Si el mensaje no es conocido, retorna uno generico (no expone detalles internos).
+   */
+  private traducirError(raw: string): string {
+    const email = (this.form.value.email ?? '').trim();
+
+    if (/ya pertenece al negocio/i.test(raw)) {
+      return `${email} ya forma parte de este negocio. Si lo desactivaste antes, puedes reactivarlo desde la lista.`;
+    }
+
+    if (/no existe en el sistema/i.test(raw)) {
+      return `El usuario ${email} aun no se registro. Pedile que inicie sesion una vez con su Google para crear su cuenta y volve a intentarlo.`;
+    }
+
+    if (/Solo los administradores/i.test(raw)) {
+      return 'Solo un administrador puede registrar usuarios.';
+    }
+
+    if (/email es obligatorio|email invalido/i.test(raw)) {
+      return 'Ingresa un email valido.';
+    }
+
+    if (/No hay negocio activo/i.test(raw)) {
+      return 'No se detecto un negocio activo. Cerra sesion e ingresa de nuevo.';
+    }
+
+    // Cualquier otro error: mensaje generico que no expone SQL ni stacks.
+    return 'No se pudo registrar el usuario. Verifica los datos e intenta de nuevo.';
   }
 }

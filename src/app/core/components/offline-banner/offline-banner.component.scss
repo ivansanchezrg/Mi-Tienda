@@ -2,42 +2,12 @@
   display: block;
 }
 
-.offline-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-
-  height: 44px;
-  padding: 0 var(--spacing-lg);
-
-  background: var(--ion-color-danger);
-  color: var(--ion-color-danger-contrast);
-
-  font-size: 13px;
-  font-weight: var(--font-weight-medium);
-
-  animation: slideDown var(--transition-slow) ease-out;
-
-  ion-icon {
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-}
-
-@keyframes slideDown {
-  from {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+// Solo cuando el banner está visible reserva la franja del safe area superior
+// (status bar del celular) con el color de fondo de la app — NO el color del banner.
+// Sin banner (online) el :host no ocupa espacio y no empuja el contenido.
+// La clase la togglea OfflineBannerComponent. env(...) vale 0 en web/desktop.
+// La presentación (animación, alto, colores) vive en BannerComponent (app-banner).
+:host-context(body.offline-banner-visible) {
+  padding-top: env(safe-area-inset-top);
+  background: var(--app-bg);
 }

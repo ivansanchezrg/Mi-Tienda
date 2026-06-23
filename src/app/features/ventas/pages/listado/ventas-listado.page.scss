@@ -4,7 +4,9 @@
 
 :host {
     --bg-soft: var(--ion-background-color, #f8f9fa);
+    --bg-header: var(--ion-item-background, #ffffff);
 }
+
 
 ion-content {
     --background: var(--bg-soft);
@@ -15,7 +17,7 @@ ion-content {
 // ─────────────────────────────────────────
 
 .filtros-header {
-    background: var(--bg-soft);
+    background: var(--bg-header);
 }
 
 
@@ -29,7 +31,7 @@ ion-content {
     align-items: center;
     padding: 10px var(--spacing-md);
     border-bottom: 1px solid var(--ion-color-step-100);
-    background: var(--bg-soft);
+    background: var(--bg-header);
 
     .filter-tabs {
         display: flex;
@@ -74,6 +76,12 @@ ion-content {
                 ion-icon {
                     font-size: 18px;
                 }
+
+                .fecha-clear {
+                    font-size: 15px;
+                    opacity: 0.75;
+                    margin-left: 2px;
+                }
             }
         }
     }
@@ -85,7 +93,7 @@ ion-content {
 
 .turno-bar {
     padding: 6px var(--spacing-md) 4px;
-    background: var(--bg-soft);
+    background: var(--bg-header);
     border-bottom: 1px solid var(--ion-color-step-100);
 }
 
@@ -130,7 +138,7 @@ ion-content {
 
 .estado-bar {
     padding: 6px var(--spacing-md) 4px;
-    background: var(--bg-soft);
+    background: var(--bg-header);
     border-bottom: 1px solid var(--ion-color-step-100);
     display: flex;
     align-items: center;
@@ -201,11 +209,11 @@ ion-content {
 
 .search-bar {
     padding: 8px 8px;
-    background: var(--bg-soft);
+    background: var(--bg-header);
     border-bottom: 1px solid var(--ion-color-step-100);
 
     ion-searchbar {
-        --background: var(--ion-color-step-100);
+        --background: var(--ion-background-color);
         --border-radius: var(--radius-sm);
         --box-shadow: none;
         --placeholder-color: var(--ion-color-medium);
@@ -244,6 +252,7 @@ ion-content {
     --padding-top: var(--spacing-sm, 8px);
     --padding-bottom: var(--spacing-sm, 8px);
     margin-bottom: var(--spacing-sm, 8px);
+
     border-radius: var(--radius-md, 10px);
     box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, .08));
 
@@ -261,27 +270,13 @@ ion-content {
             font-size: 22px;
         }
 
-        &[data-tipo="TICKET"] {
+        &[data-tipo="TICKET"],
+        &[data-tipo="NOTA_VENTA"],
+        &[data-tipo="FACTURA"] {
             background: rgba(var(--ion-color-primary-rgb), 0.1);
 
             ion-icon {
                 color: var(--ion-color-primary);
-            }
-        }
-
-        &[data-tipo="NOTA_VENTA"] {
-            background: rgba(var(--ion-color-secondary-rgb), 0.1);
-
-            ion-icon {
-                color: var(--ion-color-secondary);
-            }
-        }
-
-        &[data-tipo="FACTURA"] {
-            background: rgba(var(--ion-color-tertiary-rgb), 0.1);
-
-            ion-icon {
-                color: var(--ion-color-tertiary);
             }
         }
     }

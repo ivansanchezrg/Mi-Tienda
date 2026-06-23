@@ -1,0 +1,109 @@
+<ion-content class="onboarding-content">
+  <div class="onboarding-wrapper">
+
+    <div class="onboarding-progress">
+      <ion-progress-bar [value]="1"></ion-progress-bar>
+      <span class="step-label">{{ progressLabel }}</span>
+    </div>
+
+    <div class="onboarding-spacer"></div>
+
+    <div class="onboarding-header">
+      <div class="onboarding-icon">
+        <ion-icon name="wallet-outline"></ion-icon>
+      </div>
+      <h1 class="onboarding-title">¡Casi listo!</h1>
+      <p class="onboarding-subtitle">Una última decisión y <span class="brand-name">{{ nombreNegocio }}</span> empieza a funcionar.</p>
+    </div>
+
+    <form [formGroup]="form" class="onboarding-form" (ngSubmit)="continuar()">
+
+      <!-- Caja Varios — radio cards -->
+      <div class="varios-section">
+        <span class="varios-label">
+          <ion-icon name="shield-checkmark-outline"></ion-icon>
+          Caja Varios
+          <span class="varios-badge">Opcional</span>
+        </span>
+        <p class="varios-desc">Al cerrar cada turno, el sistema aparta automáticamente el monto que definas. El dinero queda en una caja separada, visible en tu dashboard.</p>
+
+        <div class="varios-cards" role="radiogroup" aria-label="Caja Varios">
+          <div class="varios-card" role="radio" tabindex="0"
+            [attr.aria-checked]="usaVarios"
+            [class.varios-card--active]="usaVarios"
+            (click)="setVarios(true)"
+            (keydown.enter)="setVarios(true)"
+            (keydown.space)="$event.preventDefault(); setVarios(true)">
+            <div class="varios-card-header">
+              <div class="varios-card-icon varios-card-icon--primary">
+                <ion-icon name="shield-checkmark-outline"></ion-icon>
+              </div>
+              <div class="varios-card-body">
+                <strong>Sí, quiero separar un fondo</strong>
+                <span>Ideal para cubrir gastos inesperados sin tocar la caja principal</span>
+              </div>
+              @if (usaVarios) {
+                <ion-icon name="checkmark-circle" class="varios-card-check"></ion-icon>
+              }
+            </div>
+
+            @if (usaVarios) {
+              <div class="varios-card-accordion" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                <div class="varios-card-divider"></div>
+                <label class="field-label" for="ob-monto-varios">Monto diario a separar</label>
+                <div class="input-with-prefix">
+                  <span class="prefix">$</span>
+                  <input
+                    id="ob-monto-varios"
+                    type="number"
+                    inputmode="decimal"
+                    formControlName="montoVarios"
+                    placeholder="0.00"
+                    min="0.01"
+                    step="0.01"
+                    autocomplete="off">
+                </div>
+                @if (variosMontoError) {
+                  <span class="field-error">Ingresa un monto mayor a $0.</span>
+                } @else {
+                  <span class="field-hint">Este monto se descuenta del Cajón automáticamente al cerrar cada turno. Puedes cambiarlo o desactivarlo cuando quieras desde Parámetros.</span>
+                }
+              </div>
+            }
+          </div>
+
+          <button type="button" class="varios-card" role="radio"
+            [attr.aria-checked]="!usaVarios"
+            [class.varios-card--active]="!usaVarios"
+            (click)="setVarios(false)">
+            <div class="varios-card-header">
+              <div class="varios-card-icon varios-card-icon--medium">
+                <ion-icon name="arrow-forward-outline"></ion-icon>
+              </div>
+              <div class="varios-card-body">
+                <strong>Ahora no</strong>
+                <span>Podrás activarla cuando quieras desde Parámetros</span>
+              </div>
+              @if (!usaVarios) {
+                <ion-icon name="checkmark-circle" class="varios-card-check"></ion-icon>
+              }
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="onboarding-actions">
+        <ion-button fill="outline" color="medium" (click)="volver()" [disabled]="guardando">
+          <ion-icon name="arrow-back-outline" slot="start"></ion-icon>
+          Atrás
+        </ion-button>
+        <ion-button expand="block" type="submit" class="onboarding-btn-next" [disabled]="guardando">
+          <ion-icon name="checkmark-circle" slot="end"></ion-icon>
+          {{ textoBotonFinal }}
+        </ion-button>
+      </div>
+
+    </form>
+
+  </div>
+</ion-content>

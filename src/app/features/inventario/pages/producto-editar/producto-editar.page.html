@@ -1,0 +1,154 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Editar Producto</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content color="light">
+
+  @if (cargando) {
+  <div class="form-container">
+    <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+      <ion-card-content class="p-lg">
+        <ion-skeleton-text animated style="width: 40%; height: 20px; margin-bottom: 16px;"></ion-skeleton-text>
+        <ion-skeleton-text animated style="width: 100%; height: 48px; margin-bottom: 12px;"></ion-skeleton-text>
+        <ion-skeleton-text animated style="width: 100%; height: 48px;"></ion-skeleton-text>
+      </ion-card-content>
+    </ion-card>
+    <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+      <ion-card-content class="p-lg">
+        <ion-skeleton-text animated style="width: 50%; height: 20px; margin-bottom: 16px;"></ion-skeleton-text>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <ion-skeleton-text animated style="width: 100%; height: 48px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 100%; height: 48px;"></ion-skeleton-text>
+        </div>
+      </ion-card-content>
+    </ion-card>
+  </div>
+  } @else {
+
+  <form [formGroup]="productoForm" class="form-container" (ngSubmit)="guardar()">
+
+    <!-- Banner producto inactivo -->
+    @if (!producto.activo) {
+    <div class="inactive-banner mb-lg">
+      <ion-icon name="warning-outline"></ion-icon>
+      <span>Este producto esta <strong>inactivo</strong>. No aparece en el inventario ni en el POS.</span>
+    </div>
+    }
+
+    <!-- ═══ Informacion Principal ═══ -->
+    <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+      <ion-card-content class="p-lg">
+        <h3 class="section-title">Informacion Principal</h3>
+        <app-producto-info-form
+          [formGroup]="productoForm"
+          [categorias]="categorias"
+          modo="editar"
+          [esVariante]="!!templateSeleccionado"
+          [imagenUrlExistente]="imagenUrlExistente"
+          [fotoPreviewUrl]="fotoPreviewUrl"
+          [fotoRawUrl]="fotoRawUrl"
+          (fotoSeleccionada)="onFotoSeleccionada($event)"
+          (fotoRemovida)="onFotoRemovida()">
+        </app-producto-info-form>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Banner contexto variante -->
+    @if (templateSeleccionado) {
+    <div class="variante-context-banner mb-lg">
+      <div class="vcb-icon">
+        <ion-icon name="information-circle-outline"></ion-icon>
+      </div>
+      <div class="vcb-body">
+        <p class="vcb-title">Estas editando una variante de <strong>{{ templateSeleccionado.nombre }}</strong></p>
+        <p class="vcb-hint">Los cambios aplican solo a esta variante. Las demas variantes del grupo no se ven afectadas.</p>
+        <div class="vcb-chips">
+          @for (item of atributosSeleccionados; track item.opcion.id) {
+          <div class="vcb-chip">
+            <span class="vcb-chip-tipo">{{ item.atributo.nombre }}</span>
+            <span class="vcb-chip-valor">{{ item.opcion.valor }}</span>
+          </div>
+          }
+          @if (variantesHermanas.length > 0) {
+          <span class="vcb-hermanas">+{{ variantesHermanas.length }} variante{{ variantesHermanas.length !== 1 ? 's' : '' }} mas en el grupo</span>
+          }
+        </div>
+      </div>
+    </div>
+    }
+
+    <!-- ═══ Precios e Impuestos ═══ -->
+    <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+      <ion-card-content class="p-lg">
+        <h3 class="section-title">Precios e Impuestos</h3>
+        <app-producto-precios-form [formGroup]="productoForm">
+        </app-producto-precios-form>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- ═══ Inventario ═══ -->
+    <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+      <ion-card-content class="p-lg">
+        <app-producto-inventario-form
+          [formGroup]="productoForm"
+          modo="editar"
+          (abrirKardex)="abrirKardex()">
+        </app-producto-inventario-form>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- ═══ Presentaciones ═══ -->
+    @if (productoForm.get('tipo_venta')?.value === 'UNIDAD' || templateSeleccionado) {
+    <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+      <ion-card-content class="p-lg">
+        <app-producto-presentaciones
+          [productoId]="producto.id"
+          [nombreProducto]="productoForm.get('nombre')?.value || producto.nombre"
+          [precioCosto]="currencyService.parse(productoForm.get('precio_costo')?.value ?? 0)"
+          [storageSubfolder]="storageSubfolder"
+          modo="editar">
+        </app-producto-presentaciones>
+      </ion-card-content>
+    </ion-card>
+    }
+
+    <!-- ═══ Botones ═══ -->
+    <div class="actions-row">
+      @if (producto.activo) {
+      <ion-button expand="block" fill="outline" color="danger" type="button" (click)="desactivar()">
+        <ion-icon slot="start" name="trash-outline"></ion-icon>
+        Quitar
+      </ion-button>
+      } @else {
+      <ion-button expand="block" fill="outline" color="success" type="button" (click)="reactivar()">
+        <ion-icon slot="start" name="refresh-outline"></ion-icon>
+        Reactivar
+      </ion-button>
+      }
+
+      <ion-button expand="block" color="primary" type="submit"
+        [disabled]="productoForm.invalid || guardando || productoForm.pristine">
+        @if (guardando) {
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+          Guardando...
+        } @else if (productoForm.pristine) {
+          <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+          Sin cambios
+        } @else {
+          <ion-icon slot="start" name="save-outline"></ion-icon>
+          Guardar
+        }
+      </ion-button>
+    </div>
+
+  </form>
+  }
+
+</ion-content>

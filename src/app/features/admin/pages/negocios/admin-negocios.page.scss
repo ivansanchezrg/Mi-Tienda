@@ -1,0 +1,423 @@
+.admin-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    ion-icon {
+        font-size: 18px;
+        color: var(--ion-color-warning);
+    }
+}
+
+// La lista de negocios scrollea aquí (fondo gris). El padding-top es menor porque
+// el subheader blanco ya separa visualmente del header.
+.admin-wrap {
+    padding: var(--spacing-md) var(--spacing-lg) 100px;
+}
+
+// ── Subheader blanco estático (bajo las tabs) ────────
+.admin-subheader {
+    background: var(--ion-item-background, #ffffff);
+    padding: var(--spacing-md) var(--spacing-lg) var(--spacing-md);
+
+    .search-wrap {
+        margin-bottom: 0;
+    }
+}
+
+// ── Header superior ──────────────────────────────────
+
+.seccion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.seccion-label {
+    margin: 0;
+    font-size: 12px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn-crear-negocio {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 10px;
+    background: var(--ion-color-primary);
+    color: var(--ion-color-primary-contrast);
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+
+    ion-icon { font-size: 16px; }
+    &:hover  { opacity: 0.92; }
+    &:active { transform: scale(0.97); }
+}
+
+// ── Buscador ─────────────────────────────────────────
+
+.search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    font-size: 17px;
+    color: var(--ion-color-medium);
+    pointer-events: none;
+}
+
+.search-input {
+    width: 100%;
+    padding: 10px 36px 10px 38px;
+    border: 1.5px solid rgba(var(--ion-color-medium-rgb), 0.2);
+    border-radius: 12px;
+    background: var(--ion-item-background);
+    font-size: 14px;
+    color: var(--ion-color-dark);
+    outline: none;
+    transition: border-color 0.15s ease;
+
+    &::placeholder { color: var(--ion-color-medium); }
+    &:focus { border-color: var(--ion-color-primary); }
+}
+
+.search-clear {
+    position: absolute;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(var(--ion-color-medium-rgb), 0.15);
+    color: var(--ion-color-medium);
+    cursor: pointer;
+
+    ion-icon { font-size: 15px; }
+}
+
+// ── Skeleton ─────────────────────────────────────────
+
+.skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.skeleton-grupo {
+    background: var(--ion-item-background);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-level-2);
+    overflow: hidden;
+}
+
+.skeleton-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px var(--spacing-lg);
+    border-bottom: 1px solid rgba(var(--ion-color-medium-rgb), 0.1);
+}
+
+.skeleton-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px var(--spacing-lg);
+    border-bottom: 1px solid rgba(var(--ion-color-medium-rgb), 0.08);
+
+    &:last-child { border-bottom: none; }
+}
+
+// ── Lista de propietarios ────────────────────────────
+
+.propietarios-lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.propietario-accordion-group {
+    background: transparent;
+}
+
+.propietario-accordion {
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--shadow-level-2);
+    overflow: hidden;
+
+    &--suspendido {
+        box-shadow: var(--shadow-level-2), 0 0 0 1.5px rgba(var(--ion-color-danger-rgb), 0.35);
+    }
+}
+
+.propietario-card {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-level-2);
+    overflow: hidden;
+    background: var(--ion-item-background);
+
+    &--suspendido {
+        box-shadow: var(--shadow-level-2), 0 0 0 1.5px rgba(var(--ion-color-danger-rgb), 0.35);
+    }
+}
+
+// ── Header del propietario — div puro, flexbox limpio ─
+// Mismo layout en acordeón (slot="header") y tarjeta plana.
+
+.propietario-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    min-height: 64px;
+    padding: 0 var(--spacing-md);
+    background: var(--ion-item-background);
+
+    &--suspendido {
+        background: rgba(var(--ion-color-danger-rgb), 0.04);
+    }
+}
+
+.propietario-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    flex-shrink: 0;
+
+    ion-icon {
+        font-size: 20px;
+        color: var(--ion-color-primary);
+    }
+
+    &--suspendido {
+        background: rgba(var(--ion-color-danger-rgb), 0.1);
+        ion-icon { color: var(--ion-color-danger); }
+    }
+}
+
+.propietario-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    min-width: 0;
+}
+
+.propietario-nombre-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.propietario-chevron {
+    font-size: 14px;
+    color: var(--ion-color-medium);
+    flex-shrink: 0;
+    transition: transform 320ms ease;
+
+    &--abierto {
+        transform: rotate(180deg);
+    }
+}
+
+.propietario-nombre {
+    font-size: 15px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.propietario-email {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.propietario-end {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.propietario-contador {
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-medium);
+    white-space: nowrap;
+}
+
+// ── Contenido expandido: filas de negocio ─────────────
+
+.accordion-content {
+    background: var(--ion-item-background);
+    border-top: 1px solid rgba(var(--ion-color-medium-rgb), 0.1);
+}
+
+.negocio-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 0 var(--spacing-md);
+    border-bottom: 1px solid rgba(var(--ion-color-medium-rgb), 0.08);
+    min-height: 56px;
+    transition: background 0.1s ease;
+
+    &:last-child,
+    &--last {
+        border-bottom: none;
+    }
+
+    &--activo {
+        background: rgba(var(--ion-color-success-rgb), 0.05);
+    }
+}
+
+.negocio-row-main {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    padding: var(--spacing-md) 0;
+    gap: var(--spacing-md);
+}
+
+.negocio-row-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.negocio-row-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+}
+
+// Badge de estado de suscripción
+.susc-badge {
+    flex-shrink: 0;
+    padding: 1px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+
+    &[data-color='success'] { background: rgba(var(--ion-color-success-rgb), 0.15); color: var(--ion-color-success-shade); }
+    &[data-color='primary'] { background: rgba(var(--ion-color-primary-rgb), 0.15); color: var(--ion-color-primary-shade); }
+    &[data-color='warning'] { background: rgba(var(--ion-color-warning-rgb), 0.15); color: var(--ion-color-warning-shade); }
+    &[data-color='danger']  { background: rgba(var(--ion-color-danger-rgb), 0.15);  color: var(--ion-color-danger-shade); }
+    &[data-color='medium']  { background: rgba(var(--ion-color-medium-rgb), 0.15);  color: var(--ion-color-medium-shade); }
+}
+
+.negocio-nombre {
+    font-size: 14px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 0.1s ease;
+}
+
+.negocio-row-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+}
+
+.negocio-slug {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.badge-modulo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    flex-shrink: 0;
+
+    ion-icon { font-size: 11px; }
+
+    &--celular {
+        background: rgba(var(--ion-color-secondary-rgb), 0.15);
+        ion-icon { color: var(--ion-color-secondary); }
+    }
+
+    &--bus {
+        background: rgba(var(--ion-color-warning-rgb), 0.15);
+        ion-icon { color: var(--ion-color-warning); }
+    }
+
+    &--varios {
+        background: rgba(var(--ion-color-tertiary-rgb), 0.15);
+        ion-icon { color: var(--ion-color-tertiary); }
+    }
+}
+
+.negocio-row-accion {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    flex-shrink: 0;
+
+    ion-icon    { font-size: 19px; }
+    ion-spinner { width: 18px; height: 18px; }
+}
+
+// ── Botón opciones ⋯ ─────────────────────────────────
+
+.btn-opciones {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ion-color-medium);
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    ion-icon { font-size: 18px; }
+
+    &:hover  { background: rgba(var(--ion-color-medium-rgb), 0.1); }
+    &:active { background: rgba(var(--ion-color-medium-rgb), 0.18); }
+}

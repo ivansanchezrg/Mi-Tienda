@@ -15,89 +15,184 @@ ion-toolbar {
 
 }
 
-ion-searchbar {
-    --background: var(--ion-item-background);
-    --border-radius: var(--radius-md);
-    --box-shadow: none;
-    --placeholder-color: var(--ion-color-step-400);
-    --placeholder-opacity: 1;
-    --color: var(--ion-text-color);
-    --icon-color: var(--ion-color-step-400);
-    --clear-button-color: var(--ion-color-step-400);
-    padding-inline: var(--spacing-md);
-    padding-top: 0;
-    padding-bottom: var(--spacing-xs);
-}
-
-.categories-toolbar {
-    --background: var(--bg-soft);
-    padding-bottom: var(--spacing-sm);
-}
-
-.filter-row {
+// ── Barra de filtros animada (igual al POS) ──
+.inv-filter-bar {
+    position: relative;
     display: flex;
     align-items: center;
-    padding: 0 var(--spacing-md) var(--spacing-xs);
-    gap: var(--spacing-sm);
-}
-
-.filter-selector {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 40px;
-    padding: var(--spacing-sm) var(--spacing-md);
-    border-radius: var(--radius-md);
-    border: 1.5px solid var(--ion-color-step-200);
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--ion-color-step-100);
     background: var(--ion-item-background);
-    cursor: pointer;
-    transition: border-color var(--transition-fast);
+    min-height: 50px;
+    overflow: hidden;
+}
 
-    &:active {
-        border-color: var(--ion-color-primary);
-    }
+// Capa 1 — lupa + chips
+.inv-chips-layer {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    gap: var(--spacing-xs);
+    transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
-    .filter-selector-label {
-        font-size: 14px;
-        font-weight: var(--font-weight-medium);
-        color: var(--ion-text-color);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .filter-selector-arrow {
-        font-size: 14px;
-        color: var(--ion-color-step-500);
-        flex-shrink: 0;
-        margin-left: var(--spacing-sm);
+    .inv-filter-bar--searching & {
+        opacity: 0;
+        transform: translateY(-6px);
+        pointer-events: none;
     }
 }
 
-.filter-btn {
+.inv-search-btn {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--ion-color-step-200);
+    background: transparent;
+    color: var(--ion-color-medium);
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 40px;
-    width: 40px;
+    cursor: pointer;
+
+    ion-icon { font-size: 18px; }
+    &:active { background: rgba(var(--ion-color-primary-rgb), 0.08); }
+}
+
+// Capa 2 — input de búsqueda a ancho completo
+.inv-search-layer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--ion-item-background);
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+    .inv-filter-bar--searching & {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+}
+
+.inv-search-field {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    height: 38px;
+    border: 1px solid var(--ion-color-step-200);
+    border-radius: 8px;
+    background: var(--ion-color-step-50, var(--ion-background-color));
+    padding: 0 4px 0 10px;
+    gap: 6px;
+}
+
+.inv-chips-scroll {
+    display: flex;
+    flex-direction: row;
+    gap: var(--spacing-xs);
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+}
+
+
+.inv-search-icon {
     flex-shrink: 0;
-    border-radius: var(--radius-md);
+    font-size: 17px;
+    color: var(--ion-color-medium);
+}
+
+.inv-search-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: none;
+    background: transparent;
+    font-size: 15px;
+    color: var(--ion-text-color);
+    outline: none;
+    caret-color: var(--ion-color-primary);
+
+    &::placeholder { color: var(--ion-color-medium); }
+}
+
+.inv-search-spinner {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.inv-search-clear-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    color: var(--ion-color-medium);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    ion-icon { font-size: 20px; --ionicon-stroke-width: 56; }
+    &:active { color: var(--ion-color-danger); }
+}
+
+.category-chip {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 var(--spacing-md);
+    border-radius: var(--radius-pill);
     border: 1.5px solid var(--ion-color-step-200);
     background: var(--ion-item-background);
     color: var(--ion-color-step-600);
+    font-size: 13px;
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
     cursor: pointer;
-    transition: all var(--transition-fast);
+    transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 
-    ion-icon {
-        font-size: 20px;
+    &:active {
+        transform: scale(0.96);
     }
 
-    &.options-btn {
-        border: none;
-        background: transparent;
-        color: var(--ion-color-step-500);
+    &.active {
+        background: var(--ion-color-primary);
+        color: var(--ion-color-primary-contrast);
+        border-color: var(--ion-color-primary);
+        font-weight: var(--font-weight-semibold);
+    }
+
+    &.desactivados {
+        color: var(--ion-color-medium);
+
+        &.active {
+            background: var(--ion-color-medium);
+            color: var(--ion-color-medium-contrast);
+            border-color: var(--ion-color-medium);
+        }
+    }
+
+    &.template-chip {
+        gap: 5px;
+
+        ion-icon:first-child {
+            font-size: 13px;
+        }
+        ion-icon:last-child {
+            font-size: 14px;
+            opacity: 0.8;
+        }
     }
 }
 
@@ -106,12 +201,23 @@ ion-searchbar {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: var(--spacing-md);
+
+    // Tablet — 3 columnas fijas
+    @media (min-width: 600px) and (max-width: 991px) {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    // Desktop — 4 columnas fijas
+    @media (min-width: 992px) {
+        grid-template-columns: repeat(4, 1fr);
+    }
 }
 
 .product-card {
     margin: 0; // El grid gap se encarga del espaciado exterior
     box-shadow: var(--shadow-level-1);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: 8px;
+    overflow: hidden;
     background: var(--ion-item-background);
     transition: transform var(--transition-fast);
     cursor: pointer;
@@ -138,6 +244,10 @@ ion-searchbar {
     align-items: center;
     justify-content: center;
 
+    @media (min-width: 600px) {
+        height: 160px;
+    }
+
     .placeholder-image {
         ion-icon {
             font-size: 48px;
@@ -153,11 +263,11 @@ ion-searchbar {
 
     .stock-badge {
         position: absolute;
-        top: var(--spacing-sm);
-        right: var(--spacing-sm);
-        padding: 2px 8px;
-        border-radius: var(--radius-pill);
-        font-size: 11px;
+        top: 0;
+        right: 0;
+        padding: 5px 8px;
+        border-radius: 0 8px 0 8px;
+        font-size: 13px;
         font-weight: var(--font-weight-bold);
         display: flex;
         align-items: center;
@@ -165,7 +275,7 @@ ion-searchbar {
 
         &.danger {
             background: var(--ion-color-danger);
-            color: white;
+            color: var(--ion-color-danger-contrast);
             animation: pulse 2s infinite;
         }
 
@@ -175,13 +285,13 @@ ion-searchbar {
         }
 
         &.success {
-            background: rgba(0, 0, 0, 0.6);
-            color: white;
+            background: rgba(0, 0, 0, 0.55);
+            color: rgba(255, 255, 255, 0.92);
         }
 
         &.info {
             background: var(--ion-color-primary);
-            color: white;
+            color: var(--ion-color-primary-contrast);
         }
     }
 }
@@ -231,9 +341,33 @@ ion-searchbar {
             align-items: center;
             gap: 2px;
 
-            ion-icon {
-                font-size: 8px;
+            ion-icon { font-size: 8px; }
+        }
+
+        &.variante {
+            background: rgba(var(--ion-color-primary-rgb), 0.1);
+            color: var(--ion-color-primary);
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            cursor: pointer;
+            transition: background var(--transition-fast);
+
+            &:active {
+                background: rgba(var(--ion-color-primary-rgb), 0.22);
             }
+
+            ion-icon { font-size: 8px; }
+        }
+
+        &.variantes {
+            background: rgba(var(--ion-color-primary-rgb), 0.1);
+            color: var(--ion-color-primary);
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+
+            ion-icon { font-size: 8px; }
         }
 
     }
@@ -256,6 +390,27 @@ ion-searchbar {
         font-size: 11px;
     }
 }
+
+// ── Card de template agrupado ────────────────────────────────────────────────
+// Visualmente distinta para que se note que es un grupo de variantes, no un SKU individual.
+.product-card--template {
+    border: 1.5px solid rgba(var(--ion-color-primary-rgb), 0.18);
+
+    .product-image-container {
+        background: linear-gradient(
+            135deg,
+            rgba(var(--ion-color-primary-rgb), 0.06),
+            rgba(var(--ion-color-primary-rgb), 0.02)
+        );
+
+        .placeholder-image ion-icon {
+            color: var(--ion-color-primary);
+            opacity: 0.4;
+        }
+    }
+}
+
+
 
 @keyframes pulse {
     0% {
@@ -283,73 +438,11 @@ ion-searchbar {
         padding: 2px 8px;
         border-radius: var(--radius-pill);
         background: var(--ion-color-medium);
-        color: white;
+        color: var(--ion-color-medium-contrast);
         font-size: 10px;
         font-weight: var(--font-weight-bold);
         letter-spacing: 0.5px;
     }
-}
-
-// ── Overlay escáner (fullscreen) ──
-.scanner-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    visibility: visible;
-
-    .scanner-frame {
-        width: 260px;
-        height: 160px;
-        border: 2px solid white;
-        border-radius: var(--radius-lg);
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
-        overflow: hidden;
-        position: relative;
-    }
-
-    .scan-line {
-        position: absolute;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: var(--ion-color-success);
-        box-shadow: 0 0 8px var(--ion-color-success);
-        animation: scanMove 2s ease-in-out infinite;
-    }
-
-    .scanner-hint {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 14px;
-        margin-top: var(--spacing-lg);
-        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-    }
-
-    .scanner-close-btn {
-        pointer-events: all;
-        position: absolute;
-        top: calc(var(--spacing-xl) + env(safe-area-inset-top));
-        right: var(--spacing-md);
-        background: rgba(0, 0, 0, 0.5);
-        border: none;
-        border-radius: 50%;
-        width: 44px;
-        height: 44px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        ion-icon { font-size: 24px; }
-    }
-}
-
-@keyframes scanMove {
-    0%   { top: 10%; }
-    50%  { top: 90%; }
-    100% { top: 10%; }
 }
 
 // ── FAB scroll-to-top ──

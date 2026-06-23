@@ -1,0 +1,92 @@
+<div class="bs-root">
+
+  <!-- ── Header ───────────────────────────────────────────────────────────── -->
+  <div class="bs-header">
+    <div class="bs-header__icon" [class.bs-header__icon--warning]="hayDeficit">
+      @if (hayDeficit) {
+        <ion-icon name="alert-circle-outline"></ion-icon>
+      } @else {
+        <ion-icon name="lock-open-outline"></ion-icon>
+      }
+    </div>
+    <div class="vfm-header-text">
+      <span class="bs-header__title">Abrir caja</span>
+      @if (hayDeficit) {
+        <span class="vfm-header-subtitle">Hay una transferencia pendiente a Varios del turno anterior</span>
+      } @else {
+        <span class="vfm-header-subtitle">Indica con cuánto efectivo inicias el día</span>
+      }
+    </div>
+    <button class="bs-header__close" (click)="cancelar()" type="button" [disabled]="abriendo">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <div class="bs-body">
+
+      <!-- Aviso déficit VARIOS -->
+      @if (hayDeficit) {
+        <div class="vfm-deficit-banner">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <div class="vfm-deficit-text">
+            <span class="vfm-deficit-action">
+              Toma <strong>${{ deficitVarios | appCurrency }}</strong> en efectivo de <strong>Tienda</strong> y colócalos en <strong>Varios</strong>.
+            </span>
+            <span class="vfm-deficit-note">
+              Repone el faltante que quedó del turno anterior. El sistema registra el movimiento automáticamente al abrir.
+            </span>
+          </div>
+        </div>
+      }
+
+      @if (errorMsg) {
+        <div class="vfm-error">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>{{ errorMsg }}</span>
+        </div>
+      }
+
+      <!-- Input fondo libre -->
+      <div class="vfm-fondo-input">
+        <label class="vfm-fondo-label">
+          <ion-icon name="cash-outline"></ion-icon>
+          ¿Con cuánto efectivo inicias el cajón?
+        </label>
+        <div class="vfm-input-wrapper">
+          <span class="vfm-prefix">$</span>
+          <input
+            #montoInput
+            class="vfm-input"
+            type="number"
+            inputmode="decimal"
+            placeholder="0.00"
+            min="0"
+            step="0.01"
+            [(ngModel)]="fondoAperturaStr"
+            appNumbersOnly
+            autocomplete="off">
+        </div>
+        <span class="vfm-input-hint">Cuenta el dinero físico que tienes ahora en el cajón. Si no tienes nada, ingresa $0.</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Acciones ──────────────────────────────────────────────────────────── -->
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()" [disabled]="abriendo">
+      Cancelar
+    </ion-button>
+    <ion-button expand="block" color="success" [disabled]="abriendo" (click)="abrirCaja()">
+      @if (abriendo) {
+        <ion-spinner slot="start" name="crescent"></ion-spinner>
+        Abriendo...
+      } @else {
+        <ion-icon slot="start" name="lock-open-outline"></ion-icon>
+        Abrir caja
+      }
+    </ion-button>
+  </div>
+
+</div>

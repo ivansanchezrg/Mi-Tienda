@@ -6,7 +6,11 @@
   </button>
   @if (venta && !loading) {
   <button slot="fixed" class="btn-compartir-flotante" [disabled]="compartiendo" (click)="compartir()">
-    <ion-icon name="share-outline"></ion-icon>
+    @if (isNative) {
+      <ion-icon name="share-outline"></ion-icon>
+    } @else {
+      <ion-icon name="download-outline"></ion-icon>
+    }
   </button>
   }
 

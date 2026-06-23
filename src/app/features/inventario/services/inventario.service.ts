@@ -1,70 +1,71 @@
 import { Injectable, inject } from '@angular/core';
 import { Subject } from 'rxjs';
 import { SupabaseService } from '../../../core/services/supabase.service';
+import { NetworkService } from '../../../core/services/network.service';
+import { CatalogoLocalService } from '../../../core/services/catalogo-local.service';
+import { AuthService } from '../../auth/services/auth.service';
 import { Producto, ProductoPOS, ProductoPresentacion } from '../models/producto.model';
 import { CategoriaProducto } from '../models/categoria-producto.model';
 import { KardexInventario } from '../models/kardex.model';
+import { ProductoService } from './producto.service';
+import { PresentacionService } from './presentacion.service';
+import { AtributoService } from './atributo.service';
 
 export interface ProductoChangeEvent {
-    tipo: 'CREADO' | 'ACTUALIZADO' | 'DESACTIVADO';
+    tipo: 'CREADO' | 'ACTUALIZADO' | 'DESACTIVADO' | 'RECARGA';
     producto: Producto;
 }
 
-@Injectable({
-    providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class InventarioService {
-    private supabase = inject(SupabaseService);
+    private supabase          = inject(SupabaseService);
+    private auth              = inject(AuthService);
+    private network           = inject(NetworkService);
+    private catalogoLocal     = inject(CatalogoLocalService);
+    private productoService   = inject(ProductoService);
+    private presentacionSvc   = inject(PresentacionService);
+    private atributoSvc       = inject(AtributoService);
 
     private productoChange$ = new Subject<ProductoChangeEvent>();
     readonly onProductoChange$ = this.productoChange$.asObservable();
 
+    constructor() {
+        // Conectar el bus de eventos a los servicios hijos para que sus
+        // mutaciones también actualicen el grid de inventario.page.
+        const emit = (e: ProductoChangeEvent) => this.productoChange$.next(e);
+        this.productoService.setChangeEmitter(emit);
+        this.presentacionSvc.setChangeEmitter(emit);
+    }
+
+    emitirCambio(event: ProductoChangeEvent): void {
+        this.productoChange$.next(event);
+    }
+
     // ==========================================
-    // PRODUCTOS
+    // LISTADO Y BÚSQUEDA DE PRODUCTOS
     // ==========================================
 
-    async obtenerProductos(buscar?: string, categoriaId?: number, page = 0, pageSize = 25): Promise<Producto[]> {
+    async obtenerProductos(buscar?: string, categoriaId?: string, templateId?: string, page = 0, pageSize = 25): Promise<Producto[]> {
         const from = page * pageSize;
-        const to = from + pageSize - 1;
-
-        let query = this.supabase.client
-            .from('productos')
-            .select('*, categoria:categorias_productos(*), presentaciones:producto_presentaciones(id)')
-            .eq('activo', true)
-            .eq('producto_presentaciones.activo', true)
-            .order('nombre')
-            .range(from, to);
-
-        if (buscar) {
-            query = query.or(`nombre.ilike.%${buscar}%,codigo_barras.ilike.%${buscar}%`);
-        }
-
-        if (categoriaId) {
-            query = query.eq('categoria_id', categoriaId);
-        }
-
-        const { data } = await query;
+        const to   = from + pageSize - 1;
+        const data = await this.supabase.call<Producto[]>(
+            this.supabase.client.rpc('fn_listar_productos', {
+                p_buscar:       buscar      || null,
+                p_categoria_id: categoriaId || null,
+                p_template_id:  templateId  || null,
+                p_from:         from,
+                p_to:           to
+            })
+        );
         return data || [];
     }
 
-    /**
-     * Busqueda para POS — trae presentaciones activas en el mismo query (JOIN).
-     * Permite al POS mostrar el selector de presentacion sin query extra al seleccionar.
-     */
-    async buscarProductosPOS(texto: string): Promise<ProductoPOS[]> {
-        const { data } = await this.supabase.client
-            .from('productos')
-            .select(`
-                id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo,
-                imagen_url, tiene_iva, tipo_venta, unidad_medida,
-                presentaciones:producto_presentaciones(id, producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal, activo)
-            `)
-            .eq('activo', true)
-            .eq('producto_presentaciones.activo', true)
-            .or(`nombre.ilike.%${texto}%,codigo_barras.ilike.%${texto}%`)
-            .order('nombre')
-            .limit(10);
-        return (data || []) as ProductoPOS[];
+    async obtenerProductosDesactivados(): Promise<Producto[]> {
+        return this.productoService.obtenerProductosDesactivados();
+    }
+
+    async obtenerProductoPorId(id: string): Promise<Producto | null> {
+        return this.productoService.obtenerPorId(id);
     }
 
     async obtenerProductoPorCodigo(codigoBarras: string): Promise<Producto | null> {
@@ -74,123 +75,115 @@ export class InventarioService {
             .eq('codigo_barras', codigoBarras)
             .eq('activo', true)
             .maybeSingle();
-
         if (!data || !data.activo) return null;
         return data;
     }
 
+    // ==========================================
+    // BÚSQUEDA POS
+    // ==========================================
+
+    async buscarProductosPOS(texto: string): Promise<ProductoPOS[]> {
+        // Offline: buscar en memoria sobre el catálogo cacheado (replica fn_buscar_productos_pos).
+        if (!this.network.isConnected()) {
+            return this.catalogoLocal.buscarPorTexto(texto);
+        }
+        const data = await this.supabase.call<ProductoPOS[]>(
+            this.supabase.client.rpc('fn_buscar_productos_pos', { p_busqueda: texto })
+        );
+        return data ?? [];
+    }
+
+    async obtenerProductosCatalogoPOS(categoriaId?: string, categoriasParaCache?: CategoriaProducto[]): Promise<ProductoPOS[]> {
+        // Offline: servir del cache filtrando por categoría en memoria.
+        if (!this.network.isConnected()) {
+            return this.catalogoLocal.obtenerCatalogoPorCategoria(categoriaId);
+        }
+        const data = await this.supabase.call<ProductoPOS[]>(
+            this.supabase.client.rpc('fn_catalogo_productos_pos', {
+                p_categoria_id: categoriaId ?? null
+            })
+        );
+        const catalogo = data ?? [];
+        // Solo el catálogo completo (sin filtro) refresca el snapshot — un filtro parcial
+        // no debe sobrescribir el cache completo del negocio.
+        if (!categoriaId && catalogo.length > 0) {
+            this.guardarCacheEnBackground(catalogo, categoriasParaCache);
+        }
+        return catalogo;
+    }
+
     /**
-     * Busca por codigo de barras en productos Y en presentaciones.
-     * Retorna el producto base + la presentacion (si el codigo corresponde a una).
-     * Usado por el POS para resolver escaneos de cajetillas, cubetas, etc.
+     * Guarda catálogo + categorías en background. Best-effort: nunca bloquea el flujo online.
+     * Reutiliza las categorías ya cargadas por el caller si las pasa, evitando una query extra.
      */
-    async buscarPorCodigoBarras(codigo: string): Promise<{
-        producto: ProductoPOS;
-        presentacion?: ProductoPresentacion;
-    } | null> {
-        // 1. Buscar en productos
-        const { data: prod } = await this.supabase.client
-            .from('productos')
-            .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida')
-            .eq('codigo_barras', codigo)
-            .eq('activo', true)
-            .maybeSingle();
+    private guardarCacheEnBackground(catalogo: ProductoPOS[], categorias?: CategoriaProducto[]): void {
+        const guardar = (cats: CategoriaProducto[]) => this.catalogoLocal.guardar(catalogo, cats);
+        if (categorias) {
+            guardar(categorias).catch(() => { /* cache es best-effort */ });
+        } else {
+            this.obtenerCategorias()
+                .then(guardar)
+                .catch(() => { /* cache es best-effort */ });
+        }
+    }
 
-        if (prod) return { producto: prod as ProductoPOS };
+    async buscarPorCodigoBarras(codigo: string): Promise<{ producto: ProductoPOS; presentacion?: ProductoPresentacion } | null> {
+        // Offline: lookup dual en memoria sobre el catálogo cacheado.
+        if (!this.network.isConnected()) {
+            return this.catalogoLocal.buscarPorCodigoBarras(codigo);
+        }
 
-        // 2. Buscar en presentaciones
-        const { data: pres } = await this.supabase.client
-            .from('producto_presentaciones')
-            .select('id, producto_id, nombre, factor_conversion, precio_venta, codigo_barras, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida)')
-            .eq('codigo_barras', codigo)
-            .eq('activo', true)
-            .maybeSingle();
+        type PresRow = {
+            id: string; producto_id: string; nombre: string;
+            factor_conversion: number; precio_venta: number; precio_costo: number;
+            codigo_barras: string | null; imagen_url: string | null;
+            es_principal: boolean; activo: boolean; producto: ProductoPOS;
+        };
 
+        const [prod, pres] = await Promise.all([
+            this.supabase.call<ProductoPOS>(
+                this.supabase.client
+                    .from('productos')
+                    .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id')
+                    .eq('codigo_barras', codigo)
+                    .eq('activo', true)
+                    .maybeSingle()
+            ),
+            this.supabase.call<PresRow>(
+                this.supabase.client
+                    .from('producto_presentaciones')
+                    .select('id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, imagen_url, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id)')
+                    .eq('codigo_barras', codigo)
+                    .eq('activo', true)
+                    .maybeSingle()
+            ),
+        ]);
+
+        if (prod) return { producto: prod };
         if (pres?.producto) {
-            const productoData = pres.producto as any;
             return {
-                producto: productoData as ProductoPOS,
+                producto: pres.producto,
                 presentacion: {
-                    id: pres.id,
-                    producto_id: pres.producto_id,
-                    nombre: pres.nombre,
-                    factor_conversion: pres.factor_conversion,
-                    precio_venta: pres.precio_venta,
-                    codigo_barras: pres.codigo_barras,
-                    es_principal: pres.es_principal,
-                    activo: pres.activo
+                    id: pres.id, producto_id: pres.producto_id, nombre: pres.nombre,
+                    factor_conversion: pres.factor_conversion, precio_venta: pres.precio_venta,
+                    precio_costo: pres.precio_costo, codigo_barras: pres.codigo_barras ?? undefined,
+                    imagen_url: pres.imagen_url, es_principal: pres.es_principal, activo: pres.activo
                 }
             };
         }
-
         return null;
     }
 
-    async crearProducto(producto: Partial<Producto>): Promise<Producto> {
-        const res = await this.supabase.call<Producto[]>(
-            this.supabase.client.from('productos').insert([producto]).select('*, categoria:categorias_productos(*)'),
-            'Producto creado exitosamente',
-            { showLoading: true }
-        );
-        const created = res ? res[0] : ({} as Producto);
-        if (created.id) this.productoChange$.next({ tipo: 'CREADO', producto: created });
-        return created;
-    }
-
-    async actualizarProducto(id: string, producto: Partial<Producto>): Promise<Producto> {
-        const res = await this.supabase.call<Producto[]>(
-            this.supabase.client.from('productos').update(producto).eq('id', id).select('*, categoria:categorias_productos(*)'),
-            'Producto actualizado exitosamente',
-            { showLoading: true }
-        );
-        const updated = res ? res[0] : ({} as Producto);
-        if (updated.id) this.productoChange$.next({ tipo: 'ACTUALIZADO', producto: updated });
-        return updated;
-    }
-
-    async desactivarProducto(id: string): Promise<void> {
-        await this.supabase.call(
-            this.supabase.client.from('productos').update({ activo: false }).eq('id', id),
-            'Producto desactivado del inventario',
-            { showLoading: true }
-        );
-        this.productoChange$.next({ tipo: 'DESACTIVADO', producto: { id } as Producto });
-    }
-
-    async reactivarProducto(id: string): Promise<Producto> {
-        const res = await this.supabase.call<Producto[]>(
-            this.supabase.client.from('productos').update({ activo: true }).eq('id', id).select('*, categoria:categorias_productos(*)'),
-            'Producto reactivado exitosamente',
-            { showLoading: true }
-        );
-        const updated = res ? res[0] : ({} as Producto);
-        if (updated.id) this.productoChange$.next({ tipo: 'ACTUALIZADO', producto: updated });
-        return updated;
-    }
-
-    async obtenerProductosDesactivados(): Promise<Producto[]> {
-        const { data } = await this.supabase.client
-            .from('productos')
-            .select('*, categoria:categorias_productos(*)')
-            .eq('activo', false)
-            .order('nombre');
-        return data || [];
-    }
-
-    async obtenerProductoPorId(id: string): Promise<Producto | null> {
-        const { data } = await this.supabase.client
-            .from('productos')
-            .select('*, categoria:categorias_productos(*)')
-            .eq('id', id)
-            .maybeSingle();
-        return data;
-    }
-
     // ==========================================
-    // CATEGORIAS
+    // CATEGORÍAS
     // ==========================================
 
     async obtenerCategorias(): Promise<CategoriaProducto[]> {
+        // Offline: servir las categorías cacheadas (solo lectura, mismo contrato).
+        if (!this.network.isConnected()) {
+            return this.catalogoLocal.obtenerCategorias();
+        }
         const res = await this.supabase.call<CategoriaProducto[]>(
             this.supabase.client.from('categorias_productos').select('*').eq('activo', true).order('nombre')
         );
@@ -199,14 +192,17 @@ export class InventarioService {
 
     async crearCategoria(nombre: string): Promise<CategoriaProducto | null> {
         const res = await this.supabase.call<CategoriaProducto[]>(
-            this.supabase.client.from('categorias_productos').insert({ nombre }).select(),
+            this.supabase.client
+                .from('categorias_productos')
+                .insert({ nombre, negocio_id: this.auth.usuarioActualValue?.negocio_id })
+                .select(),
             'Categoría creada',
             { showLoading: true }
         );
         return res ? res[0] : null;
     }
 
-    async renombrarCategoria(id: number, nombre: string): Promise<void> {
+    async renombrarCategoria(id: string, nombre: string): Promise<void> {
         await this.supabase.call(
             this.supabase.client.from('categorias_productos').update({ nombre }).eq('id', id),
             'Categoría renombrada',
@@ -214,26 +210,15 @@ export class InventarioService {
         );
     }
 
-    async contarProductosPorCategoria(categoriaId: number): Promise<{ activos: number; inactivos: number }> {
+    async contarProductosPorCategoria(categoriaId: string): Promise<{ activos: number; inactivos: number }> {
         const [activosRes, inactivosRes] = await Promise.all([
-            this.supabase.client
-                .from('productos')
-                .select('*', { count: 'exact', head: true })
-                .eq('categoria_id', categoriaId)
-                .eq('activo', true),
-            this.supabase.client
-                .from('productos')
-                .select('*', { count: 'exact', head: true })
-                .eq('categoria_id', categoriaId)
-                .eq('activo', false)
+            this.supabase.client.from('productos').select('*', { count: 'exact', head: true }).eq('categoria_id', categoriaId).eq('activo', true),
+            this.supabase.client.from('productos').select('*', { count: 'exact', head: true }).eq('categoria_id', categoriaId).eq('activo', false),
         ]);
-        return {
-            activos: activosRes.count || 0,
-            inactivos: inactivosRes.count || 0
-        };
+        return { activos: activosRes.count || 0, inactivos: inactivosRes.count || 0 };
     }
 
-    async desactivarCategoria(id: number): Promise<void> {
+    async desactivarCategoria(id: string): Promise<void> {
         await this.supabase.call(
             this.supabase.client.from('categorias_productos').update({ activo: false }).eq('id', id),
             'Categoría eliminada',
@@ -242,18 +227,28 @@ export class InventarioService {
     }
 
     // ==========================================
-    // KARDEX
+    // KARDEX Y STOCK
     // ==========================================
 
-    async obtenerKardexProducto(productoId: string): Promise<KardexInventario[]> {
+    async obtenerKardexProducto(productoId: string, limit = 100): Promise<KardexInventario[]> {
         const res = await this.supabase.call<KardexInventario[]>(
             this.supabase.client
                 .from('kardex_inventario')
-                .select('*')
+                .select('*, presentacion:producto_presentaciones(nombre, factor_conversion)')
                 .eq('producto_id', productoId)
                 .order('fecha', { ascending: false })
+                .limit(limit)
         );
         return res || [];
+    }
+
+    async obtenerStockActual(productoId: string): Promise<number | null> {
+        const { data } = await this.supabase.client
+            .from('productos')
+            .select('stock_actual')
+            .eq('id', productoId)
+            .single();
+        return data?.stock_actual ?? null;
     }
 
     async obtenerProductosStockBajo(): Promise<{ id: string; nombre: string; stock_actual: number }[]> {
@@ -268,61 +263,123 @@ export class InventarioService {
     async ajustarStock(productoId: string, tipoMovimiento: string, cantidad: number, observaciones: string): Promise<{ stock_nuevo: number }> {
         const res = await this.supabase.call<{ stock_nuevo: number }>(
             this.supabase.client.rpc('fn_ajustar_stock_inventario', {
-                p_producto_id: productoId,
+                p_producto_id:    productoId,
                 p_tipo_movimiento: tipoMovimiento,
-                p_cantidad: cantidad,
-                p_observaciones: observaciones
+                p_cantidad:       cantidad,
+                p_observaciones:  observaciones
             }),
             'Stock ajustado correctamente',
             { showLoading: true }
         );
         const resultado = res || { stock_nuevo: 0 };
-
-        // Refrescar el producto en el grid de inventario
-        const productoActualizado = await this.obtenerProductoPorId(productoId);
-        if (productoActualizado) {
-            this.productoChange$.next({ tipo: 'ACTUALIZADO', producto: productoActualizado });
-        }
-
+        const productoActualizado = await this.productoService.obtenerPorId(productoId);
+        if (productoActualizado) this.productoChange$.next({ tipo: 'ACTUALIZADO', producto: productoActualizado });
         return resultado;
     }
 
     // ==========================================
-    // PRESENTACIONES
+    // DELEGADOS — mantienen retrocompatibilidad
+    // con los consumidores actuales mientras no
+    // se migren a los servicios específicos.
     // ==========================================
 
-    async obtenerPresentaciones(productoId: string): Promise<ProductoPresentacion[]> {
-        const { data } = await this.supabase.client
-            .from('producto_presentaciones')
-            .select('*')
-            .eq('producto_id', productoId)
-            .eq('activo', true)
-            .order('factor_conversion');
-        return data || [];
+    /** @deprecated Usar ProductoService.actualizar() */
+    async actualizarProducto(id: string, producto: Partial<Producto>): Promise<Producto> {
+        return this.productoService.actualizar(id, producto);
     }
 
-    async crearPresentacion(presentacion: Partial<ProductoPresentacion>): Promise<ProductoPresentacion> {
-        const res = await this.supabase.call<ProductoPresentacion[]>(
-            this.supabase.client.from('producto_presentaciones').insert([presentacion]).select(),
-            'Presentación creada',
-            { showLoading: true }
-        );
-        return res ? res[0] : ({} as ProductoPresentacion);
+    /** @deprecated Usar ProductoService.desactivar() */
+    async desactivarProducto(id: string): Promise<void> {
+        return this.productoService.desactivar(id);
     }
 
-    async actualizarPresentacion(id: string, presentacion: Partial<ProductoPresentacion>): Promise<void> {
-        await this.supabase.call(
-            this.supabase.client.from('producto_presentaciones').update(presentacion).eq('id', id),
-            'Presentación actualizada',
-            { showLoading: true }
-        );
+    /** @deprecated Usar ProductoService.reactivar() */
+    async reactivarProducto(id: string): Promise<Producto> {
+        return this.productoService.reactivar(id);
     }
 
-    async desactivarPresentacion(id: string): Promise<void> {
-        await this.supabase.call(
-            this.supabase.client.from('producto_presentaciones').update({ activo: false }).eq('id', id),
-            'Presentación eliminada',
-            { showLoading: true }
-        );
+    /** @deprecated Usar ProductoService.crearSimple() */
+    async crearProductoSimple(params: Parameters<ProductoService['crearSimple']>[0]): Promise<{ ok: boolean; producto_id?: string }> {
+        return this.productoService.crearSimple(params);
+    }
+
+    /** @deprecated Usar ProductoService.crearConVariantes() */
+    async crearProductoConVariantes(params: Parameters<ProductoService['crearConVariantes']>[0]): Promise<{ ok: boolean; template_id?: string; skus_creados?: number }> {
+        return this.productoService.crearConVariantes(params);
+    }
+
+    /** @deprecated Usar ProductoService.obtenerTemplatePorId() */
+    async obtenerTemplatePorId(id: string) {
+        return this.productoService.obtenerTemplatePorId(id);
+    }
+
+    /** @deprecated Usar ProductoService.obtenerSKUsDelTemplate() */
+    async obtenerSKUsDelTemplate(templateId: string, excluirProductoId?: string) {
+        return this.productoService.obtenerSKUsDelTemplate(templateId, excluirProductoId);
+    }
+
+    /** @deprecated Usar PresentacionService.obtenerPresentaciones() */
+    async obtenerPresentaciones(productoId: string) {
+        return this.presentacionSvc.obtenerPresentaciones(productoId);
+    }
+
+    /** @deprecated Usar PresentacionService.obtenerPresentacionesInactivas() */
+    async obtenerPresentacionesInactivas(productoId: string) {
+        return this.presentacionSvc.obtenerPresentacionesInactivas(productoId);
+    }
+
+    /** @deprecated Usar PresentacionService.crearPresentacion() */
+    async crearPresentacion(presentacion: Partial<ProductoPresentacion>, silencioso = false) {
+        return this.presentacionSvc.crearPresentacion(presentacion, silencioso);
+    }
+
+    /** @deprecated Usar PresentacionService.actualizarPresentacion() */
+    async actualizarPresentacion(id: string, presentacion: Partial<ProductoPresentacion>) {
+        return this.presentacionSvc.actualizarPresentacion(id, presentacion);
+    }
+
+    /** @deprecated Usar PresentacionService.desactivarPresentacion() */
+    async desactivarPresentacion(id: string) {
+        return this.presentacionSvc.desactivarPresentacion(id);
+    }
+
+    /** @deprecated Usar PresentacionService.reactivarPresentacion() */
+    async reactivarPresentacion(id: string) {
+        return this.presentacionSvc.reactivarPresentacion(id);
+    }
+
+    /** @deprecated Usar AtributoService */
+    async buscarAtributos(texto: string) {
+        return this.atributoSvc.buscarAtributos(texto);
+    }
+
+    /** @deprecated Usar AtributoService */
+    async crearOObtenerAtributo(nombre: string) {
+        return this.atributoSvc.crearOObtenerAtributo(nombre);
+    }
+
+    /** @deprecated Usar AtributoService */
+    async buscarOpcionesAtributo(atributoId: string, texto?: string) {
+        return this.atributoSvc.buscarOpcionesAtributo(atributoId, texto);
+    }
+
+    /** @deprecated Usar AtributoService */
+    async obtenerOpcionesAtributo(atributoId: string) {
+        return this.atributoSvc.obtenerOpcionesAtributo(atributoId);
+    }
+
+    /** @deprecated Usar AtributoService */
+    async crearOObtenerOpcionAtributo(atributoId: string, valor: string) {
+        return this.atributoSvc.crearOObtenerOpcionAtributo(atributoId, valor);
+    }
+
+    /** @deprecated Usar AtributoService */
+    async obtenerAtributosProducto(productoId: string) {
+        return this.atributoSvc.obtenerAtributosProducto(productoId);
+    }
+
+    /** @deprecated Usar AtributoService */
+    async guardarAtributosProducto(productoId: string, opcionIds: string[]) {
+        return this.atributoSvc.guardarAtributosProducto(productoId, opcionIds);
     }
 }

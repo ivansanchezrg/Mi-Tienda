@@ -6,12 +6,14 @@ DROP FUNCTION IF EXISTS public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT, UUID
 DROP FUNCTION IF EXISTS public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT, UUID, INTEGER);
 
 -- ==========================================
--- FUNCIÓN: fn_listar_ventas (v1.4)
+-- FUNCIÓN: fn_listar_ventas (v1.6)
 -- ==========================================
 -- Lista paginada de ventas con soporte de filtro por período, búsqueda libre,
 -- estado y turno. Todos los roles ven todas las ventas.
 -- El filtro por turno es solo visible para ADMIN (client-side).
 --
+-- v1.5 — Agrega filtro explícito negocio_id = get_negocio_id() en la query principal.
+--         SECURITY DEFINER bypasea RLS — el filtro manual es obligatorio.
 -- v1.4 — Simplificado: todos los roles ven todas las ventas. Filtro de turno
 --         solo disponible para ADMIN en el frontend.
 -- v1.3 — Agrega: p_turno_id para filtrar ventas de un turno específico.
@@ -37,7 +39,7 @@ CREATE OR REPLACE FUNCTION public.fn_listar_ventas(
 RETURNS TABLE (
     id                    UUID,
     turno_id              UUID,
-    empleado_id           INTEGER,
+    empleado_id           UUID,
     cliente_id            UUID,
     tipo_comprobante      TEXT,
     numero_comprobante    INTEGER,
@@ -58,12 +60,23 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_negocio_id    UUID;
     v_fecha_local   DATE;
     v_inicio        TIMESTAMPTZ;
     v_fin           TIMESTAMPTZ;
     v_term          TEXT;
     v_term_regex    TEXT;
 BEGIN
+    -- ── Negocio del JWT (SECURITY DEFINER bypasea RLS — filtro manual obligatorio) ──
+    v_negocio_id := public.get_negocio_id();
+
+    -- Defensa en profundidad: validar que p_turno_id (si viene) pertenece al negocio
+    IF p_turno_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM turnos_caja tc WHERE tc.id = p_turno_id AND tc.negocio_id = v_negocio_id
+    ) THEN
+        RAISE EXCEPTION 'El turno especificado no pertenece a este negocio';
+    END IF;
+
     -- ── Fecha actual en Ecuador ─────────────────────────────────────────────
     v_fecha_local := (NOW() AT TIME ZONE 'America/Guayaquil')::DATE;
 
@@ -76,12 +89,12 @@ BEGIN
         -- Lunes de la semana actual en Ecuador (ISODOW: 1=Lun … 7=Dom)
         v_inicio := ((v_fecha_local - (EXTRACT(ISODOW FROM v_fecha_local)::INT - 1) * INTERVAL '1 day')::TIMESTAMP
                      AT TIME ZONE 'America/Guayaquil');
-        v_fin    := NULL;  -- sin límite superior
+        v_fin    := ((v_fecha_local + 1)::TIMESTAMP AT TIME ZONE 'America/Guayaquil');
 
     ELSIF p_filtro = 'mes' THEN
         -- Primer día del mes actual en Ecuador
         v_inicio := (DATE_TRUNC('month', v_fecha_local)::TIMESTAMP AT TIME ZONE 'America/Guayaquil');
-        v_fin    := NULL;
+        v_fin    := ((v_fecha_local + 1)::TIMESTAMP AT TIME ZONE 'America/Guayaquil');
 
     ELSIF p_filtro = 'todo' THEN
         v_inicio := NULL;
@@ -120,7 +133,8 @@ BEGIN
     FROM ventas v
     LEFT JOIN clientes  c ON v.cliente_id  = c.id
     LEFT JOIN usuarios  e ON v.empleado_id = e.id
-    WHERE v.estado = COALESCE(p_estado, 'COMPLETADA')
+    WHERE v.negocio_id = v_negocio_id
+      AND v.estado = COALESCE(p_estado, 'COMPLETADA')
       -- Filtro de turno (solo ADMIN lo usa desde el frontend)
       AND (p_turno_id IS NULL OR v.turno_id = p_turno_id)
       -- Filtro de fecha
@@ -139,8 +153,8 @@ BEGIN
           OR c.identificacion ILIKE '%' || v_term || '%'
       )
     ORDER BY v.fecha DESC
-    OFFSET p_page * p_page_size
-    LIMIT  p_page_size;
+    OFFSET p_page * LEAST(GREATEST(p_page_size, 1), 200)
+    LIMIT  LEAST(GREATEST(p_page_size, 1), 200);
 END;
 $$;
 
@@ -151,3 +165,8 @@ REVOKE EXECUTE ON FUNCTION public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT, U
 GRANT  EXECUTE ON FUNCTION public.fn_listar_ventas(TEXT, TEXT, INT, INT, TEXT, UUID) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
+
+COMMENT ON FUNCTION public.fn_listar_ventas IS
+    'v1.5 — Filtro explícito negocio_id = get_negocio_id() en la query principal (SECURITY DEFINER bypasea RLS). '
+    'Lista paginada de ventas: filtro por período, búsqueda libre (nombre, cédula, comprobante), '
+    'estado y turno. Fechas en zona Ecuador (America/Guayaquil).';

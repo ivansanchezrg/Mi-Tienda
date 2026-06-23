@@ -1,0 +1,64 @@
+<div class="bs-root">
+
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+    </div>
+    <span class="bs-header__title">Pago confirmado</span>
+    <button class="bs-header__close" (click)="cerrar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <div class="bs-body">
+
+      <!-- Monto protagonista -->
+      <div class="dp-monto">
+        <span class="dp-monto__valor">${{ pago.monto | appCurrency }}</span>
+        <span class="dp-monto__plan">{{ pago.plan_nombre }} · {{ periodoLabel }}</span>
+      </div>
+
+      <!-- Ficha de detalle -->
+      <div class="dp-ficha">
+        <div class="dp-ficha__row">
+          <div class="dp-ficha__label">
+            <ion-icon name="calendar-outline"></ion-icon>
+            Fecha de pago
+          </div>
+          <span class="dp-ficha__val">{{ pago.created_at | date:'d MMM yyyy, h:mm a' }}</span>
+        </div>
+
+        @if (pago.metodo_pago_nombre) {
+          <div class="dp-ficha__row">
+            <div class="dp-ficha__label">
+              <ion-icon name="card-outline"></ion-icon>
+              Método de pago
+            </div>
+            <span class="dp-ficha__val">{{ pago.metodo_pago_nombre }}</span>
+          </div>
+        }
+
+        <div class="dp-ficha__row">
+          <div class="dp-ficha__label">
+            <ion-icon name="time-outline"></ion-icon>
+            Vigencia hasta
+          </div>
+          <span class="dp-ficha__val">{{ pago.vence_el | date:'d MMM yyyy' }}</span>
+        </div>
+
+        @if (pago.nota) {
+          <div class="dp-ficha__row dp-ficha__row--nota">
+            <div class="dp-ficha__label">
+              <ion-icon name="document-text-outline"></ion-icon>
+              Referencia / comprobante
+            </div>
+            <span class="dp-ficha__val">{{ pago.nota }}</span>
+          </div>
+        }
+      </div>
+
+    </div>
+  </div>
+
+</div>

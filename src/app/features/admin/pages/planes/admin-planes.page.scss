@@ -1,0 +1,141 @@
+.admin-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  ion-icon {
+    font-size: 18px;
+    color: var(--ion-color-warning);
+  }
+}
+
+// Franja blanca estática bajo las tabs.
+.admin-subheader {
+  background: var(--ion-item-background, #ffffff);
+  padding: var(--spacing-md) var(--spacing-lg);
+}
+
+.seccion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.seccion-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-crear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 10px;
+  background: var(--ion-color-primary);
+  color: var(--ion-color-primary-contrast);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+
+  ion-icon { font-size: 16px; }
+  &:active { transform: scale(0.97); }
+}
+
+// ── Lista de planes ──────────────────────────────────
+.planes-wrap {
+  padding: var(--spacing-md) var(--spacing-lg) 100px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.plan-card {
+  background: var(--ion-item-background);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-level-1);
+  padding: var(--spacing-md);
+
+  &--inactivo {
+    opacity: 0.65;
+  }
+
+  &__main {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  &__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  &__top {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+  }
+
+  &__nombre {
+    font-size: 15px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+  }
+
+  &__codigo {
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-medium);
+    background: rgba(var(--ion-color-medium-rgb), 0.12);
+    padding: 1px 7px;
+    border-radius: 5px;
+  }
+
+  &__badge-inactivo {
+    font-size: 10px;
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    color: var(--ion-color-danger-contrast);
+    background: var(--ion-color-medium);
+    padding: 2px 7px;
+    border-radius: 5px;
+  }
+
+  &__precio {
+    font-size: 13px;
+    color: var(--ion-text-color);
+  }
+
+  &__features {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+  }
+
+  &__editar {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 8px;
+    background: rgba(var(--ion-color-primary-rgb), 0.08);
+    color: var(--ion-color-primary);
+    cursor: pointer;
+
+    ion-icon { font-size: 18px; }
+    &:active { background: rgba(var(--ion-color-primary-rgb), 0.18); }
+  }
+}

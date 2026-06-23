@@ -1,0 +1,54 @@
+ion-content {
+  --background: var(--ion-background-color);
+}
+
+.page-container {
+  padding: var(--spacing-md);
+  padding-bottom: 100px;
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+// ── Tarjeta de categoría ──────────────────────────────────────────────────────
+.categoria-item {
+  background: var(--ion-item-background, white);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
+  box-shadow: var(--shadow-level-1);
+  display: flex;
+  align-items: center;
+  transition: background var(--transition-fast);
+
+  gap: var(--spacing-md);
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+
+  &:active {
+    transform: scale(0.99);
+    opacity: 0.85;
+  }
+
+  .chevron {
+    font-size: 18px;
+    color: var(--ion-color-step-400);
+    flex-shrink: 0;
+  }
+}
+
+.cat-info {
+  flex: 1;
+  min-width: 0;
+
+  .cat-nombre {
+    font-size: 15px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+    margin: 0;
+  }
+}

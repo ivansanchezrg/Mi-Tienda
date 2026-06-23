@@ -1,0 +1,109 @@
+.form-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.grid-2-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+
+    .input-group { margin-bottom: 0; }
+}
+
+.input-group {
+    margin-bottom: var(--spacing-md);
+    &:last-child { margin-bottom: 0; }
+}
+
+.custom-input {
+    --background: var(--ion-color-step-50);
+    --border-radius: var(--radius-md);
+    --padding-start: var(--spacing-md);
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: border-color var(--transition-fast);
+
+    &.ion-focused  { border-color: var(--ion-color-primary); }
+
+    &.ion-invalid {
+        --background: rgba(var(--ion-color-danger-rgb), 0.05);
+        border-color: rgba(var(--ion-color-danger-rgb), 0.5);
+    }
+}
+
+.error-text {
+    color: var(--ion-color-danger);
+    font-size: 12px;
+    padding-left: var(--spacing-sm);
+    display: block;
+}
+
+.margen-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--spacing-sm);
+    padding: 10px 0 2px;
+    border-top: 1px solid var(--ion-color-step-100);
+    margin-top: var(--spacing-sm);
+}
+
+.margen-row-label {
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-step-500);
+}
+
+.margen-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px 5px 8px;
+    border-radius: 20px;
+    font-weight: var(--font-weight-semibold, 600);
+    background: var(--ion-color-success-shade);
+    color: #ffffff;
+
+    ion-icon {
+        font-size: 15px;
+        flex-shrink: 0;
+    }
+}
+
+.margen-badge-pct {
+    font-size: 14px;
+    font-weight: var(--font-weight-bold, 700);
+}
+
+.margen-badge-abs {
+    font-size: 12px;
+    opacity: 0.8;
+    font-weight: var(--font-weight-medium, 500);
+}
+
+.help-text {
+    color: var(--ion-color-step-400);
+    font-size: 11px;
+    margin: 4px 0 0 var(--spacing-sm);
+}
+
+.icon-inline {
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+.iva-row {
+    padding: 2px 0 6px;
+}
+
+.iva-label {
+    font-size: 14px;
+    font-weight: var(--font-weight-medium);
+    color: var(--ion-color-step-700);
+}
+
+.mt-md { margin-top: var(--spacing-md); }
+.mt-xs { margin-top: var(--spacing-xs); }

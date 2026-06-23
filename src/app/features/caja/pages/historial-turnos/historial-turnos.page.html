@@ -1,0 +1,124 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon slot="icon-only" name="chevron-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Cierres de Caja</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content #content [scrollEvents]="true" (ionScroll)="onScroll($event)">
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Filtro de período -->
+  <app-period-filter
+    [options]="periodos"
+    [selected]="filtro"
+    label="Cierres"
+    (selectionChange)="cambiarFiltro($event)">
+  </app-period-filter>
+
+  <!-- Skeleton loading -->
+  @if (loading && cierres.length === 0) {
+    <div class="date-header">
+      <ion-skeleton-text animated style="width: 70px; height: 13px; border-radius: 4px;"></ion-skeleton-text>
+    </div>
+    @for (i of [1, 2, 3]; track i) {
+      <div class="turno-card skeleton">
+        <div class="turno-card__stripe"></div>
+        <div class="turno-card__body">
+          <div class="turno-card__row">
+            <ion-skeleton-text animated style="width: 55%; height: 16px; border-radius: 4px;"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 70px; height: 22px; border-radius: 12px;"></ion-skeleton-text>
+          </div>
+          <ion-skeleton-text animated style="width: 38%; height: 12px; border-radius: 4px; margin-top: 8px;"></ion-skeleton-text>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- Empty state -->
+  @if (!loading && cierres.length === 0) {
+    <app-empty-state
+      icon="time-outline"
+      title="Sin cierres"
+      hint="No hay cierres de turno en este período.">
+    </app-empty-state>
+  }
+
+  <!-- Lista agrupada por fecha -->
+  @if (cierresAgrupados.length > 0) {
+    @for (grupo of cierresAgrupados; track grupo.fecha) {
+
+      <div class="date-header">
+        <span class="date-text">{{ grupo.fechaDisplay }}</span>
+        <span class="date-count">{{ grupo.cierres.length }} {{ grupo.cierres.length === 1 ? 'turno' : 'turnos' }}</span>
+      </div>
+
+      @for (cierre of grupo.cierres; track cierre.turno_id) {
+
+        <button type="button" class="turno-card" (click)="verDetalle(cierre)"
+          [attr.data-estado]="estadoCuadre(cierre)">
+
+          <div class="turno-card__stripe"></div>
+
+          <div class="turno-card__body">
+
+            <!-- Header: Turno # + chip de estado -->
+            <div class="turno-card__row">
+              <div class="turno-card__title">
+                <span class="turno-card__num">Turno #{{ cierre.numero_turno }}</span>
+                <span class="turno-card__hours">
+                  {{ formatHora(cierre.hora_fecha_apertura) }} — {{ formatHora(cierre.hora_fecha_cierre) }}
+                </span>
+              </div>
+
+              @switch (estadoCuadre(cierre)) {
+                @case ('ok') {
+                  <span class="turno-card__chip turno-card__chip--ok">
+                    <ion-icon name="checkmark-circle-outline"></ion-icon>
+                    Cuadrado
+                  </span>
+                }
+                @case ('faltante') {
+                  <span class="turno-card__chip turno-card__chip--faltante">
+                    <ion-icon name="alert-circle-outline"></ion-icon>
+                    Faltante
+                  </span>
+                }
+                @case ('sobrante') {
+                  <span class="turno-card__chip turno-card__chip--sobrante">
+                    <ion-icon name="information-circle-outline"></ion-icon>
+                    Sobrante
+                  </span>
+                }
+              }
+            </div>
+
+            <!-- Cajero -->
+            <div class="turno-card__cajero">
+              <ion-icon name="person-outline"></ion-icon>
+              <span>{{ cierre.empleado_nombre }}</span>
+            </div>
+
+
+          </div>
+        </button>
+      }
+    }
+  }
+
+  <!-- FAB scroll-to-top -->
+  @if (showScrollTop) {
+    <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+      <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+        <ion-icon name="arrow-up-outline"></ion-icon>
+      </ion-fab-button>
+    </ion-fab>
+  }
+
+</ion-content>

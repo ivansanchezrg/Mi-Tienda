@@ -1,0 +1,416 @@
+:host {
+    --modal-bg:         var(--app-bg);
+    --modal-card-bg:    var(--app-surface);
+    --modal-surface:    var(--app-surface-tint);
+    --modal-divider:    var(--app-divider);
+    --modal-text:       var(--app-text);
+    --modal-text-soft:  var(--app-text-soft);
+    --modal-text-muted: var(--app-text-muted);
+}
+
+ion-toolbar {
+    --background: var(--modal-card-bg);
+    --border-width: 0;
+    --color: var(--modal-text);
+
+    ion-title {
+        font-weight: var(--font-weight-bold);
+        letter-spacing: -0.3px;
+    }
+}
+
+ion-content {
+    --background: var(--modal-bg);
+}
+
+// ─────────────────────────────────────────
+// CLIENTE CARD
+// ─────────────────────────────────────────
+
+.cliente-card {
+    background: var(--modal-card-bg);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    box-shadow: var(--shadow-level-1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    .cliente-nombre {
+        font-size: 15px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--modal-text);
+        margin: 0;
+    }
+
+    .cliente-saldo {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+
+        .saldo-label {
+            font-size: 11px;
+            color: var(--modal-text-soft);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .saldo-valor {
+            font-size: 18px;
+            font-weight: var(--font-weight-extrabold);
+            color: var(--ion-color-danger);
+            letter-spacing: -0.5px;
+        }
+    }
+}
+
+// ─────────────────────────────────────────
+// COBRO TOTAL (modo default)
+// ─────────────────────────────────────────
+
+.cobro-total-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--modal-card-bg);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-xl) var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    box-shadow: var(--shadow-level-1);
+
+    .cobro-total-nombre {
+        font-size: 14px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--modal-text-soft);
+        margin: 0 0 var(--spacing-sm);
+    }
+
+    .cobro-total-monto {
+        display: flex;
+        align-items: baseline;
+        gap: 2px;
+
+        .cobro-total-prefix {
+            font-size: 24px;
+            font-weight: var(--font-weight-bold);
+            color: var(--ion-color-primary);
+        }
+
+        .cobro-total-valor {
+            font-size: 36px;
+            font-weight: var(--font-weight-extrabold);
+            color: var(--modal-text);
+            letter-spacing: -1px;
+        }
+    }
+
+    .cobro-total-desc {
+        font-size: 14px;
+        color: var(--modal-text-soft);
+        margin: 4px 0 var(--spacing-md);
+    }
+
+    .btn-abono-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: none;
+        border: none;
+        color: var(--ion-color-primary);
+        font-size: 14px;
+        font-weight: var(--font-weight-semibold);
+        font-family: inherit;
+        cursor: pointer;
+        padding: 6px 0;
+
+        &:active { opacity: 0.6; }
+
+        ion-icon { font-size: 16px; }
+    }
+}
+
+// ─────────────────────────────────────────
+// CAMPO MONTO (modo abono)
+// ─────────────────────────────────────────
+
+.campo-monto {
+    .campo-monto-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+
+        .btn-volver-total {
+            background: none;
+            border: none;
+            color: var(--ion-color-primary);
+            font-size: 13px;
+            font-weight: var(--font-weight-semibold);
+            font-family: inherit;
+            cursor: pointer;
+            padding: 4px 0;
+
+            &:active { opacity: 0.6; }
+        }
+    }
+
+    margin-bottom: var(--spacing-lg);
+
+    .monto-input-wrap {
+        display: flex;
+        align-items: center;
+        background: var(--modal-card-bg);
+        border-radius: var(--radius-sm);
+        padding: 12px 16px;
+        border: 2px solid var(--ion-color-primary);
+        box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.12);
+
+        .monto-prefix {
+            font-size: 26px;
+            font-weight: var(--font-weight-bold);
+            color: var(--ion-color-primary);
+            margin-right: 4px;
+        }
+
+        .monto-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 26px;
+            font-weight: var(--font-weight-bold);
+            color: var(--modal-text);
+            background: transparent;
+            font-family: inherit;
+            width: 100%;
+        }
+    }
+
+    .monto-acciones {
+        margin-top: var(--spacing-sm);
+
+        .btn-pago-total {
+            background: rgba(var(--ion-color-primary-rgb), 0.1);
+            color: var(--ion-color-primary);
+            border: none;
+            border-radius: var(--radius-xs);
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: var(--font-weight-semibold);
+            font-family: inherit;
+            cursor: pointer;
+
+            &:active { opacity: 0.7; }
+        }
+    }
+
+    .campo-error {
+        font-size: 12px;
+        color: var(--ion-color-danger);
+        margin: 4px 0 0;
+    }
+}
+
+// ─────────────────────────────────────────
+// PREVIEW DISTRIBUCIÓN FIFO
+// ─────────────────────────────────────────
+
+.preview-card {
+    background: var(--modal-card-bg);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    box-shadow: var(--shadow-level-1);
+
+    .preview-titulo {
+        font-size: 11px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--modal-text-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        margin: 0 0 var(--spacing-sm);
+    }
+
+    .preview-fila {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: 8px 0;
+        border-bottom: 1px solid var(--modal-divider);
+
+        &:last-child { border-bottom: none; }
+
+        .preview-icon {
+            flex-shrink: 0;
+
+            ion-icon {
+                font-size: 20px;
+                color: var(--modal-text-soft);
+            }
+        }
+
+        &.completa .preview-icon ion-icon {
+            color: var(--ion-color-success);
+        }
+
+        .preview-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+
+            .preview-desc {
+                font-size: 13px;
+                font-weight: var(--font-weight-semibold);
+                color: var(--modal-text);
+            }
+
+            .preview-detalle {
+                font-size: 12px;
+                color: var(--modal-text-soft);
+                margin-top: 1px;
+
+                strong {
+                    color: var(--ion-color-warning);
+                    font-weight: var(--font-weight-bold);
+                }
+            }
+        }
+
+        .preview-monto {
+            font-size: 14px;
+            font-weight: var(--font-weight-bold);
+            color: var(--modal-text);
+        }
+
+        &.completa .preview-monto {
+            color: var(--ion-color-success);
+        }
+
+        &.sin-cambios {
+            opacity: var(--opacity-muted);
+        }
+    }
+
+    .preview-resumen {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: var(--spacing-sm);
+        padding-top: var(--spacing-sm);
+        border-top: 1px dashed var(--modal-divider);
+
+        span {
+            font-size: 12px;
+            color: var(--modal-text-soft);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .resumen-valor {
+            font-size: 14px;
+            font-weight: var(--font-weight-bold);
+            color: var(--ion-color-danger);
+        }
+    }
+}
+
+// ─────────────────────────────────────────
+// CAMPOS GENERALES
+// ─────────────────────────────────────────
+
+.campo-label {
+    display: block;
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--modal-text);
+    margin-bottom: 6px;
+
+    .campo-opcional {
+        font-weight: var(--font-weight-regular);
+        color: var(--modal-text-soft);
+    }
+}
+
+.campo-grupo {
+    margin-bottom: var(--spacing-md);
+}
+
+.selector-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: var(--modal-card-bg);
+    border: 1px solid var(--modal-divider);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 15px;
+    font-weight: var(--font-weight-medium);
+    color: var(--modal-text);
+    font-family: inherit;
+    cursor: pointer;
+
+    ion-icon {
+        font-size: 18px;
+        color: var(--modal-text-soft);
+    }
+
+    &:active { background: var(--modal-surface); }
+}
+
+.campo-textarea {
+    width: 100%;
+    background: var(--modal-card-bg);
+    border: 1px solid var(--modal-divider);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 14px;
+    color: var(--modal-text);
+    font-family: inherit;
+    resize: none;
+    outline: none;
+    box-sizing: border-box;
+
+    &:focus { border-color: var(--ion-color-primary); }
+    &::placeholder { color: var(--modal-text-muted); }
+}
+
+// ─────────────────────────────────────────
+// FOOTER
+// ─────────────────────────────────────────
+
+.modal-footer {
+    padding: var(--spacing-sm) var(--spacing-xl);
+    padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+    background: var(--modal-card-bg);
+    border-top: 1px solid var(--modal-divider);
+
+    .progreso-text {
+        font-size: 13px;
+        color: var(--modal-text-soft);
+        text-align: center;
+        margin: 0 0 var(--spacing-xs);
+    }
+
+    .btn-confirmar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        padding: 14px;
+        background: var(--ion-color-primary);
+        color: var(--ion-color-primary-contrast);
+        border: none;
+        border-radius: var(--radius-md);
+        font-size: 16px;
+        font-weight: var(--font-weight-bold);
+        font-family: inherit;
+        cursor: pointer;
+        transition: opacity var(--transition-normal);
+
+        &:active:not(:disabled) { opacity: 0.8; }
+        &:disabled { opacity: var(--opacity-disabled); cursor: not-allowed; }
+
+        ion-icon { font-size: 20px; }
+    }
+}

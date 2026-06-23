@@ -21,10 +21,10 @@ ion-content {
 // ── Tarjeta de sección ────────────────────────────────────────────────────────
 
 .section-card {
-  background: var(--ion-item-background, #fff);
+  background: var(--ion-item-background);
   border-radius: 16px;
   padding: 20px 16px 0;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-level-1);
   overflow: hidden;
 }
 
@@ -67,23 +67,35 @@ ion-content {
     margin-bottom: 7px;
   }
 
-  // Input de texto simple
-  > input[type="text"] {
+  // Input de texto simple y select nativo
+  > input[type="text"],
+  > input[type="tel"],
+  > input[type="email"],
+  > select {
     width: 100%;
     padding: 13px 14px;
     border: 1.5px solid var(--ion-color-step-200);
     border-radius: 10px;
-    background: var(--ion-background-color, #fafafa);
+    background: var(--ion-background-color);
     font-size: 16px;
     color: var(--ion-text-color);
     font-weight: 500;
     outline: none;
     box-sizing: border-box;
     transition: border-color 0.15s;
+    appearance: none;
 
     &:focus {
       border-color: var(--ion-color-primary);
     }
+  }
+
+  // Select: flecha custom alineada a la derecha
+  > select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 512 512'%3E%3Cpath fill='%23999' d='M256 294.1L383 167c9.4-9.4 24.6-9.4 33.9 0s9.3 24.6 0 33.9l-144 144c-9.4 9.4-24.6 9.4-33.9 0L95 200.9c-9.4-9.4-9.3-24.5 0-33.9s24.5-9.3 33.9 0L256 294.1z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 40px;
   }
 
   // Input con prefijo ($) o sufijo (días)
@@ -91,7 +103,7 @@ ion-content {
   .input-with-suffix {
     display: flex;
     align-items: stretch;
-    background: var(--ion-background-color, #fafafa);
+    background: var(--ion-background-color);
     border: 1.5px solid var(--ion-color-step-200);
     border-radius: 10px;
     overflow: hidden;
@@ -104,7 +116,7 @@ ion-content {
     .prefix,
     .suffix {
       padding: 0 14px;
-      background: var(--ion-color-step-50, #f0f0f0);
+      background: var(--ion-color-step-50);
       color: var(--ion-color-medium);
       font-size: 15px;
       font-weight: 600;
@@ -186,7 +198,7 @@ ion-content {
   .toggle-track {
     position: absolute;
     inset: 0;
-    background: var(--ion-color-step-300, #ccc);
+    background: var(--ion-color-step-300);
     border-radius: 14px;
     transition: background 0.25s ease;
 
@@ -212,9 +224,9 @@ ion-content {
       left: 3px;
       width: 22px;
       height: 22px;
-      background: #fff;
+      background: var(--ion-color-light, #fff);
       border-radius: 50%;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+      box-shadow: var(--shadow-level-2);
       transition: transform 0.25s ease;
     }
   }
@@ -237,7 +249,7 @@ ion-content {
 // ── Footer de sección con botón guardar ───────────────────────────────────────
 
 .section-footer {
-  border-top: 1px solid var(--ion-color-step-100, #f0f0f0);
+  border-top: 1px solid var(--ion-color-step-100);
   margin: 4px -16px 0;
   padding: 12px 16px;
   display: flex;
@@ -248,7 +260,7 @@ ion-content {
   height: 38px;
   padding: 0 20px;
   background: var(--ion-color-primary);
-  color: white;
+  color: var(--ion-color-primary-contrast);
   border: none;
   border-radius: 10px;
   font-size: 14px;
@@ -267,6 +279,39 @@ ion-content {
   ion-spinner {
     width: 15px;
     height: 15px;
+  }
+}
+
+// ── Tipo de comprobante (solo lectura) ────────────────────────────────────────
+
+.comprobante-readonly {
+  display: flex;
+  align-items: center;
+  padding: 12px 0 4px;
+}
+
+.comprobante-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+
+  &--ticket {
+    background: rgba(var(--ion-color-medium-rgb), 0.12);
+    color: var(--ion-color-medium-shade);
+  }
+
+  &--nota {
+    background: rgba(var(--ion-color-warning-rgb), 0.15);
+    color: var(--ion-color-warning-shade);
+  }
+
+  &--factura {
+    background: rgba(var(--ion-color-primary-rgb), 0.12);
+    color: var(--ion-color-primary-shade);
   }
 }
 

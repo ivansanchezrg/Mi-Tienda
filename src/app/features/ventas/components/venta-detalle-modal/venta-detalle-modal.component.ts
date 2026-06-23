@@ -1,5 +1,6 @@
 import { Component, Input, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Capacitor } from '@capacitor/core';
 import {
     IonContent, IonIcon, IonSpinner,
     ModalController
@@ -9,13 +10,13 @@ import {
     closeOutline, receiptOutline, documentTextOutline, documentOutline,
     cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
     personOutline, calendarOutline, printOutline, alertCircleOutline,
-    banOutline, shareOutline
+    banOutline, shareOutline, downloadOutline
 } from 'ionicons/icons';
 import { VentasService } from '../../services/ventas.service';
 import { ShareVentaService } from '../../services/share-venta.service';
 import { Venta } from '../../models/venta.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
-import { ConfigService } from '../../../../core/services/config.service';
+import { AuthService } from '../../../auth/services/auth.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { formatFechaHoraEC, formatHoraEC } from '../../../../core/utils/date.util';
 
@@ -34,8 +35,8 @@ export class VentaDetalleModalComponent implements OnInit {
 
     private ventasService = inject(VentasService);
     private shareService  = inject(ShareVentaService);
-    public currencyService = inject(CurrencyService);
-    private configService  = inject(ConfigService);
+    protected currencyService = inject(CurrencyService);
+    private authService    = inject(AuthService);
     private modalCtrl = inject(ModalController);
     private ui = inject(UiService);
 
@@ -44,20 +45,20 @@ export class VentaDetalleModalComponent implements OnInit {
     nombreNegocio = 'Mi Tienda';
     compartiendo = false;
 
+    readonly isNative = Capacitor.isNativePlatform();
+
     constructor() {
         addIcons({
             closeOutline, receiptOutline, documentTextOutline, documentOutline,
             cashOutline, cardOutline, phonePortraitOutline, handRightOutline,
             personOutline, calendarOutline, printOutline, alertCircleOutline,
-            banOutline, shareOutline
+            banOutline, shareOutline, downloadOutline
         });
     }
 
     async ngOnInit() {
-        [this.venta, this.nombreNegocio] = await Promise.all([
-            this.ventasService.obtenerVentaDetalle(this.ventaId),
-            this.configService.getNombreNegocio(),
-        ]);
+        this.venta = await this.ventasService.obtenerVentaDetalle(this.ventaId);
+        this.nombreNegocio = this.authService.usuarioActualValue?.negocio_nombre ?? 'Mi Tienda';
         this.loading = false;
     }
 
@@ -132,7 +133,7 @@ export class VentaDetalleModalComponent implements OnInit {
     }
 
     labelMetodoPago(metodo: string): string {
-        if (metodo === 'DEUNA')         return 'Tarjeta / DeUna';
+        if (metodo === 'DEUNA')         return 'Deuna';
         if (metodo === 'TRANSFERENCIA') return 'Transferencia';
         if (metodo === 'FIADO')         return 'Fiado';
         return 'Efectivo';

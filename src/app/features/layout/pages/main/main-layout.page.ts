@@ -3,19 +3,24 @@ import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import {
   IonMenu, IonTabs, IonTabBar,
-  IonTabButton, IonIcon, IonLabel, IonFabButton,
+  IonTabButton, IonIcon, IonLabel,
   IonSplitPane, ModalController
 } from '@ionic/angular/standalone';
 import { SidebarComponent } from 'src/app/shared/components/sidebar/sidebar.component';
 import { DisabledTabComponent } from 'src/app/shared/components/disabled-tab/disabled-tab.component';
-import { homeOutline, cartOutline, cubeOutline, receiptOutline, add, close, barcodeOutline, createOutline, scaleOutline, calculatorOutline } from 'ionicons/icons';
+import { addIcons } from 'ionicons';
+import { homeOutline, cartOutline, cubeOutline, receiptOutline, add, close, barcodeOutline, createOutline, scaleOutline, calculatorOutline, pricetagOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { CuadreCajaPage } from 'src/app/features/dashboard/pages/cuadre-caja/cuadre-caja.page';
+import { ConfigService } from '@core/services/config.service';
+import { CuadreCajaPage } from 'src/app/features/caja/pages/cuadre-caja/cuadre-caja.page';
 import { NuevaNotaModalComponent } from 'src/app/features/notas/components/nueva-nota-modal/nueva-nota-modal.component';
 import { NotasService } from 'src/app/features/notas/services/notas.service';
 import { AuthService } from 'src/app/features/auth/services/auth.service';
-import { TurnosCajaService } from 'src/app/features/dashboard/services/turnos-caja.service';
+import { TurnosCajaService } from 'src/app/features/caja/services/turnos-caja.service';
 import { CalculadoraMargenComponent } from 'src/app/shared/components/calculadora-margen/calculadora-margen.component';
+import { ConsultaPrecioModalComponent } from 'src/app/shared/components/consulta-precio-modal/consulta-precio-modal.component';
+import { BarcodeScannerService } from '@core/services/barcode-scanner.service';
+import { ScannerOverlayComponent } from 'src/app/shared/components/scanner-overlay/scanner-overlay.component';
 
 @Component({
   selector: 'app-main-layout',
@@ -25,8 +30,8 @@ import { CalculadoraMargenComponent } from 'src/app/shared/components/calculador
   imports: [
     CommonModule,
     IonSplitPane, IonMenu, IonTabs, IonTabBar,
-    IonTabButton, IonIcon, IonLabel, IonFabButton,
-    SidebarComponent, DisabledTabComponent
+    IonTabButton, IonIcon, IonLabel,
+    SidebarComponent, DisabledTabComponent, ScannerOverlayComponent
   ]
 })
 export class MainLayoutPage implements OnInit, OnDestroy {
@@ -35,13 +40,16 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   private modalCtrl = inject(ModalController);
   private notasService = inject(NotasService);
   private authService = inject(AuthService);
+  private configService = inject(ConfigService);
+  private scanner = inject(BarcodeScannerService);
 
-  /**
-   * True si hay turno de caja abierto. Determina si el tab POS está habilitado.
-   * Se sincroniza via Realtime con TurnosCajaService.cajaAbierta$.
-   */
   posHabilitado = false;
+  posDisabledMessage = 'Para usar el POS primero abre la caja desde Inicio';
+  esSuperadmin = false;
+  // El cuadre solo tiene sentido con al menos un módulo de recargas activo
+  cuadreDisponible = false;
   private posSub!: Subscription;
+  private turnoSub!: Subscription;
 
   homeIcon = homeOutline;
   posIcon = barcodeOutline;
@@ -52,25 +60,53 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   createIcon = createOutline;
   scaleIcon = scaleOutline;
   calculatorIcon = calculatorOutline;
+  priceIcon = pricetagOutline;
+
+  constructor() {
+    addIcons({ homeOutline, cartOutline, cubeOutline, receiptOutline, add, close, barcodeOutline, createOutline, scaleOutline, calculatorOutline, pricetagOutline });
+  }
 
   // Estado del FAB
   fabAbierto = false;
+  escaneandoPrecio = false;
 
   async ngOnInit() {
-    // El POS se habilita automaticamente cuando hay un turno de caja abierto.
-    // TurnosCajaService sincroniza el estado via Realtime de la tabla turnos_caja.
-    this.posSub = this.turnosCajaService.cajaAbierta$.subscribe(abierta => {
-      this.posHabilitado = abierta;
+    // Invalidar al montar el layout (PRIMER consumidor de config en el arranque):
+    // garantiza flags de módulos frescos desde BD para el FAB y para el sidebar,
+    // que reusa esta misma carga. Si invalidara solo el sidebar (hijo), llegaría
+    // tarde: se subiría a la carga stale de Preferences iniciada aquí.
+    this.configService.invalidar();
+    const [usuario, config] = await Promise.all([
+      this.authService.getUsuarioActual(),
+      this.configService.get()
+    ]);
+    this.esSuperadmin = usuario?.es_superadmin ?? false;
+    this.cuadreDisponible = (config?.recargas_celular_habilitada ?? false)
+                         || (config?.recargas_bus_habilitada ?? false);
+
+    // El POS solo se habilita para el empleado que abrio el turno.
+    this.posSub = this.turnosCajaService.esMiTurno$.subscribe(esMio => {
+      this.posHabilitado = esMio;
+    });
+
+    // Mensaje contextual del tab deshabilitado — se actualiza con el nombre
+    // del empleado que tiene el turno, independiente del timing de esMiTurno$.
+    this.turnoSub = this.turnosCajaService.turnoActivo$.subscribe(turno => {
+      if (turno && !this.posHabilitado) {
+        const nombre = turno.empleado?.nombre ?? 'otro empleado';
+        this.posDisabledMessage = `${nombre} ya tiene el turno abierto. Solo ${nombre} puede usar el POS`;
+      } else if (!turno) {
+        this.posDisabledMessage = 'Para usar el POS primero abre la caja desde Inicio';
+      }
     });
   }
 
   ngOnDestroy() {
     this.posSub?.unsubscribe();
+    this.turnoSub?.unsubscribe();
   }
 
-  get showTabs() { return this.ui.tabsVisible(); }
-
-  /**
+/**
    * Toggle del estado del FAB
    */
   toggleFab() {
@@ -80,14 +116,67 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   /**
    * Handler de acciones rápidas del sidebar (desktop)
    */
-  async onAccionRapida(accion: 'nueva-nota' | 'cuadre' | 'calculadora') {
+  async onAccionRapida(accion: 'nueva-nota' | 'cuadre' | 'calculadora' | 'consulta-precio') {
     if (accion === 'nueva-nota') {
       await this.nuevaNota();
     } else if (accion === 'cuadre') {
       await this.irACuadre();
     } else if (accion === 'calculadora') {
       await this.abrirCalculadora();
+    } else if (accion === 'consulta-precio') {
+      await this.consultarPrecio();
     }
+  }
+
+  /**
+   * Consulta de precio por código de barras.
+   * Nativo: escanea con la cámara y abre el bottom sheet con el resultado.
+   * Web/desktop: abre el modal en modo manual — la pistola de escaneo (HID)
+   * actúa como teclado y escribe el código en el input del modal.
+   */
+  async consultarPrecio() {
+    this.fabAbierto = false;
+
+    if (!this.scanner.isAvailable) {
+      const modal = await this.modalCtrl.create({
+        component: ConsultaPrecioModalComponent,
+        cssClass: 'bottom-sheet-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1,
+        // sin codigoInicial → modo manual
+      });
+      await modal.present();
+      return;
+    }
+
+    this.escaneandoPrecio = true;
+    try {
+      const codigo = await this.scanner.scan();
+      this.escaneandoPrecio = false;  // cerrar overlay antes de abrir el modal
+      if (!codigo) return;
+
+      const modal = await this.modalCtrl.create({
+        component: ConsultaPrecioModalComponent,
+        cssClass: 'bottom-sheet-modal',
+        breakpoints: [0, 1],
+        initialBreakpoint: 1,
+        componentProps: { codigoInicial: codigo },
+      });
+      await modal.present();
+      const { role } = await modal.onDidDismiss();
+
+      // El usuario quiere consultar otro — volver a escanear
+      if (role === 'rescanear') {
+        await this.consultarPrecio();
+      }
+    } finally {
+      this.escaneandoPrecio = false;
+    }
+  }
+
+  cerrarEscaner() {
+    this.scanner.stop();
+    this.escaneandoPrecio = false;
   }
 
   /**

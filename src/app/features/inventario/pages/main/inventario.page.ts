@@ -1,28 +1,32 @@
-import { Component, inject, NgZone, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AlertController, IonicModule, ModalController, NavController } from '@ionic/angular';
+import {
+  AlertController, NavController,
+  IonHeader, IonToolbar, IonButtons, IonMenuButton, IonTitle, IonButton, IonIcon,
+  IonContent, IonRefresher, IonRefresherContent,
+  IonCard, IonCardContent, IonSkeletonText,
+  IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton, IonSpinner
+} from '@ionic/angular/standalone';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { Subscription } from 'rxjs';
 import { addIcons } from 'ionicons';
 import {
   addOutline,
-  searchOutline,
   barcodeOutline,
   imageOutline,
   alertCircleOutline,
   cubeOutline,
   scanOutline,
+  searchOutline,
   closeOutline,
-  ellipsisVerticalOutline,
-  createOutline,
-  trashOutline,
-  addCircleOutline,
-  chevronDownOutline,
   layersOutline,
-  pricetagOutline
+  pricetagOutline,
+  colorPaletteOutline,
+  arrowUpOutline,
+  chevronForwardOutline
 } from 'ionicons/icons';
-import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { InventarioService } from '../../services/inventario.service';
@@ -30,71 +34,165 @@ import { Producto } from '../../models/producto.model';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { StorageService } from '../../../../core/services/storage.service';
-import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
+import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
+import { ROUTES } from '../../../../core/config/routes.config';
+
+/**
+ * Item del grid de inventario en modo "agrupado".
+ * - 'simple'   → un producto individual (sin variantes)
+ * - 'template' → grupo de variantes del mismo template (camiseta S/M/L × colores)
+ */
+type InventarioItem =
+    | { kind: 'simple'; producto: Producto }
+    | {
+        kind: 'template';
+        templateId: string;
+        templateNombre: string;
+        templateImagenUrl?: string | null;
+        categoriaNombre?: string;
+        variantes: Producto[];
+        stockTotal: number;
+        stockBajo: number;        // variantes con stock <= stock_minimo (y > 0)
+        stockAgotado: number;     // variantes con stock = 0
+        precioMin: number;
+        precioMax: number;
+      };
 
 @Component({
   selector: 'app-inventario',
   templateUrl: './inventario.page.html',
   styleUrls: ['./inventario.page.scss'],
   standalone: true,
-  imports: [IonicModule, CommonModule, FormsModule, EmptyStateComponent]
+  imports: [
+    CommonModule, FormsModule,
+    IonHeader, IonToolbar, IonButtons, IonMenuButton, IonTitle, IonButton, IonIcon,
+    IonSpinner, IonContent, IonRefresher, IonRefresherContent,
+    IonCard, IonCardContent, IonSkeletonText,
+    IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton,
+    EmptyStateComponent, ScannerOverlayComponent
+  ]
 })
 export class InventarioPage extends PaginatedListPage<Producto> implements OnInit, OnDestroy {
   private inventarioService = inject(InventarioService);
-  public currencyService = inject(CurrencyService);
+  protected currencyService = inject(CurrencyService);
   private storageService = inject(StorageService);
   private navCtrl = inject(NavController);
   private alertCtrl = inject(AlertController);
-  private modalCtrl = inject(ModalController);
-  private ngZone = inject(NgZone);
+  protected barcodeScanner = inject(BarcodeScannerService);
+
+  @ViewChild('categoriaScroll') categoriaScrollRef!: ElementRef<HTMLDivElement>;
 
   protected readonly pageSize = PAGINATION_CONFIG.inventario.pageSize;
   readonly loadingMoreText = 'Cargando más productos...';
 
   categorias: CategoriaProducto[] = [];
   buscarTexto = '';
-  categoriaSeleccionada?: number;
+  categoriaSeleccionada?: string;
+  templateSeleccionado?: { id: string; nombre: string };
   escaneando = false;
   mostrarDesactivados = false;
+  readonly vistaAgrupada = true;
+  readonly skeletonItems = Array(6);
 
-  get filtroSeleccionado(): string {
+  /** Items derivados para el grid — agrupa por template cuando vistaAgrupada=true */
+  get itemsGrid(): InventarioItem[] {
+    return this.vistaAgrupada && !this.mostrarDesactivados && !this.templateSeleccionado
+      ? this.agruparItems(this.items)
+      : this.items.map(p => ({ kind: 'simple' as const, producto: p }));
+  }
+
+  private agruparItems(productos: Producto[]): InventarioItem[] {
+    const items: InventarioItem[] = [];
+    const templateMap = new Map<string, Extract<InventarioItem, { kind: 'template' }>>();
+
+    for (const p of productos) {
+      if (!p.producto_template_id) {
+        items.push({ kind: 'simple', producto: p });
+        continue;
+      }
+      const existing = templateMap.get(p.producto_template_id);
+      if (existing) {
+        existing.variantes.push(p);
+        existing.stockTotal += Number(p.stock_actual) || 0;
+        if (Number(p.stock_actual) === 0) existing.stockAgotado++;
+        else if (Number(p.stock_actual) <= Number(p.stock_minimo)) existing.stockBajo++;
+        existing.precioMin = Math.min(existing.precioMin, Number(p.precio_venta) || 0);
+        existing.precioMax = Math.max(existing.precioMax, Number(p.precio_venta) || 0);
+      } else {
+        const stock = Number(p.stock_actual) || 0;
+        const item: Extract<InventarioItem, { kind: 'template' }> = {
+          kind: 'template',
+          templateId: p.producto_template_id,
+          templateNombre: p.producto_template?.nombre ?? p.nombre,
+          templateImagenUrl: p.producto_template?.imagen_url ?? p.imagen_url,
+          categoriaNombre: p.producto_template?.categoria?.nombre ?? p.categoria?.nombre,
+          variantes: [p],
+          stockTotal: stock,
+          stockBajo:    stock > 0 && stock <= Number(p.stock_minimo) ? 1 : 0,
+          stockAgotado: stock === 0 ? 1 : 0,
+          precioMin: Number(p.precio_venta) || 0,
+          precioMax: Number(p.precio_venta) || 0,
+        };
+        templateMap.set(p.producto_template_id, item);
+        items.push(item);
+      }
+    }
+    return items;
+  }
+
+get filtroSeleccionado(): string {
     if (this.mostrarDesactivados) return 'desactivados';
+    if (this.templateSeleccionado) return `tmpl-${this.templateSeleccionado.id}`;
     if (this.categoriaSeleccionada) return `cat-${this.categoriaSeleccionada}`;
     return 'todas';
   }
 
-  get filtroLabel(): string {
-    if (this.mostrarDesactivados) return 'Desactivados';
-    if (this.categoriaSeleccionada) {
-      const cat = this.categorias.find(c => c.id === this.categoriaSeleccionada);
-      return cat?.nombre || 'Categoría';
-    }
-    return 'Todas las categorías';
-  }
-
-  private audioCtx: AudioContext | null = null;
   private searchDebounce: ReturnType<typeof setTimeout> | undefined;
   private productoChangeSub?: Subscription;
+
+  searchAbierto = false;
 
   constructor() {
     super();
     addIcons({
       addOutline,
-      searchOutline,
       barcodeOutline,
       imageOutline,
       alertCircleOutline,
       cubeOutline,
       scanOutline,
+      searchOutline,
       closeOutline,
-      ellipsisVerticalOutline,
-      createOutline,
-      trashOutline,
-      addCircleOutline,
-      chevronDownOutline,
       layersOutline,
-      pricetagOutline
+      pricetagOutline,
+      colorPaletteOutline,
+      arrowUpOutline,
+      chevronForwardOutline
     });
+  }
+
+  abrirSearch() {
+    this.searchAbierto = true;
+    setTimeout(() => {
+      const input = document.querySelector('.inv-search-input') as HTMLInputElement;
+      input?.focus();
+    }, 260);
+  }
+
+  cerrarSearch() {
+    this.searchAbierto = false;
+    this.buscarTexto = '';
+    this.categoriaSeleccionada = undefined;
+    this.templateSeleccionado = undefined;
+    this.mostrarDesactivados = false;
+    clearTimeout(this.searchDebounce);
+    this.cargar();
+  }
+
+  onSearchInputNativo(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.buscarTexto = input.value ?? '';
+    this.aplicarFiltro();
   }
 
   async ngOnInit() {
@@ -102,12 +200,16 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     await this.cargar();
 
     // Escuchar cambios de producto desde la página de formulario
-    this.productoChangeSub = this.inventarioService.onProductoChange$.subscribe(event => {
+    this.productoChangeSub = this.inventarioService.onProductoChange$.subscribe(async event => {
+      if (event.tipo === 'RECARGA') {
+        this.cargar();
+        return;
+      }
       if (event.tipo === 'DESACTIVADO') {
         this.items = this.items.filter(p => p.id !== event.producto.id);
         return;
       }
-      const producto = this.resolverImagenUrl(event.producto);
+      const producto = await this.resolverImagenUrl(event.producto);
       if (event.tipo === 'CREADO') {
         this.items.unshift(producto);
       } else if (event.tipo === 'ACTUALIZADO') {
@@ -121,33 +223,25 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
 
   protected async fetchPage(page: number): Promise<Producto[]> {
     if (this.mostrarDesactivados) {
-      // Sin paginación: los desactivados suelen ser pocos
       if (page > 0) return [];
       const productos = await this.inventarioService.obtenerProductosDesactivados();
-      return productos.map(p => this.resolverImagenUrl(p));
+      return this.resolverImagenesLote(productos);
     }
     const productos = await this.inventarioService.obtenerProductos(
       this.buscarTexto || undefined,
-      this.categoriaSeleccionada === 0 ? undefined : this.categoriaSeleccionada,
+      this.categoriaSeleccionada,
+      this.templateSeleccionado?.id,
       page,
       this.pageSize
     );
-    return productos.map(p => this.resolverImagenUrl(p));
-  }
-
-  onSearchInput(event: CustomEvent) {
-    // Leer el valor del evento directamente — evita desfase con ngModel
-    // cubre: tipeo, borrado tecla a tecla, y el botón X del searchbar
-    this.buscarTexto = (event.detail.value ?? '').toString();
-    this.aplicarFiltro();
+    return this.resolverImagenesLote(productos);
   }
 
   aplicarFiltro() {
     clearTimeout(this.searchDebounce);
     this.searchDebounce = setTimeout(async () => {
-      // 1️⃣ Reset SIEMPRE primero — garantiza que limpiar el texto
-      //    devuelve el filtro a "Todas las categorías" sin estado residual
       this.categoriaSeleccionada = undefined;
+      this.templateSeleccionado = undefined;
       this.mostrarDesactivados = false;
 
       await this.cargar();
@@ -164,6 +258,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   }
 
   onFiltroChange(value: string) {
+    this.templateSeleccionado = undefined;
     if (value === 'desactivados') {
       this.mostrarDesactivados = true;
       this.categoriaSeleccionada = undefined;
@@ -173,226 +268,95 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       this.categoriaSeleccionada = undefined;
     } else if (value.startsWith('cat-')) {
       this.mostrarDesactivados = false;
-      this.categoriaSeleccionada = Number(value.replace('cat-', ''));
+      this.categoriaSeleccionada = value.replace('cat-', '');
     }
     this.cargar();
   }
 
-  limpiarBusqueda() {
-    this.buscarTexto = '';
+  filtrarPorTemplate(template: { id: string; nombre: string }, event: MouseEvent) {
+    event.stopPropagation();
+    this.templateSeleccionado = template;
     this.categoriaSeleccionada = undefined;
     this.mostrarDesactivados = false;
+    this.buscarTexto = '';
     this.cargar();
   }
 
-
-  irACrear(codigoBarras?: string) {
-    const extras = codigoBarras ? { queryParams: { codigo: codigoBarras } } : {};
-    this.navCtrl.navigateForward('/inventario/nuevo', extras);
+  /** Tap en card de template agrupado → muestra las variantes filtradas */
+  abrirTemplate(item: Extract<InventarioItem, { kind: 'template' }>) {
+    this.templateSeleccionado = { id: item.templateId, nombre: item.templateNombre };
+    this.categoriaSeleccionada = undefined;
+    this.mostrarDesactivados = false;
+    this.buscarTexto = '';
+    this.cargar();
   }
 
-  private resolverImagenUrl(producto: Producto): Producto {
-    if (producto.imagen_url && !producto.imagen_url.startsWith('http')) {
-      return { ...producto, imagen_url: this.storageService.getPublicUrl(producto.imagen_url, 'productos') || undefined };
+  limpiarFiltroTemplate() {
+    this.templateSeleccionado = undefined;
+    this.cargar();
+  }
+
+  irACrear() {
+    this.navCtrl.navigateForward(ROUTES.inventario.nuevo);
+  }
+
+  private irACrearConCodigo(codigoBarras: string) {
+    // Sin `tipo` — el usuario elige en el paso 0 cómo se vende (simple / presentaciones / variantes)
+    this.navCtrl.navigateForward(ROUTES.inventario.nuevo, { queryParams: { codigo: codigoBarras } });
+  }
+
+  private async resolverImagenUrl(producto: Producto): Promise<Producto> {
+    const url = await this.storageService.resolveImageUrl(producto.imagen_url);
+    return { ...producto, imagen_url: url ?? undefined };
+  }
+
+  private async resolverImagenesLote(productos: Producto[]): Promise<Producto[]> {
+    // Resolver tanto la imagen del SKU como la del template (cuando aplica)
+    const productoUrls = productos.map(p => p.imagen_url);
+    const templateUrls = productos.map(p => p.producto_template?.imagen_url ?? null);
+    const [urls, tUrls] = await Promise.all([
+      this.storageService.resolveImageUrls(productoUrls),
+      this.storageService.resolveImageUrls(templateUrls.filter((u): u is string => !!u))
+    ]);
+    // Re-mapear las URLs de template a sus índices originales (compactadas tras el filter)
+    const templateUrlMap = new Map<string, string>();
+    let ti = 0;
+    for (const u of templateUrls) {
+      if (u) {
+        const resolved = tUrls[ti++];
+        if (resolved) templateUrlMap.set(u, resolved);
+      }
     }
-    return producto;
+    return productos.map((p, i) => ({
+      ...p,
+      imagen_url: urls[i] ?? undefined,
+      producto_template: p.producto_template
+        ? { ...p.producto_template, imagen_url: p.producto_template.imagen_url ? templateUrlMap.get(p.producto_template.imagen_url) ?? undefined : undefined }
+        : undefined
+    }));
   }
 
   irAEditar(producto: Producto) {
-    this.navCtrl.navigateForward(`/inventario/editar/${producto.id}`);
+    this.navCtrl.navigateForward(ROUTES.inventario.editar(producto.id));
   }
 
   // ==========================
-  // SELECTOR DE CATEGORÍA (OptionsModalComponent)
+  // SELECTOR DE CATEGORÍA (chips scrollables)
   // ==========================
 
-  async abrirSelectorCategoria() {
-    const groups: ModalOptionGroup[] = [];
-
-    // Grupo principal: todas
-    groups.push({
-      options: [
-        { label: 'Todas las categorías', value: 'todas' }
-      ]
-    });
-
-    // Grupo: categorías
-    if (this.categorias.length > 0) {
-      groups.push({
-        title: 'Categorías',
-        options: this.categorias.map(cat => ({
-          label: cat.nombre,
-          value: `cat-${cat.id}`
-        }))
-      });
-    }
-
-    // Grupo: otros
-    groups.push({
-      title: 'Otros',
-      options: [
-        { label: 'Productos desactivados', value: 'desactivados', color: 'danger' }
-      ]
-    });
-
-    const modal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
-      componentProps: {
-        title: 'Filtrar por categoría',
-        groups,
-        selectedValue: this.filtroSeleccionado
-      },
-      cssClass: 'options-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-
-    await modal.present();
-    const { data } = await modal.onDidDismiss();
-
-    if (data) {
-      this.onFiltroChange(data);
-    }
+  seleccionarCategoria(value: string, event: MouseEvent) {
+    this.onFiltroChange(value);
+    this.centrarChip(event.currentTarget as HTMLElement);
   }
 
-  // ==========================
-  // MENÚ OPCIONES CATEGORÍAS (...)
-  // ==========================
-
-  async abrirOpcionesCategorias() {
-    const cat = this.categorias.find(c => c.id === this.categoriaSeleccionada);
-    const groups: ModalOptionGroup[] = [];
-
-    // Grupo: acciones generales
-    const generales: ModalOptionGroup = {
-      options: [
-        { label: 'Nueva categoría', icon: 'add-circle-outline', value: 'crear' }
-      ]
-    };
-    groups.push(generales);
-
-    // Grupo: acciones sobre la categoría seleccionada
-    if (cat) {
-      groups.push({
-        title: `Categoría: ${cat.nombre}`,
-        options: [
-          { label: 'Renombrar', icon: 'create-outline', value: 'renombrar', subtitle: `Cambiar nombre de "${cat.nombre}"` },
-          { label: 'Eliminar', icon: 'trash-outline', value: 'eliminar', color: 'danger', subtitle: 'Solo si no tiene productos' }
-        ]
-      });
-    }
-
-    const modal = await this.modalCtrl.create({
-      component: OptionsModalComponent,
-      componentProps: {
-        title: 'Categorías',
-        subtitle: cat ? `Seleccionada: ${cat.nombre}` : 'Gestionar categorías de productos',
-        groups
-      },
-      cssClass: 'options-modal',
-      breakpoints: [0, 1],
-      initialBreakpoint: 1
-    });
-
-    await modal.present();
-    const { data } = await modal.onDidDismiss();
-
-    if (!data) return;
-    switch (data) {
-      case 'crear': this.crearCategoria(); break;
-      case 'renombrar': if (cat) this.renombrarCategoria(cat); break;
-      case 'eliminar': if (cat) this.confirmarDesactivarCategoria(cat); break;
-    }
-  }
-
-  // ==========================
-  // CATEGORÍAS
-  // ==========================
-
-  async crearCategoria() {
-    const alert = await this.alertCtrl.create({
-      header: 'Nueva categoría',
-      inputs: [{ name: 'nombre', type: 'text', placeholder: 'Nombre de la categoría' }],
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Crear',
-          handler: async (data) => {
-            const nombre = data.nombre?.trim();
-            if (!nombre) {
-              this.ui.showToast('El nombre es requerido', 'warning');
-              return false;
-            }
-            await this.inventarioService.crearCategoria(nombre);
-            this.categorias = await this.inventarioService.obtenerCategorias();
-            return true;
-          }
-        }
-      ]
-    });
-    await alert.present();
-  }
-
-  private async renombrarCategoria(cat: CategoriaProducto) {
-    const alert = await this.alertCtrl.create({
-      header: 'Renombrar categoría',
-      inputs: [{ name: 'nombre', type: 'text', value: cat.nombre, placeholder: 'Nuevo nombre' }],
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Guardar',
-          handler: async (data) => {
-            const nombre = data.nombre?.trim();
-            if (!nombre) {
-              this.ui.showToast('El nombre es requerido', 'warning');
-              return false;
-            }
-            await this.inventarioService.renombrarCategoria(cat.id, nombre);
-            this.categorias = await this.inventarioService.obtenerCategorias();
-            return true;
-          }
-        }
-      ]
-    });
-    await alert.present();
-  }
-
-  private async confirmarDesactivarCategoria(cat: CategoriaProducto) {
-    const { activos, inactivos } = await this.inventarioService.contarProductosPorCategoria(cat.id);
-
-    if (activos > 0) {
-      this.ui.showToast(`No se puede eliminar: tiene ${activos} producto(s) activo(s)`, 'warning');
-      return;
-    }
-
-    if (inactivos > 0) {
-      this.ui.showToast(
-        `No se puede eliminar: tiene ${inactivos} producto(s) desactivado(s) que aún pertenecen a esta categoría.`,
-        'warning'
-      );
-      return;
-    }
-
-    const alert = await this.alertCtrl.create({
-      header: 'Eliminar categoría',
-      message: `¿Eliminar "${cat.nombre}"? Esta acción no se puede deshacer.`,
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        {
-          text: 'Eliminar',
-          role: 'destructive',
-          handler: async () => {
-            await this.inventarioService.desactivarCategoria(cat.id);
-            if (this.categoriaSeleccionada === cat.id) {
-              this.categoriaSeleccionada = undefined;
-            }
-            this.categorias = await this.inventarioService.obtenerCategorias();
-            await this.cargar();
-          }
-        }
-      ]
-    });
-    await alert.present();
+  private centrarChip(chip: HTMLElement) {
+    const container = this.categoriaScrollRef?.nativeElement;
+    if (!container) return;
+    const chipLeft = chip.offsetLeft;
+    const chipWidth = chip.offsetWidth;
+    const containerWidth = container.offsetWidth;
+    const scrollTarget = chipLeft - containerWidth / 2 + chipWidth / 2;
+    container.scrollTo({ left: scrollTarget, behavior: 'smooth' });
   }
 
   // ==========================
@@ -422,43 +386,18 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   // ==========================
 
   async escanearYCrear() {
-    const { camera } = await BarcodeScanner.requestPermissions();
-    if (camera !== 'granted') {
-      this.ui.showToast('Permiso de cámara denegado', 'warning');
-      return;
-    }
-
     this.escaneando = true;
-    document.body.classList.add('scanner-active');
-
-    try {
-      await BarcodeScanner.addListener('barcodesScanned', (event) => {
-        this.ngZone.run(async () => {
-          const codigo = event.barcodes[0]?.rawValue;
-          if (!codigo) return;
-          navigator.vibrate?.(40);
-          this.playBeep();
-          await this.cerrarEscaner();
-          await this.procesarCodigoEscaneado(codigo);
-        });
-      });
-      await BarcodeScanner.startScan({
-        formats: [
-          BarcodeFormat.Ean13, BarcodeFormat.Ean8,
-          BarcodeFormat.Code128, BarcodeFormat.UpcA,
-          BarcodeFormat.UpcE, BarcodeFormat.Code39,
-        ]
-      });
-    } catch {
-      await this.cerrarEscaner();
-    }
+    const codigo = await this.barcodeScanner.scan();
+    this.escaneando = false;
+    if (!codigo) return;
+    await this.procesarCodigoEscaneado(codigo);
   }
 
   private async procesarCodigoEscaneado(codigo: string) {
     const productoExistente = await this.inventarioService.obtenerProductoPorCodigo(codigo);
 
     if (!productoExistente) {
-      this.irACrear(codigo);
+      this.irACrearConCodigo(codigo);
       return;
     }
 
@@ -472,7 +411,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
         },
         {
           text: 'Ver kardex',
-          handler: () => this.navCtrl.navigateForward(`/inventario/kardex/${productoExistente.id}`)
+          handler: () => this.navCtrl.navigateForward(ROUTES.inventario.kardex(productoExistente.id))
         },
         { text: 'Cancelar', role: 'cancel' }
       ]
@@ -481,33 +420,13 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   }
 
   async cerrarEscaner() {
-    await BarcodeScanner.removeAllListeners();
-    await BarcodeScanner.stopScan();
-    document.body.classList.remove('scanner-active');
+    await this.barcodeScanner.stop();
     this.escaneando = false;
-  }
-
-  private playBeep() {
-    try {
-      if (!this.audioCtx || this.audioCtx.state === 'closed') {
-        this.audioCtx = new AudioContext();
-      }
-      const oscillator = this.audioCtx.createOscillator();
-      const gain = this.audioCtx.createGain();
-      oscillator.type = 'square';
-      oscillator.frequency.value = 1000;
-      gain.gain.value = 1.0;
-      oscillator.connect(gain);
-      gain.connect(this.audioCtx.destination);
-      oscillator.start();
-      oscillator.stop(this.audioCtx.currentTime + 0.12);
-    } catch { /* silencioso si falla */ }
   }
 
   ngOnDestroy() {
     if (this.escaneando) this.cerrarEscaner();
     clearTimeout(this.searchDebounce);
-    this.audioCtx?.close().catch(() => {});
     this.productoChangeSub?.unsubscribe();
   }
 }

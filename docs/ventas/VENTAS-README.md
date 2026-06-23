@@ -16,30 +16,41 @@ src/app/features/ventas/
 ├── services/
 │   └── ventas.service.ts                   # Queries, detalle, anulación, reporte
 ├── components/
-│   ├── ventas-tabs/                        # Tabs internas (Lista / Resumen)
+│   ├── ventas-tabs/                        # Tabs internas (Lista / Resumen / Pendientes)
 │   └── venta-detalle-modal/                # Modal de detalle reutilizable
 └── pages/
     ├── listado/                            # Lista paginada con filtros
     │   ├── ventas-listado.page.ts
     │   ├── ventas-listado.page.html
     │   └── ventas-listado.page.scss
-    └── resumen/                            # Resumen por período (KPIs, métodos, comprobantes, top productos)
-        ├── ventas-resumen.page.ts
-        ├── ventas-resumen.page.html
-        └── ventas-resumen.page.scss
+    ├── resumen/                            # Resumen por período (KPIs, métodos, comprobantes, top productos)
+    │   ├── ventas-resumen.page.ts
+    │   ├── ventas-resumen.page.html
+    │   └── ventas-resumen.page.scss
+    └── pendientes/                         # Cola de ventas offline sin sincronizar (modo offline POS)
+        ├── ventas-pendientes.page.ts
+        ├── ventas-pendientes.page.html
+        └── ventas-pendientes.page.scss
 ```
 
 ### Patrón de tabs internas
 
-El módulo usa **tabs internas** (`VentasTabsComponent`) para navegar entre Listado y Resumen.
+El módulo usa **tabs internas** (`VentasTabsComponent`) para navegar entre Listado, Resumen y Pendientes.
 Cada página incluye su propio `ion-header` con el componente de tabs — Ionic no soporta
 un layout wrapper con `router-outlet` hijo sin conflictos de `ion-content`.
 
 ```
 VentasTabsComponent detecta la ruta activa automáticamente (NavigationEnd).
-Tab "Lista"   → router.navigate(['/ventas'])
-Tab "Resumen" → router.navigate(['/ventas/resumen'])
+Tab "Lista"      → router.navigate(['/ventas'])
+Tab "Resumen"    → router.navigate(['/ventas/resumen'])
+Tab "Pendientes" → router.navigate(['/ventas/pendientes'])  ← solo visible si hay cola (outbox.pendientes$ > 0)
 ```
+
+> **Tab Pendientes (modo offline):** muestra las ventas hechas sin conexión que aún no llegaron al servidor
+> (estados `PENDING`/`ERROR`), con botón "Sincronizar ahora" y, en las `ERROR`, reintentar/descartar. Solo
+> aparece cuando hay cola. Las ventas ya sincronizadas NO aparecen aquí — viven en Lista/Resumen (que leen del
+> servidor). Mensaje mental: *Lista/Resumen = lo ya subido; Pendientes = lo que falta subir.* Ver
+> `PLAN-OFFLINE-POS-2026-06-08.md` §7.
 
 **Este patrón debe seguirse en cualquier módulo que necesite tabs internas:**
 1. Crear un componente de tabs en `components/` (no en `pages/`)
@@ -58,8 +69,7 @@ Tab "Resumen" → router.navigate(['/ventas/resumen'])
 | `EstadoPagoType` | `'NO_APLICA' \| 'PENDIENTE' \| 'PAGADO_PARCIAL' \| 'PAGADO'` |
 | `Venta` | Venta completa con JOINs opcionales (detalle modal). Incluye `descuento`, `descuento_pct` |
 | `VentaDetalle` | Ítem de producto: cantidad, precio_unitario, subtotal |
-| `VentasResumen` | Totalizador: total_registros + total_monto |
-| `ReporteVentasDia` | Resumen agregado por período: totales, ganancia bruta, margen %, métodos, comprobantes, top productos |
+| `ReporteVentasDia` | Resumen agregado por período: totales, ganancia bruta, margen %, descuentos totales, clientes únicos, métodos, comprobantes, top productos |
 | `ReporteMetodoPago` | `{ metodo, cantidad, monto }` |
 | `ReporteTipoComprobante` | `{ tipo, cantidad, monto }` |
 | `ProductoMasVendido` | `{ producto_id, nombre, total_unidades, total_monto, total_ventas }` |
@@ -71,8 +81,7 @@ Tab "Resumen" → router.navigate(['/ventas/resumen'])
 | Método | Fuente | Descripción |
 |--------|--------|-------------|
 | `obtenerVentas(filtro, page, busqueda?, estado?, turnoId?)` | RPC `fn_listar_ventas` | Lista paginada. `estado` = `'COMPLETADA'` (default) o `'ANULADA'`. `turnoId` filtra por turno específico (solo ADMIN lo usa) |
-| `resumirVentas(filtro, busqueda?, estado?, turnoId?)` | RPC `fn_resumir_ventas` | Total registros + monto para el filtro activo |
-| `obtenerReportePeriodo(filtro, turnoId?)` | RPC `fn_reporte_ventas_periodo` | Resumen agregado: totales, por método, por comprobante, top productos |
+| `obtenerReportePeriodo(filtro, turnoId?)` | RPC `fn_reporte_ventas_periodo` | Resumen agregado: totales, descuentos, clientes únicos, por método, por comprobante, top productos |
 | `obtenerVentaDetalle(ventaId)` | Query directa `ventas` | Venta completa: ítems, cliente, empleado, pagos FIADO |
 | `anularVenta(ventaId, motivo)` | RPC `fn_anular_venta` | Anula atómicamente: revierte stock, caja y cuentas_cobrar |
 
@@ -100,7 +109,7 @@ Convierte el filtro de período a rango `{ inicio, fin }` en fecha local Ecuador
 Aplana los JOINs anidados de Supabase:
 - `clientes.nombre` → `cliente_nombre`
 - `clientes.identificacion` → `cliente_identificacion`
-- `empleados.nombre` → `empleado_nombre`
+- `usuarios.nombre` → `empleado_nombre`
 - `cuentas_cobrar[].monto` → `total_abonado` (suma acumulada de pagos)
 
 ---
@@ -127,17 +136,17 @@ Aplana los JOINs anidados de Supabase:
 ## Página resumen (`pages/resumen/`)
 
 - Clase: `VentasResumenPage`
-- Filtro de período: **Hoy / Semana / Mes / Todo** (selector en la parte superior)
-- **Filtro por turno**: visible solo para ADMIN con filtro "Hoy" y 2+ turnos
+- Filtro de período: **Hoy / Semana / Mes / Todo** via `PeriodFilterComponent` (`shared/components/period-filter/`)
 - Carga reporte del período + deuda pendiente en paralelo (`Promise.all`)
 - Pull-to-refresh sin doble spinner
+- Gráficos renderizados con **ApexCharts** (`ng-apexcharts` + `apexcharts`)
 
 ### Secciones
 
-1. **Hero card** — Total del período + stats (ventas, ticket promedio, anuladas)
-2. **Métodos de pago** — Listado con iconos coloreados, cantidad, monto y % del total
-3. **Comprobantes** — Desglose por tipo (Ticket, Nota de Venta, Factura) con badge de cantidad
-4. **Más vendidos** — Top productos: unidades vendidas, número de ventas y monto total
+1. **Hero card** — Total del período + stats (ventas, ticket promedio, anuladas, descuentos totales, clientes únicos)
+2. **Gráfico donut** — Métodos de pago por monto (`ng-apexcharts` type: `donut`). Leyenda custom en lista debajo del gráfico con cantidad, monto y % del total
+3. **Más vendidos** — Gráfico de barras horizontales (`ng-apexcharts` type: `bar`, distributed: true) con top 5 productos por monto
+4. **Comprobantes** — Desglose por tipo (Ticket, Nota de Venta, Factura) con badge de cantidad
 5. **Ganancia bruta** — Ingresos, costo, ganancia en verde y badge de % de margen
 6. **Deuda pendiente** — Card de alerta con total clientes y monto (desde cuentas_cobrar)
 
@@ -145,7 +154,7 @@ Aplana los JOINs anidados de Supabase:
 
 ## Modal de detalle (`venta-detalle-modal/`)
 
-Componente reutilizable — se usa desde `VentasListadoPage` y `DetalleClientePage` (cuentas-cobrar).
+Componente reutilizable — se usa desde `VentasListadoPage` y `DetalleClientePage` (clientes/detalle).
 
 ### Secciones del comprobante
 
@@ -187,7 +196,7 @@ El porcentaje se lee de `ventas.descuento_pct` (columna SMALLINT), no se calcula
 
 Ubicación: `docs/ventas/sql/functions/`
 
-### `fn_listar_ventas(p_filtro, p_busqueda, p_page, p_page_size, p_estado, p_turno_id)` — v1.4
+### `fn_listar_ventas(p_filtro, p_busqueda, p_page, p_page_size, p_estado, p_turno_id)` — v1.5
 
 - Filtra por período (hoy/semana/mes/todo/fecha exacta) en timezone Ecuador
 - `p_estado`: `'COMPLETADA'` (default) o `'ANULADA'`
@@ -195,33 +204,45 @@ Ubicación: `docs/ventas/sql/functions/`
 - Búsqueda ILIKE en nombre cliente, identificación, número comprobante
 - Paginación LIMIT/OFFSET
 - Devuelve campos planos (sin JOINs anidados)
+- **v1.5**: agrega filtro explícito `negocio_id = get_negocio_id()` en la query principal — obligatorio porque `SECURITY DEFINER` bypasea RLS
 
-### `fn_resumir_ventas(p_filtro, p_busqueda, p_estado, p_turno_id)` — v1.3
-
-- Mismos filtros que la lista (incluye `p_turno_id`)
-- Retorna: `total_registros` + `total_monto` (1 fila siempre)
-
-### `fn_reporte_ventas_periodo(p_fecha_inicio, p_fecha_fin, p_turno_id)` — v1.4
+### `fn_reporte_ventas_periodo(p_fecha_inicio, p_fecha_fin, p_turno_id)` — v1.8
 
 - Resumen agregado de un rango de fechas en timezone Ecuador
 - `p_turno_id`: UUID del turno. `NULL` = todos los turnos. Solo el ADMIN lo envía desde el frontend
 - Solo incluye ventas `COMPLETADAS` (excluye `ANULADAS` de totales)
 - Retorna JSON con:
   - `total_ventas`, `total_monto`, `total_anuladas`, `monto_anulado`
+  - `total_descuentos` — suma de `descuento` en ventas completadas del período
+  - `clientes_unicos` — `COUNT(DISTINCT cliente_id)` en ventas completadas (excluye consumidor final)
   - `costo_total` — suma de `vd.precio_costo × cantidad` (snapshot histórico, no el costo actual del producto)
   - `ganancia_bruta` — `total_monto - costo_total`
   - `margen_pct` — `ganancia_bruta / total_monto × 100` (redondeado a 2 decimales)
+  - `ticket_promedio` — `total_monto / total_ventas` (v1.7+)
+  - `total_monto_anterior`, `total_ventas_anterior`, `ganancia_anterior` — comparativa con el mismo rango del período anterior (v1.7+)
+  - `productos_sin_movimiento` — `COUNT` de productos activos sin ventas en el período (v1.7+)
+  - `productos_baja_rotacion[]` — top 5 productos activos con menos unidades vendidas, incluye los que tienen 0 ventas (v1.8+)
   - `por_metodo_pago[]` — `{ metodo, cantidad, monto }`
   - `por_tipo_comprobante[]` — `{ tipo, cantidad, monto }`
-  - `top_productos[]` — `{ producto_id, nombre, total_unidades, total_monto, total_ventas }`
+  - `top_productos[]` — `{ producto_id, nombre, total_unidades, total_monto, total_ventas }` (por ingreso)
+  - `top_productos_rentables[]` — top 5 por ganancia, no por ingreso (v1.7+)
+  - `ventas_por_hora[]` — solo cuando el rango es de 1 día (v1.7+)
 
+> **v1.8**: agrega `productos_baja_rotacion` (top 5 menos vendidos).
+> **v1.7**: agrega métricas para dashboard ejecutivo: `ticket_promedio`, comparativa con período anterior, `top_productos_rentables`, `ventas_por_hora`, `productos_sin_movimiento`.
+> **v1.6**: filtro explícito `negocio_id = get_negocio_id()` en todas las queries — obligatorio porque `SECURITY DEFINER` bypasea RLS.
+> **v1.5**: agrega `total_descuentos` y `clientes_unicos`.
 > **v1.4**: usa `vd.precio_costo` de `ventas_detalles` en lugar de `p.precio_costo` de `productos`. Los reportes históricos ya no cambian si se modifica el costo de un producto en inventario.
+>
+> **⚠️ Pendiente conocido (auditoría 2026-05-30):** la función ejecuta 6 SELECTs casi idénticos sobre `ventas` para extraer agregados por separado. Con miles de ventas la performance se degrada. Refactor pendiente: consolidar en un solo SELECT con `COUNT FILTER (WHERE ...)`/`SUM FILTER (...)`.
 
 ---
 
 ## Función de anulación
 
-Ubicación: `docs/pos/sql/functions/fn_anular_venta.sql` (v1.1)
+Ubicación: `docs/ventas/sql/functions/fn_anular_venta.sql` (v2.0 — multi-tenant UUID + FOR UPDATE)
+
+> **v2.0 (2026-05-30):** `p_empleado_id` ahora es `UUID` (antes `INTEGER`). Lectura de la venta usa `FOR..LOOP ... FOR UPDATE` con `RECORD` — reemplaza 7 subqueries idénticas anteriores y evita race conditions. Multi-tenant: todas las queries filtran por `negocio_id = get_negocio_id()`.
 
 ### Qué hace (atómico en una transacción)
 
@@ -249,7 +270,7 @@ Ubicación: `docs/pos/sql/functions/fn_anular_venta.sql` (v1.1)
 | `ventas` | Registro principal con estado y estado_pago |
 | `ventas_detalles` | Ítems de cada venta. Incluye `precio_costo` (snapshot al momento de la venta) |
 | `clientes` | Datos del cliente (JOIN en detalle) |
-| `empleados` | Nombre del cajero (JOIN en detalle) |
+| `usuarios` | Nombre del cajero (JOIN en detalle) |
 | `cuentas_cobrar` | Pagos registrados (FIADO) — JOIN para calcular total_abonado |
 | `kardex_inventario` | Reversión de stock al anular |
 | `cajas` | Descuento de saldo CAJA_CHICA al anular ventas en efectivo |

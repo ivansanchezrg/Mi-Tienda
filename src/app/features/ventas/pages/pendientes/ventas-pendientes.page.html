@@ -1,0 +1,87 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Ventas</ion-title>
+  </ion-toolbar>
+  <app-ventas-tabs></app-ventas-tabs>
+</ion-header>
+
+<ion-content [scrollEvents]="true">
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  @if (loading) {
+    <div class="pend-skeleton">
+      @for (i of [1,2,3]; track i) { <div class="pend-skeleton-card"></div> }
+    </div>
+  } @else if (ventas.length === 0) {
+    <app-empty-state
+      icon="cloud-upload-outline"
+      title="Sin ventas pendientes"
+      hint="Las ventas hechas sin conexión aparecerán aquí hasta sincronizarse.">
+    </app-empty-state>
+  } @else {
+    <div class="pend-info">
+      <div class="pend-info__row">
+        <ion-icon name="cloud-upload-outline" class="pend-info__icon"></ion-icon>
+        <div class="pend-info__text">
+          <span class="pend-info__title">{{ ventas.length }} venta(s) en cola</span>
+          <span class="pend-info__hint">Guardadas sin conexión. Se enviarán al servidor automáticamente al volver la red.</span>
+        </div>
+      </div>
+      <ion-button expand="block" color="primary" [disabled]="sincronizando" (click)="sincronizarAhora()">
+        <ion-icon name="sync-outline" slot="start"></ion-icon>
+        {{ sincronizando ? 'Sincronizando...' : 'Sincronizar ahora' }}
+      </ion-button>
+    </div>
+
+    <div class="pend-list">
+      @for (venta of ventas; track venta.idempotencyKey) {
+        <div class="pend-card" [class.pend-card--error]="venta.estado === 'ERROR'">
+          <div class="pend-card__head">
+            @if (esEfectivo(venta.payload.metodoPago)) {
+              <ion-icon name="cash-outline" class="pend-card__metodo"></ion-icon>
+            } @else {
+              <ion-icon name="card-outline" class="pend-card__metodo"></ion-icon>
+            }
+            <div class="pend-card__info">
+              <span class="pend-card__metodo-label">{{ venta.payload.metodoPago }}</span>
+              <span class="pend-card__items">{{ venta.payload.items.length }} producto(s)</span>
+            </div>
+            <span class="pend-card__total">${{ currency.parteEntera(venta.payload.total) }}<span class="pend-card__cents">.{{ currency.centavos(venta.payload.total) }}</span></span>
+          </div>
+
+          <div class="pend-card__foot">
+            @if (venta.estado === 'ERROR') {
+              <span class="pend-badge pend-badge--error">
+                <ion-icon name="alert-circle-outline"></ion-icon> Error
+              </span>
+            } @else {
+              <span class="pend-badge pend-badge--pending">
+                <ion-icon name="time-outline"></ion-icon> En cola
+              </span>
+            }
+
+            @if (venta.estado === 'ERROR') {
+              <div class="pend-card__actions">
+                <button class="pend-action" (click)="reintentar(venta)">
+                  <ion-icon name="refresh-outline"></ion-icon> Reintentar
+                </button>
+                <button class="pend-action pend-action--danger" (click)="descartar(venta)">
+                  <ion-icon name="trash-outline"></ion-icon> Descartar
+                </button>
+              </div>
+            }
+          </div>
+
+          @if (venta.estado === 'ERROR' && venta.ultimoError) {
+            <p class="pend-card__error-msg">{{ venta.ultimoError }}</p>
+          }
+        </div>
+      }
+    </div>
+  }
+</ion-content>

@@ -1,25 +1,28 @@
-import { Component, inject, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { Component, inject } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
   IonContent, IonIcon,
   IonRefresher, IonRefresherContent, IonSkeletonText,
-  ModalController
+  ModalController, AlertController
 } from '@ionic/angular/standalone';
+import { ROUTES } from '@core/config/routes.config';
 import { addIcons } from 'ionicons';
 import {
   phonePortraitOutline, busOutline,
-  cashOutline, checkmarkCircleOutline, alertCircleOutline,
-  listOutline, chevronBackOutline, trendingUpOutline, lockClosedOutline
+  chevronForwardOutline, timeOutline,
+  walletOutline, informationCircleOutline,
+  cardOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { RecargasVirtualesService, RecargaVirtual } from '@core/services/recargas-virtuales.service';
-import { GananciasService } from '@core/services/ganancias.service';
+import { ConfigService } from '@core/services/config.service';
+import { SupabaseService } from '@core/services/supabase.service';
+import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { RegistrarRecargaModalComponent } from '../../components/registrar-recarga-modal/registrar-recarga-modal.component';
-import { PagarDeudasModalComponent } from '../../components/pagar-deudas-modal/pagar-deudas-modal.component';
 import { HistorialModalComponent } from '../../components/historial-modal/historial-modal.component';
-import { LiquidacionBusModalComponent } from '../../components/liquidacion-bus-modal/liquidacion-bus-modal.component';
+import { PagarProveedorModalComponent } from '../../components/pagar-proveedor-modal/pagar-proveedor-modal.component';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 
 type TabActivo = 'CELULAR' | 'BUS';
 
@@ -32,79 +35,114 @@ type TabActivo = 'CELULAR' | 'BUS';
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
     IonContent, IonIcon,
-    IonRefresher, IonRefresherContent, IonSkeletonText
+    IonRefresher, IonRefresherContent, IonSkeletonText,
+    AppCurrencyPipe,
   ]
 })
-export class RecargasVirtualesPage implements OnInit {
+export class RecargasVirtualesPage {
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private ui = inject(UiService);
+  private supabase = inject(SupabaseService);
+  private configService = inject(ConfigService);
   private service = inject(RecargasVirtualesService);
-  private gananciasService = inject(GananciasService);
   private modalCtrl = inject(ModalController);
+  private alertCtrl = inject(AlertController);
 
   tabActivo: TabActivo = 'CELULAR';
   loading = true;
+  recargasCelularHabilitada = false;
+  recargasBusHabilitada = false;
+  cajaVariosActiva = false;
 
   // CELULAR
   saldoVirtualCelular = 0;
-  deudasPendientes: RecargaVirtual[] = [];
+  cajaCelularSaldo = 0;
+  pendientesCelular: RecargaVirtual[] = [];   // para liquidar (pagado_proveedor=true)
+  deudasCelular: RecargaVirtual[] = [];       // para pagar al proveedor (pagado_proveedor=false)
+  totalMovimientosCelular = 0;
 
   // BUS
   saldoVirtualBus = 0;
-  gananciaBusMesAnterior = 0;  // ganancia mes anterior sin liquidar → muestra botón de liquidación
-  gananciaBusMesActual = 0;    // ganancia acumulada mes en curso → solo informativa
+  cajaBusSaldo = 0;
+  pendientesBus: RecargaVirtual[] = [];
+  totalMovimientosBus = 0;
 
   constructor() {
     addIcons({
       phonePortraitOutline,
       busOutline,
-      cashOutline,
-      checkmarkCircleOutline,
-      alertCircleOutline,
-      listOutline,
-      chevronBackOutline,
-      trendingUpOutline,
-      lockClosedOutline
+      chevronForwardOutline,
+      timeOutline,
+      walletOutline,
+      informationCircleOutline,
+      cardOutline,
     });
   }
 
-  ngOnInit() {
-    this.route.queryParams.subscribe(params => {
-      if (params['tab']) {
-        this.tabActivo = params['tab'] as TabActivo;
-      }
-    });
-  }
-
-  ionViewWillEnter() {
+  async ionViewWillEnter() {
     this.ui.hideTabs();
+
+    const config = await this.configService.get();
+    this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
+    this.recargasBusHabilitada     = config?.recargas_bus_habilitada     ?? false;
+    this.cajaVariosActiva          = config?.caja_varios_activa          ?? false;
+
+    if (!this.recargasCelularHabilitada && this.recargasBusHabilitada) {
+      this.tabActivo = 'BUS';
+    } else {
+      this.tabActivo = 'CELULAR';
+    }
+
+    const params = this.route.snapshot.queryParams;
+    if (params['tab']) {
+      this.tabActivo = params['tab'] as TabActivo;
+    }
+
     this.cargarDatos();
   }
 
   ionViewWillLeave() {
     this.ui.showTabs();
-    this.tabActivo = 'CELULAR';
   }
 
   async cargarDatos(isRefresh = false) {
-    if (!isRefresh) {
-      this.loading = true;
-    }
+    if (!isRefresh) this.loading = true;
     try {
-      const [saldoCelular, saldoBus, deudas, gananciasPendientes, gananciaMesActual] = await Promise.all([
-        this.service.getSaldoVirtualActual('CELULAR'),
-        this.service.getSaldoVirtualActual('BUS'),
-        this.service.obtenerDeudasPendientesCelular(),
-        this.gananciasService.verificarGananciasPendientes(),
-        this.gananciasService.calcularGananciaBusMesActual()
+      const loadCelular = this.recargasCelularHabilitada;
+      const loadBus     = this.recargasBusHabilitada;
+
+      const [
+        saldoCelular, saldoBus,
+        pendientesCelular, pendientesBus,
+        deudasCelular,
+        cajaCelular, cajaBus,
+        historialCelular, historialBus,
+      ] = await Promise.all([
+        loadCelular ? this.service.getSaldoVirtualActual('CELULAR')   : Promise.resolve(0),
+        loadBus     ? this.service.getSaldoVirtualActual('BUS')       : Promise.resolve(0),
+        loadCelular ? this.service.obtenerPendientes('CELULAR')       : Promise.resolve([] as RecargaVirtual[]),
+        loadBus     ? this.service.obtenerPendientes('BUS')           : Promise.resolve([] as RecargaVirtual[]),
+        loadCelular ? this.service.obtenerDeudasCelular()             : Promise.resolve([] as RecargaVirtual[]),
+        loadCelular ? this.service.getSaldoCajaActual('CAJA_CELULAR') : Promise.resolve(0),
+        loadBus     ? this.service.getSaldoCajaActual('CAJA_BUS')     : Promise.resolve(0),
+        loadCelular ? this.service.obtenerHistorial('CELULAR')        : Promise.resolve([] as RecargaVirtual[]),
+        loadBus     ? this.service.obtenerHistorial('BUS')            : Promise.resolve([] as RecargaVirtual[]),
       ]);
-      this.saldoVirtualCelular = saldoCelular;
-      this.saldoVirtualBus = saldoBus;
-      this.deudasPendientes = deudas;
-      this.gananciaBusMesAnterior = gananciasPendientes?.gananciaBus ?? 0;
-      this.gananciaBusMesActual = gananciaMesActual;
-    } catch {
-      await this.ui.showError('Error al cargar los datos');
+
+      this.saldoVirtualCelular     = saldoCelular;
+      this.saldoVirtualBus         = saldoBus;
+      this.pendientesCelular       = pendientesCelular;
+      this.pendientesBus           = pendientesBus;
+      this.deudasCelular           = deudasCelular;
+      this.cajaCelularSaldo        = cajaCelular;
+      this.cajaBusSaldo            = cajaBus;
+      this.totalMovimientosCelular = historialCelular.length;
+      this.totalMovimientosBus     = historialBus.length;
+    } catch (error) {
+      if (!this.supabase.debeSilenciarErrorOffline(error)) {
+        await this.ui.showError('Error al cargar los datos');
+      }
     } finally {
       this.loading = false;
     }
@@ -115,134 +153,99 @@ export class RecargasVirtualesPage implements OnInit {
   }
 
   // ==========================================
-  // MODAL: Registrar Recarga
+  // GETTERS
   // ==========================================
+
+  get nombreCajaDestino(): string {
+    return this.cajaVariosActiva ? 'Varios' : 'Tienda';
+  }
+
+  get totalDeudaCelular(): number {
+    return Math.round(this.deudasCelular.reduce((s, r) => s + r.monto_a_pagar, 0) * 100) / 100;
+  }
+
+  get gananciaCelularPendiente(): number {
+    return Math.round(this.pendientesCelular.reduce((s, r) => s + r.ganancia, 0) * 100) / 100;
+  }
+
+  get gananciasBusPendiente(): number {
+    return Math.round(this.pendientesBus.reduce((s, r) => s + r.ganancia, 0) * 100) / 100;
+  }
+
+  // ==========================================
+  // ACCIONES
+  // ==========================================
+
+  async abrirModalPagarProveedor() {
+    const modal = await this.modalCtrl.create({
+      component: PagarProveedorModalComponent,
+      componentProps: {
+        deudas: this.deudasCelular,
+        cajaCelularSaldo: this.cajaCelularSaldo,
+      }
+    });
+    await modal.present();
+    const { data } = await modal.onWillDismiss();
+    if (data?.success) await this.cargarDatos();
+  }
 
   async abrirModalRecarga() {
     const modal = await this.modalCtrl.create({
       component: RegistrarRecargaModalComponent,
       componentProps: { tipo: 'CELULAR' }
     });
-
     await modal.present();
     const { data } = await modal.onWillDismiss();
-
-    if (data?.success && data?.data) {
-      // El RPC ya devuelve todo lo necesario. BUS/ganancia no cambian
-      // con una recarga CELULAR → sin queries adicionales ni segundo loading.
-      const resultado = data.data;
-      this.saldoVirtualCelular = resultado.saldo_virtual_celular;
-      this.deudasPendientes = resultado.deudas_pendientes.lista;
-    } else if (data?.success) {
-      // Fallback: si no vienen datos completos, recargar todo
-      await this.cargarDatos();
-    }
+    if (data?.success) await this.cargarDatos();
   }
 
   async abrirModalCompraBus() {
+    if (this.cajaBusSaldo <= 0) {
+      const alert = await this.alertCtrl.create({
+        header: 'Caja Bus sin efectivo',
+        message: 'Para registrar un depósito necesitas tener efectivo en Caja Bus. Primero registra un ingreso manual desde la pantalla de inicio.',
+        buttons: [
+          { text: 'Cancelar', role: 'cancel' },
+          { text: 'Ir a Caja', handler: () => { this.router.navigate([ROUTES.home]); } }
+        ]
+      });
+      await alert.present();
+      return;
+    }
     const modal = await this.modalCtrl.create({
       component: RegistrarRecargaModalComponent,
       componentProps: { tipo: 'BUS' }
     });
-
     await modal.present();
     const { data } = await modal.onWillDismiss();
-
-    if (data?.success) {
-      // Actualiza saldo BUS y ganancia acumulada del mes en paralelo.
-      // getSaldoVirtualActual usa supabase.client (silencioso).
-      // calcularGananciaBusMesActual usa supabase.call (muestra overlay brevemente).
-      const [saldoBus, gananciaMesActual] = await Promise.all([
-        this.service.getSaldoVirtualActual('BUS'),
-        this.gananciasService.calcularGananciaBusMesActual()
-      ]);
-      this.saldoVirtualBus = saldoBus;
-      this.gananciaBusMesActual = gananciaMesActual;
-    }
+    if (data?.success) await this.cargarDatos();
   }
 
-  async abrirModalLiquidacionBus() {
-    const modal = await this.modalCtrl.create({
-      component: LiquidacionBusModalComponent,
-      componentProps: {
-        gananciaBusCalculada: this.gananciaBusMesAnterior,
-        mesDisplay: this.gananciasService.getMesAnteriorDisplay(),
-        mesAnterior: this.gananciasService.getMesAnterior()
-      }
-    });
-
-    await modal.present();
-    const { data } = await modal.onWillDismiss();
-
-    if (data?.success) {
-      await this.cargarDatos();
-    }
-  }
-
-  // ==========================================
-  // MODAL: Pagar Deudas
-  // ==========================================
-
-  async navegarAPagarDeudas() {
-    const modal = await this.modalCtrl.create({
-      component: PagarDeudasModalComponent
-    });
-
-    await modal.present();
-    const { data } = await modal.onWillDismiss();
-
-    if (data?.success) {
-      await this.cargarDatos();
-    }
-  }
-
-  // ==========================================
-  // MODAL: Ver Historial
-  // ==========================================
-
-  async abrirHistorial() {
+  async abrirHistorial(tipo: TabActivo) {
+    const esCelular = tipo === 'CELULAR';
     const modal = await this.modalCtrl.create({
       component: HistorialModalComponent,
-      componentProps: { tipo: this.tabActivo }
+      componentProps: {
+        tipo,
+        cajaSaldo:        esCelular ? this.cajaCelularSaldo : this.cajaBusSaldo,
+        cajaVariosActiva: this.cajaVariosActiva,
+        pendientes:       esCelular ? this.pendientesCelular : this.pendientesBus,
+      }
     });
-
     await modal.present();
-  }
-
-  // ==========================================
-  // GETTERS: Deudas pendientes
-  // ==========================================
-
-  /** "1 de Abril 2026" — fecha desde la que se podrá liquidar la ganancia del mes actual */
-  get proximoMesDisplay(): string {
-    const hoy = new Date();
-    const primerDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
-    const nombreMes = primerDia.toLocaleDateString('es-ES', { month: 'long' });
-    const capitalizado = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
-    return `1 de ${capitalizado} ${primerDia.getFullYear()}`;
-  }
-
-  get cantidadDeudasPendientes(): number {
-    return this.deudasPendientes.length;
-  }
-
-  get totalDeudasPendientes(): number {
-    return this.deudasPendientes.reduce((sum, d) => sum + d.monto_a_pagar, 0);
+    // Siempre recarga al cerrar — el modal pudo cambiar el estado del negocio (pagar
+    // al proveedor desde otra pantalla mientras estaba abierto, etc.), no solo cuando
+    // confirma la liquidación. Garantiza que la próxima apertura reciba @Input frescos.
+    await modal.onWillDismiss();
+    await this.cargarDatos();
   }
 
   // ==========================================
   // HELPERS
   // ==========================================
 
-  formatearFecha(fecha: string): string {
-    const d = new Date(fecha + 'T00:00:00');
-    return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-  }
-
-  async handleRefresh(event: any) {
+  async handleRefresh(event: CustomEvent) {
     await this.cargarDatos(true);
-    event.target.complete();
+    (event.target as HTMLIonRefresherElement).complete();
   }
-
 }
-

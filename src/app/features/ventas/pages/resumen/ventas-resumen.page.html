@@ -6,7 +6,36 @@
     <ion-title>Ventas</ion-title>
   </ion-toolbar>
   <app-ventas-tabs></app-ventas-tabs>
+
+  <div class="resumen-filter-bar">
+    <div class="resumen-filter-tabs">
+      @for (opt of periodos; track opt.value) {
+        <button class="resumen-filter-tab" [class.active]="filtro === opt.value && !anioSeleccionado"
+          (click)="cambiarFiltro(opt.value)">
+          {{ opt.label }}
+        </button>
+      }
+    </div>
+    <button class="anio-btn" [class.anio-btn--active]="!!anioSeleccionado" id="open-anio-picker">
+      <ion-icon name="calendar-outline"></ion-icon>
+      @if (anioSeleccionado) {
+        <span>{{ anioSeleccionado }}</span>
+        <ion-icon name="close-outline" class="anio-clear" (click)="$event.stopPropagation(); limpiarAnio()"></ion-icon>
+      }
+    </button>
+  </div>
+
 </ion-header>
+
+@if (anioPickerVisible) {
+<ion-modal [keepContentsMounted]="true" trigger="open-anio-picker" cssClass="date-picker-modal">
+  <ng-template>
+    <ion-datetime id="anio-picker" presentation="year" [value]="anioPickerValue" [max]="hoy" locale="es-EC"
+      (ionChange)="onAnioChange($event)" size="cover">
+    </ion-datetime>
+  </ng-template>
+</ion-modal>
+}
 
 <ion-content>
 
@@ -16,211 +45,305 @@
     </ion-refresher-content>
   </ion-refresher>
 
+  <!-- ══ SKELETON ══ -->
+  @if (loading) {
   <div class="resumen-container">
-
-    <!-- Filtros de período -->
-    <div class="filter-bar">
-      @for (f of filtros; track f) {
-        <button class="filter-tab" [class.active]="filtro === f" (click)="cambiarFiltro(f)">
-          {{ f === 'todo' ? 'Todo' : (f === 'hoy' ? 'Hoy' : f === 'semana' ? 'Semana' : 'Mes') }}
-        </button>
-      }
-    </div>
-
-    <!-- Filtro por turno (solo cuando hay 2+ turnos y filtro es Hoy) -->
-    @if (mostrarFiltroTurno) {
-    <div class="turno-bar">
-      <button class="turno-selector" (click)="abrirSelectorTurno()">
-        <ion-icon name="people-outline"></ion-icon>
-        <span>{{ labelTurno }}</span>
-        <ion-icon name="chevron-down-outline" class="turno-arrow"></ion-icon>
-      </button>
-    </div>
-    }
-
-    <!-- ══ SKELETON ══ -->
-    @if (loading) {
-    <div class="card hero-card">
-      <ion-skeleton-text animated class="sk-label"></ion-skeleton-text>
-      <ion-skeleton-text animated class="sk-monto"></ion-skeleton-text>
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <ion-skeleton-text animated class="sk-stat-num"></ion-skeleton-text>
-          <ion-skeleton-text animated class="sk-stat-label"></ion-skeleton-text>
+    <div class="card">
+      <div class="sk-kpi-row">
+        @for (i of [1,2,3]; track i) {
+        <div class="sk-kpi">
+          <ion-skeleton-text animated style="width: 40px; height: 11px; border-radius: 4px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 70px; height: 26px; border-radius: 6px; margin-top: 6px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 50px; height: 11px; border-radius: 4px; margin-top: 4px;"></ion-skeleton-text>
         </div>
-        <div class="hero-divider"></div>
-        <div class="hero-stat">
-          <ion-skeleton-text animated class="sk-stat-num"></ion-skeleton-text>
-          <ion-skeleton-text animated class="sk-stat-label"></ion-skeleton-text>
-        </div>
+        @if (i < 3) { <div class="kpi-divider"></div> }
+        }
       </div>
     </div>
     <div class="card">
-      <ion-skeleton-text animated class="sk-section-title"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width: 120px; height: 12px; border-radius: 4px; margin-bottom: 16px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="width: 100%; height: 200px; border-radius: 8px;"></ion-skeleton-text>
+    </div>
+    <div class="card">
+      <ion-skeleton-text animated style="width: 120px; height: 12px; border-radius: 4px; margin-bottom: 16px;"></ion-skeleton-text>
       @for (i of [1,2,3]; track i) {
       <div class="sk-metodo-row">
         <ion-skeleton-text animated class="sk-metodo-icon"></ion-skeleton-text>
         <div style="flex:1; display:flex; flex-direction:column; gap:4px;">
-          <ion-skeleton-text animated class="sk-metodo-label"></ion-skeleton-text>
-          <ion-skeleton-text animated class="sk-metodo-sub"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 80px; height: 13px; border-radius: 4px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 130px; height: 11px; border-radius: 4px;"></ion-skeleton-text>
         </div>
-        <ion-skeleton-text animated class="sk-metodo-monto"></ion-skeleton-text>
+        <ion-skeleton-text animated style="width: 55px; height: 15px; border-radius: 4px;"></ion-skeleton-text>
       </div>
       }
     </div>
-    }
+  </div>
+  }
 
-    <!-- ══ SIN VENTAS ══ -->
-    @else if (!reporte || (reporte.total_ventas === 0 && reporte.total_anuladas === 0)) {
-    <app-empty-state
-      icon="storefront-outline"
-      title="Sin ventas hoy"
-      hint="Las ventas del día aparecerán aquí en cuanto se registre la primera.">
-    </app-empty-state>
-    }
+  <!-- ══ SIN VENTAS ══ -->
+  @else if (!reporte || (reporte.total_ventas === 0 && reporte.total_anuladas === 0)) {
+  <app-empty-state
+    icon="storefront-outline"
+    title="Sin ventas"
+    hint="Las ventas del período aparecerán aquí en cuanto se registre la primera.">
+  </app-empty-state>
+  }
 
-    <!-- ══ DATOS ══ -->
-    @else {
+  <!-- ══ DATOS ══ -->
+  @else {
+  <div class="resumen-container">
 
-    <!-- Hero: total del período -->
-    <div class="card hero-card">
-      <span class="hero-label">
-        {{ filtro === 'hoy' ? 'Total del día' : filtro === 'semana' ? 'Total de la semana' : filtro === 'mes' ? 'Total del mes' : 'Total histórico' }}
-      </span>
-      <div class="hero-monto">
-        <span class="hero-currency">$</span>{{ currencyService.format(reporte.total_monto) }}
+    <!-- ── KPIs principales con comparativa ── -->
+    <div class="card">
+      <p class="section-label">Ventas {{ tituloFiltro }}</p>
+      <div class="kpi-row">
+
+        <div class="kpi-item">
+          <span class="kpi-label">Total</span>
+          <span class="kpi-value kpi-value--hero">${{ currencyService.format(reporte.total_monto) }}</span>
+          @if (mostrarComparativa) {
+            <span class="kpi-trend" [class.kpi-trend--up]="variacionMonto().direccion === 'up'"
+                  [class.kpi-trend--down]="variacionMonto().direccion === 'down'"
+                  [class.kpi-trend--flat]="variacionMonto().direccion === 'flat'">
+              @if (variacionMonto().direccion === 'up') { <ion-icon name="arrow-up-outline"></ion-icon> }
+              @else if (variacionMonto().direccion === 'down') { <ion-icon name="arrow-down-outline"></ion-icon> }
+              @else { <ion-icon name="remove-outline"></ion-icon> }
+              {{ variacionMonto().label }}
+            </span>
+          } @else {
+            <span class="kpi-sub">{{ tituloFiltro }}</span>
+          }
+        </div>
+
+        <div class="kpi-divider"></div>
+
+        <div class="kpi-item">
+          <span class="kpi-label">Ganancia</span>
+          <span class="kpi-value kpi-value--success">${{ currencyService.format(reporte.ganancia_bruta) }}</span>
+          <span class="kpi-sub kpi-sub--badge">{{ reporte.margen_pct }}% margen</span>
+        </div>
+
+        <div class="kpi-divider"></div>
+
+        <div class="kpi-item">
+          <span class="kpi-label">Ventas</span>
+          <span class="kpi-value">{{ reporte.total_ventas }}</span>
+          <span class="kpi-sub">${{ currencyService.format(reporte.ticket_promedio) }} prom.</span>
+        </div>
+
       </div>
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <span class="hero-stat-num">{{ reporte.total_ventas }}</span>
-          <span class="hero-stat-label">{{ reporte.total_ventas === 1 ? 'venta' : 'ventas' }}</span>
+      @if (mostrarComparativa && (reporte.total_monto_anterior > 0 || reporte.total_ventas_anterior > 0)) {
+        <div class="kpi-comparativa">
+          <ion-icon name="time-outline"></ion-icon>
+          <span>{{ labelPeriodoAnterior }}: ${{ currencyService.format(reporte.total_monto_anterior) }} · {{ reporte.total_ventas_anterior }} ventas</span>
         </div>
-        <div class="hero-divider"></div>
-        <div class="hero-stat">
-          <span class="hero-stat-num">${{ currencyService.format(ticketPromedio) }}</span>
-          <span class="hero-stat-label">promedio</span>
+      }
+    </div>
+
+    <!-- ── Stats secundarios ── -->
+    <div class="stats-row">
+
+      @if (reporte.total_descuentos > 0) {
+      <div class="stat-chip">
+        <div class="stat-chip-icon stat-chip-icon--orange">
+          <ion-icon name="pricetag-outline"></ion-icon>
         </div>
-        @if (reporte.total_anuladas > 0) {
-        <div class="hero-divider"></div>
-        <div class="hero-stat">
-          <span class="hero-stat-num danger">{{ reporte.total_anuladas }}</span>
-          <span class="hero-stat-label">anulada{{ reporte.total_anuladas > 1 ? 's' : '' }}</span>
+        <div class="stat-chip-body">
+          <span class="stat-chip-label">Descuentos</span>
+          <span class="stat-chip-value">${{ currencyService.format(reporte.total_descuentos) }}</span>
+        </div>
+      </div>
+      }
+
+      @if (reporte.clientes_unicos > 0) {
+      <div class="stat-chip">
+        <div class="stat-chip-icon stat-chip-icon--blue">
+          <ion-icon name="hand-right-outline"></ion-icon>
+        </div>
+        <div class="stat-chip-body">
+          <span class="stat-chip-label">Clientes</span>
+          <span class="stat-chip-value">{{ reporte.clientes_unicos }} {{ reporte.clientes_unicos === 1 ? 'único' : 'únicos' }}</span>
+        </div>
+      </div>
+      }
+
+      @if (mostrarAnuladas) {
+      <div class="stat-chip stat-chip--danger">
+        <div class="stat-chip-icon stat-chip-icon--red">
+          <ion-icon name="close-circle-outline"></ion-icon>
+        </div>
+        <div class="stat-chip-body">
+          <span class="stat-chip-label">Anuladas</span>
+          <span class="stat-chip-value">{{ reporte.total_anuladas }} · ${{ currencyService.format(reporte.monto_anulado) }}</span>
+        </div>
+      </div>
+      }
+
+    </div>
+
+    <!-- ── Donut: Métodos de pago ── -->
+    @if (reporte.por_metodo_pago.length > 0) {
+    <div class="card">
+      <p class="section-label">Métodos de pago</p>
+      <div class="donut-layout">
+        <div class="donut-chart">
+          @if (donutChartOptions) {
+          <apx-chart
+            [series]="donutChartOptions.series"
+            [chart]="donutChartOptions.chart"
+            [labels]="donutChartOptions.labels"
+            [colors]="donutChartOptions.colors"
+            [legend]="donutChartOptions.legend"
+            [dataLabels]="donutChartOptions.dataLabels"
+            [plotOptions]="donutChartOptions.plotOptions"
+            [stroke]="donutChartOptions.stroke"
+            [tooltip]="donutChartOptions.tooltip"
+            [theme]="donutChartOptions.theme">
+          </apx-chart>
+        }
+        </div>
+        <div class="donut-legend">
+          @for (item of reporte.por_metodo_pago; track item.metodo) {
+          <div class="legend-item">
+            <span class="legend-dot" [style.background]="colorMetodo(item.metodo)"></span>
+            <div class="legend-body">
+              <span class="legend-label">{{ labelMetodoPago(item.metodo) }}</span>
+              <span class="legend-values">
+                ${{ currencyService.format(item.monto) }}
+                <span class="legend-pct">{{ getPorcentaje(item.monto) }}%</span>
+              </span>
+            </div>
+          </div>
+          }
+        </div>
+      </div>
+    </div>
+    }
+
+    <!-- ── Hora pico (solo filtro = hoy) ── -->
+    @if (mostrarHoraPico && horaChartOptions) {
+    <div class="card">
+      <p class="section-label">Ventas por hora</p>
+      <p class="section-hint">Te ayuda a planificar empleados y reposición de productos</p>
+      <apx-chart
+        [series]="horaChartOptions.series"
+        [chart]="horaChartOptions.chart"
+        [xaxis]="horaChartOptions.xaxis"
+        [yaxis]="horaChartOptions.yaxis"
+        [colors]="horaChartOptions.colors"
+        [plotOptions]="horaChartOptions.plotOptions"
+        [dataLabels]="horaChartOptions.dataLabels"
+        [grid]="horaChartOptions.grid"
+        [tooltip]="horaChartOptions.tooltip"
+        [legend]="horaChartOptions.legend">
+      </apx-chart>
+    </div>
+    }
+
+    <!-- ── Top productos por INGRESO ── -->
+    @if (reporte.top_productos.length > 0) {
+    <div class="card">
+      <p class="section-label">Productos con mayor ingreso</p>
+      <p class="section-hint">Los que más plata generan en ventas brutas</p>
+      <div class="top-productos">
+        @for (p of reporte.top_productos; track p.nombre; let i = $index) {
+        <div class="top-prod-row">
+          <span class="top-prod-nombre">{{ p.nombre }}</span>
+          <div class="top-prod-track">
+            <div class="top-prod-bar"
+              [style.width.%]="(p.total_monto / reporte.top_productos[0].total_monto) * 100"
+              [style.background]="barColors[i % barColors.length]">
+            </div>
+          </div>
+          <span class="top-prod-monto">${{ currencyService.format(p.total_monto) }}</span>
         </div>
         }
       </div>
     </div>
+    }
 
-    <!-- Métodos de pago -->
-    @if (reporte.por_metodo_pago.length > 0) {
+    <!-- ── Top productos por GANANCIA ── -->
+    @if (reporte.top_productos_rentables.length > 0) {
     <div class="card">
-      <h3 class="section-title">Métodos de pago</h3>
-
-      @for (item of reporte.por_metodo_pago; track item.metodo) {
-      <div class="metodo-row">
-        <div class="metodo-icon" [class]="'metodo-' + item.metodo.toLowerCase()">
-          @if (item.metodo === 'EFECTIVO') { <ion-icon name="cash-outline"></ion-icon> }
-          @else if (item.metodo === 'DEUNA') { <ion-icon name="card-outline"></ion-icon> }
-          @else if (item.metodo === 'TRANSFERENCIA') { <ion-icon name="phone-portrait-outline"></ion-icon> }
-          @else { <ion-icon name="hand-right-outline"></ion-icon> }
-        </div>
-        <div class="metodo-content">
-          <div class="metodo-header">
-            <span class="metodo-label">{{ labelMetodoPago(item.metodo) }}</span>
-            <span class="metodo-monto">${{ currencyService.format(item.monto) }}</span>
+      <p class="section-label">Productos más rentables</p>
+      <p class="section-hint">Los que más ganancia neta dejan — ideales para promocionar</p>
+      <div class="top-productos">
+        @for (p of reporte.top_productos_rentables; track p.nombre; let i = $index) {
+        <div class="top-prod-row top-prod-row--rentable">
+          <div class="top-prod-info">
+            <span class="top-prod-nombre">{{ p.nombre }}</span>
+            <span class="top-prod-meta">{{ p.margen_pct }}% margen · {{ p.total_unidades }} {{ p.total_unidades === 1 ? 'ud' : 'uds' }}</span>
           </div>
-          <div class="metodo-sub">
-            <span class="metodo-qty">{{ item.cantidad }} {{ item.cantidad === 1 ? 'venta' : 'ventas' }}</span>
-            <span class="metodo-pct">{{ getPorcentaje(item.monto) }}%</span>
+          <div class="top-prod-track">
+            <div class="top-prod-bar"
+              [style.width.%]="(p.ganancia / reporte.top_productos_rentables[0].ganancia) * 100"
+              [style.background]="'#22c55e'">
+            </div>
           </div>
+          <span class="top-prod-monto top-prod-monto--success">${{ currencyService.format(p.ganancia) }}</span>
         </div>
+        }
       </div>
-      }
     </div>
     }
 
-    <!-- Comprobantes -->
+    <!-- ── Productos con menos movimiento ── -->
+    @if (reporte.productos_baja_rotacion.length > 0 && filtro !== 'hoy') {
+    <div class="card">
+      <p class="section-label">Productos con menos movimiento</p>
+      <p class="section-hint">{{ reporte.productos_sin_movimiento > 0 ? (reporte.productos_sin_movimiento + (reporte.productos_sin_movimiento === 1 ? ' producto sin venderse' : ' productos sin venderse') + ' — revisa caducidad o haz una promoción') : 'Los que menos rotan en el período — considera promocionarlos' }}</p>
+      <div class="top-productos">
+        @for (p of reporte.productos_baja_rotacion; track p.producto_id; let i = $index) {
+        <div class="top-prod-row">
+          <span class="top-prod-nombre">{{ p.nombre }}</span>
+          <div class="top-prod-track">
+            <div class="top-prod-bar baja-rot-bar"
+              [style.width.%]="getBajaRotPct(p.total_unidades)"
+              [style.background]="bajaRotColor(i)">
+            </div>
+          </div>
+          <span class="top-prod-monto top-prod-monto--units">{{ p.total_unidades }} ud{{ p.total_unidades === 1 ? '' : 's' }}</span>
+        </div>
+        }
+      </div>
+    </div>
+    }
+
+    <!-- ── Comprobantes (compacto) ── -->
     @if (reporte.por_tipo_comprobante.length > 0) {
-    <div class="card">
-      <h3 class="section-title">Comprobantes</h3>
-      @for (item of reporte.por_tipo_comprobante; track item.tipo) {
-      <div class="comprobante-row">
-        <div class="comprobante-icon">
-          @if (item.tipo === 'FACTURA') { <ion-icon name="document-outline"></ion-icon> }
-          @else if (item.tipo === 'NOTA_VENTA') { <ion-icon name="document-text-outline"></ion-icon> }
-          @else { <ion-icon name="receipt-outline"></ion-icon> }
-        </div>
-        <span class="comprobante-label">{{ labelComprobante(item.tipo) }}</span>
-        <span class="comprobante-badge">{{ item.cantidad }}</span>
-        <span class="comprobante-monto">${{ currencyService.format(item.monto) }}</span>
-      </div>
-      }
-    </div>
-    }
-
-    <!-- Top productos -->
-    @if (reporte.top_productos.length > 0) {
-    <div class="card">
-      <h3 class="section-title">
-        <ion-icon name="trophy-outline"></ion-icon>
-        Más vendidos
-      </h3>
-      @for (item of reporte.top_productos; track item.producto_id; let i = $index) {
-      <div class="producto-row">
-        <span class="producto-rank">{{ i + 1 }}</span>
-        <div class="producto-info">
-          <span class="producto-nombre">{{ item.nombre }}</span>
-          <span class="producto-sub">{{ item.total_unidades }} unid. · {{ item.total_ventas }} {{ item.total_ventas === 1 ? 'venta' : 'ventas' }}</span>
-        </div>
-        <span class="producto-monto">${{ currencyService.format(item.total_monto) }}</span>
-      </div>
-      }
-    </div>
-    }
-
-    <!-- Ganancia bruta -->
-    @if (reporte.total_ventas > 0) {
-    <div class="card ganancia-card">
-      <h3 class="section-title">
-        <ion-icon name="trending-up-outline"></ion-icon>
-        Ganancia bruta
-      </h3>
-      <div class="ganancia-row">
-        <div class="ganancia-item">
-          <span class="ganancia-label">Ingresos</span>
-          <span class="ganancia-valor ingreso">${{ currencyService.format(reporte.total_monto) }}</span>
-        </div>
-        <div class="ganancia-item">
-          <span class="ganancia-label">Costo</span>
-          <span class="ganancia-valor costo">−${{ currencyService.format(reporte.costo_total) }}</span>
-        </div>
-        <div class="ganancia-divider"></div>
-        <div class="ganancia-item destacado">
-          <span class="ganancia-label">Ganancia</span>
-          <span class="ganancia-valor ganancia">${{ currencyService.format(reporte.ganancia_bruta) }}</span>
-        </div>
-        <div class="ganancia-margen">
-          <span class="margen-badge">{{ reporte.margen_pct }}% margen</span>
-        </div>
+    <div class="card card--compact">
+      <p class="section-label">Comprobantes emitidos</p>
+      <div class="comprobantes-inline">
+        @for (item of reporte.por_tipo_comprobante; track item.tipo; let last = $last) {
+          <span class="comprobante-inline-item">
+            <strong>{{ item.cantidad }}</strong> {{ labelComprobante(item.tipo) | lowercase }}{{ item.cantidad === 1 ? '' : 's' }}
+          </span>
+          @if (!last) { <span class="comprobante-sep">·</span> }
+        }
       </div>
     </div>
     }
 
-    <!-- Deuda pendiente global -->
+    <!-- ── Deuda pendiente con % sobre ventas ── -->
     @if (deuda && deuda.total_deuda > 0) {
-    <div class="deuda-card">
-      <div class="deuda-icon">
+    <div class="alerta-card" [class.alerta-card--danger]="deudaPorcentaje >= 30" [class.alerta-card--warning]="deudaPorcentaje < 30">
+      <div class="alerta-icon" [class.alerta-icon--danger]="deudaPorcentaje >= 30" [class.alerta-icon--warning]="deudaPorcentaje < 30">
         <ion-icon name="alert-circle-outline"></ion-icon>
       </div>
-      <div class="deuda-content">
-        <span class="deuda-label">Deuda pendiente</span>
-        <span class="deuda-sub">{{ deuda.total_clientes }} {{ deuda.total_clientes === 1 ? 'cliente' : 'clientes' }} con saldo</span>
+      <div class="alerta-content">
+        <span class="alerta-label">Deuda pendiente: ${{ currencyService.format(deuda.total_deuda) }}</span>
+        <span class="alerta-sub">
+          {{ deuda.total_clientes }} {{ deuda.total_clientes === 1 ? 'cliente' : 'clientes' }}
+          @if (mostrarComparativa && reporte.total_monto > 0) {
+            · <strong>{{ deudaPorcentaje }}%</strong> de tus ventas {{ tituloFiltro }}
+            @if (deudaPorcentaje >= 30) { <span class="alerta-flag">— zona crítica</span> }
+          }
+        </span>
       </div>
-      <span class="deuda-monto">${{ currencyService.format(deuda.total_deuda) }}</span>
     </div>
-    }
-
     }
 
   </div>
+  }
 
 </ion-content>

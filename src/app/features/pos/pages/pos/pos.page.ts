@@ -1,18 +1,19 @@
-import { Component, OnInit, OnDestroy, inject, HostListener, NgZone, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, HostListener, ViewChild, ElementRef, signal, computed, Signal, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   IonContent, IonHeader, IonTitle, IonToolbar,
   IonButtons, IonMenuButton, IonButton, IonIcon,
-  IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
+  IonFooter, IonList, IonItem, IonBadge, IonSpinner, IonSkeletonText,
   IonItemSliding, IonItemOptions, IonItemOption,
   IonRefresher, IonRefresherContent,
-  ActionSheetController, AlertController, ModalController, ViewDidLeave, ViewWillEnter
+  AlertController, ModalController, ViewDidLeave, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, receiptOutline, documentTextOutline, documentOutline, personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline } from 'ionicons/icons';
+import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, pricetagOutline, chevronDownCircleOutline, gridOutline, listOutline } from 'ionicons/icons';
+import { CategoriaProducto } from '../../../inventario/models/categoria-producto.model';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
@@ -21,27 +22,31 @@ import { ProductoPOS, ProductoPresentacion } from '../../../inventario/models/pr
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { PosService, VentaPayload } from '../../services/pos.service';
-import { CartItem } from '../../models/cart-item.model';
+import { CartItem, CatalogoItem, ResultadoBusquedaPOS } from '../../models/cart-item.model';
 import { ClientesService } from '../../../clientes/services/clientes.service';
 import { Cliente } from '../../../clientes/models/cliente.model';
 import { SeleccionarClienteModalComponent } from '../../../clientes/components/seleccionar-cliente-modal/seleccionar-cliente-modal.component';
 import { CobrarModalComponent } from '../../components/cobrar-modal/cobrar-modal.component';
 import { CantidadModalComponent, CantidadModalResult } from '../../components/cantidad-modal/cantidad-modal.component';
+import { VarianteSelectorModalComponent, VarianteSelectorResult } from '../../components/variante-selector-modal/variante-selector-modal.component';
 import { NetworkService } from '../../../../core/services/network.service';
+import { CatalogoLocalService } from '../../../../core/services/catalogo-local.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { ConfigService } from '../../../../core/services/config.service';
 import { Configuracion } from '../../../configuracion/models/configuracion.model';
+import { ROUTES } from '../../../../core/config/routes.config';
 
 @Component({
   selector: 'app-pos',
   templateUrl: './pos.page.html',
   styleUrls: ['./pos.page.scss'],
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     IonContent, IonHeader, IonTitle, IonToolbar,
     IonButtons, IonMenuButton, IonButton, IonIcon,
-    IonFooter, IonList, IonItem, IonBadge, IonLabel, IonSpinner,
+    IonFooter, IonList, IonItem, IonBadge, IonSpinner, IonSkeletonText,
     IonItemSliding, IonItemOptions, IonItemOption,
     IonRefresher, IonRefresherContent,
     CommonModule, FormsModule,
@@ -50,33 +55,36 @@ import { Configuracion } from '../../../configuracion/models/configuracion.model
 })
 export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   @ViewChild(IonContent) content!: IonContent;
-  @ViewChild('searchInput') searchInputRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('panelItems') panelItemsRef!: ElementRef<HTMLElement>;
 
   private inventarioService = inject(InventarioService);
-  public currencyService = inject(CurrencyService);
+  protected currencyService = inject(CurrencyService);
   private ui = inject(UiService);
   private posService = inject(PosService);
   private alertCtrl = inject(AlertController);
-  private actionSheetCtrl = inject(ActionSheetController);
   private modalCtrl = inject(ModalController);
   private clientesService = inject(ClientesService);
-  private ngZone = inject(NgZone);
+  protected barcodeScanner = inject(BarcodeScannerService);
   private network = inject(NetworkService);
+  private catalogoLocal = inject(CatalogoLocalService);
   private logger = inject(LoggerService);
-  public storageService = inject(StorageService);
+  private storageService = inject(StorageService);
   private configService = inject(ConfigService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   // Exponer enum al template (para el @if de mostrarDesglose)
   readonly TipoComprobante = TipoComprobante;
 
-  lastAddedId: string | null = null;
-  carrito: CartItem[] = [];
-  buscarTexto = '';
+  lastAddedKey: string | null = null;
+  lastIncrementedKey: string | null = null;
+  // ID del item cuyo modal de cantidad está cargando (consulta stock fresco de BD)
+  editandoItemKey: string | null = null;
+  readonly carrito = signal<CartItem[]>([]);
+  readonly buscarTexto = signal('');
   productosBusqueda: ProductoPOS[] = [];
-  sugerenciaActiva = -1;
   buscando = false;
-  modoBusqueda: 'codigo' | 'nombre' = 'codigo';
+  modoBusqueda: 'codigo' | 'nombre' = 'nombre';
   private searchVersion = 0;
   escaneando = false;
   cobroEnProceso = false;
@@ -85,42 +93,314 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   clienteSeleccionado: Cliente | null = null;
   cargandoCliente = false;
-  errorCliente = false;
+  errorCliente = false;       // fallo de red / error inesperado
+  sinConsumidorFinal = false; // la BD no tiene ningún consumidor final creado
 
-  /** Tipo de comprobante activo — controla desglose fiscal en el footer */
+  // ==========================
+  // VISTA CATÁLOGO
+  // ==========================
+  vistaActual: 'lista' | 'catalogo' = 'catalogo';
+  // Recuerda si el usuario venía del catálogo al ir a lista (para volver tras cobrar)
+  protected volvioDesdeCatalogo = false;
+
+  // En desktop (≥992px) el panel lateral muestra el carrito — no se alterna vista
+  get esDesktop(): boolean { return window.innerWidth >= 992; }
+  categoriasCatalogo: CategoriaProducto[] = [];
+  categoriaActivaId: string | null = null;  // null = TODOS
+  readonly productosCatalogo = signal<ProductoPOS[]>([]);
+  cargandoCatalogo = false;
+  catalogoSearchAbierto = false;
+
+  // IDs de productos con animación activa en el catálogo
+  catalogoCardAnimando: string | null = null;
+  totalAmountAnimando = false;
+
+  private dispararAnimacionPanel(itemKey: string) {
+    if (!this.esDesktop) return;
+    setTimeout(() => {
+      const panel = this.panelItemsRef?.nativeElement;
+      if (!panel) return;
+      const itemEl = panel.querySelector<HTMLElement>(`[data-item-key="${CSS.escape(itemKey)}"]`);
+      if (itemEl) {
+        itemEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else {
+        panel.scrollTo({ top: panel.scrollHeight, behavior: 'smooth' });
+      }
+    }, 30);
+  }
+
+  private dispararAnimacionCatalogo(productoId: string) {
+    this.catalogoCardAnimando = productoId;
+    this.cdr.markForCheck();
+    setTimeout(() => { this.catalogoCardAnimando = null; this.cdr.markForCheck(); }, 400);
+    setTimeout(() => {
+      this.totalAmountAnimando = true;
+      this.cdr.markForCheck();
+      setTimeout(() => { this.totalAmountAnimando = false; this.cdr.markForCheck(); }, 500);
+    }, 150);
+  }
+
+  abrirCatalogoSearch() {
+    this.catalogoSearchAbierto = true;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('.cat-search-input');
+      input?.focus();
+    }, 260);
+  }
+
+  cerrarCatalogoSearch() {
+    this.catalogoSearchAbierto = false;
+    this.limpiarBusqueda();
+    this.cdr.markForCheck();
+  }
+
+  /** Tipo de comprobante — solo lectura, configurado por el superadmin */
   tipoComprobante: TipoComprobante = TipoComprobante.TICKET;
 
-  /** Opciones del menú ⋮ para el componente reutilizable */
+  /** Opciones del menú ⋮ */
   readonly ACCION_LIMPIAR = '__LIMPIAR__';
 
   comprobanteOptions: MenuOption[] = [
-    { label: 'Ticket',       icon: 'receipt-outline',        value: TipoComprobante.TICKET,      active: true },
-    { label: 'Nota de Venta',icon: 'document-text-outline',  value: TipoComprobante.NOTA_VENTA,  active: false },
-    { label: 'Factura',      icon: 'document-outline',       value: TipoComprobante.FACTURA,     active: false },
-    { label: '',             icon: '',                       value: '__sep__',                   active: false, separator: true },
-    { label: 'Limpiar carrito', icon: 'trash-outline',       value: '__LIMPIAR__',               active: false, color: 'danger' },
+    { label: 'Limpiar carrito', icon: 'trash-outline', value: '__LIMPIAR__', active: false, color: 'danger' },
   ];
 
-  /** Handler unificado del menú ⋮ */
+  /** Handler del menú ⋮ */
   async onComprobanteOption(option: MenuOption) {
     if (option.value === this.ACCION_LIMPIAR) {
-      if (this.carrito.length === 0) return;
+      if (this.carrito().length === 0) return;
       await this.confirmarLimpiarCarrito();
-      return;
     }
-    // Cambio de tipo de comprobante
-    this.tipoComprobante = option.value as TipoComprobante;
-    this.comprobanteOptions = this.comprobanteOptions.map(o => ({
-      ...o,
-      active: o.value === this.tipoComprobante
-    }));
+  }
+
+  /** Pill del catálogo → ir a lista para revisar y cobrar (solo mobile) */
+  async irAListaDesdeCatalogo() {
+    if (this.esDesktop) return;
+    this.volvioDesdeCatalogo = true;
+    this.vistaActual = 'lista';
+    this.catalogoSearchAbierto = false;
+    this.limpiarBusqueda();
+  }
+
+  /** Desde lista → volver al catálogo (botón atrás en modo lista cuando vino del catálogo) */
+  async volverAlCatalogo() {
+    this.volvioDesdeCatalogo = false;
+    this.vistaActual = 'catalogo';
+  }
+
+  async cargarCatalogo() {
+    this.categoriaActivaId = null;
+
+    // Stale-while-revalidate: si hay cache local, pinta la cuadrícula al instante
+    // (sin spinner) y refresca contra el servidor en segundo plano. Arranque percibido
+    // inmediato, como una app profesional. Sin cache, muestra el skeleton normal.
+    const huboCache = await this.pintarDesdeCacheSiExiste();
+    if (!huboCache) {
+      this.cargandoCatalogo = true;
+      this.cdr.markForCheck();
+    }
+
+    try {
+      const categorias = await this.inventarioService.obtenerCategorias();
+      this.categoriasCatalogo = categorias;
+      // Pasar las categorías ya cargadas evita una query extra al guardar el cache.
+      const productos = await this.inventarioService.obtenerProductosCatalogoPOS(undefined, categorias);
+      // Pinta la cuadrícula fresca al instante; las imágenes se resuelven en background.
+      this.publicarCatalogoConImagenesProgresivas(productos);
+    } finally {
+      this.cargandoCatalogo = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  /**
+   * Pinta el catálogo desde el cache local si existe, para un arranque instantáneo
+   * mientras se refresca contra el servidor. Devuelve true si pintó algo.
+   * Las imágenes cacheadas (paths) se resuelven en background como en cualquier carga.
+   */
+  private async pintarDesdeCacheSiExiste(): Promise<boolean> {
+    const cacheados = await this.catalogoLocal.obtenerCatalogoPorCategoria();
+    if (cacheados.length === 0) return false;
+    const categoriasCache = await this.catalogoLocal.obtenerCategorias();
+    if (categoriasCache.length > 0) this.categoriasCatalogo = categoriasCache;
+    this.publicarCatalogoConImagenesProgresivas(cacheados);
+    return true;
+  }
+
+  async seleccionarCategoriaCatalogo(categoriaId: string | null) {
+    if (this.categoriaActivaId === categoriaId) return;
+    this.categoriaActivaId  = categoriaId;
+    this.cdr.markForCheck();
+
+    // Scroll automático al tab activo dentro de la barra horizontal
+    setTimeout(() => {
+      const attrValue = categoriaId ?? '__todos__';
+      const tabEl = document.querySelector<HTMLElement>(`.catalogo-cats-bar [data-cat-id="${attrValue}"]`);
+      tabEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, 0);
+
+    // Si hay cache en memoria el filtro es puro JS — no hay I/O, no hace falta spinner
+    const instantaneo = !this.network.isConnected() && this.catalogoLocal.tieneCacheEnMemoria();
+    if (!instantaneo) {
+      this.cargandoCatalogo = true;
+      this.cdr.markForCheck();
+    }
+    try {
+      const productos = await this.inventarioService.obtenerProductosCatalogoPOS(categoriaId ?? undefined);
+      // Pinta al instante reutilizando imágenes ya resueltas; resuelve nuevas en background.
+      this.publicarCatalogoConImagenesProgresivas(productos);
+    } finally {
+      this.cargandoCatalogo = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  /**
+   * Publica el catálogo en dos pasos para que la cuadrícula aparezca al instante:
+   *  Paso 1 (síncrono): pinta los productos reutilizando las imágenes ya resueltas en
+   *    el catálogo actual (mismo producto/template) → 0 llamadas a Storage, render inmediato.
+   *  Paso 2 (background): resuelve las URLs nuevas sin bloquear la UI y re-publica.
+   * Único punto de pintado del catálogo — lo usan cargarCatalogo, filtro y refresco.
+   */
+  private publicarCatalogoConImagenesProgresivas(productos: ProductoPOS[]) {
+    const catalogoActual = this.productosCatalogo();
+    const imagenesCacheadas = new Map(catalogoActual.map(p => [p.id, p.imagen_url]));
+    const templateImagenesCacheadas = new Map(
+      catalogoActual
+        .filter(p => p.producto_template_id && p.producto_template?.imagen_url?.startsWith('http'))
+        .map(p => [p.producto_template_id!, p.producto_template!.imagen_url!])
+    );
+
+    // Paso 1: pintar ya, con las imágenes que tengamos a mano.
+    // Solo se usa una URL si ya está firmada (http). Si solo hay path crudo de Storage,
+    // se deja undefined (placeholder) — pintarlo haría que <img> pida el path como ruta
+    // local (localhost/{path}) → 404 en consola. El Paso 2 lo firma y re-publica.
+    const urlFirmada = (valor: string | null | undefined): string | undefined =>
+      valor?.startsWith('http') ? valor : undefined;
+
+    const productosConImagenCacheada = productos.map(p => {
+      const result = { ...p, imagen_url: urlFirmada(imagenesCacheadas.get(p.id) ?? p.imagen_url) };
+      if (result.producto_template) {
+        result.producto_template = {
+          ...result.producto_template,
+          imagen_url: urlFirmada(templateImagenesCacheadas.get(p.producto_template_id!) ?? result.producto_template.imagen_url)
+        };
+      }
+      return result;
+    });
+    this.productosCatalogo.set(productosConImagenCacheada);
+    this.cdr.markForCheck();
+
+    // Paso 2: resolver las URLs faltantes en background, sin bloquear el render
+    this.resolverImagenesCatalogo(productos).then(productosConImg => {
+      this.productosCatalogo.set(productosConImg);
+      this.cdr.markForCheck();
+    }).catch(() => { /* imagen fallida no rompe el flujo */ });
+  }
+
+  private async resolverImagenesCatalogo(productos: ProductoPOS[]): Promise<ProductoPOS[]> {
+    return Promise.all(productos.map(p => this.resolverImagen(p)));
+  }
+
+  async editarCantidadDesdeCatalogo(producto: ProductoPOS) {
+    // Toma el primer CartItem del carrito que corresponda a este producto
+    const item = this.carrito().find(i => i.id === producto.id);
+    if (!item) return;
+    await this.editarCantidad(item);
+  }
+
+  async abrirVariantesDesdeCatalogo(item: CatalogoItem & { tipo: 'template' }) {
+    const subtitle = item.templateAtributos.length > 0
+      ? `Selecciona el ${item.templateAtributos.join(' / ').toLowerCase()}`
+      : `Selecciona una opción de ${item.templateNombre}`;
+    await this.mostrarSelectorVariantes(item.templateNombre, item.variantes, subtitle);
+  }
+
+  async agregarDesdeCatalogo(producto: ProductoPOS, event?: MouseEvent | TouchEvent) {
+    // Capturar card y rect ANTES del await — tras el re-render el card puede reordenarse
+    const cardEl = event
+      ? ((event.currentTarget ?? event.target) as HTMLElement).closest('.catalogo-card') as HTMLElement | null
+      : null;
+    const cardRect  = cardEl?.getBoundingClientRect() ?? null;
+    const cardClone = cardEl?.cloneNode(true) as HTMLElement | null ?? null;
+
+    const tienePresentaciones = (producto.presentaciones?.length ?? 0) > 0;
+    const totalAntes = this.totalArticulos();
+    await this.seleccionarResultadoBusqueda({ tipo: 'simple', producto }, false);
+    const seAgrego = this.totalArticulos() > totalAntes;
+
+    // Solo animar en productos simples sin presentaciones — en presentaciones/variantes
+    // el flujo pasa por un modal y la animación se siente desfasada
+    if (seAgrego && !tienePresentaciones) {
+      navigator.vibrate?.(30);
+      this.dispararAnimacionCatalogo(producto.id);
+      this.dispararAnimacionPanel(producto.id);
+      if (cardRect && cardClone) setTimeout(() => this.flyToPillFromClone(cardClone, cardRect), 0);
+    }
+  }
+
+  /** Anima un clon visual exacto del card volando hacia el pill (mobile) o el total del panel (desktop) */
+  private flyToPillFromClone(cardClone: HTMLElement, cardRect: DOMRect) {
+    const esVisible = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
+    const pill   = document.querySelector<HTMLElement>('.catalogo-cart-pill');
+    const panel  = document.querySelector<HTMLElement>('.panel-total-monto');
+    const pillEl = (pill && esVisible(pill)) ? pill : (panel && esVisible(panel)) ? panel : null;
+    if (!pillEl) return;
+
+    const pillRect = pillEl.getBoundingClientRect();
+    const pillCx   = pillRect.left + pillRect.width  / 2;
+    const pillCy   = pillRect.top  + pillRect.height / 2;
+
+    cardClone.style.cssText = `
+      position: fixed;
+      left: ${cardRect.left}px;
+      top: ${cardRect.top}px;
+      width: ${cardRect.width}px;
+      height: ${cardRect.height}px;
+      margin: 0;
+      pointer-events: none;
+      z-index: 9999;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      outline: none;
+      border: none;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      opacity: 1;
+      transform: scale(1);
+      transition:
+        left      0.45s cubic-bezier(0.4, 0, 0.2, 1),
+        top       0.45s cubic-bezier(0.4, 0, 0.2, 1),
+        width     0.45s cubic-bezier(0.4, 0, 0.2, 1),
+        height    0.45s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity   0.35s ease 0.15s,
+        transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    `;
+    document.body.appendChild(cardClone);
+
+    // Forzar reflow para que la transición arranque desde el estado inicial
+    cardClone.getBoundingClientRect();
+
+    // Estado final: encoge hasta el centro del pill y desaparece
+    const size = 32;
+    cardClone.style.left      = `${pillCx - size / 2}px`;
+    cardClone.style.top       = `${pillCy - size / 2}px`;
+    cardClone.style.width     = `${size}px`;
+    cardClone.style.height    = `${size}px`;
+    cardClone.style.opacity   = '0';
+    cardClone.style.transform = 'scale(0.3)';
+
+    cardClone.addEventListener('transitionend', () => cardClone.remove(), { once: true });
   }
 
   /** Pide confirmación antes de vaciar el carrito */
   private async confirmarLimpiarCarrito() {
     const alert = await this.alertCtrl.create({
       header: 'Limpiar carrito',
-      message: `¿Descartás los ${this.totalArticulos} artículos del carrito?`,
+      message: `¿Descartas los ${this.totalArticulos()} artículos del carrito?`,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
         {
@@ -142,9 +422,6 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private ultimoTiempoEscaneado = 0;
   private procesandoEscaneo = false;
 
-  // AudioContext reutilizable para beep
-  private audioCtx: AudioContext | null = null;
-
   // Configuración de descuentos (cargada una vez al init)
   private appConfig: Configuracion | null = null;
 
@@ -157,32 +434,40 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       addOutline, removeOutline, trashOutline,
       cubeOutline, searchOutline, addCircleOutline,
       cardOutline, phonePortraitOutline, handRightOutline,
-      receiptOutline, documentTextOutline, documentOutline,
-      personOutline, chevronForwardOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, imageOutline, pricetagOutline, chevronDownCircleOutline
+      personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, pricetagOutline, chevronDownCircleOutline,
+      gridOutline, listOutline
     });
   }
 
   async ngOnInit() {
     await Promise.all([
       this.cargarCliente(),
-      this.cargarConfig()
+      this.cargarConfig(),
+      this.cargarCatalogo()
     ]);
   }
 
   private async cargarConfig() {
     this.appConfig = await this.configService.get();
+    this.tipoComprobante = this.appConfig.pos_tipo_comprobante as TipoComprobante;
+    this.cdr.markForCheck();
   }
 
   async cargarCliente() {
     this.cargandoCliente = true;
     this.errorCliente = false;
+    this.sinConsumidorFinal = false;
+    this.cdr.markForCheck();
     try {
       this.clienteSeleccionado = await this.clientesService.obtenerConsumidorFinal();
-      if (!this.clienteSeleccionado?.id) this.errorCliente = true;
+      if (!this.clienteSeleccionado) {
+        this.sinConsumidorFinal = true;
+      }
     } catch {
       this.errorCliente = true;
     } finally {
       this.cargandoCliente = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -190,114 +475,156 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   // LÓGICA DEL CARRITO
   // ==========================
 
-  get totalArticulos(): number {
-    return this.carrito.reduce((sum, item) => sum + item.cantidad, 0);
+  readonly totalArticulos = computed(() => this.carrito().reduce((sum, item) => sum + item.cantidad, 0));
+
+  /** Productos del catálogo filtrados y agrupados por template (variantes). Computed: solo recalcula cuando cambia el catálogo o el texto de búsqueda. */
+  readonly itemsCatalogo = computed<CatalogoItem[]>(() => {
+    const texto = this.buscarTexto().trim().toLowerCase();
+    const fuente = texto
+      ? this.productosCatalogo().filter(p =>
+          p.nombre.toLowerCase().includes(texto) ||
+          (p.codigo_barras?.toLowerCase().includes(texto) ?? false)
+        )
+      : this.productosCatalogo();
+    return this.agruparParaCatalogo(fuente);
+  });
+
+  private agruparParaCatalogo(productos: ProductoPOS[]): CatalogoItem[] {
+    const items: CatalogoItem[] = [];
+    const templateMap = new Map<string, CatalogoItem & { tipo: 'template' }>();
+
+    for (const p of productos) {
+      if (!p.producto_template_id) {
+        items.push({ tipo: 'simple', producto: p });
+        continue;
+      }
+
+      const existing = templateMap.get(p.producto_template_id);
+      if (existing) {
+        existing.variantes.push(p);
+      } else {
+        const atributos = (p.producto_template?.template_atributos ?? [])
+          .map(ta => ta.atributo?.nombre)
+          .filter((n): n is string => !!n);
+
+        const item: CatalogoItem & { tipo: 'template' } = {
+          tipo: 'template',
+          templateId: p.producto_template_id,
+          templateNombre: p.producto_template?.nombre ?? p.nombre,
+          templateImagenUrl: p.producto_template?.imagen_url,
+          templateAtributos: atributos,
+          variantes: [p],
+        };
+        templateMap.set(p.producto_template_id, item);
+        items.push(item);
+      }
+    }
+
+    return items;
   }
 
-  /** Subtotal bruto = suma de subtotales del carrito (sin descuento). */
-  get subtotalBruto(): number {
-    return this.carrito.reduce((sum, item) => sum + item.subtotal, 0);
-  }
+  readonly carritoCountMap = computed(() =>
+    this.carrito().reduce((map, item) => {
+      map[item.id] = (map[item.id] || 0) + item.cantidad;
+      return map;
+    }, {} as Record<string, number>)
+  );
 
-  /**
-   * Descuento automático: se aplica si está habilitado en config
-   * y el subtotal bruto supera el umbral mínimo.
-   */
-  get descuentoAplicado(): number {
+  /** Suma de artículos en carrito agrupados por template_id — para el badge de cards de variantes. */
+  readonly templateCountMap = computed(() =>
+    this.carrito().reduce((map, item) => {
+      if (item.producto_template_id) {
+        map[item.producto_template_id] = (map[item.producto_template_id] || 0) + item.cantidad;
+      }
+      return map;
+    }, {} as Record<string, number>)
+  );
+
+  readonly subtotalBruto = computed(() =>
+    this.carrito().reduce((sum, item) => sum + item.subtotal, 0)
+  );
+
+  readonly descuentoAplicado = computed(() => {
     if (!this.appConfig?.pos_descuentos_habilitados) return 0;
-    if (this.subtotalBruto < this.appConfig.pos_umbral_monto_descuento) return 0;
-    const descuento = this.subtotalBruto * (this.appConfig.pos_descuento_maximo_pct / 100);
-    return Math.round(descuento * 100) / 100;
-  }
+    if (this.subtotalBruto() < this.appConfig.pos_umbral_monto_descuento) return 0;
+    return Math.round(this.subtotalBruto() * (this.appConfig.pos_descuento_maximo_pct / 100) * 100) / 100;
+  });
 
-  /** Porcentaje de descuento configurado (para mostrar en el template). */
-  get descuentoPct(): number {
-    return this.appConfig?.pos_descuento_maximo_pct ?? 0;
-  }
+  readonly totalPagar = computed(() =>
+    Math.round((this.subtotalBruto() - this.descuentoAplicado()) * 100) / 100
+  );
 
-  /** Descuentos habilitados en config — controla chip en header */
-  get descuentoActivo(): boolean {
-    return !!this.appConfig?.pos_descuentos_habilitados;
-  }
+  get descuentoPct(): number { return this.appConfig?.pos_descuento_maximo_pct ?? 0; }
+  get descuentoActivo(): boolean { return !!this.appConfig?.pos_descuentos_habilitados; }
 
-  /** Monto que falta para alcanzar el umbral de descuento (0 si ya lo superó o no aplica) */
-  get faltaParaDescuento(): number {
+  readonly faltaParaDescuento = computed(() => {
     if (!this.descuentoActivo) return 0;
-    const umbral = this.appConfig!.pos_umbral_monto_descuento;
-    const falta = umbral - this.subtotalBruto;
+    const falta = this.appConfig!.pos_umbral_monto_descuento - this.subtotalBruto();
     return falta > 0 ? Math.round(falta * 100) / 100 : 0;
-  }
+  });
 
-  /** Mostrar upselling: carrito con items, cerca del umbral (falta ≤30%) pero sin alcanzarlo */
-  get mostrarUpselling(): boolean {
-    if (!this.descuentoActivo || this.carrito.length === 0) return false;
+  readonly mostrarUpselling = computed(() => {
+    if (!this.descuentoActivo || this.carrito().length === 0) return false;
     const umbral = this.appConfig!.pos_umbral_monto_descuento;
-    const falta = this.faltaParaDescuento;
+    const falta = this.faltaParaDescuento();
     return falta > 0 && falta <= umbral * 0.3;
-  }
+  });
 
-  /**
-   * Total a cobrar = subtotal bruto - descuento.
-   * precio_venta YA incluye IVA → precio final al cliente.
-   */
-  get totalPagar(): number {
-    return Math.round((this.subtotalBruto - this.descuentoAplicado) * 100) / 100;
-  }
+  // ── Desglose fiscal (solo FACTURA) — un único reduce sobre el carrito ──
+  private readonly _ivaDivisor = computed(() => 1 + (this.appConfig?.pos_iva_porcentaje ?? 15) / 100);
+  private readonly _factorDescuento = computed(() =>
+    this.subtotalBruto() > 0 ? this.totalPagar() / this.subtotalBruto() : 1
+  );
+  private readonly _brutosDesglose = computed(() =>
+    this.carrito().reduce(
+      (acc, i) => {
+        if (i.tiene_iva) acc.conIva += i.subtotal;
+        else acc.sinIva += i.subtotal;
+        return acc;
+      },
+      { sinIva: 0, conIva: 0 }
+    )
+  );
 
-  // ── Getters de desglose fiscal (solo visibles en FACTURA) ────────────────
-  // El descuento se distribuye proporcionalmente entre base0 y base15.
+  readonly baseIva0 = computed(() =>
+    Math.round(this._brutosDesglose().sinIva * this._factorDescuento() * 100) / 100
+  );
+  readonly baseIva15 = computed(() =>
+    Math.round((this._brutosDesglose().conIva * this._factorDescuento() / this._ivaDivisor()) * 100) / 100
+  );
+  readonly ivaValor = computed(() =>
+    Math.round((this.totalPagar() - this.baseIva0() - this.baseIva15()) * 100) / 100
+  );
+  readonly subtotalNeto = computed(() => Math.round((this.baseIva0() + this.baseIva15()) * 100) / 100);
 
-  /** Montos brutos por grupo IVA (antes de descuento) — uso interno */
-  private get _brutoIva0(): number {
-    return this.carrito.filter(i => !i.tiene_iva).reduce((sum, i) => sum + i.subtotal, 0);
-  }
-  private get _brutoConIva(): number {
-    return this.carrito.filter(i => i.tiene_iva).reduce((sum, i) => sum + i.subtotal, 0);
-  }
-
-  /** Factor de descuento: proporción que queda tras aplicar descuento */
-  private get _factorDescuento(): number {
-    return this.subtotalBruto > 0 ? this.totalPagar / this.subtotalBruto : 1;
-  }
-
-  /** Base gravada 0% (productos sin IVA, con descuento proporcional) */
-  get baseIva0(): number {
-    return Math.round(this._brutoIva0 * this._factorDescuento * 100) / 100;
-  }
-
-  /** Base gravada según tarifa IVA configurada — (precio con IVA × factor descuento) ÷ divisor */
-  get baseIva15(): number {
-    const conIvaDescontado = this._brutoConIva * this._factorDescuento;
-    return Math.round((conIvaDescontado / this._ivaDivisor) * 100) / 100;
-  }
-
-  /** IVA extraído del precio (NO sumado encima) — usa tarifa de configuración */
-  get ivaValor(): number {
-    return Math.round((this.totalPagar - this.baseIva0 - this.baseIva15) * 100) / 100;
-  }
-
-  /** Divisor para extraer base sin IVA. Ej: iva=15% → divisor=1.15 */
-  private get _ivaDivisor(): number {
-    const pct = this.appConfig?.pos_iva_porcentaje ?? 15;
-    return 1 + pct / 100;
-  }
-
-  /** Subtotal neto = base0 + base15 (sin IVA) */
-  get subtotalNeto(): number {
-    return Math.round((this.baseIva0 + this.baseIva15) * 100) / 100;
-  }
-
-  /** Muestra desglose fiscal solo en FACTURA */
-  get mostrarDesglose(): boolean {
-    return this.tipoComprobante === TipoComprobante.FACTURA;
-  }
+  get mostrarDesglose(): boolean { return this.tipoComprobante === TipoComprobante.FACTURA && this.ivaValor() > 0; }
 
 
   async abrirSelectorCliente() {
-    if (this.errorCliente || !this.clienteSeleccionado?.id) {
+    if (this.errorCliente) {
       await this.cargarCliente();
-      if (this.errorCliente) {
+      // Sin red el banner global ya avisa del offline — no repetir con toast.
+      if (this.errorCliente && this.network.isConnected()) {
         this.ui.showToast('No se pudo cargar el cliente. Verifica tu conexión.', 'danger');
+      }
+      return;
+    }
+
+    if (this.sinConsumidorFinal) {
+      // No hay consumidor final en BD — abrir modal para seleccionar o crear un cliente
+      const modal = await this.modalCtrl.create({
+        component: SeleccionarClienteModalComponent,
+        componentProps: {
+          tipoComprobante: this.tipoComprobante,
+          clienteActual: null
+        }
+      });
+      await modal.present();
+      const { data } = await modal.onDidDismiss();
+      if (data?.cliente) {
+        this.clienteSeleccionado = data.cliente;
+        this.sinConsumidorFinal = false;
+        this.cdr.markForCheck();
       }
       return;
     }
@@ -314,50 +641,54 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const { data } = await modal.onDidDismiss();
     if (data?.cliente) {
       this.clienteSeleccionado = data.cliente;
+      this.cdr.markForCheck();
     }
   }
 
-  async agregarAlCarrito(producto: ProductoPOS, presentacion?: ProductoPresentacion) {
+  async agregarAlCarrito(producto: ProductoPOS, presentacion?: ProductoPresentacion): Promise<boolean> {
     // PESO: si ya está en carrito, editar; si no, agregar nuevo
     if (producto.tipo_venta === 'PESO') {
-      const existePeso = this.carrito.find(item => item.id === producto.id);
+      const existePeso = this.carrito().find(item => item.id === producto.id);
       if (existePeso) {
         await this.editarCantidad(existePeso);
       } else {
         await this.pedirCantidadPeso(producto);
       }
-      return;
+      return true;
     }
 
     const stockBase = producto.stock_actual;
     const factor = presentacion?.factor_conversion ?? 1;
     const precioVenta = presentacion?.precio_venta ?? producto.precio_venta;
-
-    // Cuantas unidades base ya estan comprometidas en el carrito para este producto
     const stockUsado = this.stockUsadoPorProducto(producto.id);
     const stockLibre = stockBase - stockUsado;
     const maxUnidades = Math.floor(stockLibre / factor);
 
-    const existe = this.carrito.find(item =>
+    const existe = this.carrito().find(item =>
         item.id === producto.id &&
         item.presentacion_id === (presentacion?.id ?? undefined)
     );
 
     if (existe) {
-      // Recalcular max considerando lo que ya tiene este item
       const stockLibreSinEste = stockBase - stockUsado + (existe.cantidad * factor);
       const maxParaEste = Math.floor(stockLibreSinEste / factor);
       if (existe.cantidad < maxParaEste) {
+        navigator.vibrate?.(18);
         this.incrementar(existe);
+        this.triggerIncrementAnimation(existe);
+        this.dispararAnimacionPanel(existe.id + (presentacion?.id ?? ''));
         this.feedbackEscaneo(existe.id);
         this.scrollToBottom();
+        return true;
       } else {
         this.ui.showToast('Stock insuficiente', 'warning');
+        return false;
       }
     } else {
       if (maxUnidades > 0) {
+        const prod = await this.resolverImagen(producto, presentacion);
         const item: CartItem = {
-          ...producto,
+          ...prod,
           precio_venta: precioVenta,
           cantidad: 1,
           subtotal: precioVenta,
@@ -368,20 +699,51 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
             factor_conversion: presentacion.factor_conversion
           } : {})
         };
-        this.carrito.push(item);
-        this.lastAddedId = producto.id;
-        setTimeout(() => { this.lastAddedId = null; }, 600);
+        this.carrito.update(c => [...c, item]);
+        const addedKey = producto.id + (presentacion?.id ?? '');
+        this.lastAddedKey = addedKey;
+        this.cdr.markForCheck();
+        setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
+        this.dispararAnimacionPanel(addedKey);
         this.feedbackEscaneo(producto.id);
         this.scrollToBottom();
+        return true;
       } else {
         this.ui.showToast('Producto sin stock', 'danger');
+        return false;
       }
     }
   }
 
+  private async resolverImagen(producto: ProductoPOS, presentacion?: ProductoPresentacion): Promise<ProductoPOS> {
+    // Fallback chain: presentacion.imagen_url → producto.imagen_url → template.imagen_url
+    const skuPath = presentacion?.imagen_url || producto.imagen_url || producto.producto_template?.imagen_url;
+    const templateRawPath = producto.producto_template?.imagen_url;
+    const presRawPaths = (producto.presentaciones ?? []).map(p => p.imagen_url ?? null);
+
+    // Resolve SKU, template and all presentation images in parallel
+    const [url, templateUrl, ...presUrls] = await Promise.all([
+      this.storageService.resolveImageUrl(skuPath),
+      templateRawPath ? this.storageService.resolveImageUrl(templateRawPath) : Promise.resolve(null),
+      ...presRawPaths.map(path => this.storageService.resolveImageUrl(path)),
+    ]);
+
+    const result: ProductoPOS = { ...producto, imagen_url: url ?? undefined };
+    if (result.producto_template) {
+      result.producto_template = { ...result.producto_template, imagen_url: templateUrl ?? undefined };
+    }
+    if (result.presentaciones?.length) {
+      result.presentaciones = result.presentaciones.map((p, i) => ({
+        ...p,
+        imagen_url: presUrls[i] ?? null,
+      }));
+    }
+    return result;
+  }
+
   /** Calcula cuantas unidades base de un producto estan comprometidas en el carrito */
   private stockUsadoPorProducto(productoId: string): number {
-    return this.carrito
+    return this.carrito()
         .filter(i => i.id === productoId)
         .reduce((sum, i) => sum + i.cantidad * (i.factor_conversion ?? 1), 0);
   }
@@ -404,11 +766,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         esPeso: true,
         stockDisponible: disponible,
         cantidadActual: yaEnCarrito,
-        esEdicion: !!itemExistente
+        esEdicion: !!itemExistente,
+        imagenUrl: itemExistente?.imagen_url ?? producto.imagen_url
       },
+      cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
-      cssClass: 'bottom-sheet-modal',
       backdropDismiss: false
     });
 
@@ -418,23 +781,28 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     const cantRedondeada = data.cantidad;
     if (itemExistente) {
-      itemExistente.cantidad += cantRedondeada;
-      itemExistente.subtotal = Math.round(itemExistente.cantidad * itemExistente.precio_venta * 100) / 100;
+      this.carrito.update(c => c.map(i => i === itemExistente
+        ? { ...i, cantidad: i.cantidad + cantRedondeada, subtotal: Math.round((i.cantidad + cantRedondeada) * i.precio_venta * 100) / 100 }
+        : i
+      ));
     } else {
-      this.carrito.push({
-        ...producto,
+      const prod = await this.resolverImagen(producto);
+      this.carrito.update(c => [...c, {
+        ...prod,
         cantidad: cantRedondeada,
-        subtotal: Math.round(cantRedondeada * producto.precio_venta * 100) / 100,
+        subtotal: Math.round(cantRedondeada * (prod.precio_venta) * 100) / 100,
         stock_disponible: producto.stock_actual
-      });
-      this.lastAddedId = producto.id;
-      setTimeout(() => { this.lastAddedId = null; }, 600);
+      }]);
+      this.lastAddedKey = producto.id;
+      this.cdr.markForCheck();
+      setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
     }
     this.feedbackEscaneo(producto.id);
     this.scrollToBottom();
   }
 
   private scrollToBottom() {
+    if (this.vistaActual === 'catalogo') return;
     setTimeout(async () => {
       const content = this.content;
       if (!content) return;
@@ -458,12 +826,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
-    const existe = this.carrito.find(item =>
+    const existe = this.carrito().find(item =>
         item.id === producto.id &&
         item.presentacion_id === (presentacion?.id ?? undefined)
     );
 
-    // Recalcular max incluyendo lo que ya tiene este item
     const stockLibreConEste = existe ? stockLibre + (existe.cantidad * factor) : stockLibre;
     const maxParaEste = Math.floor(stockLibreConEste / factor);
     const yaEnCarrito = existe ? existe.cantidad : 0;
@@ -475,11 +842,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
 
     if (existe) {
-      existe.cantidad += cantidadReal;
-      existe.subtotal = Math.round(existe.cantidad * existe.precio_venta * 100) / 100;
+      this.carrito.update(c => c.map(i => i === existe
+        ? { ...i, cantidad: i.cantidad + cantidadReal, subtotal: Math.round((i.cantidad + cantidadReal) * i.precio_venta * 100) / 100 }
+        : i
+      ));
     } else {
+      const prod = await this.resolverImagen(producto, presentacion);
       const item: CartItem = {
-        ...producto,
+        ...prod,
         precio_venta: precioVenta,
         cantidad: cantidadReal,
         subtotal: Math.round(cantidadReal * precioVenta * 100) / 100,
@@ -490,9 +860,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
           factor_conversion: presentacion.factor_conversion
         } : {})
       };
-      this.carrito.push(item);
-      this.lastAddedId = producto.id;
-      setTimeout(() => { this.lastAddedId = null; }, 600);
+      this.carrito.update(c => [...c, item]);
+      this.lastAddedKey = producto.id + (presentacion?.id ?? '');
+      this.cdr.markForCheck();
+      setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
     }
 
     if (cantidadReal < cantidad) {
@@ -503,80 +874,87 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.scrollToBottom();
   }
 
+  private triggerIncrementAnimation(item: CartItem) {
+    const key = item.id + (item.presentacion_id ?? '');
+    this.lastIncrementedKey = key;
+    this.cdr.markForCheck();
+    setTimeout(() => { this.lastIncrementedKey = null; this.cdr.markForCheck(); }, 350);
+  }
+
   /** Vibración + beep + preview efímero al agregar producto (feedback para escáner) */
   private feedbackEscaneo(productoId: string) {
     if (this.escaneando) {
-      navigator.vibrate?.(40);
-      this.playBeep();
+      this.barcodeScanner.feedback();
 
       // Mostrar preview del producto escaneado (2.5s)
-      const item = this.carrito.find(i => i.id === productoId);
+      const item = this.carrito().find(i => i.id === productoId);
       if (item) {
         clearTimeout(this.scanPreviewTimeout);
         this.scanPreview = { nombre: item.nombre, cantidad: item.cantidad, subtotal: item.subtotal, precioUnitario: item.precio_venta };
-        this.scanPreviewTimeout = setTimeout(() => this.scanPreview = null, 2500);
+        this.cdr.markForCheck();
+        this.scanPreviewTimeout = setTimeout(() => { this.scanPreview = null; this.cdr.markForCheck(); }, 2500);
       }
     }
   }
 
-  /** Genera un beep corto con Web Audio API (reutiliza un solo AudioContext) */
-  private playBeep() {
-    try {
-      if (!this.audioCtx || this.audioCtx.state === 'closed') {
-        this.audioCtx = new AudioContext();
-      }
-      const oscillator = this.audioCtx.createOscillator();
-      const gain = this.audioCtx.createGain();
-
-      oscillator.type = 'square';
-      oscillator.frequency.value = 1000;
-      gain.gain.value = 1.0;
-
-      oscillator.connect(gain);
-      gain.connect(this.audioCtx.destination);
-
-      oscillator.start();
-      oscillator.stop(this.audioCtx.currentTime + 0.12);
-    } catch { /* silencioso si falla */ }
-  }
-
-  incrementar(item: CartItem) {
-    if (item.tipo_venta === 'PESO') {
-      this.editarCantidad(item);
-      return;
-    }
+  incrementar(item: CartItem): boolean {
+    if (item.tipo_venta === 'PESO') { this.editarCantidad(item); return true; }
     const factor = item.factor_conversion ?? 1;
     const stockUsado = this.stockUsadoPorProducto(item.id);
-    const stockLibreSinEste = item.stock_disponible - stockUsado + (item.cantidad * factor);
-    const maxParaEste = Math.floor(stockLibreSinEste / factor);
+    const maxParaEste = Math.floor((item.stock_disponible - stockUsado + item.cantidad * factor) / factor);
     if (item.cantidad < maxParaEste) {
-      item.cantidad++;
-      item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
+      const nuevaCantidad = item.cantidad + 1;
+      this.carrito.update(c => c.map(i => i === item
+        ? { ...i, cantidad: nuevaCantidad, subtotal: Math.round(nuevaCantidad * i.precio_venta * 100) / 100 }
+        : i
+      ));
+      this.triggerIncrementAnimation(item);
+      return true;
     } else {
       this.ui.showToast('Máximo stock alcanzado', 'warning');
+      return false;
     }
   }
 
   decrementar(item: CartItem) {
-    if (item.tipo_venta === 'PESO') {
-      this.editarCantidad(item);
-      return;
-    }
+    if (item.tipo_venta === 'PESO') { this.editarCantidad(item); return; }
     if (item.cantidad > 1) {
-      item.cantidad--;
-      item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
+      const nuevaCantidad = item.cantidad - 1;
+      this.carrito.update(c => c.map(i => i === item
+        ? { ...i, cantidad: nuevaCantidad, subtotal: Math.round(nuevaCantidad * i.precio_venta * 100) / 100 }
+        : i
+      ));
     } else {
       this.eliminar(item);
     }
   }
 
-  async editarCantidad(item: CartItem) {
+  async editarCantidad(item: CartItem): Promise<number | null> {
+    const itemKey = item.id + (item.presentacion_id ?? '');
+    if (this.editandoItemKey === itemKey) return null; // evitar doble tap
+    this.editandoItemKey = itemKey;
+    this.cdr.markForCheck();
+
     const esPeso = item.tipo_venta === 'PESO';
     const factor = item.factor_conversion ?? 1;
-    // Stock libre para este item = stock total - usado por otros items del mismo producto
-    const stockUsadoOtros = this.carrito
+    const stockUsadoOtros = this.carrito()
         .filter(i => i.id === item.id && i !== item)
         .reduce((sum, i) => sum + i.cantidad * (i.factor_conversion ?? 1), 0);
+
+    try {
+      // Consultar stock fresco de BD — garantiza número correcto aunque haya latencia
+      const stockFresco = await this.inventarioService.obtenerStockActual(item.id);
+      if (stockFresco !== null && stockFresco !== item.stock_disponible) {
+        this.carrito.update(items =>
+          items.map(i => i === item ? { ...i, stock_disponible: stockFresco } : i)
+        );
+        item = { ...item, stock_disponible: stockFresco };
+      }
+    } finally {
+      this.editandoItemKey = null;
+      this.cdr.markForCheck();
+    }
+
     const maxStock = Math.floor((item.stock_disponible - stockUsadoOtros) / factor);
 
     const modal = await this.modalCtrl.create({
@@ -588,25 +966,37 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         esPeso,
         stockDisponible: maxStock,
         cantidadActual: item.cantidad,
-        esEdicion: true
+        esEdicion: true,
+        imagenUrl: item.imagen_url
       },
+      cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
-      cssClass: 'bottom-sheet-modal',
       backdropDismiss: false
     });
 
     await modal.present();
     const { data, role } = await modal.onDidDismiss<CantidadModalResult>();
-    if (role !== 'confirm' || !data) return;
 
-    item.cantidad = data.cantidad;
-    item.subtotal = Math.round(item.cantidad * item.precio_venta * 100) / 100;
+    if (role === 'quitar') {
+      this.eliminar(item);
+      return 0; // 0 indica al caller que el item fue eliminado — debe limpiar su contador
+    }
+
+    if (role !== 'confirm' || !data) return null;
+
+    const cantidad = data.cantidad;
+    this.carrito.update(c => c.map(i => i === item
+      ? { ...i, cantidad, subtotal: Math.round(cantidad * i.precio_venta * 100) / 100 }
+      : i
+    ));
+    return cantidad;
   }
 
   eliminar(item: CartItem) {
-    this.carrito = this.carrito.filter(i => i !== item);
+    this.carrito.update(c => c.filter(i => i !== item));
   }
+
 
   // ==========================
   // BÚSQUEDA Y ESCÁNER (MANUAL)
@@ -614,15 +1004,28 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   toggleModoBusqueda() {
     this.modoBusqueda = this.modoBusqueda === 'codigo' ? 'nombre' : 'codigo';
-    this.buscarTexto = '';
+    this.buscarTexto.set('');
     this.productosBusqueda = [];
-    // Foco después del cambio para que Android abra el teclado correcto
-    setTimeout(() => this.searchInputRef?.nativeElement?.focus(), 50);
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('.cat-search-input');
+      input?.focus();
+    }, 50);
   }
 
   limpiarBusqueda() {
-    this.buscarTexto = '';
+    this.buscarTexto.set('');
     this.productosBusqueda = [];
+    this.cdr.markForCheck();
+  }
+
+  limpiarInputBusqueda() {
+    this.buscarTexto.set('');
+    this.productosBusqueda = [];
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      document.querySelector<HTMLInputElement>('.cat-search-input')?.focus();
+    }, 0);
   }
 
   // Dispatcher: según el modo activo llama a la lógica correspondiente
@@ -630,74 +1033,36 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   onSearchInput(event: Event) {
     const texto = (event.target as HTMLInputElement).value?.trim();
 
-    if (this.modoBusqueda === 'nombre') {
-      if (!texto || texto.length < 2) { this.productosBusqueda = []; this.sugerenciaActiva = -1; return; }
-      clearTimeout(this.searchDebounce);
-      this.searchDebounce = setTimeout(() => this.buscarPorNombre(texto), 600);
-    } else {
-      clearTimeout(this.searchDebounce);
-      if (!texto) return;
-      const esBulk = /^(\d+)\.(.+)$/.test(texto);
-      // Bulk (ej: 10.2): dispara con cualquier longitud de código
-      // Código solo: espera ≥8 chars para no disparar con dígitos sueltos
-      if (!esBulk && texto.length < 8) return;
-      this.searchDebounce = setTimeout(() => this.buscarPorCodigo(texto), 300);
-    }
+    if (this.modoBusqueda === 'nombre') return; // el grid filtra reactivamente via buscarTexto signal
+
+    clearTimeout(this.searchDebounce);
+    if (!texto) return;
+    const esBulk = /^(\d+)\.(.+)$/.test(texto);
+    if (!esBulk && texto.length < 8) return;
+    this.searchDebounce = setTimeout(() => this.buscarPorCodigo(texto), 300);
   }
 
   // Enter en modo código dispara búsqueda (pistola lectora envía Enter al final)
-  // En modo nombre: ↑/↓ navegan sugerencias, Enter selecciona la activa (o la primera)
   onSearchKeyup(event: KeyboardEvent) {
-    if (this.modoBusqueda === 'codigo') {
-      if (event.key === 'Enter') {
-        clearTimeout(this.searchDebounce);
-        const texto = this.buscarTexto?.trim();
-        if (texto) this.buscarPorCodigo(texto);
-      }
-      return;
-    }
-
-    // Modo nombre — navegación por teclado
-    const total = this.productosBusqueda.length;
-    if (total === 0) return;
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      this.sugerenciaActiva = Math.min(this.sugerenciaActiva + 1, total - 1);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      this.sugerenciaActiva = Math.max(this.sugerenciaActiva - 1, 0);
-    } else if (event.key === 'Enter') {
-      const idx = this.sugerenciaActiva >= 0 ? this.sugerenciaActiva : 0;
-      void this.seleccionarProductoBusqueda(this.productosBusqueda[idx]);
+    if (this.modoBusqueda === 'codigo' && event.key === 'Enter') {
+      clearTimeout(this.searchDebounce);
+      const texto = this.buscarTexto().trim();
+      if (texto) this.buscarPorCodigo(texto);
     }
   }
 
-  private async buscarPorNombre(texto: string) {
-    if (!this.network.isConnected()) {
-      this.ui.showToast('Sin conexión a internet', 'danger');
+
+  private async buscarPorCodigo(texto: string) {
+    // Sin red: continuar solo si hay catálogo cacheado. El InventarioService
+    // resuelve la búsqueda en memoria (modo offline). Sin cache = no hay nada que buscar.
+    if (!this.network.isConnected() && !(await this.catalogoLocal.tieneCache())) {
+      this.ui.showToast('Sin conexión y sin catálogo disponible', 'danger');
       return;
     }
 
     const version = ++this.searchVersion;
     this.buscando = true;
-    try {
-      const resultados = await this.inventarioService.buscarProductosPOS(texto);
-      // Descartar si llegó una búsqueda más reciente mientras esperábamos
-      if (version !== this.searchVersion) return;
-      this.productosBusqueda = resultados;
-    } finally {
-      if (version === this.searchVersion) this.buscando = false;
-    }
-  }
-
-  private async buscarPorCodigo(texto: string) {
-    if (!this.network.isConnected()) {
-      this.ui.showToast('Sin conexión a internet', 'danger');
-      return;
-    }
-
-    this.buscando = true;
+    this.cdr.markForCheck();
     try {
       // Patrón cantidad.codigo (ej: 20.7891234 = 20 unidades del código "7891234")
       const matchRapido = texto.match(/^(\d+)\.(.+)$/);
@@ -706,9 +1071,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         const codigo = matchRapido[2].trim();
         if (cantidad > 0 && codigo) {
           const resultado = await this.inventarioService.buscarPorCodigoBarras(codigo);
+          if (version !== this.searchVersion) return;
           if (resultado) {
             await this.agregarAlCarritoConCantidad(resultado.producto, cantidad, resultado.presentacion);
-            this.buscarTexto = '';
+            this.buscarTexto.set('');
           } else {
             this.ui.showToast(`Código "${codigo}" no encontrado`, 'warning');
           }
@@ -718,19 +1084,34 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
       // Código exacto — se agrega directo sin confirmación
       const resultado = await this.inventarioService.buscarPorCodigoBarras(texto);
+      if (version !== this.searchVersion) return;
       if (resultado) {
         await this.agregarAlCarrito(resultado.producto, resultado.presentacion);
-        this.buscarTexto = '';
+        this.buscarTexto.set('');
       } else {
         this.ui.showToast(`Código "${texto}" no encontrado`, 'warning');
       }
     } finally {
-      this.buscando = false;
+      if (version === this.searchVersion) {
+        this.buscando = false;
+        this.cdr.markForCheck();
+      }
     }
   }
 
-  // Clic en la lista de sugerencias — las presentaciones ya vienen en el objeto
-  async seleccionarProductoBusqueda(producto: ProductoPOS) {
+  // Clic en la lista de sugerencias — despacha según tipo de resultado
+  async seleccionarResultadoBusqueda(resultado: ResultadoBusquedaPOS, limpiar = true) {
+    if (resultado.tipo === 'template') {
+      await this.mostrarSelectorVariantes(resultado.templateNombre, resultado.variantes);
+    } else {
+      await this.seleccionarProductoBusqueda(resultado.producto, limpiar);
+    }
+    if (limpiar) {
+      this.limpiarBusqueda();
+    }
+  }
+
+  async seleccionarProductoBusqueda(producto: ProductoPOS, limpiar = true) {
     const presentaciones = producto.presentaciones ?? [];
 
     if (presentaciones.length === 0) {
@@ -739,31 +1120,75 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       await this.mostrarSelectorPresentacion(producto, presentaciones);
     }
 
-    this.buscarTexto = '';
-    this.productosBusqueda = [];
-    this.sugerenciaActiva = -1;
+    if (limpiar) {
+      this.limpiarBusqueda();
+    }
   }
 
-  /** ActionSheet: unidad suelta + una opcion por presentacion */
-  private async mostrarSelectorPresentacion(producto: ProductoPOS, presentaciones: ProductoPresentacion[]) {
-    const sheet = await this.actionSheetCtrl.create({
-      header: producto.nombre,
-      subHeader: 'Selecciona como venderlo',
-      buttons: [
-        {
-          text: `Unidad suelta  ·  $${this.currencyService.format(producto.precio_venta)}`,
-          icon: 'cube-outline',
-          handler: () => { void this.agregarAlCarrito(producto); }
-        },
-        ...presentaciones.map(pres => ({
-          text: `${pres.nombre}  ·  $${this.currencyService.format(pres.precio_venta)}`,
-          icon: 'pricetag-outline',
-          handler: () => { void this.agregarAlCarrito(producto, pres); }
-        })),
-        { text: 'Cancelar', role: 'cancel', icon: 'close-outline' }
-      ]
+  /** Modal unificado de variantes con presentaciones inline y taps múltiples. */
+  private async mostrarSelectorVariantes(templateNombre: string, variantes: ProductoPOS[], subtitle?: string) {
+    const resolverItem = (data: VarianteSelectorResult) => {
+      const variante = variantes.find(v => v.id === data.varianteId);
+      if (!variante) return null;
+      const pres = data.presentacionId
+        ? variante.presentaciones?.find(p => p.id === data.presentacionId)
+        : undefined;
+      const item = this.carrito().find(i =>
+        i.id === data.varianteId && i.presentacion_id === (data.presentacionId ?? undefined)
+      );
+      return { variante, pres, item };
+    };
+
+    const onAgregar = async (data: VarianteSelectorResult): Promise<boolean> => {
+      const r = resolverItem(data);
+      if (!r) return false;
+      return this.agregarAlCarrito(r.variante, r.pres);
+    };
+
+    const onIncrementar = async (data: VarianteSelectorResult): Promise<boolean> => {
+      const r = resolverItem(data);
+      if (!r?.item) return false;
+      return this.incrementar(r.item);
+    };
+
+    const onDecrementar = async (data: VarianteSelectorResult) => {
+      const r = resolverItem(data);
+      if (!r?.item) return;
+      this.decrementar(r.item);
+    };
+
+    const onEditarCantidad = async (data: VarianteSelectorResult): Promise<number | null> => {
+      const r = resolverItem(data);
+      if (!r?.item) return null;
+      return this.editarCantidad(r.item);
+    };
+
+    const modal = await this.modalCtrl.create({
+      component: VarianteSelectorModalComponent,
+      componentProps: {
+        templateNombre,
+        subtitle: subtitle ?? `Selecciona una opción de ${templateNombre}`,
+        variantes,
+        onAgregar,
+        onIncrementar,
+        onDecrementar,
+        onEditarCantidad,
+        carritoActual: this.carrito(),
+        totalCarrito: this.totalPagar,
+        totalArticulosCarrito: this.totalArticulos
+      },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
     });
-    await sheet.present();
+
+    await modal.present();
+    await modal.onDidDismiss();
+  }
+
+  /** Modal de presentaciones para productos simples — reutiliza el mismo modal de variantes. */
+  private async mostrarSelectorPresentacion(producto: ProductoPOS, presentaciones: ProductoPresentacion[]) {
+    await this.mostrarSelectorVariantes(producto.nombre, [producto], 'Selecciona cómo venderlo');
   }
 
   // ==========================
@@ -801,8 +1226,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   async procesarCodigoRapido(codigo: string) {
-    if (!this.network.isConnected()) {
-      this.ui.showToast('Sin conexión a internet', 'danger');
+    // Sin red: continuar solo si hay catálogo cacheado.
+    if (!this.network.isConnected() && !(await this.catalogoLocal.tieneCache())) {
+      this.ui.showToast('Sin conexión y sin catálogo disponible', 'danger');
       return;
     }
 
@@ -819,138 +1245,86 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   async abrirEscanerCamara() {
-    const { camera } = await BarcodeScanner.requestPermissions();
-    if (camera !== 'granted') {
-      this.ui.showToast('Permiso de cámara denegado', 'warning');
-      return;
-    }
-
     this.escaneando = true;
-    document.body.classList.add('scanner-active');
+    this.cdr.markForCheck();
+    const iniciado = await this.barcodeScanner.startContinuous((codigo) => {
+      if (this.procesandoEscaneo) return;
 
-    try {
-      await BarcodeScanner.addListener('barcodesScanned', (event) => {
-        const codigo = event.barcodes[0]?.rawValue;
-        if (!codigo || this.procesandoEscaneo) return;
+      // Anti-duplicados: ignora el mismo código dentro de 800ms
+      const ahora = Date.now();
+      if (codigo === this.ultimoCodigoEscaneado && ahora - this.ultimoTiempoEscaneado < 800) return;
 
-        // Anti-duplicados: ignora el mismo código dentro de 1.5 s
-        const ahora = Date.now();
-        if (codigo === this.ultimoCodigoEscaneado && ahora - this.ultimoTiempoEscaneado < 1500) return;
+      this.procesandoEscaneo = true;
+      this.ultimoCodigoEscaneado = codigo;
+      this.ultimoTiempoEscaneado = ahora;
 
-        this.procesandoEscaneo = true;
-        this.ultimoCodigoEscaneado = codigo;
-        this.ultimoTiempoEscaneado = ahora;
+      (async () => {
+        try {
+          await this.procesarCodigoRapido(codigo);
+        } finally {
+          this.procesandoEscaneo = false;
+        }
+      })();
+    });
 
-        this.ngZone.run(async () => {
-          try {
-            await this.procesarCodigoRapido(codigo);
-          } finally {
-            this.procesandoEscaneo = false;
-          }
-        });
-      });
-      await BarcodeScanner.startScan();
-    } catch {
-      await this.cerrarEscaner();
-    }
+    if (!iniciado) { this.escaneando = false; this.cdr.markForCheck(); }
   }
 
   async cerrarEscaner() {
-    await BarcodeScanner.removeAllListeners();
-    await BarcodeScanner.stopScan();
-    document.body.classList.remove('scanner-active');
+    await this.barcodeScanner.stop();
     this.escaneando = false;
     this.scanPreview = null;
     clearTimeout(this.scanPreviewTimeout);
+    this.cdr.markForCheck();
   }
 
   async cobrarEfectivo() {
-    if (this.carrito.length === 0 || this.cobroEnProceso) return;
-
-    if (!this.clienteSeleccionado?.id) {
-      this.ui.showToast('Cliente no cargado. Toca el cliente para actualizar.', 'warning');
-      return;
-    }
-
-    // FACTURA requiere cliente con identificación
-    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado.es_consumidor_final) {
-      this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
-      return;
-    }
-
-    const turnoActivo = await this.posService.hayTurnoActivo();
-    if (!turnoActivo) {
-      await this.mostrarAlertSinTurno();
-      return;
-    }
-
-    const modal = await this.modalCtrl.create({
-      component: CobrarModalComponent,
-      componentProps: {
-        total: this.totalPagar,
-        subtotal: this.subtotalBruto,
-        descuento: this.descuentoAplicado,
-        descuentoPct: this.descuentoPct,
-        totalArticulos: this.totalArticulos,
-        esConsumidorFinal: false,
-        iniciarEnEfectivo: true
-      },
-      backdropDismiss: false
-    });
-
-    await modal.present();
-    const { data } = await modal.onDidDismiss();
-    if (!data) return;
-    if (data.confirmado) this.ejecutarCobro(data.metodoPago);
+    await this.abrirModalCobro(true);
   }
 
   async cobrar() {
-    if (this.carrito.length === 0 || this.cobroEnProceso) return;
+    await this.abrirModalCobro(false);
+  }
+
+  private async abrirModalCobro(iniciarEnEfectivo: boolean) {
+    if (this.carrito().length === 0 || this.cobroEnProceso) return;
 
     if (!this.clienteSeleccionado?.id) {
       this.ui.showToast('Cliente no cargado. Toca el cliente para actualizar.', 'warning');
       return;
     }
 
-    // Si es consumidor final, forzar selección de cliente antes de abrir el modal
-    if (this.clienteSeleccionado.es_consumidor_final) {
-      this.ui.showToast('Seleccioná un cliente para continuar', 'warning');
-      await this.abrirSelectorCliente();
-      if (this.clienteSeleccionado.es_consumidor_final) return; // canceló o no eligió
-    }
-
-    // Verificar turno activo antes de abrir el modal de cobro
-    const turnoActivo = await this.posService.hayTurnoActivo();
-    if (!turnoActivo) {
-      await this.mostrarAlertSinTurno();
-      return;
-    }
-
-    // Validación FACTURA: requiere cliente con identificación
     if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado.es_consumidor_final) {
       this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
       return;
     }
 
+    const onSeleccionarCliente = async (): Promise<Cliente | null> => {
+      await this.abrirSelectorCliente();
+      return this.clienteSeleccionado;
+    };
+
     const modal = await this.modalCtrl.create({
       component: CobrarModalComponent,
       componentProps: {
-        total: this.totalPagar,
-        subtotal: this.subtotalBruto,
-        descuento: this.descuentoAplicado,
+        total: this.totalPagar(),
+        subtotal: this.subtotalBruto(),
+        descuento: this.descuentoAplicado(),
         descuentoPct: this.descuentoPct,
-        totalArticulos: this.totalArticulos,
-        esConsumidorFinal: false
+        totalArticulos: this.totalArticulos(),
+        esConsumidorFinal: this.clienteSeleccionado?.es_consumidor_final ?? true,
+        iniciarEnEfectivo,
+        onSeleccionarCliente
       },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
       backdropDismiss: false
     });
 
     await modal.present();
     const { data } = await modal.onDidDismiss();
-
-    if (data?.confirmado) {
-      this.ejecutarCobro(data.metodoPago);
-    }
+    if (data?.confirmado) this.ejecutarCobro(data.metodoPago);
   }
 
   private async mostrarAlertSinTurno() {
@@ -961,7 +1335,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         { text: 'Cancelar', role: 'cancel' },
         {
           text: 'Ir a Inicio',
-          handler: () => this.router.navigate(['/home'])
+          handler: () => this.router.navigate([ROUTES.home])
         }
       ]
     });
@@ -973,43 +1347,64 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private async ejecutarCobro(metodoPago: string) {
     if (this.cobroEnProceso) return;
     this.cobroEnProceso = true;
+    this.cdr.markForCheck();
+
+    // 1. Generar idempotency key y persistir ANTES de cualquier intento (online u offline)
+    const idempotencyKey = crypto.randomUUID();
+    localStorage.setItem(PosPage.IDEMPOTENCY_STORAGE_KEY, idempotencyKey);
+
+    // 2. Armar el payload con todos los campos fiscales correctos
+    //    FIADO no lleva descuento — son beneficios mutuamente excluyentes
+    const esFiado = metodoPago === 'FIADO';
+    const descuento = esFiado ? 0 : this.descuentoAplicado();
+    const descuentoPct = esFiado ? 0 : this.descuentoPct;
+    const totalFinal = esFiado ? this.subtotalBruto() : this.totalPagar();
+    const esFactura = this.tipoComprobante === TipoComprobante.FACTURA;
+    const payload: VentaPayload = {
+      total:             totalFinal,
+      subtotal:          esFactura ? this.subtotalNeto() : this.subtotalBruto(),
+      descuento,
+      descuentoPct,
+      metodoPago,
+      tipoComprobante:   this.tipoComprobante,
+      clienteId:         this.clienteSeleccionado?.id,
+      baseIva0:          esFactura ? this.baseIva0()  : 0,
+      baseIva15:         esFactura ? this.baseIva15() : 0,
+      ivaValor:          esFactura ? this.ivaValor()  : 0,
+      idempotencyKey,
+    };
+
+    // 3. Offline: FIADO y FACTURA no están soportados (requieren el servidor — §3 del plan).
+    //    El resto se encola local-first y se sincroniza al volver la red.
+    if (!this.network.isConnected()) {
+      if (esFiado || esFactura) {
+        localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
+        this.ui.showToast('Fiado y Factura no están disponibles sin conexión', 'warning');
+        this.cobroEnProceso = false;
+        this.cdr.markForCheck();
+        return;
+      }
+      await this.cobrarOffline(idempotencyKey, payload);
+      this.cobroEnProceso = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    // 4. Online: flujo directo contra el servidor (muestra número de comprobante real).
     await this.ui.showLoading();
-
     try {
-      // 1. Generar idempotency key y persistir ANTES del RPC
-      const idempotencyKey = crypto.randomUUID();
-      localStorage.setItem(PosPage.IDEMPOTENCY_STORAGE_KEY, idempotencyKey);
-
-      // 2. Armar el payload con todos los campos fiscales correctos
-      //    FIADO no lleva descuento — son beneficios mutuamente excluyentes
-      const esFiado = metodoPago === 'FIADO';
-      const descuento = esFiado ? 0 : this.descuentoAplicado;
-      const descuentoPct = esFiado ? 0 : this.descuentoPct;
-      const totalFinal = esFiado ? this.subtotalBruto : this.totalPagar;
-      const esFactura = this.tipoComprobante === TipoComprobante.FACTURA;
-      const payload: VentaPayload = {
-        total:             totalFinal,
-        subtotal:          esFactura ? this.subtotalNeto : this.subtotalBruto,
-        descuento,
-        descuentoPct,
-        metodoPago,
-        tipoComprobante:   this.tipoComprobante,
-        clienteId:         this.clienteSeleccionado?.id,
-        baseIva0:          esFactura ? this.baseIva0  : 0,
-        baseIva15:         esFactura ? this.baseIva15 : 0,
-        ivaValor:          esFactura ? this.ivaValor  : 0,
-        idempotencyKey,
-      };
-
-      // 3. Procesar la venta en Supabase (RPC) — turno se valida dentro del servicio
-      const response = await this.posService.procesarVenta(this.carrito, payload);
-
+      const response = await this.posService.procesarVenta(this.carrito(), payload);
       await this.ui.hideLoading();
 
       if (response.success) {
-        // Limpiar idempotency key — venta confirmada
         localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
-        this.ui.showToast(`Venta #${response.numeroComprobante} registrada`, 'success');
+        if (response.encolada) {
+          // La señal cayó con el cobro en vuelo — la venta quedó en la cola local con la
+          // misma idempotency key (reenviar es seguro) y se sincronizará sola.
+          this.ui.showToast('Conexión inestable — venta guardada, se sincronizará automáticamente', 'success');
+        } else {
+          this.ui.showToast(`Venta #${response.numeroComprobante} registrada`, 'success');
+        }
         this.limpiarCarrito();
       } else {
         this.ui.showToast('No se pudo registrar la venta. Intenta de nuevo.', 'danger');
@@ -1018,6 +1413,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       await this.ui.hideLoading();
       if (error instanceof Error && error.message === 'SIN_TURNO') {
         await this.mostrarAlertSinTurno();
+      } else if (error instanceof Error && /stock insuficiente/i.test(error.message)) {
+        this.ui.showToast('Stock insuficiente — el catálogo se actualizó con los valores reales', 'warning');
+        this.refrescarCatalogo();
+        this.logger.warn('PosPage', 'Venta rechazada por stock insuficiente en BD');
       } else {
         const mensaje = error instanceof Error ? error.message : 'Error inesperado al procesar la venta';
         this.ui.showToast(mensaje, 'danger');
@@ -1025,20 +1424,49 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       }
     } finally {
       this.cobroEnProceso = false;
+      this.cdr.markForCheck();
     }
   }
 
-  async limpiarCarrito() {
-    this.carrito = [];
-    this.buscarTexto = '';
+  /**
+   * Cobro offline (local-first): encola la venta y responde al instante.
+   * La venta YA existe en disco al volver este método — el SyncService la sube al
+   * volver la red. No espera al servidor ni muestra número de comprobante (lo asigna
+   * el servidor al sincronizar). El stock se descontó optimista en el carrito.
+   */
+  private async cobrarOffline(idempotencyKey: string, payload: VentaPayload) {
+    try {
+      const encolada = await this.posService.encolarVentaOffline(this.carrito(), payload);
+      if (encolada) {
+        // La venta está en disco — la idempotency key ya no la maneja localStorage,
+        // la cola es la fuente de verdad de lo pendiente.
+        localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
+        this.ui.showToast('Venta guardada — se sincronizará al volver la conexión', 'success');
+        this.limpiarCarrito();
+      } else {
+        this.ui.showToast('No se pudo guardar la venta. Intenta de nuevo.', 'danger');
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === 'SIN_TURNO') {
+        await this.mostrarAlertSinTurno();
+      } else {
+        this.ui.showToast('No se pudo guardar la venta sin conexión.', 'danger');
+        this.logger.error('PosPage', 'Error al encolar venta offline', error);
+      }
+    }
+  }
+
+  limpiarCarrito() {
+    this.carrito.set([]);
+    this.buscarTexto.set('');
     this.productosBusqueda = [];
-    // Resetear cliente y comprobante a sus defaults tras cada venta
-    this.tipoComprobante = TipoComprobante.TICKET;
-    this.comprobanteOptions = this.comprobanteOptions.map(o => ({
-      ...o,
-      active: o.value === TipoComprobante.TICKET
-    }));
-    await this.cargarCliente();
+    if (this.volvioDesdeCatalogo && !this.esDesktop) {
+      this.volvioDesdeCatalogo = false;
+      this.vistaActual = 'catalogo';
+    }
+    // Ambos en background — no bloquean el vaciado del carrito
+    this.cargarCliente();
+    this.refrescarCatalogo();
   }
 
   // ==========================
@@ -1047,18 +1475,23 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   ionViewDidLeave() {
     this.paginaActiva = false;
+    this.cobroEnProceso = false;
+    this.procesandoEscaneo = false;
     if (this.escaneando) this.cerrarEscaner();
     clearTimeout(this.barcodeTimeout);
     clearTimeout(this.searchDebounce);
+    clearTimeout(this.scanPreviewTimeout);
   }
 
   async ionViewWillEnter() {
     this.paginaActiva = true;
     this.productosBusqueda = [];
-    this.buscarTexto = '';
+    this.buscarTexto.set('');
+    this.cdr.markForCheck();
     await Promise.all([
       this.recuperarVentaPendiente(),
       this.refrescarConfig(),
+      this.refrescarCatalogo(),
     ]);
   }
 
@@ -1066,11 +1499,47 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private async refrescarConfig() {
     this.configService.invalidar();
     this.appConfig = await this.configService.get();
+    this.cdr.markForCheck();
   }
 
-  /** Pull-to-refresh: recarga config sin perder el carrito */
+  /** Refresca el catálogo silenciosamente sin spinner ni pérdida del carrito.
+   *  Reutiliza el pintado progresivo (stock fresco al instante, imágenes en background)
+   *  y sincroniza el stock de los ítems del carrito con los valores frescos. */
+  private async refrescarCatalogo() {
+    try {
+      const [categorias, productos] = await Promise.all([
+        this.inventarioService.obtenerCategorias(),
+        this.inventarioService.obtenerProductosCatalogoPOS(this.categoriaActivaId ?? undefined, undefined)
+      ]);
+      this.categoriasCatalogo = categorias;
+      this.publicarCatalogoConImagenesProgresivas(productos);
+      this.sincronizarStockCarrito(productos);
+    } catch {
+      // Silencioso — si falla la red el catálogo anterior sigue visible
+    }
+  }
+
+  /** Actualiza stock_disponible de los ítems del carrito con el stock fresco de BD.
+   *  Garantiza que CantidadModal y la vista lista muestren el número correcto. */
+  private sincronizarStockCarrito(productosFrescos: ProductoPOS[]) {
+    const stockMap = new Map(productosFrescos.map(p => [p.id, p.stock_actual]));
+    const carritoActual = this.carrito();
+    const hayDiferencia = carritoActual.some(
+      item => stockMap.has(item.id) && stockMap.get(item.id) !== item.stock_disponible
+    );
+    if (!hayDiferencia) return;
+    this.carrito.update(items =>
+      items.map(item => {
+        const stockFresco = stockMap.get(item.id);
+        if (stockFresco === undefined || stockFresco === item.stock_disponible) return item;
+        return { ...item, stock_disponible: stockFresco };
+      })
+    );
+  }
+
+  /** Pull-to-refresh: recarga config y catálogo sin perder el carrito */
   async handleRefresh(event: CustomEvent) {
-    await this.refrescarConfig();
+    await Promise.all([this.refrescarConfig(), this.refrescarCatalogo()]);
     (event.target as HTMLIonRefresherElement).complete();
   }
 
@@ -1105,7 +1574,6 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     clearTimeout(this.barcodeTimeout);
     clearTimeout(this.searchDebounce);
     clearTimeout(this.scanPreviewTimeout);
-    this.audioCtx?.close().catch(() => {});
   }
 
 }

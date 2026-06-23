@@ -1,4 +1,3 @@
-// Header sin borde
 ion-header {
   &::after { display: none; }
 }
@@ -40,98 +39,173 @@ ion-content {
   padding: 16px;
 }
 
-// ── Card lista ────────────────────────────────────────────────────────────────
-
 .historial-card {
   margin: 0;
   border-radius: 16px;
   background: var(--ion-item-background, #fff);
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.07);
   overflow: hidden;
+  padding: 0 16px 12px;
 }
 
-.historial-row {
+// ── Tabla ─────────────────────────────────────────────────────────────────────
+
+.tabla-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+  padding: 12px 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ion-color-medium);
+  border-bottom: 1px solid var(--ion-color-step-100);
+
+  // Bus no tiene columna "Proveedor" — una menos que Celular.
+  &--bus { grid-template-columns: 1fr 1fr 1fr 1fr; }
+}
+
+.tabla-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--ion-color-step-50);
+
+  &:last-of-type { border-bottom: none; }
+
+  &--bus { grid-template-columns: 1fr 1fr 1fr 1fr; }
+}
+
+.tabla-fecha {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+.tabla-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  width: fit-content;
+
+  &.pagado {
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    color: var(--ion-color-success);
+  }
+
+  &.pendiente {
+    background: rgba(var(--ion-color-warning-rgb), 0.1);
+    color: var(--ion-color-warning-shade);
+  }
+
+  &.sin-liquidar {
+    background: var(--ion-color-step-100);
+    color: var(--ion-color-medium);
+  }
+}
+
+.tabla-monto {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ion-text-color);
+}
+
+.tabla-ganancia {
+  font-size: 13px;
+  font-weight: 700;
+
+  &.celular { color: var(--ion-color-primary); }
+  &.bus     { color: var(--ion-color-secondary); }
+  &.muted   { color: var(--ion-color-medium); }
+}
+
+.tabla-badge {
+  &.liquidado {
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    color: var(--ion-color-success);
+  }
+}
+
+// ── Aviso: ganancia atrapada hasta pagar al proveedor ──────────────────────────
+
+.proveedor-pendiente-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(var(--ion-color-warning-rgb), 0.08);
+  border: 1px solid rgba(var(--ion-color-warning-rgb), 0.25);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+
+  ion-icon {
+    font-size: 17px;
+    color: var(--ion-color-warning);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  strong { color: var(--ion-text-color); font-weight: 700; }
+}
+
+.totales-section {
+  display: flex;
+  flex-direction: row;
+  margin-top: 12px;
+  border-top: 1px solid var(--ion-color-step-100);
+  padding-top: 12px;
+  gap: 0;
+}
+
+.total-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 4px;
+
+  &:not(:last-child) {
+    border-right: 1px solid var(--ion-color-step-100);
+  }
+}
+
+.total-col-label {
   display: flex;
   align-items: center;
-  padding: 14px 16px;
-  gap: 12px;
-
-  // Icono estado
-  .historial-icon {
-    width: 42px;
-    height: 42px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 11px;
-    background: var(--ion-color-step-100);
-
-    ion-icon { font-size: 20px; }
-
-    &.pagado {
-      background: rgba(var(--ion-color-success-rgb), 0.1);
-      ion-icon { color: var(--ion-color-success); }
-    }
-
-    &.pendiente {
-      background: rgba(var(--ion-color-warning-rgb), 0.1);
-      ion-icon { color: var(--ion-color-warning-shade); }
-    }
-
-    &.bus {
-      background: rgba(var(--ion-color-secondary-rgb), 0.1);
-      ion-icon { color: var(--ion-color-secondary); }
-    }
-  }
-
-  // Texto
-  .historial-details {
-    flex: 1;
-    min-width: 0;
-
-    .historial-fecha {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--ion-text-color);
-    }
-
-    .historial-sub {
-      font-size: 12px;
-      color: var(--ion-color-medium);
-      margin-top: 2px;
-      line-height: 1.4;
-    }
-  }
-
-  // Badge
-  .historial-badge {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 4px 10px;
-    border-radius: 99px;
-    flex-shrink: 0;
-
-    &.pagado {
-      background: rgba(var(--ion-color-success-rgb), 0.12);
-      color: var(--ion-color-success);
-    }
-
-    &.pendiente {
-      background: rgba(var(--ion-color-warning-rgb), 0.12);
-      color: var(--ion-color-warning-shade);
-    }
-
-    &.sin-liquidar {
-      background: var(--ion-color-step-100);
-      color: var(--ion-color-medium);
-    }
-  }
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
-.divider {
-  height: 1px;
-  margin: 0 16px;
-  background: var(--ion-color-step-100);
+.total-col-monto {
+  font-size: 16px;
+  font-weight: 800;
+
+  &.liquidado { color: var(--ion-color-success); }
+  &.celular   { color: var(--ion-color-primary); }
+  &.bus       { color: var(--ion-color-secondary); }
+  &.total     { color: var(--ion-text-color); }
 }
 
+.total-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.liquidado { background: var(--ion-color-success); }
+  &.celular   { background: var(--ion-color-primary); }
+  &.bus       { background: var(--ion-color-secondary); }
+}
+
+.liquidar-btn {
+  margin-top: 12px;
+}

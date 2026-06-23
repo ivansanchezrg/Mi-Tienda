@@ -1,36 +1,76 @@
 <ion-header class="ion-no-border">
+
+  <!-- Fila 1: título + acciones -->
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
     <ion-title>Inventario</ion-title>
     <ion-buttons slot="end">
-      <ion-button (click)="escanearYCrear()" color="primary" fill="clear">
-        <ion-icon slot="icon-only" name="scan-outline"></ion-icon>
-      </ion-button>
-      <ion-button (click)="irACrear()" color="primary" fill="clear">
+      @if (barcodeScanner.isAvailable) {
+        <ion-button (click)="escanearYCrear()" fill="clear">
+          <ion-icon slot="icon-only" name="scan-outline"></ion-icon>
+        </ion-button>
+      }
+      <ion-button (click)="irACrear()" fill="clear" color="primary">
         <ion-icon slot="start" name="add-outline"></ion-icon>
         Nuevo
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
 
-  <ion-toolbar>
-    <ion-searchbar [value]="buscarTexto" (ionInput)="onSearchInput($event)"
-      placeholder="Buscar por nombre o EAN..." [animated]="false" mode="md" [debounce]="0"></ion-searchbar>
-  </ion-toolbar>
+  <!-- Fila 3: chips de categorías + búsqueda (patrón POS) -->
+  <div class="inv-filter-bar" [class.inv-filter-bar--searching]="searchAbierto">
 
-  <ion-toolbar class="categories-toolbar">
-    <div class="filter-row">
-      <button class="filter-selector" (click)="abrirSelectorCategoria()">
-        <span class="filter-selector-label">{{ filtroLabel }}</span>
-        <ion-icon name="chevron-down-outline" class="filter-selector-arrow"></ion-icon>
+    <!-- Capa 1: lupa + chips -->
+    <div class="inv-chips-layer">
+      <button class="inv-search-btn" (click)="abrirSearch()" type="button">
+        <ion-icon name="search-outline"></ion-icon>
       </button>
-      <button class="filter-btn options-btn" (click)="abrirOpcionesCategorias()" title="Opciones de categorías">
-        <ion-icon name="ellipsis-vertical-outline"></ion-icon>
-      </button>
+      <div class="inv-chips-scroll" #categoriaScroll>
+        @if (templateSeleccionado) {
+          <button class="category-chip active template-chip" (click)="limpiarFiltroTemplate()">
+            <ion-icon name="color-palette-outline"></ion-icon>
+            {{ templateSeleccionado.nombre }}
+            <ion-icon name="close-outline"></ion-icon>
+          </button>
+        } @else {
+          <button class="category-chip" [class.active]="filtroSeleccionado === 'todas'"
+            (click)="seleccionarCategoria('todas', $event)">Todas</button>
+          @for (cat of categorias; track cat.id) {
+            <button class="category-chip" [class.active]="filtroSeleccionado === 'cat-' + cat.id"
+              (click)="seleccionarCategoria('cat-' + cat.id, $event)">{{ cat.nombre }}</button>
+          }
+          <button class="category-chip desactivados" [class.active]="filtroSeleccionado === 'desactivados'"
+            (click)="seleccionarCategoria('desactivados', $event)">Desactivados</button>
+        }
+      </div>
     </div>
-  </ion-toolbar>
+
+    <!-- Capa 2: input de búsqueda a ancho completo -->
+    <div class="inv-search-layer">
+      <div class="inv-search-field">
+        <ion-icon name="search-outline" class="inv-search-icon"></ion-icon>
+        <input
+          class="inv-search-input"
+          [value]="buscarTexto"
+          placeholder="Buscar por nombre o EAN..."
+          inputmode="search"
+          (input)="onSearchInputNativo($event)"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false" />
+        @if (loading && buscarTexto.length > 0) {
+          <ion-spinner name="crescent" class="inv-search-spinner" color="medium"></ion-spinner>
+        }
+        <button class="inv-search-clear-btn" (mousedown)="$event.preventDefault()" (click)="cerrarSearch()" type="button">
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
 </ion-header>
 
 <ion-content #content color="light" [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
@@ -41,10 +81,10 @@
   <div class="p-md">
     @if (loading) {
     <div class="products-grid">
-      @for (i of [1,2,3,4,5,6]; track i) {
+      @for (i of skeletonItems; track $index) {
       <ion-card class="product-card skeleton-card flat-item">
         <ion-skeleton-text animated
-          style="height: 120px; width: 100%; border-radius: var(--radius-lg) var(--radius-lg) 0 0;"></ion-skeleton-text>
+          style="height: 120px; width: 100%; border-radius: 0;"></ion-skeleton-text>
         <ion-card-content>
           <ion-skeleton-text animated style="width: 80%; height: 20px; margin-bottom: 8px;"></ion-skeleton-text>
           <ion-skeleton-text animated style="width: 50%; height: 16px; margin-bottom: 12px;"></ion-skeleton-text>
@@ -65,65 +105,133 @@
     </app-empty-state>
     } @else {
     <div class="products-grid">
-      @for (prod of items; track prod.id) {
-      <ion-card class="product-card flat-item" [class.desactivado]="mostrarDesactivados"
-        (click)="mostrarDesactivados ? reactivarProducto(prod) : irAEditar(prod)">
+      @for (item of itemsGrid; track item.kind === 'template' ? 'tmpl-' + item.templateId : 'prod-' + item.producto.id) {
 
-        <div class="product-image-container">
-          @if (prod.imagen_url) {
-          <img [src]="prod.imagen_url" [alt]="prod.nombre" class="real-image" />
-          } @else {
-          <div class="placeholder-image">
-            <ion-icon name="image-outline"></ion-icon>
-          </div>
-          }
+        @if (item.kind === 'simple') {
+          <!-- ── Producto individual (simple o variante única, o vista plana) ── -->
+          <ion-card class="product-card flat-item" [class.desactivado]="mostrarDesactivados"
+            (click)="mostrarDesactivados ? reactivarProducto(item.producto) : irAEditar(item.producto)">
 
-          @if (prod.stock_actual === 0) {
-          <div class="stock-badge danger shadow-1">
-            <ion-icon name="alert-circle-outline"></ion-icon>
-            Agotado
-          </div>
-          } @else if (prod.stock_actual <= prod.stock_minimo) {
-          <div class="stock-badge warning shadow-1">
-            <ion-icon name="alert-circle-outline"></ion-icon>
-            Bajo: {{ prod.stock_actual }}{{ prod.tipo_venta === 'PESO' ? ' ' + prod.unidad_medida : '' }}
-          </div>
-          } @else {
-          <div class="stock-badge success shadow-1">
-            {{ prod.stock_actual }}{{ prod.tipo_venta === 'PESO' ? ' ' + prod.unidad_medida : '' }}
-          </div>
-          }
+            <div class="product-image-container">
+              @if (item.producto.imagen_url) {
+                <img [src]="item.producto.imagen_url" [alt]="item.producto.nombre" class="real-image" />
+              } @else {
+                <div class="placeholder-image">
+                  <ion-icon name="image-outline"></ion-icon>
+                </div>
+              }
+
+              @if (item.producto.stock_actual === 0) {
+                <div class="stock-badge danger shadow-1">
+                  <ion-icon name="alert-circle-outline"></ion-icon>
+                  Agotado
+                </div>
+              } @else if (item.producto.stock_actual <= item.producto.stock_minimo) {
+                <div class="stock-badge warning shadow-1">
+                  <ion-icon name="alert-circle-outline"></ion-icon>
+                  Bajo: {{ item.producto.stock_actual }} {{ item.producto.tipo_venta === 'PESO' ? item.producto.unidad_medida : 'und' }}
+                </div>
+              } @else {
+                <div class="stock-badge success shadow-1">
+                  {{ item.producto.stock_actual }} {{ item.producto.tipo_venta === 'PESO' ? item.producto.unidad_medida : 'und' }}
+                </div>
+              }
+            </div>
+
+            <ion-card-content>
+              <h3 class="product-name truncate-2">{{ item.producto.nombre }}</h3>
+              <p class="product-category text-muted">
+                {{ item.producto.categoria?.nombre || item.producto.producto_template?.categoria?.nombre || 'Sin categoría' }}
+                @if (item.producto.tipo_venta === 'PESO') {
+                  <span class="tipo-tag peso">{{ item.producto.unidad_medida }}</span>
+                }
+                @if (item.producto.presentaciones && item.producto.presentaciones.length > 0) {
+                  <span class="tipo-tag presentaciones">
+                    <ion-icon name="pricetag-outline"></ion-icon>
+                    {{ item.producto.presentaciones.length }} present.
+                  </span>
+                }
+                @if (item.producto.producto_template) {
+                  <span class="tipo-tag variante"
+                    (click)="filtrarPorTemplate({ id: item.producto.producto_template.id, nombre: item.producto.producto_template.nombre }, $event)">
+                    <ion-icon name="color-palette-outline"></ion-icon>
+                    {{ item.producto.producto_template.nombre }}
+                  </span>
+                }
+              </p>
+
+              <div class="card-footer mt-md">
+                <div class="price text-primary">
+                  ${{ currencyService.format(item.producto.precio_venta) }}{{ item.producto.tipo_venta === 'PESO' ? '/' + item.producto.unidad_medida : '' }}
+                </div>
+                <div class="cost-price text-muted text-sm">
+                  Costo: ${{ currencyService.format(item.producto.precio_costo) }}
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+        }
+
+        @else {
+          <!-- ── Template agrupado (varias variantes del mismo producto) ── -->
+          <ion-card class="product-card product-card--template flat-item" (click)="abrirTemplate(item)">
+
+            <div class="product-image-container">
+              @if (item.templateImagenUrl) {
+                <img [src]="item.templateImagenUrl" [alt]="item.templateNombre" class="real-image" />
+              } @else {
+                <div class="placeholder-image">
+                  <ion-icon name="color-palette-outline"></ion-icon>
+                </div>
+              }
+
+              <!-- Solo stock en la imagen -->
+              @if (item.stockAgotado > 0) {
+                <div class="stock-badge danger shadow-1">
+                  <ion-icon name="alert-circle-outline"></ion-icon>
+                  {{ item.stockAgotado }} agotada{{ item.stockAgotado !== 1 ? 's' : '' }}
+                </div>
+              } @else if (item.stockBajo > 0) {
+                <div class="stock-badge warning shadow-1">
+                  <ion-icon name="alert-circle-outline"></ion-icon>
+                  {{ item.stockBajo }} bajo
+                </div>
+              } @else {
+                <div class="stock-badge success shadow-1">
+                  {{ item.stockTotal }} und
+                </div>
+              }
+            </div>
+
+            <ion-card-content>
+              <h3 class="product-name truncate-2">{{ item.templateNombre }}</h3>
+              <p class="product-category text-muted">
+                {{ item.categoriaNombre || 'Sin categoría' }}
+                <span class="tipo-tag variantes">
+                  <ion-icon name="color-palette-outline"></ion-icon>
+                  {{ item.variantes.length }} variantes
+                </span>
+              </p>
+
+              <div class="card-footer mt-md">
+                <div class="price text-primary">
+                  @if (item.precioMin === item.precioMax) {
+                    ${{ currencyService.format(item.precioMin) }}
+                  } @else {
+                    ${{ currencyService.format(item.precioMin) }} – ${{ currencyService.format(item.precioMax) }}
+                  }
+                </div>
+                <div class="cost-price text-muted text-sm">
+                  Stock total: {{ item.stockTotal }}
+                </div>
+              </div>
+
+            </ion-card-content>
+          </ion-card>
+        }
+      }
     </div>
-
-    <ion-card-content>
-      <h3 class="product-name truncate-2">{{ prod.nombre }}</h3>
-      <p class="product-category text-muted">
-        {{ prod.categoria?.nombre || 'Sin categoría' }}
-        @if (prod.tipo_venta === 'PESO') {
-          <span class="tipo-tag peso">{{ prod.unidad_medida }}</span>
-        }
-        @if (prod.presentaciones && prod.presentaciones.length > 0) {
-          <span class="tipo-tag presentaciones">
-            <ion-icon name="pricetag-outline"></ion-icon>
-            {{ prod.presentaciones.length }} present.
-          </span>
-        }
-      </p>
-
-      <div class="card-footer mt-md">
-        <div class="price text-primary">
-          ${{ currencyService.format(prod.precio_venta) }}{{ prod.tipo_venta === 'PESO' ? '/' + prod.unidad_medida : '' }}
-        </div>
-        <div class="cost-price text-muted text-sm">
-          Costo: ${{ currencyService.format(prod.precio_costo) }}
-        </div>
-      </div>
-
-    </ion-card-content>
-    </ion-card>
     }
-  </div>
-  }
   }
   </div>
 
@@ -141,14 +249,4 @@
   }
 </ion-content>
 
-@if (escaneando) {
-<div class="scanner-overlay">
-  <div class="scanner-frame">
-    <div class="scan-line"></div>
-  </div>
-  <p class="scanner-hint">Escanea el código del nuevo producto</p>
-  <button class="scanner-close-btn" (click)="cerrarEscaner()">
-    <ion-icon name="close-outline"></ion-icon>
-  </button>
-</div>
-}
+<app-scanner-overlay [visible]="escaneando" (cerrar)="cerrarEscaner()"></app-scanner-overlay>

@@ -1,0 +1,23 @@
+export interface TurnoCaja {
+  id: string;
+  numero_turno: number;
+  empleado_id: string;
+  hora_fecha_apertura: string;
+  hora_fecha_cierre: string | null;
+  fondo_apertura: number;
+}
+
+export interface TurnoCajaConEmpleado extends TurnoCaja {
+  empleado: { id: string; nombre: string };
+}
+
+export type EstadoCajaTipo = 'SIN_ABRIR' | 'TURNO_EN_CURSO' | 'CERRADA';
+
+export interface EstadoCaja {
+  estado: EstadoCajaTipo;
+  turnoActivo: TurnoCajaConEmpleado | null;
+  empleadoNombre: string;
+  horaApertura: string;
+  turnosHoy: number;
+  fechaUltimoCierre: string | null;
+}

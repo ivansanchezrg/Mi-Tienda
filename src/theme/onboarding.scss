@@ -1,0 +1,550 @@
+// Estilos compartidos del wizard de onboarding
+// Usado por todos los pasos vía: @use 'src/theme/onboarding' as *;
+
+.onboarding-content {
+  --background: var(--ion-background-color);
+
+  // Desktop: fondo diferenciado para que la tarjeta resalte
+  @media (min-width: 992px) {
+    --background: var(--ion-color-light);
+  }
+
+  // Patrón Ionic correcto para que el contenido interno ocupe el alto completo
+  // y el centrado vertical funcione en Android y web.
+  &::part(scroll) {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+}
+
+.onboarding-wrapper {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 32px 20px calc(24px + env(safe-area-inset-bottom));
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+
+  // Tablet (≥600px): más respiro lateral
+  @media (min-width: 600px) {
+    padding: 40px 32px calc(32px + env(safe-area-inset-bottom));
+  }
+
+  // Desktop (≥992px): tarjeta centrada con sombra sutil
+  @media (min-width: 992px) {
+    max-width: 520px;
+    flex: unset;
+    padding: 40px 40px 40px;
+    margin: 48px auto;
+    background: var(--ion-item-background, var(--ion-background-color));
+    border-radius: 20px;
+    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.08);
+  }
+}
+
+// Espaciador flexible — empuja el bloque central hacia el medio de la pantalla.
+// Vive entre onboarding-progress y onboarding-header.
+// max-height: 64px evita separación excesiva en pantallas muy altas (≥750px).
+.onboarding-spacer {
+  flex: 1;
+  max-height: 64px;
+
+  // En desktop no aplica — la tarjeta tiene altura natural
+  @media (min-width: 992px) {
+    display: none;
+  }
+}
+
+// Barra de progreso
+.onboarding-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 0;   // el spacer debajo (onboarding-spacer) maneja el espacio
+
+  ion-progress-bar {
+    flex: 1;
+    height: 6px;
+    --border-radius: 3px;
+    --background: var(--ion-color-light-shade);
+    --progress-background: var(--ion-color-primary);
+  }
+
+  .step-label {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  // En desktop: margen inferior fijo para separar la barra del header de la tarjeta
+  @media (min-width: 992px) {
+    margin-bottom: 28px;
+  }
+}
+
+// Header del paso
+.onboarding-header {
+  text-align: center;
+  margin-bottom: 24px;
+
+  @media (min-width: 600px) { margin-bottom: 32px; }
+
+  .onboarding-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+
+    ion-icon {
+      font-size: 32px;
+      color: var(--ion-color-primary);
+    }
+
+    @media (min-width: 992px) {
+      width: 72px;
+      height: 72px;
+      ion-icon { font-size: 36px; }
+    }
+  }
+
+  .onboarding-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ion-text-color);
+    margin: 0 0 8px;
+
+    @media (min-width: 992px) { font-size: 26px; }
+  }
+
+  .onboarding-subtitle {
+    font-size: 14px;
+    color: var(--ion-color-medium);
+    margin: 0;
+    line-height: 1.5;
+
+    @media (min-width: 992px) { font-size: 15px; }
+  }
+}
+
+// Nombre destacado (negocio del usuario o marca) dentro de títulos/subtítulos
+.brand-name {
+  color: var(--ion-color-primary);
+  font-weight: 700;
+}
+
+// Formulario — no flex:1, el espacio sobrante lo absorbe .onboarding-logout con margin-top:auto
+.onboarding-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+// Campos
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  .field-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ion-text-color);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    ion-icon { font-size: 15px; color: var(--ion-color-primary); flex-shrink: 0; }
+    .optional { color: var(--ion-color-medium); font-weight: 400; font-size: 12px; }
+  }
+
+  input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--ion-color-light-shade);
+    border-radius: 10px;
+    font-size: 15px;
+    background: var(--ion-item-background, var(--ion-background-color));
+    color: var(--ion-text-color);
+    outline: none;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+
+    &:focus { border-color: var(--ion-color-primary); }
+    &.invalid { border-color: var(--ion-color-danger); }
+    &::placeholder { color: var(--ion-color-medium); }
+  }
+
+  .field-hint  { font-size: 12px; color: var(--ion-color-medium); }
+  .field-error { font-size: 12px; color: var(--ion-color-danger);  }
+
+  // Estados de verificacion del email del administrador (modo sucursal-superadmin)
+  .verif-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    margin-top: 4px;
+
+    ion-icon { font-size: 15px; flex-shrink: 0; }
+    ion-spinner { width: 14px; height: 14px; flex-shrink: 0; }
+    strong { font-weight: 600; }
+
+    &--pendiente {
+      color: var(--ion-color-medium);
+    }
+
+    &--existe {
+      color: var(--ion-color-success-shade);
+      ion-icon { color: var(--ion-color-success); }
+    }
+
+    &--nuevo {
+      color: var(--ion-color-primary-shade);
+      ion-icon { color: var(--ion-color-primary); }
+    }
+
+    &--error {
+      color: var(--ion-color-warning-shade);
+    }
+  }
+
+  // Input "Nombre" en modo readonly cuando se reusa un usuario existente
+  input:disabled {
+    background: rgba(var(--ion-color-medium-rgb), 0.06);
+    color: var(--ion-color-medium-shade);
+    cursor: not-allowed;
+  }
+
+  // Panel con negocios existentes (debajo del mensaje "Se reutilizara la cuenta de X")
+  .negocios-existentes {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: rgba(var(--ion-color-success-rgb), 0.06);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.18);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .negocios-existentes-titulo {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ion-color-success-shade);
+  }
+
+  .negocios-existentes-lista {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      padding: 4px 0;
+      border-bottom: 1px dashed rgba(var(--ion-color-success-rgb), 0.18);
+
+      &:last-child { border-bottom: none; }
+    }
+  }
+
+  .negocio-nombre {
+    color: var(--ion-text-color);
+    font-weight: 500;
+  }
+
+  .negocio-rol {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(var(--ion-color-medium-rgb), 0.12);
+    color: var(--ion-color-medium-shade);
+
+    &.es-propietario {
+      background: rgba(var(--ion-color-warning-rgb), 0.15);
+      color: var(--ion-color-warning-shade);
+    }
+  }
+
+  .negocios-existentes-footer {
+    font-size: 11px;
+    color: var(--ion-color-medium-shade);
+    font-style: italic;
+    margin-top: 2px;
+  }
+}
+
+// Input con prefijo ($) o sufijo (%)
+.input-with-prefix,
+.input-with-suffix {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid var(--ion-color-light-shade);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--ion-item-background, var(--ion-background-color));
+  transition: border-color 0.2s;
+
+  &:focus-within { border-color: var(--ion-color-primary); }
+
+  .prefix, .suffix {
+    padding: 0 12px;
+    font-size: 15px;
+    color: var(--ion-color-medium);
+    background: var(--ion-color-light);
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+  }
+
+  input {
+    flex: 1;
+    padding: 12px 14px;
+    border: none;
+    font-size: 15px;
+    background: transparent;
+    color: var(--ion-text-color);
+    outline: none;
+
+    &::placeholder { color: var(--ion-color-medium); }
+  }
+}
+
+// Cards informativas
+.info-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(var(--ion-color-primary-rgb), 0.06);
+  border-radius: 10px;
+  border-left: 3px solid var(--ion-color-primary);
+
+  ion-icon {
+    font-size: 20px;
+    color: var(--ion-color-primary);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  strong { font-size: 13px; font-weight: 600; display: block; margin-bottom: 2px; }
+  p      { font-size: 13px; color: var(--ion-color-medium); margin: 0; line-height: 1.4; }
+}
+
+// Sección Caja Varios — radio cards
+.varios-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.varios-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ion-text-color);
+
+  ion-icon {
+    font-size: 15px;
+    color: var(--ion-color-primary);
+    flex-shrink: 0;
+  }
+}
+
+.varios-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(var(--ion-color-medium-rgb), 0.12);
+  color: var(--ion-color-medium-shade);
+  margin-left: 2px;
+}
+
+.varios-desc {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.varios-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.varios-card {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  background: var(--ion-item-background, var(--ion-background-color));
+  border: 1.5px solid var(--ion-color-light-shade);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  transition: border-color 0.2s, background 0.2s;
+
+  &--active {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.04);
+  }
+
+  &:active:not(&--active) {
+    background: var(--ion-color-light);
+  }
+
+  // Navegación por teclado (las cards actúan como radios)
+  &:focus-visible {
+    outline: 2px solid var(--ion-color-primary);
+    outline-offset: 2px;
+  }
+}
+
+.varios-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.varios-card-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.varios-card-divider {
+  height: 1px;
+  background: rgba(var(--ion-color-primary-rgb), 0.15);
+  margin: 8px 0 4px;
+}
+
+.varios-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  ion-icon { font-size: 20px; }
+
+  &--primary {
+    background: rgba(var(--ion-color-primary-rgb), 0.10);
+    ion-icon { color: var(--ion-color-primary); }
+  }
+
+  &--medium {
+    background: rgba(var(--ion-color-medium-rgb), 0.10);
+    ion-icon { color: var(--ion-color-medium); }
+  }
+}
+
+.varios-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ion-text-color);
+  }
+
+  span {
+    font-size: 13px;
+    color: var(--ion-color-medium);
+    line-height: 1.4;
+  }
+}
+
+.varios-card-check {
+  font-size: 20px;
+  color: var(--ion-color-primary);
+  flex-shrink: 0;
+}
+
+// Botón principal
+.onboarding-btn {
+  margin-top: 8px;
+  --border-radius: 12px;
+  height: 52px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+// Acciones con atrás + continuar
+.onboarding-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+
+  ion-button:first-child {
+    flex: 0 0 96px;   // ancho fijo en móvil para que "Atrás" no se encoja
+    --border-radius: 12px;
+    height: 52px;
+  }
+
+  .onboarding-btn-next {
+    flex: 1;
+    --border-radius: 12px;
+    height: 52px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  @media (min-width: 600px) {
+    ion-button:first-child { flex: 0 0 110px; }
+  }
+}
+
+// Botón cerrar sesión / volver
+.onboarding-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--ion-color-medium);
+  font-size: 13px;
+  padding: 16px 8px 0;
+  cursor: pointer;
+  margin-top: auto;
+
+  ion-icon { font-size: 16px; }
+
+  &:hover { color: var(--ion-color-medium-shade); }
+
+  @media (min-width: 992px) {
+    margin-top: 24px;  // espacio fijo en desktop — la tarjeta ya tiene padding
+  }
+}

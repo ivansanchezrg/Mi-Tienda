@@ -3,14 +3,17 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonSpinner,
+  IonContent, IonIcon, IonSpinner, IonSkeletonText,
   ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, warningOutline, shieldCheckmarkOutline } from 'ionicons/icons';
+import { closeOutline, warningOutline, shieldCheckmarkOutline, swapHorizontalOutline, chevronForwardOutline, pauseCircleOutline, ribbonOutline } from 'ionicons/icons';
 import { UsuarioService } from '../../services/usuario.service';
 import { UiService } from '@core/services/ui.service';
 import { AuthService } from '../../../auth/services/auth.service';
+import { NegocioService } from '../../../auth/services/negocio.service';
+import { NegocioDisponible } from '../../../auth/services/auth.service';
+import { SupabaseService } from '@core/services/supabase.service';
 import { Usuario, UpdateUsuarioDto } from '../../models/usuario.model';
 
 @Component({
@@ -22,7 +25,7 @@ import { Usuario, UpdateUsuarioDto } from '../../models/usuario.model';
     CommonModule,
     ReactiveFormsModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonSpinner
+    IonContent, IonIcon, IonSpinner, IonSkeletonText
   ]
 })
 export class EditarUsuarioModalComponent implements OnInit {
@@ -33,9 +36,13 @@ export class EditarUsuarioModalComponent implements OnInit {
   private fb             = inject(FormBuilder);
   private usuarioService = inject(UsuarioService);
   private authService    = inject(AuthService);
+  private negocioService = inject(NegocioService);
+  private supabase       = inject(SupabaseService);
   private ui             = inject(UiService);
 
-  guardando = false;
+  guardando     = false;
+  transfiriendo = false;
+  loadingNegocios = false;
 
   /** True si el usuario que se edita es el mismo que está logueado */
   esMismoUsuario = false;
@@ -43,10 +50,25 @@ export class EditarUsuarioModalComponent implements OnInit {
   /** True si el usuario que se edita es el superadmin (protegido, no editable en rol/activo) */
   esSuperadmin = false;
 
+  /** True si el usuario es el propietario del negocio (protegido por trigger SQL — no se puede desactivar ni cambiar rol) */
+  esPropietario = false;
+
+  /**
+   * Nombre del negocio donde el empleado está activo actualmente.
+   * Solo se carga si el empleado está inactivo en este negocio.
+   * - null  → aún cargando (o no aplica)
+   * - ''    → inactivo sin membresía activa en ningún otro negocio (desactivado manualmente)
+   * - 'X'   → activo en el negocio "X", no puede reactivarse aquí
+   */
+  negocioActivoEmpleado: string | null = null;
+
+  /** Negocios disponibles para transferir (vacío si no aplica) */
+  misNegocios: NegocioDisponible[] = [];
+
   form!: FormGroup;
 
   constructor() {
-    addIcons({ closeOutline, warningOutline, shieldCheckmarkOutline });
+    addIcons({ closeOutline, warningOutline, shieldCheckmarkOutline, swapHorizontalOutline, chevronForwardOutline, pauseCircleOutline, ribbonOutline });
   }
 
   async ngOnInit() {
@@ -58,17 +80,79 @@ export class EditarUsuarioModalComponent implements OnInit {
 
     const actual = await this.authService.getUsuarioActual();
     this.esMismoUsuario = actual?.id === this.usuario.id;
-    this.esSuperadmin = this.usuario.es_superadmin === true;
+    this.esSuperadmin   = this.usuario.es_superadmin === true;
+    this.esPropietario  = this.usuario.es_propietario === true;
 
-    // Superadmin o mismo usuario: deshabilitar campos de rol y estado (solo se puede editar el nombre)
-    if (this.esSuperadmin || this.esMismoUsuario) {
+    // Superadmin, propietario o mismo usuario: deshabilitar campos de rol y estado (solo se puede editar el nombre)
+    if (this.esSuperadmin || this.esPropietario || this.esMismoUsuario) {
       this.form.get('rol')?.disable();
       this.form.get('activo')?.disable();
+    }
+
+    const esEmpleadoEditable = !this.esMismoUsuario && !this.esSuperadmin && !this.esPropietario && this.usuario.rol !== 'ADMIN';
+
+    if (esEmpleadoEditable && this.usuario.activo) {
+      // Activo: cargar negocios destino para transferencia
+      this.loadingNegocios = true;
+      try {
+        const { data: { user } } = await this.supabase.client.auth.getUser();
+        const negocioActivoId = user?.app_metadata?.['negocio_id'] as string | undefined;
+        const todos = await this.negocioService.getMisNegocios();
+        this.misNegocios = todos.filter(n => n.negocio_id !== negocioActivoId);
+      } finally {
+        this.loadingNegocios = false;
+      }
+    } else if (esEmpleadoEditable && !this.usuario.activo) {
+      // Inactivo: verificar si tiene membresía activa en otro negocio
+      const { data } = await this.supabase.client
+        .from('usuario_negocios')
+        .select('negocio:negocios(nombre)')
+        .eq('usuario_id', this.usuario.id)
+        .eq('activo', true)
+        .limit(1)
+        .maybeSingle();
+
+      this.negocioActivoEmpleado = (data as any)?.negocio?.nombre ?? '';
     }
   }
 
   cancelar() {
     this.modalCtrl.dismiss(null, 'cancel');
+  }
+
+  async transferir(negocio: NegocioDisponible) {
+    const confirmado = await new Promise<boolean>(async resolve => {
+      const alert = await this.alertCtrl.create({
+        header: 'Transferir a sucursal',
+        message: `¿Transferir a ${negocio.negocio_nombre}? ${this.usuario.nombre} quedará inactivo en este negocio.`,
+        buttons: [
+          { text: 'Cancelar',    role: 'cancel',  handler: () => resolve(false) },
+          { text: 'Transferir',  role: 'confirm', handler: () => resolve(true)  }
+        ]
+      });
+      await alert.present();
+    });
+
+    if (!confirmado) return;
+
+    this.transfiriendo = true;
+    try {
+      const result = await this.usuarioService.transferir(
+        this.usuario.membresia_id,
+        negocio.negocio_id,
+        this.usuario.rol
+      );
+
+      if (result.success) {
+        this.modalCtrl.dismiss({ transferido: true, negocioNombre: negocio.negocio_nombre, empleadoNombre: this.usuario.nombre }, 'confirm');
+      } else {
+        await this.ui.showError(result.error ?? 'No se pudo transferir el empleado. Intenta de nuevo.');
+      }
+    } catch {
+      await this.ui.showError('Error al transferir el empleado. Verifica tu conexión.');
+    } finally {
+      this.transfiriendo = false;
+    }
   }
 
   async confirmar() {
@@ -77,8 +161,8 @@ export class EditarUsuarioModalComponent implements OnInit {
       return;
     }
 
-    // Superadmin o mismo usuario: solo se permite editar el nombre
-    const bloqueado   = this.esSuperadmin || this.esMismoUsuario;
+    // Superadmin, propietario o mismo usuario: solo se permite editar el nombre
+    const bloqueado   = this.esSuperadmin || this.esPropietario || this.esMismoUsuario;
     const rolNuevo    = bloqueado ? this.usuario.rol    : this.form.value.rol;
     const activoNuevo = bloqueado ? this.usuario.activo : this.form.value.activo;
 
@@ -89,7 +173,7 @@ export class EditarUsuarioModalComponent implements OnInit {
     if (this.usuario.rol === 'ADMIN' && (estaDesactivando || estaDegradando)) {
       const totalAdmins = await this.usuarioService.contarAdmins();
       if (totalAdmins <= 1) {
-        await this.ui.showError('No podés realizar esta acción: es el único administrador del sistema.');
+        await this.ui.showError('No puedes realizar esta acción: es el único administrador del sistema.');
         return;
       }
     }
@@ -108,7 +192,11 @@ export class EditarUsuarioModalComponent implements OnInit {
         ? { nombre: this.form.value.nombre.trim() }
         : { nombre: this.form.value.nombre.trim(), rol: rolNuevo, activo: activoNuevo };
 
-      const updated = await this.usuarioService.update(this.usuario.id, dto);
+      const updated = await this.usuarioService.update(this.usuario.id, this.usuario.membresia_id, dto);
+      if (updated === 'conflict') {
+        await this.ui.showError(`No se puede reactivar a ${this.usuario.nombre}: ya está activo en otra sucursal. Transferilo desde ese negocio para activarlo aquí.`);
+        return;
+      }
       if (!updated) {
         await this.ui.showError('No se pudo actualizar el usuario.');
         return;
@@ -116,7 +204,7 @@ export class EditarUsuarioModalComponent implements OnInit {
 
       this.modalCtrl.dismiss(updated, 'confirm');
     } catch {
-      await this.ui.showError('Error al actualizar el usuario. Verificá tu conexión.');
+      await this.ui.showError('Error al actualizar el usuario. Verifica tu conexión.');
     } finally {
       this.guardando = false;
     }
@@ -126,7 +214,7 @@ export class EditarUsuarioModalComponent implements OnInit {
     return new Promise(async resolve => {
       const alert = await this.alertCtrl.create({
         header: 'Desactivar usuario',
-        message: `¿Seguro que querés desactivar a ${this.usuario.nombre}? No podrá ingresar al sistema.`,
+        message: `¿Seguro que quieres desactivar a ${this.usuario.nombre}? No podrá ingresar al sistema.`,
         buttons: [
           { text: 'Cancelar',   role: 'cancel',  handler: () => resolve(false) },
           { text: 'Desactivar', role: 'confirm', handler: () => resolve(true)  }

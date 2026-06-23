@@ -1,0 +1,356 @@
+-- =============================================================================
+-- fn_completar_onboarding — Crear negocio + configuración inicial en una sola transacción
+-- =============================================================================
+-- Reemplaza el flujo multi-paso del onboarding frontend que guardaba por partes.
+-- Todo o nada: si falla cualquier paso, rollback completo.
+--
+-- Parámetros:
+--   p_nombre_negocio        VARCHAR  — Nombre del negocio (requerido)
+--   p_admin_email           VARCHAR  — Email del admin (debe existir en auth.users)
+--   p_admin_nombre          VARCHAR  — Nombre del admin (para crear fila en usuarios si no existe)
+--   p_negocio_telefono      VARCHAR  — Teléfono del negocio (opcional) → se guarda en negocios.telefono
+--   p_negocio_direccion     VARCHAR  — Dirección del negocio (opcional) → se guarda en negocios.direccion
+--   (p_caja_fondo_fijo eliminado en v2.0 — el fondo es libre, declarado al abrir cada turno)
+--   p_varios_activa         BOOLEAN  — Si true, activa la caja Varios y la transferencia diaria
+--   p_caja_varios_monto     DECIMAL  — Monto diario a transferir a Varios al cierre (> 0 si varios_activa)
+--   p_nomina_sueldo_base    DECIMAL  — Sueldo base mensual de empleados (>= 0)
+--   p_propietario_email     VARCHAR  — (opcional) Email del propietario/dueño del negocio.
+--                                       Si NULL → propietario = admin (caso onboarding inicial / admin comun creando sucursal).
+--                                       Si difiere de p_admin_email → solo el superadmin puede invocarlo.
+--
+-- Nota v2026-06-03: nombre, telefono y dirección se guardan en `negocios` directamente.
+-- Ya NO se insertan en `configuraciones` (eliminada duplicidad).
+--
+-- Retorna: JSON con { negocio_id, usuario_id, propietario_id, success }
+--
+-- Seguridad: SECURITY DEFINER — el JWT del llamador aún no tiene negocio_id.
+-- Restricciones (validadas internamente):
+--   - Admin comun: solo puede crear negocios con su propio email como admin Y como propietario
+--   - Superadmin: puede crear con cualquier admin/propietario
+-- =============================================================================
+
+-- Cleanup de firmas anteriores (mover ANTES del CREATE para evitar duplicación)
+DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL);
+DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, DECIMAL, BOOLEAN, DECIMAL, DECIMAL, VARCHAR);
+DROP FUNCTION IF EXISTS public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR);
+
+CREATE OR REPLACE FUNCTION public.fn_completar_onboarding(
+    p_nombre_negocio     VARCHAR,
+    p_admin_email        VARCHAR,
+    p_admin_nombre       VARCHAR  DEFAULT NULL,
+    p_negocio_telefono   VARCHAR  DEFAULT '',
+    p_negocio_direccion  VARCHAR  DEFAULT '',
+    p_negocio_correo     VARCHAR  DEFAULT '',
+    p_varios_activa      BOOLEAN  DEFAULT FALSE,
+    p_caja_varios_monto  DECIMAL  DEFAULT 0,
+    p_nomina_sueldo_base DECIMAL  DEFAULT 0,
+    -- Email del propietario (dueño) del nuevo negocio.
+    -- Si no se especifica, el propietario es el mismo admin (caso onboarding inicial o admin comun creando sucursal).
+    -- Si difiere de p_admin_email, solo el superadmin puede invocarlo (caso sucursal creada por superadmin para un dueño existente).
+    p_propietario_email  VARCHAR  DEFAULT NULL
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_negocio_id           UUID;
+    v_usuario_id           UUID;          -- usuario admin del nuevo negocio
+    v_propietario_id       UUID;          -- usuario dueño/propietario del nuevo negocio
+    v_propietario_email    VARCHAR;       -- email normalizado del propietario
+    v_caller_es_superadmin BOOLEAN;
+    v_slug_base            VARCHAR;
+    v_slug                 VARCHAR;
+    v_slug_n               INT;
+    v_plan_basico_id       UUID;          -- plan PRO (plan de entrada para todo negocio nuevo)
+    v_trial_dias           INT;           -- dias de trial del plan PRO
+    v_negocios_actuales    INT;           -- negocios que ya tiene el propietario
+    v_max_negocios         INT;           -- tope del plan vigente del propietario (NULL = ilimitado)
+    -- Herencia de suscripcion: si el propietario YA tiene una suscripcion vigente
+    -- (caso MAX creando su 2do/3er negocio), el negocio nuevo la hereda en vez de
+    -- arrancar su propio trial — asi todos sus negocios comparten plan y vencimiento.
+    v_sub                  RECORD;        -- fila temporal del FOR loop de suscripcion heredada
+    v_sub_plan_id          UUID;          -- plan de la suscripcion vigente del propietario
+    v_sub_estado           TEXT;          -- estado guardado de esa suscripcion
+    v_sub_periodo          TEXT;          -- periodo_contratado de esa suscripcion
+    v_sub_vence_el         TIMESTAMPTZ;   -- vencimiento comun a heredar
+BEGIN
+    -- ── Validaciones ──
+    IF TRIM(p_nombre_negocio) = '' OR p_nombre_negocio IS NULL THEN
+        RAISE EXCEPTION 'El nombre del negocio no puede estar vacío';
+    END IF;
+    IF TRIM(p_admin_email) = '' OR p_admin_email IS NULL THEN
+        RAISE EXCEPTION 'El email del admin no puede estar vacío';
+    END IF;
+    IF p_varios_activa AND (p_caja_varios_monto IS NULL OR p_caja_varios_monto <= 0) THEN
+        RAISE EXCEPTION 'Si activás Caja Varios, el monto diario debe ser mayor a cero';
+    END IF;
+    IF p_nomina_sueldo_base < 0 THEN
+        RAISE EXCEPTION 'El sueldo base no puede ser negativo';
+    END IF;
+
+    -- Resolver propietario: si no se pasa, es el mismo admin
+    v_propietario_email := LOWER(TRIM(COALESCE(NULLIF(TRIM(p_propietario_email), ''), p_admin_email)));
+
+    v_caller_es_superadmin := COALESCE((SELECT es_superadmin FROM usuarios WHERE email = (auth.jwt() ->> 'email')), FALSE);
+
+    -- Seguridad: solo el propio usuario puede crear su negocio
+    -- Excepción: superadmin puede crear para cualquier email
+    IF NOT v_caller_es_superadmin THEN
+        IF LOWER(TRIM(p_admin_email)) != LOWER(TRIM(auth.jwt() ->> 'email')) THEN
+            RAISE EXCEPTION 'No puedes crear un negocio para otro usuario';
+        END IF;
+        -- Un admin comun no puede declarar a otra persona como propietario
+        IF v_propietario_email != LOWER(TRIM(auth.jwt() ->> 'email')) THEN
+            RAISE EXCEPTION 'No puedes asignar a otro usuario como propietario del negocio';
+        END IF;
+    END IF;
+
+    -- ── 1. Crear/obtener usuario admin ──
+    v_usuario_id := (SELECT id FROM usuarios WHERE email = LOWER(TRIM(p_admin_email)));
+
+    IF v_usuario_id IS NULL THEN
+        v_usuario_id := gen_random_uuid();
+        INSERT INTO usuarios (id, nombre, email, es_superadmin)
+        VALUES (
+            v_usuario_id,
+            COALESCE(NULLIF(TRIM(p_admin_nombre), ''), SPLIT_PART(p_admin_email, '@', 1)),
+            LOWER(TRIM(p_admin_email)),
+            FALSE
+        );
+    END IF;
+
+    -- ── 2. Resolver/obtener usuario propietario ──
+    -- Si el propietario coincide con el admin, reusamos el mismo registro.
+    IF v_propietario_email = LOWER(TRIM(p_admin_email)) THEN
+        v_propietario_id := v_usuario_id;
+    ELSE
+        v_propietario_id := (SELECT id FROM usuarios WHERE email = v_propietario_email);
+        IF v_propietario_id IS NULL THEN
+            -- El superadmin esta creando una sucursal para un email que no existe aun
+            -- (caso raro pero valido). Creamos el registro de usuario base.
+            v_propietario_id := gen_random_uuid();
+            INSERT INTO usuarios (id, nombre, email, es_superadmin)
+            VALUES (
+                v_propietario_id,
+                SPLIT_PART(v_propietario_email, '@', 1),
+                v_propietario_email,
+                FALSE
+            );
+        END IF;
+    END IF;
+
+    -- ── 2b. Limite de negocios por plan ──
+    -- La suscripcion se paga por propietario, no por sucursal. El plan define
+    -- cuantos negocios puede tener (PRO = 1, MAX = 3; NULL = ilimitado).
+    -- Se cuentan TODOS los negocios del propietario (sin importar su estado).
+    -- El limite es absoluto: aplica tambien al superadmin creando para un dueño.
+    -- Si el propietario aun no tiene negocios (primer negocio), no hay tope que
+    -- validar y se omite la consulta del plan.
+    v_negocios_actuales := (SELECT COUNT(*) FROM negocios WHERE propietario_usuario_id = v_propietario_id);
+
+    IF v_negocios_actuales > 0 THEN
+        -- Tope del plan vigente del propietario. La suscripcion es por dueño, asi que
+        -- cualquiera de sus negocios refleja el mismo plan; tomamos la suscripcion
+        -- mas reciente de cualquiera de ellos.
+        v_max_negocios := (
+            SELECT pl.max_negocios
+            FROM suscripciones s
+            JOIN negocios  n  ON n.id = s.negocio_id
+            JOIN planes    pl ON pl.id = s.plan_id
+            WHERE n.propietario_usuario_id = v_propietario_id
+            ORDER BY s.created_at DESC
+            LIMIT 1
+        );
+
+        -- NULL = ilimitado (o el plan no define tope) → no se valida.
+        IF v_max_negocios IS NOT NULL AND v_negocios_actuales >= v_max_negocios THEN
+            RAISE EXCEPTION 'limite_negocios: Tu plan permite hasta % negocio(s). Actualiza tu plan para agregar mas sucursales.', v_max_negocios;
+        END IF;
+    END IF;
+
+    -- ── 3. Negocio ──
+    -- Generar slug único: si "tienda-ivan" ya existe → "tienda-ivan-2", "tienda-ivan-3", etc.
+    v_slug_base := TRIM(BOTH '-' FROM REGEXP_REPLACE(LOWER(TRIM(p_nombre_negocio)), '[^a-z0-9]+', '-', 'g'));
+    v_slug      := v_slug_base;
+    v_slug_n    := 2;
+    WHILE EXISTS (SELECT 1 FROM negocios WHERE slug = v_slug) LOOP
+        v_slug   := v_slug_base || '-' || v_slug_n;
+        v_slug_n := v_slug_n + 1;
+    END LOOP;
+
+    -- nombre, telefono y direccion son fuente de verdad en negocios (no en configuraciones).
+    v_negocio_id := gen_random_uuid();
+    INSERT INTO negocios (id, nombre, slug, telefono, direccion, correo_electronico, propietario_usuario_id)
+    VALUES (
+        v_negocio_id,
+        TRIM(p_nombre_negocio),
+        v_slug,
+        NULLIF(TRIM(COALESCE(p_negocio_telefono, '')), ''),
+        NULLIF(TRIM(COALESCE(p_negocio_direccion, '')), ''),
+        NULLIF(TRIM(COALESCE(p_negocio_correo, '')), ''),
+        v_propietario_id
+    );
+
+    -- ── 4. Membresia ADMIN del admin en el nuevo negocio ──
+    INSERT INTO usuario_negocios (usuario_id, negocio_id, rol, activo)
+    VALUES (v_usuario_id, v_negocio_id, 'ADMIN', TRUE)
+    ON CONFLICT (usuario_id, negocio_id) DO UPDATE SET rol = 'ADMIN', activo = TRUE;
+
+    -- ── 4b. Si el propietario es distinto del admin, tambien le damos membresia ADMIN ──
+    -- Asi el dueño puede entrar a su sucursal aunque no se haya autoasignado como admin operativo.
+    IF v_propietario_id != v_usuario_id THEN
+        INSERT INTO usuario_negocios (usuario_id, negocio_id, rol, activo)
+        VALUES (v_propietario_id, v_negocio_id, 'ADMIN', TRUE)
+        ON CONFLICT (usuario_id, negocio_id) DO UPDATE SET rol = 'ADMIN', activo = TRUE;
+    END IF;
+
+    -- ── 5. Las 2 cajas base siempre presentes ──
+    -- puede_tener_turno: solo CAJA_CHICA es el cajón operativo diario que abre/cierra turnos.
+    -- CAJA es vault — nunca tiene turno.
+    INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno, icono, color) VALUES
+    (v_negocio_id, 'CAJA',       'Tienda', 'Vault de depositos acumulados',   0, FALSE, 'cash-outline',      '#1ba74a'),
+    (v_negocio_id, 'CAJA_CHICA', 'Cajon',  'Efectivo del dia (ventas + rec)', 0, TRUE,  'file-tray-outline', '#0077cc');
+
+    -- VARIOS solo se crea si el usuario la activó en el onboarding.
+    -- Si no se activa aquí, el superadmin la crea después desde fn_configurar_modulos.
+    -- created_at es la fuente de verdad para saber desde cuándo aplica la obligación de transferir.
+    -- CAJA_CELULAR y CAJA_BUS se crean solo si el superadmin habilita el módulo de recargas (fn_configurar_modulos).
+    IF p_varios_activa THEN
+        INSERT INTO cajas (negocio_id, codigo, nombre, descripcion, saldo_actual, puede_tener_turno, icono, color)
+        VALUES (v_negocio_id, 'VARIOS', 'Varios', 'Fondo de emergencia', 0, FALSE, 'archive-outline', '#e06c00');
+    END IF;
+
+    -- ── 6. Categorías de operaciones (solo las del usuario) ──
+    -- Las categorías del sistema viven en categorias_sistema (global, sin negocio_id).
+    -- Ver: docs/setup/migrations/001_categorias_sistema.sql
+    INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion) VALUES
+    (v_negocio_id, 'Compras/Mercaderia',          'EGRESO',  'Compra de productos para reventa o uso en el negocio'),
+    (v_negocio_id, 'Servicios Basicos',           'EGRESO',  'Pago de luz, agua, internet, telefono'),
+    (v_negocio_id, 'Alquiler',                    'EGRESO',  'Pago de alquiler del local'),
+    (v_negocio_id, 'Mantenimiento',               'EGRESO',  'Reparaciones y mantenimiento del local o equipo'),
+    (v_negocio_id, 'Transporte/Combustible',      'EGRESO',  'Gastos de transporte y combustible'),
+    (v_negocio_id, 'Papeleria/Suministros',       'EGRESO',  'Papeleria, utiles de oficina y suministros generales'),
+    (v_negocio_id, 'Impuestos/Tasas',             'EGRESO',  'Pago de impuestos y tasas municipales'),
+    (v_negocio_id, 'Otros Gastos',                'EGRESO',  'Otros gastos operativos no clasificados'),
+    (v_negocio_id, 'Devoluciones de Proveedores', 'INGRESO', 'Devolucion de dinero por parte de proveedores'),
+    (v_negocio_id, 'Otros Ingresos',              'INGRESO', 'Otros ingresos no clasificados');
+
+    -- ── 7. Categorías de productos ──
+    INSERT INTO categorias_productos (negocio_id, nombre) VALUES
+    (v_negocio_id, 'Sin categoria'),
+    (v_negocio_id, 'Bebidas'),
+    (v_negocio_id, 'Snacks'),
+    (v_negocio_id, 'Abarrotes'),
+    (v_negocio_id, 'Lacteos'),
+    (v_negocio_id, 'Limpieza'),
+    (v_negocio_id, 'Aseo Personal'),
+    (v_negocio_id, 'Panaderia')
+    ON CONFLICT (negocio_id, nombre) DO NOTHING;
+
+    -- ── 8. Configuraciones (solo parámetros operativos — datos de identidad van en negocios) ──
+    -- nombre, telefono y direccion ya se guardaron en negocios (paso 3).
+    INSERT INTO configuraciones (negocio_id, clave, valor) VALUES
+    -- Caja
+    (v_negocio_id, 'caja_varios_activa',            p_varios_activa::TEXT),
+    (v_negocio_id, 'caja_varios_transferencia_dia', CASE WHEN p_varios_activa THEN p_caja_varios_monto::TEXT ELSE '0' END),
+    -- Módulos opcionales (desactivados por defecto, el superadmin los habilita por negocio)
+    (v_negocio_id, 'recargas_celular_habilitada',    'false'),
+    (v_negocio_id, 'recargas_bus_habilitada',        'false'),
+    -- POS (defaults fijos — configurables luego en Parámetros)
+    (v_negocio_id, 'pos_descuentos_habilitados',    'false'),
+    (v_negocio_id, 'pos_descuento_maximo_pct',      '0'),
+    (v_negocio_id, 'pos_umbral_monto_descuento',    '0'),
+    (v_negocio_id, 'pos_iva_porcentaje',            '15'),
+    -- Nómina
+    (v_negocio_id, 'nomina_sueldo_base',            p_nomina_sueldo_base::TEXT),
+    (v_negocio_id, 'nomina_dia_pago',               '1')
+    ON CONFLICT (negocio_id, clave) DO NOTHING;
+
+    -- ── 8b. Suscripcion del negocio nuevo ──
+    -- La suscripcion se paga POR PROPIETARIO, no por sucursal. Dos casos:
+    --
+    --   A) El propietario YA tiene otros negocios con suscripcion (ej: plan MAX creando
+    --      su 2da/3ra sucursal): el negocio nuevo HEREDA plan + estado + periodo + vence_el
+    --      de la suscripcion mas reciente. Todos los negocios del dueño comparten plan y
+    --      vencimiento — se suspenden y renuevan juntos.
+    --
+    --   B) Es el PRIMER negocio del propietario: nace en TRIAL con el plan PRO.
+    --      trial_dias del plan PRO define la duracion del periodo de prueba.
+    --
+    -- Ambos casos son OBLIGATORIOS — si no se puede crear la suscripcion, la funcion
+    -- falla con error explicito y hace rollback de todo lo creado hasta ese punto.
+    -- 'VENCIDA' no se guarda: se deriva de vence_el en fn_estado_suscripcion.
+    FOR v_sub IN
+        SELECT s.plan_id, s.estado, s.periodo_contratado, s.vence_el
+        FROM suscripciones s
+        JOIN negocios n ON n.id = s.negocio_id
+        WHERE n.propietario_usuario_id = v_propietario_id
+          AND n.id <> v_negocio_id
+        ORDER BY s.created_at DESC
+        LIMIT 1
+    LOOP
+        v_sub_plan_id  := v_sub.plan_id;
+        v_sub_estado   := v_sub.estado;
+        v_sub_periodo  := v_sub.periodo_contratado;
+        v_sub_vence_el := v_sub.vence_el;
+    END LOOP;
+
+    -- UNA fila de suscripcion por negocio (negocio_id es UNIQUE). El negocio es recien
+    -- creado, asi que no existe fila previa; el INSERT directo basta. No se registra pago
+    -- aqui: el trial / la herencia no son cobros (el historial vive en suscripcion_pagos).
+    IF v_sub_plan_id IS NOT NULL THEN
+        -- Caso A — heredar la suscripcion vigente del propietario.
+        IF v_sub_vence_el IS NULL THEN
+            RAISE EXCEPTION 'onboarding_error: La suscripcion existente del propietario no tiene fecha de vencimiento. Corrija la suscripcion antes de crear una sucursal.';
+        END IF;
+        INSERT INTO suscripciones (negocio_id, plan_id, estado, periodo_contratado, inicia_el, vence_el)
+        VALUES (v_negocio_id, v_sub_plan_id, v_sub_estado, COALESCE(v_sub_periodo, 'MENSUAL'), NOW(), v_sub_vence_el);
+    ELSE
+        -- Caso B — primer negocio: siempre arranca en TRIAL con el plan PRO.
+        -- PRO es el plan de entrada del producto — no es configurable por el propietario.
+        v_plan_basico_id := (SELECT id        FROM planes WHERE codigo = 'PRO' AND activo = TRUE);
+        v_trial_dias     := (SELECT trial_dias FROM planes WHERE codigo = 'PRO' AND activo = TRUE);
+
+        IF v_plan_basico_id IS NULL THEN
+            RAISE EXCEPTION 'onboarding_error: El plan PRO no existe o esta desactivado. El superadmin debe verificar la configuracion de planes antes de continuar.';
+        END IF;
+
+        INSERT INTO suscripciones (negocio_id, plan_id, estado, inicia_el, vence_el)
+        VALUES (
+            v_negocio_id,
+            v_plan_basico_id,
+            'TRIAL',
+            NOW(),
+            NOW() + (COALESCE(v_trial_dias, 0) || ' days')::INTERVAL
+        );
+    END IF;
+
+    -- ── 9. Secuencias de comprobantes ──
+    INSERT INTO secuencias_comprobantes (negocio_id, tipo_documento, ultimo_valor) VALUES
+    (v_negocio_id, 'TICKET',     0),
+    (v_negocio_id, 'NOTA_VENTA', 0),
+    (v_negocio_id, 'FACTURA',    0),
+    (v_negocio_id, 'RECARGA',    0)
+    ON CONFLICT (negocio_id, tipo_documento) DO NOTHING;
+
+    -- ── 10. Cliente "Consumidor Final" ──
+    INSERT INTO clientes (negocio_id, nombre, es_consumidor_final)
+    VALUES (v_negocio_id, 'Consumidor Final', TRUE)
+    ON CONFLICT DO NOTHING;
+
+    RETURN json_build_object(
+        'success',        TRUE,
+        'negocio_id',     v_negocio_id,
+        'usuario_id',     v_usuario_id,
+        'propietario_id', v_propietario_id
+    );
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) FROM authenticated;
+GRANT  EXECUTE ON FUNCTION public.fn_completar_onboarding(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, DECIMAL, DECIMAL, VARCHAR) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';

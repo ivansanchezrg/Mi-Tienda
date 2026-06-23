@@ -1,18 +1,24 @@
 -- ==========================================
 -- FUNCIÓN: fn_registrar_compra_saldo_bus
--- VERSIÓN: 4.0
--- FECHA: 2026-03-03
+-- VERSIÓN: 4.1
+-- FECHA: 2026-06-22
 -- ==========================================
--- CAMBIOS v4.0 — Ganancia BUS como deuda pendiente de cobro:
---   pagado        = false  → ganancia pendiente de cobrar al proveedor
---   pagado        = true   → ganancia ya cobrada (via liquidar_ganancias_bus)
---   monto_a_pagar = p_monto  → monto completo pagado al proveedor (mismo que monto_virtual)
---   ganancia      = 0  → no se guarda por fila; se calcula al liquidar como ROUND(SUM(monto_a_pagar)*comision%, 2)
---   fecha_pago, operacion_pago_id = NULL (se setean cuando se liquida el mes)
+-- CAMBIOS v4.1 — Fix: BUS nace con pagado_proveedor=true (alineado con fn_liquidar_ganancias v2.0+):
+--   El modelo se unificó hace tiempo (fn_liquidar_ganancias v2.0: "CELULAR unificado con BUS",
+--   ambos servicios filtran pagado_proveedor=true AND ganancia_liquidada=false para liquidar),
+--   pero esta función seguía insertando pagado_proveedor=false (modelo viejo, con una etapa
+--   de "deuda pendiente de cobro" que ya no existe — nunca hay un fn_pagar_proveedor_bus que
+--   la pase a true). Resultado: ninguna fila BUS era liquidable jamás — fn_liquidar_ganancias
+--   siempre respondía "No hay ganancias BUS pendientes de liquidar" aunque el modal mostrara
+--   un monto pendiente > 0.
+--   pagado_proveedor = true desde el INSERT → la ganancia queda disponible para liquidar
+--   de inmediato (BUS no tiene paso intermedio de "pagar al proveedor", a diferencia de
+--   CELULAR que sí lo tiene vía fn_pagar_proveedor_celular).
 --
---   La liquidación mensual (liquidar_ganancias_bus) hace:
---     ROUND(SUM(monto_a_pagar) WHERE tipo=BUS AND pagado=false AND fecha IN mes, 2)
---     + TRANSFERENCIA CAJA_BUS → CAJA_CHICA (atómica con UPDATE pagado=true)
+-- HEREDA DE v4.0 — Ganancia BUS guardada por fila (no se recalcula al liquidar):
+--   monto_a_pagar        = p_monto  → monto completo pagado al proveedor (mismo que monto_virtual)
+--   ganancia             = ROUND(p_monto * comision%, 2), calculada y guardada en el INSERT
+--   fecha_pago_proveedor, operacion_pago_id = NULL (sin uso real — no hay etapa de pago a proveedor en BUS)
 --
 -- CAMBIOS v3.1 — Fix timestamp mini cierre:
 --   recargas_virtuales usa clock_timestamp() en lugar de NOW() para garantizar
@@ -39,12 +45,13 @@
 
 DROP FUNCTION IF EXISTS public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT);
 DROP FUNCTION IF EXISTS public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC);
+DROP FUNCTION IF EXISTS public.fn_registrar_compra_saldo_bus(DATE, UUID, NUMERIC, TEXT, NUMERIC);
 
 CREATE OR REPLACE FUNCTION public.fn_registrar_compra_saldo_bus(
   p_fecha                 DATE,
-  p_empleado_id           INTEGER,
+  p_empleado_id           UUID,
   p_monto                 NUMERIC,
-  p_observaciones                 TEXT    DEFAULT NULL,
+  p_observaciones         TEXT    DEFAULT NULL,
   p_saldo_virtual_maquina NUMERIC DEFAULT NULL
 )
 RETURNS JSON
@@ -53,12 +60,14 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  v_negocio_id               UUID;
   -- IDs de tablas de referencia
-  v_caja_bus_id              INTEGER;
+  v_caja_bus_id              UUID;
   v_tipo_bus_id              INTEGER;
   v_tipo_ref_rv_id           INTEGER;  -- tipos_referencia 'recargas_virtuales'
   v_tipo_ref_recargas_id     INTEGER;  -- tipos_referencia 'recargas'
-  v_categoria_eg011_id       INTEGER;
+  -- UUID fijo de categorias_sistema para COMPRA-BUS
+  v_categoria_eg011_id       CONSTANT UUID := 'a1000001-0000-0000-0000-000000000012';
 
   -- Saldos
   v_saldo_anterior           NUMERIC;   -- CAJA_BUS antes de cualquier operación
@@ -72,6 +81,10 @@ DECLARE
   v_operacion_egreso_id      UUID;
   v_recarga_id               UUID;
 
+  -- Ganancia
+  v_comision_pct              NUMERIC;
+  v_ganancia                  NUMERIC;
+
   -- Para cálculo de ventas acumuladas
   v_saldo_ultimo_cierre_bus   NUMERIC;
   v_fecha_ultimo_cierre_bus   TIMESTAMP;
@@ -80,16 +93,24 @@ DECLARE
   v_venta_bus_hoy             NUMERIC;
   v_disponible_total          NUMERIC;
 BEGIN
+  PERFORM public.fn_assert_no_superadmin();
+
+  v_negocio_id := public.get_negocio_id();
+  IF v_negocio_id IS NULL THEN
+    RAISE EXCEPTION 'No hay negocio activo en el JWT';
+  END IF;
 
   -- ==========================================
   -- INICIALIZACIÓN — obtener IDs y configuración
   -- ==========================================
 
-  SELECT id INTO v_caja_bus_id FROM cajas WHERE codigo = 'CAJA_BUS';
-  SELECT id INTO v_tipo_bus_id FROM tipos_servicio WHERE codigo = 'BUS';
-  SELECT id INTO v_tipo_ref_rv_id       FROM tipos_referencia WHERE tabla = 'recargas_virtuales';
-  SELECT id INTO v_tipo_ref_recargas_id FROM tipos_referencia WHERE tabla = 'recargas';
-  SELECT id INTO v_categoria_eg011_id   FROM categorias_operaciones WHERE codigo = 'EG-011';
+  v_caja_bus_id          := (SELECT id FROM cajas WHERE codigo = 'CAJA_BUS' AND negocio_id = v_negocio_id);
+  v_tipo_bus_id          := (SELECT id FROM tipos_servicio WHERE codigo = 'BUS');
+  v_comision_pct         := (SELECT porcentaje_comision FROM tipos_servicio WHERE codigo = 'BUS');
+  v_ganancia             := ROUND(p_monto * v_comision_pct / 100.0, 2);
+  v_tipo_ref_rv_id       := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas_virtuales');
+  v_tipo_ref_recargas_id := (SELECT id FROM tipos_referencia WHERE tabla = 'recargas');
+  -- v_categoria_eg011_id: CONSTANT declarada en DECLARE (UUID fijo de categorias_sistema)
 
   IF v_caja_bus_id IS NULL THEN
     RAISE EXCEPTION 'Caja CAJA_BUS no encontrada';
@@ -100,14 +121,14 @@ BEGIN
   END IF;
 
   IF v_categoria_eg011_id IS NULL THEN
-    RAISE EXCEPTION 'Categoría operación EG-011 no encontrada';
+    RAISE EXCEPTION 'Categoría COMPRA-BUS no encontrada en categorias_sistema';
   END IF;
 
   IF p_monto <= 0 THEN
     RAISE EXCEPTION 'El monto de compra debe ser mayor a cero';
   END IF;
 
-  SELECT saldo_actual INTO v_saldo_anterior FROM cajas WHERE id = v_caja_bus_id;
+  v_saldo_anterior := (SELECT saldo_actual FROM cajas WHERE id = v_caja_bus_id);
 
   -- ==========================================
   -- VALIDACIÓN Y CÁLCULO DE VENTAS
@@ -117,24 +138,38 @@ BEGIN
 
     -- Calcula saldo virtual del sistema (mismo algoritmo que getSaldoVirtualActual TypeScript)
     -- Usa el último registro de `recargas` como base (puede ser cierre completo o mini cierre)
-    SELECT COALESCE(r.saldo_virtual_actual, 0), r.created_at
-    INTO v_saldo_ultimo_cierre_bus, v_fecha_ultimo_cierre_bus
-    FROM recargas r
-    JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
-    WHERE ts.codigo = 'BUS'
-    ORDER BY r.created_at DESC
-    LIMIT 1;
+    v_saldo_ultimo_cierre_bus := (
+      SELECT COALESCE(r.saldo_virtual_actual, 0)
+      FROM recargas r
+      JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
+      WHERE ts.codigo = 'BUS'
+        AND r.negocio_id = v_negocio_id
+      ORDER BY r.created_at DESC
+      LIMIT 1
+    );
+
+    v_fecha_ultimo_cierre_bus := (
+      SELECT r.created_at
+      FROM recargas r
+      JOIN tipos_servicio ts ON r.tipo_servicio_id = ts.id
+      WHERE ts.codigo = 'BUS'
+        AND r.negocio_id = v_negocio_id
+      ORDER BY r.created_at DESC
+      LIMIT 1
+    );
 
     IF v_saldo_ultimo_cierre_bus IS NULL THEN
       v_saldo_ultimo_cierre_bus  := 0;
       v_fecha_ultimo_cierre_bus  := '1900-01-01'::timestamp;
     END IF;
 
-    SELECT COALESCE(SUM(rv.monto_virtual), 0)
-    INTO v_suma_recargas_post_cierre
-    FROM recargas_virtuales rv
-    WHERE rv.tipo_servicio_id = v_tipo_bus_id
-      AND rv.created_at > v_fecha_ultimo_cierre_bus;
+    v_suma_recargas_post_cierre := (
+      SELECT COALESCE(SUM(rv.monto_virtual), 0)
+      FROM recargas_virtuales rv
+      WHERE rv.tipo_servicio_id = v_tipo_bus_id
+        AND rv.negocio_id = v_negocio_id
+        AND rv.created_at > v_fecha_ultimo_cierre_bus
+    );
 
     v_saldo_virtual_sistema := v_saldo_ultimo_cierre_bus + v_suma_recargas_post_cierre;
     v_venta_bus_hoy         := GREATEST(v_saldo_virtual_sistema - p_saldo_virtual_maquina, 0);
@@ -161,13 +196,19 @@ BEGIN
 
   IF v_venta_bus_hoy > 0 THEN
 
-    -- Requiere turno abierto para crear el snapshot en `recargas`
-    SELECT id INTO v_turno_id
-    FROM turnos_caja
-    WHERE (hora_fecha_apertura AT TIME ZONE 'America/Guayaquil')::date = p_fecha
-      AND hora_fecha_cierre IS NULL
-    ORDER BY hora_fecha_apertura DESC
-    LIMIT 1;
+    -- Requiere turno abierto para crear el snapshot en `recargas`.
+    -- 🔒 Multi-tenant: filtrar por negocio_id (faltaba antes — podía traer turno de otro tenant).
+    -- ⚡ Performance: usar ventana UTC en vez de AT TIME ZONE en WHERE (rompe el índice).
+    v_turno_id := (
+      SELECT id
+      FROM turnos_caja
+      WHERE negocio_id = v_negocio_id
+        AND hora_fecha_apertura >= (p_fecha::TIMESTAMP        AT TIME ZONE 'America/Guayaquil')
+        AND hora_fecha_apertura <  ((p_fecha + 1)::TIMESTAMP  AT TIME ZONE 'America/Guayaquil')
+        AND hora_fecha_cierre IS NULL
+      ORDER BY hora_fecha_apertura DESC
+      LIMIT 1
+    );
 
     IF v_turno_id IS NULL THEN
       RAISE EXCEPTION
@@ -181,30 +222,34 @@ BEGIN
     -- Snapshot parcial en `recargas`
     -- ON CONFLICT: si ya hubo un mini cierre en este turno+BUS, acumula las ventas
     -- El cierre diario (ejecutar_cierre_diario) tiene el mismo ON CONFLICT para cerrar el día
+    -- saldo_caja: saldo de CAJA_BUS tras sumar las ventas del día (antes de descontar la compra)
     INSERT INTO recargas (
-      id, fecha, turno_id, empleado_id, tipo_servicio_id,
-      venta_dia, saldo_virtual_anterior, saldo_virtual_actual
+      id, negocio_id, fecha, turno_id, empleado_id, tipo_servicio_id,
+      venta_dia, saldo_virtual_anterior, saldo_virtual_actual, saldo_caja
     ) VALUES (
-      v_mini_cierre_id, p_fecha, v_turno_id, p_empleado_id, v_tipo_bus_id,
-      v_venta_bus_hoy, v_saldo_virtual_sistema, p_saldo_virtual_maquina
+      v_mini_cierre_id, v_negocio_id, p_fecha, v_turno_id, p_empleado_id, v_tipo_bus_id,
+      v_venta_bus_hoy, v_saldo_virtual_sistema, p_saldo_virtual_maquina,
+      v_saldo_anterior + v_venta_bus_hoy  -- CAJA_BUS después del ingreso de ventas
     )
     ON CONFLICT (turno_id, tipo_servicio_id) DO UPDATE SET
       venta_dia            = recargas.venta_dia + EXCLUDED.venta_dia,
-      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual
-    RETURNING id INTO v_mini_cierre_id;
+      saldo_virtual_actual = EXCLUDED.saldo_virtual_actual,
+      saldo_caja           = EXCLUDED.saldo_caja;
+
+    v_mini_cierre_id := (SELECT id FROM recargas WHERE turno_id = v_turno_id AND tipo_servicio_id = v_tipo_bus_id);
 
     -- INGRESO CAJA_BUS por ventas acumuladas
     -- Referencia al snapshot en `recargas` para trazabilidad (igual que el cierre diario)
     v_saldo_despues_ingreso := v_saldo_anterior + v_venta_bus_hoy;
 
     INSERT INTO operaciones_cajas (
-      id, fecha, caja_id, empleado_id,
+      id, negocio_id, fecha, caja_id, empleado_id,
       tipo_operacion, monto,
       saldo_anterior, saldo_actual,
       tipo_referencia_id, referencia_id,
       descripcion
     ) VALUES (
-      v_operacion_ingreso_id, NOW(), v_caja_bus_id, p_empleado_id,
+      v_operacion_ingreso_id, v_negocio_id, NOW(), v_caja_bus_id, p_empleado_id,
       'INGRESO', v_venta_bus_hoy,
       v_saldo_anterior, v_saldo_despues_ingreso,
       v_tipo_ref_recargas_id, v_mini_cierre_id,
@@ -226,13 +271,13 @@ BEGIN
 
   -- EGRESO debe existir ANTES de recargas_virtuales (FK: operacion_pago_id)
   INSERT INTO operaciones_cajas (
-    id, fecha, caja_id, empleado_id,
+    id, negocio_id, fecha, caja_id, empleado_id,
     tipo_operacion, monto,
     saldo_anterior, saldo_actual,
-    categoria_id, tipo_referencia_id, referencia_id,
+    categoria_sistema_id, tipo_referencia_id, referencia_id,
     descripcion
   ) VALUES (
-    v_operacion_egreso_id, NOW(), v_caja_bus_id, p_empleado_id,
+    v_operacion_egreso_id, v_negocio_id, NOW(), v_caja_bus_id, p_empleado_id,
     'EGRESO', p_monto,
     v_saldo_despues_ingreso, v_saldo_nuevo,
     v_categoria_eg011_id, v_tipo_ref_rv_id, v_recarga_id,
@@ -240,14 +285,16 @@ BEGIN
   );
 
   INSERT INTO recargas_virtuales (
-    id, fecha, tipo_servicio_id, empleado_id,
+    id, negocio_id, fecha, tipo_servicio_id, empleado_id,
     monto_virtual, monto_a_pagar, ganancia,
-    pagado, observaciones, created_at
-    -- fecha_pago, operacion_pago_id: NULL hasta que se liquide el mes
+    pagado_proveedor, observaciones, created_at
+    -- fecha_pago_proveedor, operacion_pago_id: sin uso real en BUS (no hay etapa de pago a proveedor)
   ) VALUES (
-    v_recarga_id, p_fecha, v_tipo_bus_id, p_empleado_id,
-    p_monto, p_monto, 0,
-    false, p_observaciones, clock_timestamp()
+    v_recarga_id, v_negocio_id, p_fecha, v_tipo_bus_id, p_empleado_id,
+    p_monto, p_monto, v_ganancia,
+    true, p_observaciones, clock_timestamp()
+    -- pagado_proveedor=true: BUS no tiene paso intermedio, la ganancia queda disponible
+    -- de inmediato para fn_liquidar_ganancias (ver CAMBIOS v4.1 arriba).
     -- clock_timestamp() avanza en tiempo real (NOW() es estable en transacción)
     -- Garantiza created_at > snapshot del mini cierre → getSaldoVirtualActual lo cuenta correctamente
   );
@@ -276,22 +323,20 @@ BEGIN
         'Compra saldo Bus $' || p_monto
     END
   );
-
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE EXCEPTION 'Error al registrar compra saldo bus: %', SQLERRM;
 END;
 $$;
 
 COMMENT ON FUNCTION public.fn_registrar_compra_saldo_bus IS
-'v4.0 - Ganancia BUS como deuda pendiente: pagado=false, monto_a_pagar=monto_completo, ganancia=0.
-La liquidación (liquidar_ganancias_bus) calcula ROUND(SUM(monto_a_pagar)*comision%, 2) WHERE pagado=false,
-transfiere ese total de CAJA_BUS→CAJA_CHICA y marca pagado=true en una transacción atómica.
+'v4.1 - Fix: pagado_proveedor=true desde el INSERT (antes false, dejaba las filas BUS
+permanentemente fuera del filtro de fn_liquidar_ganancias, que exige pagado_proveedor=true
+para ambos servicios desde su v2.0). BUS no tiene etapa de pago a proveedor — la ganancia
+queda disponible para liquidar de inmediato.
+v4.0 - Ganancia BUS guardada por fila: monto_a_pagar=monto_completo, ganancia=ROUND(monto*comision%,2).
 v3.1 - Fix timestamp: clock_timestamp() garantiza created_at > snapshot del mini cierre.
 v3.0 - Mini cierre integrado: con p_saldo_virtual_maquina y ventas > 0 crea snapshot
 en recargas (ON CONFLICT acumula) + INGRESO por ventas + EGRESO por compra. CAJA_BUS nunca negativa.';
 
-REVOKE EXECUTE ON FUNCTION public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) FROM anon;
-GRANT EXECUTE ON FUNCTION public.fn_registrar_compra_saldo_bus(DATE, INTEGER, NUMERIC, TEXT, NUMERIC) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_registrar_compra_saldo_bus(DATE, UUID, NUMERIC, TEXT, NUMERIC) FROM anon;
+GRANT EXECUTE ON FUNCTION public.fn_registrar_compra_saldo_bus(DATE, UUID, NUMERIC, TEXT, NUMERIC) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

@@ -1,35 +1,65 @@
-.list-container {
-    padding: var(--spacing-md) var(--spacing-lg);
+:host {
+    --clientes-bg:         var(--app-bg);
+    --clientes-card-bg:    var(--app-surface);
+    --clientes-surface:    var(--app-surface-tint);
+    --clientes-divider:    var(--app-divider);
+    --clientes-text:       var(--app-text);
+    --clientes-text-soft:  var(--app-text-soft);
+    --clientes-text-muted: var(--app-text-muted);
 }
 
-// ── Lista de clientes ──────────────────────────
+ion-content {
+    --background: var(--clientes-bg);
+}
+
+ion-toolbar {
+    --background: var(--clientes-bg);
+    --border-width: 0;
+    --color: var(--clientes-text);
+
+    ion-searchbar {
+        --background: var(--clientes-card-bg);
+        --box-shadow: none;
+        --border-radius: var(--radius-sm);
+        --color: var(--clientes-text);
+        --placeholder-color: var(--clientes-text-muted);
+        --icon-color: var(--clientes-text-soft);
+    }
+}
+
+.list-container {
+    padding: var(--spacing-md) var(--spacing-md);
+}
+
+// ── Lista ───────────────────────────────────────
 .client-list {
     background: transparent;
     padding: 0;
 }
 
 .client-item {
-    --background: var(--ion-item-background);
+    --background: var(--clientes-card-bg);
     --padding-start: 12px;
     --inner-padding-end: 12px;
     --padding-top: 10px;
     --padding-bottom: 10px;
     --min-height: 64px;
-    border-radius: 12px;
+    border-radius: var(--radius-md);
+
     margin-bottom: var(--spacing-sm);
-    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0,0,0,.08));
+    box-shadow: var(--shadow-level-1);
 
     h3 {
         font-size: 15px;
-        font-weight: 600;
-        margin: 0 0 2px 0;
-        color: var(--ion-text-color);
+        font-weight: var(--font-weight-semibold);
+        margin: 0 0 3px 0;
+        color: var(--clientes-text);
     }
 
     .client-meta {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
+        gap: 10px;
         margin: 0;
     }
 
@@ -38,24 +68,15 @@
         align-items: center;
         gap: 4px;
         font-size: 12px;
-        color: var(--ion-color-medium);
+        color: var(--clientes-text-soft);
 
-        ion-icon {
-            font-size: 13px;
-            flex-shrink: 0;
-        }
+        ion-icon { font-size: 12px; flex-shrink: 0; }
     }
 
-    .no-info {
-        font-size: 12px;
-        color: var(--ion-color-medium);
-        margin: 0;
-        font-style: italic;
-    }
-
-    .edit-icon {
-        font-size: 18px;
-        opacity: 0.5;
+    .deuda-meta {
+        font-size: 11px;
+        color: var(--clientes-text-soft);
+        margin: 2px 0 0 0;
     }
 }
 
@@ -63,21 +84,59 @@
 .client-avatar {
     width: 40px;
     height: 40px;
-    border-radius: 50%;
-    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    border-radius: var(--radius-full);
+    background: var(--clientes-surface);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     margin-right: 10px;
+    transition: background var(--transition-fast);
 
-    ion-icon {
-        font-size: 20px;
-        color: var(--ion-color-primary);
+    .avatar-text {
+        font-size: 15px;
+        font-weight: var(--font-weight-bold);
+        color: var(--clientes-text-soft);
+        text-transform: uppercase;
+    }
+
+    // Avatar en color primario cuando el cliente tiene deuda
+    &.tiene-deuda {
+        background: rgba(var(--ion-color-primary-rgb), 0.12);
+
+        .avatar-text { color: var(--ion-color-primary); }
     }
 }
 
-// ── Scroll to top FAB ───────────────────────────
+// ── Extremo derecho ──────────────────────────────
+.client-end {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+
+    .deuda-badge {
+        font-size: 15px;
+        font-weight: var(--font-weight-bold);
+        color: var(--ion-color-danger);
+        letter-spacing: -0.3px;
+    }
+
+    .chevron-icon {
+        font-size: 16px;
+        color: var(--clientes-text-muted);
+    }
+}
+
+// ── Skeleton end ─────────────────────────────────
+.end-skeleton {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 4px;
+}
+
+// ── FAB ──────────────────────────────────────────
 .scroll-top-fab {
-    margin-bottom: env(safe-area-inset-bottom);
+    margin-bottom: 0;
 }

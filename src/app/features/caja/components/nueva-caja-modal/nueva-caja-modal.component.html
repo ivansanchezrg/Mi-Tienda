@@ -1,0 +1,135 @@
+<div class="bs-root">
+
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      @if (modoEdicion) {
+        <ion-icon name="create-outline"></ion-icon>
+      } @else {
+        <ion-icon name="add-circle-outline"></ion-icon>
+      }
+    </div>
+    <span class="bs-header__title">{{ modoEdicion ? 'Editar caja' : 'Nueva caja' }}</span>
+    <button class="bs-header__close" (click)="cancelar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <form class="bs-body" [formGroup]="form">
+
+      <!-- Nombre -->
+      <div class="field-group">
+        <span class="field-label">Nombre <span class="badge-required">Obligatorio</span></span>
+        <input
+          class="text-input"
+          type="text"
+          placeholder="Ej: Caja extra, Reserva..."
+          formControlName="nombre"
+          maxlength="50">
+        @if (form.get('nombre')?.touched && form.get('nombre')?.invalid) {
+          <span class="field-error">Ingresa un nombre para la caja</span>
+        }
+      </div>
+
+      <!-- Descripción -->
+      <div class="field-group">
+        <span class="field-label">Descripción <span class="badge-optional">Opcional</span></span>
+        <input
+          class="text-input"
+          type="text"
+          placeholder="¿Para qué es esta caja?"
+          formControlName="descripcion"
+          maxlength="50">
+      </div>
+
+      <!-- Apariencia -->
+      <div class="field-group">
+        <span class="field-label">Apariencia</span>
+
+        <!-- Preview -->
+        <div class="appearance-preview">
+          <div class="preview-icon" [style.background]="form.get('color')?.value">
+            <ion-icon [name]="form.get('icono')?.value"></ion-icon>
+          </div>
+          <div class="preview-info">
+            @if (form.get('nombre')?.value) {
+              <span class="preview-name">{{ form.get('nombre')?.value }}</span>
+            }
+            <span class="preview-sub">{{ form.get('descripcion')?.value || 'Vista previa' }}</span>
+          </div>
+        </div>
+
+        <!-- Color -->
+        <span class="picker-label">Color</span>
+        <div class="color-grid">
+          @for (op of colorOptions; track op.value) {
+            <button
+              type="button"
+              class="color-option"
+              [class.color-option--selected]="form.get('color')?.value === op.value"
+              [style.background]="op.value"
+              (click)="seleccionarColor(op.value)"
+              [attr.aria-label]="op.label">
+            </button>
+          }
+        </div>
+
+        <!-- Ícono -->
+        <span class="picker-label">Ícono</span>
+        <div class="icon-grid">
+          @for (op of iconOptionsVisible; track op.value) {
+            <button
+              type="button"
+              class="icon-option"
+              [class.icon-option--selected]="form.get('icono')?.value === op.value"
+              (click)="seleccionarIcono(op.value)">
+              <ion-icon [name]="op.value"></ion-icon>
+            </button>
+          }
+        </div>
+
+        @if (tieneExtra) {
+          <button type="button" class="toggle-icons-btn" (click)="toggleIconos()">
+            <ion-icon [name]="iconosExpandidos ? 'chevron-up-outline' : 'chevron-down-outline'"></ion-icon>
+            {{ iconosExpandidos ? 'Ver menos' : 'Ver más íconos' }}
+          </button>
+        }
+      </div>
+
+      <!-- Saldo inicial — solo en modo creación -->
+      @if (!modoEdicion) {
+        <div class="field-group">
+          <span class="field-label">Saldo inicial <span class="badge-optional">Opcional</span></span>
+          <div class="amount-row">
+            <span class="amount-currency">$</span>
+            <input
+              type="number"
+              inputmode="decimal"
+              placeholder="0.00"
+              formControlName="saldoInicial"
+              appCurrencyInput
+              appNumbersOnly>
+          </div>
+        </div>
+      }
+
+    </form>
+  </div>
+
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" [disabled]="guardando" (click)="cancelar()">Cancelar</ion-button>
+    <ion-button
+      expand="block"
+      color="primary"
+      [disabled]="form.invalid || guardando"
+      (click)="confirmar()">
+      @if (guardando) {
+        <ion-spinner name="crescent" slot="start"></ion-spinner>
+        {{ modoEdicion ? 'Guardando...' : 'Creando...' }}
+      } @else {
+        {{ modoEdicion ? 'Guardar cambios' : 'Crear caja' }}
+      }
+    </ion-button>
+  </div>
+
+</div>

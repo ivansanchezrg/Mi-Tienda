@@ -8,5 +8,9 @@ export const VENTAS_ROUTES: Routes = [
   {
     path: 'resumen',
     loadComponent: () => import('./pages/resumen/ventas-resumen.page').then(m => m.VentasResumenPage)
+  },
+  {
+    path: 'pendientes',
+    loadComponent: () => import('./pages/pendientes/ventas-pendientes.page').then(m => m.VentasPendientesPage)
   }
 ];

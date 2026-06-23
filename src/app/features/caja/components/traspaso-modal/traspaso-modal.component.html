@@ -1,0 +1,160 @@
+<div class="bs-root">
+
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="swap-horizontal-outline"></ion-icon>
+    </div>
+    <div class="tm-header-text">
+      <span class="bs-header__title tm-title">
+        Traspaso entre cajas
+        <ion-icon name="swap-horizontal-outline" class="tm-title__icon"></ion-icon>
+      </span>
+      <span class="tm-header-subtitle">Mueve dinero de una caja a otra</span>
+    </div>
+    <button class="bs-header__close" (click)="cancelar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <form class="bs-body" [formGroup]="form">
+
+      <!-- Desde -->
+      <div class="field-group">
+        <span class="field-label">Desde</span>
+        <div class="caja-scroll" appHorizontalScroll>
+          @for (caja of cajasDisponibles; track caja.id) {
+            <button
+              type="button"
+              class="caja-mini-card"
+              [class.caja-mini-card--selected]="form.get('origenId')?.value === caja.id"
+              [class.caja-mini-card--dimmed]="form.get('destinoId')?.value === caja.id"
+              [attr.data-origen-id]="caja.id"
+              (click)="seleccionarOrigen(caja)">
+              <div class="caja-mini-card__icon" [style.background]="caja.color || 'var(--ion-color-primary)'">
+                @if (caja.codigo === 'CAJA_CHICA') {
+                  <ion-icon name="file-tray-outline"></ion-icon>
+                } @else if (caja.codigo === 'VARIOS') {
+                  <ion-icon name="archive-outline"></ion-icon>
+                } @else if (caja.icono) {
+                  <ion-icon [name]="caja.icono"></ion-icon>
+                } @else {
+                  <ion-icon name="cash-outline"></ion-icon>
+                }
+              </div>
+              <div class="caja-mini-card__info">
+                <span class="caja-mini-card__name">{{ caja.nombre }}</span>
+                <span class="caja-mini-card__saldo">${{ caja.saldo_actual | appCurrency }}</span>
+              </div>
+              @if (form.get('origenId')?.value === caja.id) {
+                <ion-icon name="checkmark-circle" class="caja-mini-card__check"></ion-icon>
+              }
+            </button>
+          }
+        </div>
+        <div class="scroll-hint">🖱 Scroll para ver más</div>
+      </div>
+
+      <!-- Flecha separadora -->
+      <div class="transfer-arrow">
+        <ion-icon name="arrow-down-outline"></ion-icon>
+      </div>
+
+      <!-- Hacia -->
+      <div class="field-group">
+        <span class="field-label">Hacia</span>
+        @if (!form.get('origenId')?.value) {
+          <p class="caja-scroll__hint">Elige primero la caja origen</p>
+        } @else {
+          <div class="caja-scroll" appHorizontalScroll>
+            @for (caja of cajasDestino; track caja.id) {
+              <button
+                type="button"
+                class="caja-mini-card"
+                [class.caja-mini-card--selected]="form.get('destinoId')?.value === caja.id"
+                [attr.data-destino-id]="caja.id"
+                (click)="seleccionarDestino(caja)">
+                <div class="caja-mini-card__icon" [style.background]="caja.color || 'var(--ion-color-primary)'">
+                  @if (caja.codigo === 'CAJA_CHICA') {
+                    <ion-icon name="file-tray-outline"></ion-icon>
+                  } @else if (caja.codigo === 'VARIOS') {
+                    <ion-icon name="archive-outline"></ion-icon>
+                  } @else if (caja.icono) {
+                    <ion-icon [name]="caja.icono"></ion-icon>
+                  } @else {
+                    <ion-icon name="cash-outline"></ion-icon>
+                  }
+                </div>
+                <div class="caja-mini-card__info">
+                  <span class="caja-mini-card__name">{{ caja.nombre }}</span>
+                  <span class="caja-mini-card__saldo">${{ caja.saldo_actual | appCurrency }}</span>
+                </div>
+                @if (form.get('destinoId')?.value === caja.id) {
+                  <ion-icon name="checkmark-circle" class="caja-mini-card__check"></ion-icon>
+                }
+              </button>
+            }
+          </div>
+          <div class="scroll-hint">🖱 Scroll para ver más</div>
+        }
+      </div>
+
+      <!-- Monto -->
+      <div class="field-group">
+        <span class="field-label">Monto</span>
+        <div class="amount-row" [class.amount-row--error]="montoExcedeSaldo">
+          <span class="amount-currency">$</span>
+          <input
+            type="number"
+            inputmode="decimal"
+            placeholder="0.00"
+            formControlName="monto"
+            appCurrencyInput
+            appNumbersOnly>
+        </div>
+        @if (montoExcedeSaldo) {
+          <span class="field-error">
+            Saldo insuficiente en origen (${{ saldoOrigen | appCurrency }})
+          </span>
+        } @else if (mostrarPreview) {
+          <div class="traspaso-preview">
+            <div class="traspaso-preview__row">
+              <span>{{ nombreOrigen }}</span>
+              <span>quedará en <strong>${{ saldoOrigenDespues | appCurrency }}</strong></span>
+            </div>
+            <div class="traspaso-preview__row">
+              <span>{{ nombreDestino }}</span>
+              <span>quedará en <strong>${{ saldoDestinoDespues | appCurrency }}</strong></span>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Descripción -->
+      <div class="field-group">
+        <span class="field-label">Descripción <span class="badge-optional">Opcional</span></span>
+        <textarea
+          placeholder="¿Por qué realizas este traspaso?"
+          formControlName="descripcion"
+          rows="2">
+        </textarea>
+      </div>
+
+    </form>
+  </div>
+
+  <div class="bs-actions bs-actions--row">
+    <ion-button expand="block" fill="outline" color="medium" [disabled]="guardando" (click)="cancelar()">Cancelar</ion-button>
+    <ion-button
+      expand="block"
+      color="primary"
+      [disabled]="form.invalid || montoExcedeSaldo || guardando"
+      (click)="confirmar()">
+      @if (guardando) {
+        <ion-spinner name="crescent" slot="start"></ion-spinner>
+      }
+      Traspasar
+    </ion-button>
+  </div>
+
+</div>

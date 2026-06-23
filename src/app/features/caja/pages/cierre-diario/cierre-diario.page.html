@@ -1,0 +1,378 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Cierre Diario</ion-title>
+  </ion-toolbar>
+  <ion-progress-bar [value]="pasoActual / totalPasos"></ion-progress-bar>
+</ion-header>
+
+<ion-content [appScrollReset]="pasoActual">
+  <div class="wizard-container">
+    <div class="step-indicator">
+      <span>Paso {{ pasoActual }} de {{ totalPasos }}</span>
+    </div>
+
+    <!-- ==========================================
+         PASO 1: Datos del Turno (3 inputs)
+         ========================================== -->
+    @if (pasoActual === 1) {
+    <div class="paso">
+      <div class="paso-header">
+        <h2>Datos del Turno</h2>
+        <p>{{ subtituloPaso1 }}</p>
+      </div>
+
+      @if (cargandoDatos) {
+      <div class="cierre-loading">
+        <ion-spinner name="crescent"></ion-spinner>
+        <p>Cargando datos del turno...</p>
+      </div>
+      }
+
+      @if (!cargandoDatos) {
+      <form [formGroup]="cierreForm">
+        <ion-list class="input-list">
+
+          <!-- Saldo Virtual Celular -->
+          @if (recargasCelularHabilitada) {
+          <ion-item class="input-item">
+            <ion-icon slot="start" name="phone-portrait-outline" class="item-icon celular"></ion-icon>
+            <ion-label position="stacked">
+              <strong>Saldo Virtual Celular</strong>
+              <ion-note>Virtual: ${{ saldoVirtualActualCelular | appCurrency }}</ion-note>
+            </ion-label>
+            <div class="input-wrapper">
+              <span class="currency-prefix">$</span>
+              <ion-input appNumbersOnly appCurrencyInput formControlName="saldoVirtualCelularFinal"
+                type="text" inputmode="decimal" placeholder="0.00">
+              </ion-input>
+            </div>
+          </ion-item>
+
+          @if (ventaCelular < 0 && cierreForm.get('saldoVirtualCelularFinal')?.value) {
+          <div class="alerta-simple danger">
+            <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+            <div>
+              <p><strong>⚠️ Venta negativa: -${{ -ventaCelular | appCurrency }}</strong></p>
+              <p>Registra la recarga del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
+            </div>
+          </div>
+          }
+          }
+
+          <!-- Saldo Virtual Bus -->
+          @if (recargasBusHabilitada) {
+          <ion-item class="input-item">
+            <ion-icon slot="start" name="bus-outline" class="item-icon bus"></ion-icon>
+            <ion-label position="stacked">
+              <strong>Saldo Virtual Bus</strong>
+              <ion-note>Virtual: ${{ saldoVirtualActualBus | appCurrency }}</ion-note>
+            </ion-label>
+            <div class="input-wrapper">
+              <span class="currency-prefix">$</span>
+              <ion-input appNumbersOnly appCurrencyInput formControlName="saldoVirtualBusFinal"
+                type="text" inputmode="decimal" placeholder="0.00">
+              </ion-input>
+            </div>
+          </ion-item>
+
+          @if (ventaBus < 0 && cierreForm.get('saldoVirtualBusFinal')?.value) {
+          <div class="alerta-simple danger">
+            <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+            <div>
+              <p><strong>⚠️ Venta negativa: -${{ -ventaBus | appCurrency }}</strong></p>
+              <p>Registra la recarga del proveedor en <strong>Recargas Virtuales</strong> antes de cerrar.</p>
+            </div>
+          </div>
+          }
+          }
+
+          <!-- Efectivo Contado en Cajón -->
+          <ion-item class="input-item">
+            <ion-icon slot="start" name="file-tray-outline" class="item-icon efectivo"></ion-icon>
+            <ion-label position="stacked">
+              <strong>Total en cajón</strong>
+            </ion-label>
+            <div class="input-wrapper destacado">
+              <span class="currency-prefix">$</span>
+              <ion-input appNumbersOnly appCurrencyInput formControlName="efectivoFisico"
+                type="text" inputmode="decimal" placeholder="0.00">
+              </ion-input>
+            </div>
+          </ion-item>
+
+        </ion-list>
+      </form>
+
+      <div class="paso-actions">
+        <ion-button expand="block" size="large" (click)="siguientePaso()"
+          [disabled]="(recargasCelularHabilitada && cierreForm.get('saldoVirtualCelularFinal')?.invalid) || (recargasBusHabilitada && cierreForm.get('saldoVirtualBusFinal')?.invalid) || cierreForm.get('efectivoFisico')?.invalid || hayVentaNegativa">
+          Ver Resumen
+          <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
+        </ion-button>
+      </div>
+      }
+    </div>
+    }
+
+    <!-- ==========================================
+         PASO 2: Resumen y Confirmación
+         ========================================== -->
+    @if (pasoActual === 2) {
+    <div class="paso">
+      <div class="paso-header">
+        <h2>Resumen del Cierre</h2>
+        <p>Revisa los valores y confirma el cierre del turno</p>
+      </div>
+
+      <!-- ── Card 1: Cajón Físico ─────────────────────────────────── -->
+      <ion-card class="resumen-card">
+        <ion-card-header>
+          <ion-card-title>
+            <ion-icon name="file-tray-outline"></ion-icon>
+            Cajón Físico
+          </ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <div class="cajon-body">
+
+            <!-- Movimientos del turno (solo si hubo) -->
+            @if (ventasPosEfectivo > 0 || otrosIngresos > 0 || egresos > 0) {
+            <div class="cajon-section">
+              <p class="cajon-section-label">Movimientos del cajón</p>
+              @if (ventasPosEfectivo > 0) {
+              <div class="cajon-row">
+                <span class="cajon-row-label">Ventas POS en efectivo</span>
+                <span class="cajon-row-valor">+${{ ventasPosEfectivo | appCurrency }}</span>
+              </div>
+              }
+              @if (otrosIngresos > 0) {
+              <div class="cajon-row">
+                <span class="cajon-row-label">Ingresos manuales</span>
+                <span class="cajon-row-valor">+${{ otrosIngresos | appCurrency }}</span>
+              </div>
+              }
+              @if (egresos > 0) {
+              <div class="cajon-row">
+                <span class="cajon-row-label">Gastos del turno</span>
+                <span class="cajon-row-valor negativo">−${{ egresos | appCurrency }}</span>
+              </div>
+              }
+            </div>
+            <div class="cajon-divider"></div>
+            }
+
+            <!-- Conteo -->
+            <div class="cajon-section">
+              <p class="cajon-section-label">Conteo esperado</p>
+              @if (esModoSinPos) {
+              <div class="cajon-row">
+                <span class="cajon-row-label">Fondo inicial</span>
+                <span class="cajon-row-valor">${{ fondoApertura | appCurrency }}</span>
+              </div>
+              <div class="cajon-row cajon-row--total">
+                <span class="cajon-row-label">Total contado</span>
+                <span class="cajon-row-valor primary">${{ efectivoFisico | appCurrency }}</span>
+              </div>
+              } @else {
+              <div class="cajon-row">
+                <span class="cajon-row-label">Acumulado en cajón</span>
+                <span class="cajon-row-valor">${{ saldoCajaChicaDigital | appCurrency }}</span>
+              </div>
+              <div class="cajon-row">
+                <span class="cajon-row-label">Fondo con que abriste</span>
+                <span class="cajon-row-valor">${{ fondoApertura | appCurrency }}</span>
+              </div>
+              <div class="cajon-row cajon-row--total">
+                <span class="cajon-row-label">Deberías tener</span>
+                <span class="cajon-row-valor primary">${{ efectivoEsperado | appCurrency }}</span>
+              </div>
+              }
+            </div>
+
+            <!-- Resultado del conteo — solo en Modo A (con POS) donde el sistema conoce el esperado real -->
+            @if (!esModoSinPos) {
+              @if (!hasDiferencia) {
+              <div class="cajon-resultado cajon-resultado--ok">
+                <ion-icon name="checkmark-circle-outline"></ion-icon>
+                <div>
+                  <span class="cajon-resultado-titulo">Cajón cuadrado</span>
+                  <span class="cajon-resultado-sub">Contaste exactamente lo esperado</span>
+                </div>
+                <span class="cajon-resultado-monto">${{ efectivoFisico | appCurrency }}</span>
+              </div>
+              } @else if (diferencia < 0) {
+              <div class="cajon-resultado cajon-resultado--faltante">
+                <ion-icon name="alert-circle-outline"></ion-icon>
+                <div>
+                  <span class="cajon-resultado-titulo">Faltante de ${{ -diferencia | appCurrency }}</span>
+                  <span class="cajon-resultado-sub">Contaste ${{ efectivoFisico | appCurrency }} · se registra como deuda</span>
+                </div>
+              </div>
+              } @else {
+              <div class="cajon-resultado cajon-resultado--sobrante">
+                <ion-icon name="information-circle-outline"></ion-icon>
+                <div>
+                  <span class="cajon-resultado-titulo">Sobrante de +${{ diferencia | appCurrency }}</span>
+                  <span class="cajon-resultado-sub">Contaste ${{ efectivoFisico | appCurrency }}</span>
+                </div>
+              </div>
+              }
+            }
+
+          </div>
+        </ion-card-content>
+      </ion-card>
+
+      <!-- ── Card 2: Saldos al Cierre ─────────────────────────────── -->
+      <ion-card class="resumen-card">
+        <ion-card-header>
+          <ion-card-title>
+            <ion-icon name="calculator-outline"></ion-icon>
+            Saldos al Cierre
+          </ion-card-title>
+        </ion-card-header>
+        <ion-card-content class="saldos-content">
+
+          <!-- TIENDA -->
+          <div class="saldo-fila">
+            <div class="saldo-icono tienda">
+              <ion-icon name="storefront-outline"></ion-icon>
+            </div>
+            <div class="saldo-info">
+              <span class="saldo-nombre">Tienda</span>
+              @if (depositoPreviewCaja > 0) {
+                <div class="saldo-ecuacion">
+                  <span class="saldo-anterior">${{ saldoAnteriorCaja | appCurrency }}</span>
+                  <span class="saldo-delta">+${{ depositoPreviewCaja | appCurrency }}</span>
+                  <span class="saldo-monto highlight">${{ saldoFinalCaja | appCurrency }}</span>
+                </div>
+              } @else {
+                <div class="saldo-ecuacion">
+                  <span class="saldo-anterior">${{ saldoAnteriorCaja | appCurrency }}</span>
+                  <span class="saldo-badge-neutral">sin cambio</span>
+                </div>
+              }
+            </div>
+          </div>
+
+          @if (variosActiva) {
+          <div class="saldo-fila" [class.saldo-fila--con-aviso]="hayDeficitPreview">
+            <div class="saldo-icono varios" [class.varios--warning]="hayDeficitPreview">
+              @if (hayDeficitPreview) {
+                <ion-icon name="alert-circle-outline"></ion-icon>
+              } @else {
+                <ion-icon name="shield-checkmark-outline"></ion-icon>
+              }
+            </div>
+            <div class="saldo-info">
+              <span class="saldo-nombre">Varios</span>
+              @if (transferenciaPreviewVarios > 0) {
+                <div class="saldo-ecuacion">
+                  <span class="saldo-anterior">${{ saldoAnteriorVarios | appCurrency }}</span>
+                  <span class="saldo-delta">+${{ transferenciaPreviewVarios | appCurrency }}</span>
+                  <span class="saldo-monto highlight">${{ saldoFinalVarios | appCurrency }}</span>
+                </div>
+              } @else if (transferenciaCajaChicaYaHecha) {
+                <div class="saldo-ecuacion">
+                  <span class="saldo-anterior">${{ saldoAnteriorVarios | appCurrency }}</span>
+                  <span class="saldo-badge-neutral">ya recibió hoy</span>
+                </div>
+              } @else if (hayDeficitPreview) {
+                <div class="saldo-ecuacion">
+                  <span class="saldo-anterior">${{ saldoAnteriorVarios | appCurrency }}</span>
+                  <span class="saldo-badge-neutral saldo-badge--warning">sin cambio hoy</span>
+                </div>
+                <span class="saldo-deficit-hint">Efectivo insuficiente para transferir ${{ transferenciaDiariaVarios | appCurrency }}</span>
+              } @else {
+                <div class="saldo-ecuacion">
+                  <span class="saldo-anterior">${{ saldoAnteriorVarios | appCurrency }}</span>
+                  <span class="saldo-badge-neutral">sin cambio</span>
+                </div>
+              }
+            </div>
+          </div>
+          }
+
+          @if (recargasCelularHabilitada) {
+          <div class="saldo-fila">
+            <div class="saldo-icono celular">
+              <ion-icon name="phone-portrait-outline"></ion-icon>
+            </div>
+            <div class="saldo-info">
+              <span class="saldo-nombre">Celular</span>
+              @if (ventaCelular > 0) {
+                <div class="saldo-ecuacion">
+                  <span class="saldo-anterior">${{ saldoAnteriorCajaCelular | appCurrency }}</span>
+                  <span class="saldo-delta">+${{ ventaCelular | appCurrency }}</span>
+                  <span class="saldo-monto highlight">${{ saldoFinalCajaCelular | appCurrency }}</span>
+                </div>
+              } @else {
+                <div class="saldo-ecuacion">
+                  <span class="saldo-anterior">${{ saldoAnteriorCajaCelular | appCurrency }}</span>
+                  <span class="saldo-badge-neutral">sin cambio</span>
+                </div>
+              }
+            </div>
+          </div>
+          }
+
+          @if (recargasBusHabilitada) {
+          <div class="saldo-fila saldo-fila--last">
+            <div class="saldo-icono bus">
+              <ion-icon name="bus-outline"></ion-icon>
+            </div>
+            <div class="saldo-info">
+              <span class="saldo-nombre">Bus</span>
+              @if (tieneDepositoAnticipadoBus || ventaBus > 0) {
+                <div class="saldo-ecuacion">
+                  <span class="saldo-anterior">${{ saldoAnteriorCajaBus | appCurrency }}</span>
+                  <span class="saldo-delta">+${{ ventaBus | appCurrency }}</span>
+                  <span class="saldo-monto highlight">${{ saldoFinalCajaBus | appCurrency }}</span>
+                </div>
+              } @else {
+                <div class="saldo-ecuacion">
+                  <span class="saldo-anterior">${{ saldoAnteriorCajaBus | appCurrency }}</span>
+                  <span class="saldo-badge-neutral">sin cambio</span>
+                </div>
+              }
+            </div>
+          </div>
+          }
+
+        </ion-card-content>
+      </ion-card>
+
+      <!-- Observaciones -->
+      <ion-card class="observaciones-card" [formGroup]="cierreForm">
+        <ion-card-header>
+          <ion-card-title>Observaciones (Opcional)</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <ion-item class="observaciones-item" lines="none">
+            <ion-textarea formControlName="observaciones"
+              placeholder="Agrega notas sobre el cierre del día..." rows="3" maxlength="500">
+            </ion-textarea>
+          </ion-item>
+        </ion-card-content>
+      </ion-card>
+
+      <div class="paso-actions">
+        <ion-button expand="block" fill="outline" (click)="volver()">
+          <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
+          Atrás
+        </ion-button>
+        <ion-button expand="block" color="success" [disabled]="cerrando" (click)="confirmarCierre()">
+          <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+          Cerrar Caja
+        </ion-button>
+      </div>
+    </div>
+    }
+
+  </div>
+</ion-content>

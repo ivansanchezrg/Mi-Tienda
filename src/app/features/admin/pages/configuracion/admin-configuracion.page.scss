@@ -1,0 +1,176 @@
+.admin-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  ion-icon {
+    font-size: 18px;
+    color: var(--ion-color-warning);
+  }
+}
+
+// Franja blanca estática bajo las tabs — fusiona las esquinas cóncavas.
+.admin-subheader {
+  background: var(--ion-item-background, #ffffff);
+  height: var(--spacing-md);
+}
+
+.cfg-wrap {
+  padding: var(--spacing-lg);
+}
+
+.cfg-label {
+  display: block;
+  margin: var(--spacing-lg) 0 var(--spacing-xs);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+
+  &:first-child { margin-top: 0; }
+  &--inline { margin: 0; }
+}
+
+.cfg-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid rgba(var(--ion-color-medium-rgb), 0.2);
+  border-radius: 12px;
+  background: var(--ion-item-background);
+  font-size: 14px;
+  color: var(--ion-text-color);
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus { border-color: var(--ion-color-primary); }
+  &::placeholder { color: var(--ion-color-medium); }
+}
+
+.cfg-hint {
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+}
+
+// WhatsApp con icono
+.cfg-wa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1.5px solid rgba(var(--ion-color-medium-rgb), 0.2);
+  border-radius: 12px;
+  background: var(--ion-item-background);
+
+  ion-icon {
+    font-size: 20px;
+    color: var(--ion-color-success);
+    flex-shrink: 0;
+  }
+
+  .cfg-input {
+    border: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+// ── Cuentas bancarias ────────────────────────────────
+.cfg-cuentas-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: var(--spacing-lg) 0 var(--spacing-sm);
+}
+
+.cfg-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(var(--ion-color-primary-rgb), 0.1);
+  color: var(--ion-color-primary);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+
+  ion-icon { font-size: 15px; }
+}
+
+.cfg-empty {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  text-align: center;
+  padding: var(--spacing-md);
+  background: var(--ion-item-background);
+  border-radius: 12px;
+  margin: 0;
+}
+
+.cfg-cuenta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--ion-item-background);
+  border-radius: 12px;
+  margin-bottom: var(--spacing-sm);
+
+  &__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__banco {
+    font-size: 14px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+  }
+
+  &__num {
+    font-size: 13px;
+    color: var(--ion-color-primary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  &__titular {
+    font-size: 12px;
+    color: var(--ion-color-medium);
+  }
+
+  &__acciones {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+
+    button {
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--ion-color-medium);
+      cursor: pointer;
+
+      ion-icon { font-size: 17px; }
+      &:active { background: rgba(var(--ion-color-medium-rgb), 0.12); }
+    }
+  }
+}
+
+// ── Footer guardar ───────────────────────────────────
+.cfg-footer {
+  ion-button {
+    margin: var(--spacing-md);
+    margin-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+  }
+}

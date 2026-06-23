@@ -36,9 +36,30 @@
 
         <div class="input-group">
           <label class="input-label">Nombre del negocio</label>
-          <input type="text" formControlName="negocio_nombre" autocomplete="off"
-            placeholder="Ej: Mi Tienda" maxlength="100">
-          <span class="input-hint">Aparece en comprobantes y estados de cuenta</span>
+          <input type="text" formControlName="nombre" autocomplete="off"
+            placeholder="Ej: Mi Tienda" maxlength="255">
+          <span class="input-hint">Aparece en el sidebar, comprobantes y estados de cuenta</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Teléfono</label>
+          <input type="tel" formControlName="telefono" autocomplete="off"
+            placeholder="Ej: 0999 123 456" maxlength="20">
+          <span class="input-hint">Opcional — se muestra en comprobantes y se usa para enviar resúmenes por WhatsApp</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Dirección</label>
+          <input type="text" formControlName="direccion" autocomplete="off"
+            placeholder="Ej: Av. Principal 123" maxlength="200">
+          <span class="input-hint">Opcional — se muestra en comprobantes</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Correo electrónico</label>
+          <input type="email" formControlName="correo_electronico" autocomplete="off"
+            placeholder="Ej: negocio@gmail.com" maxlength="100">
+          <span class="input-hint">Opcional — para envío de comprobantes y contacto SRI</span>
         </div>
 
         @if (tieneCambios['negocio']) {
@@ -50,43 +71,164 @@
         }
       </div>
 
-      <!-- ── SECCIÓN: CAJA ──────────────────────────────── -->
+      <!-- ── SECCIÓN: SRI (datos legales / facturación) ── -->
       <div class="section-card">
         <div class="section-header">
-          <ion-icon name="wallet-outline"></ion-icon>
-          <span>Caja</span>
+          <ion-icon name="document-text-outline"></ion-icon>
+          <span>Datos SRI</span>
         </div>
 
         <div class="input-group">
-          <label class="input-label">Fondo fijo diario</label>
-          <div class="input-with-prefix">
-            <span class="prefix">$</span>
-            <input type="number" inputmode="decimal" step="0.01" min="0"
-              formControlName="caja_fondo_fijo_diario" autocomplete="off">
-          </div>
-          <span class="input-hint">Efectivo que queda en caja para el día siguiente</span>
+          <label class="input-label">RUC</label>
+          <input type="text" formControlName="ruc" autocomplete="off"
+            placeholder="Ej: 0999999990001" maxlength="13" inputmode="numeric">
+          <span class="input-hint">13 dígitos — requerido para emitir facturas electrónicas</span>
+          @if (form.get('ruc')?.touched && form.get('ruc')?.invalid) {
+            <span class="input-error">El RUC debe tener exactamente 13 dígitos numéricos</span>
+          }
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Razón social</label>
+          <input type="text" formControlName="razon_social" autocomplete="off"
+            placeholder="Ej: SÁNCHEZ ROLANDO PEDRO" maxlength="300">
+          <span class="input-hint">Nombre legal tal como aparece en el RUC del SRI</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Nombre comercial</label>
+          <input type="text" formControlName="nombre_comercial" autocomplete="off"
+            placeholder="Ej: Panadería Rolando" maxlength="300">
+          <span class="input-hint">Nombre con que opera el negocio (puede ser igual a la razón social)</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Código de establecimiento</label>
+          <input type="text" formControlName="codigo_establecimiento" autocomplete="off"
+            placeholder="001" maxlength="3" inputmode="numeric">
+          <span class="input-hint">3 dígitos asignados por el SRI (usualmente 001)</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Código de punto de emisión</label>
+          <input type="text" formControlName="codigo_punto_emision" autocomplete="off"
+            placeholder="001" maxlength="3" inputmode="numeric">
+          <span class="input-hint">3 dígitos asignados por el negocio (usualmente 001)</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Ambiente SRI</label>
+          <select formControlName="ambiente_sri" class="select-native">
+            <option [value]="1">Pruebas</option>
+            <option [value]="2">Producción</option>
+          </select>
+          <span class="input-hint">Pruebas mientras configuras el sistema — Producción cuando estés listo para emitir</span>
         </div>
 
         <div class="input-group last">
-          <label class="input-label">Transferencia diaria a Varios</label>
-          <div class="input-with-prefix">
-            <span class="prefix">$</span>
-            <input type="number" inputmode="decimal" step="0.01" min="0"
-              formControlName="caja_varios_transferencia_dia" autocomplete="off">
-          </div>
-          <span class="input-hint">Monto fijo que se transfiere a Varios (fondo emergencia) en cada cierre</span>
+          <label class="toggle-row">
+            <span class="input-label">Obligado a llevar contabilidad</span>
+            <label class="toggle-switch">
+              <input type="checkbox" formControlName="obligado_contabilidad">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          <span class="input-hint">Requerido en el XML de las facturas electrónicas</span>
         </div>
 
-        @if (tieneCambios['caja']) {
-        <div id="footer-caja" class="section-footer">
-          <button type="button" class="section-save-btn" [disabled]="guardando['caja']" (click)="guardarSeccion('caja')">
-            @if (guardando['caja']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+        @if (tieneCambios['sri']) {
+        <div id="footer-sri" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardando['sri']" (click)="guardarSeccion('sri')">
+            @if (guardando['sri']) { <ion-spinner name="crescent"></ion-spinner> } Guardar
           </button>
         </div>
         }
       </div>
 
-      <!-- ── SECCIÓN: BUS ───────────────────────────────── -->
+      <!-- ── SECCIÓN: CAJA VARIOS (potestad del admin — reversible) ──────────────────── -->
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="archive-outline"></ion-icon>
+          <span>Caja Varios</span>
+        </div>
+
+        <div class="input-group" [class.last]="!variosActiva && !variosTieneCambios">
+          <label class="toggle-row">
+            <span class="input-label">Activar Caja Varios</span>
+            <label class="toggle-switch">
+              <input type="checkbox" [(ngModel)]="variosActiva" [ngModelOptions]="{standalone: true}" [disabled]="guardandoVarios">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          <span class="input-hint">Fondo de emergencia: en cada cierre se aparta un monto fijo del cajón a esta caja. Para desactivarla, su saldo debe estar en $0.</span>
+        </div>
+
+        @if (variosActiva) {
+        <div class="input-group last">
+          <label class="input-label">Monto diario a separar</label>
+          <div class="input-with-prefix">
+            <span class="prefix">$</span>
+            <input type="number" inputmode="decimal" step="0.01" min="0.01"
+              [(ngModel)]="variosMonto" [ngModelOptions]="{standalone: true}"
+              [disabled]="guardandoVarios" autocomplete="off" placeholder="0.00">
+          </div>
+          @if (variosMontoInvalido) {
+          <span style="font-size:11px;color:var(--ion-color-danger);padding:0 2px">Ingresa un monto mayor a $0</span>
+          } @else {
+          <span class="input-hint">Se descuenta del cajón automáticamente al cerrar el día</span>
+          }
+        </div>
+        }
+
+        @if (variosTieneCambios) {
+        <div id="footer-varios" class="section-footer">
+          <button type="button" class="section-save-btn" [disabled]="guardandoVarios || variosMontoInvalido" (click)="guardarVarios()">
+            @if (guardandoVarios) { <ion-spinner name="crescent"></ion-spinner> } Guardar
+          </button>
+        </div>
+        }
+      </div>
+
+      <!-- ── SECCIÓN: MÓDULOS — solo superadmin ──────────────────────────── -->
+      @if (esSuperadmin) {
+      <div class="section-card">
+        <div class="section-header">
+          <ion-icon name="apps-outline"></ion-icon>
+          <span>Módulos</span>
+        </div>
+
+        <div class="input-group">
+          <label class="toggle-row">
+            <span class="input-label">
+              <ion-icon name="phone-portrait-outline" style="vertical-align: middle; margin-right: 5px;"></ion-icon>
+              Recargas Celular
+            </span>
+            <label class="toggle-switch">
+              <input type="checkbox" [(ngModel)]="recargasCelularHabilitada" [ngModelOptions]="{standalone: true}" (ngModelChange)="guardarModulos()">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          <span class="input-hint">Habilita CAJA_CELULAR, historial de recargas y deudas con proveedor.</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="toggle-row">
+            <span class="input-label">
+              <ion-icon name="bus-outline" style="vertical-align: middle; margin-right: 5px;"></ion-icon>
+              Recargas Bus
+            </span>
+            <label class="toggle-switch">
+              <input type="checkbox" [(ngModel)]="recargasBusHabilitada" [ngModelOptions]="{standalone: true}" (ngModelChange)="guardarModulos()">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+          <span class="input-hint">Habilita CAJA_BUS, saldo virtual y liquidación de ganancias.</span>
+        </div>
+      </div>
+      }
+
+      <!-- ── SECCIÓN: BUS (solo si el módulo bus está habilitado) ── -->
+      @if (recargasBusHabilitada) {
       <div class="section-card">
         <div class="section-header">
           <ion-icon name="bus-outline"></ion-icon>
@@ -121,6 +263,7 @@
         </div>
         }
       </div>
+      }
 
       <!-- ── SECCIÓN: POS ──────────────────────────────────── -->
       <div class="section-card">
@@ -162,7 +305,7 @@
         </div>
         }
 
-        <div class="input-group last">
+        <div class="input-group">
           <label class="input-label">Tarifa IVA vigente</label>
           <div class="input-with-suffix">
             <input type="number" inputmode="numeric" step="1" min="1" max="100"
@@ -170,6 +313,20 @@
             <span class="suffix">%</span>
           </div>
           <span class="input-hint">Tasa de IVA para facturas (actualmente 15% en Ecuador). Cambiar solo si el SRI actualiza la tarifa.</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Tipo de comprobante</label>
+          <div class="comprobante-readonly">
+            @if (tipoComprobanteActual === 'TICKET') {
+              <span class="comprobante-badge comprobante-badge--ticket">Ticket</span>
+            } @else if (tipoComprobanteActual === 'NOTA_VENTA') {
+              <span class="comprobante-badge comprobante-badge--nota">Nota de Venta</span>
+            } @else {
+              <span class="comprobante-badge comprobante-badge--factura">Factura</span>
+            }
+          </div>
+          <span class="input-hint">Definido según el régimen tributario de tu negocio. Para cambiarlo, contacta al administrador del sistema.</span>
         </div>
 
         @if (tieneCambios['pos']) {
@@ -188,7 +345,7 @@
           <span>Nómina</span>
         </div>
 
-        <div class="input-group last">
+        <div class="input-group">
           <label class="input-label">Sueldo base mensual</label>
           <div class="input-with-prefix">
             <span class="prefix">$</span>
@@ -196,6 +353,16 @@
               formControlName="nomina_sueldo_base" autocomplete="off">
           </div>
           <span class="input-hint">Se precarga al pagar nómina. El admin puede ajustarlo antes de confirmar.</span>
+        </div>
+
+        <div class="input-group last">
+          <label class="input-label">Día de pago</label>
+          <div class="input-with-suffix">
+            <input type="number" inputmode="numeric" step="1" min="1" max="31"
+              formControlName="nomina_dia_pago" autocomplete="off">
+            <span class="suffix">del mes</span>
+          </div>
+          <span class="input-hint">Día del mes en que se realiza el pago de nómina</span>
         </div>
 
         @if (tieneCambios['nomina']) {

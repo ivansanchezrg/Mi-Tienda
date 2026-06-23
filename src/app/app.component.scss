@@ -1,0 +1,22 @@
+// El banner offline empuja el contenido en vez de montarse encima.
+// ion-app como columna flex: el banner ocupa su altura arriba y el
+// router-outlet toma el resto del alto disponible.
+ion-app {
+  display: flex;
+  flex-direction: column;
+}
+
+// Los banners son hijos de flujo normal — solo ocupan espacio cuando su
+// contenido interno aparece (con @if). flex-shrink:0 evita que se compriman.
+app-offline-banner,
+app-suscripcion-banner {
+  flex-shrink: 0;
+}
+
+// El router-outlet toma todo el alto restante. position:relative es
+// necesario porque Ionic posiciona las páginas en absolute dentro de él.
+ion-router-outlet {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}

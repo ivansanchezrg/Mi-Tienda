@@ -1,212 +1,176 @@
 # Mi Tienda
 
-Aplicación móvil híbrida para gestión de tienda minorista. Desarrollada con **Ionic Angular** y **Supabase** como backend, empaquetada como APK Android con Capacitor.
+App de gestion para tiendas minoristas. SaaS multi-tenant — una sola instancia sirve multiples negocios aislados via RLS.
 
-Incluye gestión de caja (sistema de 5 cajas), ventas POS, recargas virtuales (celular/bus), inventario y control de usuarios.
-
----
-
-## Tabla de Contenidos
-
-- [Stack Tecnológico](#stack-tecnológico)
-- [Módulos](#módulos)
-- [Requisitos Previos](#requisitos-previos)
-- [Instalación](#instalación)
-- [Configurar Credenciales](#configurar-credenciales)
-- [Desarrollo Local](#desarrollo-local)
-- [Build para Android](#build-para-android)
-- [Documentación](#documentación)
-- [Estructura del Proyecto](#estructura-del-proyecto)
+**No es un e-commerce.** Es una herramienta interna de administracion: caja, ventas POS, recargas de saldo celular/bus, inventario, creditos a clientes y nomina de empleados.
 
 ---
 
-## Stack Tecnológico
+## Stack
 
-| Componente    | Versión |
-| ------------- | ------- |
-| Ionic Angular | 8.x     |
-| Angular       | 20.x    |
-| Capacitor     | 8.x     |
-| Node.js       | 22.x    |
-| Supabase JS   | 2.x     |
-
----
-
-## Módulos
-
-| Módulo             | Estado           | Descripción                                                              |
-| ------------------ | ---------------- | ------------------------------------------------------------------------ |
-| Auth               | ✅ Completo       | Autenticación con Google OAuth via Supabase + Deep Links                 |
-| Dashboard          | ✅ Completo       | Home, apertura/cierre de caja, cuadre y operaciones (sistema de 5 cajas) |
-| Recargas Virtuales | ✅ Completo       | Gestión de saldo CELULAR/BUS, deudas, liquidaciones y comisiones         |
-| Usuarios           | ✅ Completo       | Gestión de usuarios y permisos                                           |
-| Inventario         | ✅ Completo       | Control de stock, kardex y categorías de productos                       |
-| POS                | ✅ Funcional      | Punto de venta con escáner de código de barras, cobro y anulación        |
-| Ventas             | ✅ Completo       | Listado paginado con filtros + resumen diario (tabs internas), detalle modal, anulación, estado cuenta FIADO |
-| Cuentas por Cobrar | ✅ Completo       | Ventas fiadas, abonos, estado de cuenta y comprobantes compartibles      |
-| Clientes           | ✅ Completo       | Listado paginado, búsqueda, creación con deduplicación por cédula, edición |
+| Componente | Version | Notas |
+|---|---|---|
+| Angular | 20.x | Standalone components siempre |
+| Ionic | 8.x | Modo `md` en todas las plataformas |
+| Capacitor | 8.x | APK Android (plataforma principal) |
+| Supabase JS | 2.x | Auth + DB + Storage + Realtime |
+| Node.js | 22.x | |
 
 ---
 
-## Requisitos Previos
-
-Asegúrate de tener instalado:
-
-- **Node.js 22+** — [nodejs.org](https://nodejs.org)
-- **Angular CLI** — `npm install -g @angular/cli`
-- **Ionic CLI** — `npm install -g @ionic/cli`
-- **Android Studio** (para build APK) — [developer.android.com/studio](https://developer.android.com/studio)
-- Una cuenta y proyecto creado en **[Supabase](https://supabase.com)**
-
----
-
-## Instalación
+## Setup de desarrollo
 
 ```bash
-# 1. Clonar el repositorio
-git clone https://github.com/tu-usuario/mi-tienda.git
-cd mi-tienda
-
-# 2. Instalar dependencias
 npm install
+npm start                   # web en http://localhost:8100
+npx cap run android         # APK en dispositivo/emulador
+```
+
+Crear `src/environments/environment.ts` a partir de `environment.example.ts` con las credenciales de Supabase.
+
+---
+
+## Arquitectura
+
+### Multi-tenant
+
+Cada negocio es un tenant aislado. El `negocio_id` viaja en el JWT y RLS filtra todas las tablas automaticamente. Nunca hardcodear un `negocio_id` en codigo.
+
+```
+Login Google
+  └─ validarUsuario()
+       ├── es_superadmin → /admin (sin negocio_id en JWT)
+       ├── sin negocios  → /onboarding
+       ├── 1 negocio     → /caja (JWT con negocio_id)
+       └── N negocios    → /auth/seleccionar-negocio → /caja
+```
+
+### Roles
+
+| Rol | Flag | Ruta | Acceso |
+|---|---|---|---|
+| Superadmin | `usuarios.es_superadmin = true` | `/admin` | Todos los negocios, sin escribir datos operativos |
+| Admin | `usuario_negocios.rol = 'ADMIN'` | `/caja` + rutas protegidas | Gestion completa del negocio |
+| Empleado | `usuario_negocios.rol = 'EMPLEADO'` | `/caja` + rutas basicas | Operaciones del dia |
+
+### Cajas (hasta 5 por negocio)
+
+| Codigo BD | Nombre UI | Rol | Tipo |
+|---|---|---|---|
+| `CAJA` | Tienda | Vault de depositos acumulados | Base |
+| `CAJA_CHICA` | Cajon | Efectivo del dia (ventas + recargas) | Base |
+| `VARIOS` | Varios | Fondo fijo de gastos | Opt-in |
+| `CAJA_CELULAR` | Celular | Saldo recargas celular | Solo superadmin |
+| `CAJA_BUS` | Bus | Saldo recargas bus | Solo superadmin |
+
+---
+
+## Modulos
+
+| Modulo | Ruta | Estado | Doc |
+|---|---|---|---|
+| Auth | `/auth` | Completo | [AUTH-README](docs/auth/AUTH-README.md) |
+| Admin (superadmin) | `/admin` | Completo | [ADMIN-README](docs/admin/ADMIN-README.md) |
+| Crear negocio (wizard) | `/crear-negocio` | Completo | [CREAR-NEGOCIO-README](docs/crear-negocio/CREAR-NEGOCIO-README.md) |
+| Caja | `/caja` | Completo (v5 — 5 cajas) | [DASHBOARD-README](docs/caja/DASHBOARD-README.md) |
+| Recargas virtuales | `/recargas-virtuales` | Completo | [RECARGAS-README](docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md) |
+| Usuarios (Equipo) | `/usuarios` | Completo | [USUARIOS-README](docs/usuarios/USUARIOS-README.md) |
+| Inventario | `/inventario` | Completo | [INVENTARIO-README](docs/inventario/INVENTARIO-README.md) |
+| POS | `/pos` | Completo | [POS-README](docs/pos/POS-README.md) |
+| Ventas | `/ventas` | Completo | [VENTAS-README](docs/ventas/VENTAS-README.md) |
+| Clientes y creditos | `/clientes` | Completo | [CLIENTES-README](docs/clientes/CLIENTES-README.md) |
+| Configuracion | `/configuracion` | Completo | [CONFIGURACION-README](docs/configuracion/CONFIGURACION-README.md) |
+| Movimientos empleados | `/movimientos-empleados` | En desarrollo | [MOV-EMPLEADOS-README](docs/movimientos-empleados/MOVIMIENTOS-EMPLEADOS-README.md) |
+
+---
+
+## Estructura de carpetas
+
+```
+src/app/
+├── core/
+│   ├── services/          # Supabase, UI, Config, Currency, Storage, Logger, Network
+│   ├── config/            # routes.config.ts, pagination.config.ts
+│   ├── guards/            # auth, public, role, superadmin, pending-changes
+│   └── utils/             # date.util.ts, cedula.util.ts
+├── features/              # Un directorio por modulo (pages/, services/, models/, components/)
+├── shared/
+│   ├── components/        # sidebar, options-modal, empty-state, options-menu
+│   ├── directives/        # currency-input, numbers-only, scroll-reset
+│   └── pages/             # PaginatedListPage<T> (clase base listas paginadas)
+└── environments/
+
+docs/
+├── setup/                 # schema.sql, 01_teardown, 02_rls, 03_functions, ORDEN_EJECUCION.txt
+├── auth/                  # Flujo de auth, guards, Realtime suspensiones
+├── caja/                  # Turnos, operaciones, cierre diario v5
+├── ventas/                # Listado, resumen, anulacion
+├── pos/                   # Flujo de venta, descuentos, escaner
+├── inventario/            # Productos, presentaciones, kardex
+├── clientes/              # Creditos, cuentas por cobrar
+├── recargas-virtuales/    # Celular/bus, liquidacion de ganancias
+├── usuarios/              # Equipo, transferencias, membresias
+├── movimientos-empleados/ # Cuenta corriente, nomina, adelantos
+├── configuracion/         # Parametros, categorias de operacion
+├── admin/                 # Panel superadmin, suspension de negocios
+├── onboarding/            # Wizard creacion de negocio
+├── notas/                 # Notas rapidas
+├── guides/                # ESTRUCTURA-PROYECTO.md, ARQUITECTURA.md
+└── DESIGN.md              # Sistema de diseno (colores, tipografia, componentes)
 ```
 
 ---
 
-## Configurar Credenciales
+## Reset de base de datos
 
-Las credenciales de Supabase **no están incluidas** en el repositorio por seguridad.
+Para ejecutar la BD desde cero en Supabase SQL Editor, seguir el orden en:
 
-```bash
-# Copiar el archivo de ejemplo
-cp src/environments/environment.example.ts src/environments/environment.ts
+```
+docs/setup/ORDEN_EJECUCION.txt
 ```
 
-Luego edita `src/environments/environment.ts` con tus credenciales reales:
-
-```typescript
-export const environment = {
-  production: false,
-  supabaseUrl: 'https://TU_PROYECTO.supabase.co',
-  supabaseKey: 'TU_ANON_KEY_AQUI'
-};
-```
-
-> Obtén estas credenciales en tu [Supabase Dashboard](https://supabase.com/dashboard) → Project Settings → API.
-> 
-> El `anon key` es seguro para usar en el cliente. La seguridad de los datos se gestiona mediante **Row Level Security (RLS)** en Supabase.
-
-Haz lo mismo para producción:
-
-```bash
-cp src/environments/environment.example.ts src/environments/environment.prod.ts
-# Edita environment.prod.ts y establece production: true
-```
+Resumen de pasos:
+1. `01_teardown.sql` — destruye todo (solo dev)
+2. `schema.sql` — tablas, ENUMs, vistas, seeds globales
+3. `02_rls.sql` — politicas Row Level Security
+4. `03_functions.sql` + `fn_assert_no_superadmin.sql` — funciones de setup
+5. Funciones de onboarding/tenancy
+6. Funciones de modulos (caja, inventario, pos, recargas, etc.)
+7. Vistas (`v_saldos_empleados`)
+8. Triggers externos
+9. Realtime (publicar tablas para websockets)
 
 ---
 
-## Desarrollo Local
+## Convenciones de codigo
 
-```bash
-# Iniciar servidor de desarrollo en el navegador
-npm start
-# → http://localhost:4200
-```
+### Angular
+- Standalone components siempre (`standalone: true`)
+- `inject()` en lugar de constructor para DI
+- `addIcons({})` en constructor para iconos Ionic
+- Rutas SIEMPRE via `ROUTES` de `core/config/routes.config.ts`
+- Fechas SIEMPRE via `getFechaLocal()` de `core/utils/date.util.ts`, nunca `toISOString()`
 
-> Algunas funcionalidades (cámara, notificaciones) solo están disponibles en el dispositivo nativo.
+### Ionic
+- Modo `md` en todas las plataformas
+- Sin `breakpoints` en modales con scroll interno (bloquea swipe en Android)
+- Sin `ActionSheetController`, `PopoverController` ni `ion-select` — usar `OptionsModalComponent`
 
----
-
-## Build para Android
-
-Conecta un dispositivo Android con **Depuración USB** habilitada, luego ejecuta:
-
-```bash
-# Build completo + sincronizar + instalar en dispositivo
-npm run android
-```
-
-Ese script equivale a:
-
-```bash
-npm run build          # Compila Angular → /www
-npx cap sync android   # Sincroniza con el proyecto Android
-npx cap run android    # Instala el APK en el dispositivo conectado
-```
-
-> **Primer uso:** Si ves el error `SDK location not found`, crea el archivo `android/local.properties`:
-> 
-> ```properties
-> sdk.dir=C\:\\Users\\TU_USUARIO\\AppData\\Local\\Android\\Sdk
-> ```
-> 
-> Reemplaza `TU_USUARIO` con tu nombre de usuario de Windows.
+### PostgreSQL (Supabase)
+- Todas las mutaciones multi-tabla via funcion RPC (`supabase.rpc('fn_nombre', params)`)
+- Asignacion de variables: `:= (SELECT ...)` — nunca `SELECT ... INTO variable`
+- Toda funcion de mutacion llama `PERFORM public.fn_assert_no_superadmin();` al inicio
+- `SECURITY DEFINER` + `SET search_path = public` en todas las funciones
+- IDs siempre `UUID`, nunca `INTEGER`
 
 ---
 
-## Documentación
+## Documentacion detallada
 
-### General
-
-| Documento                                              | Descripción                                                               |
-| ------------------------------------------------------ | ------------------------------------------------------------------------- |
-| [Configuración Inicial](docs/CONFIGURACION-INICIAL.md) | Guía paso a paso para configurar el proyecto desde cero                   |
-| [Estructura del Proyecto](docs/ESTRUCTURA-PROYECTO.md) | Organización de carpetas y convenciones de código                         |
-| [Sistema de Diseño](docs/DESIGN.md)                    | Design tokens, patrones UI y guía de componentes Ionic                    |
-| [Google OAuth Setup](docs/GOOGLE_OAUTH_SETUP.md)       | Configuración de Supabase + Google Cloud para OAuth                       |
-| [Schema SQL](docs/schema.sql)                          | Estructura completa de la base de datos (tablas, tipos, funciones)        |
-| [Core y Utilidades](docs/core/CORE-README.md)          | UiService, manejo de loading, formateo de moneda y utilidades compartidas |
-
-### Por Módulo
-
-| Módulo             | Documento                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------ |
-| Auth               | [AUTH-README.md](docs/auth/AUTH-README.md)                                           |
-| Dashboard          | [DASHBOARD-README.md](docs/dashboard/DASHBOARD-README.md)                            |
-| Recargas Virtuales | [RECARGAS-VIRTUALES-README.md](docs/recargas-virtuales/RECARGAS-VIRTUALES-README.md) |
-| Inventario         | [INVENTARIO-README.md](docs/inventario/INVENTARIO-README.md)                         |
-| POS                | [POS-README.md](docs/pos/POS-README.md)                                             |
-| Ventas             | [VENTAS-README.md](docs/ventas/VENTAS-README.md)                                    |
-| Cuentas por Cobrar | [CUENTAS-COBRAR-README.md](docs/cuentas-cobrar/CUENTAS-COBRAR-README.md)            |
-| Clientes           | [CLIENTES-README.md](docs/clientes/CLIENTES-README.md)                              |
-| Shared             | [SHARED-README.md](docs/shared/SHARED-README.md)                                    |
-| Arquitectura cajas | [ARQUITECTURA.md](docs/ARQUITECTURA.md)                                             |
-
----
-
-## Estructura del Proyecto
-
-```
-mi-tienda/
-├── src/
-│   ├── app/
-│   │   ├── core/               # Servicios globales (Supabase, UI, Auth)
-│   │   ├── features/           # Módulos de la aplicación
-│   │   │   ├── auth/
-│   │   │   ├── dashboard/
-│   │   │   ├── recargas-virtuales/
-│   │   │   ├── inventario/
-│   │   │   ├── pos/
-│   │   │   ├── ventas/
-│   │   │   ├── cuentas-cobrar/
-│   │   │   ├── clientes/
-│   │   │   ├── usuarios/
-│   │   │   └── configuracion/
-│   │   └── shared/             # Componentes y directivas reutilizables
-│   └── environments/
-│       ├── environment.example.ts   # Plantilla de credenciales (incluida en git)
-│       ├── environment.ts           # Credenciales desarrollo (NO en git)
-│       └── environment.prod.ts      # Credenciales producción (NO en git)
-├── docs/                       # Documentación por módulo
-├── android/                    # Proyecto Android nativo (Capacitor)
-└── capacitor.config.ts
-```
-
----
-
-## Seguridad
-
-- Los archivos `environment.ts` y `environment.prod.ts` están en `.gitignore` y **nunca deben subirse al repositorio**.
-- El acceso a los datos está protegido mediante **Row Level Security (RLS)** en Supabase.
-- La autenticación utiliza **Google OAuth** gestionado por Supabase.
-- Ver [Google OAuth Setup](docs/GOOGLE_OAUTH_SETUP.md) para la configuración completa.
+| Tema | Archivo |
+|---|---|
+| Guia de estructura y patrones | [ESTRUCTURA-PROYECTO.md](docs/guides/ESTRUCTURA-PROYECTO.md) |
+| Arquitectura de cajas | [ARQUITECTURA.md](docs/guides/ARQUITECTURA.md) |
+| Sistema de diseno | [DESIGN.md](docs/guides/DESIGN.md) |
+| Schema completo de BD | [schema.sql](docs/setup/schema.sql) |
+| Auditoria de produccion | [AUDITORIA-PRODUCCION-2026-05-07.md](docs/guides/AUDITORIA-PRODUCCION-2026-05-07.md) |

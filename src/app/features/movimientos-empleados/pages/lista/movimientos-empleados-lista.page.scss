@@ -42,6 +42,13 @@ ion-toolbar {
 // LISTA
 // ─────────────────────────────────────────
 
+.lista-hint {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  margin: 0 0 var(--spacing-sm);
+  text-align: center;
+}
+
 .empleados-list {
   background: transparent;
   padding: 0;

@@ -2,8 +2,8 @@ import { Component, Input, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-    IonContent, IonButton, IonIcon,
-    ModalController
+    IonButton, IonIcon,
+    AlertController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -12,6 +12,7 @@ import {
     alertCircleOutline
 } from 'ionicons/icons';
 import { CurrencyService } from '../../../../core/services/currency.service';
+import { Cliente } from '../../../clientes/models/cliente.model';
 
 type MetodoPago = 'EFECTIVO' | 'DEUNA' | 'TRANSFERENCIA' | 'FIADO';
 type Paso = 'metodo' | 'monto' | 'confirmar-fiado';
@@ -21,7 +22,7 @@ type Paso = 'metodo' | 'monto' | 'confirmar-fiado';
     templateUrl: './cobrar-modal.component.html',
     styleUrls: ['./cobrar-modal.component.scss'],
     standalone: true,
-    imports: [CommonModule, FormsModule, IonContent, IonButton, IonIcon]
+    imports: [CommonModule, FormsModule, IonButton, IonIcon]
 })
 export class CobrarModalComponent {
     @Input() total!: number;
@@ -30,11 +31,15 @@ export class CobrarModalComponent {
     @Input() descuentoPct = 0;
     @Input() totalArticulos!: number;
     @Input() iniciarEnEfectivo = false;
+    @Input() esConsumidorFinal = false;
+    /** Callback que abre el selector de cliente y retorna el cliente seleccionado (o null si canceló) */
+    @Input() onSeleccionarCliente!: () => Promise<Cliente | null>;
 
     @ViewChild('montoInput') montoInputRef!: ElementRef<HTMLInputElement>;
 
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
+    private alertCtrl = inject(AlertController);
 
     paso: Paso = 'metodo';
     metodoSeleccionado: MetodoPago | null = null;
@@ -54,7 +59,7 @@ export class CobrarModalComponent {
     }
 
     private focusInput() {
-        setTimeout(() => this.montoInputRef?.nativeElement?.focus(), 300);
+        setTimeout(() => this.montoInputRef?.nativeElement?.focus(), 50);
     }
 
     constructor() {
@@ -87,17 +92,47 @@ export class CobrarModalComponent {
 
     seleccionarMetodo(metodo: MetodoPago) {
         this.metodoSeleccionado = metodo;
+    }
+
+    async confirmarMetodo() {
+        if (!this.metodoSeleccionado) return;
+        const metodo = this.metodoSeleccionado;
+
+        if (metodo === 'FIADO' && this.esConsumidorFinal) {
+            await this.mostrarAlertFiadoSinCliente();
+            return;
+        }
 
         if (metodo === 'EFECTIVO') {
             this.paso = 'monto';
             setTimeout(() => this.focusInput(), 50);
         } else if (metodo === 'FIADO' && this.descuento > 0) {
-            // FIADO con descuento activo → paso de confirmación sin descuento
             this.paso = 'confirmar-fiado';
         } else {
-            // Para los demás métodos, confirmar directo
             this.modalCtrl.dismiss({ metodoPago: metodo, confirmado: true });
         }
+    }
+
+    private async mostrarAlertFiadoSinCliente() {
+        const alert = await this.alertCtrl.create({
+            header: 'Cliente requerido',
+            message: 'El fiado necesita un cliente identificado. No se puede registrar una deuda a Consumidor Final.',
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                {
+                    text: 'Seleccionar cliente',
+                    handler: async () => {
+                        const cliente = await this.onSeleccionarCliente();
+                        if (cliente && !cliente.es_consumidor_final) {
+                            this.esConsumidorFinal = false;
+                            // Re-intentar confirmar automáticamente con el cliente ya seleccionado
+                            await this.confirmarMetodo();
+                        }
+                    }
+                }
+            ]
+        });
+        await alert.present();
     }
 
     confirmarFiado() {

@@ -1,24 +1,23 @@
 import { Component, Input, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonInput, IonProgressBar,
+  IonContent, IonIcon, IonProgressBar,
   ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   closeOutline, checkmarkCircleOutline, walletOutline,
-  arrowForwardOutline, arrowBackOutline, alertCircleOutline
+  arrowForwardOutline, arrowBackOutline, alertCircleOutline,
+  informationCircleOutline, arrowForwardCircleOutline
 } from 'ionicons/icons';
-import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { MovimientosEmpleadosService } from '../../services/movimientos-empleados.service';
 import { AuthService } from '../../../auth/services/auth.service';
-import { UiService } from '../../../../core/services/ui.service';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { ConfigService } from '../../../../core/services/config.service';
 import {
-  PreviewNomina, InstruccionFisica, DetalleDescuento, TIPO_MOVIMIENTO_CONFIG
+  PreviewNomina, InstruccionFisica, TIPO_MOVIMIENTO_CONFIG,
+  ProporcionalInfo, CasoPagoNomina
 } from '../../models/movimiento-empleado.model';
 
 @Component({
@@ -27,107 +26,120 @@ import {
   styleUrls: ['./pagar-nomina-modal.component.scss'],
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
+    CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonInput, IonProgressBar,
-    CurrencyInputDirective
+    IonContent, IonIcon, IonProgressBar,
   ]
 })
 export class PagarNominaModalComponent implements OnInit {
 
-  @Input() empleadoId!: number;
+  @Input() empleadoId!: string;
   @Input() empleadoNombre = '';
 
   private modalCtrl = inject(ModalController);
   private service = inject(MovimientosEmpleadosService);
   private authService = inject(AuthService);
-  private ui = inject(UiService);
   private configService = inject(ConfigService);
-  public currencyService = inject(CurrencyService);
+  protected currencyService = inject(CurrencyService);
 
   readonly TIPO_CONFIG = TIPO_MOVIMIENTO_CONFIG;
 
   // Wizard state
   paso = 1;
-  totalPasos = 3;
+  totalPasos = 2;
 
-  // Paso 1: sueldo bruto
-  sueldoStr = '';
+  // Sueldo leído de config (o proporcional si fue transferido)
+  sueldoNumericoBase = 0;
   cargandoPreview = false;
 
-  // Paso 2: preview
+  // Paso 1: preview
   preview: PreviewNomina | null = null;
 
-  // Paso 3: confirmar
+  // Paso 2: confirmar
   guardando = false;
 
   // Resultado
   resultado: 'pendiente' | 'exito' | 'error' = 'pendiente';
+  casoPago: CasoPagoNomina | null = null;
   instrucciones: InstruccionFisica[] = [];
   liquidoPagado = 0;
+  arrastreMonto = 0;
   mensajeResultado = '';
   mensajeError = '';
+
+  // Info de proporcional — solo presente si el empleado fue transferido
+  proporcionalInfo: ProporcionalInfo | null = null;
 
   constructor() {
     addIcons({
       closeOutline, checkmarkCircleOutline, walletOutline,
-      arrowForwardOutline, arrowBackOutline, alertCircleOutline
+      arrowForwardOutline, arrowBackOutline, alertCircleOutline,
+      informationCircleOutline, arrowForwardCircleOutline
     });
   }
 
   async ngOnInit() {
-    const config = await this.configService.get();
-    if (config.nomina_sueldo_base > 0) {
-      this.sueldoStr = this.currencyService.format(config.nomina_sueldo_base);
+    this.cargandoPreview = true;
+    try {
+      await this._cargarPreview();
+    } finally {
+      this.cargandoPreview = false;
     }
   }
 
+  private async _cargarPreview() {
+    const config = await this.configService.get();
+    this.sueldoNumericoBase = config.nomina_sueldo_base;
+
+    // Proporcional y sueldo base en paralelo no es posible (proporcional necesita sueldoBase),
+    // pero sí podemos esperar proporcional antes de calcular preview para tener el sueldo correcto.
+    this.proporcionalInfo = await this.service.obtenerProporcional(
+      this.empleadoId, this.sueldoNumericoBase
+    );
+
+    // Preview recibe proporcionalInfo ya calculado — no duplica la lógica
+    this.preview = await this.service.calcularPreviewNomina(
+      this.empleadoId, this.sueldoNumerico, this.proporcionalInfo
+    );
+  }
+
   get sueldoNumerico(): number {
-    return this.currencyService.parse(this.sueldoStr);
+    return this.proporcionalInfo
+      ? this.proporcionalInfo.sueldoSugerido
+      : this.sueldoNumericoBase;
   }
 
   get progreso(): number {
     return this.paso / this.totalPasos;
   }
 
-  // ── Paso 1: Ingresar sueldo ──
+  // ── Paso 1: Resumen de descuentos ──
 
   async avanzarAPaso2() {
-    if (this.sueldoNumerico <= 0) {
-      await this.ui.showError('El sueldo debe ser mayor a cero');
-      return;
-    }
+    if (!this.preview || this.cargandoPreview) return;
 
+    // Refrescar preview antes de avanzar: puede haber habido un adelanto o ajuste
+    // entre que se abrió el modal y que el admin hace clic en "Pagar".
+    // Esto sincroniza el preview con lo que la función SQL va a calcular.
     this.cargandoPreview = true;
     try {
-      this.preview = await this.service.calcularPreviewNomina(
-        this.empleadoId, this.sueldoNumerico
-      );
-      this.paso = 2;
+      await this._cargarPreview();
     } finally {
       this.cargandoPreview = false;
     }
-  }
 
-  // ── Paso 2: Resumen de descuentos ──
-
-  avanzarAPaso3() {
     if (!this.preview) return;
-    // Si liquido <= 0, no hay paso 3 de instrucciones fisicas
+
+    // Si liquido <= 0, confirmar directo sin instrucciones fisicas
     if (this.preview.liquido <= 0) {
       this.confirmarPago();
       return;
     }
-    this.paso = 3;
+    this.paso = 2;
   }
 
   retrocederAPaso1() {
     this.paso = 1;
-    this.preview = null;
-  }
-
-  retrocederAPaso2() {
-    this.paso = 2;
   }
 
   // ── Paso 3: Confirmar con instrucciones fisicas ──
@@ -140,15 +152,27 @@ export class PagarNominaModalComponent implements OnInit {
       const usuario = await this.authService.getUsuarioActual();
       if (!usuario) return;
 
+      // Derivar fechas de periodo para trazabilidad
+      const periodoInicio = this.proporcionalInfo?.fechaDesde
+        ? new Date(this.proporcionalInfo.fechaDesde).toISOString().split('T')[0]
+        : undefined;
+      const periodoFin = this.proporcionalInfo?.fechaHasta
+        ? new Date(this.proporcionalInfo.fechaHasta).toISOString().split('T')[0]
+        : undefined;
+
       const res = await this.service.pagarNomina({
         empleadoId: usuario.id,
         beneficiarioId: this.empleadoId,
-        sueldoBase: this.sueldoNumerico
+        sueldoBase: this.sueldoNumerico,
+        periodoInicio,
+        periodoFin
       });
 
       if (res.success) {
+        this.casoPago = res.caso ?? null;
         this.instrucciones = res.instrucciones_fisicas ?? [];
         this.liquidoPagado = res.liquido_pagado ?? 0;
+        this.arrastreMonto = res.arrastre ?? 0;
         this.mensajeResultado = res.mensaje ?? '';
         this.resultado = 'exito';
       } else {
@@ -157,6 +181,17 @@ export class PagarNominaModalComponent implements OnInit {
       }
     } finally {
       this.guardando = false;
+    }
+  }
+
+  async reintentar() {
+    this.resultado = 'pendiente';
+    this.paso = 1;
+    this.cargandoPreview = true;
+    try {
+      await this._cargarPreview();
+    } finally {
+      this.cargandoPreview = false;
     }
   }
 

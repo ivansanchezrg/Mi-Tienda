@@ -11,8 +11,8 @@ import {
 import { addIcons } from 'ionicons';
 import { addOutline, lockClosedOutline, chevronForwardOutline } from 'ionicons/icons';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
-import { CategoriasOperacionesService } from '../../../dashboard/services/categorias-operaciones.service';
-import { CategoriaOperacion, CategoriaOperacionInsert } from '../../../dashboard/models/categoria-operacion.model';
+import { CategoriasOperacionesService } from '../../../caja/services/categorias-operaciones.service';
+import { CategoriaOperacion, CategoriaOperacionInsert } from '../../../caja/models/categoria-operacion.model';
 import { CategoriaOperacionModalComponent } from '../../components/categoria-operacion-modal/categoria-operacion-modal.component';
 import { UiService } from '@core/services/ui.service';
 
@@ -49,7 +49,7 @@ export class CategoriasOperacionesPage implements OnInit {
     addIcons({ addOutline, lockClosedOutline, chevronForwardOutline });
   }
 
-  ngOnInit() {
+  async ngOnInit() {
     this.cargarCategorias();
   }
 
@@ -82,7 +82,7 @@ export class CategoriasOperacionesPage implements OnInit {
     try {
       this.categorias = await this.service.getCategorias();
     } catch {
-      await this.ui.showError('Error al cargar las categorías. Verificá tu conexión.');
+      await this.ui.showError('Error al cargar las categorías. Verifica tu conexión.');
     } finally {
       this.loading = false;
     }
@@ -91,7 +91,6 @@ export class CategoriasOperacionesPage implements OnInit {
   // ── Tap en item ─────────────────────────────────────────────────────────────
 
   onItemClick(categoria: CategoriaOperacion) {
-    if (!categoria.seleccionable) return; // categorías del sistema: solo lectura
     this.abrirModalEditar(categoria);
   }
 

@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../../features/auth/services/auth.service';
-import { RolUsuario } from '../../features/auth/models/usuario_actual.model';
+import { RolUsuario } from '../../features/auth/models/usuario-actual.model';
 
 /**
  * Guard de roles. Verifica que el usuario tenga uno de los roles permitidos.
@@ -18,7 +18,7 @@ export const roleGuard = (rolesPermitidos: RolUsuario[]): CanActivateFn => async
   const usuario = await auth.getUsuarioActual();
 
   if (!usuario || !rolesPermitidos.includes(usuario.rol)) {
-    return router.createUrlTree(['/home']);
+    return router.createUrlTree(['/caja']);
   }
 
   return true;

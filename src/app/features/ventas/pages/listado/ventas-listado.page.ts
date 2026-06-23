@@ -11,7 +11,7 @@ import {
     IonSkeletonText,
     IonInfiniteScroll, IonInfiniteScrollContent,
     IonFab, IonFabButton,
-    ModalController, AlertController
+    ModalController, AlertController, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -25,9 +25,9 @@ import {
 import { VentasService } from '../../services/ventas.service';
 import { ShareVentaService } from '../../services/share-venta.service';
 import { AuthService } from '../../../auth/services/auth.service';
-import { TurnosCajaService } from '../../../dashboard/services/turnos-caja.service';
-import { RolUsuario } from '../../../auth/models/usuario_actual.model';
-import { TurnoCajaConEmpleado } from '../../../dashboard/models/turno-caja.model';
+import { TurnosCajaService } from '../../../caja/services/turnos-caja.service';
+import { RolUsuario } from '../../../auth/models/usuario-actual.model';
+import { TurnoCajaConEmpleado } from '../../../caja/models/turno-caja.model';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { Venta } from '../../models/venta.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -59,13 +59,13 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
         EmptyStateComponent
     ]
 })
-export class VentasListadoPage extends PaginatedListPage<Venta> implements OnInit, OnDestroy {
+export class VentasListadoPage extends PaginatedListPage<Venta> implements OnInit, OnDestroy, ViewWillEnter {
 
     private ventasService = inject(VentasService);
     private shareService  = inject(ShareVentaService);
     private authService = inject(AuthService);
     private turnosCajaService = inject(TurnosCajaService);
-    public currencyService = inject(CurrencyService);
+    protected currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
     private alertCtrl = inject(AlertController);
 
@@ -88,7 +88,8 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
 
     // Rol y usuario actual
     rolUsuario: RolUsuario | null = null;
-    usuarioId: number | null = null;
+    usuarioId: string | null = null;
+    esSuperadmin = false;
 
     // Filtro por turno (solo ADMIN)
     turnosDelDia: TurnoCajaConEmpleado[] = [];
@@ -140,6 +141,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         });
     }
 
+    /** Setup que corre una sola vez (la suscripción de búsqueda + datos del usuario). */
     async ngOnInit() {
         this.searchSub = this.search$
             .pipe(debounceTime(500), distinctUntilChanged())
@@ -147,8 +149,18 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         const usuario = await this.authService.getUsuarioActual();
         this.rolUsuario = usuario?.rol ?? null;
         this.usuarioId = usuario?.id ?? null;
+        this.esSuperadmin = usuario?.es_superadmin ?? false;
+    }
+
+    /**
+     * Carga la data fresca cada vez que se entra a la sección (Ionic cachea las páginas,
+     * así que ngOnInit solo corre una vez). Primera entrada → skeleton; re-entradas →
+     * refresco silencioso (la lista anterior se ve hasta que llega la fresca).
+     */
+    async ionViewWillEnter() {
+        const esPrimeraCarga = this.items.length === 0;
         await Promise.all([
-            this.cargar(),
+            this.cargar(!esPrimeraCarga),
             this.cargarTurnos()
         ]);
     }
@@ -182,9 +194,15 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         this.cargar();
     }
 
+    fechaPickerVisible = true;
+
     onFiltroClick(filtro: string) {
         this.filtroActivo = filtro;
         this.turnoSeleccionado = null;
+        // Resetear el IonDatetime a hoy destruyéndolo y recreándolo
+        this.fechaFiltro = getFechaLocal();
+        this.fechaPickerVisible = false;
+        setTimeout(() => { this.fechaPickerVisible = true; }, 0);
         if (filtro === 'hoy') {
             this.cargarTurnos();
         } else if (filtro !== 'custom') {
@@ -328,9 +346,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
         return 'receipt-outline';
     }
 
-    colorComprobante(tipo: string): string {
-        if (tipo === 'FACTURA') return 'tertiary';
-        if (tipo === 'NOTA_VENTA') return 'secondary';
+    colorComprobante(_tipo: string): string {
         return 'primary';
     }
 
@@ -348,7 +364,7 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
     }
 
     labelMetodoPago(metodo: string): string {
-        if (metodo === 'DEUNA') return 'Tarjeta';
+        if (metodo === 'DEUNA') return 'Deuna';
         if (metodo === 'TRANSFERENCIA') return 'Transfer.';
         if (metodo === 'FIADO') return 'Fiado';
         return 'Efectivo';

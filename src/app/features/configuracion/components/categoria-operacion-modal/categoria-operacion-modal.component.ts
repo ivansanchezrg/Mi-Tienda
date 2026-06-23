@@ -8,7 +8,7 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline } from 'ionicons/icons';
-import { CategoriaOperacion, CategoriaOperacionInsert } from '../../../dashboard/models/categoria-operacion.model';
+import { CategoriaOperacion, CategoriaOperacionInsert } from '../../../caja/models/categoria-operacion.model';
 
 @Component({
   selector: 'app-categoria-operacion-modal',

@@ -1,0 +1,167 @@
+<ion-content class="onboarding-content">
+  <div class="onboarding-wrapper">
+
+    <div class="onboarding-progress">
+      <ion-progress-bar [value]="progressValue"></ion-progress-bar>
+      <span class="step-label">{{ progressLabel }}</span>
+    </div>
+
+    <div class="onboarding-spacer"></div>
+
+    <div class="onboarding-header">
+      <div class="onboarding-icon onboarding-icon--logo">
+        <img src="assets/icon/logo.png" alt="NexoPOS" />
+      </div>
+      <h1 class="onboarding-title">{{ tituloPagina }}</h1>
+      <p class="onboarding-subtitle">{{ subtitulo }}</p>
+    </div>
+
+    @if (mode !== 'inicial') {
+    <div class="info-card">
+      <ion-icon name="information-circle-outline"></ion-icon>
+      <div>
+        <p>{{ infoBannerDescripcion }}</p>
+      </div>
+    </div>
+    }
+
+    <form [formGroup]="form" class="onboarding-form" (ngSubmit)="continuar()">
+
+      <div class="field-group">
+        <label class="field-label" for="ob-nombre">Nombre del negocio</label>
+        <input
+          id="ob-nombre"
+          type="text"
+          formControlName="nombre"
+          placeholder="Ej: Tienda Don Juan"
+          autocomplete="off"
+          maxlength="80"
+          [class.invalid]="nombreCtrl.touched && nombreCtrl.invalid">
+        @if (errorNombre) {
+          <span class="field-error">{{ errorNombre }}</span>
+        }
+      </div>
+
+      @if (esModoSuperadmin) {
+        <div class="field-group">
+          <label class="field-label" for="ob-admin-email">Email del administrador</label>
+          <input
+            id="ob-admin-email"
+            type="email"
+            formControlName="adminEmail"
+            placeholder="dueño@ejemplo.com"
+            autocomplete="off"
+            maxlength="100"
+            (blur)="verificarEmail()"
+            [class.invalid]="adminEmailCtrl.touched && adminEmailCtrl.invalid">
+          @if (errorAdminEmail) {
+            <span class="field-error">{{ errorAdminEmail }}</span>
+          }
+
+          <!-- Estados de verificación del email (se verifica solo al dejar de escribir) -->
+          @if (verificacion === 'verificando') {
+            <span class="verif-status verif-status--pendiente">
+              <ion-spinner name="crescent"></ion-spinner>
+              Consultando...
+            </span>
+          } @else if (verificacion === 'existe' && nombreEncontrado) {
+            <span class="verif-status verif-status--existe">
+              <ion-icon name="checkmark-circle"></ion-icon>
+              Se reutilizará la cuenta de <strong>{{ nombreEncontrado }}</strong>.
+            </span>
+
+            <!-- Panel con negocios existentes del usuario (confirmacion de identidad) -->
+            <div class="negocios-existentes">
+              @if (negociosExistentes.length > 0) {
+                <span class="negocios-existentes-titulo">
+                  {{ nombreEncontrado }} ya gestiona
+                  {{ negociosExistentes.length === 1 ? '1 negocio' : negociosExistentes.length + ' negocios' }}:
+                </span>
+                <ul class="negocios-existentes-lista">
+                  @for (n of negociosExistentes; track n.nombre) {
+                    <li>
+                      <span class="negocio-nombre">{{ n.nombre }}</span>
+                      <span class="negocio-rol" [class.es-propietario]="n.es_propietario">
+                        {{ rolLabel(n) }}
+                      </span>
+                    </li>
+                  }
+                </ul>
+                <span class="negocios-existentes-footer">
+                  {{ negociosExistentes.length === 1 ? 'El nuevo negocio se agregará a ese.' : 'El nuevo negocio se agregará a los existentes.' }}
+                </span>
+              } @else {
+                <span class="negocios-existentes-titulo">
+                  {{ nombreEncontrado }} aún no tiene negocios registrados.
+                </span>
+                <span class="negocios-existentes-footer">Este será su primer negocio en el sistema.</span>
+              }
+            </div>
+          } @else if (verificacion === 'nuevo') {
+            <span class="verif-status verif-status--nuevo">
+              <ion-icon name="person-add-outline"></ion-icon>
+              Se creará una cuenta nueva. Ingresa el nombre del administrador abajo.
+            </span>
+          } @else if (verificacion === 'error') {
+            <span class="verif-status verif-status--error">
+              No se pudo verificar el email. Puedes continuar y se gestionará al crear el negocio.
+            </span>
+          } @else {
+            <span class="field-hint">El usuario que administrará este negocio. Debe coincidir con el email con el que iniciará sesión.</span>
+          }
+        </div>
+
+        <!-- Campo "Nombre del administrador" — solo visible cuando corresponde -->
+        @if (verificacion === 'nuevo' || verificacion === 'error') {
+          <div class="field-group">
+            <label class="field-label" for="ob-admin-nombre">
+              Nombre del administrador
+              @if (verificacion !== 'nuevo') {
+                <span class="optional">(opcional)</span>
+              }
+            </label>
+            <input
+              id="ob-admin-nombre"
+              type="text"
+              formControlName="adminNombre"
+              placeholder="Ej: Juan Pérez"
+              autocomplete="off"
+              maxlength="100">
+            <span class="field-hint">Como aparecerá el administrador en el sistema.</span>
+          </div>
+        } @else if (verificacion === 'existe' && nombreEncontrado) {
+          <div class="field-group">
+            <label class="field-label" for="ob-admin-nombre-ro">Nombre del administrador</label>
+            <input
+              id="ob-admin-nombre-ro"
+              type="text"
+              [value]="nombreEncontrado"
+              [disabled]="true"
+              autocomplete="off">
+            <span class="field-hint">Este nombre ya está registrado en la cuenta del usuario y no se modifica desde aquí.</span>
+          </div>
+        }
+      }
+
+      <ion-button
+        expand="block"
+        type="submit"
+        class="onboarding-btn"
+        [disabled]="!puedeContinuar">
+        <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
+        {{ textoBotonContinuar }}
+      </ion-button>
+
+    </form>
+
+    <button class="onboarding-logout" (click)="accionAtras()">
+      @if (mode === 'inicial') {
+        <ion-icon name="log-out-outline"></ion-icon>
+      } @else {
+        <ion-icon name="arrow-back-outline"></ion-icon>
+      }
+      {{ textoBotonAtras }}
+    </button>
+
+  </div>
+</ion-content>

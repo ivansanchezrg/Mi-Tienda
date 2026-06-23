@@ -1,0 +1,71 @@
+<div class="form-section">
+
+  <div class="grid-2-cols">
+    <!-- Costo -->
+    <div class="input-group">
+      <ion-item class="custom-input flat-item" lines="none"
+        [class.ion-invalid]="esCampoInvalido('precio_costo')">
+        <ion-input appNumbersOnly appCurrencyInput [formControl]="$any(formGroup.get('precio_costo'))"
+          label="Costo ($) *"
+          labelPlacement="floating"
+          type="text"
+          inputmode="decimal"
+          placeholder="0.00">
+        </ion-input>
+      </ion-item>
+      @if (esCampoInvalido('precio_costo')) {
+      <span class="error-text">Ingresa un precio valido</span>
+      }
+    </div>
+
+    <!-- Precio Venta -->
+    <div class="input-group">
+      <ion-item class="custom-input flat-item" lines="none"
+        [class.ion-invalid]="esCampoInvalido('precio_venta')">
+        <ion-input appNumbersOnly appCurrencyInput [formControl]="$any(formGroup.get('precio_venta'))"
+          label="Precio Venta ($) *"
+          labelPlacement="floating"
+          type="text"
+          inputmode="decimal"
+          placeholder="0.00">
+        </ion-input>
+      </ion-item>
+      @if (esCampoInvalido('precio_venta')) {
+      <span class="error-text">Ingresa un precio valido</span>
+      }
+    </div>
+  </div>
+
+  <!-- Margen de ganancia -->
+  @if (costoActual > 0) {
+  <div class="margen-row">
+    <span class="margen-row-label">Margen de ganancia</span>
+    <div class="margen-badge">
+      <ion-icon name="trending-up-outline"></ion-icon>
+      <span class="margen-badge-pct">{{ margenPct }}%</span>
+      @if (margenAbsoluto > 0) {
+      <span class="margen-badge-abs">+${{ currencyService.format(margenAbsoluto) }}</span>
+      }
+    </div>
+  </div>
+  }
+
+  <!-- IVA -->
+  <div class="mt-md">
+    <div class="iva-row">
+      <ion-toggle [formControl]="$any(formGroup.get('tiene_iva'))" color="primary">
+        <span class="iva-label">Tiene IVA</span>
+      </ion-toggle>
+    </div>
+    @if (formGroup.get('tiene_iva')?.value) {
+    <p class="help-text mt-xs">
+      <strong>Tarifa 15%</strong> — aplica a la mayoria de productos (snacks, bebidas, electrodomesticos, ropa, etc.)
+    </p>
+    } @else {
+    <p class="help-text mt-xs">
+      <strong>Tarifa 0%</strong> — solo para <strong>canasta basica exenta de IVA</strong>: verduras, frutas, leche, pan, arroz, medicamentos, etc.
+    </p>
+    }
+  </div>
+
+</div>

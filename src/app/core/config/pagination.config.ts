@@ -21,12 +21,6 @@ export const PAGINATION_CONFIG = {
     pageSize: 25
   },
   /**
-   * Cuentas por cobrar (fiados)
-   */
-  cuentasCobrar: {
-    pageSize: 20
-  },
-  /**
    * Clientes
    */
   clientes: {
@@ -42,6 +36,24 @@ export const PAGINATION_CONFIG = {
    * Movimientos de empleados (cuenta corriente)
    */
   movimientosEmpleados: {
+    pageSize: 20
+  },
+  /**
+   * Historial de cierres de turno
+   */
+  historialTurnos: {
+    pageSize: 20
+  },
+  /**
+   * Historial de recargas (snapshots por cierre de turno)
+   */
+  historialRecargas: {
+    pageSize: 20
+  },
+  /**
+   * Historial de pagos de suscripción
+   */
+  historialPagosSuscripcion: {
     pageSize: 20
   }
 } as const;

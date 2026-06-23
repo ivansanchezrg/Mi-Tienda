@@ -1,0 +1,317 @@
+// ── Header con título y subtítulo apilados ────────────────────
+.bs-header__icon {
+  background: rgba(var(--ion-color-primary-rgb), 0.10);
+  ion-icon { color: var(--ion-color-primary); }
+}
+
+.bs-header__titlewrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bs-header__title {
+  font-size: 17px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ion-text-color);
+  line-height: 1.2;
+}
+
+.bs-header__subtitle {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// ── Apertura / Cierre del turno ───────────────────────────────
+.turno-times {
+  display: flex;
+  align-items: center;
+  background: var(--ion-color-step-50);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-md);
+  margin-bottom: 4px;
+
+  &__col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__divider {
+    width: 1px;
+    height: 28px;
+    background: var(--app-divider);
+  }
+
+  &__label {
+    font-size: 10px;
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ion-color-medium);
+  }
+
+  &__value {
+    font-size: 16px;
+    font-weight: var(--font-weight-bold);
+    color: var(--ion-text-color);
+  }
+}
+
+// ── Resumen card (genérica para Cajón, Saldos, Virtuales, Obs) ─
+.resumen-card {
+  background: var(--app-surface);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-level-1);
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--app-divider);
+
+    ion-icon {
+      font-size: 18px;
+      color: var(--ion-color-primary);
+    }
+
+    h3 {
+      font-size: 14px;
+      font-weight: var(--font-weight-bold);
+      margin: 0;
+      color: var(--ion-text-color);
+    }
+  }
+
+  &__body {
+    padding: var(--spacing-md) var(--spacing-lg);
+
+    &.saldos-content {
+      padding: 0;
+    }
+  }
+}
+
+// ── Cajón Físico — filas ──────────────────────────────────────
+.cajon-section-label {
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ion-color-medium);
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.cajon-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+
+  .cajon-row-label {
+    font-size: 13px;
+    color: var(--ion-color-medium);
+  }
+
+  .cajon-row-valor {
+    font-size: 14px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+
+    &.negativo { color: var(--ion-color-danger); }
+    &.primary  { color: var(--ion-color-primary); }
+  }
+
+  &--total {
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--ion-color-step-100);
+    margin-top: var(--spacing-xs);
+
+    .cajon-row-label {
+      font-weight: var(--font-weight-semibold);
+      color: var(--ion-text-color);
+    }
+
+    .cajon-row-valor {
+      font-size: 16px;
+      font-weight: var(--font-weight-bold);
+    }
+  }
+}
+
+.cajon-divider {
+  height: 1px;
+  background: var(--ion-color-step-100);
+  margin: var(--spacing-sm) 0;
+}
+
+// Resultado del conteo
+.cajon-resultado {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  margin-top: var(--spacing-md);
+
+  ion-icon {
+    font-size: 26px;
+    flex-shrink: 0;
+  }
+
+  > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .cajon-resultado-titulo {
+    font-size: 14px;
+    font-weight: var(--font-weight-bold);
+    line-height: 1.2;
+  }
+
+  .cajon-resultado-sub {
+    font-size: 12px;
+    opacity: 0.75;
+  }
+
+  .cajon-resultado-monto {
+    font-size: 20px;
+    font-weight: var(--font-weight-extrabold);
+    flex-shrink: 0;
+  }
+
+  &--ok {
+    background: rgba(var(--ion-color-success-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.20);
+    color: var(--ion-color-success-shade);
+
+    .cajon-resultado-monto { color: var(--ion-color-success); }
+  }
+
+  &--faltante {
+    background: rgba(var(--ion-color-danger-rgb), 0.07);
+    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.20);
+    color: var(--ion-color-danger-shade);
+  }
+
+  &--sobrante {
+    background: rgba(var(--ion-color-tertiary-rgb), 0.07);
+    border: 1px solid rgba(var(--ion-color-tertiary-rgb), 0.20);
+    color: var(--ion-color-tertiary-shade);
+  }
+}
+
+// ── Saldos al Cierre — filas ──────────────────────────────────
+.saldo-fila {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--ion-color-step-50);
+
+  &--last { border-bottom: none; }
+}
+
+.saldo-icono {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+
+  &.tienda  {
+    background: rgba(var(--ion-color-primary-rgb), 0.10);
+    color: var(--ion-color-primary);
+  }
+  &.varios  {
+    background: rgba(var(--ion-color-tertiary-rgb), 0.10);
+    color: var(--ion-color-tertiary);
+  }
+  &.celular {
+    background: rgba(var(--ion-color-primary-rgb), 0.10);
+    color: var(--ion-color-primary);
+  }
+  &.bus {
+    background: rgba(var(--ion-color-danger-rgb), 0.10);
+    color: var(--ion-color-danger);
+  }
+}
+
+.saldo-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  .saldo-nombre {
+    font-size: 14px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-text-color);
+  }
+
+  .saldo-detalle {
+    font-size: 12px;
+    color: var(--ion-color-success-shade);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.saldo-resultado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+
+  .saldo-monto {
+    font-size: 15px;
+    font-weight: var(--font-weight-bold);
+    color: var(--ion-text-color);
+
+    &.highlight {
+      font-size: 17px;
+      color: var(--ion-color-primary);
+    }
+  }
+
+  .saldo-badge-neutral {
+    font-size: 10px;
+    font-weight: var(--font-weight-bold);
+    color: var(--ion-color-medium);
+    background: var(--ion-color-step-100);
+    border-radius: 4px;
+    padding: 2px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+}
+
+// ── Observaciones ─────────────────────────────────────────────
+.observaciones-text {
+  font-size: 14px;
+  color: var(--ion-text-color);
+  line-height: 1.5;
+  margin: 0;
+  white-space: pre-wrap;
+}
+

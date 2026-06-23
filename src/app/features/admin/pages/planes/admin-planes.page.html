@@ -1,0 +1,80 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-title>
+      <div class="admin-title">
+        <ion-icon name="shield-checkmark-outline"></ion-icon>
+        Panel Admin
+      </div>
+    </ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="salir()" fill="clear" color="medium">Salir</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  <app-admin-tabs></app-admin-tabs>
+
+  <!-- Franja blanca estática: botón "Nuevo plan" fijo -->
+  <div class="admin-subheader">
+    <div class="seccion-header">
+      <p class="seccion-label">Catálogo de planes</p>
+      <button class="btn-crear" (click)="nuevoPlan()">
+        <ion-icon name="add-outline"></ion-icon>
+        <span>Nuevo plan</span>
+      </button>
+    </div>
+  </div>
+</ion-header>
+
+<ion-content color="light">
+
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="planes-wrap">
+
+    @if (loading) {
+      @for (i of [1,2]; track i) {
+        <div class="plan-card">
+          <ion-skeleton-text animated style="width: 40%; height: 16px; border-radius: 4px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 65%; height: 12px; border-radius: 4px; margin-top: 8px;"></ion-skeleton-text>
+        </div>
+      }
+    } @else if (planes.length === 0) {
+      <app-empty-state
+        icon="pricetags-outline"
+        title="Sin planes"
+        hint="Crea el primer plan para empezar a ofrecerlo a los negocios.">
+      </app-empty-state>
+    } @else {
+      @for (plan of planes; track plan.id) {
+        <div class="plan-card" [class.plan-card--inactivo]="!plan.activo">
+          <div class="plan-card__main">
+            <div class="plan-card__info">
+              <div class="plan-card__top">
+                <span class="plan-card__nombre">{{ plan.nombre }}</span>
+                <span class="plan-card__codigo">{{ plan.codigo }}</span>
+                @if (!plan.activo) {
+                  <span class="plan-card__badge-inactivo">Inactivo</span>
+                }
+              </div>
+              <span class="plan-card__precio">
+                ${{ plan.precio_mensual | appCurrency }} / mes
+                @if (plan.precio_anual != null) {
+                  · ${{ plan.precio_anual | appCurrency }} / año
+                }
+                · {{ plan.trial_dias }}d de prueba
+              </span>
+              <span class="plan-card__features">{{ featuresActivas(plan) }}</span>
+            </div>
+
+            <button class="plan-card__editar" (click)="editarPlan(plan)">
+              <ion-icon name="create-outline"></ion-icon>
+            </button>
+          </div>
+        </div>
+      }
+    }
+
+  </div>
+
+</ion-content>

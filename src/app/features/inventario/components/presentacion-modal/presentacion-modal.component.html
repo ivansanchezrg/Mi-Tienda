@@ -1,0 +1,202 @@
+<app-scanner-overlay [visible]="escaneando" (cerrar)="escaneando = false"></app-scanner-overlay>
+
+<div class="bs-root">
+
+  <!-- Header -->
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="layers-outline"></ion-icon>
+    </div>
+    <div class="modal-header-text">
+      <span class="bs-header__title">
+        {{ modo === 'CREAR' ? 'Nueva presentación' : 'Editar presentación' }}
+      </span>
+      @if (nombreProducto) {
+      <span class="modal-header-producto-badge">{{ nombreProducto }}</span>
+      }
+    </div>
+    <button class="bs-header__close" (click)="cerrar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <form [formGroup]="form" (ngSubmit)="confirmar()" class="bs-body modal-form">
+
+      <!-- Fila 1: Nombre + Unidades -->
+      <div class="fields-row">
+
+        <div class="field-group">
+          <label class="field-label">Nombre *</label>
+          <input
+            formControlName="nombre"
+            type="text"
+            class="text-input"
+            [class.text-input--invalid]="esCampoInvalido('nombre')"
+            placeholder="Ej. Cajetilla"
+            maxlength="60"
+            autocomplete="off">
+          @if (esCampoInvalido('nombre')) {
+            @if (form.get('nombre')?.errors?.['required']) {
+              <span class="error-text">Requerido</span>
+            } @else if (form.get('nombre')?.errors?.['minlength']) {
+              <span class="error-text">Mínimo 2 caracteres</span>
+            }
+          }
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Unidades *</label>
+          <input
+            appNumbersOnly
+            formControlName="factor_conversion"
+            type="text"
+            inputmode="numeric"
+            class="text-input"
+            [class.text-input--invalid]="esCampoInvalido('factor_conversion')"
+            placeholder="Ej. 10"
+            (input)="onFactorChange()">
+          @if (esCampoInvalido('factor_conversion')) {
+            @if (form.get('factor_conversion')?.errors?.['required']) {
+              <span class="error-text">Requerido</span>
+            } @else if (form.get('factor_conversion')?.errors?.['min']) {
+              <span class="error-text">Mínimo 2</span>
+            }
+          } @else if (stockEquivalente) {
+            <span class="hint-text">{{ stockEquivalente }}</span>
+          }
+        </div>
+
+      </div>
+
+      <!-- Fila 2: Costo + Precio de venta -->
+      <div class="fields-row">
+
+        <div class="field-group">
+          <label class="field-label">Costo ($) *</label>
+          <input
+            appNumbersOnly
+            appCurrencyInput
+            formControlName="precio_costo"
+            type="text"
+            inputmode="decimal"
+            class="text-input"
+            [class.text-input--invalid]="esCampoInvalido('precio_costo')"
+            placeholder="0.00"
+            (input)="onCostoChange()">
+          @if (esCampoInvalido('precio_costo')) {
+            <span class="error-text">Ingresa un costo válido</span>
+          }
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Precio venta ($) *</label>
+          <input
+            appNumbersOnly
+            appCurrencyInput
+            formControlName="precio_venta"
+            type="text"
+            inputmode="decimal"
+            class="text-input"
+            [class.text-input--invalid]="esCampoInvalido('precio_venta')"
+            placeholder="0.00"
+            (input)="onPrecioVentaChange()">
+        </div>
+
+      </div>
+
+      <!-- Margen de ganancia -->
+      @if (costoPack > 0) {
+      <div class="margen-row">
+        <span class="margen-row-label">Margen de ganancia</span>
+        <div class="margen-badge">
+          <ion-icon name="trending-up-outline"></ion-icon>
+          <span class="margen-badge-pct">{{ margenPct }}%</span>
+          @if (margenAbsoluto > 0) {
+            <span class="margen-badge-abs">+${{ currencyService.format(margenAbsoluto) }}</span>
+          }
+        </div>
+      </div>
+      }
+
+      <!-- Imagen de la presentación (opcional) -->
+      <div class="imagen-pres-section">
+        @if (tieneImagen) {
+          <div class="imagen-pres-preview" (click)="abrirOpcionesImagen()">
+            <img [src]="fotoPreviewUrl || imagenUrlResuelta" alt="Imagen de presentación" class="imagen-pres-img">
+            <button type="button" class="imagen-pres-menu" (click)="abrirOpcionesImagen(); $event.stopPropagation()" aria-label="Opciones de imagen">
+              <ion-icon name="ellipsis-horizontal"></ion-icon>
+            </button>
+          </div>
+        } @else {
+          <button type="button" class="imagen-pres-placeholder" (click)="seleccionarFoto()">
+            <ion-icon name="image-outline"></ion-icon>
+            <span>Agregar imagen</span>
+            <span class="imagen-pres-optional">Opcional</span>
+          </button>
+        }
+      </div>
+
+      <!-- Fila 3: Código de barras -->
+      @if (modo === 'CREAR') {
+      <div class="field-group">
+        <label class="field-label">
+          Código de barras
+          <span class="optional-tag">Opcional</span>
+        </label>
+        <div class="barcode-input-row">
+          <input
+            formControlName="codigo_barras"
+            type="text"
+            inputmode="text"
+            class="text-input text-input--with-scan"
+            placeholder="Escanea o digita el código..."
+            maxlength="50"
+            autocomplete="off">
+          @if (barcodeScanner.isAvailable) {
+          <button type="button" class="scan-btn-inline" (click)="escanearCodigo()">
+            <ion-icon name="barcode-outline"></ion-icon>
+          </button>
+          }
+        </div>
+        <span class="barcode-hint">
+          <ion-icon name="sparkles-outline"></ion-icon>
+          {{ barcodeHint }}
+        </span>
+      </div>
+      } @else {
+      <div class="field-group">
+        <label class="field-label">Código de barras</label>
+        <div class="barcode-input-row">
+          <input
+            formControlName="codigo_barras"
+            type="text"
+            class="text-input text-input--readonly"
+            [placeholder]="presentacionActual?.codigo_barras || 'Asignado automáticamente'"
+            readonly
+            autocomplete="off">
+        </div>
+        <span class="barcode-hint">
+          <ion-icon name="information-circle-outline"></ion-icon>
+          El código de barras no se puede modificar una vez asignado.
+        </span>
+      </div>
+      }
+
+    </form>
+  </div>
+
+  <!-- Acciones -->
+  <div class="bs-actions bs-actions--row">
+    <ion-button fill="outline" color="medium" type="button" (click)="cerrar()">
+      Cancelar
+    </ion-button>
+    <ion-button color="primary" type="submit" [disabled]="form.invalid || guardando" (click)="confirmar()">
+      @if (guardando) {
+        <ion-spinner name="crescent" slot="start"></ion-spinner>
+      }
+      {{ modo === 'CREAR' ? 'Agregar' : 'Guardar' }}
+    </ion-button>
+  </div>
+
+</div>

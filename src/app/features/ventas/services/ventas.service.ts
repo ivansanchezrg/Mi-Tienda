@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { AuthService } from '../../auth/services/auth.service';
-import { Venta, VentaDetalle, VentasResumen, ReporteVentasDia } from '../models/venta.model';
+import { Venta, VentaDetalle, ReporteVentasDia } from '../models/venta.model';
 import { getFechaLocal } from '../../../core/utils/date.util';
 import { PAGINATION_CONFIG } from '../../../core/config/pagination.config';
 
@@ -38,22 +38,6 @@ export class VentasService {
         return raw.map(v => this.mapVenta(v));
     }
 
-    /**
-     * Devuelve el total de registros y el monto acumulado para el filtro activo.
-     * Sin paginación — siempre refleja el universo completo de resultados.
-     */
-    async resumirVentas(filtro: string = 'hoy', busqueda?: string, estado?: string, turnoId?: string): Promise<VentasResumen> {
-        const raw = await this.supabase.call<VentasResumen[]>(
-            this.supabase.client.rpc('fn_resumir_ventas', {
-                p_filtro:   filtro,
-                p_busqueda: busqueda ?? null,
-                p_estado:   estado ?? null,
-                p_turno_id: turnoId ?? null,
-            })
-        ) ?? [];
-        return raw[0] ?? { total_registros: 0, total_monto: 0 };
-    }
-
 
     // ──────────────────────────────────────────────
     // REPORTE RESUMEN POR PERÍODO
@@ -82,12 +66,22 @@ export class VentasService {
             total_monto: 0,
             total_anuladas: 0,
             monto_anulado: 0,
+            total_descuentos: 0,
+            clientes_unicos: 0,
             costo_total: 0,
             ganancia_bruta: 0,
             margen_pct: 0,
+            ticket_promedio: 0,
+            total_monto_anterior: 0,
+            total_ventas_anterior: 0,
+            ganancia_anterior: 0,
+            productos_sin_movimiento: 0,
             por_metodo_pago: [],
             por_tipo_comprobante: [],
-            top_productos: []
+            top_productos: [],
+            top_productos_rentables: [],
+            productos_baja_rotacion: [],
+            ventas_por_hora: []
         };
     }
 
@@ -98,11 +92,24 @@ export class VentasService {
         if (filtro === 'semana') {
             const lunes = new Date(fecha);
             lunes.setDate(fecha.getDate() - fecha.getDay() + (fecha.getDay() === 0 ? -6 : 1));
-            return { inicio: lunes.toISOString().split('T')[0], fin: hoy };
+            const lunesLocal = `${lunes.getFullYear()}-${String(lunes.getMonth() + 1).padStart(2, '0')}-${String(lunes.getDate()).padStart(2, '0')}`;
+            return { inicio: lunesLocal, fin: hoy };
         }
 
         if (filtro === 'mes') {
             return { inicio: `${hoy.slice(0, 7)}-01`, fin: hoy };
+        }
+
+        if (filtro === 'anio') {
+            return { inicio: `${hoy.slice(0, 4)}-01-01`, fin: hoy };
+        }
+
+        if (filtro.startsWith('anio:')) {
+            const anio = filtro.split(':')[1];
+            const anioActual = hoy.slice(0, 4);
+            // Si es el año actual, fin = hoy. Si es año pasado, fin = 31 dic de ese año.
+            const fin = anio === anioActual ? hoy : `${anio}-12-31`;
+            return { inicio: `${anio}-01-01`, fin };
         }
 
         if (filtro === 'todo') {

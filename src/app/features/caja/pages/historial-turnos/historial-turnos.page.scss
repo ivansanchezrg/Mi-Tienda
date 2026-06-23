@@ -1,0 +1,148 @@
+// ── Header de fecha (idem operaciones-caja) ───────────────────
+.date-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg) var(--spacing-xs);
+
+  .date-text {
+    font-size: 11px;
+    font-weight: var(--font-weight-bold);
+    color: var(--ion-color-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .date-count {
+    font-size: 11px;
+    color: var(--ion-color-medium);
+  }
+}
+
+// ── Card de turno cerrado ─────────────────────────────────────
+.turno-card {
+  display: flex;
+  align-items: stretch;
+  width: calc(100% - var(--spacing-lg) * 2);
+  margin: 0 var(--spacing-lg) var(--spacing-md);
+  padding: 0;
+  background: var(--app-surface);
+  border: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-level-1);
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+
+  &:active {
+    transform: scale(0.99);
+    box-shadow: var(--shadow-level-2);
+  }
+
+  // Skeleton state
+  &.skeleton {
+    pointer-events: none;
+  }
+}
+
+// Stripe lateral según estado del cuadre
+.turno-card__stripe {
+  width: 4px;
+  flex-shrink: 0;
+  background: var(--ion-color-step-100);
+}
+
+.turno-card[data-estado="ok"] .turno-card__stripe {
+  background: var(--ion-color-success);
+}
+.turno-card[data-estado="faltante"] .turno-card__stripe {
+  background: var(--ion-color-danger);
+}
+.turno-card[data-estado="sobrante"] .turno-card__stripe {
+  background: var(--ion-color-tertiary);
+}
+
+.turno-card__body {
+  flex: 1;
+  padding: var(--spacing-md) var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.turno-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.turno-card__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.turno-card__num {
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ion-text-color);
+  line-height: 1.2;
+}
+
+.turno-card__hours {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+.turno-card__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+
+  ion-icon {
+    font-size: 13px;
+  }
+
+  &--ok {
+    background: rgba(var(--ion-color-success-rgb), 0.10);
+    color: var(--ion-color-success-shade);
+  }
+
+  &--faltante {
+    background: rgba(var(--ion-color-danger-rgb), 0.10);
+    color: var(--ion-color-danger-shade);
+  }
+
+  &--sobrante {
+    background: rgba(var(--ion-color-tertiary-rgb), 0.10);
+    color: var(--ion-color-tertiary-shade);
+  }
+}
+
+.turno-card__cajero {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+
+  ion-icon {
+    font-size: 14px;
+  }
+}
+
+// FAB scroll-to-top
+.scroll-top-fab {
+  margin-bottom: env(safe-area-inset-bottom);
+}

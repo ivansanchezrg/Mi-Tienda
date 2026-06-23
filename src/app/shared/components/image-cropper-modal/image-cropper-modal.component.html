@@ -1,0 +1,149 @@
+<div class="icm-root">
+
+  <!-- Header -->
+  <div class="icm-header">
+    <button class="icm-header__close" (click)="cancelar()" aria-label="Cancelar">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+    <span class="icm-header__title">Recortar imagen</span>
+    <button
+      class="icm-header__confirm"
+      [class.icm-header__confirm--active]="canConfirm()"
+      [disabled]="!canConfirm()"
+      (click)="confirmar()"
+      aria-label="Confirmar recorte">
+      ✓
+    </button>
+  </div>
+
+  <!-- Área del cropper -->
+  <div class="icm-canvas-area">
+
+    @if (cropError()) {
+    <div class="icm-error">
+      <ion-icon name="close-outline"></ion-icon>
+      <p>No se pudo cargar la imagen.</p>
+    </div>
+    }
+
+    @if (!cropError() && imageSource()) {
+    <image-cropper
+      [imageURL]="imageSource()!"
+      [maintainAspectRatio]="currentAspectRatio() !== 0"
+      [aspectRatio]="currentAspectRatio() !== 0 ? currentAspectRatio() : 1"
+      [resizeToWidth]="1600"
+      [resizeToHeight]="1600"
+      [cropperMinWidth]="80"
+      [cropperMinHeight]="80"
+      [onlyScaleDown]="true"
+      [roundCropper]="false"
+      [transform]="transform()"
+      format="png"
+      output="blob"
+      backgroundColor="#000000"
+      (imageCropped)="onImageCropped($event)"
+      (imageLoaded)="onImageLoaded($event)"
+      (loadImageFailed)="onLoadImageFailed()"
+      class="icm-cropper">
+    </image-cropper>
+    }
+
+    @if (!cropError() && !imageLoaded()) {
+    <div class="icm-loading">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Cargando imagen...</p>
+    </div>
+    }
+
+  </div>
+
+  <!-- Panel de herramientas -->
+  @if (imageLoaded() && !cropError()) {
+  <div class="icm-tools">
+
+    <!-- Slider activo -->
+    <div class="icm-slider-area">
+
+      @if (toolTab() === 'rotar') {
+      <div class="icm-slider-row">
+        <button class="icm-tool-btn" (click)="resetRotacion()" [class.icm-tool-btn--dim]="rotacionGrados() === 0 && transform().rotate === 0" aria-label="Resetear rotación">
+          <ion-icon name="return-up-back-outline"></ion-icon>
+        </button>
+        <div class="icm-slider-track">
+          <span class="icm-slider-value" [class.icm-slider-value--active]="rotacionGrados() !== 0">
+            {{ rotacionLabel }}
+          </span>
+          <input
+            type="range"
+            class="icm-range"
+            min="-45"
+            max="45"
+            step="0.5"
+            [(ngModel)]="rotacionValue">
+          <div class="icm-range-ticks">
+            @for (tick of [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]; track tick) {
+            <span class="icm-range-tick" [class.icm-range-tick--center]="tick === 9"></span>
+            }
+          </div>
+        </div>
+        <button class="icm-tool-btn" (click)="rotar90()" aria-label="Rotar 90°">
+          <ion-icon name="refresh-outline"></ion-icon>
+          <span>90°</span>
+        </button>
+      </div>
+      }
+
+      @if (toolTab() === 'escalar') {
+      <div class="icm-slider-row">
+        <button class="icm-tool-btn" (click)="resetEscala()" [class.icm-tool-btn--dim]="escala() === 1" aria-label="Resetear zoom">
+          <ion-icon name="return-up-back-outline"></ion-icon>
+        </button>
+        <div class="icm-slider-track">
+          <span class="icm-slider-value" [class.icm-slider-value--active]="escala() !== 1">
+            {{ escalaLabel }}
+          </span>
+          <input
+            type="range"
+            class="icm-range"
+            min="0.5"
+            max="3"
+            step="0.05"
+            [(ngModel)]="escalaValue">
+          <div class="icm-range-ticks">
+            @for (tick of [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]; track tick) {
+            <span class="icm-range-tick" [class.icm-range-tick--center]="tick === 9"></span>
+            }
+          </div>
+        </div>
+        <span class="icm-tool-spacer"></span>
+      </div>
+      }
+
+    </div>
+
+    <!-- Tabs de herramientas -->
+    <div class="icm-tabs">
+      <button
+        class="icm-tab"
+        [class.icm-tab--active]="toolTab() === 'rotar'"
+        (click)="setToolTab('rotar')">
+        <ion-icon name="refresh-outline"></ion-icon>
+        <span>Rotar</span>
+      </button>
+      <button
+        class="icm-tab"
+        [class.icm-tab--active]="toolTab() === 'escalar'"
+        (click)="setToolTab('escalar')">
+        <svg class="icm-tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+          <path d="M14 3h7v7M10 14l-7 7M3 10V3h7"/>
+        </svg>
+        <span>Escalar</span>
+      </button>
+    </div>
+
+  </div>
+  }
+
+</div>

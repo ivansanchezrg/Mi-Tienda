@@ -12,10 +12,12 @@ import {
   checkmarkCircleOutline, alertCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
-import { RecargasVirtualesService } from '@core/services/recargas-virtuales.service';
+import { SupabaseService } from '@core/services/supabase.service';
+import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
+import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 import { getFechaLocal } from '@core/utils/date.util';
 
 type TipoServicio = 'CELULAR' | 'BUS';
@@ -31,7 +33,8 @@ type TipoServicio = 'CELULAR' | 'BUS';
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonContent, IonIcon,
     CurrencyInputDirective,
-    NumbersOnlyDirective
+    NumbersOnlyDirective,
+    AppCurrencyPipe,
   ]
 })
 export class RegistrarRecargaModalComponent implements OnInit {
@@ -39,6 +42,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
 
   private modalCtrl = inject(ModalController);
   private ui = inject(UiService);
+  private supabase = inject(SupabaseService);
   private service = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
 
@@ -51,7 +55,16 @@ export class RegistrarRecargaModalComponent implements OnInit {
   // BUS
   saldoCajaBus: number = 0;
   saldoVirtualSistemaBus: number = 0; // último cierre + recargas post-cierre
-  saldoVirtualMaquina: number | null = null; // lo que muestra la máquina ahora
+
+  private _saldoVirtualMaquina: number | null = null;
+  get saldoVirtualMaquina(): number | null { return this._saldoVirtualMaquina; }
+  set saldoVirtualMaquina(value: number | null) {
+    this._saldoVirtualMaquina = value;
+    if (value !== null && value >= 0) {
+      const disponible = this.saldoCajaBus + Math.max(0, this.saldoVirtualSistemaBus - value);
+      this.montoVirtual = disponible > 0 ? disponible : null;
+    }
+  }
 
   constructor() {
     addIcons({
@@ -76,8 +89,10 @@ export class RegistrarRecargaModalComponent implements OnInit {
         this.saldoCajaBus = saldoCaja;
         this.saldoVirtualSistemaBus = saldoVirtual;
       }
-    } catch {
-      await this.ui.showError('Error al cargar los datos');
+    } catch (error) {
+      if (!this.supabase.debeSilenciarErrorOffline(error)) {
+        await this.ui.showError('Error al cargar los datos');
+      }
     }
   }
 
@@ -170,7 +185,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
 
   async confirmar() {
     if (!this.montoVirtual || this.montoVirtual <= 0) {
-      await this.ui.showError('Ingresá el monto');
+      await this.ui.showError('Ingresa el monto');
       return;
     }
     if (this.guardando) return;
@@ -215,16 +230,13 @@ export class RegistrarRecargaModalComponent implements OnInit {
           saldo_virtual_maquina: this.saldoVirtualMaquina ?? undefined
         });
 
-        if (!resultado?.success) {
-          await this.ui.showError('Error al registrar compra BUS');
-          return;
-        }
+        if (!resultado?.success) return;  // supabase.call() ya mostró el toast de error
 
         await this.ui.showSuccess(`Compra registrada: $${this.montoVirtual.toFixed(2)}`);
         this.modalCtrl.dismiss({ success: true });
       }
-    } catch (error: any) {
-      await this.ui.showError(error?.message || 'Error inesperado');
+    } catch {
+      // Errores ya los muestra supabase.call() — no duplicar toast
     } finally {
       this.guardando = false;
     }

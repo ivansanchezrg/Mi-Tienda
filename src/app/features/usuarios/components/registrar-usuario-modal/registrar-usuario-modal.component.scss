@@ -135,7 +135,7 @@ input {
   border-radius: var(--radius-sm);
   border: none;
   background: var(--ion-color-primary);
-  color: white;
+  color: var(--ion-color-primary-contrast);
   font-size: 15px;
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
@@ -154,6 +154,6 @@ input {
   ion-spinner {
     width: 18px;
     height: 18px;
-    --color: white;
+    --color: var(--ion-color-primary-contrast);
   }
 }

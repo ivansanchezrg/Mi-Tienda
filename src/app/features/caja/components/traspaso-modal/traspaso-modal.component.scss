@@ -1,0 +1,314 @@
+// Layout completo viene de theme/custom/modals.scss (clases bs-*).
+// Color del bs-header__icon es el default (primary) — no necesita override.
+
+// Override del gap del bs-body para este modal (cards de cajas necesitan menos espacio)
+.bs-body { gap: 16px; }
+
+// Título + subtítulo apilados (mismo patrón que verificar-fondo-modal)
+.tm-header-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tm-header-subtitle {
+  font-size: 12px;
+  color: var(--app-text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Icono junto al título — mismo lenguaje visual que los deltas del home
+.tm-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &__icon {
+    font-size: 18px;
+    color: var(--ion-color-primary);
+    flex-shrink: 0;
+    // Trazo más grueso para que pese igual que el título bold (default: 32px)
+    --ionicon-stroke-width: 48px;
+  }
+}
+
+// ── Campo genérico ────────────────────────────────────────────────────────────
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-optional {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--app-text-muted);
+  background: var(--app-surface-tint);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.field-error {
+  font-size: 12px;
+  color: var(--ion-color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+// Preview de saldos resultantes — el usuario ve la consecuencia antes de confirmar
+.traspaso-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: rgba(var(--ion-color-primary-rgb), 0.06);
+  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.15);
+  border-radius: var(--radius-md);
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 13px;
+    color: var(--app-text-soft);
+
+    strong {
+      color: var(--ion-color-primary);
+      font-weight: var(--font-weight-bold);
+    }
+  }
+}
+
+// ── Mini-cards de caja con scroll horizontal ──────────────────────────────────
+
+.caja-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 3px 2px 4px;
+
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+// Hint "← →" — solo desktop con mouse, solo cuando hay overflow real
+@media (pointer: fine) {
+  .has-h-overflow .scroll-hint {
+    display: flex;
+  }
+}
+
+.scroll-hint {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--app-text-muted);
+  opacity: 0.7;
+  margin-top: -2px;
+  user-select: none;
+  pointer-events: none;
+
+}
+
+.caja-scroll__hint {
+  font-size: 13px;
+  color: var(--app-text-muted);
+  font-style: italic;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.caja-mini-card {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 10px 10px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--app-divider);
+  background: var(--app-surface);
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+
+  &__icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    ion-icon {
+      font-size: 17px;
+      color: #fff;
+    }
+  }
+
+  &__info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__name {
+    font-size: 13px;
+    font-weight: var(--font-weight-bold);
+    color: var(--app-text);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+  }
+
+  &__saldo {
+    font-size: 12px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--app-text-soft);
+    letter-spacing: -0.2px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  &__check {
+    font-size: 18px;
+    color: var(--ion-color-primary);
+    flex-shrink: 0;
+    margin-left: 2px;
+  }
+
+  &--selected {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.05);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.10);
+
+    .caja-mini-card__name  { color: var(--ion-color-primary); }
+    .caja-mini-card__saldo { color: var(--ion-color-primary); }
+  }
+
+  &--dimmed {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  &:active { transform: scale(0.96); }
+}
+
+@media (pointer: fine) {
+  .caja-mini-card:not(.caja-mini-card--selected):not(.caja-mini-card--dimmed):hover {
+    border-color: var(--ion-color-primary);
+    background: rgba(var(--ion-color-primary-rgb), 0.03);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.08);
+  }
+}
+
+// ── Flecha separadora ─────────────────────────────────────────────────────────
+
+.transfer-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: -4px 0;
+
+  ion-icon {
+    font-size: 20px;
+    color: var(--app-text-muted);
+  }
+}
+
+// ── Monto ─────────────────────────────────────────────────────────────────────
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 14px 16px;
+  border: 1.5px solid var(--app-divider);
+  border-radius: var(--radius-md);
+  background: var(--app-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:focus-within {
+    border-color: var(--ion-color-primary);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.10);
+  }
+
+  &--error {
+    border-color: var(--ion-color-danger);
+    background: rgba(var(--ion-color-danger-rgb), 0.04);
+  }
+}
+
+.amount-currency {
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text-muted);
+}
+
+.amount-row input {
+  flex: 1;
+  border: none;
+  padding: 0;
+  font-size: 28px;
+  font-weight: var(--font-weight-extrabold);
+  background: transparent;
+  color: var(--app-text);
+  outline: none;
+  letter-spacing: -0.5px;
+
+  &::placeholder {
+    color: var(--app-text-muted);
+    opacity: 0.5;
+  }
+}
+
+// ── Descripción ───────────────────────────────────────────────────────────────
+
+textarea {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 15px;
+  border: 1.5px solid var(--app-divider);
+  border-radius: var(--radius-md);
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+  line-height: 1.5;
+
+  &:focus { border-color: var(--ion-color-primary); }
+
+  &::placeholder {
+    color: var(--app-text-muted);
+    opacity: 0.6;
+  }
+}

@@ -1,0 +1,50 @@
+<div class="form-section">
+
+  <div class="section-header">
+    <span class="section-label">Inventario</span>
+    @if (modo === 'editar') {
+    <ion-button fill="clear" size="small" (click)="abrirKardex.emit()">
+      <ion-icon slot="start" name="document-text-outline"></ion-icon>
+      Auditar Kardex
+    </ion-button>
+    }
+  </div>
+
+  <div class="grid-2-cols">
+    <!-- Stock actual -->
+    <div class="input-group">
+      <ion-item class="custom-input flat-item" lines="none"
+        [class.ion-invalid]="esCampoInvalido('stock_actual')">
+        <ion-input appNumbersOnly [formControl]="$any(formGroup.get('stock_actual'))"
+          [label]="labelStock"
+          labelPlacement="floating"
+          type="text"
+          [inputmode]="inputmodeStock"
+          [readonly]="modo === 'editar'">
+        </ion-input>
+      </ion-item>
+      @if (modo === 'editar') {
+      <p class="help-text">El stock solo se ajusta en Ventas o Kardex</p>
+      } @else if (esCampoInvalido('stock_actual')) {
+      <span class="error-text">Stock no puede ser negativo</span>
+      }
+    </div>
+
+    <!-- Stock mínimo -->
+    <div class="input-group">
+      <ion-item class="custom-input flat-item" lines="none"
+        [class.ion-invalid]="esCampoInvalido('stock_minimo')">
+        <ion-input appNumbersOnly [formControl]="$any(formGroup.get('stock_minimo'))"
+          label="Aviso Minimo *"
+          labelPlacement="floating"
+          type="text"
+          inputmode="numeric">
+        </ion-input>
+      </ion-item>
+      @if (esCampoInvalido('stock_minimo')) {
+      <span class="error-text">No puede ser negativo</span>
+      }
+    </div>
+  </div>
+
+</div>

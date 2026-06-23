@@ -1,0 +1,14 @@
+<div class="chrome-tabs" appHorizontalScroll>
+  <button class="chrome-tab" data-tab="negocios" [class.active]="activeTab === 'negocios'" (click)="navigateTo('negocios')">
+    <ion-icon name="business-outline"></ion-icon>
+    <span>Negocios</span>
+  </button>
+  <button class="chrome-tab" data-tab="planes" [class.active]="activeTab === 'planes'" (click)="navigateTo('planes')">
+    <ion-icon name="pricetags-outline"></ion-icon>
+    <span>Planes</span>
+  </button>
+  <button class="chrome-tab" data-tab="configuracion" [class.active]="activeTab === 'configuracion'" (click)="navigateTo('configuracion')">
+    <ion-icon name="settings-outline"></ion-icon>
+    <span>Cobro</span>
+  </button>
+</div>

@@ -1,0 +1,50 @@
+<div class="modal-wrapper">
+
+  <div class="modal-header">
+    <span class="modal-header-title">Mis negocios</span>
+    <button class="modal-close-btn" (click)="cerrar()">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Lista de negocios -->
+  <div class="negocios-list">
+
+    @if (loading) {
+      @for (i of [1, 2]; track i) {
+        <div class="negocio-item negocio-item--skeleton">
+          <div class="negocio-avatar skeleton-box"></div>
+          <div class="negocio-info">
+            <div class="skeleton-line skeleton-line--lg"></div>
+            <div class="skeleton-line skeleton-line--sm"></div>
+          </div>
+        </div>
+      }
+    } @else {
+      @for (negocio of negocios; track negocio.negocio_id) {
+        <button class="negocio-item" [class.negocio-item--activo]="negocio.negocio_id === negocioActivoId" (click)="seleccionar(negocio)">
+          <div class="negocio-avatar">
+            {{ negocio.negocio_nombre.charAt(0).toUpperCase() }}
+          </div>
+          <div class="negocio-info">
+            <span class="negocio-nombre">{{ negocio.negocio_nombre }}</span>
+            <span class="negocio-rol">{{ rolLegible(negocio.rol) }}</span>
+          </div>
+          @if (negocio.negocio_id === negocioActivoId) {
+            <ion-icon name="checkmark-circle" class="negocio-activo-icon"></ion-icon>
+          }
+        </button>
+      }
+    }
+
+  </div>
+
+  <!-- Acción crear sucursal -->
+  <div class="modal-actions">
+    <button class="btn-crear-sucursal" (click)="abrirCrearSucursal()">
+      <ion-icon name="add-circle-outline"></ion-icon>
+      <span>Nueva sucursal</span>
+    </button>
+  </div>
+
+</div>

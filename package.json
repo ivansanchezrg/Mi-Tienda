@@ -1,8 +1,8 @@
 {
   "name": "mi-tienda",
-  "version": "0.0.1",
-  "author": "Ionic Framework",
-  "homepage": "https://ionicframework.com/",
+  "version": "1.0.0",
+  "author": "Ivan Sanchez",
+  "homepage": "https://github.com/ivansanchezrg/mi-tienda",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -10,7 +10,9 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
-    "android": "npm run build && npx cap sync android && npx cap run android"
+    "android": "npm run build && npx cap sync android && npx cap run android --flavor production",
+    "android:test": "ng build --configuration=test && npx cap sync android && npx cap run android --flavor staging",
+    "android:test-device": "ng build --configuration=test-device && npx cap sync android && npx cap run android --flavor staging"
   },
   "private": true,
   "dependencies": {
@@ -22,7 +24,7 @@
     "@angular/platform-browser": "^20.0.0",
     "@angular/platform-browser-dynamic": "^20.0.0",
     "@angular/router": "^20.0.0",
-    "@capacitor-community/sqlite": "^8.0.0",
+    "@capacitor-community/sqlite": "^8.1.0",
     "@capacitor-mlkit/barcode-scanning": "^8.0.1",
     "@capacitor/android": "^8.0.2",
     "@capacitor/app": "8.0.0",
@@ -39,8 +41,12 @@
     "@capacitor/status-bar": "^8.0.0",
     "@ionic/angular": "^8.0.0",
     "@supabase/supabase-js": "^2.93.2",
+    "android": "^0.0.8",
+    "apexcharts": "^5.10.6",
     "html2canvas-pro": "^2.0.2",
     "ionicons": "^7.0.0",
+    "ng-apexcharts": "^2.4.0",
+    "ngx-image-cropper": "^9.1.6",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.0"

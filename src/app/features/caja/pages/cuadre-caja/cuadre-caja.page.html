@@ -1,0 +1,103 @@
+<div class="bs-root">
+
+  <!-- Header -->
+  <div class="bs-header">
+    <div class="bs-header__icon">
+      <ion-icon name="scale-outline"></ion-icon>
+    </div>
+    <span class="bs-header__title">Cuadre de Saldo Virtual</span>
+    <button class="bs-header__close" (click)="cerrar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <form [formGroup]="form" class="bs-body">
+
+      <!-- Saldo Celular — solo si el módulo está habilitado -->
+      @if (recargasCelularHabilitada) {
+      <div class="input-group">
+        <label class="input-label">
+          <ion-icon name="phone-portrait-outline"></ion-icon>
+          <div class="input-label-text">
+            <span>Saldo virtual en celular</span>
+            @if (loading) {
+              <ion-skeleton-text [animated]="true" class="hint-skeleton"></ion-skeleton-text>
+            } @else {
+              <p class="input-hint">Saldo según sistema: ${{ saldoVirtualActualCelular | appCurrency }}</p>
+            }
+          </div>
+        </label>
+        <div class="amount-wrapper" [class.error]="!ventaCelularValida && saldoCelularActual > 0">
+          <span class="currency">$</span>
+          <input #saldoCelularInput type="number" inputmode="decimal" placeholder="0.00"
+            formControlName="saldoCelularActual" appNumbersOnly>
+        </div>
+        @if (!ventaCelularValida && saldoCelularActual > 0) {
+        <span class="error-text">⚠️ Venta negativa — registra la recarga del proveedor</span>
+        }
+      </div>
+      }
+
+      <!-- Saldo Bus — solo si el módulo está habilitado -->
+      @if (recargasBusHabilitada) {
+      <div class="input-group">
+        <label class="input-label">
+          <ion-icon name="bus-outline"></ion-icon>
+          <div class="input-label-text">
+            <span>Saldo virtual en bus</span>
+            @if (loading) {
+              <ion-skeleton-text [animated]="true" class="hint-skeleton"></ion-skeleton-text>
+            } @else {
+              <p class="input-hint">Saldo según sistema: ${{ saldoVirtualActualBus | appCurrency }}</p>
+            }
+          </div>
+        </label>
+        <div class="amount-wrapper" [class.error]="!ventaBusValida && saldoBusActual > 0">
+          <span class="currency">$</span>
+          <input type="number" inputmode="decimal" placeholder="0.00"
+            formControlName="saldoBusActual" appNumbersOnly>
+        </div>
+        @if (!ventaBusValida && saldoBusActual > 0) {
+        <span class="error-text">⚠️ Venta negativa — registra la compra de saldo virtual</span>
+        }
+      </div>
+      }
+
+      <!-- Resultado -->
+      @if (mostrarResultado) {
+      <div class="result-card">
+        <p class="result-title">Venta estimada del día</p>
+        @if (mostrarResultadoCelular) {
+        <div class="result-row">
+          <div class="result-label">
+            <ion-icon name="phone-portrait-outline"></ion-icon>
+            <span>Celular</span>
+          </div>
+          <span class="result-value">${{ ventaCelular | appCurrency }}</span>
+        </div>
+        }
+        @if (mostrarResultadoCelular && mostrarResultadoBus) {
+        <div class="result-divider"></div>
+        }
+        @if (mostrarResultadoBus) {
+        <div class="result-row">
+          <div class="result-label">
+            <ion-icon name="bus-outline"></ion-icon>
+            <span>Bus</span>
+          </div>
+          <span class="result-value">${{ ventaBus | appCurrency }}</span>
+        </div>
+        }
+      </div>
+      }
+
+    </form>
+  </div>
+
+  <!-- Herramienta reactiva: la ✕ cierra; única acción = limpiar (patrón --compact de CLAUDE.md) -->
+  <div class="bs-actions bs-actions--compact">
+    <ion-button color="tertiary" (click)="nuevaConsulta()">Nueva consulta</ion-button>
+  </div>
+
+</div>

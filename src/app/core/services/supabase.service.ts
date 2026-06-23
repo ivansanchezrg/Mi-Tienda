@@ -5,14 +5,18 @@ import { Preferences } from '@capacitor/preferences';
 import { environment } from 'src/environments/environment';
 import { UiService } from './ui.service';
 import { LoggerService } from './logger.service';
+import { NetworkService } from './network.service';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
+import { ROUTES } from '@core/config/routes.config';
+import { TIMING } from '@core/config/timing.config';
 
 
 @Injectable({ providedIn: 'root' })
 export class SupabaseService {
   private ui = inject(UiService);
   private logger = inject(LoggerService);
+  private network = inject(NetworkService);
   private router = inject(Router);
   private zone = inject(NgZone);
 
@@ -20,14 +24,17 @@ export class SupabaseService {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: false // lo manejamos manualmente en callback.page.ts
+      detectSessionInUrl: false, // lo manejamos manualmente en callback.page.ts
+      // Capacitor WebView no necesita sincronización multi-pestaña.
+      // Sin este override, navigator.locks puede quedar bloqueado tras un kill
+      // abrupto en Android (especialmente Xiaomi), congelando el flujo de auth.
+      lock: (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => fn()
     }
   });
 
   /** URL de deep-link pendiente de procesar (OAuth callback en Android) */
   public pendingDeepLinkUrl: string | null = null;
 
-  /** Key de localStorage donde Supabase guarda los tokens */
   private readonly STORAGE_KEY: string;
   private readonly USUARIO_KEY = 'usuario_actual';
 
@@ -37,8 +44,12 @@ export class SupabaseService {
   /** Timestamp del último intento de refresh on-resume (ms). Usado para throttle. */
   private lastResumeRefreshAt = 0;
 
-  /** Promesa del refresh en curso, para evitar refreshes concurrentes. */
-  private resumeRefreshInFlight: Promise<void> | null = null;
+  /**
+   * Promesa del refresh en curso — pública para que authGuard la espere
+   * si llega mientras el resume-refresh aún no terminó, evitando un segundo
+   * getSession() paralelo que Supabase serializa internamente (~4-5s extra).
+   */
+  resumeRefreshInFlight: Promise<void> | null = null;
 
   /**
    * Hooks que se ejecutan antes de limpiar la sesión en handleExpiredSession().
@@ -157,7 +168,17 @@ export class SupabaseService {
       // 5. Manejo Centralizado de Errores
       this.logger.error('SupabaseService', 'Query error', error);
 
-      const msg = error.message || error.error_description || 'Ocurrió un error inesperado';
+      const rawMsg = error.message || error.error_description || 'Ocurrió un error inesperado';
+      const superadminMatch = rawMsg.match(/superadmin_blocked:\s*(.+)/i);
+      const msg = superadminMatch ? superadminMatch[1].trim() : rawMsg;
+
+      // Sin red: el fallo es por falta de conexión. El banner global (app-offline-banner)
+      // ya comunica el estado offline → no mostrar toast redundante. Único punto de la app
+      // que sabe con certeza que una query falló por red (tiene el error original, no un string).
+      if (!this.network.isConnected() && this.esErrorDeTransporte(error)) {
+        if (showLoading) await this.ui.hideLoading();
+        return null;
+      }
 
       // JWT expirado/inválido → limpiar sesión y redirigir al login
       if (this.isJwtError(msg)) {
@@ -184,6 +205,37 @@ export class SupabaseService {
   private isJwtError(message: string): boolean {
     const lower = message.toLowerCase();
     return lower.includes('jwt') && (lower.includes('expired') || lower.includes('invalid'));
+  }
+
+  /**
+   * Detecta si el error es de transporte (la query no llegó al servidor) vs un error
+   * de datos del servidor (RLS, validación, constraint). Se evalúa sobre el objeto error
+   * original — más confiable que un string. Un fetch fallido no trae `code` de PostgREST.
+   *
+   * Público para los servicios/páginas que usan `.client` directo (sin pasar por `call()`):
+   * en su propio catch deben silenciar el toast si fue por red (el banner global ya avisa):
+   *   `if (this.supabase.esErrorDeTransporte(error) && !network.isConnected()) return;`
+   */
+  esErrorDeTransporte(error: any): boolean {
+    const msg = (error?.message ?? '').toLowerCase();
+    // PostgREST/Postgres adjuntan `code` a los errores de datos; su ausencia + mensaje
+    // de fetch indica que la request no llegó al servidor (sin red).
+    const sinCodeServidor = error?.code === undefined;
+    return msg.includes('failed to fetch')
+        || msg.includes('networkerror')
+        || msg.includes('network request failed')
+        || msg.includes('load failed')
+        || (sinCodeServidor && (msg.includes('fetch') || msg === ''));
+  }
+
+  /**
+   * True si el toast del error debe omitirse: el fallo es por falta de red estando offline,
+   * y el banner global ya comunica el estado. Para usar en el catch de páginas/servicios que
+   * llaman `.client` directo (no pasan por `call()`, que ya lo maneja internamente):
+   *   `catch (e) { if (this.supabase.debeSilenciarErrorOffline(e)) return; this.ui.showError(...) }`
+   */
+  debeSilenciarErrorOffline(error: any): boolean {
+    return !this.network.isConnected() && this.esErrorDeTransporte(error);
   }
 
   /**
@@ -228,7 +280,7 @@ export class SupabaseService {
     // ya estamos en /auth/login después del navigate() abajo.
     this.client.auth.signOut().catch(() => {});
 
-    await this.router.navigate(['/auth/login'], { replaceUrl: true });
+    await this.router.navigate([ROUTES.auth.login], { replaceUrl: true });
 
     // Resetear flag con delay mínimo para que el SIGNED_OUT del signOut()
     // (que llega async) encuentre redirectingToLogin=true y no re-entre.
@@ -264,7 +316,7 @@ export class SupabaseService {
   async refreshSessionOnResume(): Promise<void> {
     // 1. THROTTLE — bloquear ráfagas de appStateChange (desbloqueo, switches rápidos, etc.)
     const nowMs = Date.now();
-    if (nowMs - this.lastResumeRefreshAt < 30_000) {
+    if (nowMs - this.lastResumeRefreshAt < TIMING.resumeRefreshThrottleMs) {
       return;
     }
 
@@ -285,8 +337,8 @@ export class SupabaseService {
         const nowSec = Math.floor(Date.now() / 1000);
         const secondsLeft = expiresAt - nowSec;
 
-        // Si quedan más de 5 minutos, el token está sano — no refrescar
-        if (secondsLeft > 300) {
+        // Si quedan más de jwtRefreshUmbralSegundos (5 min), el token está sano — no refrescar
+        if (secondsLeft > TIMING.jwtRefreshUmbralSegundos) {
           return;
         }
 

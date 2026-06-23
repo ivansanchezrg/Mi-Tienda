@@ -1,0 +1,9 @@
+<div class="app-banner" [class]="'app-banner--' + color" [class.app-banner--clickeable]="clickeable" (click)="onBannerClick()">
+  @if (icono) {
+    <ion-icon [name]="icono"></ion-icon>
+  }
+  <span class="app-banner__texto">{{ texto }}</span>
+  @if (accionTexto) {
+    <button class="app-banner__accion" (click)="onAccionClick($event)">{{ accionTexto }}</button>
+  }
+</div>

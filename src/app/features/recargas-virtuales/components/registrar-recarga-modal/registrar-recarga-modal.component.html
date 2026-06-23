@@ -12,24 +12,6 @@
 <ion-content>
   <div class="modal-content">
 
-    <!-- Hint -->
-    <div class="hint-card">
-      <div class="hint-icon" [class.bus]="tipo === 'BUS'">
-        @if (tipo === 'CELULAR') {
-          <ion-icon name="phone-portrait-outline"></ion-icon>
-        } @else {
-          <ion-icon name="bus-outline"></ion-icon>
-        }
-      </div>
-      <p>
-        @if (tipo === 'CELULAR') {
-          Registrá cuando el proveedor agregó saldo virtual a tu cuenta
-        } @else {
-          Registrá cuando comprás saldo virtual mediante depósito bancario
-        }
-      </p>
-    </div>
-
     <!-- ── SECCIÓN BUS: saldo en máquina (paso previo) ── -->
     @if (tipo === 'BUS') {
       <div class="input-group">
@@ -53,15 +35,15 @@
         <div class="disponible-card">
           <div class="disponible-row">
             <span>Caja BUS acumulada</span>
-            <span>${{ saldoCajaBus | number:'1.2-2' }}</span>
+            <span>${{ saldoCajaBus | appCurrency }}</span>
           </div>
           <div class="disponible-row">
             <span>Ventas del día (sin cerrar)</span>
-            <span class="valor-ventas">+${{ ventaBusCalculada | number:'1.2-2' }}</span>
+            <span class="valor-ventas">+${{ ventaBusCalculada | appCurrency }}</span>
           </div>
           <div class="disponible-row total">
             <span>Disponible para depositar</span>
-            <span class="valor-total">${{ disponibleParaDepositar | number:'1.2-2' }}</span>
+            <span class="valor-total">${{ disponibleParaDepositar | appCurrency }}</span>
           </div>
         </div>
       }
@@ -83,6 +65,43 @@
       </div>
     </div>
 
+    <!-- Cálculos (solo CELULAR) -->
+    @if (mostrarCalculos) {
+      <div class="calculo-preview">
+        <div class="calculo-row">
+          <span>Deuda a pagar al proveedor</span>
+          <span class="calculo-danger">${{ montoAPagar | appCurrency }}</span>
+        </div>
+        <div class="calculo-row">
+          <span>Ganancia ({{ comisionPct }}%)</span>
+          <span class="calculo-success">${{ ganancia | appCurrency }}</span>
+        </div>
+      </div>
+    }
+
+    <!-- Preview CAJA_BUS después del depósito (solo BUS con monto ingresado) -->
+    @if (tipo === 'BUS' && montoVirtual && montoVirtual > 0) {
+      @if (!saldoBusInsuficiente) {
+        <div class="calculo-preview">
+          <div class="calculo-row">
+            <span>CAJA BUS después del depósito</span>
+            <span class="calculo-success">
+              ${{ saldoBusDespues | appCurrency }}
+              <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
+            </span>
+          </div>
+        </div>
+      } @else {
+        <div class="alerta-saldo">
+          <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+          <div>
+            <strong>Efectivo insuficiente</strong>
+            <p>El monto supera el efectivo disponible (${{ disponibleParaDepositar | appCurrency }})</p>
+          </div>
+        </div>
+      }
+    }
+
     <!-- Botones -->
     <div class="modal-actions">
       <button
@@ -102,43 +121,6 @@
         }
       </button>
     </div>
-
-    <!-- Cálculos (solo CELULAR) -->
-    @if (mostrarCalculos) {
-      <div class="calculo-preview">
-        <div class="calculo-row">
-          <span>Deuda a pagar al proveedor</span>
-          <span class="calculo-danger">${{ montoAPagar | number:'1.2-2' }}</span>
-        </div>
-        <div class="calculo-row">
-          <span>Ganancia ({{ comisionPct }}%) — se transfiere al pagar</span>
-          <span class="calculo-success">${{ ganancia | number:'1.2-2' }}</span>
-        </div>
-      </div>
-    }
-
-    <!-- Preview CAJA_BUS después del depósito (solo BUS con monto ingresado) -->
-    @if (tipo === 'BUS' && montoVirtual && montoVirtual > 0) {
-      @if (!saldoBusInsuficiente) {
-        <div class="calculo-preview">
-          <div class="calculo-row">
-            <span>CAJA BUS después del depósito</span>
-            <span class="calculo-success">
-              ${{ saldoBusDespues | number:'1.2-2' }}
-              <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
-            </span>
-          </div>
-        </div>
-      } @else {
-        <div class="alerta-saldo">
-          <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
-          <div>
-            <strong>Efectivo insuficiente</strong>
-            <p>El monto supera el efectivo disponible (${{ disponibleParaDepositar | number:'1.2-2' }})</p>
-          </div>
-        </div>
-      }
-    }
 
   </div>
 </ion-content>

@@ -46,11 +46,11 @@
   <app-empty-state
     icon="person-outline"
     title="No hay usuarios registrados"
-    hint="Tocá el botón + para agregar uno">
+    hint="Toca el botón + para agregar uno">
   </app-empty-state>
   } @else {
   <div class="employees-list">
-    @for (usuario of usuarios; track usuario.id) {
+    @for (usuario of usuarios; track usuario.membresia_id) {
     <div class="employee-card" (click)="abrirEditar(usuario)">
 
       <!-- Avatar -->
@@ -61,23 +61,28 @@
       <!-- Info -->
       <div class="employee-info">
         <div class="employee-nombre">{{ usuario.nombre }}</div>
-        <div class="employee-usuario">{{ usuario.usuario }}</div>
+        <div class="employee-usuario">{{ usuario.email }}</div>
       </div>
 
       <!-- Badges -->
       <div class="employee-badges">
         @if (usuario.es_superadmin) {
-        <span class="badge-superadmin">
-          <ion-icon name="shield-checkmark-outline"></ion-icon>
-          Super
-        </span>
+          <span class="badge-superadmin">
+            <ion-icon name="shield-checkmark-outline"></ion-icon>
+            Super
+          </span>
+        } @else if (usuario.es_propietario) {
+          <span class="badge-propietario">
+            <ion-icon name="ribbon-outline"></ion-icon>
+            Propietario
+          </span>
         } @else {
-        <span class="badge-rol" [class.admin]="usuario.rol === 'ADMIN'">
-          {{ usuario.rol === 'ADMIN' ? 'Admin' : 'Empleado' }}
-        </span>
+          <span class="badge-rol" [class.admin]="usuario.rol === 'ADMIN'">
+            {{ usuario.rol === 'ADMIN' ? 'Admin' : 'Empleado' }}
+          </span>
         }
         @if (!usuario.activo) {
-        <span class="badge-inactivo">Inactivo</span>
+          <span class="badge-inactivo">Inactivo</span>
         }
       </div>
 

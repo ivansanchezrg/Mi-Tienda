@@ -1,15 +1,18 @@
 import { Component, inject } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
 import {
   IonContent,
   IonButton,
   IonIcon
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { timeOutline, refreshOutline, logOutOutline } from 'ionicons/icons';
+import { refreshOutline, logOutOutline, banOutline } from 'ionicons/icons';
 import { AuthService } from '../../services/auth.service';
-import { UiService } from '@core/services/ui.service';
 
+/**
+ * Pantalla mostrada cuando el admin removió la membresía del usuario en el
+ * negocio actual (usuario_negocios.activo=false). La suspensión global por
+ * cobro (suscripciones) usa otra pantalla: ROUTES.suscripcion.
+ */
 @Component({
   selector: 'app-pending',
   templateUrl: './pending.page.html',
@@ -18,32 +21,23 @@ import { UiService } from '@core/services/ui.service';
   imports: [IonContent, IonButton, IonIcon]
 })
 export class PendingPage {
-
   private authService = inject(AuthService);
-  private router = inject(Router);
-  private route = inject(ActivatedRoute);
-  private ui = inject(UiService);
 
   verificando = false;
 
-  /** true = recién registrado por primera vez */
-  readonly esNuevo = this.route.snapshot.queryParamMap.get('estado') === 'nuevo';
-
   constructor() {
-    addIcons({ timeOutline, refreshOutline, logOutOutline });
+    addIcons({ refreshOutline, logOutOutline, banOutline });
   }
+
+  readonly icono = 'ban-outline';
+  readonly titulo = 'Acceso removido';
+  readonly mensaje = 'Tu acceso a este negocio fue removido. Contacta al administrador si crees que es un error.';
 
   async reintentar() {
     if (this.verificando) return;
     this.verificando = true;
-
     try {
-      const isValid = await this.authService.validarUsuario();
-      if (isValid) {
-        this.router.navigate(['/home'], { replaceUrl: true });
-      } else {
-        this.ui.showToast('Tu cuenta aún no ha sido aprobada', 'warning');
-      }
+      await this.authService.validarUsuario();
     } finally {
       this.verificando = false;
     }
