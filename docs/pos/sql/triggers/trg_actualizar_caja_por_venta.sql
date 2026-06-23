@@ -1,17 +1,15 @@
 -- ==========================================
--- TRIGGER FUNCTION: fn_actualizar_saldo_caja_venta (v2)
+-- TRIGGER FUNCTION: fn_actualizar_saldo_caja_venta
 -- ==========================================
 -- Se dispara automáticamente AFTER INSERT en ventas.
 -- Solo actúa si metodo_pago = 'EFECTIVO' y estado = 'COMPLETADA'.
 --
 -- Flujo:
---   1. Busca la caja CAJA_CHICA (cajón diario) por codigo.
---   2. Busca la categoría contable por codigo = 'IN-001' (Ventas — determinístico).
+--   1. Busca la caja principal (codigo = 'CAJA').
+--   2. Busca la categoría contable INGRESO cuyo nombre contenga 'Ventas'.
 --   3. Busca el tipo_referencia de la tabla 'ventas'.
 --   4. Inserta un registro en operaciones_cajas (trazabilidad contable).
 --   5. Actualiza saldo_actual de la caja.
---
--- v2 — Usa codigo = 'IN-001' en lugar de nombre ILIKE '%Ventas%' (más robusto).
 --
 -- Métodos de pago alternativos (DEUNA, TRANSFERENCIA, FIADO):
 --   No disparan esta función — se concilian fuera del sistema o de forma manual.
@@ -21,8 +19,6 @@
 -- ==========================================
 -- Usado por: trg_actualizar_caja_por_venta (ON ventas AFTER INSERT)
 -- ==========================================
-
-DROP TRIGGER IF EXISTS trg_actualizar_caja_por_venta ON ventas;
 
 CREATE OR REPLACE FUNCTION fn_actualizar_saldo_caja_venta()
 RETURNS TRIGGER AS $$
@@ -35,10 +31,12 @@ BEGIN
     IF NEW.metodo_pago = 'EFECTIVO' AND NEW.estado = 'COMPLETADA' THEN
 
         SELECT id INTO v_caja_id
-        FROM cajas WHERE codigo = 'CAJA_CHICA';
+        FROM cajas WHERE codigo = 'CAJA';
 
         SELECT id INTO v_categoria_id
-        FROM categorias_operaciones WHERE codigo = 'IN-001';
+        FROM categorias_operaciones
+        WHERE tipo = 'INGRESO' AND nombre ILIKE '%Ventas%'
+        LIMIT 1;
 
         SELECT id INTO v_tipo_referencia_id
         FROM tipos_referencia WHERE tabla = 'ventas'
