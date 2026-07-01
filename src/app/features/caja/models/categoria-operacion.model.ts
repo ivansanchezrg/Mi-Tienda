@@ -9,6 +9,8 @@ export interface CategoriaOperacion {
   codigo: string;
   descripcion: string | null;
   activo: boolean;
+  /** Si es true, el modal de operación exige descripción al usar esta categoría. */
+  requiere_descripcion: boolean;
   created_at: string;
 }
 
@@ -22,4 +24,5 @@ export interface CategoriaOperacionInsert {
   codigo?: string;
   descripcion?: string;
   activo?: boolean;
+  requiere_descripcion?: boolean;
 }

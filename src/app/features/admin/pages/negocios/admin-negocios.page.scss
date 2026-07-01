@@ -44,6 +44,12 @@
     letter-spacing: 0.5px;
 }
 
+.seccion-header-acciones {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
 .btn-crear-negocio {
     display: inline-flex;
     align-items: center;
@@ -57,10 +63,18 @@
     font-weight: var(--font-weight-semibold);
     cursor: pointer;
     transition: opacity 0.15s ease, transform 0.1s ease;
+    white-space: nowrap;
 
-    ion-icon { font-size: 16px; }
+    ion-icon, ion-spinner { font-size: 16px; width: 16px; height: 16px; }
     &:hover  { opacity: 0.92; }
     &:active { transform: scale(0.97); }
+    &:disabled { opacity: 0.6; cursor: default; }
+
+    &--secundario {
+        background: transparent;
+        color: var(--ion-color-medium);
+        border: 1px solid var(--ion-color-light-shade);
+    }
 }
 
 // ── Buscador ─────────────────────────────────────────
@@ -255,6 +269,28 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+// Purga automática de negocios vencidos (PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md).
+.purga-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    width: fit-content;
+    background: rgba(var(--ion-color-warning-rgb), 0.12);
+    color: var(--ion-color-warning-shade);
+
+    ion-icon { font-size: 13px; }
+
+    &--lista {
+        background: rgba(var(--ion-color-danger-rgb), 0.12);
+        color: var(--ion-color-danger);
+    }
 }
 
 .propietario-end {

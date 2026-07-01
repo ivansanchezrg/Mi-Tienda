@@ -221,7 +221,12 @@ export class OperacionesCajaPage implements OnDestroy {
     }
 
     try {
-      const resultado = await this.service.obtenerOperacionesCaja(this.cajaId, this.filtro, this.page);
+      // Resumen del período: solo se recalcula en reset (cambio de filtro/recarga),
+      // no en cada página del infinite scroll — el total es independiente de lo cargado.
+      const [resultado, resumen] = await Promise.all([
+        this.service.obtenerOperacionesCaja(this.cajaId, this.filtro, this.page),
+        reset ? this.service.obtenerResumenOperaciones(this.cajaId, this.filtro) : Promise.resolve(null)
+      ]);
 
       // cajaSaldo ya se actualiza via cajasSub (Realtime) — solo asignar en carga inicial
       const caja = this.cajasService.cajasValue.find(c => c.id === this.cajaId);
@@ -235,25 +240,16 @@ export class OperacionesCajaPage implements OnDestroy {
 
       this.hasMore = resultado.hasMore;
 
-      this.calcularResumen();
+      if (resumen) {
+        this.totalIngresos = resumen.totalIngresos;
+        this.totalEgresos = resumen.totalEgresos;
+      }
+
       this.agruparPorFecha();
     } catch (error: any) {
       await this.ui.showError(error.message || 'Error al cargar operaciones');
     } finally {
       this.loading = false;
-    }
-  }
-
-  calcularResumen() {
-    this.totalIngresos = 0;
-    this.totalEgresos = 0;
-
-    for (const op of this.operaciones) {
-      if (this.esIngresoReal(op.tipo_operacion)) {
-        this.totalIngresos += op.monto;
-      } else if (this.esEgresoReal(op.tipo_operacion)) {
-        this.totalEgresos += op.monto;
-      }
     }
   }
 
@@ -279,17 +275,6 @@ export class OperacionesCajaPage implements OnDestroy {
     }
 
     this.operacionesAgrupadas = Array.from(grupos.values());
-  }
-
-  // Resumen del período: incluye todo lo que sumó/restó al saldo de la caja.
-  // CIERRE cuenta como ingreso porque es dinero que entró a la caja.
-  // APERTURA y AJUSTE son neutros (no suman a ingresos ni egresos).
-  private esIngresoReal(tipo: string): boolean {
-    return ['INGRESO', 'TRANSFERENCIA_ENTRANTE', 'CIERRE'].includes(tipo);
-  }
-
-  private esEgresoReal(tipo: string): boolean {
-    return ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(tipo);
   }
 
   async cambiarFiltroDirecto(filtro: string) {

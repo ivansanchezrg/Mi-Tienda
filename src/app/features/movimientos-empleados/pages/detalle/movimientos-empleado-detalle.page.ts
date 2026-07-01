@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, ViewChild } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
   IonContent, IonHeader, IonTitle, IonToolbar,
@@ -7,13 +7,13 @@ import {
   IonButton,
   IonSkeletonText, IonRefresher, IonRefresherContent,
   IonInfiniteScroll, IonInfiniteScrollContent,
-  ModalController, NavController,
+  ModalController, AlertController, NavController,
   ViewWillEnter, ViewWillLeave
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   walletOutline, chevronDownCircleOutline, personOutline,
-  ellipsisHorizontalOutline, cashOutline, createOutline,
+  ellipsisVerticalOutline, cashOutline, createOutline,
   alertCircleOutline, starOutline, checkmarkCircleOutline,
   arrowUpOutline, arrowDownOutline, readerOutline, closeOutline,
   arrowForwardCircleOutline
@@ -24,6 +24,7 @@ import {
 } from '../../models/movimiento-empleado.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
+import { ConfigService } from '../../../../core/services/config.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { formatFechaEC, formatHoraEC } from '../../../../core/utils/date.util';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
@@ -57,9 +58,12 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
   private service = inject(MovimientosEmpleadosService);
   protected currencyService = inject(CurrencyService);
   private ui = inject(UiService);
+  private configService = inject(ConfigService);
   private authService = inject(AuthService);
   private modalCtrl = inject(ModalController);
+  private alertCtrl = inject(AlertController);
   private navCtrl = inject(NavController);
+  private router = inject(Router);
 
   empleadoId = '';
   empleadoNombre = '';
@@ -78,7 +82,7 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
   constructor() {
     addIcons({
       walletOutline, chevronDownCircleOutline, personOutline,
-      ellipsisHorizontalOutline, cashOutline, createOutline,
+      ellipsisVerticalOutline, cashOutline, createOutline,
       alertCircleOutline, starOutline, checkmarkCircleOutline,
       arrowUpOutline, arrowDownOutline, readerOutline, closeOutline,
       arrowForwardCircleOutline
@@ -154,6 +158,12 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
   // ── Acciones ──
 
   async abrirMenuAcciones() {
+    const config = await this.configService.get();
+    if (config.nomina_sueldo_base <= 0) {
+      await this.avisarSueldoSinConfigurar();
+      return;
+    }
+
     const groups: ModalOptionGroup[] = [{
       options: [
         { label: 'Dar adelanto', icon: 'cash-outline', value: 'adelanto' },
@@ -185,6 +195,32 @@ export class MovimientosEmpleadoDetallePage implements OnInit, ViewWillEnter, Vi
     else if (data === 'pagar') await this.abrirPagarNomina();
     else if (data === 'ajustar') await this.abrirAjustar();
     else if (data === 'toggle-liquidados') await this.toggleLiquidados();
+  }
+
+  /**
+   * El onboarding deja nomina_sueldo_base en 0 a propósito (sin fricción de
+   * captación) — Pagar nómina y Ajustar cuenta (modo "Falta") lo necesitan para
+   * calcular el monto, y "Ajustar cuenta" ni siquiera bloquea al confirmar
+   * (registraría un ajuste de $0 sin avisar). Se valida acá, antes de abrir el
+   * menú de acciones, para no ofrecer opciones que de todos modos no van a
+   * funcionar bien.
+   */
+  private async avisarSueldoSinConfigurar() {
+    const alert = await this.alertCtrl.create({
+      header: 'Falta configurar el sueldo base',
+      message: 'Antes de gestionar nómina, configura el sueldo base en Parámetros → Nómina.',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Ir a Parámetros',
+          handler: () => this.router.navigate(
+            [ROUTES.configuracion.parametros],
+            { queryParams: { seccion: 'nomina' } }
+          )
+        }
+      ]
+    });
+    await alert.present();
   }
 
   private async abrirAdelanto() {

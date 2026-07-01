@@ -50,4 +50,13 @@ export interface PropietarioGrupo {
    *  y el texto del menú (Suspender ↔ Reactivar). */
   suspendido: boolean;
   negocios:   NegocioAdmin[];
+  /** Presente solo si el propietario está marcado para purga (ver
+   *  PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md). Viene de fn_listar_negocios_pendientes_purga,
+   *  un solo registro representativo (todos sus negocios comparten estas fechas). */
+  purga?: {
+    telefono_contacto:   string | null;
+    purga_programada_el: string;
+    dias_restantes_purga: number;
+    puede_purgar_ya:      boolean;
+  };
 }

@@ -6,6 +6,7 @@ import { VentaFiada, VentaFiadaItem } from '../models/cuenta-cobrar.model';
 import { CurrencyService } from '../../../core/services/currency.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { ConfiguracionService } from '../../configuracion/services/configuracion.service';
+import { WhatsAppService } from '../../../core/services/whatsapp.service';
 import { DatosNegocio } from '../../configuracion/models/configuracion.model';
 import { formatFechaEC } from '../../../core/utils/date.util';
 
@@ -52,6 +53,7 @@ export class ShareEstadoCuentaService {
     private currency      = inject(CurrencyService);
     private auth          = inject(AuthService);
     private configuracion = inject(ConfiguracionService);
+    private whatsapp      = inject(WhatsAppService);
 
     private readonly CANVAS_WIDTH = 400;
     private readonly PADDING = 28;
@@ -511,9 +513,6 @@ export class ShareEstadoCuentaService {
     }
 
     private openWhatsApp(tel: string | null | undefined, text: string) {
-        let telefono = (tel ?? '').replace(/\D/g, '');
-        if (telefono.startsWith('0')) telefono = '593' + telefono.slice(1);
-        const url = `https://api.whatsapp.com/send?phone=${telefono}&text=${encodeURIComponent(text)}`;
-        window.open(url, '_blank');
+        this.whatsapp.abrir(tel ?? '', [text]);
     }
 }

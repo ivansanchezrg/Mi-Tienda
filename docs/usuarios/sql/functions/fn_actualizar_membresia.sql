@@ -1,10 +1,14 @@
 -- =============================================================================
--- fn_actualizar_membresia (v2.0)
+-- fn_actualizar_membresia (v2.1)
 -- =============================================================================
 -- Actualiza rol y/o activo de una membresía (usuario_negocios).
 -- Reemplaza el UPDATE directo desde el cliente para poder validar que al
 -- reactivar un empleado no esté ya activo en otro negocio.
 --
+-- v2.1 (2026-06-24) — FIX: column reference "id" is ambiguous (SQLSTATE 42702).
+--   Las columnas de salida del RETURNS TABLE (id/rol/activo) colisionaban con
+--   las columnas de usuario_negocios en el RETURN QUERY → la función fallaba con
+--   400 Bad Request y editar usuario no funcionaba. Renombradas a out_*.
 -- v2.0 (2026-05-30) — SEGURIDAD MULTI-TENANT CRÍTICA:
 --   Valida que la membresía pertenezca al negocio activo del JWT.
 --   Sin este check un ADMIN del negocio A podía cambiar rol/activo de
@@ -22,7 +26,7 @@ CREATE OR REPLACE FUNCTION public.fn_actualizar_membresia(
     p_rol          TEXT    DEFAULT NULL,
     p_activo       BOOLEAN DEFAULT NULL
 )
-RETURNS TABLE(id UUID, rol rol_usuario_enum, activo BOOLEAN)
+RETURNS TABLE(out_id UUID, out_rol rol_usuario_enum, out_activo BOOLEAN)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -82,10 +86,13 @@ BEGIN
         activo = COALESCE(p_activo, un.activo)
     WHERE un.id = p_membresia_id;
 
-    -- Retornar registro actualizado
+    -- Retornar registro actualizado.
+    -- Las columnas de salida se llaman out_* (no id/rol/activo) para no colisionar
+    -- con las columnas homónimas de usuario_negocios — calificar con `un.` no basta,
+    -- el nombre de la columna de salida sigue siendo ambiguo (SQLSTATE 42702).
     RETURN QUERY
     SELECT un.id, un.rol, un.activo
-    FROM usuario_negocios un
+    FROM usuario_negocios AS un
     WHERE un.id = p_membresia_id;
 END;
 $$;

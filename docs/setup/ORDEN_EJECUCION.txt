@@ -246,6 +246,13 @@ NOTAS GENERALES:
       docs/suscripcion/sql/functions/fn_estado_suscripcion.sql
       docs/suscripcion/sql/functions/fn_listar_suscripciones_admin.sql
 
+  006_planes_pro_max.sql — Corrige el seed de planes: PRO + MAX reales.
+    El seed original de schema.sql solo creaba un plan placeholder 'BASICO'.
+    Renombra esa fila a 'PRO' (mismo id, conserva FKs existentes) y crea 'MAX'
+    si no existe. Sin esto, fn_completar_onboarding falla con "El plan PRO no
+    existe" en cualquier entorno donde PRO/MAX no se hayan creado a mano.
+    No requiere re-ejecutar ninguna funcion.
+
 ================================================================================
 DESPUES DE TODOS LOS PASOS
 ================================================================================

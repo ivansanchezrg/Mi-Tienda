@@ -161,9 +161,15 @@ BEGIN
             v_negocio_ancla := v_negocio.id;
         END IF;
 
+        -- purga_avisada_el / purga_programada_el en NULL: un pago siempre cancela
+        -- cualquier purga en curso (ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md,
+        -- Fase 3) — el negocio vuelve a ACTIVA, no tiene sentido que siga marcado
+        -- para borrarse.
         INSERT INTO suscripciones (negocio_id, plan_id, estado, periodo_contratado,
-                                   inicia_el, vence_el, actualizada_por, updated_at)
-        VALUES (v_negocio.id, v_plan_id, 'ACTIVA', v_periodo, NOW(), v_nuevo_vence, v_caller_id, NOW())
+                                   inicia_el, vence_el, actualizada_por, updated_at,
+                                   purga_avisada_el, purga_programada_el)
+        VALUES (v_negocio.id, v_plan_id, 'ACTIVA', v_periodo, NOW(), v_nuevo_vence, v_caller_id, NOW(),
+                NULL, NULL)
         ON CONFLICT (negocio_id) DO UPDATE SET
             plan_id            = EXCLUDED.plan_id,
             estado             = 'ACTIVA',
@@ -171,7 +177,9 @@ BEGIN
             inicia_el          = EXCLUDED.inicia_el,
             vence_el           = EXCLUDED.vence_el,
             actualizada_por    = EXCLUDED.actualizada_por,
-            updated_at         = NOW();
+            updated_at         = NOW(),
+            purga_avisada_el    = NULL,
+            purga_programada_el = NULL;
 
         v_afectados := v_afectados + 1;
     END LOOP;

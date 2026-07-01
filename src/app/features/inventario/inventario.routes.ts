@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { pendingChangesGuard } from '../../core/guards/pending-changes.guard';
 
 export const INVENTARIO_ROUTES: Routes = [
   {
@@ -7,7 +8,8 @@ export const INVENTARIO_ROUTES: Routes = [
   },
   {
     path: 'nuevo',
-    loadComponent: () => import('./pages/producto-crear/producto-crear.page').then(m => m.ProductoCrearPage)
+    loadComponent: () => import('./pages/producto-crear/producto-crear.page').then(m => m.ProductoCrearPage),
+    canDeactivate: [pendingChangesGuard]
   },
   {
     path: 'editar/:id',

@@ -2,35 +2,47 @@ ion-content {
   --background: var(--ion-background-color);
 }
 
-// ── Segment moderno (pill flotante) ───────────────────────────────────────────
-// Fuera del ion-content → estático al hacer scroll
-.segment-wrapper {
-  background: var(--ion-background-color);
-  padding: var(--spacing-md) var(--spacing-md) var(--spacing-sm);
+// ── Toggle Egresos/Ingresos — mismo diseño del toggle Mensual/Anual de
+// Suscripción (.susc-periodo), con el color primary que ya usaba el segment.
+// Toolbar extra dentro del header → estático al hacer scroll.
+.cop-toolbar-periodo {
+  --min-height: auto;
+  --padding-top: 6px;
+  --padding-bottom: 10px;
+  --background: var(--ion-toolbar-background, var(--ion-background-color));
+}
 
-  ion-segment {
-    --background: var(--ion-item-background, white);
-    border-radius: 14px;
-    box-shadow: var(--shadow-level-1);
-    padding: 3px;
-  }
+.cop-periodo {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--ion-color-step-100, #ececec);
+  max-width: 320px;
+  margin: 0 auto;
 
-  ion-segment-button {
-    --border-radius: 11px;
-    --color: var(--ion-color-medium);
-    --color-checked: white;
-    --background-checked: var(--ion-color-primary);
-    --indicator-height: 0;
-    --indicator-color: transparent;
-    --padding-top: 0;
-    --padding-bottom: 0;
-    --margin-top: 0;
-    --margin-bottom: 0;
-    min-height: 40px;
-    font-size: 13px;
-    font-weight: var(--font-weight-semibold);
-    text-transform: none;
-    letter-spacing: 0;
+  &__btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 14px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 14px;
+    font-weight: var(--font-weight-medium);
+    color: var(--ion-color-medium);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &--activo {
+      background: var(--ion-color-primary);
+      color: var(--ion-color-primary-contrast);
+      font-weight: var(--font-weight-semibold);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    }
   }
 }
 

@@ -22,6 +22,21 @@ export class OperacionesCajaService {
   private authService = inject(AuthService);
   private pageSize = PAGINATION_CONFIG.operacionesCaja.pageSize;
 
+  /**
+   * Rango de fechas [desde, hasta) en ISO UTC para un filtro, o null si es 'todas'
+   * (sin acotar). Única fuente del rango — lista y resumen lo comparten para que
+   * siempre cubran exactamente el mismo período.
+   */
+  private rangoFiltro(filtro: FiltroFecha): { desde: string; hasta: string } | null {
+    if (filtro === 'todas') return null;
+
+    const desde = filtro === 'semana' ? getInicioHaceNDiasISO(7)
+                : filtro === 'mes'    ? getInicioHaceNDiasISO(30)
+                : getInicioHaceNDiasISO(0);
+
+    return { desde, hasta: getInicioDiaSiguienteISO() };
+  }
+
   async obtenerCategorias(tipo?: 'INGRESO' | 'EGRESO'): Promise<CategoriaOperacion[]> {
     let query = this.supabase.client
       .from('categorias_operaciones')
@@ -56,17 +71,12 @@ export class OperacionesCajaService {
       .eq('caja_id', cajaId)
       .order('fecha', { ascending: false });
 
-    // Filtro por fecha — usar utilidades locales para evitar desfase UTC
-    if (filtro !== 'todas') {
-      const inicioDiaISO = getInicioHaceNDiasISO(0);  // medianoche hoy local → UTC
-
-      const inicioFiltroISO = filtro === 'semana' ? getInicioHaceNDiasISO(7)
-                            : filtro === 'mes'    ? getInicioHaceNDiasISO(30)
-                            : inicioDiaISO;
-
+    // Filtro por fecha — rango compartido con el resumen (evita desfase UTC)
+    const rango = this.rangoFiltro(filtro);
+    if (rango) {
       query = query
-        .gte('fecha', inicioFiltroISO)
-        .lt('fecha', getInicioDiaSiguienteISO());
+        .gte('fecha', rango.desde)
+        .lt('fecha', rango.hasta);
     }
 
     // Paginación
@@ -82,6 +92,26 @@ export class OperacionesCajaService {
       page,
       pageSize: this.pageSize,
       hasMore: (count || 0) > to + 1
+    };
+  }
+
+  async obtenerResumenOperaciones(cajaId: string, filtro: FiltroFecha): Promise<{ totalIngresos: number; totalEgresos: number }> {
+    const rango = this.rangoFiltro(filtro);
+
+    const { data, error } = await this.supabase.client.rpc('fn_resumen_operaciones_caja', {
+      p_caja_id: cajaId,
+      p_desde: rango?.desde ?? null,
+      p_hasta: rango?.hasta ?? null
+    });
+
+    if (error) {
+      throw new Error(`Error al obtener el resumen: ${error.message}`);
+    }
+
+    const fila = data?.[0];
+    return {
+      totalIngresos: fila?.total_ingresos ?? 0,
+      totalEgresos: fila?.total_egresos ?? 0
     };
   }
 

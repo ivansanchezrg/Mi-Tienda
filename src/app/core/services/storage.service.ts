@@ -336,6 +336,52 @@ export class StorageService {
     }
   }
 
+  // Borra TODO el contenido de un negocio en el bucket — uso exclusivo del flujo
+  // de purga (PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md, Fase 4). No se llama desde el
+  // guard ni desde ninguna página normal de la app — no exponer en menús de usuario.
+  //
+  // Recorre recursivamente {negocioId}/ sin hardcodear nombres de subcarpeta
+  // (comprobantes/, productos/, etc.): list() de Supabase Storage no es recursivo,
+  // así que cada entrada sin metadata.size (carpeta) se vuelve a listar, y cada
+  // entrada con metadata.size (archivo) se acumula para el remove() final.
+  // Hardcodear subcarpetas es frágil — un subfolder nuevo agregado a futuro
+  // (ej. notas/adjuntos) quedaría huérfano si este método no se actualiza a mano.
+  async deleteNegocioFolder(negocioId: string): Promise<void> {
+    const paths = await this.listarArchivosRecursivo(negocioId);
+    if (paths.length === 0) return;
+
+    // remove() acepta un array — se borra en un solo lote, sin límite documentado
+    // bajo (Supabase soporta cientos por llamada); si algún negocio tuviera miles
+    // de archivos, dividir en chunks no es necesario hoy (negocio promedio: decenas).
+    const { error } = await this.supabase.client.storage.from(BUCKET).remove(paths);
+    if (error) {
+      this.logger.error('StorageService', `Error al purgar carpeta de negocio ${negocioId}`, error);
+      throw error;
+    }
+  }
+
+  private async listarArchivosRecursivo(prefix: string): Promise<string[]> {
+    const { data, error } = await this.supabase.client.storage.from(BUCKET).list(prefix);
+    if (error) {
+      this.logger.error('StorageService', `Error al listar ${prefix}`, error);
+      return [];
+    }
+    if (!data) return [];
+
+    const archivos: string[] = [];
+    for (const entry of data) {
+      const entryPath = `${prefix}/${entry.name}`;
+      // Una carpeta no tiene metadata.size (id es null) en la respuesta de Storage;
+      // un archivo real sí lo tiene.
+      if (entry.id === null) {
+        archivos.push(...await this.listarArchivosRecursivo(entryPath));
+      } else {
+        archivos.push(entryPath);
+      }
+    }
+    return archivos;
+  }
+
   private buildPath(negocioId: string, subfolder: string, ext: string, useDatePrefix: boolean): string {
     if (useDatePrefix) {
       const [year, month] = getFechaLocal().split('-');

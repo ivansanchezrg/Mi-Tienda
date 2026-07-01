@@ -29,6 +29,11 @@ DECLARE
     v_propietario_id  UUID;
     v_caller_es_super BOOLEAN;
 BEGIN
+    -- Bypass: durante una purga administrativa el borrado esta permitido
+    IF current_setting('app.purga_en_curso', true) = 'true' THEN
+        RETURN COALESCE(OLD, NEW);
+    END IF;
+
     -- Resolver: ¿la fila afectada pertenece al propietario del negocio?
     v_propietario_id := (SELECT propietario_usuario_id FROM negocios WHERE id = COALESCE(NEW.negocio_id, OLD.negocio_id));
 

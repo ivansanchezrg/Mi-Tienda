@@ -4,7 +4,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonContent, IonIcon, IonSkeletonText, IonRefresher, IonRefresherContent,
-  IonFab, IonFabButton,
+  IonFab, IonFabButton, IonInfiniteScroll, IonInfiniteScrollContent,
   ModalController, NavController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -15,6 +15,7 @@ import {
 } from 'ionicons/icons';
 
 import { ROUTES } from '@core/config/routes.config';
+import { PAGINATION_CONFIG } from '@core/config/pagination.config';
 import { UiService } from '@core/services/ui.service';
 import { getFechaLocal, formatHoraEC } from '@core/utils/date.util';
 import { PeriodFilterComponent, PeriodOption } from '@shared/components/period-filter/period-filter.component';
@@ -24,7 +25,9 @@ import { CierresTurnoService } from '../../services/cierres-turno.service';
 import { CierreTurnoSnapshot } from '../../models/cierre-turno.model';
 import { CierreTurnoDetalleModalComponent } from '../../components/cierre-turno-detalle-modal/cierre-turno-detalle-modal.component';
 
-type FiltroFecha = 'hoy' | 'semana' | 'mes' | 'todas';
+// Solo Hoy/Todo — la UI no expone semana/mes (ver `periodos`). Si en el futuro
+// se agregan, ampliar este type y las ramas de calcularRango().
+type FiltroFecha = 'hoy' | 'todas';
 
 interface CierresAgrupados {
   fecha: string;          // YYYY-MM-DD (clave de agrupación)
@@ -41,7 +44,7 @@ interface CierresAgrupados {
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonContent, IonIcon, IonSkeletonText, IonRefresher, IonRefresherContent,
-    IonFab, IonFabButton,
+    IonFab, IonFabButton, IonInfiniteScroll, IonInfiniteScrollContent,
     PeriodFilterComponent,
     EmptyStateComponent,
   ]
@@ -61,6 +64,9 @@ export class HistorialTurnosPage {
   loading = false;
   filtro: FiltroFecha = 'todas';
   showScrollTop = false;
+
+  page = 0;
+  hasMore = false;
 
   // Solo Hoy/Todo — mismo criterio que Operaciones de Caja: no hay una
   // pregunta real de negocio que responda "esta semana" o "este mes" para
@@ -118,9 +124,11 @@ export class HistorialTurnosPage {
 
   async cargar(silencioso = false) {
     if (!silencioso) this.loading = true;
+    this.page = 0;
     try {
-      const { desde, hasta } = this.calcularRango();
-      this.cierres = await this.cierresService.listar(desde, hasta);
+      const pagina = await this.fetchPagina(this.page);
+      this.cierres = pagina;
+      this.actualizarHasMore(pagina);
       this.agrupar();
     } catch {
       await this.ui.showToast('Error al cargar el historial', 'danger');
@@ -129,26 +137,37 @@ export class HistorialTurnosPage {
     }
   }
 
+  async cargarMas(event: CustomEvent) {
+    this.page++;
+    try {
+      const pagina = await this.fetchPagina(this.page);
+      this.cierres = [...this.cierres, ...pagina];
+      this.actualizarHasMore(pagina);
+      this.agrupar();
+    } catch {
+      await this.ui.showToast('Error al cargar más cierres', 'danger');
+    } finally {
+      (event.target as HTMLIonInfiniteScrollElement).complete();
+    }
+  }
+
+  private fetchPagina(page: number): Promise<CierreTurnoSnapshot[]> {
+    const { desde, hasta } = this.calcularRango();
+    return this.cierresService.listar(desde, hasta, page);
+  }
+
+  private actualizarHasMore(pagina: CierreTurnoSnapshot[]) {
+    this.hasMore = pagina.length === PAGINATION_CONFIG.historialTurnos.pageSize;
+  }
+
   private calcularRango(): { desde: string; hasta: string } {
     const hoy = getFechaLocal();
-
-    if (this.filtro === 'semana') {
-      const fecha = new Date(hoy + 'T00:00:00');
-      const lunes = new Date(fecha);
-      const diaSemana = fecha.getDay();
-      lunes.setDate(fecha.getDate() - diaSemana + (diaSemana === 0 ? -6 : 1));
-      const lunesLocal = `${lunes.getFullYear()}-${String(lunes.getMonth() + 1).padStart(2, '0')}-${String(lunes.getDate()).padStart(2, '0')}`;
-      return { desde: lunesLocal, hasta: hoy };
-    }
-
-    if (this.filtro === 'mes') {
-      return { desde: `${hoy.slice(0, 7)}-01`, hasta: hoy };
-    }
 
     if (this.filtro === 'todas') {
       return { desde: '2000-01-01', hasta: hoy };
     }
 
+    // 'hoy'
     return { desde: hoy, hasta: hoy };
   }
 

@@ -104,6 +104,26 @@ export interface SuscripcionAdmin {
 }
 
 /**
+ * Fila del listado de negocios en cuenta regresiva de purga (panel admin).
+ * Ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md. Un item por negocio — los del
+ * mismo propietario comparten propietario_id/purga_programada_el (sincronizados).
+ */
+export interface NegocioPendientePurga {
+  propietario_id:        string;
+  propietario_email:     string;
+  propietario_nombre:    string;
+  /** Teléfono del negocio ancla del propietario (el más antiguo). Null si no se configuró. */
+  telefono_contacto:     string | null;
+  negocio_id:             string;
+  negocio_nombre:         string;
+  vence_el:               string;        // ISO timestamp
+  purga_avisada_el:       string;        // ISO timestamp
+  purga_programada_el:    string;        // ISO timestamp
+  dias_restantes_purga:   number;
+  puede_purgar_ya:        boolean;
+}
+
+/**
  * Fila de la tabla suscripcion_pagos (historial de cobros), con los catálogos
  * embebidos vía join (plan + método de pago) para mostrar directamente en la UI.
  * Es inmutable desde el cliente — solo la escribe fn_registrar_pago_propietario.

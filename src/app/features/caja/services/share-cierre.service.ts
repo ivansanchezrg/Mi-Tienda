@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { AuthService } from '../../auth/services/auth.service';
 import { CurrencyService } from '@core/services/currency.service';
 import { UiService } from '@core/services/ui.service';
+import { WhatsAppService } from '@core/services/whatsapp.service';
 import { ConfiguracionService } from '../../configuracion/services/configuracion.service';
 import { formatFechaEC } from '@core/utils/date.util';
 
@@ -57,6 +58,7 @@ export class ShareCierreService {
   private authService          = inject(AuthService);
   private currencyService      = inject(CurrencyService);
   private ui                   = inject(UiService);
+  private whatsapp             = inject(WhatsAppService);
   private configuracionService = inject(ConfiguracionService);
 
   /** Datos del último cierre pendientes de mostrar en el modal del home */
@@ -80,20 +82,16 @@ export class ShareCierreService {
     const usuario      = await this.authService.getUsuarioActual();
     const negocioNombre = usuario?.negocio_nombre ?? '';
 
-    const negocio  = await this.configuracionService.getDatosNegocio();
-    const telefono = this.normalizarTelefono(negocio?.telefono ?? '');
+    const negocio = await this.configuracionService.getDatosNegocio();
+    const texto   = this.construirTexto(datos, negocioNombre);
+    const abierto = this.whatsapp.abrir(negocio?.telefono ?? '', [texto]);
 
-    if (!telefono) {
+    if (!abierto) {
       this.ui.showToast(
         'Configura el teléfono del negocio en Parámetros para enviar el resumen',
         'warning'
       );
-      return;
     }
-
-    const texto = this.construirTexto(datos, negocioNombre);
-    const url   = `https://api.whatsapp.com/send?phone=${telefono}&text=${encodeURIComponent(texto)}`;
-    window.open(url, '_blank');
   }
 
   private construirTexto(d: DatosCierreParaCompartir, negocioNombre: string): string {
@@ -204,11 +202,5 @@ export class ShareCierreService {
     return lineas.join('\n');
   }
 
-  private normalizarTelefono(tel: string): string {
-    if (!tel) return '';
-    let t = tel.replace(/\D/g, '');
-    if (t.startsWith('0')) t = '593' + t.slice(1);
-    if (!t.startsWith('593')) t = '593' + t;
-    return t;
-  }
 }
+

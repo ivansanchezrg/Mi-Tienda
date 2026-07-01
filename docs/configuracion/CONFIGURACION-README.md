@@ -196,13 +196,45 @@ Resto de secciones (tabla `configuraciones`):
 
 ### Categorias de Operaciones (`pages/categorias-operaciones/`)
 
-CRUD de categorias para clasificar operaciones manuales de caja (INGRESO/EGRESO).
+CRUD de categorias de usuario para clasificar operaciones manuales de caja
+(INGRESO/EGRESO). Las categorias de sistema (`DEF-RETIRAR`, `DEF-REPONER`, etc.)
+viven en la tabla global `categorias_sistema` — nunca aparecen en este listado
+ni pasan por este CRUD.
 
-- Segmento: INGRESO / EGRESO (filtra la lista)
+- Toggle Egresos/Ingresos (filtra la lista) — pildora fija bajo el header, mismo
+  diseno que el toggle Mensual/Anual de Suscripcion (`.cop-periodo`), color
+  `--ion-color-primary` propio del modulo (`border-radius: 8px`)
 - FAB: crear nueva categoria
-- Modal `categoria-operacion-modal`: nombre + tipo (INGRESO/EGRESO)
-- Categorias del sistema (`es_sistema = true`): no se pueden eliminar ni editar
+- Modal `categoria-operacion-modal`: tipo (fijo, no editable) + nombre + descripcion
+  (opcional) + toggle "Exigir descripcion" (`requiere_descripcion`) + toggle
+  activo/inactivo (solo en edicion) + boton "Eliminar categoria" (solo en edicion)
+- Eliminar: bloqueado en BD si la categoria ya tiene operaciones registradas
+  (`operaciones_cajas.categoria_id` sin `ON DELETE`) — el servicio traduce el
+  error de FK (`23503`) a un mensaje claro pidiendo desactivarla en su lugar.
+  Sin historial, se borra sin problema.
 - Pull-to-refresh
+
+#### `CategoriaOperacionModalComponent`
+
+Ubicacion: `features/configuracion/components/categoria-operacion-modal/`
+
+```typescript
+// API
+@Input() categoria?: CategoriaOperacion;            // undefined = modo crear
+@Input() tipoInicial: 'EGRESO' | 'INGRESO' = 'EGRESO'; // tipo preseleccionado al crear
+
+// Guardar — retorna via modalCtrl.dismiss(data, 'confirm')
+// data: CategoriaOperacionInsert (tipo, nombre, descripcion?, requiere_descripcion, activo)
+
+// Eliminar (solo edicion) — pide confirmacion (AlertController) y, si se acepta,
+// retorna via modalCtrl.dismiss(null, 'delete'). El borrado real (y la
+// traduccion del error de FK) lo hace CategoriasOperacionesService.eliminar()
+// en la pagina llamadora — el modal solo confirma la intencion.
+```
+
+- El campo `tipo` siempre esta deshabilitado en el form (`form.get('tipo')?.disable()`)
+  — viene fijo del segmento activo (crear) o de la categoria existente (editar)
+- Boton "Eliminar categoria" solo visible cuando `categoria` esta presente (modo editar)
 
 ### Categorias de Productos (`pages/categorias-productos/`)
 

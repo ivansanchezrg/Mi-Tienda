@@ -13,6 +13,8 @@ export interface CierreTurnoSnapshot {
   ventas_pos_efectivo: number;
   egresos: number;
   otros_ingresos: number;
+  /** deposito_caja + transferencia_varios — NO es el conteo físico del empleado.
+   *  Para reconstruir "cuánto contó", usar efectivoEsperado + diferencia. */
   efectivo_fisico: number;
   /** > 0 sobrante, < 0 faltante, = 0 cuadrado */
   diferencia: number;

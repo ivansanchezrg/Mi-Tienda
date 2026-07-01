@@ -177,3 +177,29 @@ ion-content {
     cursor: not-allowed;
   }
 }
+
+// ── Botón eliminar (solo edición) ─────────────────────────────────────────────
+.delete-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  background: rgba(var(--ion-color-danger-rgb), 0.08);
+  color: var(--ion-color-danger);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+
+  ion-icon {
+    font-size: 16px;
+  }
+
+  &:active {
+    background: rgba(var(--ion-color-danger-rgb), 0.15);
+  }
+}

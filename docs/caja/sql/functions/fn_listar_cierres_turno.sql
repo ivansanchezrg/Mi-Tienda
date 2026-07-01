@@ -2,8 +2,30 @@
 -- fn_listar_cierres_turno
 -- ==========================================
 -- Reconstruye el resumen del cierre de cada turno cerrado en el rango de fechas
--- a partir del ledger inmutable (operaciones_cajas + recargas + ventas).
+-- a partir del ledger inmutable (operaciones_cajas + movimientos_empleados + recargas + ventas).
 --
+-- v2.4 — Corrige `otros_ingresos`/`usa_pos` falso positivo: se derivaban de
+--   una resta algebraica (deposito - fondo - ventas + egresos) que asumía que
+--   cualquier excedente entre el depósito y el fondo era "ingresos manuales".
+--   En turnos donde el conteo físico simplemente no coincidió con el fondo
+--   (sin ninguna operación real en CAJA_CHICA), esa resta daba un sobrante
+--   positivo y el historial mostraba "Ingresos manuales" inexistentes, además
+--   de activar el modo "con cuadre" para un turno que el propio backend
+--   (fn_ejecutar_cierre_diario_v5, v_hubo_movimientos_caja_chica) ya había
+--   tratado como "sin movimientos". Ahora `usa_pos` se basa en la misma
+--   condición real (EXISTS de operaciones en CAJA_CHICA durante el turno) y
+--   `otros_ingresos` se fuerza a 0 cuando no hubo esas operaciones.
+-- v2.3 — Corrige `diferencia` (siempre daba 0): el filtro por categoría del
+--   ajuste de conteo comparaba `categoria_id` (categorías de usuario), pero
+--   fn_ejecutar_cierre_diario_v5 inserta el ajuste con `categoria_sistema_id`.
+--   Además, el faltante ahora se lee desde `movimientos_empleados`
+--   (tipo_movimiento = 'FALTANTE_CAJA') — es la fuente de verdad de la deuda
+--   real del empleado, la misma que usa "Cuentas empleados" para liquidar.
+--   El sobrante (no genera deuda) se sigue leyendo del ajuste en
+--   operaciones_cajas, con la columna ya corregida a categoria_sistema_id.
+-- v2.2 — p_limit/p_offset paginan el CTE turnos (antes de los JOINs pesados a
+--   ventas/recargas) — con el filtro "Todo" el payload ya no crece sin tope.
+--   p_limit NULL → sin límite (compatibilidad; el caller siempre debe pasarlo).
 -- v2.1 — usa_pos ahora refleja cualquier movimiento del cajón (ventas POS,
 --   ingresos manuales o egresos). Antes solo consideraba ventas POS,
 --   dejando el cuadre desactivado cuando había ingresos/egresos manuales sin POS.
@@ -22,10 +44,13 @@
 -- ==========================================
 
 DROP FUNCTION IF EXISTS public.fn_listar_cierres_turno(DATE, DATE);
+DROP FUNCTION IF EXISTS public.fn_listar_cierres_turno(DATE, DATE, INTEGER, INTEGER);
 
 CREATE OR REPLACE FUNCTION public.fn_listar_cierres_turno(
     p_fecha_desde DATE,
-    p_fecha_hasta DATE
+    p_fecha_hasta DATE,
+    p_limit       INTEGER DEFAULT NULL,
+    p_offset      INTEGER DEFAULT 0
 )
 RETURNS TABLE (
     turno_id                       UUID,
@@ -79,7 +104,6 @@ DECLARE
     -- UUIDs fijos de categorias_sistema (no dependen del negocio)
     v_cat_ajuste_in      CONSTANT UUID := 'a1000001-0000-0000-0000-000000000003';  -- AJU-CONTEO-IN
     v_cat_ajuste_eg      CONSTANT UUID := 'a1000001-0000-0000-0000-000000000004';  -- AJU-CONTEO-EG
-    v_cat_cierre_sin_pos CONSTANT UUID := 'a1000001-0000-0000-0000-000000000001';  -- CIE-SIN-POS
     v_tipo_celular         INTEGER;
     v_tipo_bus             INTEGER;
     v_varios_activa        BOOLEAN;
@@ -112,7 +136,7 @@ BEGIN
     v_celular_id := (SELECT id FROM cajas WHERE codigo = 'CAJA_CELULAR' AND negocio_id = v_negocio_id);
     v_bus_id     := (SELECT id FROM cajas WHERE codigo = 'CAJA_BUS'     AND negocio_id = v_negocio_id);
 
-    -- v_cat_ajuste_in, v_cat_ajuste_eg, v_cat_cierre_sin_pos: CONSTANT declaradas arriba
+    -- v_cat_ajuste_in, v_cat_ajuste_eg: CONSTANT declaradas arriba
 
     v_tipo_celular := (SELECT id FROM tipos_servicio WHERE codigo = 'CELULAR');
     v_tipo_bus     := (SELECT id FROM tipos_servicio WHERE codigo = 'BUS');
@@ -140,6 +164,9 @@ BEGIN
           AND t.hora_fecha_cierre IS NOT NULL
           AND t.hora_fecha_cierre >= v_inicio_utc
           AND t.hora_fecha_cierre <  v_fin_utc
+        ORDER BY t.hora_fecha_cierre DESC
+        LIMIT COALESCE(p_limit, 2147483647)
+        OFFSET p_offset
     ),
     -- Ventas POS efectivo del turno
     agg_ventas AS (
@@ -151,7 +178,8 @@ BEGIN
           AND v.turno_id IN (SELECT id FROM turnos)
         GROUP BY v.turno_id
     ),
-    -- Egresos del cajón durante el turno (excluyendo ajustes)
+    -- Egresos del cajón durante el turno (excluyendo el ajuste de faltante,
+    -- que se contabiliza aparte en agg_ajuste/movimientos_empleados)
     agg_egresos AS (
         SELECT t.id AS turno_id,
                COALESCE(SUM(o.monto), 0)::DECIMAL(12,2) AS total
@@ -162,27 +190,55 @@ BEGIN
            AND o.tipo_operacion = 'EGRESO'
            AND o.fecha         >= t.hora_fecha_apertura
            AND o.fecha         <  t.hora_fecha_cierre
-           AND (o.categoria_id IS NULL OR o.categoria_id <> v_cat_ajuste_eg)
+           AND (o.categoria_sistema_id IS NULL OR o.categoria_sistema_id <> v_cat_ajuste_eg)
         GROUP BY t.id
     ),
-    -- Ajuste de conteo: +sobrante / -faltante
-    agg_ajuste AS (
+    -- Ajuste de conteo: +sobrante / -faltante.
+    -- Faltante: fuente de verdad es movimientos_empleados (FALTANTE_CAJA) — la
+    -- misma tabla que usa "Cuentas empleados" para liquidar la deuda real.
+    -- Sobrante: no genera deuda de empleado, se lee del ajuste en operaciones_cajas
+    -- (categoria_sistema_id = AJU-CONTEO-IN).
+    agg_faltante AS (
+        SELECT me.turno_id, SUM(me.monto)::DECIMAL(12,2) AS total
+        FROM movimientos_empleados me
+        WHERE me.negocio_id      = v_negocio_id
+          AND me.tipo_movimiento = 'FALTANTE_CAJA'
+          AND me.turno_id IN (SELECT id FROM turnos)
+        GROUP BY me.turno_id
+    ),
+    agg_sobrante AS (
         SELECT t.id AS turno_id,
-               COALESCE(SUM(
-                   CASE
-                       WHEN o.categoria_id = v_cat_ajuste_in THEN  o.monto
-                       WHEN o.categoria_id = v_cat_ajuste_eg THEN -o.monto
-                       ELSE 0
-                   END
-               ), 0)::DECIMAL(12,2) AS diferencia
+               COALESCE(SUM(o.monto), 0)::DECIMAL(12,2) AS total
         FROM turnos t
         LEFT JOIN operaciones_cajas o
-            ON o.negocio_id  = v_negocio_id
-           AND o.caja_id     = v_chica_id
-           AND o.categoria_id IN (v_cat_ajuste_in, v_cat_ajuste_eg)
-           AND o.fecha      >= t.hora_fecha_apertura
-           AND o.fecha      <= t.hora_fecha_cierre
+            ON o.negocio_id           = v_negocio_id
+           AND o.caja_id              = v_chica_id
+           AND o.categoria_sistema_id = v_cat_ajuste_in
+           AND o.fecha               >= t.hora_fecha_apertura
+           AND o.fecha               <= t.hora_fecha_cierre
         GROUP BY t.id
+    ),
+    agg_ajuste AS (
+        SELECT t.id AS turno_id,
+               (COALESCE(agg_sobrante.total, 0) - COALESCE(agg_faltante.total, 0))::DECIMAL(12,2) AS diferencia
+        FROM turnos t
+        LEFT JOIN agg_sobrante  ON agg_sobrante.turno_id  = t.id
+        LEFT JOIN agg_faltante  ON agg_faltante.turno_id  = t.id
+    ),
+    -- Replica v_hubo_movimientos_caja_chica de fn_ejecutar_cierre_diario_v5:
+    -- única fuente de verdad de si el turno tuvo movimientos reales en el
+    -- cajón. Sin esto, un conteo físico que no coincide con el fondo (turno
+    -- sin ninguna operación real) se malinterpreta como "ingresos manuales".
+    agg_hubo_movimientos AS (
+        SELECT t.id AS turno_id,
+               EXISTS (
+                   SELECT 1 FROM operaciones_cajas o
+                   WHERE o.negocio_id = v_negocio_id
+                     AND o.caja_id    = v_chica_id
+                     AND o.fecha     >= t.hora_fecha_apertura
+                     AND o.fecha     <= t.hora_fecha_cierre
+               ) AS hubo_movimientos
+        FROM turnos t
     ),
     -- Depósito a CAJA al cerrar (puede no existir si todo fue a VARIOS)
     op_deposito AS (
@@ -190,8 +246,7 @@ BEGIN
                o.monto         AS deposito,
                o.saldo_anterior,
                o.saldo_actual,
-               o.descripcion,
-               o.categoria_id
+               o.descripcion
         FROM operaciones_cajas o
         WHERE o.negocio_id     = v_negocio_id
           AND o.caja_id        = v_caja_id
@@ -236,19 +291,24 @@ BEGIN
         t.fondo_apertura,
         COALESCE(agg_ventas.total, 0)::DECIMAL(12,2),
         COALESCE(agg_egresos.total, 0)::DECIMAL(12,2),
-        -- otros_ingresos derivado:
+        -- otros_ingresos derivado (solo si hubo movimientos reales en CAJA_CHICA
+        -- durante el turno — ver agg_hubo_movimientos):
         --   saldo_cajon_digital (antes del ajuste) = fondo + ventas + otros - egresos
         --   saldo_cajon_digital = (deposito + transferencia) - diferencia
         --   → otros = (deposito + transferencia) - diferencia - fondo - ventas + egresos
-        GREATEST(
-            0,
-            COALESCE(op_deposito.deposito, 0)
-            + COALESCE(op_transferencia.transferencia, 0)
-            - COALESCE(agg_ajuste.diferencia, 0)
-            - t.fondo_apertura
-            - COALESCE(agg_ventas.total, 0)
-            + COALESCE(agg_egresos.total, 0)
-        )::DECIMAL(12,2),
+        -- Sin movimientos reales, cualquier excedente entre depósito y fondo es
+        -- solo un conteo físico distinto al fondo declarado, no un ingreso.
+        CASE WHEN COALESCE(agg_hubo_movimientos.hubo_movimientos, FALSE) THEN
+            GREATEST(
+                0,
+                COALESCE(op_deposito.deposito, 0)
+                + COALESCE(op_transferencia.transferencia, 0)
+                - COALESCE(agg_ajuste.diferencia, 0)
+                - t.fondo_apertura
+                - COALESCE(agg_ventas.total, 0)
+                + COALESCE(agg_egresos.total, 0)
+            )
+        ELSE 0 END::DECIMAL(12,2),
         -- efectivo_fisico = depósito + transferencia
         (COALESCE(op_deposito.deposito, 0)
          + COALESCE(op_transferencia.transferencia, 0))::DECIMAL(12,2),
@@ -280,31 +340,22 @@ BEGIN
         COALESCE(rec_bus.saldo_virtual_actual, 0)::DECIMAL(12,2),
         v_varios_activa,
         op_deposito.descripcion::TEXT,
-        -- usa_pos: true cuando el cajón tuvo cualquier movimiento durante el turno
-        -- (ventas POS, ingresos manuales o egresos). Si hubo movimientos, el sistema
-        -- conoce el esperado real y debe mostrar el cuadre en el historial.
-        -- false = cajón sin movimientos → modo sin cuadre (solo fondo + conteo).
-        (
-          COALESCE(agg_ventas.total,  0) > 0
-          OR COALESCE(agg_egresos.total, 0) > 0
-          OR GREATEST(
-               0,
-               COALESCE(op_deposito.deposito, 0)
-               + COALESCE(op_transferencia.transferencia, 0)
-               - COALESCE(agg_ajuste.diferencia, 0)
-               - t.fondo_apertura
-               - COALESCE(agg_ventas.total, 0)
-               + COALESCE(agg_egresos.total, 0)
-             ) > 0
-        )
+        -- usa_pos: true cuando el cajón tuvo alguna operación real durante el
+        -- turno (ventas POS, ingresos manuales o egresos ya registrados en
+        -- operaciones_cajas — ver agg_hubo_movimientos). Si hubo movimientos,
+        -- el sistema conoce el esperado real y debe mostrar el cuadre en el
+        -- historial. false = cajón sin movimientos → modo sin cuadre (solo
+        -- fondo + conteo), igual que decidió fn_ejecutar_cierre_diario_v5.
+        COALESCE(agg_hubo_movimientos.hubo_movimientos, FALSE)
     FROM turnos t
-    LEFT JOIN agg_ventas       ON agg_ventas.turno_id       = t.id
-    LEFT JOIN agg_egresos      ON agg_egresos.turno_id      = t.id
-    LEFT JOIN agg_ajuste       ON agg_ajuste.turno_id       = t.id
-    LEFT JOIN op_deposito      ON op_deposito.turno_id      = t.id
-    LEFT JOIN op_transferencia ON op_transferencia.turno_id = t.id
-    LEFT JOIN rec_celular      ON rec_celular.turno_id      = t.id
-    LEFT JOIN rec_bus          ON rec_bus.turno_id          = t.id
+    LEFT JOIN agg_ventas            ON agg_ventas.turno_id            = t.id
+    LEFT JOIN agg_egresos           ON agg_egresos.turno_id           = t.id
+    LEFT JOIN agg_ajuste            ON agg_ajuste.turno_id            = t.id
+    LEFT JOIN agg_hubo_movimientos  ON agg_hubo_movimientos.turno_id  = t.id
+    LEFT JOIN op_deposito           ON op_deposito.turno_id           = t.id
+    LEFT JOIN op_transferencia      ON op_transferencia.turno_id      = t.id
+    LEFT JOIN rec_celular           ON rec_celular.turno_id           = t.id
+    LEFT JOIN rec_bus               ON rec_bus.turno_id               = t.id
     ORDER BY t.hora_fecha_cierre DESC;
 END;
 $$;
@@ -321,7 +372,7 @@ CREATE INDEX IF NOT EXISTS idx_turnos_negocio_cierre
     ON turnos_caja (negocio_id, hora_fecha_cierre DESC)
     WHERE hora_fecha_cierre IS NOT NULL;
 
-REVOKE EXECUTE ON FUNCTION public.fn_listar_cierres_turno(DATE, DATE) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.fn_listar_cierres_turno(DATE, DATE) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_listar_cierres_turno(DATE, DATE, INTEGER, INTEGER) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_listar_cierres_turno(DATE, DATE, INTEGER, INTEGER) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

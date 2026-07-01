@@ -72,10 +72,20 @@ BEGIN
     -- una sola sentencia. Plan, periodo y vence_el quedan intactos — solo cambia estado.
     -- Negocios sin fila de suscripcion simplemente no matchean (se omiten sin error).
     -- GET DIAGNOSTICS captura cuantas filas se actualizaron (negocios afectados).
+    --
+    -- Reactivacion (p_suspender = FALSE): tambien limpia purga_avisada_el/
+    -- purga_programada_el, por si el superadmin reactiva manualmente a un
+    -- propietario que ya estaba en cuenta regresiva de purga automatica (ver
+    -- docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md, Fase 3). Al suspender no se
+    -- tocan: la purga programada sigue su curso independiente del bloqueo
+    -- manual, y SUSPENDIDA ya queda excluida del calculo de
+    -- fn_marcar_negocios_para_purga.
     UPDATE suscripciones s
-    SET estado          = v_nuevo_estado,
-        actualizada_por = v_caller_id,
-        updated_at      = NOW()
+    SET estado              = v_nuevo_estado,
+        actualizada_por     = v_caller_id,
+        updated_at          = NOW(),
+        purga_avisada_el    = CASE WHEN p_suspender THEN s.purga_avisada_el    ELSE NULL END,
+        purga_programada_el = CASE WHEN p_suspender THEN s.purga_programada_el ELSE NULL END
     FROM negocios n
     WHERE n.id = s.negocio_id
       AND n.propietario_usuario_id = p_propietario_id;

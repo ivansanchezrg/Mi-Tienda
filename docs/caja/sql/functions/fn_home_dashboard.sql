@@ -1,6 +1,11 @@
 -- ==========================================
--- fn_home_dashboard (v1.0 — 2026-05-30)
+-- fn_home_dashboard (v1.1 — 2026-07-01)
 -- ==========================================
+-- v1.1 — Agrega oc.saldo_actual a los "últimos 5 movimientos" para que el
+--   home muestre el saldo resultante bajo cada monto, igual que ya hace el
+--   detalle de operaciones por caja (operaciones-caja.page). Antes solo se
+--   veía el monto con signo, sin el saldo — inconsistente con el detalle.
+--
 -- Consolida en una sola RPC los datos del home/dashboard inicial.
 -- Reemplaza las queries que home.cargarDatos() ejecutaba en Promise.all():
 --
@@ -186,6 +191,7 @@ BEGIN
                 oc.fecha,
                 oc.tipo_operacion::TEXT  AS tipo_operacion,
                 oc.monto,
+                oc.saldo_actual,
                 oc.descripcion,
                 oc.comprobante_url,
                 json_build_object('id', c.id, 'nombre', c.nombre, 'codigo', c.codigo) AS caja,

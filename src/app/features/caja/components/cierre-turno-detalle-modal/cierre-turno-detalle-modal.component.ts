@@ -77,14 +77,22 @@ export class CierreTurnoDetalleModalComponent {
     return Math.abs(this.cierre.diferencia) > 0.001;
   }
 
-  get efectivoEsperado(): number {
-    // = efectivo_fisico − diferencia (saldo digital + fondo era lo esperado)
-    return this.cierre.efectivo_fisico - this.cierre.diferencia;
+  get saldoCajonDigital(): number {
+    // cierre.efectivo_fisico = deposito_caja + transferencia_varios (dinero ya
+    // distribuido tras el cierre), NO el conteo físico del empleado — no sirve
+    // para reconstruir el acumulado del cajón. Se deriva de los mismos campos
+    // que ya se muestran en "Movimientos del cajón" (misma fórmula que el
+    // wizard en vivo, ver cierre-diario.page.ts → saldoCajaChicaDigital).
+    return this.cierre.ventas_pos_efectivo + this.cierre.otros_ingresos - this.cierre.egresos;
   }
 
-  get saldoCajonDigital(): number {
-    // Lo que había en el cajón antes del fondo de apertura
-    return this.efectivoEsperado - this.cierre.fondo_apertura;
+  get efectivoEsperado(): number {
+    return this.saldoCajonDigital + this.cierre.fondo_apertura;
+  }
+
+  /** Conteo físico real reconstruido — para mostrar en el bloque de resultado del cuadre. */
+  get conteoFisicoReal(): number {
+    return this.efectivoEsperado + this.cierre.diferencia;
   }
 
   get tieneDepositoAnticipadoBus(): boolean {
@@ -117,7 +125,10 @@ export class CierreTurnoDetalleModalComponent {
       ventasPosEfectivo: this.cierre.ventas_pos_efectivo,
       otrosIngresos:     this.cierre.otros_ingresos,
       egresos:           this.cierre.egresos,
-      efectivoFisico:    this.cierre.efectivo_fisico,
+      // conteoFisicoReal (no cierre.efectivo_fisico = depósito+transferencia,
+      // ver comentario en el getter) — el mensaje debe reflejar lo que el
+      // empleado contó realmente, igual que el bloque de resultado del modal.
+      efectivoFisico:    this.conteoFisicoReal,
       diferencia:        this.cierre.diferencia,
       depositoTienda:    this.cierre.deposito_caja,
       saldoAnteriorCaja:    this.cierre.saldo_anterior_caja,

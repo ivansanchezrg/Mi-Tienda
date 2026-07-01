@@ -2,10 +2,9 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonBackButton, IonIcon, IonSpinner, IonLabel,
+  IonButtons, IonBackButton, IonIcon, IonSpinner,
   IonRefresher, IonRefresherContent,
   IonFab, IonFabButton,
-  IonSegment, IonSegmentButton,
   ModalController, IonSkeletonText
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -24,10 +23,9 @@ import { UiService } from '@core/services/ui.service';
   imports: [
     CommonModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonBackButton, IonIcon, IonSkeletonText, IonLabel,
+    IonButtons, IonBackButton, IonIcon, IonSkeletonText,
     IonRefresher, IonRefresherContent,
     IonFab, IonFabButton,
-    IonSegment, IonSegmentButton,
     EmptyStateComponent
   ]
 })
@@ -61,11 +59,8 @@ export class CategoriasOperacionesPage implements OnInit {
     this.ui.showTabs();
   }
 
-  onSegmentChange(event: Event) {
-    const val = (event as CustomEvent<{ value: string }>).detail.value;
-    if (val === 'EGRESO' || val === 'INGRESO') {
-      this.segmentoActual = val;
-    }
+  setSegmento(tipo: 'EGRESO' | 'INGRESO') {
+    this.segmentoActual = tipo;
   }
 
   contarTipo(tipo: string): number {
@@ -129,6 +124,7 @@ export class CategoriasOperacionesPage implements OnInit {
     await modal.present();
 
     const { data, role } = await modal.onDidDismiss<CategoriaOperacionInsert>();
+
     if (role === 'confirm' && data) {
       await this.ui.showLoading('Guardando...');
       try {
@@ -137,6 +133,18 @@ export class CategoriasOperacionesPage implements OnInit {
         await this.cargarCategorias();
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Error al actualizar la categoría';
+        await this.ui.showError(msg);
+      } finally {
+        await this.ui.hideLoading();
+      }
+    } else if (role === 'delete') {
+      await this.ui.showLoading('Eliminando...');
+      try {
+        await this.service.eliminar(categoria.id);
+        await this.ui.showSuccess('Categoría eliminada');
+        await this.cargarCategorias();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Error al eliminar la categoría';
         await this.ui.showError(msg);
       } finally {
         await this.ui.hideLoading();

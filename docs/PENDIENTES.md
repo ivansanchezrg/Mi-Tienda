@@ -9,23 +9,7 @@
 
 ---
 
-## 🔴 Bloqueante de release
-
-### C-1 — Credenciales de Supabase trackeadas en git
-- **Qué:** `environment.ts` y `environment.prod.ts` siguen trackeados (el `.gitignore` no des-trackea lo ya commiteado). Anon key expuesta en repo + historial.
-- **Acción:** rotar anon key en Supabase → `git rm --cached` → `git filter-repo` → force push coordinado.
-- **Detalle:** `docs/guides/AUDITORIA-PRODUCCION-2026-05-07.md` (hallazgo C-1, paso a paso) + nota en `docs/guides/ANDROID-BUILD.md` §Credenciales.
-- Origen: auditoría 2026-05-07 · verificado vigente 2026-06-10.
-
----
-
 ## 🟠 Funcional (corto plazo)
-
-### Resumen del período veraz en operaciones de caja (RPC)
-- **Qué:** los totales Ingresos/Egresos del balance card suman solo las páginas cargadas — con filtro Mes/Todo son parciales hasta scrollear todo. Crear `fn_resumen_operaciones_caja(p_caja_id, p_desde)` con `SUM ... FILTER` y llamarla en paralelo con la primera página.
-- **Archivos:** `src/app/features/caja/pages/operaciones-caja/operaciones-caja.page.ts` (`calcularResumen`), `operaciones-caja.service.ts`, función SQL nueva en `docs/caja/sql/functions/`.
-- **Detalle:** `docs/caja/1_OPERACIONES-CAJA.md` §Agrupación por fecha.
-- Origen: revisión 2026-06-10 (aprobado en concepto, diferido por el usuario).
 
 ### Verificar consulta de precio con la pistola de escaneo física
 - **Qué:** el flujo web/desktop quedó implementado y es verificable con teclado (la pistola HID
@@ -35,20 +19,14 @@
   (rama `!scanner.isAvailable`), `sidebar.component.html` (acción rápida "Precio").
 - Origen: 2026-06-11 (solo falta el hardware — no hay trabajo de código pendiente).
 
-### Paginación del historial de cierres de turno (baja prioridad)
-- **Qué:** `HistorialTurnosPage` carga todo el rango de una vez y `fn_listar_cierres_turno` no tiene `LIMIT` — con el filtro "Todo", a 1-2 cierres/día el payload crece sin tope (~1,000 filas × 30 campos en 2 años). Paginar (RPC con `LIMIT/OFFSET` + infinite scroll) o capear el filtro "Todo" a N meses.
-- **Archivos:** `src/app/features/caja/pages/historial-turnos/historial-turnos.page.ts`, `docs/caja/sql/functions/fn_listar_cierres_turno.sql`.
-- Origen: revisión de implementación 2026-06-11 (hoy es aceptable; revisar cuando haya un año de datos).
-
-### Regla "otros" de descripción obligatoria → flag explícito
-- **Qué:** `requiereDescripcion` decide por regex `/otros?/i` sobre el NOMBRE de la categoría — frágil ante renombres/creaciones del usuario. Migrar a flag en `categorias_operaciones` (ej: `requiere_descripcion BOOLEAN`).
-- **Archivos:** `operacion-modal.component.ts`, schema + migración, CRUD de categorías.
-- **Detalle:** `docs/caja/2_PROCESO_INGRESO_EGRESO.md` §3 (regla documentada tal cual es hoy).
-- Origen: revisión 2026-06-10.
-
 ---
 
 ## 🟡 Modelo de BD (diseño, sin urgencia)
+
+### `usuarios` / `usuario_negocios` sin política RESTRICTIVE `superadmin_no_write`
+- **Qué:** a diferencia de las otras 21 tablas mutables, estas dos no bloquean escritura directa del superadmin vía RLS. No es un olvido trivial: el auto-registro (`AuthService` línea ~214, `INSERT INTO usuarios` con `email = user.email`) lo ejecuta CUALQUIER usuario en su primer login OAuth, incluido el superadmin — un `superadmin_no_write` copiado tal cual del patrón de las otras tablas rompería su propio registro. Requiere una política más matizada (ej: permitir al superadmin escribir solo su propia fila `email = get_email()`, bloquear el resto).
+- **Archivos:** `docs/setup/02_rls.sql` (tablas `usuarios`, `usuario_negocios`), `src/app/features/auth/services/auth.service.ts` (auto-registro).
+- Origen: detectado al investigar el 400 de `fn_actualizar_membresia` 2026-06-24 (no es la causa de ese bug — esa ya se corrigió en la función).
 
 ### `usuario_negocios.updated_at` como base del sueldo proporcional
 - **Qué:** el cálculo de días trabajados usa `updated_at - created_at`, pero `updated_at` se resetea con CUALQUIER update (ej: cambio de rol a mitad de mes corrompe el cálculo de transferencia). Crear columna dedicada `fecha_ingreso`.

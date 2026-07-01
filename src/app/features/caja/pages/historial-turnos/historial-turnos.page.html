@@ -112,6 +112,10 @@
     }
   }
 
+  <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+    <ion-infinite-scroll-content loadingSpinner="crescent" loadingText="Cargando más cierres..."></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
   <!-- FAB scroll-to-top -->
   @if (showScrollTop) {
     <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">

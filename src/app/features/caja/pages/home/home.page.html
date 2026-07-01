@@ -423,6 +423,9 @@
             <span class="mov-amount" [attr.data-type]="mov.tipo_operacion | operacionLabel:'color'">
               {{ mov.tipo_operacion | operacionLabel:'signo' }}${{ mov.monto | appCurrency }}
             </span>
+            @if (mov.saldo_actual !== null) {
+              <span class="mov-saldo">${{ mov.saldo_actual | appCurrency }}</span>
+            }
           </div>
 
         </div>

@@ -65,4 +65,25 @@ export class CategoriasOperacionesService {
 
     if (error) throw new Error(`Error al actualizar estado: ${error.message}`);
   }
+
+  /**
+   * Elimina una categoría de usuario. Falla si tiene operaciones asociadas
+   * (operaciones_cajas.categoria_id referencia esta tabla sin ON DELETE) —
+   * en ese caso se traduce el error de FK (23503) a un mensaje claro: hay
+   * que desactivarla en vez de borrarla para no perder la trazabilidad del
+   * historial.
+   */
+  async eliminar(id: string): Promise<void> {
+    const { error } = await this.supabase.client
+      .from('categorias_operaciones')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      if (error.code === '23503') {
+        throw new Error('No se puede eliminar: ya tiene operaciones registradas. Desactívala en su lugar.');
+      }
+      throw new Error(`Error al eliminar la categoría: ${error.message}`);
+    }
+  }
 }

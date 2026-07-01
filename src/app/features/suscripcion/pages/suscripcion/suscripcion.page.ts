@@ -18,6 +18,7 @@ import {
 import { SuscripcionService } from '@core/services/suscripcion.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { UiService } from '@core/services/ui.service';
+import { WhatsAppService } from '@core/services/whatsapp.service';
 import { ROUTES } from '@core/config/routes.config';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 import { EstadoSuscripcionResult, ConfigPlataforma, Plan } from '../../models/suscripcion.model';
@@ -68,10 +69,11 @@ const FEATURE_LABELS: Record<string, string> = {
 })
 export class SuscripcionPage implements OnInit, OnDestroy {
   private suscripcion = inject(SuscripcionService);
-  private auth = inject(AuthService);
-  private ui = inject(UiService);
-  private navCtrl = inject(NavController);
-  private modalCtrl = inject(ModalController);
+  private auth        = inject(AuthService);
+  private ui          = inject(UiService);
+  private whatsapp    = inject(WhatsAppService);
+  private navCtrl     = inject(NavController);
+  private modalCtrl   = inject(ModalController);
 
   loading = true;
   estado: EstadoSuscripcionResult | null = null;
@@ -112,9 +114,12 @@ export class SuscripcionPage implements OnInit, OnDestroy {
   async cargar() {
     this.loading = true;
     try {
-      // Estado fresco (forzar) + datos de cobro + catálogo de planes, en paralelo.
+      // Estado del cache (sin forzar) + datos de cobro + catálogo de planes, en paralelo.
+      // No forzar: el Realtime actualiza el estado en tiempo real cuando cambia algo en BD.
+      // Forzar aquí invalida el cache e introduce un round-trip innecesario que el
+      // suscripcionGuard paga al navegar de vuelta a /caja (tiene que re-consultar BD).
       const [estado, config, planes] = await Promise.all([
-        this.suscripcion.getEstado(true),
+        this.suscripcion.getEstado(),
         this.suscripcion.getConfigPlataforma(),
         this.suscripcion.listarPlanes(true),   // solo activos: lo que se ofrece hoy
       ]);
@@ -447,8 +452,10 @@ export class SuscripcionPage implements OnInit, OnDestroy {
 
   /** Abre el modal de método de pago y construye el mensaje de WhatsApp. */
   private async abrirModalPago(contexto: ContextoPago, introWhatsApp: string) {
-    const telefono = (this.config?.whatsapp_cobro ?? '').replace(/\D/g, '');
-    if (!telefono) {
+    // Validar antes de abrir el modal para no hacer perder el tiempo al usuario
+    // si no hay teléfono configurado — misma validación que hace whatsapp.abrir()
+    // internamente, pero aquí se ejecuta por adelantado para dar feedback inmediato.
+    if (!this.config?.whatsapp_cobro) {
       this.ui.showToast('No hay un número de contacto configurado. Intenta más tarde.', 'warning');
       return;
     }
@@ -481,8 +488,7 @@ export class SuscripcionPage implements OnInit, OnDestroy {
       lineas.push('Nota: Nuestro equipo coordinará contigo la visita para el cobro.');
     }
 
-    const url = `https://api.whatsapp.com/send?phone=${telefono}&text=${encodeURIComponent(lineas.join('\n'))}`;
-    window.open(url, '_blank');
+    this.whatsapp.abrir(this.config.whatsapp_cobro, lineas);
   }
 
   private labelMetodo(metodo: string): string {
@@ -497,10 +503,15 @@ export class SuscripcionPage implements OnInit, OnDestroy {
   /**
    * Vuelve al home (solo modo informativo "Mi Plan"). Esta pantalla vive fuera del
    * layout, así que no tiene sidebar/tabs: la flecha del header reemplaza al menú
-   * hamburguesa (que aquí no abriría nada). navigateBack da la animación de retroceso.
+   * hamburguesa (que aquí no abriría nada).
+   *
+   * Usa navCtrl.back() en vez de navigateBack(ROUTES.home): pop del stack de Ionic
+   * sin resolver la ruta destino, así el suscripcionGuard NO se re-ejecuta y la
+   * animación de retroceso arranca de forma inmediata. navigateBack() resolvía la
+   * ruta completa de /caja (con guards) antes de iniciar la animación → delay visible.
    */
   volverAlHome() {
-    this.navCtrl.navigateBack(ROUTES.home);
+    this.navCtrl.back();
   }
 
   /** Cierra sesión — única salida desde la pantalla de bloqueo (no hay sidebar/tabs aquí). */

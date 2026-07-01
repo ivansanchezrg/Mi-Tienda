@@ -17,13 +17,23 @@
        mientras la lista de negocios scrollea en el ion-content (gris). -->
   <div class="admin-subheader">
 
-    <!-- Header: título + botón crear -->
+    <!-- Header: título + botones -->
     <div class="seccion-header">
       <p class="seccion-label">Negocios registrados</p>
-      <button class="btn-crear-negocio" (click)="crearNegocio()">
-        <ion-icon name="add-outline"></ion-icon>
-        <span>Crear negocio</span>
-      </button>
+      <div class="seccion-header-acciones">
+        <button class="btn-crear-negocio btn-crear-negocio--secundario" [disabled]="detectandoPurga" (click)="detectarPurgaPendiente()">
+          @if (detectandoPurga) {
+            <ion-spinner name="crescent"></ion-spinner>
+          } @else {
+            <ion-icon name="refresh-outline"></ion-icon>
+          }
+          <span>Detectar pendientes</span>
+        </button>
+        <button class="btn-crear-negocio" (click)="crearNegocio()">
+          <ion-icon name="add-outline"></ion-icon>
+          <span>Crear negocio</span>
+        </button>
+      </div>
     </div>
 
     <!-- Buscador -->
@@ -155,6 +165,12 @@
       }
     </div>
     <span class="propietario-email">{{ grupo.email }}</span>
+    @if (grupo.purga) {
+      <span class="purga-badge" [class.purga-badge--lista]="grupo.purga.puede_purgar_ya">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        {{ grupo.purga.puede_purgar_ya ? 'Lista para purgar' : 'Purga en ' + grupo.purga.dias_restantes_purga + ' día(s)' }}
+      </span>
+    }
   </div>
   <div class="propietario-end">
     @if (grupo.negocios.length > 1) {

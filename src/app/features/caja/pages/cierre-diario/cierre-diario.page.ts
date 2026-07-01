@@ -268,10 +268,10 @@ export class CierreDiarioPage implements HasPendingChanges {
   // ==========================================
 
   get subtituloPaso1(): string {
-    if (this.esModoSinPos) {
-      return 'Ingresa el efectivo contado en el cajón al cerrar el turno.';
+    if (this.recargasCelularHabilitada || this.recargasBusHabilitada) {
+      return 'Revisa los saldos virtuales e ingresa el efectivo físico contado.';
     }
-    return 'Revisa los saldos virtuales e ingresa el efectivo físico contado.';
+    return 'Ingresa el efectivo contado en el cajón al cerrar el turno.';
   }
 
   // ==========================================

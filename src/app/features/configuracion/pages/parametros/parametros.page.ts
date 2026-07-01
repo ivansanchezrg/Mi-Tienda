@@ -1,4 +1,5 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
@@ -9,6 +10,7 @@ import { storefrontOutline, archiveOutline, busOutline, cartOutline, peopleOutli
 import { Subscription } from 'rxjs';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
+import { LoggerService } from '@core/services/logger.service';
 import { ConfiguracionService } from '../../services/configuracion.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { SupabaseService } from '@core/services/supabase.service';
@@ -52,11 +54,13 @@ export class ParametrosPage implements OnInit, OnDestroy {
   }
 
   private fb                   = inject(FormBuilder);
+  private route                = inject(ActivatedRoute);
   private configuracionService = inject(ConfiguracionService);
   private configService        = inject(ConfigService);
   private authService          = inject(AuthService);
   private supabase             = inject(SupabaseService);
   private ui                   = inject(UiService);
+  private logger               = inject(LoggerService);
   private alertCtrl            = inject(AlertController);
   private sub!: Subscription;
   private scrollTimeout?: ReturnType<typeof setTimeout>;
@@ -131,6 +135,32 @@ export class ParametrosPage implements OnInit, OnDestroy {
     ]);
     this.esSuperadmin = usuario?.es_superadmin ?? false;
     this.esAdmin      = usuario?.rol === 'ADMIN' || this.esSuperadmin;
+
+    this.scrollASeccionSolicitada();
+  }
+
+  /**
+   * Si se navegó con ?seccion=X (ej. desde el aviso de "sueldo sin configurar"
+   * en Movimientos de Empleados), salta directo a esa sección al entrar.
+   *
+   * Requiere que la sección destino tenga id="section-X" en el template y NO
+   * esté detrás de un `@if` condicional que pueda estar cerrado al entrar
+   * (hoy ninguna sección con id lo está — si agregas una nueva sección
+   * destino de scroll, que sea siempre visible o el scroll no encontrará
+   * el elemento).
+   */
+  private scrollASeccionSolicitada() {
+    const seccion = this.route.snapshot.queryParamMap.get('seccion') as Seccion | null;
+    if (!seccion || !(seccion in CAMPOS_POR_SECCION)) return;
+
+    setTimeout(() => {
+      const el = document.getElementById(`section-${seccion}`);
+      if (!el) {
+        this.logger.warn('ParametrosPage', `scrollASeccionSolicitada: no se encontró #section-${seccion} en el DOM`);
+        return;
+      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   }
 
   ngOnDestroy() {

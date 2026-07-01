@@ -7,17 +7,26 @@
   </ion-toolbar>
 </ion-header>
 
-<!-- Segment fuera del ion-content → siempre visible al hacer scroll -->
-<div class="segment-wrapper">
-  <ion-segment [value]="segmentoActual" (ionChange)="onSegmentChange($event)">
-    <ion-segment-button value="EGRESO">
-      <ion-label>Egresos ({{ contarTipo('EGRESO') }})</ion-label>
-    </ion-segment-button>
-    <ion-segment-button value="INGRESO">
-      <ion-label>Ingresos ({{ contarTipo('INGRESO') }})</ion-label>
-    </ion-segment-button>
-  </ion-segment>
-</div>
+<!-- Toggle Egresos/Ingresos — fuera del ion-content → siempre visible al hacer scroll.
+     Mismo diseño del toggle Mensual/Anual de Suscripción (.cop-periodo), color propio. -->
+<ion-toolbar class="cop-toolbar-periodo">
+  <div class="cop-periodo">
+    <button
+      type="button"
+      class="cop-periodo__btn"
+      [class.cop-periodo__btn--activo]="segmentoActual === 'EGRESO'"
+      (click)="setSegmento('EGRESO')">
+      Egresos ({{ contarTipo('EGRESO') }})
+    </button>
+    <button
+      type="button"
+      class="cop-periodo__btn"
+      [class.cop-periodo__btn--activo]="segmentoActual === 'INGRESO'"
+      (click)="setSegmento('INGRESO')">
+      Ingresos ({{ contarTipo('INGRESO') }})
+    </button>
+  </div>
+</ion-toolbar>
 
 <ion-content>
 

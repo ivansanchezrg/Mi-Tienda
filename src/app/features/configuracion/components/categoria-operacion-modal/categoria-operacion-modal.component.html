@@ -64,6 +64,17 @@
         </textarea>
       </div>
 
+      <!-- Exigir descripción al usar esta categoría -->
+      <div class="input-group">
+        <div class="toggle-row">
+          <div>
+            <span class="input-label">Exigir descripción</span>
+            <p class="toggle-desc">{{ form.value['requiereDescripcion'] ? 'Al registrar con esta categoría se pedirá una descripción' : 'La descripción será opcional al registrar' }}</p>
+          </div>
+          <ion-toggle formControlName="requiereDescripcion" mode="ios"></ion-toggle>
+        </div>
+      </div>
+
       <!-- Estado activo/inactivo (solo en edición) -->
       @if (!esNuevo) {
         <div class="input-group">
@@ -85,6 +96,17 @@
         (click)="confirmar()">
         {{ esNuevo ? 'Crear Categoría' : 'Guardar Cambios' }}
       </button>
+
+      <!-- Eliminar (solo edición) — categorías de sistema no pasan por este modal -->
+      @if (!esNuevo) {
+        <button
+          type="button"
+          class="delete-btn"
+          (click)="eliminar()">
+          <ion-icon name="trash-outline"></ion-icon>
+          Eliminar categoría
+        </button>
+      }
 
     </div>
   </form>

@@ -229,6 +229,7 @@ Punto único para captura, recorte, compresión y subida de imágenes a Supabase
 | `getPublicUrl(path)` | URL pública directa. Solo para buckets/subfolders públicos. |
 | `resolveImageUrl(path)` / `resolveImageUrls(paths[])` | Resuelve path → signed URL. Si ya es URL completa la retorna tal cual. Versión plural usa `Promise.all` para listas. |
 | `deleteFile(path)` | Elimina un archivo. Usar para rollback si el RPC falla después de subir. |
+| `deleteNegocioFolder(negocioId)` | **Uso exclusivo del flujo de purga de negocios** (`docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md`). Borra recursivamente TODO el contenido de `{negocioId}/` en el bucket, sin hardcodear nombres de subcarpeta. No llamar desde ningún flujo normal de la app ni exponer en menús de usuario — es irreversible y borra absolutamente todo lo del negocio. |
 | `capturarFoto(source)` | **Bajo nivel** — solo abre cámara/galería sin cropper. Prefiere `elegirFuenteFoto()` que incluye el flujo completo. |
 
 #### Flujo principal — selección + recorte + upload
@@ -352,6 +353,28 @@ const newPath = await this.storageService.replaceImage(rawUrl, 'productos/bebida
 #### Cropper modal
 
 El recortador vive en `shared/components/image-cropper-modal/`. No se invoca directamente — se accede vía `elegirFuenteFoto()` o `recortarImagen()`. Ver [SHARED-README → app-image-cropper-modal](../shared/SHARED-README.md) para detalles del componente.
+
+---
+
+### WhatsAppService (`core/services/whatsapp.service.ts`)
+
+Centraliza la apertura de chats de WhatsApp con mensaje precargado. Gestiona la normalización del teléfono al formato internacional Ecuador (`593...`) que exige `api.whatsapp.com`. Cualquier feature que necesite enviar un mensaje por WhatsApp debe usar este servicio — nunca construir la URL directamente.
+
+```typescript
+private whatsapp = inject(WhatsAppService);
+
+// Abrir WhatsApp con mensaje precargado (retorna false si el teléfono está vacío)
+const ok = this.whatsapp.abrir('0991234567', [
+  'Hola, línea 1',
+  'Línea 2 del mensaje',
+]);
+if (!ok) this.ui.showToast('No hay teléfono configurado', 'warning');
+
+// Normalizar un teléfono sin abrir WhatsApp (ej: para validar antes)
+const tel = this.whatsapp.normalizarTelefono('0991234567'); // → '593991234567'
+```
+
+Acepta cualquier formato de entrada (`0XXXXXXXXX`, `+593...`, `593...`) y lo convierte al formato `593XXXXXXXXX`. Si el número está vacío o es inválido, `abrir()` devuelve `false` sin abrir nada. Usado en: `SuscripcionPage`, `ShareCierreService`, `ShareEstadoCuentaService`, `AdminNegociosPage`.
 
 ---
 

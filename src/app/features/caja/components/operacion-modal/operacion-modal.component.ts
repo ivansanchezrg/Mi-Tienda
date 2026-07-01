@@ -184,8 +184,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   get requiereDescripcion(): boolean {
     const id = this.form?.get('categoriaId')?.value;
     if (!id) return false;
-    const nombre = this.categorias.find(c => c.id === id)?.nombre ?? '';
-    return /otros?/i.test(nombre);
+    return this.categorias.find(c => c.id === id)?.requiere_descripcion ?? false;
   }
 
   iconoCaja(codigo: string, icono?: string): string {

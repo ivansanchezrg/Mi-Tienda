@@ -77,13 +77,13 @@
         }
       </div>
 
-      <!-- Rol + Estado en fila -->
-      <div class="row-fields" [class.disabled]="esSuperadmin || esPropietario || esMismoUsuario">
+      <!-- Rol y Estado: dos decisiones independientes, apiladas -->
+      <div class="choices" [class.disabled]="esSuperadmin || esPropietario || esMismoUsuario">
 
         <!-- Rol -->
         <div class="field">
           <label class="field-label">Rol</label>
-          <div class="chip-group">
+          <div class="chip-row">
             <div
               class="chip"
               [class.selected]="form.get('rol')?.value === 'EMPLEADO'"
@@ -102,7 +102,7 @@
         <!-- Estado -->
         <div class="field">
           <label class="field-label">Estado</label>
-          <div class="chip-group">
+          <div class="chip-row">
             <div
               class="chip chip--success"
               [class.selected]="form.get('activo')?.value === true"

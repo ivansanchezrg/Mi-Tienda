@@ -2,12 +2,12 @@ import { AfterViewInit, Component, ElementRef, ViewChild, inject } from '@angula
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonButton, IonIcon, IonSpinner,
+  IonButton, IonIcon, IonSpinner, IonCheckbox,
   ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  closeOutline, alertCircleOutline, lockOpenOutline, cashOutline
+  closeOutline, alertCircleOutline, lockOpenOutline, cashOutline, checkmarkCircleOutline
 } from 'ionicons/icons';
 import { TurnosCajaService } from '../../services/turnos-caja.service';
 import { UiService } from '@core/services/ui.service';
@@ -23,7 +23,7 @@ import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
   imports: [
     CommonModule,
     FormsModule,
-    IonButton, IonIcon, IonSpinner,
+    IonButton, IonIcon, IonSpinner, IonCheckbox,
     NumbersOnlyDirective,
     AppCurrencyPipe,
   ]
@@ -44,20 +44,41 @@ export class VerificarFondoModalComponent implements AfterViewInit {
   abriendo         = false;
   errorMsg         = '';
 
+  // Confirmación explícita del traspaso físico de efectivo (Tienda → Varios).
+  // El sistema registra el asiento contable automáticamente al abrir, pero no
+  // puede verificar que el empleado movió el dinero físico — por eso este
+  // checkbox es un gate de responsabilidad humana, no una condición técnica.
+  confirmoTraspaso = false;
+
   get hayDeficit(): boolean { return this.deficitVarios > 0; }
+
+  get puedeAbrir(): boolean {
+    return !this.hayDeficit || this.confirmoTraspaso;
+  }
 
   get fondoApertura(): number {
     return this.currencyService.parse(this.fondoAperturaStr);
   }
 
   constructor() {
-    addIcons({ closeOutline, alertCircleOutline, lockOpenOutline, cashOutline });
+    addIcons({ closeOutline, alertCircleOutline, lockOpenOutline, cashOutline, checkmarkCircleOutline });
   }
 
   ngAfterViewInit() {
     // Foco automático al input para que el empleado escriba directamente.
+    // Si hay déficit sin confirmar, el input todavía no existe en el DOM —
+    // el foco se otorga recién al marcar el checkbox (onConfirmoTraspasoChange).
     // Delay para esperar la animación de presentación del bottom-sheet.
-    setTimeout(() => this.montoInput?.nativeElement.focus(), 350);
+    if (!this.hayDeficit) {
+      setTimeout(() => this.montoInput?.nativeElement.focus(), 350);
+    }
+  }
+
+  onConfirmoTraspasoChange(checked: boolean): void {
+    this.confirmoTraspaso = checked;
+    if (checked) {
+      setTimeout(() => this.montoInput?.nativeElement.focus(), 100);
+    }
   }
 
   cancelar() {
@@ -66,7 +87,7 @@ export class VerificarFondoModalComponent implements AfterViewInit {
   }
 
   async abrirCaja(): Promise<void> {
-    if (this.abriendo) return;
+    if (this.abriendo || !this.puedeAbrir) return;
 
     if (this.fondoApertura < 0) {
       this.errorMsg = 'El monto no puede ser negativo';

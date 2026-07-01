@@ -24,7 +24,7 @@ Diseño completo y decisiones en [`docs/PLAN-PLANES-SUSCRIPCION.md`](../PLAN-PLA
 | `planes` | Catálogo global (sin `negocio_id`) | Catálogo de planes: **precio dual** (`precio_mensual` + `precio_anual` opcional), trial, features. |
 | `metodos_pago_suscripcion` | Catálogo global | Formas de pago aceptadas (transferencia, depósito, efectivo). |
 | `config_plataforma` | Singleton (id = 1, global) | Datos de cobro del titular: WhatsApp + cuentas bancarias (JSONB). |
-| `suscripciones` | Por tenant (`negocio_id` **UNIQUE**) | **Estado actual** de cada negocio (una sola fila, se hace `UPDATE`). Incluye `periodo_contratado`. |
+| `suscripciones` | Por tenant (`negocio_id` **UNIQUE**) | **Estado actual** de cada negocio (una sola fila, se hace `UPDATE`). Incluye `periodo_contratado`, `purga_avisada_el`/`purga_programada_el` (ver nota abajo). |
 | `suscripcion_pagos` | Por tenant (`negocio_id`) | **Historial financiero** inmutable. Una fila por pago, con `monto` real. Ligada al propietario. |
 
 ### Precio dual — mensual / anual
@@ -47,6 +47,15 @@ Los estados de vencimiento **no se guardan** — se derivan por **fecha de calen
 | `ACTIVA` | sí | `VENCIDA`        | **Renovar** (fue cliente) |
 
 Se evalúa por **fecha**, no por instante: si vence "el 18", el cliente opera **todo el 18 local** y se bloquea al iniciar el 19. El mismo criterio gobierna `dias_restantes`. Sin jobs, sin inconsistencias.
+
+### Purga automática de negocios vencidos (`purga_avisada_el` / `purga_programada_el`)
+
+Dos columnas nullable en `suscripciones`, agregadas vía `docs/suscripcion/sql/setup/alter_suscripciones_purga.sql`. Plan completo en [docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md](../PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md):
+
+- `purga_avisada_el` — cuándo `fn_marcar_negocios_para_purga` detectó vencimiento + gracia cumplida (≥23 días) y marcó al propietario.
+- `purga_programada_el` — fecha desde la que el botón "Purgar ahora" queda habilitado en `/admin` (`purga_avisada_el` + 7 días). `fn_purgar_negocio` exige `purga_programada_el <= NOW()` antes de borrar.
+- Ambas se limpian (`NULL`) si el propietario paga antes de la purga (`fn_registrar_pago_propietario`) o el superadmin la cancela manualmente (`fn_cancelar_purga_negocio`).
+- El flujo es **manual** (sin cron): el superadmin avisa por WhatsApp y dispara la purga desde el panel.
 
 ### Estado actual vs. historial financiero (dos tablas)
 
@@ -262,7 +271,7 @@ Lista paginada (`PaginatedListPage<SuscripcionPago>`, infinite scroll) de la tab
 
 Los **pasos de pago son idénticos** para los tres (cuentas bancarias + WhatsApp con comprobante). Solo cambian título, subtítulo, texto del paso 2 y label del botón. Los textos son **contextuales en código** (no editables desde BD — son parte del flujo UX, no copy de marketing).
 
-> **Navegación del header (Mi Plan):** la pantalla vive fuera del layout, así que **no tiene sidebar**. El header muestra una flecha de retroceso (`navigateBack` al home), no el menú hamburguesa — un `ion-menu-button` aquí quedaría huérfano (no hay `ion-menu` que abrir). En modo bloqueo no hay flecha, para que el usuario no pueda saltarse el bloqueo.
+> **Navegación del header (Mi Plan):** la pantalla vive fuera del layout, así que **no tiene sidebar**. El header muestra una flecha de retroceso (`navCtrl.back()` — pop del stack de Ionic para que la animación de retroceso sea inmediata y el guard de suscripción no se re-ejecute al volver), no el menú hamburguesa — un `ion-menu-button` aquí quedaría huérfano (no hay `ion-menu` que abrir). En modo bloqueo no hay flecha, para que el usuario no pueda saltarse el bloqueo.
 
 **Jerarquía de acciones en modo bloqueo:**
 1. Botón WhatsApp (canal principal en Ecuador) — abre chat con mensaje pre-escrito.
@@ -412,7 +421,9 @@ await this.suscripcion.guardarConfigPlataforma(config);
 
 ### Límite de negocios por plan (`max_negocios`)
 
-`planes.max_negocios` define cuántos negocios puede tener un propietario (PRO = 1, MAX = 3; `NULL` = ilimitado). El guardián es `fn_completar_onboarding`: antes de crear un negocio cuenta **todos** los del propietario y, si alcanzó el tope de su plan vigente, lanza `RAISE EXCEPTION 'limite_negocios: ...'`. El límite es **absoluto** — aplica también al superadmin creando para un dueño. El frontend (`OnboardingService.completar`) extrae el texto tras `limite_negocios:` y lo muestra como toast claro; no hay bloqueo preventivo del botón (la BD es el guardián).
+`planes.max_negocios` define cuántos negocios puede tener un propietario (PRO = 1, MAX = 3; `NULL` = ilimitado). El guardián definitivo es `fn_completar_onboarding`: antes de crear un negocio cuenta **todos** los del propietario y, si alcanzó el tope de su plan vigente, lanza `RAISE EXCEPTION 'limite_negocios: ...'`. El límite es **absoluto** — aplica también al superadmin creando para un dueño. El frontend (`OnboardingService.completar`) extrae el texto tras `limite_negocios:` y lo muestra como toast claro.
+
+**Validación preventiva en el sidebar:** `SelectorNegocioModalComponent` también valida antes de navegar al wizard de creación, consultando `SuscripcionService.getEstado()` (cacheado) y comparando `negocios.length` contra `LIMITE_NEGOCIOS[plan_codigo]` (`{ PRO: 1, MAX: 3 }`). Si el plan no permite sucursales (PRO) o ya alcanzó el tope (MAX con 3 negocios), muestra un toast informativo y no abre el wizard — evitando que el usuario complete todos los pasos para recibir el error de BD al final. La BD sigue siendo el guardián definitivo; el frontend es una validación de UX, no de seguridad.
 
 ---
 

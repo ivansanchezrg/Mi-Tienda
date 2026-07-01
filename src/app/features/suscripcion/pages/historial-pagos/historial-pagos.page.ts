@@ -12,7 +12,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   arrowBackOutline, receiptOutline, chevronForwardOutline,
-  checkmarkCircleOutline,
+  checkmarkCircleOutline, chevronDownCircleOutline, arrowUpOutline,
 } from 'ionicons/icons';
 import { SuscripcionService } from '@core/services/suscripcion.service';
 import { PAGINATION_CONFIG } from '@core/config/pagination.config';
@@ -58,7 +58,7 @@ export class HistorialPagosPage extends PaginatedListPage<SuscripcionPago> imple
 
   constructor() {
     super();
-    addIcons({ arrowBackOutline, receiptOutline, chevronForwardOutline, checkmarkCircleOutline });
+    addIcons({ arrowBackOutline, receiptOutline, chevronForwardOutline, checkmarkCircleOutline, chevronDownCircleOutline, arrowUpOutline });
   }
 
   async ngOnInit() {

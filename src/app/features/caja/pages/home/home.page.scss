@@ -748,6 +748,13 @@ ion-content {
       &[data-type="primary"] { color: var(--mov-primary); }
       &[data-type="medium"]  { color: var(--mov-medium); }
     }
+
+    .mov-saldo {
+      font-size: 11px;
+      font-weight: var(--font-weight-medium);
+      color: var(--ion-color-medium);
+      white-space: nowrap;
+    }
   }
 }
 

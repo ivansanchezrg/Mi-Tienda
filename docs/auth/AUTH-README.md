@@ -654,6 +654,7 @@ Lo que conecta auth con usuarios:
 | `docs/auth/sql/functions/fn_validar_sesion.sql` | Función SQL que retorna usuario + membresías en un solo round-trip. Ejecutar en Supabase. |
 | `docs/usuarios/sql/setup/realtime_usuario_negocios.sql` | Publicación Realtime para tabla `usuario_negocios` (detección de membresía desactivada en tiempo real) |
 | `docs/auth/sql/setup/trigger_proteger_superadmin.sql` | Trigger + política DELETE que blinda al superadmin contra UPDATE/DELETE accidentales |
+| `docs/auth/sql/setup/trigger_proteger_propietario.sql` | Trigger que blinda la membresía del propietario en `usuario_negocios`: nadie (salvo superadmin o purga administrativa) puede borrarla ni degradar su rol de ADMIN |
 | `docs/setup/03_functions.sql` | Incluye `fn_set_negocio_activo`. Bloquea acceso si `usuarios.activo=false` o `negocios.activo=false` (excepto superadmin) |
 | `docs/setup/schema.sql` | `comparten_negocio()` — helper RLS + columna `activo` en `usuarios` |
 | `docs/admin/ADMIN-README.md` | Panel superadmin: gestión de negocios, suspensión, funciones SQL, setup Realtime |

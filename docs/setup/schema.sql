@@ -192,7 +192,7 @@ CREATE TABLE IF NOT EXISTS negocios (
     ambiente_sri           SMALLINT     DEFAULT 1,         -- 1=pruebas, 2=producción
     obligado_contabilidad  BOOLEAN      DEFAULT FALSE,
     -- Control
-    propietario_usuario_id UUID NOT NULL,                  -- FK a usuarios(id), agregada al final via ALTER TABLE
+    propietario_usuario_id UUID,                            -- FK a usuarios(id), agregada al final via ALTER TABLE. Nullable: fn_purgar_negocio lo pone en NULL transitoriamente antes del DELETE (dentro de la misma transaccion)
     created_at             TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -317,10 +317,18 @@ CREATE TABLE IF NOT EXISTS suscripciones (
     vence_el       TIMESTAMP WITH TIME ZONE NOT NULL,        -- fecha de corte
     actualizada_por UUID REFERENCES usuarios(id),            -- ultimo superadmin que modifico el estado
     created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    -- Borrado automatico de negocios vencidos (PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md):
+    -- ambas se llenan cuando fn_marcar_negocios_para_purga detecta vencimiento + gracia
+    -- cumplida, y se limpian (NULL) si el propietario paga antes de la purga
+    -- (fn_registrar_pago_propietario) o el superadmin la cancela manualmente.
+    purga_avisada_el    TIMESTAMP WITH TIME ZONE,  -- cuando se marco para el aviso de 7 dias
+    purga_programada_el TIMESTAMP WITH TIME ZONE   -- fecha desde la que "Purgar ahora" queda habilitado en /admin
 );
 
 CREATE INDEX IF NOT EXISTS idx_suscripciones_negocio ON suscripciones(negocio_id);
+CREATE INDEX IF NOT EXISTS idx_suscripciones_purga_pendiente ON suscripciones (purga_programada_el)
+    WHERE purga_programada_el IS NOT NULL;
 
 -- 9b. suscripcion_pagos — HISTORIAL FINANCIERO inmutable (libro de cobros)
 -- Cada pago registrado por el superadmin (o, a futuro, un webhook de pasarela) inserta
@@ -402,6 +410,7 @@ CREATE TABLE IF NOT EXISTS categorias_operaciones (
     codigo       VARCHAR(20)  NOT NULL,   -- generado por trigger: 'EG-001', 'IN-001'
     descripcion  TEXT,
     activo       BOOLEAN DEFAULT TRUE,
+    requiere_descripcion BOOLEAN NOT NULL DEFAULT FALSE,  -- exige descripción al registrar una operación con esta categoría
     created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (negocio_id, codigo)
 );
@@ -412,7 +421,7 @@ CREATE TABLE IF NOT EXISTS categorias_operaciones (
 CREATE TABLE IF NOT EXISTS turnos_caja (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     negocio_id          UUID         NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
-    caja_id             UUID         REFERENCES cajas(id) ON DELETE RESTRICT,
+    caja_id             UUID         REFERENCES cajas(id) ON DELETE SET NULL,  -- SET NULL (antes RESTRICT): la purga de negocios borra cajas via CASCADE; SET NULL evita que el RESTRICT bloquee ese CASCADE
     numero_turno        SMALLINT     NOT NULL DEFAULT 1,
     empleado_id         UUID         NOT NULL REFERENCES usuarios(id),
     hora_fecha_apertura TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -1078,6 +1087,7 @@ CREATE TRIGGER trg_proteger_movimiento_empleado
 CREATE OR REPLACE FUNCTION fn_bloquear_delete_movimiento()
 RETURNS TRIGGER AS $$
 BEGIN
+    IF current_setting('app.purga_en_curso', true) = 'true' THEN RETURN OLD; END IF;
     RAISE EXCEPTION 'No se pueden eliminar movimientos de empleados. Para corregir, crear un movimiento de ajuste.';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -1091,6 +1101,7 @@ CREATE TRIGGER trg_bloquear_delete_movimiento
 CREATE OR REPLACE FUNCTION fn_proteger_operacion_caja()
 RETURNS TRIGGER AS $$
 BEGIN
+    IF current_setting('app.purga_en_curso', true) = 'true' THEN RETURN OLD; END IF;
     IF TG_OP = 'DELETE' THEN
         RAISE EXCEPTION 'No se pueden eliminar operaciones de caja. Para corregir, registrar una operacion inversa.';
     END IF;
@@ -1322,9 +1333,15 @@ INSERT INTO tipos_referencia (tabla, descripcion) VALUES
 ON CONFLICT (tabla) DO NOTHING;
 
 -- Monetizacion: plan Basico, metodos de pago y config singleton
+-- Planes reales de la plataforma (ver docs/suscripcion/SUSCRIPCION-README.md, "Planes actuales").
+-- PRO: plan de entrada, 1 negocio, trial de 15 dias.
+-- MAX: hasta 3 negocios bajo un mismo propietario, sin trial, incluye feature "ia".
+-- Precios MAX provisionales — el superadmin puede ajustarlos desde /admin sin redeploy.
 INSERT INTO planes (codigo, nombre, descripcion, precio_mensual, precio_anual, trial_dias, features, max_negocios, orden) VALUES
-('BASICO', 'Plan Basico', 'Acceso completo al sistema de gestion.', 9.99, 99.99, 15,
- '{"pos": true, "inventario": true, "recargas": true, "clientes": true, "reportes": true}', 1, 1)
+('PRO', 'Plan PRO', 'Acceso completo al sistema de gestion para un negocio.', 9.99, 99.99, 15,
+ '{"panel_financiero":true,"pos":true,"inventario":true,"ventas":true,"clientes":true,"empleados":true,"nomina":true,"notas":true,"acciones_rapidas":true,"configuracion":true}', 1, 1),
+('MAX', 'Plan MAX — Gestion inteligente, sin limites', 'Hasta 3 negocios bajo un mismo propietario, con todo lo de PRO mas inteligencia artificial.', 16.99, 169.99, 0,
+ '{"panel_financiero":true,"pos":true,"inventario":true,"ventas":true,"clientes":true,"empleados":true,"nomina":true,"notas":true,"acciones_rapidas":true,"configuracion":true,"ia":true}', 3, 2)
 ON CONFLICT (codigo) DO NOTHING;
 
 INSERT INTO metodos_pago_suscripcion (codigo, nombre, icono, orden) VALUES

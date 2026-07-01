@@ -105,9 +105,11 @@ Las operaciones se agrupan client-side en `OperacionAgrupada[]` (`fecha`, `fecha
 > posteriores a las ~19:00 hora Ecuador aparecían bajo un encabezado de fecha duplicado.
 > Corregido el 2026-06-10.
 
-El resumen del período del balance card (`totalIngresos`/`totalEgresos` de la página) se calcula
-sobre las operaciones **cargadas** (páginas ya traídas) — con filtros largos y muchas páginas es
-parcial hasta scrollear. Mejora pendiente: agregado en SQL vía RPC.
+El resumen del período del balance card (`totalIngresos`/`totalEgresos` de la página) se obtiene
+vía RPC `fn_resumen_operaciones_caja(p_caja_id, p_desde, p_hasta)` — agrega en SQL sobre toda la tabla,
+no sobre las páginas cargadas. Se pide en paralelo con la primera página solo cuando hay `reset`
+(cambio de filtro, refresh, carga inicial); `loadMore()` del infinite scroll no la vuelve a pedir,
+porque el total no cambia al traer más páginas. Código: [`fn_resumen_operaciones_caja.sql`](./sql/functions/fn_resumen_operaciones_caja.sql).
 
 ---
 

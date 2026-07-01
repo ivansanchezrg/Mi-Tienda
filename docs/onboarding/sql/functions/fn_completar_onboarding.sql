@@ -233,9 +233,14 @@ BEGIN
     (v_negocio_id, 'Transporte/Combustible',      'EGRESO',  'Gastos de transporte y combustible'),
     (v_negocio_id, 'Papeleria/Suministros',       'EGRESO',  'Papeleria, utiles de oficina y suministros generales'),
     (v_negocio_id, 'Impuestos/Tasas',             'EGRESO',  'Pago de impuestos y tasas municipales'),
-    (v_negocio_id, 'Otros Gastos',                'EGRESO',  'Otros gastos operativos no clasificados'),
-    (v_negocio_id, 'Devoluciones de Proveedores', 'INGRESO', 'Devolucion de dinero por parte de proveedores'),
-    (v_negocio_id, 'Otros Ingresos',              'INGRESO', 'Otros ingresos no clasificados');
+    (v_negocio_id, 'Devoluciones de Proveedores', 'INGRESO', 'Devolucion de dinero por parte de proveedores');
+
+    -- "Otros Gastos" y "Otros Ingresos" requieren descripcion obligatoria:
+    -- son categorias de "cajón de sastre" donde el motivo específico es esencial
+    -- para que el historial sea interpretable. Las demás categorías son auto-descriptivas.
+    INSERT INTO categorias_operaciones (negocio_id, nombre, tipo, descripcion, requiere_descripcion) VALUES
+    (v_negocio_id, 'Otros Gastos',   'EGRESO',  'Otros gastos operativos no clasificados', TRUE),
+    (v_negocio_id, 'Otros Ingresos', 'INGRESO', 'Otros ingresos no clasificados',          TRUE);
 
     -- ── 7. Categorías de productos ──
     INSERT INTO categorias_productos (negocio_id, nombre) VALUES

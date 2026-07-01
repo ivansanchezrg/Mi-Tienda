@@ -194,7 +194,7 @@ Modal genérico para registrar operaciones de Ingreso/Egreso/Transferencia.
 /caja                        → HomePage
 /caja/operaciones-caja       → OperacionesCajaPage
 /caja/cierre-diario          → CierreDiarioPage (con pendingChangesGuard)
-/caja/historial-turnos       → HistorialTurnosPage (lista paginada de cierres pasados)
+/caja/historial-turnos       → HistorialTurnosPage (cierres pasados, paginado con infinite scroll)
 /caja/recargas-virtuales     → RecargasVirtualesPage
 ```
 
@@ -327,7 +327,7 @@ La mecánica completa — eventos por canal, setup SQL, `REPLICA IDENTITY FULL`,
 | `fn_reparar_deficit_turno` | v4.2 | (2026-06-11) Misma validación sin filtro de fecha que `fn_abrir_turno` v3.3. v4.1: validación de saldo incluye déficit + fondo; EGRESO `FONDO-APERTURA` cuando fondo > 0. |
 | `fn_registrar_operacion_manual` | v3.1 | Nueva validación: si la caja destino es VARIOS, verifica que `caja_varios_activa = 'true'` en `configuraciones`. |
 | `fn_ejecutar_cierre_diario` | v6.3 | El depósito de Tienda al cierre lleva `categoria_id`: `Cierre — Ventas con POS` si el turno usó POS, `Cierre — Ventas del dia` si no. |
-| `fn_listar_cierres_turno` | v2.1 | `usa_pos` ahora refleja cualquier movimiento del cajón (ventas POS, ingresos manuales o egresos). Antes solo consideraba ventas POS — dejaba el cuadre desactivado cuando había ingresos/egresos manuales sin POS. |
+| `fn_listar_cierres_turno` | v2.2 | (2026-06-24) `p_limit`/`p_offset` paginan el CTE `turnos` antes de los JOINs pesados a ventas/recargas — con el filtro "Todo" el payload ya no crece sin tope. `HistorialTurnosPage` consume esto con `ion-infinite-scroll` (`cargarMas()`, `hasMore`, `PAGINATION_CONFIG.historialTurnos.pageSize`). v2.1: `usa_pos` ahora refleja cualquier movimiento del cajón (ventas POS, ingresos manuales o egresos). Antes solo consideraba ventas POS — dejaba el cuadre desactivado cuando había ingresos/egresos manuales sin POS. |
 | `fn_obtener_deficit_turno_anterior` | v1.0 | Nueva RPC (2026-06-03). Reemplaza 4 round-trips de `obtenerDeficitTurnoAnterior()` en 1 sola llamada. `STABLE`, ventana UTC para uso de índices. |
 | `fn_home_dashboard` | v1.2 | JOIN a `categorias_sistema` para mostrar nombre correcto de categoría (igual que `v_operaciones_cajas`). v1.1: excluye solo APERTURA (CIERRE ahora visible). |
 
@@ -369,6 +369,10 @@ La mecánica completa — eventos por canal, setup SQL, `REPLICA IDENTITY FULL`,
 ---
 
 ## Notas Importantes
+
+### Inmutabilidad de operaciones_cajas
+
+`operaciones_cajas` es un **ledger de auditoría inmutable**: ningún registro puede borrarse ni modificarse (salvo los campos `descripcion` y `comprobante_url`). Esto lo garantiza el trigger `trg_bloquear_delete_operacion_caja` / `trg_proteger_operacion_caja` (`fn_proteger_operacion_caja`). Cualquier corrección de monto se hace registrando una operación inversa, nunca editando la original. La única excepción es la purga administrativa de un negocio vencido (`fn_purgar_negocio`), que activa el setting de sesión `app.purga_en_curso = 'true'` para que el trigger ceda durante el CASCADE.
 
 ### Date Handling
 

@@ -4,6 +4,7 @@ import { BehaviorSubject } from 'rxjs';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseService } from './supabase.service';
 import { LoggerService } from './logger.service';
+import { StorageService } from './storage.service';
 import { ROUTES } from '../config/routes.config';
 import { AuthService } from '../../features/auth/services/auth.service';
 import {
@@ -11,6 +12,7 @@ import {
   ConfigPlataforma,
   CuentaBancaria,
   SuscripcionAdmin,
+  NegocioPendientePurga,
   Plan,
   MetodoPago,
   SuscripcionPago,
@@ -34,6 +36,7 @@ import {
 export class SuscripcionService {
   private supabase = inject(SupabaseService);
   private logger = inject(LoggerService);
+  private storage = inject(StorageService);
   private router = inject(Router);
   private zone = inject(NgZone);
   private auth = inject(AuthService);
@@ -221,6 +224,65 @@ export class SuscripcionService {
         p_nota:           nota ?? null,
       }),
       suspender ? 'Propietario suspendido.' : 'Propietario reactivado.',
+      { showLoading: true }
+    );
+    if (res !== null) this.invalidar();
+    return res !== null;
+  }
+
+  /**
+   * Detecta propietarios vencidos hace ≥23 días y los marca para purga
+   * (fn_marcar_negocios_para_purga) — solo marca a quienes aún no estaban
+   * avisados; quienes ya están en cuenta regresiva no se tocan (no reinicia
+   * su plazo). Ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md.
+   * El superadmin la dispara manualmente desde /admin (no hay cron).
+   */
+  async marcarNegociosParaPurga(): Promise<NegocioPendientePurga[]> {
+    const data = await this.supabase.call<NegocioPendientePurga[]>(
+      this.supabase.client.rpc('fn_marcar_negocios_para_purga')
+    );
+    return data ?? [];
+  }
+
+  /** Lista negocios ya marcados para purga (fn_listar_negocios_pendientes_purga). */
+  async listarNegociosPendientesPurga(): Promise<NegocioPendientePurga[]> {
+    const data = await this.supabase.call<NegocioPendientePurga[]>(
+      this.supabase.client.rpc('fn_listar_negocios_pendientes_purga')
+    );
+    return data ?? [];
+  }
+
+  /**
+   * Borrado real e irreversible: borra primero la carpeta de Storage del
+   * negocio y luego ejecuta fn_purgar_negocio (BD). Si Storage falla, NO
+   * continúa con el DELETE en BD — hay un humano mirando que puede reintentar
+   * (a diferencia de un futuro cron automático, ver plan sección "Diferido").
+   * deleteNegocioFolder lanza si remove() falla — se captura aquí para que el
+   * caller reciba `false` en vez de una excepción sin manejar, y pueda avisar
+   * al superadmin cuál negocio falló sin interrumpir el resto del lote.
+   */
+  async purgarNegocio(negocioId: string): Promise<boolean> {
+    try {
+      await this.storage.deleteNegocioFolder(negocioId);
+    } catch (err) {
+      this.logger.error('SuscripcionService', `Error al borrar Storage del negocio ${negocioId}`, err);
+      return false;
+    }
+
+    const res = await this.supabase.call(
+      this.supabase.client.rpc('fn_purgar_negocio', { p_negocio_id: negocioId }),
+      'Negocio purgado correctamente.',
+      { showLoading: true }
+    );
+    if (res !== null) this.invalidar();
+    return res !== null;
+  }
+
+  /** Excepción de soporte: cancela la purga programada sin que medie un pago real. */
+  async cancelarPurgaNegocio(propietarioId: string): Promise<boolean> {
+    const res = await this.supabase.call(
+      this.supabase.client.rpc('fn_cancelar_purga_negocio', { p_propietario_id: propietarioId }),
+      'Purga cancelada.',
       { showLoading: true }
     );
     if (res !== null) this.invalidar();

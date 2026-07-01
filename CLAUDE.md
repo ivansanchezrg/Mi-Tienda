@@ -192,6 +192,32 @@ src/app/
 | `RecargasVirtualesService`| Operaciones de saldo celular/bus                            |
 | `LoggerService`           | Logs estructurados a filesystem con rotación (no usar console.log directo) |
 | `NetworkService`          | Estado de conectividad: `isOnline$: BehaviorSubject<boolean>` |
+| `WhatsAppService`         | **Único punto para abrir WhatsApp con mensaje precargado.** Normaliza el teléfono a formato internacional Ecuador (`593...`) y construye la URL de `api.whatsapp.com`. **Nunca construir esa URL manualmente** — ver sección "WhatsApp — patrón obligatorio" |
+
+---
+
+## WhatsApp — patrón obligatorio
+
+Cualquier apertura de chat de WhatsApp con mensaje precargado debe pasar por `WhatsAppService`. **Nunca** construir `api.whatsapp.com/send?phone=...` manualmente ni duplicar la lógica de normalización de teléfono.
+
+```typescript
+private whatsapp = inject(WhatsAppService);
+
+// Abrir WhatsApp — retorna false si el teléfono está vacío o inválido
+const ok = this.whatsapp.abrir(telefono, [
+  'Línea 1 del mensaje',
+  'Línea 2 del mensaje',
+]);
+if (!ok) this.ui.showToast('No hay teléfono configurado', 'warning');
+```
+
+**Formato del teléfono de entrada:** `WhatsAppService` acepta cualquier formato (`0991234567`, `+593991234567`, `593991234567`) y lo normaliza internamente a `593XXXXXXXXX` (requerido por `api.whatsapp.com`). El caller no necesita normalizar nada.
+
+**Razón del servicio centralizado:** `api.whatsapp.com` requiere el prefijo de país (`593` para Ecuador). Sin normalización el link abre WhatsApp Web en la pantalla de login en vez de ir directo al chat — bug comprobado en producción (2026-06-30). La normalización existía duplicada en 4 archivos antes de centralizarse en `WhatsAppService`.
+
+**Callers actuales:** `SuscripcionPage`, `ShareCierreService` (caja), `ShareEstadoCuentaService` (clientes), `AdminNegociosPage` (purga).
+
+**Al agregar un nuevo feature con WhatsApp:** inyectar `WhatsAppService`, armar el array de líneas del mensaje, y llamar `abrir()`. No hay ningún otro paso.
 
 ---
 
@@ -623,6 +649,39 @@ El separador `·` **solo** se usa en transferencias. En otros tipos, el texto li
 Ver documentación completa en `docs/shared/SHARED-README.md` → sección **Pipes**.
 
 ---
+
+### Guard de cambios pendientes — `HasPendingChanges` + `pendingChangesGuard`
+
+Usar cuando una página tiene un formulario o datos que el usuario podría perder al salir sin guardar (gesto de retroceso Android, flecha del header, o navegación programática). El guard intercepta la salida de la ruta y muestra un alert de confirmación si hay cambios.
+
+**1. Registrar el guard en la ruta:**
+```typescript
+// feature.routes.ts
+import { pendingChangesGuard } from '../../core/guards/pending-changes.guard';
+{ path: 'nuevo', loadComponent: ..., canDeactivate: [pendingChangesGuard] }
+```
+
+**2. Implementar la interfaz en el componente:**
+```typescript
+import { HasPendingChanges } from '@core/guards/pending-changes.guard';
+
+export class MiPage implements HasPendingChanges {
+  hasPendingChanges(): boolean {
+    return this.form.dirty || !!this.fotoRawUrl;
+  }
+
+  resetState() {
+    this.form.reset();
+    this.fotoRawUrl = null;
+  }
+
+  // Textos opcionales del alert (el guard tiene defaults si se omiten)
+  readonly pendingChangesHeader  = '¿Descartar cambios?';
+  readonly pendingChangesMessage = 'Los datos ingresados se perderán si sales ahora.';
+}
+```
+
+Ejemplo real: `ProductoCrearPage` (`src/app/features/inventario/pages/producto-crear/`).
 
 ### Loading + Pull-to-Refresh sin doble spinner
 ```typescript
@@ -1237,6 +1296,7 @@ WITH CHECK (
 - No usar constructor para inyección de dependencias → usar `inject()`
 - No crear componentes sin `standalone: true`
 - No formatear moneda manualmente → usar `AppCurrencyPipe` (`| appCurrency`) en templates o `CurrencyService.format()` en TS. Nunca `| number:'1.2-2'`, `| number:'1.0-0'` ni `.toFixed()` en templates — ver sección "Formateo de dinero"
+- No construir URLs de WhatsApp manualmente (`api.whatsapp.com/send?phone=...`) ni duplicar la normalización del teléfono → usar siempre `WhatsAppService.abrir(telefono, lineas)` — ver sección "WhatsApp — patrón obligatorio"
 - No mostrar `console.log` en producción → usar `LoggerService`
 - No dejar footers/paneles inferiores sin `env(safe-area-inset-bottom)` → ver sección "Safe area en Android"
 - No usar `ActionSheetController`, `PopoverController` ni `ion-select` → usar `OptionsModalComponent` (modo acción o modo selección). `<select>` nativo solo dentro de formularios con `formControlName`

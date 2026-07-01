@@ -159,13 +159,12 @@ input {
   &::placeholder { color: var(--ion-color-medium); opacity: 0.6; }
 }
 
-// ── Fila Rol + Estado ─────────────────────────────────────────────────────────
+// ── Rol y Estado (apilados, cada uno full-width) ──────────────────────────────
 
-.row-fields {
+.choices {
   display: flex;
-  gap: 12px;
-
-  .field { flex: 1; }
+  flex-direction: column;
+  gap: 14px;
 
   &.disabled {
     opacity: 0.45;
@@ -173,12 +172,13 @@ input {
   }
 }
 
-// ── Chips (rol y estado) ──────────────────────────────────────────────────────
+// ── Chips (rol y estado) — en fila, mitad y mitad ─────────────────────────────
 
-.chip-group {
+.chip-row {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+
+  .chip { flex: 1; }
 }
 
 .chip {
@@ -186,10 +186,10 @@ input {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 9px 10px;
-  border-radius: 8px;
+  padding: 12px 10px;
+  border-radius: 10px;
   border: 1.5px solid var(--ion-color-step-150);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ion-color-medium);
   background: var(--ion-item-background, #fff);

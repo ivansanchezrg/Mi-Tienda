@@ -67,6 +67,8 @@ CREATE TABLE movimientos_empleados (
 );
 ```
 
+**Inmutabilidad:** los movimientos no se pueden borrar ni modificar una vez creados. Los triggers `trg_bloquear_delete_movimiento` (`fn_bloquear_delete_movimiento`) y `trg_proteger_movimiento_empleado` (`fn_proteger_movimiento_empleado`) lo garantizan — solo `estado_liquidacion` y `liquidado_en` son editables post-INSERT. Cualquier corrección se hace creando un movimiento de ajuste. La única excepción es la purga administrativa de un negocio vencido (`fn_purgar_negocio`), que activa `app.purga_en_curso = 'true'` para que los triggers cedan.
+
 **Signo por tipo:**
 
 | Tipo | Signo |

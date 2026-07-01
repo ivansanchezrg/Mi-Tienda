@@ -18,7 +18,8 @@ import {
   personOutline, banOutline, checkmarkCircleOutline,
   searchOutline, closeOutline, logInOutline,
   phonePortraitOutline, busOutline, extensionPuzzleOutline, archiveOutline,
-  cardOutline, chevronDownOutline
+  cardOutline, chevronDownOutline,
+  logoWhatsapp, trashOutline, closeCircleOutline, alertCircleOutline, refreshOutline
 } from 'ionicons/icons';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
@@ -29,9 +30,10 @@ import { SupabaseService } from '@core/services/supabase.service';
 import { SuscripcionService } from '@core/services/suscripcion.service';
 import { LoggerService } from '@core/services/logger.service';
 import { UiService } from '@core/services/ui.service';
+import { WhatsAppService } from '@core/services/whatsapp.service';
 import { ROUTES } from '@core/config/routes.config';
 import { NegocioAdmin, PropietarioGrupo, SuscripcionNegocio } from '../../models/negocio-admin.model';
-import { SuscripcionAdmin } from '../../../suscripcion/models/suscripcion.model';
+import { SuscripcionAdmin, NegocioPendientePurga } from '../../../suscripcion/models/suscripcion.model';
 
 @Component({
   selector: 'app-admin-negocios',
@@ -54,6 +56,7 @@ export class AdminNegociosPage implements OnInit {
   private suscripcion  = inject(SuscripcionService);
   private ui           = inject(UiService);
   private logger       = inject(LoggerService);
+  private whatsapp     = inject(WhatsAppService);
   private router       = inject(Router);
   private modalCtrl    = inject(ModalController);
   private alertCtrl    = inject(AlertController);
@@ -64,6 +67,11 @@ export class AdminNegociosPage implements OnInit {
   negocioActivoId: string | null = null;
   busqueda = '';
   acordeonesAbiertos = new Set<string>();
+
+  // Purga automática de negocios vencidos (PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md).
+  // Indexado por propietario_id — todos sus negocios comparten estas fechas.
+  private purgaPorPropietario = new Map<string, NegocioPendientePurga>();
+  detectandoPurga = false;
 
   onAccordionChange(event: CustomEvent, usuarioId: string) {
     const valores: string[] = event.detail.value ?? [];
@@ -80,7 +88,8 @@ export class AdminNegociosPage implements OnInit {
       addOutline, ellipsisVertical, personOutline, banOutline, checkmarkCircleOutline,
       searchOutline, closeOutline, logInOutline,
       phonePortraitOutline, busOutline, extensionPuzzleOutline, archiveOutline,
-      cardOutline, chevronDownOutline
+      cardOutline, chevronDownOutline,
+      logoWhatsapp, trashOutline, closeCircleOutline, alertCircleOutline, refreshOutline
     });
   }
 
@@ -93,8 +102,9 @@ export class AdminNegociosPage implements OnInit {
   async cargar(silencioso = false) {
     if (!silencioso) this.loading = true;
     try {
-      // Negocios (+ propietarios + módulos) y suscripciones en paralelo — 1 round-trip.
-      const [respNegocios, suscripciones] = await Promise.all([
+      // Negocios (+ propietarios + módulos), suscripciones y purga pendiente en
+      // paralelo — 1 round-trip por fuente.
+      const [respNegocios, suscripciones, pendientesPurga] = await Promise.all([
         this.supabase.client
           .from('negocios')
           .select(`
@@ -107,7 +117,10 @@ export class AdminNegociosPage implements OnInit {
           `)
           .order('created_at', { ascending: true }),
         this.suscripcion.listarSuscripcionesAdmin(),
+        this.suscripcion.listarNegociosPendientesPurga(),
       ]);
+
+      this.purgaPorPropietario = new Map(pendientesPurga.map(p => [p.propietario_id, p]));
 
       const { data, error } = respNegocios;
 
@@ -204,6 +217,16 @@ export class AdminNegociosPage implements OnInit {
     for (const g of grupos) {
       g.suspendido = g.negocios.length > 0
         && g.negocios.every(n => n.suscripcion?.estado === 'SUSPENDIDA');
+
+      const p = this.purgaPorPropietario.get(g.usuario_id);
+      g.purga = p
+        ? {
+            telefono_contacto:    p.telefono_contacto,
+            purga_programada_el:  p.purga_programada_el,
+            dias_restantes_purga: p.dias_restantes_purga,
+            puede_purgar_ya:      p.puede_purgar_ya,
+          }
+        : undefined;
     }
     return grupos;
   }
@@ -322,6 +345,39 @@ export class AdminNegociosPage implements OnInit {
       }
     ];
 
+    // Acciones de purga (PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md) — solo si el
+    // propietario está marcado para purga. Grupo aparte para separarlo
+    // visualmente de la gestión normal de cobro.
+    if (grupo.purga) {
+      groups.push({
+        options: [
+          {
+            label:    'Avisar por WhatsApp',
+            icon:     'logo-whatsapp',
+            value:    'avisar-whatsapp',
+            subtitle: grupo.purga.telefono_contacto
+              ? `Quedan ${grupo.purga.dias_restantes_purga} día(s) para el borrado`
+              : 'Sin teléfono de contacto configurado'
+          },
+          {
+            label:    'Purgar ahora',
+            icon:     'trash-outline',
+            value:    'purgar',
+            color:    'danger',
+            subtitle: grupo.purga.puede_purgar_ya
+              ? `Borra ${negocioPalabra} y todos sus datos — no se puede deshacer`
+              : `Disponible en ${grupo.purga.dias_restantes_purga} día(s)`
+          },
+          {
+            label:    'Cancelar purga',
+            icon:     'close-circle-outline',
+            value:    'cancelar-purga',
+            subtitle: 'Excepción de soporte — sin registrar un pago real'
+          }
+        ]
+      });
+    }
+
     const modal = await this.modalCtrl.create({
       component: OptionsModalComponent,
       componentProps: { title: grupo.nombre, subtitle: grupo.email, groups },
@@ -332,8 +388,11 @@ export class AdminNegociosPage implements OnInit {
 
     await modal.present();
     const { data } = await modal.onDidDismiss();
-    if (data === 'pago')             await this.registrarPago(grupo);
-    if (data === 'toggle-suspension') await this.toggleSuspensionNegocios(grupo);
+    if (data === 'pago')              await this.registrarPago(grupo);
+    if (data === 'toggle-suspension')  await this.toggleSuspensionNegocios(grupo);
+    if (data === 'avisar-whatsapp')    this.avisarPurgaWhatsApp(grupo);
+    if (data === 'purgar')             await this.purgarGrupo(grupo);
+    if (data === 'cancelar-purga')     await this.cancelarPurga(grupo);
   }
 
   async abrirModulos(negocio: NegocioAdmin) {
@@ -452,6 +511,107 @@ export class AdminNegociosPage implements OnInit {
   }
 
   /**
+   * Detecta propietarios vencidos hace ≥23 días y los marca para purga
+   * (fn_marcar_negocios_para_purga). El superadmin la dispara manualmente desde
+   * este botón — no hay cron (ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md).
+   */
+  async detectarPurgaPendiente() {
+    if (this.detectandoPurga) return;
+    this.detectandoPurga = true;
+    try {
+      const marcados = await this.suscripcion.marcarNegociosParaPurga();
+      await this.cargar(true);
+      await this.ui.showToast(
+        marcados.length > 0
+          ? `${marcados.length} negocio(s) marcado(s) para purga.`
+          : 'No hay nuevos negocios para marcar.',
+        marcados.length > 0 ? 'warning' : 'success'
+      );
+    } finally {
+      this.detectandoPurga = false;
+    }
+  }
+
+  /**
+   * Abre WhatsApp con un mensaje precargado al propietario marcado para purga,
+   * usando el teléfono del negocio ancla (ver fn_listar_negocios_pendientes_purga).
+   * La normalización del teléfono y la apertura de URL las maneja WhatsAppService.
+   * El superadmin solo confirma el envío — no hay integración de envío automático.
+   */
+  private avisarPurgaWhatsApp(grupo: PropietarioGrupo) {
+    const fechaPurga = grupo.purga
+      ? new Date(grupo.purga.purga_programada_el).toLocaleDateString('es-EC', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
+    const negocioPalabra  = grupo.negocios.length === 1 ? 'negocio' : `${grupo.negocios.length} negocios`;
+    const nombresNegocios = grupo.negocios.map(n => n.nombre).join(', ');
+
+    const lineas = [
+      `Hola ${grupo.nombre}, te escribimos de Mi Tienda.`,
+      `Tu suscripción venció y tu ${negocioPalabra} (${nombresNegocios}) será borrado permanentemente el ${fechaPurga} si no renuevas antes.`,
+      'Esto incluye productos, ventas, clientes e historial — no se puede recuperar después.',
+      'Responde este mensaje para coordinar tu pago y mantener tu negocio activo.',
+    ];
+
+    const abierto = this.whatsapp.abrir(grupo.purga?.telefono_contacto ?? '', lineas);
+    if (!abierto) {
+      this.ui.showToast('Este propietario no tiene un teléfono de contacto configurado.', 'warning');
+    }
+  }
+
+  /**
+   * Borrado real e irreversible (StorageService.deleteNegocioFolder + fn_purgar_negocio
+   * por cada negocio del propietario, en ese orden — ver SuscripcionService.purgarNegocio).
+   * Confirmación explícita con el nombre del propietario y advertencia.
+   * Si algún negocio del lote falla, los demás siguen su curso — el toast final
+   * indica cuáles no se pudieron purgar para reintentar manualmente.
+   */
+  private async purgarGrupo(grupo: PropietarioGrupo) {
+    if (!grupo.purga?.puede_purgar_ya) {
+      this.ui.showToast('La purga de este propietario aún no está habilitada.', 'warning');
+      return;
+    }
+
+    const n = grupo.negocios.length;
+    const nombresNegocios = grupo.negocios.map(neg => neg.nombre).join(', ');
+    const ok = await this.confirmar(
+      'Purgar negocio — acción irreversible',
+      `¿Borrar permanentemente ${n === 1 ? 'el negocio' : `los ${n} negocios`} de ${grupo.nombre} (${nombresNegocios})? Se eliminarán productos, ventas, clientes, fotos y todo el historial. Esto NO se puede deshacer.`
+    );
+    if (!ok) return;
+
+    let exitos = 0;
+    const fallidos: string[] = [];
+    for (const negocio of grupo.negocios) {
+      const exito = await this.suscripcion.purgarNegocio(negocio.id);
+      if (exito) exitos++;
+      else fallidos.push(negocio.nombre);
+    }
+
+    if (fallidos.length > 0) {
+      // purgarNegocio ya no lanza (captura el error de Storage internamente) —
+      // si devuelve false, alguno falló: el superadmin necesita saber cuál no
+      // se borró para reintentarlo manualmente, en vez de asumir éxito total.
+      await this.ui.showToast(
+        `No se pudo purgar: ${fallidos.join(', ')}. Revisa los logs y reintenta.`,
+        'danger'
+      );
+    }
+    if (exitos > 0) await this.cargar(true);
+  }
+
+  /** Excepción de soporte: cancela la purga programada sin que medie un pago real. */
+  private async cancelarPurga(grupo: PropietarioGrupo) {
+    const ok = await this.confirmar(
+      'Cancelar purga',
+      `¿Cancelar la purga programada de ${grupo.nombre}? Esto es una excepción de soporte — no reemplaza registrar un pago real. El negocio seguirá bloqueado hasta que renueve, pero ya no se borrará automáticamente.`
+    );
+    if (!ok) return;
+
+    const exito = await this.suscripcion.cancelarPurgaNegocio(grupo.usuario_id);
+    if (exito) await this.cargar(true);
+  }
+
+  /**
    * Abre el modal de registrar pago para un PROPIETARIO; recarga al confirmar.
    * El pago renueva TODOS sus negocios a la vez (la suscripción se paga por dueño).
    * El plan vigente se toma de cualquiera de sus negocios (todos comparten suscripción).
@@ -481,4 +641,5 @@ export class AdminNegociosPage implements OnInit {
   async salir() {
     await this.authService.logout();
   }
+
 }

@@ -95,14 +95,14 @@
                   <span class="cajon-resultado-titulo">Cajón cuadrado</span>
                   <span class="cajon-resultado-sub">Contó exactamente lo esperado</span>
                 </div>
-                <span class="cajon-resultado-monto">${{ cierre.efectivo_fisico | appCurrency }}</span>
+                <span class="cajon-resultado-monto">${{ conteoFisicoReal | appCurrency }}</span>
               </div>
             } @else if (cierre.diferencia < 0) {
               <div class="cajon-resultado cajon-resultado--faltante">
                 <ion-icon name="alert-circle-outline"></ion-icon>
                 <div>
                   <span class="cajon-resultado-titulo">Faltante de ${{ (cierre.diferencia * -1) | appCurrency }}</span>
-                  <span class="cajon-resultado-sub">Contó ${{ cierre.efectivo_fisico | appCurrency }}</span>
+                  <span class="cajon-resultado-sub">Contó ${{ conteoFisicoReal | appCurrency }}</span>
                 </div>
               </div>
             } @else {
@@ -110,7 +110,7 @@
                 <ion-icon name="information-circle-outline"></ion-icon>
                 <div>
                   <span class="cajon-resultado-titulo">Sobrante de +${{ cierre.diferencia | appCurrency }}</span>
-                  <span class="cajon-resultado-sub">Contó ${{ cierre.efectivo_fisico | appCurrency }}</span>
+                  <span class="cajon-resultado-sub">Contó ${{ conteoFisicoReal | appCurrency }}</span>
                 </div>
               </div>
             }

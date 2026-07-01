@@ -41,22 +41,30 @@ features/inventario/
 │   ├── producto.model.ts        # Producto, ProductoPOS, ProductoPresentacion, Atributo, AtributoOpcion, TipoVenta
 │   ├── categoria-producto.model.ts
 │   └── kardex.model.ts          # KardexInventario, TipoMovimientoKardex
-└── inventario.routes.ts         # Lazy-load: '' | 'nuevo' | 'nuevo-simple' | 'nuevo-variantes' | 'editar/:id' | 'kardex/:id'
+└── inventario.routes.ts         # Lazy-load: '' | 'nuevo' | 'editar/:id' | 'kardex/:id'
 ```
 
 ---
 
 ## Flujo de creacion de producto
 
+Todo el flujo de creación vive en una **sola ruta** (`/inventario/nuevo` → `ProductoCrearPage`) con múltiples pasos internos controlados por la variable `paso`. No hay rutas separadas por tipo de producto.
+
 ```
 Boton "Nuevo" (o scan codigo)
   ↓
-/inventario/nuevo  →  SelectorTipoPage
-  ├─ "Producto Simple"   →  /inventario/nuevo-simple  (ProductoFormPage en modo CREAR)
-  └─ "Con Variantes"     →  /inventario/nuevo-variantes  (ProductoVariantesPage — wizard 3 pasos)
+/inventario/nuevo  →  ProductoCrearPage
+  paso 0: selector visual de tipo (cards: Simple / Tamaños o empaques / Sabores·colores·tallas)
+    ├─ "Simple"               → paso 1: formulario (info + precio + stock) → guardar
+    ├─ "Tamaños o empaques"   → paso 1: formulario + sección presentaciones → guardar
+    └─ "Con variantes"        → paso 1: datos base
+                                paso 2: tipos de variante (atributos + opciones)
+                                paso 3: revisar y ajustar SKUs → guardar
 ```
 
-`SelectorTipoPage` pasa `?codigo=EAN` como queryParam cuando el usuario llego desde el scanner, para prellenar el codigo en el formulario simple.
+El scanner pasa `?codigo=EAN` como queryParam al navegar a `/inventario/nuevo`, y `ProductoCrearPage` lo prellenan en el campo de código de barras del formulario simple.
+
+**Protección de datos al salir:** si el usuario intenta salir con datos ingresados sin guardar (gesto de retroceso Android, flecha del header, o al volver del paso 1 al paso 0), se muestra un alert de confirmación "¿Descartar producto?". Si no hay datos, sale directamente sin preguntar.
 
 ---
 
@@ -338,11 +346,11 @@ private async emitirCambioPorPresentacion(productoId: string): Promise<void> {
 
 ---
 
-## Formulario de producto (`ProductoFormPage`)
+## Formulario de producto (`ProductoCrearPage` / `ProductoEditarPage`)
 
 ### Modos
 
-- **CREAR** (`/inventario/nuevo-simple`): todos los campos editables, stock inicial obligatorio
+- **CREAR** (`/inventario/nuevo`): todos los campos editables, stock inicial obligatorio
 - **EDITAR** (`/inventario/editar/:id`): codigo de barras readonly, stock readonly, + seccion presentaciones
 
 ### Campo de codigo de barras — comportamiento dinamico

@@ -326,7 +326,14 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     const datosCierre = this.shareCierreService.consumirPendiente();
     if (datosCierre) {
       await this.cargarDatos();
-      await this.ofrecerCompartirCierre(datosCierre);
+      // Ofrecer compartir por WhatsApp solo tiene sentido cuando quien cierra
+      // es un EMPLEADO: el ADMIN/dueño ya sabe lo que pasó (lo hizo él mismo)
+      // y no necesita notificarse a sí mismo — para eso está el historial.
+      // Un empleado sí necesita avisar al dueño ausente en tiempo real.
+      if (this.authService.usuarioActualValue?.rol === 'EMPLEADO') {
+        await this.ofrecerCompartirCierre(datosCierre);
+      }
+      await this.avisarDeficitVariosSiAplica(datosCierre);
     } else if (!this.cargando) {
       await this.refrescarMovimientos();
     }
@@ -778,19 +785,25 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     if (data === 'enviar') {
       await this.shareCierreService.enviarResumenWhatsApp(datos);
     }
+  }
 
-    // Turno abierto un día anterior: la transferencia diaria a Varios de ese día
-    // no se realizó. Caso excepcional — alert (no toast) para que no se pierda.
-    // La compensación es deliberadamente manual: traspaso Tienda → Varios.
-    if (datos.aperturaEnOtroDia && datos.variosActiva) {
-      const fecha = this.formatearFecha(new Date(datos.horaApertura));
-      const alert = await this.alertCtrl.create({
-        header: 'Transferencia a Varios pendiente',
-        message: `Este turno se abrió el ${fecha} y se cerró hoy. La transferencia diaria a Varios del día anterior no se realizó. Si quieres compensarla, haz un traspaso manual de Tienda a Varios.`,
-        buttons: ['Entendido'],
-      });
-      await alert.present();
-    }
+  /**
+   * Turno abierto un día anterior: la transferencia diaria a Varios de ese día
+   * no se realizó. Caso excepcional — alert (no toast) para que no se pierda.
+   * La compensación es deliberadamente manual: traspaso Tienda → Varios.
+   * Independiente del rol de quien cierra (a diferencia de ofrecerCompartirCierre):
+   * el déficit afecta al negocio sin importar quién esté cerrando el turno.
+   */
+  private async avisarDeficitVariosSiAplica(datos: DatosCierreParaCompartir): Promise<void> {
+    if (!datos.aperturaEnOtroDia || !datos.variosActiva) return;
+
+    const fecha = this.formatearFecha(new Date(datos.horaApertura));
+    const alert = await this.alertCtrl.create({
+      header: 'Transferencia a Varios pendiente',
+      message: `Este turno se abrió el ${fecha} y se cerró hoy. La transferencia diaria a Varios del día anterior no se realizó. Si quieres compensarla, haz un traspaso manual de Tienda a Varios.`,
+      buttons: ['Entendido'],
+    });
+    await alert.present();
   }
 
   async mostrarModalVerificacionFondo(): Promise<{ turnoId: string | null; fondoApertura: number } | null> {

@@ -74,11 +74,12 @@ ejecutarOperacion(tipo, data)
 > "Motivo"** en la UI (la BD y el código siguen usando `categoria`). El header lleva subtítulo
 > explicativo y bajo el monto se muestra el saldo resultante en vivo ("Tienda quedará en $X").
 
-> \* **Regla "otros" (`requiereDescripcion`):** la descripción es obligatoria (mín. 3 caracteres)
-> solo cuando el **nombre** de la categoría seleccionada matchea `/otros?/i` ("Otros Gastos",
-> "Otros Ingresos", etc.), sin importar el tipo. ⚠️ Es una regla por nombre, no por flag: si el
-> usuario crea una categoría que contiene "otro" en el nombre, hereda la obligatoriedad; si
-> renombra "Otros Gastos", la pierde. Mejora futura: flag explícito en la categoría.
+> \* **Descripción obligatoria (`requiereDescripcion`):** la descripción es obligatoria
+> (mín. 3 caracteres) cuando la categoría seleccionada tiene `requiere_descripcion = true`.
+> Es un flag explícito por categoría (columna `categorias_operaciones.requiere_descripcion`),
+> editable desde el CRUD de categorías (toggle "Exigir descripción"). Antes era una regla
+> frágil por regex sobre el nombre (`/otros?/i`) — migrada a flag el 2026-06-23 para que no
+> dependa del texto del nombre (renombrar la categoría ya no altera la obligatoriedad).
 
 - **`montoExcedeSaldo`:** para EGRESO, si `monto > saldoCajaSeleccionada` → error inline + botón deshabilitado. `saldoCajaSeleccionada` se actualiza al cambiar la caja en el selector (subscription a `cajaId`).
 - El botón "Confirmar" está `[disabled]` con `form.invalid || montoExcedeSaldo`. `confirmar()` repite la misma validación defensivamente.

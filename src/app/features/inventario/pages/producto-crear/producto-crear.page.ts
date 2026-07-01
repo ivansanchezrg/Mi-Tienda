@@ -20,6 +20,7 @@ import {
 } from 'ionicons/icons';
 import { ActivatedRoute } from '@angular/router';
 import { ROUTES } from '../../../../core/config/routes.config';
+import { HasPendingChanges } from '../../../../core/guards/pending-changes.guard';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { StorageService } from '../../../../core/services/storage.service';
@@ -84,7 +85,7 @@ interface SKUGenerado {
         ProductoPresentacionesComponent,
     ]
 })
-export class ProductoCrearPage implements ViewWillEnter {
+export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
     private navCtrl         = inject(NavController);
     private route           = inject(ActivatedRoute);
     private fb              = inject(FormBuilder);
@@ -100,9 +101,10 @@ export class ProductoCrearPage implements ViewWillEnter {
     protected barcodeScanner = inject(BarcodeScannerService);
 
     // ── Estado global ─────────────────────────────────────────────────────────
-    guardando    = false;
-    escaneando   = false;
-    listo        = false;
+    guardando        = false;
+    escaneando       = false;
+    listo            = false;
+    guardadoExitoso  = false;  // evita que canDeactivate pregunte tras un guardado exitoso
     categorias: CategoriaProducto[] = [];
 
     // paso 0 = selector visual de tipo
@@ -162,6 +164,7 @@ export class ProductoCrearPage implements ViewWillEnter {
 
         // Resetear estado en cada entrada (Ionic cachea la instancia)
         this.listo           = false;
+        this.guardadoExitoso = false;
         this.paso            = 0;
         this.tipoProducto    = 'simple';
         this.mostrarPresentaciones = false;
@@ -237,17 +240,80 @@ export class ProductoCrearPage implements ViewWillEnter {
         this.paso = 1;
     }
 
-    volver() {
+    async volver() {
         if (this.paso > 1) {
             this.paso--;
             return;
         }
         if (this.paso === 1) {
+            // Si hay datos ingresados, pedir confirmación antes de descartar
+            if (this.hasPendingChanges()) {
+                const alert = await this.alertCtrl.create({
+                    header: '¿Descartar producto?',
+                    message: 'Si vuelves ahora, los datos que ingresaste y la imagen seleccionada se perderán.',
+                    buttons: [
+                        { text: 'Seguir editando', role: 'cancel' },
+                        { text: 'Descartar', role: 'destructive' }
+                    ]
+                });
+                await alert.present();
+                const { role } = await alert.onDidDismiss();
+                if (role !== 'destructive') return;
+                this.resetState();
+            }
             this.paso = 0;
             return;
         }
         this.navCtrl.navigateBack(ROUTES.inventario.root);
     }
+
+    /** true si el usuario ingresó algún dato o seleccionó una imagen en el flujo activo. */
+    hasPendingChanges(): boolean {
+        if (this.guardadoExitoso) return false;
+        if (this.paso === 0) return false;
+
+        if (this.tipoProducto === 'simple') {
+            const v = this.simpleForm?.value ?? {};
+            const tieneDatosSimple =
+                !!v.nombre?.trim() ||
+                !!v.categoria_id ||
+                !!v.precio_costo?.toString().trim() ||
+                !!v.precio_venta?.toString().trim() ||
+                !!v.stock_actual?.toString().trim() ||
+                !!v.codigo_barras?.trim() ||
+                !!this.fotoRawUrl ||
+                this.presentacionesNuevas.length > 0;
+            return tieneDatosSimple;
+        }
+
+        // Flujo variantes: cualquier campo del form base, foto o atributos/SKUs definidos
+        const vt = this.templateForm?.value ?? {};
+        return (
+            !!vt.nombre?.trim() ||
+            !!vt.categoria_id ||
+            !!vt.precio_costo_base?.toString().trim() ||
+            !!vt.precio_venta_base?.toString().trim() ||
+            !!this.templateFotoRawUrl ||
+            this.atributosEditor.length > 0 ||
+            this.skusGenerados.length > 0
+        );
+    }
+
+    /** Requerido por HasPendingChanges: limpia el estado del formulario activo. */
+    resetState() {
+        this.simpleForm?.reset({ tiene_iva: true, tipo_venta: 'UNIDAD', unidad_medida: 'und', stock_minimo: 5 });
+        this.templateForm?.reset({ tiene_iva: true, tipo_venta: 'UNIDAD', stock_minimo: 5 });
+        this.fotoPreviewUrl = null;
+        this.fotoRawUrl = null;
+        this.templateFotoPreviewUrl = null;
+        this.templateFotoRawUrl = null;
+        this.presentacionesNuevas = [];
+        this.atributosEditor = [];
+        this.skusGenerados = [];
+    }
+
+    readonly pendingChangesHeader  = '¿Descartar producto?';
+    readonly pendingChangesMessage = 'Si sales ahora, los datos que ingresaste y la imagen seleccionada se perderán.';
 
     get tituloHeader(): string {
         // Paso 0: selector de tipo
@@ -356,6 +422,7 @@ export class ProductoCrearPage implements ViewWillEnter {
             });
 
             if (resultado.ok) {
+                this.guardadoExitoso = true;
                 this.navCtrl.navigateBack(ROUTES.inventario.root);
             } else if (imagenUrl) {
                 await this.storageService.deleteFile(imagenUrl);
@@ -792,6 +859,7 @@ export class ProductoCrearPage implements ViewWillEnter {
             });
 
             if (resultado.ok) {
+                this.guardadoExitoso = true;
                 this.navCtrl.navigateBack(ROUTES.inventario.root);
             } else {
                 await Promise.all(uploadedPaths.map(p => this.storageService.deleteFile(p)));

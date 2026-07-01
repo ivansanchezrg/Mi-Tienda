@@ -23,11 +23,10 @@
     line-height: 1.3;
 }
 
-// ── Banner de déficit ────────────────────────────────────────────────────────
+// ── Tarjeta de déficit: aviso + checklist de confirmación en un solo bloque ──
 .vfm-deficit-banner {
     display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    flex-direction: column;
     padding: 12px 14px;
     background: rgba(var(--ion-color-warning-rgb), 0.08);
     border: 1px solid rgba(var(--ion-color-warning-rgb), 0.25);
@@ -36,14 +35,20 @@
     color: var(--app-text-soft);
     line-height: 1.4;
 
+    strong { color: var(--app-text); font-weight: var(--font-weight-semibold); }
+}
+
+.vfm-deficit-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+
     ion-icon {
         font-size: 18px;
         color: var(--ion-color-warning);
         flex-shrink: 0;
         margin-top: 1px;
     }
-
-    strong { color: var(--app-text); font-weight: var(--font-weight-semibold); }
 }
 
 .vfm-deficit-text {
@@ -61,6 +66,52 @@
     font-size: 12px;
     color: var(--app-text-soft);
     line-height: 1.4;
+}
+
+.vfm-deficit-divider {
+    height: 1px;
+    background: rgba(var(--ion-color-warning-rgb), 0.25);
+    margin: 12px 0;
+}
+
+// ── Checkbox de confirmación del traspaso físico ────────────────────────────
+.vfm-confirm-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    ion-checkbox {
+        flex-shrink: 0;
+        --size: 20px;
+    }
+}
+
+.vfm-confirm-check__text {
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--app-text);
+    cursor: pointer;
+}
+
+// ── Chip de traspaso confirmado (reemplaza el banner+checklist) ─────────────
+.vfm-confirm-done {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(var(--ion-color-success-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.20);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: var(--font-weight-medium);
+    color: var(--ion-color-success-shade);
+    margin-bottom: var(--spacing-md);
+
+    ion-icon {
+        font-size: 18px;
+        color: var(--ion-color-success);
+        flex-shrink: 0;
+    }
 }
 
 // ── Banner de error ──────────────────────────────────────────────────────────

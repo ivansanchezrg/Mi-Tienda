@@ -11,7 +11,7 @@
     </div>
     <div class="vfm-header-text">
       <span class="bs-header__title">Abrir caja</span>
-      @if (hayDeficit) {
+      @if (hayDeficit && !confirmoTraspaso) {
         <span class="vfm-header-subtitle">Hay una transferencia pendiente a Varios del turno anterior</span>
       } @else {
         <span class="vfm-header-subtitle">Indica con cuánto efectivo inicias el día</span>
@@ -25,50 +25,78 @@
   <div class="bs-content">
     <div class="bs-body">
 
-      <!-- Aviso déficit VARIOS -->
-      @if (hayDeficit) {
+      <!-- Aviso déficit VARIOS — única tarjeta hasta confirmar el traspaso -->
+      @if (hayDeficit && !confirmoTraspaso) {
         <div class="vfm-deficit-banner">
-          <ion-icon name="alert-circle-outline"></ion-icon>
-          <div class="vfm-deficit-text">
-            <span class="vfm-deficit-action">
-              Toma <strong>${{ deficitVarios | appCurrency }}</strong> en efectivo de <strong>Tienda</strong> y colócalos en <strong>Varios</strong>.
-            </span>
-            <span class="vfm-deficit-note">
-              Repone el faltante que quedó del turno anterior. El sistema registra el movimiento automáticamente al abrir.
+          <div class="vfm-deficit-header">
+            <ion-icon name="alert-circle-outline"></ion-icon>
+            <div class="vfm-deficit-text">
+              <span class="vfm-deficit-action">
+                Toma <strong>${{ deficitVarios | appCurrency }}</strong> en efectivo de <strong>Tienda</strong> y colócalos en <strong>Varios</strong>.
+              </span>
+              <span class="vfm-deficit-note">
+                Repone el faltante que quedó del turno anterior. El sistema registra el movimiento contable automáticamente al abrir.
+              </span>
+            </div>
+          </div>
+
+          <div class="vfm-deficit-divider"></div>
+
+          <div class="vfm-confirm-check">
+            <ion-checkbox
+              [checked]="confirmoTraspaso"
+              (ionChange)="onConfirmoTraspasoChange($event.detail.checked)">
+            </ion-checkbox>
+            <span class="vfm-confirm-check__text" (click)="onConfirmoTraspasoChange(!confirmoTraspaso)">
+              Ya hice el traspaso
             </span>
           </div>
         </div>
       }
 
-      @if (errorMsg) {
-        <div class="vfm-error">
-          <ion-icon name="alert-circle-outline"></ion-icon>
-          <span>{{ errorMsg }}</span>
+      <!-- Fondo de apertura — visible de entrada si no hay déficit, o tras confirmar el traspaso -->
+      @if (!hayDeficit || confirmoTraspaso) {
+        <div class="tab-animate">
+
+          @if (hayDeficit) {
+            <div class="vfm-confirm-done">
+              <ion-icon name="checkmark-circle-outline"></ion-icon>
+              <span>Traspaso a Varios realizado</span>
+            </div>
+          }
+
+          @if (errorMsg) {
+            <div class="vfm-error">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+              <span>{{ errorMsg }}</span>
+            </div>
+          }
+
+          <!-- Input fondo libre -->
+          <div class="vfm-fondo-input">
+            <label class="vfm-fondo-label">
+              <ion-icon name="cash-outline"></ion-icon>
+              ¿Con cuánto efectivo inicias el cajón?
+            </label>
+            <div class="vfm-input-wrapper">
+              <span class="vfm-prefix">$</span>
+              <input
+                #montoInput
+                class="vfm-input"
+                type="number"
+                inputmode="decimal"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                [(ngModel)]="fondoAperturaStr"
+                appNumbersOnly
+                autocomplete="off">
+            </div>
+            <span class="vfm-input-hint">Cuenta el dinero físico que tienes ahora en el cajón. Si no tienes nada, ingresa $0.</span>
+          </div>
+
         </div>
       }
-
-      <!-- Input fondo libre -->
-      <div class="vfm-fondo-input">
-        <label class="vfm-fondo-label">
-          <ion-icon name="cash-outline"></ion-icon>
-          ¿Con cuánto efectivo inicias el cajón?
-        </label>
-        <div class="vfm-input-wrapper">
-          <span class="vfm-prefix">$</span>
-          <input
-            #montoInput
-            class="vfm-input"
-            type="number"
-            inputmode="decimal"
-            placeholder="0.00"
-            min="0"
-            step="0.01"
-            [(ngModel)]="fondoAperturaStr"
-            appNumbersOnly
-            autocomplete="off">
-        </div>
-        <span class="vfm-input-hint">Cuenta el dinero físico que tienes ahora en el cajón. Si no tienes nada, ingresa $0.</span>
-      </div>
 
     </div>
   </div>
@@ -78,15 +106,17 @@
     <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()" [disabled]="abriendo">
       Cancelar
     </ion-button>
-    <ion-button expand="block" color="success" [disabled]="abriendo" (click)="abrirCaja()">
-      @if (abriendo) {
-        <ion-spinner slot="start" name="crescent"></ion-spinner>
-        Abriendo...
-      } @else {
-        <ion-icon slot="start" name="lock-open-outline"></ion-icon>
-        Abrir caja
-      }
-    </ion-button>
+    @if (!hayDeficit || confirmoTraspaso) {
+      <ion-button expand="block" color="success" [disabled]="abriendo" (click)="abrirCaja()">
+        @if (abriendo) {
+          <ion-spinner slot="start" name="crescent"></ion-spinner>
+          Abriendo...
+        } @else {
+          <ion-icon slot="start" name="lock-open-outline"></ion-icon>
+          Abrir caja
+        }
+      </ion-button>
+    }
   </div>
 
 </div>
