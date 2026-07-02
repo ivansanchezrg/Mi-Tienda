@@ -7,7 +7,7 @@
 | Archivo | Rol |
 | --- | --- |
 | `pages/home/home.page.ts` | `onAbrirCaja()`, `mostrarModalVerificacionFondo()` |
-| `components/verificar-fondo-modal/verificar-fondo-modal.component.ts` | Modal de un paso: input libre del fondo a dejar + aviso de déficit (si aplica). En caso sin déficit hace `dismiss` con `fondoApertura`; el home llama `abrirTurno()`. En caso con déficit llama `repararDeficit()` internamente y solo cierra el modal si todo OK. |
+| `components/verificar-fondo-modal/verificar-fondo-modal.component.ts` | Modal de apertura. **Sin déficit:** un paso — input libre del fondo → `dismiss` con `fondoApertura`; el home llama `abrirTurno()`. **Con déficit (flujo secuencial, 2026-07-01):** primero aviso + checkbox "Ya hice el traspaso"; al confirmarlo se revela el input de fondo + botón. Llama `repararDeficit()` internamente y solo cierra si todo OK. |
 | `services/turnos-caja.service.ts` | `obtenerDeficitTurnoAnterior()` (delegado a `fn_obtener_deficit_turno_anterior`), `abrirTurno(fondoApertura)`, `repararDeficit(deficitVarios, fondoApertura)` |
 | `models/turno-caja.model.ts` | `TurnoCaja`, `TurnoCajaConEmpleado`, `EstadoCaja` |
 | `sql/functions/fn_abrir_turno.sql` | Apertura atómica sin déficit: validación + cálculo número turno + INSERT en una transacción |
@@ -51,17 +51,37 @@ onAbrirCaja()
   │          turno abierto por X") si errorHandled=false; si errorHandled=true,
   │          supabase.call() ya mostró el toast — no se duplica (fix 2026-06-22)
   │
-  └─ Con déficit de VARIOS (hayDeficit = true)
-       → Banner: "Toma $X en efectivo de Tienda y colócalos en Varios." +
-         nota secundaria "El sistema registra el movimiento automáticamente
-         al abrir." (fix 2026-06-22 — antes "Se tomará $X de Tienda para
-         reponer Varios", redacción ambigua que no instruía la acción física)
+  └─ Con déficit de VARIOS (hayDeficit = true) — FLUJO SECUENCIAL (2026-07-01)
+       → PASO 1: se muestra SOLO una tarjeta única con el aviso + checklist:
+           • Banner: "Toma $X en efectivo de Tienda y colócalos en Varios."
+             + nota "El sistema registra el movimiento contable automáticamente
+             al abrir."
+           • Checkbox "Ya hice el traspaso" (dentro de la misma tarjeta, tras un
+             divisor). El input de fondo y el botón "Abrir caja" AÚN NO aparecen.
+             Solo "Cancelar" está disponible.
+       → PASO 2: al marcar el checkbox (onConfirmoTraspasoChange):
+           • el aviso+checklist desaparecen; aparece un chip verde "Traspaso a
+             Varios realizado" + el input de fondo + el botón "Abrir caja"
+             (revelados con .tab-animate). El foco pasa al input automáticamente.
        → MODAL llama repararDeficit(deficitVarios, fondoApertura)
        → dismiss { confirmado: true, turnoId: uuid }  ← ya abierto atómicamente
        → home detecta turnoId → NO llama abrirTurno()
         ↓
 cargarDatos() → refresca banner en Home
 ```
+
+> **Por qué el checkbox (gate de responsabilidad humana, 2026-07-01):** el registro
+> contable (EGRESO Tienda + INGRESO Varios) lo ejecuta el sistema automáticamente al
+> abrir, pero el **traspaso físico del efectivo** (mover billetes de un cajón a otro)
+> solo lo puede hacer el empleado — el sistema no puede verificarlo. El checkbox NO es
+> una condición técnica (el asiento se registra igual); es un checkpoint de
+> responsabilidad: si luego hay una discrepancia de efectivo, queda constancia de que
+> el empleado confirmó explícitamente haber hecho el traspaso. El texto del checkbox es
+> corto ("Ya hice el traspaso") porque el monto y las cuentas ya se leyeron en el aviso
+> de arriba — no se repite. El subtítulo del header también cambia: "Hay una
+> transferencia pendiente..." mientras no se confirma, "Indica con cuánto efectivo
+> inicias el día" tras confirmar. **Sin déficit el checkbox no aparece** y el flujo es
+> directo (input + botón visibles de entrada).
 
 ---
 
