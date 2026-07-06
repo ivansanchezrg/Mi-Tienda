@@ -2,6 +2,12 @@
 -- MIGRACIÓN — Stock negativo para ventas offline (Fase 6 PLAN-OFFLINE-POS)
 -- Fecha: 2026-06-10
 -- ==========================================
+-- ⚠️ SUPERADA por docs/inventario/sql/migrations/2026-07-03_fix_factor_conversion_decimal.sql
+-- Esta migración introdujo v_factor INTEGER (regresión de v10, que ya era DECIMAL(12,4)),
+-- truncando factores de presentación fraccionarios (0.5, 1.25...) SIN error visible.
+-- Se deja este archivo como registro histórico de lo que se ejecutó — NO volver a
+-- ejecutar este archivo. Ejecutar la migración del 2026-07-03 en su lugar.
+-- ==========================================
 -- Habilita que las ventas drenadas desde la cola offline (SyncService) se registren
 -- aunque el stock real haya bajado entre el cacheo y el sync. El stock offline es
 -- OPTIMISTA (§5): la venta ya ocurrió físicamente, negarla descuadraría la caja.

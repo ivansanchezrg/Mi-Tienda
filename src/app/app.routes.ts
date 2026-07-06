@@ -30,6 +30,14 @@ export const routes: Routes = [
     loadChildren: () => import('./features/suscripcion/suscripcion.routes').then(m => m.SUSCRIPCION_ROUTES)
   },
   {
+    // Dashboard "Resumen General" multi-negocio (plan MAX). Fuera del layout
+    // (sin tab bar/sidebar) — vista de analisis dedicada. authGuard (sesion) +
+    // suscripcionGuard (cobro al dia); el roleGuard(['ADMIN']) va dentro de sus rutas.
+    path: 'resumen-general',
+    canActivate: [authGuard, suscripcionGuard],
+    loadChildren: () => import('./features/grupo/grupo.routes').then(m => m.GRUPO_ROUTES)
+  },
+  {
     // La app del negocio: authGuard (sesion) + suscripcionGuard (cobro al dia).
     // Si la suscripcion esta bloqueada, suscripcionGuard redirige a /suscripcion.
     path: '',

@@ -39,8 +39,14 @@
 
   </div>
 
-  <!-- Acción crear sucursal -->
+  <!-- Acciones -->
   <div class="modal-actions">
+    @if (mostrarResumenGeneral) {
+      <button class="btn-resumen-general" (click)="abrirResumenGeneral()">
+        <ion-icon name="stats-chart-outline"></ion-icon>
+        <span>Ver resumen general</span>
+      </button>
+    }
     <button class="btn-crear-sucursal" (click)="abrirCrearSucursal()">
       <ion-icon name="add-circle-outline"></ion-icon>
       <span>Nueva sucursal</span>

@@ -15,6 +15,7 @@ import { RecargasVirtualesService, RecargaVirtual } from '../../services/recarga
 import { AuthService } from '../../../auth/services/auth.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
+import { CurrencyService } from '@core/services/currency.service';
 
 type TipoServicio = 'CELULAR' | 'BUS';
 
@@ -51,6 +52,7 @@ export class HistorialModalComponent implements OnInit {
   private supabase = inject(SupabaseService);
   private service = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
+  private currencyService = inject(CurrencyService);
 
   loading = true;
   historial: RecargaVirtual[] = [];
@@ -139,7 +141,7 @@ export class HistorialModalComponent implements OnInit {
   async confirmarLiquidacion() {
     if (this.cajaSaldo < this.totalPorLiquidar) {
       await this.ui.showToast(
-        `${this.nombreCajaOrigen} tiene $${this.cajaSaldo.toFixed(2)} y necesitas $${this.totalPorLiquidar.toFixed(2)} para liquidar.`,
+        `${this.nombreCajaOrigen} tiene $${this.currencyService.format(this.cajaSaldo)} y necesitas $${this.currencyService.format(this.totalPorLiquidar)} para liquidar.`,
         'warning'
       );
       return;
@@ -147,7 +149,7 @@ export class HistorialModalComponent implements OnInit {
 
     const alert = await this.alertCtrl.create({
       header: `Liquidar ganancia ${this.tipo === 'CELULAR' ? 'Celular' : 'Bus'}`,
-      message: `Vas a transferir $${this.totalPorLiquidar.toFixed(2)} de ${this.nombreCajaOrigen} a ${this.nombreCajaDestino}.`,
+      message: `Vas a transferir $${this.currencyService.format(this.totalPorLiquidar)} de ${this.nombreCajaOrigen} a ${this.nombreCajaDestino}.`,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
         { text: 'Confirmar', handler: () => { this.ejecutarLiquidacion(); } }

@@ -8,14 +8,15 @@ Feature principal de la app. Contiene el panel de inicio y las operaciones diari
 
 ### Home (`pages/home/`)
 
-Panel principal con 4 secciones:
+Panel principal con 3 secciones:
 
 | Sección | Descripción | Visibilidad |
 | --- | --- | --- |
 | Hero card | Total efectivo (display bancario partido) + deltas de ingresos/egresos del día + chip de estado "Caja abierta/cerrada" | Siempre. El total excluye el Cajón cuando no hay turno activo |
 | Mis Cuentas | Grid de cards por caja (base + opt-in + custom) con saldo. Click navega a `OperacionesCajaPage` | Cards según flags de módulos. Cajón con turno cerrado → modal "Cajón cerrado" |
 | Acciones Rápidas | Ingreso, Gasto, Traspaso + botón de turno: **Abrir** (sin turno), **Cerrar** (turno propio) o **Cierre** deshabilitado (turno ajeno) | Siempre. El botón de turno se oculta al superadmin |
-| Últimos 5 Movimientos | Widget de movimientos del día | Siempre |
+
+> **Sección "Últimos 5 movimientos" ELIMINADA (2026-07-03).** El historial completo vive en el detalle de cada cuenta (`OperacionesCajaPage`). Los deltas del hero (+ingresos / -egresos) ahora vienen agregados del **día completo** desde `fn_home_dashboard` v2 (`resumen_dia`) — antes se calculaban sumando solo los últimos 5 movimientos, lo que subestimaba los totales. La RPC quedó más liviana (sin la lista ni sus 4 JOINs por fila).
 
 > El **Cuadre de Caja** no es una sección del home — se abre desde el FAB central del tab bar (`main-layout`, opción visible solo con `cuadreDisponible`).
 
@@ -23,14 +24,9 @@ Panel principal con 4 secciones:
 
 **Saldos en tiempo real:** Los saldos de las cards de cajas se actualizan automáticamente vía Supabase Realtime (`CajasService.cajas$`) — sin recargar la página ni emitir queries adicionales. Ver [Realtime — tabla cajas](#realtime--tabla-cajas) más abajo.
 
-**Widget de movimientos del día:**
-- Muestra los **últimos 5 movimientos** del día (todas las cajas, excluye solo APERTURA — CIERRE sí aparece).
-- Título: **"ÚLTIMOS 5 MOVIMIENTOS"** (fijo, sin contador — el contador generaba confusión al mostrar un número mayor que los 5 visibles).
-- Si `totalMovimientosHoy > 5`, aparece un footer con el hint **"Para ver el historial completo, entra a cada cuenta."** — no hay modal de "Ver todos" (eliminado). El detalle completo vive en cada página de cuenta (OperacionesCajaPage con filtro por caja).
-- El nombre de la cuenta aparece como badge sobre el título de cada movimiento (jerarquía visual: badge → título → motivo → empleado · hora).
-- Al volver de cualquier subpágina (`ionViewWillEnter`), `refrescarMovimientos()` recarga el dashboard con 1 RPC — incluye movimientos **y** saldos de cajas (`fn_home_dashboard` v1.3 los aplica vía `aplicarCajasExternas()`). El Realtime cubre los cambios entre cargas imperativas. Ver [5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md).
+**Refresco al volver de subpáginas:** en `ionViewWillEnter`, `refrescarDashboard()` recarga el dashboard con 1 RPC — incluye resumen del día **y** saldos de cajas (`aplicarCajasExternas()`). El Realtime cubre los cambios entre cargas imperativas. Ver [5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md).
 
-**Datos:** Conectado a Supabase mediante servicios. La carga inicial del home (`HomePage.cargarDatos()`) usa la RPC consolidada `fn_home_dashboard` desde 2026-05-30 — 1 round-trip para estado de caja + saldos virtuales CELULAR/BUS + últimos 5 movimientos + count. Ver [PERFORMANCE-STARTUP.md](../guides/PERFORMANCE-STARTUP.md#9-fn_home_dashboard--rpc-consolidada-del-home) para detalle.
+**Datos:** Conectado a Supabase mediante servicios. La carga inicial del home (`HomePage.cargarDatos()`) usa la RPC consolidada `fn_home_dashboard` desde 2026-05-30 — 1 round-trip para estado de caja + saldos virtuales CELULAR/BUS + resumen ingresos/egresos del día. Ver [PERFORMANCE-STARTUP.md](../guides/PERFORMANCE-STARTUP.md#9-fn_home_dashboard--rpc-consolidada-del-home) para detalle.
 
 **Notificaciones:** `NotificacionesService.getNotificaciones()` se llama al cargar y muestra un badge con el total de alertas activas. Tipos posibles: `DEUDA_CELULAR`, `SALDO_BAJO_BUS`, `FACTURACION_BUS_PENDIENTE`, `FACTURACION_BUS_PROXIMA`, `STOCK_BAJO`. Ver detalle en [RECARGAS-VIRTUALES-README.md](../recargas-virtuales/RECARGAS-VIRTUALES-README.md#notificaciones-bus-en-home).
 
@@ -168,7 +164,7 @@ Historial de movimientos por caja con diseño híbrido (Home pattern + empresari
 
 ~~### Movimientos Hoy Modal (`components/movimientos-hoy-modal/`)~~
 
-> **ELIMINADO 2026-06-02.** El modal "Ver todos los movimientos" y su componente `MovimientosHoyModalComponent` fueron eliminados. El historial completo de operaciones vive en cada `OperacionesCajaPage` (filtro Hoy + filtros por período). El widget del home muestra los últimos 5 con el hint "Para ver el historial completo, entra a cada cuenta."
+> **ELIMINADO 2026-06-02.** El modal "Ver todos los movimientos" y su componente `MovimientosHoyModalComponent` fueron eliminados. El historial completo de operaciones vive en cada `OperacionesCajaPage` (filtro Hoy + filtros por período). El widget de "últimos 5 movimientos" del home también fue eliminado después (2026-07-03) — ver la nota al inicio de este documento.
 
 ---
 
@@ -329,7 +325,7 @@ La mecánica completa — eventos por canal, setup SQL, `REPLICA IDENTITY FULL`,
 | `fn_ejecutar_cierre_diario` | v6.3 | El depósito de Tienda al cierre lleva `categoria_id`: `Cierre — Ventas con POS` si el turno usó POS, `Cierre — Ventas del dia` si no. |
 | `fn_listar_cierres_turno` | v2.2 | (2026-06-24) `p_limit`/`p_offset` paginan el CTE `turnos` antes de los JOINs pesados a ventas/recargas — con el filtro "Todo" el payload ya no crece sin tope. `HistorialTurnosPage` consume esto con `ion-infinite-scroll` (`cargarMas()`, `hasMore`, `PAGINATION_CONFIG.historialTurnos.pageSize`). v2.1: `usa_pos` ahora refleja cualquier movimiento del cajón (ventas POS, ingresos manuales o egresos). Antes solo consideraba ventas POS — dejaba el cuadre desactivado cuando había ingresos/egresos manuales sin POS. |
 | `fn_obtener_deficit_turno_anterior` | v1.0 | Nueva RPC (2026-06-03). Reemplaza 4 round-trips de `obtenerDeficitTurnoAnterior()` en 1 sola llamada. `STABLE`, ventana UTC para uso de índices. |
-| `fn_home_dashboard` | v1.2 | JOIN a `categorias_sistema` para mostrar nombre correcto de categoría (igual que `v_operaciones_cajas`). v1.1: excluye solo APERTURA (CIERRE ahora visible). |
+| `fn_home_dashboard` | v2.0 | (2026-07-03) Elimina la lista de "últimos 5 movimientos" (la sección del home se borró). Devuelve `resumen_dia` con ingresos/egresos agregados del día completo para los deltas del hero. **Pendiente de re-ejecutar en Supabase.** |
 
 ---
 

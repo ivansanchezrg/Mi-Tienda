@@ -488,17 +488,137 @@ reiniciar la app ni navegar.
 
 ---
 
+## Cambios aplicados el 2026-07-03
+
+### 12. Fail-open del guard — el refresh de token sale del camino crítico del arranque
+
+**Archivos:** `src/app/core/guards/auth.guard.ts`, `src/app/core/services/supabase.service.ts`
+
+**Problema (reportado con medición real ~5s):** al volver del reposo con el proceso muerto
+(Android mató la app en background = cold start disfrazado de reapertura) y el JWT vencido
+(1+ hora dormida), la cadena era:
+
+```
+boot WebView (~1.5-2s)
+  → authGuard → auth.getSession() con token vencido
+      → supabase-js dispara un refresh de RED antes de resolver (DNS + TLS frío + roundtrip)
+      → ~1-3s BLOQUEANDO la navegación (y el splash)
+  → recién ahí el home pinta (snapshot o skeleton)
+Total: ~4-5s
+```
+
+El fix §5 (2026-05-26) evitó el **doble** refresh, pero dejó el refresh único **bloqueando
+el primer paint**. El peor caso era el arranque de cada mañana: proceso muerto + token
+vencido + snapshot inválido (cambió el día) → se pagaba todo junto.
+
+**Solución (2 piezas complementarias):**
+
+1. **Fast path local en `authGuard` (antes de `getSession()`):** con sesión local
+   (`hasLocalSession()`) + flag de auth activa (`hasActiveAuth()`) + `UsuarioActual` en cache
+   → `return true` inmediato, sin esperar red. El refresh corre en paralelo
+   (`refreshSessionOnResume()` fire-and-forget — no-op si el token está sano). Realtime +
+   validación background igual que el fast path anterior. Si el refresh token ya no sirve
+   (30+ días), el SDK emite `SIGNED_OUT` y el listener global redirige al login — mismo
+   mecanismo de siempre, solo que unos segundos más tarde.
+
+2. **`SupabaseService.call()` espera `resumeRefreshInFlight` antes de ejecutar** — sin esto,
+   las queries disparadas por el home saldrían con el token vencido y fallarían con "JWT
+   expired". Un solo `await` centralizado cubre toda la app; la promesa nunca rechaza.
+
+**Lo que NO se cambió (deliberadamente):**
+- `Network.getStatus()` del guard sigue siendo el roundtrip al plugin (~10-30ms). El valor
+  en memoria de `NetworkService` arranca en `true` por defecto y el real puede llegar tarde
+  (race documentada en §11) — el guard necesita el estado REAL para elegir la rama offline.
+- El fast path viejo (post-`getSession()`) queda como fallback para bordes donde el nuevo
+  declina (p.ej. sesión en memoria sin localStorage legible).
+
+**Instrumentación agregada (verificable en logcat):**
+- `authGuard`: "Fast path local en Xms" / "getSession() resuelto en Xms".
+- `AppComponent.setupStartupTiming()`: "Primera navegación (url) resuelta en Xms desde el
+  bootstrap" — la métrica que el usuario percibe como "la app abrió".
+
+**Impacto esperado:** reapertura tras reposo con proceso muerto: de ~4-5s → ~2s (queda el
+boot del WebView + render). Confirmar con los logs en dispositivo real.
+
+### 13. Home más liviano — se eliminó la sección "Últimos 5 movimientos"
+
+**Archivos:** `home.page.html/ts/scss`, `turnos-caja.service.ts`,
+`docs/caja/sql/functions/fn_home_dashboard.sql` (v2.0 — **pendiente de re-ejecutar en Supabase**)
+
+Decisión de producto (el historial completo vive en el detalle de cada cuenta), con bonus de
+rendimiento y corrección:
+
+- `fn_home_dashboard` v2 ya no arma la lista (4 JOINs por fila) ni el count. Devuelve
+  `resumen_dia: { ingresos, egresos }` — agregados del **día completo**.
+- **Fix de corrección incluido:** los deltas del hero ("HOY +$X / -$Y") antes se calculaban
+  sumando **solo los últimos 5 movimientos** — subestimaban los totales del día. Ahora son
+  agregados reales.
+- Payload de la RPC y del snapshot de Preferences más chicos; menos DOM en el primer render.
+- Key del snapshot bump a `:v2` (el shape cambió) — el primer arranque tras actualizar
+  muestra skeleton una vez; desde ahí el snapshot v2 toma el relevo. El snapshot `:v1`
+  huérfano se borra en el constructor del servicio (best-effort).
+- Compatibilidad de despliegue: la app con RPC vieja no rompe (los agregados caen a 0 con
+  `?? 0`); la app vieja con RPC nueva tampoco (ignora `resumen_dia`, movimientos vacíos).
+  Aún así, **ejecutar la v2 en Supabase junto con el deploy** para que los deltas del hero
+  tengan datos.
+
+### 14. Reposo largo: warm-up del token al bootstrap + refresco silencioso al reanudar
+
+**Contexto (medición del usuario):** reabrir tras reposo largo ~4s vs cerrar-manualmente-y-reabrir ~2s.
+La diferencia no es el mecanismo sino el **estado**: la prueba de cierre manual se hace con token
+fresco (<1h) y snapshot del día → mejor caso. El reposo largo paga token vencido + posible snapshot
+descartado (cambió el día), y esos costos corrían **en serie**:
+
+```
+ANTES (reposo largo, proceso muerto):
+  boot WebView (~1.5-2s)
+    → guard fast path (retorna al instante, PERO recién aquí arranca el refresh del token)
+    → home render → cargarDatos() → call() ESPERA el refresh completo (~1-1.5s, TLS frío)
+    → recién entonces sale fn_home_dashboard (~0.5-1s)
+  Total ≈ 4s hasta datos
+```
+
+**Fixes (3 piezas):**
+
+1. **Warm-up del token en el constructor de `SupabaseService`** — `refreshSessionOnResume()`
+   fire-and-forget en el milisegundo cero del bootstrap (antes arrancaba en el guard, ~1.8s
+   más tarde). El refresh corre EN PARALELO con el boot de Angular y el render: cuando la
+   primera RPC sale, el token ya está renovado. Es no-op si no hay sesión o el token está
+   sano (umbral 5 min), y falla silencioso offline.
+
+   ```
+   AHORA: boot WebView (~1.5-2s) ∥ refresh del token (~1-1.5s, en paralelo)
+     → home render → cargarDatos() → RPC sale casi directa
+   Total ≈ 2-2.5s hasta datos
+   ```
+
+2. **Refresco silencioso del home al reanudar con proceso vivo** (`home.page.ts` →
+   `setupResumeRefresh()`): si la app estuvo ≥ `TIMING.resumeHomeRefreshMinMs` (60s) en
+   background y Android NO mató el proceso, el home recarga el dashboard en modo silencioso
+   (sin skeleton, mismo camino que pull-to-refresh). Resuelve la deuda técnica "Frescura del
+   home al volver del background". Los switches rápidos entre apps no refetchean.
+
+3. **Instrumentación del resume** (antes solo se medía el cold start):
+   - `Resume: App reanudada con proceso vivo tras Xs en background` (`app.component`) — si
+     este log aparece SIN un "Primera navegación resuelta..." nuevo, fue warm resume; si
+     aparece el de Startup, Android mató el proceso (cold start disfrazado).
+   - `SupabaseService: Token sano (Xs de vida) — sin refresh (getSession Xms)` /
+     `Sesión renovada (token tenía Xs de vida) en Xms` — cuánto costó realmente el refresh.
+
+---
+
 ## Estimación de mejora actualizada
 
-| Escenario | Original (pre-2026-05-22) | Post 2026-05-22 | Post 2026-05-30 | **Post 2026-06-10** |
-|---|---|---|---|---|
-| Cold start con sesión válida (caso 95%) | ~5s | ~2s | ~1.2-1.5s | **home visible al primer render** (snapshot del día); datos frescos ~0.5-1s después |
-| Primera instalación / login fresco | ~5s | ~3-3.5s | ~3-3.5s | ~3-3.5s |
-| Re-apertura tras background corto | ~2-3s | ~1-1.5s | ~0.8-1.2s | **instantáneo con snapshot** (si Android mató el proceso) |
-| Warm restart tras 1+ hora background | ~4-5s | ~2s | ~2s | ~2s (token) + home pintado del snapshot mientras |
-| Primera navegación a /pos /ventas /inventario | ~400-800ms | ~400-800ms | ~0-100ms (precargado) | ~0-100ms |
-| **Pull-to-refresh en home** | — | ~400-800ms | ~250-500ms | ~250-500ms |
-| Primer arranque del día (sin snapshot) | — | — | — | skeleton normal ~1.2-1.5s (una vez al día) |
+| Escenario | Original (pre-2026-05-22) | Post 2026-05-22 | Post 2026-05-30 | Post 2026-06-10 | **Post 2026-07-03** |
+|---|---|---|---|---|---|
+| Cold start con sesión válida (caso 95%) | ~5s | ~2s | ~1.2-1.5s | home visible al primer render (snapshot del día) | igual |
+| Primera instalación / login fresco | ~5s | ~3-3.5s | ~3-3.5s | ~3-3.5s | ~3-3.5s |
+| Re-apertura tras background corto | ~2-3s | ~1-1.5s | ~0.8-1.2s | instantáneo con snapshot (si Android mató el proceso) | igual |
+| **Reposo largo + proceso muerto + token vencido** (el caso reportado ~5s) | ~5s | ~4-5s | ~4-5s | ~4-5s (refresh bloqueaba el guard) | **~2s** (refresh en paralelo, guard no espera red) |
+| Warm restart tras 1+ hora background | ~4-5s | ~2s | ~2s | ~2s (token) + home del snapshot mientras | **~boot + snapshot** (token en paralelo) |
+| Primera navegación a /pos /ventas /inventario | ~400-800ms | ~400-800ms | ~0-100ms (precargado) | ~0-100ms | ~0-100ms |
+| **Pull-to-refresh en home** | — | ~400-800ms | ~250-500ms | ~250-500ms | algo menor (RPC v2 sin lista de movimientos) |
+| Primer arranque del día (sin snapshot) | — | — | — | skeleton normal ~1.2-1.5s (una vez al día) | skeleton, pero ya sin esperar el refresh del token |
 
 ---
 
@@ -506,11 +626,8 @@ reiniciar la app ni navegar.
 
 - **Lazy loading de imágenes en el catálogo POS** — ✅ implementado el 2026-06-10. Detalle en
   `docs/guides/PLAN-OFFLINE-POS-2026-06-08.md` §13.4 (rendimiento del catálogo POS, no del arranque).
-- **Frescura del home al volver del background (proceso vivo):** al reanudar, solo se renueva la sesión
-  (`refreshSessionOnResume`) — los datos del home quedan como estaban hasta que el usuario navega o hace
-  pull-to-refresh. El Realtime de cajas cubre saldos, pero movimientos/turno pueden quedar viejos. Posible
-  mejora: en el `appStateChange` de `app.component`, refrescar el home silenciosamente si pasó >X min en
-  background. Es frescura, no velocidad — evaluar si vale la complejidad.
+- **Frescura del home al volver del background (proceso vivo)** — ✅ implementado el 2026-07-03 (ver §14):
+  el home se refresca silenciosamente al reanudar si estuvo ≥60s en background.
 - **Micro: `Network.getStatus()` en `authGuard`:** es un roundtrip al plugin (~10-30ms) por navegación
   guardada; `NetworkService.isConnected()` ya tiene el valor en memoria. Ganancia marginal.
 - **Pre-calentar el cache del POS al boot:** evaluado el 2026-06-10 y **descartado** — parsear 1-3 MB de
@@ -563,3 +680,14 @@ reiniciar la app ni navegar.
 | `src/app/features/auth/services/auth.service.ts` | `hidratarUsuarioOffline(usuario)` — emite `usuarioActual$` sin abrir Realtime (idempotente) |
 | `src/app/features/caja/pages/home/home.page.ts` | Detección del flanco de red sin race (rastrea `ultimoEstadoRed` dentro de la suscripción) + `reactivarTrasReconexion()` (re-hidrata usuario, reabre Realtime, reinicia turno, recarga dashboard); `aplicarDashboard()` reconcilia `turnoActivo$` por `id` en ambos sentidos |
 | `src/app/features/caja/services/turnos-caja.service.ts` | `reabrirRealtimeTurnos()` (canal limpio sin tocar `turnoActivo$`); `inicializarEstadoReactivo()` abre el Realtime en `finally` (aunque la query falle offline); `sincronizarTurnoDesdeHome()` acepta `null` |
+
+### Sesión 2026-07-03
+| Archivo | Cambio |
+|---|---|
+| `src/app/core/guards/auth.guard.ts` | Fast path local ANTES de `getSession()`: con sesión local + `hasActiveAuth` + cache → entra sin esperar el refresh de red; el refresh corre en paralelo. Instrumentación de tiempos |
+| `src/app/core/services/supabase.service.ts` | `call()` espera `resumeRefreshInFlight` antes de ejecutar — ninguna query sale con el token vencido. Warm-up del token en el constructor (§14) + instrumentación de duración del refresh |
+| `src/app/app.component.ts` | `setupStartupTiming()` — log del tiempo bootstrap → primer `NavigationEnd`. Log de warm resume con segundos en background (§14) |
+| `src/app/features/caja/pages/home/*` | Sección "Últimos 5 movimientos" eliminada (HTML+TS+SCSS); deltas del hero desde `resumen_dia`; `refrescarMovimientos()` → `refrescarDashboard()`. `setupResumeRefresh()`: refresco silencioso del dashboard al reanudar tras ≥60s en background (§14) |
+| `src/app/features/caja/services/turnos-caja.service.ts` | `HomeDashboard` v2 (`ingresosHoy`/`egresosHoy` en vez de la lista); key del snapshot → `:v2` + limpieza del `:v1` |
+| `src/app/core/config/timing.config.ts` | Constante `resumeHomeRefreshMinMs` (60s) — umbral del refresco silencioso al reanudar |
+| `docs/caja/sql/functions/fn_home_dashboard.sql` | v2.0 — sin lista de movimientos; `resumen_dia` con agregados del día completo. **Re-ejecutar en Supabase** |

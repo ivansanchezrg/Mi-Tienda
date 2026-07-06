@@ -1,0 +1,436 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volverAlHome()" aria-label="Volver">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Resumen general</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="imprimir()" aria-label="Exportar o imprimir">
+        <ion-icon slot="icon-only" name="print-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  <div class="rg-subheader">
+    <app-period-filter
+      [options]="periodos"
+      [selected]="filtro"
+      (selectionChange)="cambiarFiltro($event)">
+    </app-period-filter>
+  </div>
+</ion-header>
+
+<ion-content class="rg-content">
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!-- ── Skeleton de carga ──────────────────────────────────────────────── -->
+  @if (loading) {
+    <div class="rg-body">
+      <div class="rg-hero rg-hero--skeleton">
+        <ion-skeleton-text [animated]="true" style="width: 40%; height: 14px;"></ion-skeleton-text>
+        <ion-skeleton-text [animated]="true" style="width: 65%; height: 32px; margin-top: 10px;"></ion-skeleton-text>
+      </div>
+      <div class="rg-card rg-card--skeleton">
+        <ion-skeleton-text [animated]="true" style="width: 100%; height: 200px;"></ion-skeleton-text>
+      </div>
+    </div>
+  }
+
+  <!-- ── Estado de error / offline ──────────────────────────────────────── -->
+  @else if (error) {
+    <div class="rg-state">
+      <ion-icon name="cloud-offline-outline" class="rg-state__icon"></ion-icon>
+      <p class="rg-state__title">No se pudo cargar el resumen</p>
+      <p class="rg-state__hint">Revisa tu conexión e inténtalo de nuevo.</p>
+      <button class="rg-retry" (click)="cargar()">
+        <ion-icon name="refresh-outline"></ion-icon>
+        <span>Reintentar</span>
+      </button>
+    </div>
+  }
+
+  <!-- ── Empty state: sin ventas en el período ──────────────────────────────
+       Las alertas (SIN_VENTAS, STOCK_BAJO) y la deuda fiado son accionables
+       aunque no haya ventas — la deuda es snapshot y no depende del período. -->
+  @else if (dashboard && sinDatos) {
+    <div class="rg-body" [class.rg-body--refetching]="refetching">
+      <div class="rg-state rg-state--compact">
+        <app-empty-state
+          icon="storefront-outline"
+          title="Sin ventas en el período"
+          hint="Cuando tus negocios registren ventas, aquí verás el consolidado."
+          style="min-height: auto">
+        </app-empty-state>
+      </div>
+
+      @if (hayAlertas) {
+        <section class="rg-section">
+          <h2 class="rg-section__title">Alertas</h2>
+          <div class="rg-alertas">
+            @for (a of alertas; track $index) {
+              <div class="rg-alerta" [attr.data-color]="colorAlerta(a.tipo)">
+                <span class="rg-alerta__icon">
+                  @switch (a.tipo) {
+                    @case ('SIN_VENTAS') { <ion-icon name="alert-circle-outline"></ion-icon> }
+                    @case ('CAYENDO')    { <ion-icon name="trending-down-outline"></ion-icon> }
+                    @case ('STOCK_BAJO') { <ion-icon name="warning-outline"></ion-icon> }
+                  }
+                </span>
+                <span class="rg-alerta__text">
+                  <strong>{{ a.nombre }}</strong> {{ mensajeAlerta(a) }}
+                </span>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      @if (dashboard.grupo.deuda_fiado > 0) {
+        <div class="rg-deuda">
+          <div class="rg-deuda__icon">
+            <ion-icon name="wallet-outline"></ion-icon>
+          </div>
+          <div class="rg-deuda__body">
+            <span class="rg-deuda__label">Deuda por cobrar de tus negocios</span>
+            <span class="rg-deuda__hint">Fiado pendiente en todos tus negocios</span>
+          </div>
+          <span class="rg-deuda__value">${{ dashboard.grupo.deuda_fiado | appCurrency }}</span>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── Dashboard con datos ────────────────────────────────────────────── -->
+  @else if (dashboard) {
+    <div class="rg-body" [class.rg-body--refetching]="refetching">
+
+      <!-- ═══ HERO — banner ejecutivo de KPIs (la foto financiera) ═══ -->
+      <section class="rg-hero">
+        <div class="rg-hero__lead">
+          <span class="rg-hero__label">Ventas totales de tus negocios</span>
+          <div class="rg-hero__value">${{ dashboard.grupo.total_monto | appCurrency }}</div>
+          @if (mostrarComparativa) {
+            <div class="rg-hero__delta" [attr.data-dir]="varMonto.direccion">
+              @if (varMonto.direccion === 'up') {
+                <ion-icon name="arrow-up-outline"></ion-icon>
+              } @else if (varMonto.direccion === 'down') {
+                <ion-icon name="arrow-down-outline"></ion-icon>
+              } @else {
+                <ion-icon name="remove-outline"></ion-icon>
+              }
+              <span>{{ varMonto.label }}</span>
+              <span class="rg-hero__delta-ctx">{{ labelPeriodoAnterior }}</span>
+            </div>
+          }
+        </div>
+
+        <div class="rg-hero__metrics">
+          <div class="rg-herometric">
+            <div class="rg-herometric__head">
+              <ion-icon name="trending-up-outline"></ion-icon>
+              <span>Ganancia neta</span>
+            </div>
+            <div class="rg-herometric__value">${{ dashboard.grupo.ganancia_bruta | appCurrency }}</div>
+            @if (mostrarComparativa) {
+              <div class="rg-herometric__delta" [attr.data-dir]="varGanancia.direccion">
+                @if (varGanancia.direccion === 'up') {
+                  <ion-icon name="arrow-up-outline"></ion-icon>
+                } @else if (varGanancia.direccion === 'down') {
+                  <ion-icon name="arrow-down-outline"></ion-icon>
+                } @else {
+                  <ion-icon name="remove-outline"></ion-icon>
+                }
+                <span>{{ varGanancia.label }}</span>
+              </div>
+            }
+          </div>
+
+          <div class="rg-herometric">
+            <div class="rg-herometric__head">
+              <ion-icon name="pricetag-outline"></ion-icon>
+              <span>Ticket prom.</span>
+            </div>
+            <div class="rg-herometric__value">${{ dashboard.grupo.ticket_promedio | appCurrency }}</div>
+            <div class="rg-herometric__sub">{{ dashboard.grupo.margen_pct }}% margen</div>
+          </div>
+
+          <div class="rg-herometric">
+            <div class="rg-herometric__head">
+              <ion-icon name="receipt-outline"></ion-icon>
+              <span>Ventas</span>
+            </div>
+            <div class="rg-herometric__value">{{ dashboard.grupo.total_ventas }}</div>
+            @if (mostrarComparativa) {
+              <div class="rg-herometric__delta" [attr.data-dir]="varVentas.direccion">
+                @if (varVentas.direccion === 'up') {
+                  <ion-icon name="arrow-up-outline"></ion-icon>
+                } @else if (varVentas.direccion === 'down') {
+                  <ion-icon name="arrow-down-outline"></ion-icon>
+                } @else {
+                  <ion-icon name="remove-outline"></ion-icon>
+                }
+                <span>{{ varVentas.label }}</span>
+              </div>
+            }
+          </div>
+
+          <div class="rg-herometric">
+            <div class="rg-herometric__head">
+              <ion-icon name="people-outline"></ion-icon>
+              <span>Clientes</span>
+            </div>
+            <div class="rg-herometric__value">{{ dashboard.grupo.clientes_unicos }}</div>
+            <div class="rg-herometric__sub">{{ dashboard.grupo.unidades_vendidas }} und vendidas</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ Alertas accionables ═══ -->
+      @if (hayAlertas) {
+        <section class="rg-section">
+          <h2 class="rg-section__title">Alertas</h2>
+          <div class="rg-alertas">
+            @for (a of alertas; track $index) {
+              <div class="rg-alerta" [attr.data-color]="colorAlerta(a.tipo)">
+                <span class="rg-alerta__icon">
+                  @switch (a.tipo) {
+                    @case ('SIN_VENTAS') { <ion-icon name="alert-circle-outline"></ion-icon> }
+                    @case ('CAYENDO')    { <ion-icon name="trending-down-outline"></ion-icon> }
+                    @case ('STOCK_BAJO') { <ion-icon name="warning-outline"></ion-icon> }
+                  }
+                </span>
+                <span class="rg-alerta__text">
+                  <strong>{{ a.nombre }}</strong> {{ mensajeAlerta(a) }}
+                </span>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      <!-- ═══ Visualizaciones — donut + líneas (lado a lado en desktop) ═══ -->
+      <section class="rg-section">
+        <h2 class="rg-section__title">Visualizaciones</h2>
+        <div class="rg-charts">
+          @if (donutChartOptions) {
+            <div class="rg-card">
+              <div class="rg-card__title">Participación por negocio</div>
+              <apx-chart
+                [series]="donutChartOptions.series"
+                [chart]="donutChartOptions.chart"
+                [labels]="donutChartOptions.labels"
+                [colors]="donutChartOptions.colors"
+                [legend]="donutChartOptions.legend"
+                [dataLabels]="donutChartOptions.dataLabels"
+                [plotOptions]="donutChartOptions.plotOptions"
+                [stroke]="donutChartOptions.stroke"
+                [tooltip]="donutChartOptions.tooltip"
+                [theme]="donutChartOptions.theme">
+              </apx-chart>
+              <div class="rg-legend">
+                @for (n of dashboard.negocios; track n.negocio_id) {
+                  @if (n.total_monto > 0) {
+                    <div class="rg-legend__item">
+                      <span class="rg-legend__dot" [style.background]="colorNegocio($index)"></span>
+                      <span class="rg-legend__name">{{ n.nombre }}</span>
+                      <span class="rg-legend__pct">{{ n.participacion_pct }}%</span>
+                    </div>
+                  }
+                }
+              </div>
+            </div>
+          }
+
+          @if (lineChartOptions) {
+            <div class="rg-card">
+              <div class="rg-card__title">Evolución de ventas</div>
+              <apx-chart
+                [series]="lineChartOptions.series"
+                [chart]="lineChartOptions.chart"
+                [colors]="lineChartOptions.colors"
+                [stroke]="lineChartOptions.stroke"
+                [markers]="lineChartOptions.markers"
+                [dataLabels]="lineChartOptions.dataLabels"
+                [legend]="lineChartOptions.legend"
+                [xaxis]="lineChartOptions.xaxis"
+                [yaxis]="lineChartOptions.yaxis"
+                [grid]="lineChartOptions.grid"
+                [tooltip]="lineChartOptions.tooltip"
+                [theme]="lineChartOptions.theme">
+              </apx-chart>
+              <div class="rg-legend rg-legend--inline">
+                @for (n of dashboard.negocios; track n.negocio_id) {
+                  <div class="rg-legend__item">
+                    <span class="rg-legend__dot" [style.background]="colorNegocio($index)"></span>
+                    <span class="rg-legend__name">{{ n.nombre }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- ═══ Rendimiento por negocio ═══ -->
+      <section class="rg-section">
+        <h2 class="rg-section__title">Rendimiento por negocio</h2>
+        <div class="rg-card">
+          <div class="rg-table">
+            @for (n of dashboard.negocios; track n.negocio_id; let i = $index) {
+              <div class="rg-row" [class.rg-row--top]="i === 0 && n.total_monto > 0">
+                <div class="rg-row__head">
+                  <span class="rg-row__dot" [style.background]="colorNegocio(i)"></span>
+                  <span class="rg-row__name">{{ n.nombre }}</span>
+                  @if (i === 0 && n.total_monto > 0) {
+                    <span class="rg-row__badge">#1</span>
+                  }
+                  <span class="rg-row__monto">${{ n.total_monto | appCurrency }}</span>
+                </div>
+                <div class="rg-row__metrics">
+                  <div class="rg-metric">
+                    <ion-icon name="receipt-outline"></ion-icon>
+                    <span>{{ n.total_ventas }} ventas</span>
+                  </div>
+                  <div class="rg-metric">
+                    <ion-icon name="people-outline"></ion-icon>
+                    <span>{{ n.clientes_unicos }} clientes</span>
+                  </div>
+                  <div class="rg-metric">
+                    <ion-icon name="cube-outline"></ion-icon>
+                    <span>{{ n.unidades_vendidas }} und.</span>
+                  </div>
+                  <div class="rg-metric">
+                    <ion-icon name="pricetag-outline"></ion-icon>
+                    <span>${{ n.ticket_promedio | appCurrency }}</span>
+                  </div>
+                  <div class="rg-metric rg-metric--profit">
+                    <ion-icon name="trending-up-outline"></ion-icon>
+                    <span>${{ n.ganancia_bruta | appCurrency }}</span>
+                  </div>
+                  @if (n.deuda_fiado > 0) {
+                    <div class="rg-metric rg-metric--debt">
+                      <ion-icon name="wallet-outline"></ion-icon>
+                      <span>${{ n.deuda_fiado | appCurrency }}</span>
+                    </div>
+                  }
+                </div>
+                @if (mostrarComparativa) {
+                  <div class="rg-row__delta" [attr.data-dir]="varNegocios[n.negocio_id].direccion">
+                    @if (varNegocios[n.negocio_id].direccion === 'up') {
+                      <ion-icon name="arrow-up-outline"></ion-icon>
+                    } @else if (varNegocios[n.negocio_id].direccion === 'down') {
+                      <ion-icon name="arrow-down-outline"></ion-icon>
+                    } @else {
+                      <ion-icon name="remove-outline"></ion-icon>
+                    }
+                    <span>{{ varNegocios[n.negocio_id].label }}</span>
+                    <span class="rg-row__delta-ctx">{{ labelPeriodoAnterior }}</span>
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- Totales de todos los negocios -->
+            <div class="rg-row rg-row--total">
+              <div class="rg-row__head">
+                <span class="rg-row__name">Total de tus negocios</span>
+                <span class="rg-row__monto">${{ dashboard.grupo.total_monto | appCurrency }}</span>
+              </div>
+              <div class="rg-row__metrics">
+                <div class="rg-metric">
+                  <ion-icon name="receipt-outline"></ion-icon>
+                  <span>{{ dashboard.grupo.total_ventas }} ventas</span>
+                </div>
+                <div class="rg-metric">
+                  <ion-icon name="people-outline"></ion-icon>
+                  <span>{{ dashboard.grupo.clientes_unicos }} clientes</span>
+                </div>
+                <div class="rg-metric rg-metric--profit">
+                  <ion-icon name="trending-up-outline"></ion-icon>
+                  <span>${{ dashboard.grupo.ganancia_bruta | appCurrency }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ Crédito e inteligencia de producto ═══ -->
+      <section class="rg-section">
+        <h2 class="rg-section__title">Crédito y productos</h2>
+
+        <!-- Deuda por cobrar de tus negocios -->
+        @if (dashboard.grupo.deuda_fiado > 0) {
+          <div class="rg-deuda">
+            <div class="rg-deuda__icon">
+              <ion-icon name="wallet-outline"></ion-icon>
+            </div>
+            <div class="rg-deuda__body">
+              <span class="rg-deuda__label">Deuda por cobrar de tus negocios</span>
+              <span class="rg-deuda__hint">Fiado pendiente en todos tus negocios</span>
+            </div>
+            <span class="rg-deuda__value">${{ dashboard.grupo.deuda_fiado | appCurrency }}</span>
+          </div>
+        }
+
+        <!-- Top productos de tus negocios -->
+        @if (hayTopProductos) {
+          <div class="rg-card">
+            <div class="rg-card__title">Top productos de tus negocios</div>
+
+            <div class="rg-toptabs">
+              <button
+                class="rg-toptab"
+                [class.rg-toptab--active]="tabTop === 'ingreso'"
+                (click)="setTabTop('ingreso')">
+                Por ingreso
+              </button>
+              <button
+                class="rg-toptab"
+                [class.rg-toptab--active]="tabTop === 'ganancia'"
+                (click)="setTabTop('ganancia')">
+                Por ganancia
+              </button>
+            </div>
+
+            @if (tabTop === 'ingreso') {
+              <div class="tab-animate rg-toplist">
+                @for (p of topProductos.top_ingreso; track p.nombre; let i = $index) {
+                  <div class="rg-topitem">
+                    <span class="rg-topitem__rank">{{ i + 1 }}</span>
+                    <span class="rg-topitem__name">{{ p.nombre }}</span>
+                    <span class="rg-topitem__meta">
+                      {{ p.total_unidades }} und · {{ p.sucursales }} suc.
+                    </span>
+                    <span class="rg-topitem__value">${{ p.total_monto | appCurrency }}</span>
+                  </div>
+                } @empty {
+                  <div class="rg-topempty">Sin datos en el período.</div>
+                }
+              </div>
+            } @else {
+              <div class="tab-animate rg-toplist">
+                @for (p of topProductos.top_rentables; track p.nombre; let i = $index) {
+                  <div class="rg-topitem">
+                    <span class="rg-topitem__rank">{{ i + 1 }}</span>
+                    <span class="rg-topitem__name">{{ p.nombre }}</span>
+                    <span class="rg-topitem__meta">
+                      {{ p.total_unidades }} und · {{ p.margen_pct }}% margen
+                    </span>
+                    <span class="rg-topitem__value">${{ p.ganancia | appCurrency }}</span>
+                  </div>
+                } @empty {
+                  <div class="rg-topempty">Sin datos en el período.</div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </section>
+
+    </div>
+  }
+</ion-content>

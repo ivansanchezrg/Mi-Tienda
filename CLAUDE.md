@@ -85,6 +85,7 @@ Funciones exentas de `fn_assert_no_superadmin` (el superadmin sí las ejecuta): 
 | `admin`             | ✅ Panel superadmin con tabs: Negocios / Suscripciones / Planes / Cobro. Ruta: `/admin`. Guard: `superadminGuard` |
 | `suscripcion`       | ✅ Monetización SaaS — bloqueo por vencimiento, pantalla "Suscríbete" + "Mi Plan" (toggle Mensual/Anual sticky en header, badge "Solo mensual", bloques marketing plan MAX), banner preventivo, gestión desde `/admin`. Planes: **PRO** y **MAX**. Guard: `suscripcionGuard` (encadenado tras `authGuard`). Fase 7 (feature gates) pendiente. |
 | `crear-negocio`     | ✅ Wizard reutilizable (`/crear-negocio?context=admin\|sucursal`). Reusa páginas del onboarding inicial cambiando el modo via `OnboardingService.setMode()` |
+| `grupo`             | ✅ Dashboard "Resumen General" multi-negocio (plan MAX). **Page dedicada** `/resumen-general` (fuera del layout, sin tab bar/sidebar) **solo lectura** con jerarquía ejecutiva estilo Tableau/Power BI: HERO KPIs, alertas, donut, gráfico de líneas, tabla por negocio, deuda fiado y top productos. Header con flecha de regreso al home + icono imprimir (stub). Acceso: sidebar → selector de negocios → "Ver resumen general" (gate: ADMIN + plan MAX + 2 negocios; ruta con `roleGuard(['ADMIN'])`). SCSS con design tokens (dark-mode aware). Backend `fn_grupo_*` `SECURITY DEFINER` que deriva el propietario del JWT, nunca recibe `negocio_id`. Funciones SQL **pendientes de ejecutar en Supabase**. |
 | `caja`              | ✅ Completo (v6.3 — 5 cajas, cierre wizard 2p, historial de turnos) |
 | `recargas-virtuales`| ✅ Completo                                  |
 | `usuarios`          | ✅ Completo (solo Equipo — gestión de empleados del negocio activo) |
@@ -1343,6 +1344,7 @@ WITH CHECK (
 | Layout              | `docs/layout/LAYOUT-README.md`                             |
 | Historial Recargas  | `docs/historial-recargas/HISTORIAL-RECARGAS-README.md`     |
 | Crear Negocio       | `docs/crear-negocio/CREAR-NEGOCIO-README.md`               |
+| Grupo (Resumen General) | `docs/grupo/GRUPO-README.md` (dashboard multi-negocio plan MAX) + `docs/PLAN-DASHBOARD-RESUMEN-GENERAL.md` (plan por fases) |
 | Auditoría producción | `docs/guides/AUDITORIA-PRODUCCION-2026-05-07.md`          |
 | Auditoría SQL 2026-05 | `docs/guides/RESUMEN-AUDITORIA-SQL-2026-05-30.md` (documento único — consolidado 2026-06-10) |
 | Performance arranque | `docs/guides/PERFORMANCE-STARTUP.md`                       |

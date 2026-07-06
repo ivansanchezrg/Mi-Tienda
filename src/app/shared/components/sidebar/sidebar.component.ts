@@ -225,6 +225,13 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
     if (role === 'crear') {
       this.router.navigate([ROUTES.crearNegocio.root], { queryParams: { context: 'sucursal' } });
+      return;
+    }
+
+    // "Ver resumen general" → dashboard multi-negocio (page dedicada, solo lectura).
+    // No cambia el negocio activo del JWT; la flecha de esa page regresa al home.
+    if (role === 'dashboard') {
+      this.router.navigate([ROUTES.resumenGeneral]);
     }
   }
 

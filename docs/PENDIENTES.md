@@ -11,6 +11,16 @@
 
 ## 🟠 Funcional (corto plazo)
 
+### Verificar en dispositivo real la mejora del arranque tras reposo
+- **Qué:** se instrumentó el arranque Y el resume (logs "Fast path local en Xms", "Primera
+  navegación resuelta en Xms", "App reanudada con proceso vivo tras Xs", "Sesión renovada en Xms"),
+  se sacó el refresh de token del camino crítico del guard (§12) y se adelantó al constructor de
+  `SupabaseService` para que corra en paralelo con el boot (§14). Confirmar con logcat que la
+  reapertura tras reposo largo bajó de ~4s a ~2-2.5s; los logs dicen exactamente dónde se va el
+  tiempo y si el reposo mata el proceso o no.
+- **Detalle:** `docs/guides/PERFORMANCE-STARTUP.md` §12 y §14.
+- Origen: 2026-07-03.
+
 ### Verificar consulta de precio con la pistola de escaneo física
 - **Qué:** el flujo web/desktop quedó implementado y es verificable con teclado (la pistola HID
   es equivalente: escribe el código + Enter). Cuando llegue la pistola: confirmar que viene en
@@ -72,9 +82,10 @@
 
 | Tema | Dónde está el detalle |
 |---|---|
+| Modo offline "vendedor de calle" — Fases 0/A/B/C planificadas (clientes offline, ventas del día offline, sellos de frescura). Sin cambios de BD | `docs/guides/PLAN-OFFLINE-CALLE-2026-07-03.md` |
 | 6 pendientes SQL de severidad baja (FOR UPDATE pago fiado, validación categoría en operación manual, CTEs, etc.) | `docs/guides/RESUMEN-AUDITORIA-SQL-2026-05-30.md` §Pendientes documentados |
 | Refactors post-release: `pos.page.ts` (M-4), `auth.service.ts` (M-5), tests ~0% (M-6) | `docs/guides/AUDITORIA-PRODUCCION-2026-05-07.md` §Mejoras recomendadas |
 | Burst de `createSignedUrl` × N productos + miniaturas reales al subir (solo si el catálogo crece) | `docs/guides/PLAN-OFFLINE-POS-2026-06-08.md` §13.4 (marcado "no implementar aún") |
-| Frescura del home al volver del background + micro-optimización del guard | `docs/guides/PERFORMANCE-STARTUP.md` §Deuda técnica |
+| Micro-optimización del guard (`Network.getStatus()` → valor en memoria, ganancia marginal) | `docs/guides/PERFORMANCE-STARTUP.md` §Deuda técnica |
 | Multicaja (Fases 3-9) + realidades post-plan que debe incorporar (offline, fn_home_dashboard) | `docs/guides/PLAN-MULTICAJA.md` |
 | Checklist de go-live (keystore producción, Play Console, política de privacidad) | `docs/guides/AUDITORIA-PRODUCCION-2026-05-07.md` §Checklist Final |

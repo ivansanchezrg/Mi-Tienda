@@ -8,6 +8,7 @@ import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 import { PluginListenerHandle } from '@capacitor/core';
 import { SupabaseService } from './core/services/supabase.service';
 import { SyncService } from './core/services/sync.service';
+import { LoggerService } from './core/services/logger.service';
 import { TurnosCajaService } from './features/caja/services/turnos-caja.service';
 import { Capacitor } from '@capacitor/core';
 import { OfflineBannerComponent } from './core/components/offline-banner/offline-banner.component';
@@ -25,6 +26,10 @@ export class AppComponent implements OnDestroy {
   private supabase = inject(SupabaseService);
   private router = inject(Router);
   private zone = inject(NgZone);
+  private logger = inject(LoggerService);
+
+  /** Instante del bootstrap de Angular — referencia para medir el arranque real. */
+  private readonly bootT0 = Date.now();
 
   // Instanciamos TurnosCajaService aqui para garantizar que su constructor
   // corra desde el bootstrap del app — asi se suscribe a usuarioActual$ de
@@ -51,8 +56,25 @@ export class AppComponent implements OnDestroy {
     this.setupDeepLinkListener();
     this.setupResumeListener();
     this.setupSplashScreenHide();
+    this.setupStartupTiming();
     this.setupBlurOnNavigation();
     this.setupNumberInputNoScroll();
+  }
+
+  /**
+   * Instrumentación del arranque: registra cuánto tardó la primera navegación
+   * en resolverse (guards + lazy chunk + render). Es la métrica que el usuario
+   * percibe como "la app abrió". Verificable en logcat/logs del dispositivo.
+   */
+  private setupStartupTiming() {
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        take(1)
+      )
+      .subscribe((e) => {
+        this.logger.info('Startup', `Primera navegación (${e.urlAfterRedirects}) resuelta en ${Date.now() - this.bootT0}ms desde el bootstrap`);
+      });
   }
 
   async ngOnDestroy() {
@@ -117,20 +139,33 @@ export class AppComponent implements OnDestroy {
     this.capacitorListeners.push(handle);
   }
 
+  /** Instante en que la app pasó a background (para medir cuánto estuvo en reposo). */
+  private backgroundAt: number | null = null;
+
   /**
    * Al volver del background, fuerza un refresh de la sesión.
    * El timer de auto-refresh del SDK de Supabase se detiene cuando la app
    * está suspendida. Si pasaron >1h en background, el access token expiró
    * y la primera query fallaría con "JWT expired". Este listener renueva
    * el token proactivamente al volver.
+   *
+   * Instrumentación: si este log aparece SIN un "Primera navegación resuelta..."
+   * nuevo, el proceso sobrevivió al reposo (warm resume — la UI reaparece al
+   * instante). Si aparece el log de Startup, Android mató el proceso y fue un
+   * cold start disfrazado de reapertura.
    */
   private async setupResumeListener() {
     const handle = await App.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) {
-        this.zone.run(() => {
-          this.supabase.refreshSessionOnResume();
-        });
+      if (!isActive) {
+        this.backgroundAt = Date.now();
+        return;
       }
+      const enBackgroundSeg = this.backgroundAt ? Math.round((Date.now() - this.backgroundAt) / 1000) : 0;
+      this.backgroundAt = null;
+      this.logger.info('Resume', `App reanudada con proceso vivo tras ${enBackgroundSeg}s en background`);
+      this.zone.run(() => {
+        this.supabase.refreshSessionOnResume();
+      });
     });
     this.capacitorListeners.push(handle);
   }

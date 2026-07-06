@@ -1,13 +1,21 @@
 -- ==========================================
--- TRIGGER FUNCTION: fn_actualizar_stock_venta (v10)
+-- TRIGGER FUNCTION: fn_actualizar_stock_venta (v11)
 -- ==========================================
 -- Se dispara automáticamente AFTER INSERT en ventas_detalles.
 -- Por cada línea de venta:
 --   1. Bloquea la fila del producto (FOR UPDATE) para evitar race condition
 --      en ventas concurrentes del mismo producto.
---   2. Valida que hay stock suficiente.
+--   2. Valida que hay stock suficiente (salvo bandera de venta offline).
 --   3. Descuenta el stock del producto vendido (respetando factor de presentacion si aplica).
 --   4. Graba el movimiento en kardex_inventario (auditoría anti-fraude), con negocio_id y presentacion_id.
+--
+-- CAMBIOS v11 (2026-07-03 — fix de redondeo en presentaciones fraccionarias):
+--   - Agrega v_permitir_neg (bandera de venta offline — ver §5/§6 PLAN-OFFLINE-POS
+--     y docs/pos/sql/migrations/2026-06-10_stock_negativo_offline.sql). La migración
+--     de esa fecha había quedado con v_factor INTEGER (regresión respecto a v10),
+--     truncando factores fraccionarios (0.5, 1.25...) SIN error visible — el stock
+--     y el kardex quedaban mal silenciosamente. Esta versión reunifica ambos cambios:
+--     DECIMAL(12,4) + soporte de venta offline.
 --
 -- CAMBIOS v10 (schema v11 — multi-tenant UUID):
 --   - v_factor: DECIMAL(12,4) (factor_conversion soporta fracciones: 0.5kg, 1.25L, etc.)
@@ -34,6 +42,7 @@ DECLARE
     v_factor        DECIMAL(12,4);
     v_cantidad_real DECIMAL(12,2);
     v_stock_actual  DECIMAL(12,2);
+    v_permitir_neg  BOOLEAN;
 BEGIN
     -- Si tiene presentacion, obtener factor; sino, factor = 1 (venta directa)
     IF NEW.presentacion_id IS NOT NULL THEN
@@ -54,7 +63,13 @@ BEGIN
     v_negocio_id   := (SELECT negocio_id  FROM productos WHERE id = NEW.producto_id);
     v_stock_actual := (SELECT stock_actual FROM productos WHERE id = NEW.producto_id);
 
-    IF v_stock_actual < v_cantidad_real THEN
+    -- Bandera de venta offline (§5/§6 PLAN-OFFLINE-POS): la setea fn_registrar_venta_pos
+    -- en la misma transacción cuando la venta viene de la cola offline. Permite stock
+    -- negativo porque la venta YA ocurrió físicamente — negarla descuadraría la caja.
+    -- current_setting con true → no lanza si la variable no existe (ventas online normales).
+    v_permitir_neg := COALESCE(current_setting('app.permitir_stock_negativo', true), 'off') = 'on';
+
+    IF v_stock_actual < v_cantidad_real AND NOT v_permitir_neg THEN
         RAISE EXCEPTION 'Stock insuficiente para producto %. Stock actual: %, requerido: %',
             NEW.producto_id, v_stock_actual, v_cantidad_real;
     END IF;

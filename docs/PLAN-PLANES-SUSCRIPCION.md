@@ -589,6 +589,14 @@ UPDATE planes SET max_negocios = 3 WHERE codigo = 'MAX';
 - **Frontend:** `OnboardingService.completar()` extrae el texto tras `limite_negocios:` y lo lanza como `OnboardingNegocioError`; la página `onboarding-caja` lo muestra como toast claro. **No** hay bloqueo preventivo del botón "Nueva sucursal" (la BD es el guardián — decisión 2026-06-16).
 - Valores actuales: **PRO = 1, MAX = 3** (editables desde `/admin`, tab Planes — `PlanModalComponent` ya incluye el campo).
 
+##### Dashboard "Resumen General" — beneficio MAX concreto ✅ (2026-07-02)
+
+Además del límite de creación, el plan MAX tiene una **superficie exclusiva ya implementada**: el dashboard consolidado multi-negocio (módulo `grupo`). Es la vista de "todos mis negocios juntos" — KPIs, alertas, gráficos, tabla por negocio, deuda fiado y top productos del grupo.
+
+- **Gate (frontend):** la opción "Ver resumen general" en el selector de negocios solo se muestra si `plan_codigo === 'MAX'` **y** el propietario tiene 2+ negocios. Es un gate de **UX**, no un bloqueo técnico duro: reutiliza `estadoSuscripcion` ya cargado.
+- **Backend:** funciones `fn_grupo_*` `SECURITY DEFINER` que derivan el propietario del JWT — un no-propietario recibe listas vacías aunque llame la RPC directamente. La seguridad de datos no depende del gate de UI.
+- Detalle completo: [`docs/grupo/GRUPO-README.md`](grupo/GRUPO-README.md) y [`docs/PLAN-DASHBOARD-RESUMEN-GENERAL.md`](PLAN-DASHBOARD-RESUMEN-GENERAL.md).
+
 #### 3. Inteligencia artificial
 Feature key `ia: true` ya está en el JSON de features del MAX. Cuando el módulo de IA esté construido, `tieneFeature('ia')` ya funcionará sin cambios de esquema.
 

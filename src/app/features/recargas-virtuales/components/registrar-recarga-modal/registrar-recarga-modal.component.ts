@@ -18,6 +18,7 @@ import { AuthService } from '../../../auth/services/auth.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
+import { CurrencyService } from '@core/services/currency.service';
 import { getFechaLocal } from '@core/utils/date.util';
 
 type TipoServicio = 'CELULAR' | 'BUS';
@@ -45,10 +46,20 @@ export class RegistrarRecargaModalComponent implements OnInit {
   private supabase = inject(SupabaseService);
   private service = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
+  private currencyService = inject(CurrencyService);
 
-  // CELULAR
-  montoVirtual: number | null = null;
   comisionPct: number = 5;
+
+  // El input de monto es type="text" y bindea al TEXTO visible (montoVirtualTexto),
+  // no al número. Así el valor se puede mostrar siempre formateado ("694.70"),
+  // incluso cuando lo auto-rellena el código (donde el blur de appCurrencyInput
+  // nunca dispara porque el usuario no tocó el campo → antes quedaba "694.7").
+  // montoVirtual es el getter NUMÉRICO derivado del texto — lo usan toda la
+  // aritmética (montoAPagar, ganancia...) y el RPC, sin cambios.
+  montoVirtualTexto: string = '';
+  get montoVirtual(): number | null {
+    return this.montoVirtualTexto === '' ? null : this.currencyService.parse(this.montoVirtualTexto);
+  }
 
   guardando = false;
 
@@ -56,13 +67,20 @@ export class RegistrarRecargaModalComponent implements OnInit {
   saldoCajaBus: number = 0;
   saldoVirtualSistemaBus: number = 0; // último cierre + recargas post-cierre
 
-  private _saldoVirtualMaquina: number | null = null;
-  get saldoVirtualMaquina(): number | null { return this._saldoVirtualMaquina; }
-  set saldoVirtualMaquina(value: number | null) {
-    this._saldoVirtualMaquina = value;
-    if (value !== null && value >= 0) {
-      const disponible = this.saldoCajaBus + Math.max(0, this.saldoVirtualSistemaBus - value);
-      this.montoVirtual = disponible > 0 ? disponible : null;
+  // El campo "Saldo en la máquina" lo teclea el usuario. Bindea al texto visible
+  // (mismo motivo que montoVirtualTexto) y al cambiar recalcula el monto a depositar.
+  saldoVirtualMaquinaTexto: string = '';
+  get saldoVirtualMaquina(): number | null {
+    return this.saldoVirtualMaquinaTexto === '' ? null : this.currencyService.parse(this.saldoVirtualMaquinaTexto);
+  }
+
+  onSaldoMaquinaChange(): void {
+    const parsed = this.saldoVirtualMaquina;
+    if (parsed !== null && parsed >= 0) {
+      const disponible = this.saldoCajaBus + Math.max(0, this.saldoVirtualSistemaBus - parsed);
+      // Escribir el TEXTO ya formateado ("694.70") — no el número crudo — para que
+      // el campo se vea completo desde el auto-relleno, sin depender del blur.
+      this.montoVirtualTexto = disponible > 0 ? this.currencyService.format(disponible) : '';
     }
   }
 
@@ -213,10 +231,10 @@ export class RegistrarRecargaModalComponent implements OnInit {
         }
 
         await this.ui.showSuccess(
-          `Recarga registrada: $${resultado.monto_virtual.toFixed(2)}\n` +
-          `Deuda pendiente: $${resultado.monto_a_pagar.toFixed(2)}\n` +
-          `Ganancia: $${resultado.ganancia.toFixed(2)}\n` +
-          `Saldo Virtual Celular: $${resultado.saldo_virtual_celular.toFixed(2)}`
+          `Recarga registrada: $${this.currencyService.format(resultado.monto_virtual)}\n` +
+          `Deuda pendiente: $${this.currencyService.format(resultado.monto_a_pagar)}\n` +
+          `Ganancia: $${this.currencyService.format(resultado.ganancia)}\n` +
+          `Saldo Virtual Celular: $${this.currencyService.format(resultado.saldo_virtual_celular)}`
         );
 
         this.modalCtrl.dismiss({ success: true, data: resultado });
@@ -232,7 +250,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
 
         if (!resultado?.success) return;  // supabase.call() ya mostró el toast de error
 
-        await this.ui.showSuccess(`Compra registrada: $${this.montoVirtual.toFixed(2)}`);
+        await this.ui.showSuccess(`Compra registrada: $${this.currencyService.format(this.montoVirtual)}`);
         this.modalCtrl.dismiss({ success: true });
       }
     } catch {

@@ -1,7 +1,9 @@
 # Plan — Dashboard "Resumen General" (multi-negocio, plan MAX)
 
-> **Estado:** PROPUESTA POR FASES — pendiente de aprobación del dueño. No implementar hasta autorización explícita.
+> **Estado:** ✅ IMPLEMENTADO (Fases 0-7) — 2026-07-02. Falta solo ejecutar las funciones SQL en Supabase (ver §11 "Estado final y pasos manuales").
 > **Fecha:** 2026-07-02
+>
+> **Actualización 2026-07-02 (UX):** el dashboard pasó de **modal fullscreen** a **page dedicada** `/resumen-general` (fuera del layout, con `ROUTES.resumenGeneral` + `roleGuard(['ADMIN'])`). El componente vive ahora en `src/app/features/grupo/pages/resumen-general/` (antes `components/resumen-general-modal/`, borrado). Se rediseñó con jerarquía ejecutiva (banner HERO de KPIs arriba, secciones con título), colores desde design tokens (`--app-*`, dark-mode aware), header con flecha de regreso al home e icono de imprimir/exportar (stub). El sidebar **navega** a la ruta (antes abría el modal). La clase `ion-modal.resumen-general-modal` de `modals.scss` se eliminó. Doc del módulo: `docs/grupo/GRUPO-README.md`. Las secciones §2/§3/§6 abajo describen el enfoque modal original — el patrón de datos, seguridad y métricas sigue igual; solo cambió el contenedor (modal → page).
 > **Reemplaza dos enfoques previos ya descartados y eliminados del código:** (1) una pantalla `/grupo` standalone con entrada "Mis sucursales" en el sidebar, y (2) un selector de alcance ("Este negocio / Todas") integrado en las tabs de Ventas. Ambos se revirtieron por completo (Ventas volvió a single-tenant). El plan de aquel entonces (`PLAN-REPORTE-CONSOLIDADO-MULTINEGOCIO.md`) se borró por quedar obsoleto; la historia queda en git.
 
 ---
@@ -91,7 +93,7 @@ Cada fase tiene un entregable verificable. Se puede pausar/aprobar entre fases.
 
 ### FASE 1 — Backend de agregación (fundacional)
 Nuevas funciones SQL `SECURITY DEFINER` en `docs/grupo/sql/functions/`:
-1. **`fn_grupo_dashboard(p_fecha_inicio, p_fecha_fin)`** → 1 RPC consolidada que devuelve en un solo JSON: KPIs del grupo + comparativa, participación por negocio (donut), y la tabla de rendimiento por negocio (ventas, órdenes, clientes, ticket, productos vendidos, ganancia, deuda fiado). Minimiza round-trips.
+1. **`fn_grupo_dashboard(p_fecha_inicio, p_fecha_fin)`** → 1 RPC consolidada que devuelve en un solo JSON: KPIs del grupo + comparativa, participación por negocio (donut), y la tabla de rendimiento por negocio (ventas, clientes, ticket, productos vendidos, ganancia, deuda fiado). Minimiza round-trips.
 2. **`fn_grupo_ventas_series(p_fecha_inicio, p_fecha_fin)`** → serie temporal: por cada día del rango y cada negocio, el monto vendido (para el gráfico de líneas).
    - **Nota técnica:** usa `generate_series` para producir todos los días del rango (incluidos los de $0, para que la línea no tenga huecos). Es un patrón nuevo en el proyecto (no existía). El agrupado por día debe hacerse convirtiendo `ventas.fecha` a fecha local Ecuador **antes** de agrupar (`(fecha AT TIME ZONE 'America/Guayaquil')::date`), pero acotando el WHERE con rango UTC en variables para no perder el índice (misma regla que el resto de funciones del proyecto — ver CLAUDE.md "No usar `(fecha AT TIME ZONE ...)::date = p_fecha` en WHERE").
 3. **`fn_grupo_alertas(p_fecha_inicio, p_fecha_fin)`** → alertas por negocio: sin ventas, cayendo (≤ −25%), y conteo de productos en stock bajo.
@@ -131,19 +133,22 @@ Se **reutilizan** las funciones ya existentes (`fn_grupo_negocios`, `fn_grupo_ve
 
 ### FASE 6 — Integración de acceso (selector de negocios)
 - Agregar opción **"Ver resumen general"** al `SelectorNegocioModalComponent` (`shared/components/sidebar/selector-negocio-modal/`), como última opción separada visualmente de la lista de negocios (icono de gráfico/dashboard) — junto a la opción "Nueva sucursal" que ya existe ahí.
-- **Gate:** solo se muestra si `this.negocios.length >= 2` (el componente ya carga `getMisNegocios()` en `ngOnInit`; se reutiliza ese dato — cero query extra). Coherente con que el selector ya es exclusivo del propietario multi-negocio.
+- **Gate (implementado):** doble condición — `estadoSuscripcion?.plan_codigo === 'MAX'` **y** `this.negocios.length >= 2`. El componente ya carga `getMisNegocios()` y `suscripcion.getEstado()` en `ngOnInit` (cero query extra — mismos datos que usa "Nueva sucursal"). El gate por plan es defensivo: aunque hoy solo MAX permite 2+ negocios, hace el beneficio explícito y a prueba de futuros planes multi-negocio.
 - **Mecánica:** al tocarla, el modal se cierra con un rol nuevo (ej. `dismiss(null, 'dashboard')`), y el sidebar (que ya maneja los roles `'seleccionar'`/`'crear'` de este modal) abre el `ResumenGeneralModalComponent`. Así el dashboard no se anida dentro del selector — se abre limpio tras cerrarlo.
 - **Entregable verificable:** flujo completo — sidebar → selector de negocios → "Ver resumen general" → dashboard fullscreen.
 
-### FASE 7 — Cierre
-- Type-check (`tsc --noEmit`).
-- **Decidir sobre las funciones SQL viejas:** `fn_grupo_resumen_ventas` y `fn_grupo_ventas_por_sucursal` fueron creadas para el enfoque descartado. Si `fn_grupo_dashboard` las absorbe (consolida sus datos), quedan **huérfanas** → borrar sus archivos y hacer `DROP FUNCTION` en Supabase para no dejar código muerto. Si en cambio se decide reutilizarlas tal cual, dejarlas. Esta decisión se toma al implementar la Fase 1 (según lo que convenga por performance), y se documenta aquí.
-- Limpiar cualquier otro resto del enfoque anterior.
-- Actualizar este documento con estado final + pasos manuales (ejecutar SQL en Supabase, en orden).
+### FASE 7 — Cierre ✅
+- Type-check (`tsc --noEmit`) — lo corre el dueño en su ciclo de build.
+- **Decisión sobre las funciones SQL viejas (RESUELTA):** `fn_grupo_dashboard` **absorbió por completo** a `fn_grupo_resumen_ventas` (KPIs + comparativa) y `fn_grupo_ventas_por_sucursal` (tabla/ranking + participación). Ambas quedaron huérfanas → **archivos borrados** en la Fase 0. **No** requieren `DROP FUNCTION` en Supabase porque nunca se ejecutaron ahí (eran groundwork sin desplegar). Se **reutilizan tal cual** `fn_grupo_negocios` (gate) y `fn_grupo_top_productos`.
+- **Gate por plan MAX** agregado al selector (ver Fase 6).
+- Resto del enfoque anterior: ya limpiado en Fase 0 (estado de alcance del `GrupoService`, modelos e imports huérfanos).
+- Estado final + pasos manuales documentados en §11.
 
 ---
 
 ## 7. Estado actual (qué YA está hecho vs qué FALTA)
+
+> **Nota:** esta sección es la foto **al arrancar** (groundwork previo). El estado **final** implementado está en §11. En particular: `fn_grupo_negocios`, `fn_grupo_resumen_ventas` y `fn_grupo_ventas_por_sucursal` terminaron **borradas** (ver §11), no reutilizadas.
 
 ### ✅ Ya hecho (de iteraciones previas, se reutiliza)
 - **4 funciones SQL** en `docs/grupo/sql/functions/`: `fn_grupo_negocios` (gate, se reutiliza tal cual), `fn_grupo_top_productos` (se reutiliza), `fn_grupo_resumen_ventas` y `fn_grupo_ventas_por_sucursal` (**candidatas a absorberse en `fn_grupo_dashboard`** → ver decisión en Fase 7). Todas `SECURITY DEFINER`, derivan propietario del JWT. **Aún no ejecutadas en Supabase.**
@@ -154,13 +159,16 @@ Se **reutilizan** las funciones ya existentes (`fn_grupo_negocios`, `fn_grupo_ve
 - Módulo Ventas **revertido a su estado original** (sin selector de alcance) — listado + resumen single-tenant como siempre.
 - Eliminados: pantalla `/grupo` standalone, `grupo.routes.ts`, `grupo.guard.ts`, ruta `/grupo`, `ROUTES.grupo`, entrada "Mis sucursales" del sidebar, y los componentes `alcance-selector` y `grupo-consolidado`.
 
-### ⏳ Falta hacer (este plan)
-- **Fase 0:** limpiar estado de alcance del `GrupoService`.
-- **Fase 1:** 3 funciones SQL nuevas (`fn_grupo_dashboard`, `fn_grupo_ventas_series`, `fn_grupo_alertas`).
-- **Fase 2:** modelos + métodos de servicio nuevos.
-- **Fase 3-5:** el modal dashboard (estructura, KPIs, tabla, donut, gráfico líneas, alertas, deuda, top productos).
-- **Fase 6:** opción "Ver resumen general" en el selector de negocios.
-- **Fase 7:** type-check + doc final.
+### ✅ Hecho en este plan (Fases 0-7, 2026-07-02)
+- **Fase 0:** `GrupoService` limpio (sin estado de alcance); modelos e imports huérfanos borrados; `fn_grupo_resumen_ventas.sql` y `fn_grupo_ventas_por_sucursal.sql` eliminados (absorbidos por `fn_grupo_dashboard`).
+- **Fase 1:** 3 funciones SQL nuevas en `docs/grupo/sql/functions/`: `fn_grupo_dashboard`, `fn_grupo_ventas_series`, `fn_grupo_alertas`.
+- **Fase 2:** modelos TS (`GrupoDashboard*`, `GrupoVentasSeries`, `GrupoAlerta`) + métodos `obtenerDashboard`/`obtenerSeries`/`obtenerAlertas`.
+- **Fase 3-5:** `ResumenGeneralModalComponent` (`src/app/features/grupo/components/resumen-general-modal/`) con KPIs+comparativa, alertas, donut, gráfico de líneas, tabla por negocio, deuda del grupo, top productos; estados skeleton/error-offline/empty/pull-to-refresh. Clase `ion-modal.resumen-general-modal` en `modals.scss`.
+- **Fase 6:** opción "Ver resumen general" en `SelectorNegocioModalComponent` (gate MAX + 2 negocios) → el sidebar abre el modal con rol `'dashboard'`.
+- **Fase 7:** decisión §7 resuelta, gate por plan, este documento.
+
+### ⏳ Falta (paso manual del dueño, no código)
+- **Ejecutar las funciones SQL en Supabase** — ver §11.
 
 ---
 
@@ -184,6 +192,67 @@ Se **reutilizan** las funciones ya existentes (`fn_grupo_negocios`, `fn_grupo_ve
 
 ---
 
-## 10. Decisión pendiente del dueño
+## 10. Decisión del dueño
 
-Aprobar el plan para empezar por la **Fase 0 + Fase 1** (limpieza + backend), o ajustar algo antes. No se implementa nada hasta el OK.
+✅ Aprobado (2026-07-02). Implementado en su totalidad (Fases 0-7). Ver §11 para el único paso manual restante.
+
+---
+
+## 11. Estado final y pasos manuales
+
+### Archivos entregados
+
+**Backend (SQL — en `docs/grupo/sql/functions/`):**
+- `fn_grupo_dashboard.sql` — KPIs + comparativa + tabla por negocio (con productos vendidos, clientes, ganancia, participación %, variación, deuda fiado snapshot).
+- `fn_grupo_ventas_series.sql` — serie temporal día×negocio (gráfico de líneas, `generate_series` sin huecos).
+- `fn_grupo_alertas.sql` — alertas SIN_VENTAS / CAYENDO (≤ −25%) / STOCK_BAJO.
+- Se reutiliza sin cambios: `fn_grupo_top_productos.sql`.
+- **Borrados** (código muerto): `fn_grupo_resumen_ventas.sql` y `fn_grupo_ventas_por_sucursal.sql` (absorbidos por `fn_grupo_dashboard`); `fn_grupo_negocios.sql` (su único llamador `obtenerNegocios()` quedó sin uso — el gate del selector no lo necesita).
+
+**Frontend** (estado final — page dedicada, ver nota de actualización arriba):
+- `src/app/features/grupo/models/grupo.model.ts` — modelos del contrato nuevo.
+- `src/app/features/grupo/services/grupo.service.ts` — `obtenerDashboard/Series/Alertas/TopProductos` (sin gate: el gate vive en el selector).
+- `src/app/features/grupo/pages/resumen-general/` — la page (`.ts/.html/.scss`), jerarquía ejecutiva + design tokens.
+- `src/app/features/grupo/grupo.routes.ts` — ruta con `roleGuard(['ADMIN'])`.
+- `src/app/core/config/routes.config.ts` — `ROUTES.resumenGeneral`.
+- `src/app/app.routes.ts` — `/resumen-general` fuera del layout (`authGuard` + `suscripcionGuard`).
+- `src/app/shared/components/sidebar/selector-negocio-modal/` — opción "Ver resumen general" (gate MAX + 2 negocios).
+- `src/app/shared/components/sidebar/sidebar.component.ts` — handler del rol `'dashboard'` → navega a `/resumen-general`.
+
+### Paso manual: ejecutar las funciones en Supabase (SQL Editor, en orden)
+
+Las funciones **aún no están en Supabase** (los `.sql` son la fuente de verdad). Ejecutar:
+
+1. `docs/grupo/sql/functions/fn_grupo_top_productos.sql`  (si aún no está desplegada)
+2. `docs/grupo/sql/functions/fn_grupo_dashboard.sql`
+3. `docs/grupo/sql/functions/fn_grupo_ventas_series.sql`
+4. `docs/grupo/sql/functions/fn_grupo_alertas.sql`
+
+**Limpieza (solo si en algún momento las ejecutaste):** las 3 funciones borradas del repo — `fn_grupo_resumen_ventas`, `fn_grupo_ventas_por_sucursal` y `fn_grupo_negocios` — si nunca las desplegaste no hay nada que hacer; si sí, córrelas:
+
+```sql
+DROP FUNCTION IF EXISTS public.fn_grupo_resumen_ventas(TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.fn_grupo_ventas_por_sucursal(TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.fn_grupo_negocios();
+NOTIFY pgrst, 'reload schema';
+```
+
+### Verificación rápida (con un dueño de 2-3 negocios de prueba)
+
+```sql
+SELECT public.fn_grupo_dashboard('2026-07-01', '2026-07-02');
+SELECT public.fn_grupo_ventas_series('2026-06-01', '2026-07-02');
+SELECT public.fn_grupo_alertas('2026-07-01', '2026-07-02');
+```
+
+Luego en la app (con sesión de ese dueño, plan MAX): sidebar → **Mis negocios** → **Ver resumen general**.
+
+### Notas de seguridad (recordatorio)
+
+- Las 3 funciones son `SECURITY DEFINER STABLE`, derivan el propietario del JWT (`get_email()` → `usuarios.id` → `propietario_usuario_id`), **nunca reciben `negocio_id`**. RLS intacta.
+- Sin `fn_assert_no_superadmin` (son lectura pura; el superadmin no es propietario → lista vacía).
+- La deuda fiado es **snapshot actual** (no acotada al período), espejando `fn_resumir_cuentas_cobrar`.
+
+### Pendiente relacionado (ya registrado)
+
+El gate por plan MAX en el frontend es de UX; el bloqueo técnico duro por plan (multisucursal/multiplataforma/IA) sigue en `docs/PENDIENTES.md` → §"Bloqueo técnico por dispositivo y multisucursal según plan (plan MAX)". Este dashboard no lo modifica.

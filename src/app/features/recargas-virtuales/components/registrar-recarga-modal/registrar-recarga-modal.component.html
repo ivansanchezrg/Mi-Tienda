@@ -16,13 +16,14 @@
     @if (tipo === 'BUS') {
       <div class="input-group">
         <label class="input-label">Saldo actual en la máquina</label>
-        <div class="amount-wrapper" [class.filled]="saldoVirtualMaquina !== null">
+        <div class="amount-wrapper" [class.filled]="saldoVirtualMaquinaTexto">
           <span class="currency">$</span>
           <input
-            type="number"
+            type="text"
             inputmode="decimal"
             placeholder="0.00"
-            [(ngModel)]="saldoVirtualMaquina"
+            [(ngModel)]="saldoVirtualMaquinaTexto"
+            (ngModelChange)="onSaldoMaquinaChange()"
             appCurrencyInput
             appNumbersOnly
             autofocus>
@@ -52,13 +53,13 @@
     <!-- Input monto a depositar / monto virtual -->
     <div class="input-group">
       <label class="input-label">{{ labelMonto }}</label>
-      <div class="amount-wrapper" [class.filled]="montoVirtual">
+      <div class="amount-wrapper" [class.filled]="montoVirtualTexto">
         <span class="currency">$</span>
         <input
-          type="number"
+          type="text"
           inputmode="decimal"
           placeholder="0.00"
-          [(ngModel)]="montoVirtual"
+          [(ngModel)]="montoVirtualTexto"
           appCurrencyInput
           appNumbersOnly
           [autofocus]="tipo === 'CELULAR'">

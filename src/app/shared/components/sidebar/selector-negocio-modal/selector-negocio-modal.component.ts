@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ModalController } from '@ionic/angular/standalone';
 import { IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { checkmarkCircle, addCircleOutline, closeOutline } from 'ionicons/icons';
+import { checkmarkCircle, addCircleOutline, closeOutline, statsChartOutline } from 'ionicons/icons';
 import { NegocioDisponible } from '../../../../features/auth/services/auth.service';
 import { NegocioService } from '../../../../features/auth/services/negocio.service';
 import { SuscripcionService } from '@core/services/suscripcion.service';
@@ -39,7 +39,21 @@ export class SelectorNegocioModalComponent implements OnInit {
   private estadoSuscripcion: EstadoSuscripcionResult | null = null;
 
   constructor() {
-    addIcons({ checkmarkCircle, addCircleOutline, closeOutline });
+    addIcons({ checkmarkCircle, addCircleOutline, closeOutline, statsChartOutline });
+  }
+
+  /**
+   * True si el usuario tiene el plan MAX y es propietario multi-negocio (2+
+   * negocios) → habilita la opción "Ver resumen general". Doble gate:
+   *   • plan MAX explícito — el dashboard consolidado es un beneficio del plan MAX.
+   *   • 2+ negocios — con 1 negocio no hay nada que consolidar.
+   * Reutiliza `negocios` y `estadoSuscripcion` ya cargados en ngOnInit (cero query
+   * extra). Ambos datos son la fuente de verdad que el propio selector ya usa para
+   * "Nueva sucursal".
+   */
+  get mostrarResumenGeneral(): boolean {
+    return this.estadoSuscripcion?.plan_codigo === 'MAX'
+        && this.negocios.length >= 2;
   }
 
   async ngOnInit() {
@@ -95,6 +109,11 @@ export class SelectorNegocioModalComponent implements OnInit {
     }
 
     this.modalCtrl.dismiss(null, 'crear');
+  }
+
+  /** Cierra el selector señalando al sidebar que abra el dashboard del grupo. */
+  abrirResumenGeneral() {
+    this.modalCtrl.dismiss(null, 'dashboard');
   }
 
   cerrar() {

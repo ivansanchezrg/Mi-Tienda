@@ -601,5 +601,58 @@ probado `SupabaseService.esErrorDeTransporte()` — un solo clasificador en toda
 
 ---
 
+## 17. Evaluación de motores de sync de terceros (2026-07-03) — mantener arquitectura actual
+
+Se evaluó reemplazar/ampliar la capa local con un motor de sync de terceros (réplica profesional para
+desktop + celular, ante la pregunta de si esto podía "subir de nivel" el offline actual). Investigación
+contra fuentes de 2025-2026. **Conclusión: no migrar el core. La arquitectura Local-First + Outbox de
+este documento es la correcta para el lado de escritura y se mantiene.**
+
+### 17.1 Por qué una réplica bidireccional clásica NO aplica aquí
+
+El schema tiene ~36 tablas y ~36 funciones/triggers. Una venta dispara 3 triggers (stock, kardex, saldo
+de caja), los comprobantes usan secuencias atómicas del servidor (`secuencias_comprobantes`), el cierre
+cuadra contra `saldo_digital`, y todo está protegido por RLS multi-tenant + `fn_assert_no_superadmin`.
+Replicar tablas bidireccionalmente bypassearía triggers, secuencias y validaciones — el mismo motivo por
+el que este plan ya eligió Outbox + RPC idempotente en vez de un ORM local que escribe filas (§2, comparación
+con RxDB). Esto no es una limitación de herramientas: es el modelo de negocio (Postgres = única fuente de
+verdad financiera, §0).
+
+Confirmado en la propia documentación de PowerSync: las escrituras locales van a una *upload queue* y el
+desarrollador implementa `uploadData()` llamando a su propio backend. Es decir, el patrón que ya existe
+(`OutboxService` → `fn_registrar_venta_pos` con `idempotency_key`) **es** ese mismo patrón — no hay nada
+que un motor de terceros mejore en el lado de escritura.
+
+### 17.2 Comparativa de opciones (lado de lectura)
+
+| Opción | Qué hace | Fit |
+|---|---|---|
+| **PowerSync** | Postgres → SQLite en el cliente vía *sync streams* (replicación lógica). Partner oficial de Supabase. SDK Capacitor **en alpha (nov-2025)**: SQLite nativo en Android/iOS, wa-sqlite en web, un solo código. `@powersync/node` para Electron. Escrituras vía upload queue → RPCs propios | Mejor fit técnico si se quisiera réplica real de lectura (vs. los snapshots JSON de `cache_catalogo`) |
+| **ElectricSQL** | Solo *read-path* (shapes por HTTP); escrituras 100% a cargo del desarrollador | Menos integrado — no resuelve más que lo que ya resuelve `CatalogoLocalService` |
+| **RxDB** | DB reactiva JS con réplica bidireccional, last-write-wins | Descartado — mismo motivo que en §2 (storage SQLite premium, modelo LWW no encaja con ledger financiero) |
+| **Extender `LocalDbService`** | Ampliar el adaptador propio con pulls incrementales por cursor (`updated_at`) | Cero infraestructura/costo nuevo, pero el protocolo de sync incremental se mantiene a mano |
+
+### 17.3 Decisión
+
+- **No adoptar un motor de sync de terceros ahora.** El outbox actual ya es el patrón correcto para
+  escrituras; migrarlo no gana nada y agrega infraestructura (PowerSync Cloud o self-host).
+- **Si en el futuro se quiere reemplazar los snapshots JSON de lectura** (catálogo, clientes, historial de
+  ventas) **por una réplica SQLite real con sync incremental**, la única opción con fit real es **PowerSync**,
+  pero:
+  - El SDK de Capacitor está en **alpha** — no apto para producción de un sistema de caja sin un spike
+    aislado primero.
+  - La replicación lógica **no pasa por RLS** — el aislamiento multi-tenant (`negocio_id`) debe replicarse
+    manualmente en las *sync rules* de PowerSync. Un error ahí filtra datos entre negocios.
+  - Es infraestructura nueva (costo + servicio externo) vs. la solución actual, que no tiene ninguno de los dos.
+- **Desktop (.exe):** sin cambios respecto a §16. Si se llega a necesitar réplica real en Electron, la ruta
+  sería `@powersync/node` (o mantener `better-sqlite3` con el `LocalDbService` actual) — evaluar junto con
+  el spike de PowerSync, no antes.
+
+> Este documento sigue siendo la fuente de verdad de la implementación real. §17 es una nota de evaluación,
+> no un cambio de rumbo — el "qué NO hacer" queda registrado para no re-evaluar esto desde cero en el futuro.
+
+---
+
 *Implementación completa (Fases 1-8 + refinamientos §13 + endurecimiento §15). BD de la Fase 6
-ejecutada en Supabase el 2026-06-10. El documento refleja el estado real del código.*
+ejecutada en Supabase el 2026-06-10. Evaluación de motores de sync de terceros añadida el 2026-07-03 (§17)
+— se mantiene la arquitectura actual. El documento refleja el estado real del código.*

@@ -1,6 +1,8 @@
-import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef, NgZone } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { App } from '@capacitor/app';
+import { PluginListenerHandle } from '@capacitor/core';
 import {
   IonHeader, IonToolbar, IonContent, IonMenuButton,
   IonIcon, ModalController, AlertController, IonSkeletonText,
@@ -44,7 +46,6 @@ import { RecargasService } from '../../services/recargas.service';
 import { CajasService, Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { AuthService } from '../../../auth/services/auth.service';
-import { StorageService } from '@core/services/storage.service';
 import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
 import { TurnosCajaService, HomeDashboard } from '../../services/turnos-caja.service';
 import { EstadoCaja } from '../../models/turno-caja.model';
@@ -55,14 +56,12 @@ import { OperacionModalComponent, OperacionModalResult } from '../../components/
 import { TraspasoModalComponent } from '../../components/traspaso-modal/traspaso-modal.component';
 import { NuevaCajaModalComponent } from '../../components/nueva-caja-modal/nueva-caja-modal.component';
 import { ROUTES } from '@core/config/routes.config';
-import { OperacionCaja } from '../../models/operacion-caja.model';
-import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
-import { OperacionLabelPipe } from '../../../../shared/pipes/operacion-label.pipe';
 import { ShareCierreService, DatosCierreParaCompartir } from '../../services/share-cierre.service';
 import { OptionsModalComponent, ModalOptionGroup } from '@shared/components/options-modal/options-modal.component';
 import { CurrencyService } from '@core/services/currency.service';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 import { NetworkService } from '@core/services/network.service';
+import { TIMING } from '@core/config/timing.config';
 
 @Component({
   selector: 'app-home',
@@ -74,8 +73,6 @@ import { NetworkService } from '@core/services/network.service';
     IonHeader, IonToolbar, IonContent, IonMenuButton,
     IonIcon, IonSkeletonText,
     IonRefresher, IonRefresherContent,
-    EmptyStateComponent,
-    OperacionLabelPipe,
     AppCurrencyPipe,
   ]
 })
@@ -93,17 +90,21 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private notificacionesService = inject(NotificacionesService);
   private modalCtrl = inject(ModalController);
   private alertCtrl = inject(AlertController);
-  private storageService = inject(StorageService);
   private shareCierreService = inject(ShareCierreService);
   private cdr = inject(ChangeDetectorRef);
   readonly currency = inject(CurrencyService);
   private network = inject(NetworkService);
+  private zone = inject(NgZone);
 
   // ── Subscripciones (cleanup en ngOnDestroy) ────────────────────────────────
   private queryParamsSub?: Subscription;
   private turnoSub?: Subscription;
   private cajasSub?: Subscription;
   private networkSub?: Subscription;
+  private resumeListener?: PluginListenerHandle;
+
+  /** Instante en que la app pasó a background — para decidir si refrescar al volver. */
+  private backgroundAt: number | null = null;
 
   /**
    * Último estado de red confirmado por una emisión real del NetworkService.
@@ -126,7 +127,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
   // ── Estado de carga ────────────────────────────────────────────────────────
   cargando = true;
-  cargandoMovimientos = true;
 
   // ── Estado del turno de caja ───────────────────────────────────────────────
   estadoCaja: EstadoCaja = {
@@ -167,9 +167,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   recargasCelularHabilitada = false;
   recargasBusHabilitada = false;
 
-  // ── Movimientos recientes ──────────────────────────────────────────────────
-  ultimosMovimientos: OperacionCaja[] = [];
-  totalMovimientosHoy = 0;
+  // ── Resumen del día (deltas del hero) — agregados de fn_home_dashboard v2 ──
+  ingresosHoy = 0;
+  egresosHoy = 0;
 
   // ── Getters ────────────────────────────────────────────────────────────────
   get cajaAbierta(): boolean {
@@ -233,7 +233,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     // Sincronizar saldos de cajas via Realtime — actualiza saldos y lista sin reload.
     // Las flags de visibilidad NO se recalculan aquí: vienen de fn_home_dashboard
-    // (cargarDatos/refrescarMovimientos) que las lee de configuraciones junto con
+    // (cargarDatos/refrescarDashboard) que las lee de configuraciones junto con
     // las cajas. El Realtime solo actualiza saldos entre cargas imperativas.
     this.cajasSub = this.cajasService.cajas$.subscribe(cajas => {
       if (!cajas.length) return;
@@ -283,6 +283,32 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
         await this.reactivarTrasReconexion();
       }
     });
+
+    // Refresco silencioso al reanudar con proceso vivo (2026-07-03): si Android
+    // suspendió la app sin matar el proceso, la UI reaparece al instante pero con
+    // los datos del momento de la suspensión — antes quedaban viejos hasta navegar
+    // o hacer pull-to-refresh. Ahora, si estuvo >= resumeHomeRefreshMinMs en
+    // background, se recarga el dashboard en modo silencioso (sin skeleton, mismo
+    // camino que el pull-to-refresh). La query espera internamente el refresh de
+    // token en vuelo (call() → resumeRefreshInFlight) → siempre datos reales.
+    // Los switches rápidos entre apps no refetchean (el Realtime cubre entre medio).
+    this.setupResumeRefresh();
+  }
+
+  private async setupResumeRefresh(): Promise<void> {
+    this.resumeListener = await App.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive) {
+        this.backgroundAt = Date.now();
+        return;
+      }
+      const enBackgroundMs = this.backgroundAt ? Date.now() - this.backgroundAt : 0;
+      this.backgroundAt = null;
+      if (enBackgroundMs >= TIMING.resumeHomeRefreshMinMs) {
+        // Callback de Capacitor corre fuera de Angular — re-entrar a la zona
+        // para que el repintado del dashboard dispare change detection normal.
+        this.zone.run(() => this.cargarDatos(true));
+      }
+    });
   }
 
   /**
@@ -295,7 +321,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
    *     abrir sin red pudo quedar en CHANNEL_ERROR y no reconectar solo).
    *  3. Recargar el estado del turno desde BD (reintenta la query que falló offline).
    *  4. Recargar el dashboard completo (cargarDatos → aplicarDashboard reconcilia
-   *     turnoActivo$ con el servidor y repinta saldos, movimientos y el botón de turno).
+   *     turnoActivo$ con el servidor y repinta saldos, deltas del día y el botón de turno).
    */
   private async reactivarTrasReconexion(): Promise<void> {
     const usuario = await this.authService.getUsuarioActual();
@@ -310,6 +336,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     this.turnoSub?.unsubscribe();
     this.cajasSub?.unsubscribe();
     this.networkSub?.unsubscribe();
+    this.resumeListener?.remove();
   }
 
   private async manejarAccion(action: string) {
@@ -322,7 +349,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     // Detectar cierre recién ejecutado antes de refrescar —
     // si hay pendiente, hacemos cargarDatos() completo para que
-    // el estado del turno, saldos y movimientos queden actualizados.
+    // el estado del turno y los saldos queden actualizados.
     const datosCierre = this.shareCierreService.consumirPendiente();
     if (datosCierre) {
       await this.cargarDatos();
@@ -335,7 +362,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       }
       await this.avisarDeficitVariosSiAplica(datosCierre);
     } else if (!this.cargando) {
-      await this.refrescarMovimientos();
+      await this.refrescarDashboard();
     }
   }
 
@@ -355,11 +382,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       if (snapshot) {
         this.aplicarDashboard(snapshot);
         this.cargando = false;
-        this.cargandoMovimientos = false;
         this.cdr.detectChanges();
       } else {
         this.cargando = true;
-        this.cargandoMovimientos = true;
       }
     }
     try {
@@ -383,14 +408,13 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       await this.ui.showError('Error al cargar los datos. Verifica tu conexión e intenta de nuevo.');
     } finally {
       this.cargando = false;
-      this.cargandoMovimientos = false;
       this.cdr.detectChanges();
     }
   }
 
   /**
    * Aplica el snapshot del dashboard a las propiedades del componente. Centraliza
-   * el mapeo para evitar duplicar la lógica entre `cargarDatos()` y `refrescarMovimientos()`.
+   * el mapeo para evitar duplicar la lógica entre `cargarDatos()` y `refrescarDashboard()`.
    * Incluye saldos de cajas (v1.3) para que cargarDatos() sea la única fuente de verdad
    * del Home — sin depender del timing del Realtime en el dispositivo local.
    */
@@ -398,8 +422,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     this.estadoCaja          = { ...dashboard.estadoCaja };
     this.saldoVirtualCelular = dashboard.saldoVirtualCelular;
     this.saldoVirtualBus     = dashboard.saldoVirtualBus;
-    this.ultimosMovimientos  = dashboard.ultimosMovimientos;
-    this.totalMovimientosHoy = dashboard.totalMovimientosHoy;
+    this.ingresosHoy         = dashboard.ingresosHoy;
+    this.egresosHoy          = dashboard.egresosHoy;
     this.fechaUltimoCierre   = dashboard.estadoCaja.fechaUltimoCierre
       ? this.formatearFecha(new Date(dashboard.estadoCaja.fechaUltimoCierre + 'T00:00:00'))
       : 'Hoy es tu primer turno';
@@ -469,18 +493,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     return `${dia.charAt(0).toUpperCase() + dia.slice(1)}, ${num} de ${mes}`;
   }
 
-  get totalIngresosHoy(): number {
-    return this.ultimosMovimientos
-      .filter(m => ['INGRESO', 'TRANSFERENCIA_ENTRANTE'].includes(m.tipo_operacion))
-      .reduce((acc, m) => acc + Number(m.monto), 0);
-  }
-
-  get totalEgresosHoy(): number {
-    return this.ultimosMovimientos
-      .filter(m => ['EGRESO', 'TRANSFERENCIA_SALIENTE'].includes(m.tipo_operacion))
-      .reduce((acc, m) => acc + Number(m.monto), 0);
-  }
-
   /** Cajas personalizadas creadas por el negocio (código CUSTOM_N) */
   get cajasCustom(): Caja[] {
     return this.cajas.filter(c => c.codigo.startsWith('CUSTOM_'));
@@ -497,16 +509,14 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   /**
-   * Refresco rápido del dashboard (sin notificaciones/config/usuario) — usado al
-   * volver de subpáginas o tras una operación. 1 RPC en lugar de 3 queries.
+   * Refresco rápido del dashboard (sin notificaciones/usuario) — usado al
+   * volver de subpáginas o tras una operación. 1 RPC, sin skeleton.
    */
-  async refrescarMovimientos() {
-    this.cargandoMovimientos = true;
+  async refrescarDashboard() {
     try {
       const dashboard = await this.turnosCajaService.obtenerHomeDashboard();
       this.aplicarDashboard(dashboard);
     } finally {
-      this.cargandoMovimientos = false;
       this.cdr.detectChanges();
     }
   }
@@ -647,14 +657,14 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     await modal.present();
 
     const { role } = await modal.onDidDismiss();
-    if (role === 'confirm') await this.refrescarMovimientos();
+    if (role === 'confirm') await this.refrescarDashboard();
   }
 
   private async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModalResult) {
     const success = await this.operacionesCajaService.registrarOperacion(
       data.cajaId, tipo, data.categoriaId, data.monto, data.descripcion, data.fotoComprobante
     );
-    if (success) await this.refrescarMovimientos();
+    if (success) await this.refrescarDashboard();
   }
 
   async onAbrirCaja() {
@@ -744,20 +754,6 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     await modal.present();
     const { data } = await modal.onWillDismiss();
     if (data?.reload) await this.cargarDatos();
-  }
-
-  async onVerComprobante(mov: OperacionCaja) {
-    if (!mov.comprobante_url) return;
-    const url = await this.storageService.resolveImageUrl(mov.comprobante_url);
-    if (!url) {
-      await this.ui.showError('No se pudo cargar el comprobante');
-      return;
-    }
-    window.open(url, '_blank');
-  }
-
-  formatMovHora(fecha: string): string {
-    return new Date(fecha).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
   }
 
   private async ofrecerCompartirCierre(datos: DatosCierreParaCompartir): Promise<void> {

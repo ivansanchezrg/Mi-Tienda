@@ -10,7 +10,6 @@ import { TurnoLocalService } from '@core/services/turno-local.service';
 import { NetworkService } from '@core/services/network.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
-import { OperacionCaja } from '../models/operacion-caja.model';
 import { Caja } from './cajas.service';
 import { DatosCierreDiario } from '../models/saldos-anteriores.model';
 import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
@@ -23,13 +22,17 @@ import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } f
  *   - variosActiva:        cajas.activo en BD (reversible via fn_configurar_caja_varios)
  *   - celularHabilitada:   flag en configuraciones (puede existir en BD pero desactivada)
  *   - busHabilitada:       flag en configuraciones (igual que celular)
+ * v2.0 (2026-07-03): se eliminó la sección "últimos 5 movimientos" del home. La RPC
+ *   ya no devuelve la lista ni el count — solo los agregados ingresos/egresos del día
+ *   completo, que alimentan los deltas del hero (antes se calculaban sumando únicamente
+ *   los últimos 5 movimientos: ahora son correctos además de más baratos).
  */
 export interface HomeDashboard {
   estadoCaja: EstadoCaja;
   saldoVirtualCelular: number;
   saldoVirtualBus: number;
-  ultimosMovimientos: OperacionCaja[];
-  totalMovimientosHoy: number;
+  ingresosHoy: number;
+  egresosHoy: number;
   cajas: Caja[];
   modulos: {
     variosActiva: boolean;
@@ -128,6 +131,10 @@ export class TurnosCajaService {
     this.supabase.registerBeforeCleanup(() =>
       Preferences.remove({ key: TurnosCajaService.HOME_DASHBOARD_CACHE_KEY }).catch(() => {})
     );
+
+    // 4. Migracion: borrar el snapshot v1 huerfano (shape viejo con movimientos).
+    //    Best-effort — se puede quitar esta linea en una version futura.
+    Preferences.remove({ key: 'mi-tienda:home-dashboard-cache:v1' }).catch(() => {});
   }
 
   /** Valor sincronico del turno activo (util en codigo imperativo). */
@@ -495,8 +502,11 @@ export class TurnosCajaService {
   /**
    * Snapshot consolidado del home en una sola RPC (~250-500ms vs ~400-800ms de
    * Promise.all con 9 queries individuales). Reemplaza las queries que el home
-   * hacía por separado: estado de caja, saldos virtuales CELULAR/BUS, últimos
-   * 5 movimientos y count del día (los métodos cliente fueron eliminados).
+   * hacía por separado: estado de caja, saldos virtuales CELULAR/BUS y resumen
+   * de ingresos/egresos del día (los métodos cliente fueron eliminados).
+   *
+   * v2.0: la RPC ya no devuelve la lista de movimientos — solo los agregados
+   * ingresos/egresos del día completo para los deltas del hero.
    *
    * La RPC filtra todo por get_negocio_id() del JWT. Multi-tenant safe.
    */
@@ -508,7 +518,7 @@ export class TurnosCajaService {
         fecha_ultimo_cierre: string | null;
       };
       saldos_virtuales: { celular: number; bus: number };
-      movimientos: { lista: OperacionCaja[]; total: number };
+      resumen_dia: { ingresos: number; egresos: number };
       saldos_cajas: Caja[];
       modulos: { varios_activa: boolean; celular_habilitada: boolean; bus_habilitada: boolean };
     }>(
@@ -525,7 +535,7 @@ export class TurnosCajaService {
     // Defaults defensivos si la RPC retornó null (shouldn't happen pero por las dudas)
     const ec  = data?.estado_caja      ?? { turno_activo: null, turnos_hoy: 0, fecha_ultimo_cierre: null };
     const sv  = data?.saldos_virtuales ?? { celular: 0, bus: 0 };
-    const mov = data?.movimientos      ?? { lista: [], total: 0 };
+    const res = data?.resumen_dia      ?? { ingresos: 0, egresos: 0 };
     const caj = data?.saldos_cajas     ?? [];
     const mod = data?.modulos          ?? { varios_activa: false, celular_habilitada: false, bus_habilitada: false };
 
@@ -557,10 +567,10 @@ export class TurnosCajaService {
         turnosHoy:         ec.turnos_hoy,
         fechaUltimoCierre: ec.fecha_ultimo_cierre,
       },
-      saldoVirtualCelular: sv.celular ?? 0,
-      saldoVirtualBus:     sv.bus     ?? 0,
-      ultimosMovimientos:  mov.lista  ?? [],
-      totalMovimientosHoy: mov.total  ?? 0,
+      saldoVirtualCelular: sv.celular  ?? 0,
+      saldoVirtualBus:     sv.bus      ?? 0,
+      ingresosHoy:         res.ingresos ?? 0,
+      egresosHoy:          res.egresos  ?? 0,
       cajas:               caj,
       modulos: {
         variosActiva:      mod.varios_activa      ?? false,
@@ -579,7 +589,11 @@ export class TurnosCajaService {
   // SNAPSHOT PERSISTIDO DEL HOME (stale-while-revalidate)
   // ==========================================
 
-  private static readonly HOME_DASHBOARD_CACHE_KEY = 'mi-tienda:home-dashboard-cache:v1';
+  // v2 (2026-07-03): el shape cambió (ingresosHoy/egresosHoy en vez de la lista de
+  // movimientos). Bump de la key para que un snapshot v1 persistido no se pinte con
+  // campos undefined en el hero — el primer arranque tras actualizar muestra skeleton
+  // una vez y desde ahí el snapshot v2 toma el relevo.
+  private static readonly HOME_DASHBOARD_CACHE_KEY = 'mi-tienda:home-dashboard-cache:v2';
 
   /**
    * Último snapshot del dashboard persistido en Preferences, o null si no hay,

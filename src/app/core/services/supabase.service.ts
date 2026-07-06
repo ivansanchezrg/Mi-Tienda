@@ -71,6 +71,19 @@ export class SupabaseService {
     const projectRef = environment.supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || '';
     this.STORAGE_KEY = `sb-${projectRef}-auth-token`;
     this.setupAuthListener();
+
+    // Warm-up de sesión en el milisegundo cero del bootstrap (2026-07-03).
+    // Si la app estuvo horas cerrada/en reposo, el access token expiró. Antes el
+    // refresh arrancaba recién en el authGuard (~1.8s después del boot) y la primera
+    // RPC del home lo esperaba COMPLETO en serie (call() espera resumeRefreshInFlight)
+    // → boot + refresh + RPC uno detrás de otro ≈ 4s. Arrancándolo aquí, el refresh
+    // corre EN PARALELO con el bootstrap de Angular y el render del home: cuando la
+    // primera query sale, el token ya está renovado (o casi). Fire-and-forget:
+    // - sin sesión persistida → getSession() null → no-op inmediato
+    // - token sano (>5 min de vida) → no-op (umbral interno)
+    // - offline → falla silenciosa (catch interno), el guard offline maneja el acceso
+    // - refresh token inválido (30+ días) → SIGNED_OUT → listener global → login
+    this.refreshSessionOnResume();
   }
 
   /**
@@ -117,7 +130,15 @@ export class SupabaseService {
       provider: 'google',
       options: {
         redirectTo: redirectUrl,
-        skipBrowserRedirect: isNative // Nativo: nosotros controlamos el navegador. Web: Supabase redirige.
+        skipBrowserRedirect: isNative, // Nativo: nosotros controlamos el navegador. Web: Supabase redirige.
+        queryParams: {
+          // Fuerza el selector de cuentas de Google en cada login. Sin esto, si el
+          // usuario ya tiene una sesión activa en el navegador, Google auto-entra con
+          // esa cuenta sin ofrecer elegir otra. Con select_account siempre puede elegir
+          // una cuenta ya logueada o tocar "Usar otra cuenta" para escribir el correo +
+          // contraseña de cualquier cuenta suya, aunque NO esté agregada en el teléfono.
+          prompt: 'select_account'
+        }
       }
     });
 
@@ -148,6 +169,15 @@ export class SupabaseService {
     if (showLoading) await this.ui.showLoading();
 
     try {
+      // 0. Si hay un refresh de sesión en curso (token vencido al volver del
+      // background), esperarlo antes de disparar la query — sin esto la request
+      // saldría con el token viejo y fallaría con "JWT expired". Complemento del
+      // fast path del authGuard, que ya no bloquea la navegación por este refresh.
+      // La promesa nunca rechaza (refreshSessionOnResume captura internamente).
+      if (this.resumeRefreshInFlight) {
+        await this.resumeRefreshInFlight;
+      }
+
       // 1. Ejecutamos la promesa
       const response = await promise;
 
@@ -328,6 +358,7 @@ export class SupabaseService {
     this.lastResumeRefreshAt = nowMs;
 
     this.resumeRefreshInFlight = (async () => {
+      const t0 = Date.now();
       try {
         const { data } = await this.client.auth.getSession();
         if (!data.session) return; // no hay sesión, nada que renovar
@@ -339,6 +370,7 @@ export class SupabaseService {
 
         // Si quedan más de jwtRefreshUmbralSegundos (5 min), el token está sano — no refrescar
         if (secondsLeft > TIMING.jwtRefreshUmbralSegundos) {
+          this.logger.info('SupabaseService', `Token sano (${secondsLeft}s de vida) — sin refresh (getSession ${Date.now() - t0}ms)`);
           return;
         }
 
@@ -348,7 +380,7 @@ export class SupabaseService {
           this.logger.error('SupabaseService', 'Refresh on resume falló', error);
           // No redirigimos aquí — el listener de SIGNED_OUT lo hará si corresponde
         } else {
-          this.logger.info('SupabaseService', 'Sesión renovada al volver del background');
+          this.logger.info('SupabaseService', `Sesión renovada (token tenía ${secondsLeft}s de vida) en ${Date.now() - t0}ms`);
         }
       } catch (err) {
         this.logger.error('SupabaseService', 'Error en refreshSessionOnResume', err);

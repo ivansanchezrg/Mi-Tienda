@@ -12,14 +12,7 @@ export const authGuard: CanActivateFn = async (_route, state) => {
   const ui = inject(UiService);
   const logger = inject(LoggerService);
   const supabase = inject(SupabaseService);
-
-  // Si hay un resume-refresh en curso (token expirado al volver del background),
-  // esperarlo antes de llamar getSession() — evita que Supabase serialice dos
-  // refresh en paralelo, que es lo que causa el freeze de 4-5s tras inactividad larga.
-  if (supabase.resumeRefreshInFlight) {
-    logger.info('authGuard', 'Esperando resume-refresh en curso...');
-    await supabase.resumeRefreshInFlight;
-  }
+  const t0 = Date.now();
 
   const status = await Network.getStatus();
 
@@ -41,7 +34,57 @@ export const authGuard: CanActivateFn = async (_route, state) => {
     return router.createUrlTree(['/auth/login']);
   }
 
+  // ── Fast path de arranque SIN espera de red (2026-07-03) ──────────────────
+  // Antes: getSession() con el access token vencido (cold start tras horas en
+  // background — Android mató el proceso) dispara un refresh de RED antes de
+  // resolver → bloqueaba la navegación (y el splash) ~1-3s. Ahora: con sesión
+  // local + flag de auth activa + UsuarioActual cacheado entramos de inmediato
+  // y el refresh corre en paralelo. Ninguna query sale con el token vencido:
+  // SupabaseService.call() espera resumeRefreshInFlight antes de ejecutar.
+  // Si el refresh token ya no sirve (30+ días sin abrir), el SDK emite
+  // SIGNED_OUT y el listener global redirige al login — mismo mecanismo previo.
+  if (!auth.yaValidadoEnEstaSesion && auth.hasLocalSession()) {
+    const [cachedUsuario, activeAuth] = await Promise.all([
+      auth.getUsuarioActual(),
+      auth.hasActiveAuth(),
+    ]);
+
+    if (cachedUsuario && activeAuth) {
+      // Renovar el token en background si hace falta (no-op si está sano —
+      // throttle 30s + umbral de 5 min dentro de refreshSessionOnResume).
+      supabase.refreshSessionOnResume();
+
+      // Protección por desactivación activa desde el primer render + validación
+      // contra BD sin bloquear — igual que el fast path online que ya existía.
+      auth.iniciarRealtimeDesdeCache(cachedUsuario);
+      auth.validarUsuarioBackground();
+
+      // Superadmin sin negocio activo: solo /admin y /crear-negocio
+      if (cachedUsuario.es_superadmin && !cachedUsuario.negocio_id) {
+        const url = state.url;
+        const rutasPermitidas = url.startsWith('/admin') || url.startsWith('/crear-negocio');
+        if (!rutasPermitidas) {
+          logger.info('authGuard', 'Superadmin sin negocio activo → panel admin');
+          return router.createUrlTree(['/admin']);
+        }
+      }
+
+      logger.info('authGuard', `Fast path local en ${Date.now() - t0}ms — sin espera de red`);
+      return true;
+    }
+  }
+
+  // Si hay un resume-refresh en curso (token expirado al volver del background),
+  // esperarlo antes de llamar getSession() — evita que Supabase serialice dos
+  // refresh en paralelo, que es lo que causa el freeze de 4-5s tras inactividad larga.
+  // Solo se paga en el flujo lento (sin cache): el fast path de arriba no espera.
+  if (supabase.resumeRefreshInFlight) {
+    logger.info('authGuard', 'Esperando resume-refresh en curso...');
+    await supabase.resumeRefreshInFlight;
+  }
+
   const session = await auth.getSession();
+  logger.info('authGuard', `getSession() resuelto en ${Date.now() - t0}ms`);
 
   if (session) {
     // Si hay sesión OAuth persistida pero el usuario nunca eligió su cuenta

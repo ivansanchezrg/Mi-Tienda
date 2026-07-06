@@ -560,7 +560,8 @@ CREATE TABLE IF NOT EXISTS producto_templates (
     unidad_medida VARCHAR(10) DEFAULT 'und',
     imagen_url    TEXT,
     activo        BOOLEAN DEFAULT TRUE,
-    created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (negocio_id, nombre)
 );
 
 -- 18. productos — SKU real (unidad de venta con stock y precio propio)
@@ -568,7 +569,10 @@ CREATE TABLE IF NOT EXISTS producto_templates (
 --   → categoria_id, tipo_venta, unidad_medida heredados del template (deben ser NULL aqui).
 --   → tiene_iva vive en este registro — fuente de verdad fiscal.
 -- Si producto_template_id IS NULL: producto simple (campos propios).
--- stock_actual >= 0: safety net. El trigger de venta ya lo valida, pero el CHECK es la red final.
+-- stock_actual: SIN CHECK de no-negativo a nivel columna (eliminado en la migracion de
+-- venta offline, §5/§6 PLAN-OFFLINE-POS) — un CHECK no puede leer variables de sesion,
+-- asi que bloquearia las ventas offline legitimas (stock optimista). El guardian es
+-- el trigger fn_actualizar_stock_venta, que si respeta la bandera de venta offline.
 CREATE TABLE IF NOT EXISTS productos (
     id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     negocio_id           UUID        NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
@@ -854,13 +858,19 @@ CREATE INDEX IF NOT EXISTS idx_ventas_negocio_estado_pago       ON ventas(negoci
 CREATE INDEX IF NOT EXISTS idx_ventas_negocio_cliente           ON ventas(negocio_id, cliente_id);
 CREATE INDEX IF NOT EXISTS idx_ventas_detalles_venta            ON ventas_detalles(venta_id);
 CREATE INDEX IF NOT EXISTS idx_ventas_detalles_producto         ON ventas_detalles(producto_id);
+-- FK sin índice: cada DELETE/UPDATE de una presentación escanearía ventas_detalles
+-- completa para verificar la referencia. Tabla de solo-crecimiento (ventas históricas).
+CREATE INDEX IF NOT EXISTS idx_ventas_detalles_presentacion     ON ventas_detalles(presentacion_id) WHERE presentacion_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_kardex_negocio_producto          ON kardex_inventario(negocio_id, producto_id);
+CREATE INDEX IF NOT EXISTS idx_kardex_presentacion              ON kardex_inventario(presentacion_id) WHERE presentacion_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_venta             ON cuentas_cobrar(venta_id);
 CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_negocio_fecha     ON cuentas_cobrar(negocio_id, fecha DESC);
 CREATE INDEX IF NOT EXISTS idx_notas_negocio_completada         ON notas(negocio_id, completada, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_atributo_opciones_atributo       ON atributo_opciones(atributo_id);
 CREATE INDEX IF NOT EXISTS idx_template_atributos_template      ON template_atributos(template_id);
 CREATE INDEX IF NOT EXISTS idx_template_atrib_opciones_ta       ON template_atributo_opciones(template_atributo_id);
+CREATE INDEX IF NOT EXISTS idx_template_atrib_opciones_opcion   ON template_atributo_opciones(atributo_opcion_id);
+CREATE INDEX IF NOT EXISTS idx_producto_atributos_opcion        ON producto_atributos(atributo_opcion_id);
 
 -- codigos_barras: index-only scan en POS (INCLUDE evita heap fetch)
 CREATE INDEX IF NOT EXISTS idx_codigos_barras_negocio           ON codigos_barras(negocio_id);
@@ -1046,6 +1056,15 @@ BEGIN
             -- Evita que un INSERT concurrente cambie PRODUCTO→PRESENTACION silenciosamente.
             WHERE codigos_barras.tipo = EXCLUDED.tipo
                OR codigos_barras.producto_id = EXCLUDED.producto_id;
+
+            -- La guardia del WHERE puede hacer que el UPDATE no afecte ninguna fila
+            -- (el código ya pertenece a OTRO producto/tipo). Sin este chequeo, el
+            -- codigo_barras quedaba escrito en productos/presentaciones mientras la
+            -- tabla central de unicidad seguía apuntando al dueño anterior — las dos
+            -- fuentes divergían en silencio, sin ningún error.
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'El codigo de barras % ya existe en este negocio', NEW.codigo_barras;
+            END IF;
         EXCEPTION WHEN unique_violation THEN
             RAISE EXCEPTION 'El codigo de barras % ya existe en este negocio', NEW.codigo_barras;
         END;
@@ -1220,7 +1239,7 @@ CREATE OR REPLACE FUNCTION fn_actualizar_stock_venta()
 RETURNS TRIGGER AS $$
 DECLARE
     v_negocio_id     UUID;
-    v_factor         INTEGER;
+    v_factor         DECIMAL(12,4);
     v_cantidad_real  DECIMAL(12,2);
     v_stock_actual   DECIMAL(12,2);
     v_permitir_neg   BOOLEAN;
@@ -1231,7 +1250,7 @@ BEGIN
             RAISE EXCEPTION 'Presentacion no valida o no encontrada: %', NEW.presentacion_id;
         END IF;
     ELSE
-        v_factor := 1;
+        v_factor := 1.0;
     END IF;
 
     v_cantidad_real := NEW.cantidad * v_factor;

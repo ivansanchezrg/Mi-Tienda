@@ -57,11 +57,11 @@
           <div class="hero-card__deltas-row">
             <div class="hero-card__delta hero-card__delta--ingreso">
               <ion-icon name="trending-up-outline"></ion-icon>
-              <span>+${{ totalIngresosHoy | appCurrency }}</span>
+              <span>+${{ ingresosHoy | appCurrency }}</span>
             </div>
             <div class="hero-card__delta hero-card__delta--egreso">
               <ion-icon name="trending-down-outline"></ion-icon>
-              <span>-${{ totalEgresosHoy | appCurrency }}</span>
+              <span>-${{ egresosHoy | appCurrency }}</span>
             </div>
           </div>
         </div>
@@ -349,94 +349,9 @@
     </div>
   </div>
 
-  <!-- ── Movimientos de hoy ─────────────────────────────────────────────── -->
-  <div class="section-header">
-    <span class="section-header__title">ÚLTIMOS 5 MOVIMIENTOS</span>
-  </div>
-
-  @if (cargandoMovimientos) {
-    <div class="movements-card">
-      @for (i of [1, 2, 3]; track i) {
-        <div class="mov-row">
-          <div class="mov-icon-wrap skeleton-icon"></div>
-          <div class="mov-details">
-            <ion-skeleton-text animated style="width: 55%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
-            <ion-skeleton-text animated style="width: 40%; height: 11px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text>
-          </div>
-          <ion-skeleton-text animated style="width: 56px; height: 14px; border-radius: 4px;"></ion-skeleton-text>
-        </div>
-        @if (i < 3) { <div class="mov-divider"></div> }
-      }
-    </div>
-  } @else if (ultimosMovimientos.length === 0) {
-    <div class="movements-empty-wrap">
-      <app-empty-state
-        icon="document-text-outline"
-        title="Sin movimientos"
-        hint="Los ingresos y egresos del día aparecerán aquí.">
-      </app-empty-state>
-    </div>
-  } @else {
-    <div class="movements-card">
-      @for (mov of ultimosMovimientos; track mov.id; let last = $last) {
-        <div class="mov-row">
-
-          <div class="mov-icon-wrap" [attr.data-type]="mov.tipo_operacion | operacionLabel:'color'">
-            @switch (mov.tipo_operacion | operacionLabel:'signo') {
-              @case ('+') { <ion-icon name="arrow-down-outline"></ion-icon> }
-              @case ('-') { <ion-icon name="arrow-up-outline"></ion-icon> }
-              @default {
-                @if (mov.tipo_operacion === 'AJUSTE') {
-                  <ion-icon name="create-outline"></ion-icon>
-                } @else {
-                  <ion-icon name="cash-outline"></ion-icon>
-                }
-              }
-            }
-          </div>
-
-          <div class="mov-details">
-            <span class="mov-caja-badge">{{ mov.caja?.nombre }}</span>
-            <span class="mov-title">{{ mov.categoria?.nombre || (mov.tipo_operacion | operacionLabel:mov.descripcion) }}</span>
-            @if (mov.descripcion | operacionLabel:'motivo') {
-              <span class="mov-desc">{{ mov.descripcion | operacionLabel:'motivo' }}</span>
-            }
-            @if (mov.empleado?.nombre) {
-              <span class="mov-empleado">
-                {{ mov.empleado!.nombre }}
-                <span class="mov-empleado-time">· {{ formatMovHora(mov.fecha) }}</span>
-              </span>
-            } @else {
-              <span class="mov-empleado">
-                <span class="mov-empleado-time">{{ formatMovHora(mov.fecha) }}</span>
-              </span>
-            }
-          </div>
-
-          <div class="mov-right">
-            <button class="mov-comprobante-btn"
-              [class.mov-comprobante-btn--visible]="!!mov.comprobante_url"
-              [disabled]="!mov.comprobante_url"
-              (click)="mov.comprobante_url && onVerComprobante(mov)">
-              <ion-icon name="image-outline"></ion-icon>
-            </button>
-            <span class="mov-amount" [attr.data-type]="mov.tipo_operacion | operacionLabel:'color'">
-              {{ mov.tipo_operacion | operacionLabel:'signo' }}${{ mov.monto | appCurrency }}
-            </span>
-            @if (mov.saldo_actual !== null) {
-              <span class="mov-saldo">${{ mov.saldo_actual | appCurrency }}</span>
-            }
-          </div>
-
-        </div>
-        @if (!last) { <div class="mov-divider"></div> }
-      }
-
-      @if (totalMovimientosHoy > 5) {
-        <p class="mov-hint">Para ver el historial completo, entra a cada cuenta.</p>
-      }
-    </div>
-  }
+  <!-- Sección "Últimos 5 movimientos" eliminada (2026-07-03): el historial
+       completo vive en el detalle de cada cuenta (operaciones-caja). Los deltas
+       del hero ahora vienen agregados del día completo desde fn_home_dashboard v2. -->
 
   <div class="bottom-spacer"></div>
 

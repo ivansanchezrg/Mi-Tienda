@@ -1,21 +1,16 @@
 -- ==========================================
--- fn_home_dashboard (v1.1 — 2026-07-01)
+-- fn_home_dashboard (v2.0 — 2026-07-03)
 -- ==========================================
--- v1.1 — Agrega oc.saldo_actual a los "últimos 5 movimientos" para que el
---   home muestre el saldo resultante bajo cada monto, igual que ya hace el
---   detalle de operaciones por caja (operaciones-caja.page). Antes solo se
---   veía el monto con signo, sin el saldo — inconsistente con el detalle.
+-- v2.0 — Se eliminó la sección "últimos 5 movimientos" del home (el historial
+--   vive en el detalle de cada cuenta). La RPC ya no devuelve la lista ni el
+--   count: en su lugar devuelve `resumen_dia` con los agregados ingresos/egresos
+--   del DÍA COMPLETO para los deltas del hero. Doble ganancia:
+--     1. Menos trabajo por request: desaparecen los 4 JOINs por fila de la lista.
+--     2. Corrección: antes el hero sumaba solo los últimos 5 movimientos como si
+--        fueran "los del día" — ahora el agregado es del día entero.
 --
 -- Consolida en una sola RPC los datos del home/dashboard inicial.
--- Reemplaza las queries que home.cargarDatos() ejecutaba en Promise.all():
---
---   ANTES (Promise.all paralelo, limitado por la más lenta):
---     1-3. obtenerEstadoCaja()       → 3 queries a turnos_caja
---     4-5. getSaldoVirtualActual()   → 2 queries (snapshot + post-snapshot) por servicio × 2
---     ...
---     8-9. obtenerUltimosMovimientos + contarMovimientosHoy → 2 queries a operaciones_cajas
---
---   AHORA (1 sola RPC con todo): ~250-500ms en lugar de ~400-800ms
+-- Reemplaza las queries que home.cargarDatos() ejecutaba en Promise.all().
 --
 -- Multi-tenant: filtra por public.get_negocio_id() del JWT. No bloquea superadmin
 -- (es lectura — el superadmin necesita poder ver el dashboard de cualquier negocio
@@ -52,9 +47,9 @@ DECLARE
     v_saldo_celular      NUMERIC(12,2);
     v_saldo_bus          NUMERIC(12,2);
 
-    -- Movimientos
-    v_movimientos_hoy    JSON;
-    v_total_movimientos  BIGINT;
+    -- Resumen del día (deltas del hero) — agregados del día completo
+    v_ingresos_hoy       NUMERIC(12,2);
+    v_egresos_hoy        NUMERIC(12,2);
 
     -- IDs auxiliares
     v_tipo_celular_id    INTEGER;
@@ -72,7 +67,7 @@ BEGIN
                 'fecha_ultimo_cierre', NULL
             ),
             'saldos_virtuales', json_build_object('celular', 0, 'bus', 0),
-            'movimientos', json_build_object('lista', '[]'::JSON, 'total', 0),
+            'resumen_dia', json_build_object('ingresos', 0, 'egresos', 0),
             'saldos_cajas', '[]'::JSON,
             'modulos', json_build_object(
                 'varios_activa', FALSE,
@@ -179,52 +174,29 @@ BEGIN
     v_saldo_bus := COALESCE(v_bus_snapshot.saldo_virtual_actual, 0) + v_bus_post_sum;
 
     -- ════════════════════════════════════════════════════════════════
-    -- 3. MOVIMIENTOS DEL DÍA — últimos 5 + count total
-    --    Excluye solo APERTURA (fondo inicial, no aporta info al usuario).
-    --    CIERRE sí se muestra — es un evento relevante del día.
+    -- 3. RESUMEN DEL DÍA — ingresos y egresos agregados del día completo.
+    --    Alimenta los deltas del hero ("HOY +$X / -$Y"). Mismos tipos que
+    --    sumaba el cliente (INGRESO+TRANSFERENCIA_ENTRANTE / EGRESO+
+    --    TRANSFERENCIA_SALIENTE), pero sobre TODO el día — antes se sumaban
+    --    solo los últimos 5 movimientos, lo que subestimaba los totales.
     -- ════════════════════════════════════════════════════════════════
-    v_movimientos_hoy := COALESCE((
-        SELECT json_agg(row_to_json(m) ORDER BY m.fecha DESC)
-        FROM (
-            SELECT
-                oc.id,
-                oc.fecha,
-                oc.tipo_operacion::TEXT  AS tipo_operacion,
-                oc.monto,
-                oc.saldo_actual,
-                oc.descripcion,
-                oc.comprobante_url,
-                json_build_object('id', c.id, 'nombre', c.nombre, 'codigo', c.codigo) AS caja,
-                CASE WHEN u.id IS NULL THEN NULL
-                     ELSE json_build_object('id', u.id, 'nombre', u.nombre)
-                END AS empleado,
-                CASE
-                    WHEN cat.id   IS NOT NULL THEN json_build_object('id', cat.id,   'nombre', cat.nombre,   'codigo', cat.codigo,   'tipo', cat.tipo)
-                    WHEN cat_s.id IS NOT NULL THEN json_build_object('id', cat_s.id, 'nombre', cat_s.nombre, 'codigo', cat_s.codigo, 'tipo', cat_s.tipo)
-                    ELSE NULL
-                END AS categoria
-            FROM operaciones_cajas oc
-            INNER JOIN cajas c        ON c.id  = oc.caja_id
-            LEFT  JOIN usuarios u     ON u.id  = oc.empleado_id
-            LEFT  JOIN categorias_operaciones cat    ON cat.id = oc.categoria_id
-            LEFT  JOIN categorias_sistema     cat_s  ON cat_s.id = oc.categoria_sistema_id
-            WHERE oc.negocio_id = v_negocio_id
-              AND oc.tipo_operacion != 'APERTURA'
-              AND oc.fecha >= v_inicio_dia
-              AND oc.fecha <  v_fin_dia
-            ORDER BY oc.fecha DESC
-            LIMIT 5
-        ) m
-    ), '[]'::JSON);
-
-    v_total_movimientos := (
-        SELECT COUNT(*)
+    v_ingresos_hoy := COALESCE((
+        SELECT SUM(monto)
         FROM operaciones_cajas
         WHERE negocio_id = v_negocio_id
-          AND tipo_operacion != 'APERTURA'
+          AND tipo_operacion IN ('INGRESO', 'TRANSFERENCIA_ENTRANTE')
           AND fecha >= v_inicio_dia
           AND fecha <  v_fin_dia
-    );
+    ), 0);
+
+    v_egresos_hoy := COALESCE((
+        SELECT SUM(monto)
+        FROM operaciones_cajas
+        WHERE negocio_id = v_negocio_id
+          AND tipo_operacion IN ('EGRESO', 'TRANSFERENCIA_SALIENTE')
+          AND fecha >= v_inicio_dia
+          AND fecha <  v_fin_dia
+    ), 0);
 
     -- ════════════════════════════════════════════════════════════════
     -- 4. SALDOS DE CAJAS — lista completa de cajas activas del negocio
@@ -257,9 +229,9 @@ BEGIN
             'celular', v_saldo_celular,
             'bus',     v_saldo_bus
         ),
-        'movimientos', json_build_object(
-            'lista', v_movimientos_hoy,
-            'total', v_total_movimientos
+        'resumen_dia', json_build_object(
+            'ingresos', v_ingresos_hoy,
+            'egresos',  v_egresos_hoy
         ),
         'saldos_cajas', COALESCE((
             SELECT json_agg(row_to_json(c) ORDER BY c.id)
@@ -297,12 +269,13 @@ GRANT  EXECUTE ON FUNCTION public.fn_home_dashboard() TO authenticated;
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_home_dashboard IS
-'v1.4 — Agrega modulos: flags de visibilidad con fuente de verdad correcta por caja.
+'v2.0 — Elimina la lista de "ultimos 5 movimientos" (la seccion del home se borro;
+el historial vive en el detalle de cada cuenta). Devuelve resumen_dia con los
+agregados ingresos/egresos del dia completo para los deltas del hero.
+v1.4 — Agrega modulos: flags de visibilidad con fuente de verdad correcta por caja.
 VARIOS: cajas.activo = TRUE (reversible via fn_configurar_caja_varios desde 2026-06-11).
 CELULAR/BUS: flag en configuraciones (pueden existir en BD pero estar desactivadas).
 v1.3 — Agrega saldos_cajas: lista completa de cajas activas. cargarDatos() del
 Home es la unica fuente de verdad sin depender del timing del Realtime.
-v1.2 — Movimientos: JOIN a categorias_sistema para mostrar nombre correcto.
-v1.1 — Movimientos: excluye solo APERTURA (CIERRE ahora visible).
 v1.0 — Consolida en 1 RPC los datos iniciales del home.
 Multi-tenant: filtra por get_negocio_id(). Sin fn_assert_no_superadmin.';

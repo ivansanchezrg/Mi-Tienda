@@ -44,6 +44,9 @@ export const ROUTES = {
 
   pos: '/pos',
 
+  /** Dashboard "Resumen General" multi-negocio (plan MAX). Page dedicada fuera del layout. */
+  resumenGeneral: '/resumen-general',
+
   /** Pantalla de suscripción: bloqueo "Suscríbete" (vencida) + vista informativa "Mi Plan". */
   suscripcion: {
     root:      '/suscripcion',

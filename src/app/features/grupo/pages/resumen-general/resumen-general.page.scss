@@ -1,0 +1,619 @@
+// ── Subheader: selector de período pegado al toolbar ─────────────────────────
+// Mismo fondo que el ion-toolbar de arriba (sin corte de color) — el
+// PeriodFilterComponent trae su propio fondo interno, se neutraliza aquí.
+.rg-subheader {
+  padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-md);
+  border-bottom: 1px solid var(--app-divider);
+
+  ::ng-deep .filter-bar {
+    background: transparent;
+    border-bottom: none;
+    padding: 0;
+  }
+}
+
+.rg-content {
+  --background: var(--app-bg);
+  // Page fuera del layout (sin tab bar): el contenido debe compensar la barra
+  // de navegación de Android — mismo patrón que suscripcion.page.
+  --padding-bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
+}
+
+.rg-body {
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  max-width: 1100px;
+  margin: 0 auto;
+
+  // Cambio de período con datos previos en pantalla: atenúa en vez de mostrar
+  // skeleton — evita el parpadeo de perder todo el dashboard al recargar.
+  &--refetching {
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity var(--transition-fast);
+  }
+}
+
+// ── Estados (error / empty) ──────────────────────────────────────────────────
+.rg-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px var(--spacing-xl);
+  min-height: 60vh;
+
+  // Variante para cuando el empty state convive con otras secciones
+  // (ej. sin ventas pero con alertas/deuda debajo) — no acapara la pantalla.
+  &--compact {
+    min-height: auto;
+    padding: var(--spacing-xl);
+  }
+}
+
+.rg-state__icon {
+  font-size: 56px;
+  color: var(--app-text-muted);
+  opacity: 0.6;
+  margin-bottom: var(--spacing-lg);
+}
+
+.rg-state__title {
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--app-text);
+  margin: 0 0 4px;
+}
+
+.rg-state__hint {
+  font-size: 14px;
+  color: var(--app-text-muted);
+  margin: 0 0 var(--spacing-xl);
+}
+
+.rg-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 10px var(--spacing-xl);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--ion-color-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+
+  ion-icon { font-size: 18px; }
+  &:active { opacity: 0.85; }
+}
+
+// ═══ HERO — banner ejecutivo de KPIs ═════════════════════════════════════════
+.rg-hero {
+  background: var(--app-hero-bg);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-level-2);
+  color: var(--app-hero-accent);
+
+  &--skeleton { min-height: 130px; }
+}
+
+.rg-hero__lead {
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  margin-bottom: var(--spacing-lg);
+}
+
+.rg-hero__label {
+  font-size: 13px;
+  font-weight: var(--font-weight-medium);
+  opacity: 0.85;
+}
+
+.rg-hero__value {
+  font-size: 34px;
+  font-weight: var(--font-weight-extrabold);
+  line-height: 1.1;
+  margin-top: 4px;
+  letter-spacing: -0.5px;
+}
+
+.rg-hero__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--spacing-sm);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.18);
+
+  ion-icon { font-size: 14px; }
+}
+
+.rg-hero__delta-ctx {
+  opacity: 0.85;
+  font-weight: var(--font-weight-regular);
+  margin-left: 2px;
+}
+
+// Métricas secundarias del hero — fila de mini stat-tiles centrados, separadas
+// por líneas verticales sutiles (nunca un borde grueso: es la franja de datos
+// secundarios, "Ventas totales" arriba sigue siendo el único protagonista).
+.rg-hero__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg) 0;
+
+  @media (min-width: 600px) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.rg-herometric {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 var(--spacing-sm);
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+
+  // Primera columna de cada fila (izquierda, y en la fila de abajo en mobile)
+  // no lleva separador — nada a su izquierda con qué separarse.
+  &:nth-child(2n+1) { border-left: none; }
+
+  @media (min-width: 600px) {
+    &:nth-child(2n+1) { border-left: 1px solid rgba(255, 255, 255, 0.14); }
+    &:first-child { border-left: none; }
+  }
+}
+
+.rg-herometric__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  opacity: 0.85;
+  margin-bottom: 4px;
+
+  ion-icon { font-size: 13px; }
+  span {
+    font-size: 11px;
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.rg-herometric__value {
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.1;
+}
+
+.rg-herometric__sub {
+  font-size: 10px;
+  opacity: 0.8;
+  margin-top: 3px;
+}
+
+.rg-herometric__delta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+
+  // Color de estado en el icono, texto en el accent neutro del hero — el rojo/
+  // verde claro sobre el azul del banner no alcanza 3:1 de contraste WCAG en
+  // texto de este tamaño; el icono sí funciona bien como mark pequeño.
+  ion-icon { font-size: 12px; }
+  &[data-dir='up']   ion-icon { color: #d1fae5; }
+  &[data-dir='down'] ion-icon { color: #fecaca; }
+  &[data-dir='flat'] { opacity: 0.8; }
+}
+
+// ═══ Secciones con título (jerarquía) ════════════════════════════════════════
+.rg-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.rg-section__title {
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--app-text-muted);
+  margin: 0;
+  padding-left: 2px;
+}
+
+// ── Cards genéricas ──────────────────────────────────────────────────────────
+.rg-card {
+  background: var(--app-surface);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-level-1);
+  border: 1px solid var(--app-divider);
+
+  &--skeleton { min-height: 220px; }
+}
+
+.rg-card__title {
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text);
+  margin-bottom: var(--spacing-md);
+}
+
+// Gráficos lado a lado en desktop
+.rg-charts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-md);
+
+  @media (min-width: 768px) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+// ── Leyenda ──────────────────────────────────────────────────────────────────
+.rg-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+
+  &--inline {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm) var(--spacing-lg);
+
+    .rg-legend__name { flex: 0 1 auto; }
+  }
+}
+
+.rg-legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 13px;
+}
+
+.rg-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+}
+
+.rg-legend__name {
+  flex: 1;
+  color: var(--app-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rg-legend__pct {
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text);
+}
+
+// ── Alertas ──────────────────────────────────────────────────────────────────
+.rg-alertas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.rg-alerta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px var(--spacing-md);
+  border-radius: var(--radius-sm);
+  background: var(--app-surface);
+  box-shadow: var(--shadow-level-1);
+  border-left: 3px solid var(--ion-color-medium);
+
+  &[data-color='danger']  { border-left-color: var(--ion-color-danger); }
+  &[data-color='warning'] { border-left-color: var(--ion-color-warning); }
+  &[data-color='medium']  { border-left-color: var(--ion-color-medium); }
+}
+
+.rg-alerta__icon {
+  display: flex;
+  flex-shrink: 0;
+
+  ion-icon { font-size: 20px; }
+
+  .rg-alerta[data-color='danger']  & ion-icon { color: var(--ion-color-danger); }
+  .rg-alerta[data-color='warning'] & ion-icon { color: var(--ion-color-warning-shade); }
+  .rg-alerta[data-color='medium']  & ion-icon { color: var(--ion-color-medium); }
+}
+
+.rg-alerta__text {
+  font-size: 13px;
+  color: var(--app-text-soft);
+  line-height: 1.35;
+
+  strong { color: var(--app-text); font-weight: var(--font-weight-semibold); }
+}
+
+// ── Tabla de rendimiento por negocio ─────────────────────────────────────────
+.rg-table {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rg-row {
+  border: 1px solid var(--app-divider);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-md);
+
+  &--top {
+    border-color: rgba(var(--ion-color-primary-rgb), 0.35);
+    background: rgba(var(--ion-color-primary-rgb), 0.05);
+  }
+
+  &--total {
+    border: none;
+    background: var(--app-surface-tint);
+    margin-top: 2px;
+
+    .rg-row__name { font-weight: var(--font-weight-bold); }
+  }
+}
+
+.rg-row__head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.rg-row__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+}
+
+.rg-row__name {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--app-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rg-row__badge {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  color: var(--ion-color-primary);
+  background: rgba(var(--ion-color-primary-rgb), 0.12);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+}
+
+.rg-row__monto {
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: var(--font-weight-bold);
+  color: var(--app-text);
+  flex-shrink: 0;
+}
+
+.rg-row__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px var(--spacing-md);
+}
+
+// El color de estado va en el icono (mark), nunca en el texto: a 12px el verde/
+// ámbar de Ionic no alcanza 4.5:1 de contraste WCAG y se vuelve difícil de leer.
+// El texto usa el token neutro semibold; la identidad la lleva el icono al lado.
+.rg-metric {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--app-text-soft);
+
+  ion-icon { font-size: 14px; opacity: 0.8; }
+
+  &--profit {
+    color: var(--app-text);
+    font-weight: var(--font-weight-semibold);
+    ion-icon { color: var(--ion-color-success); opacity: 1; }
+  }
+  &--debt {
+    color: var(--app-text);
+    font-weight: var(--font-weight-semibold);
+    ion-icon { color: var(--ion-color-warning-shade); opacity: 1; }
+  }
+}
+
+.rg-row__delta {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: var(--spacing-sm);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  // Color de estado en el icono (mark), texto neutro — a 12px el success/danger
+  // de Ionic no alcanza 4.5:1 de contraste WCAG.
+  color: var(--app-text-soft);
+
+  ion-icon { font-size: 13px; }
+
+  &[data-dir='up']   ion-icon { color: var(--ion-color-success); }
+  &[data-dir='down'] ion-icon { color: var(--ion-color-danger); }
+  &[data-dir='flat'] ion-icon { color: var(--ion-color-medium); }
+}
+
+.rg-row__delta-ctx {
+  color: var(--app-text-muted);
+  font-weight: var(--font-weight-regular);
+  margin-left: 2px;
+}
+
+// ── Deuda por cobrar del grupo ───────────────────────────────────────────────
+.rg-deuda {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  background: rgba(var(--ion-color-warning-rgb), 0.12);
+  border: 1px solid rgba(var(--ion-color-warning-rgb), 0.3);
+}
+
+.rg-deuda__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background: rgba(var(--ion-color-warning-rgb), 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  ion-icon {
+    font-size: 22px;
+    color: var(--ion-color-warning-shade);
+  }
+}
+
+.rg-deuda__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.rg-deuda__label {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--app-text);
+}
+
+.rg-deuda__hint {
+  font-size: 12px;
+  color: var(--app-text-muted);
+  margin-top: 1px;
+}
+
+.rg-deuda__value {
+  font-size: 20px;
+  font-weight: var(--font-weight-bold);
+  // Neutro, no warning-shade: a 20px bold sigue bajo el 3:1 de WCAG para texto
+  // grande. El icono de la izquierda ya lleva el color de estado (mark).
+  color: var(--app-text);
+  flex-shrink: 0;
+}
+
+// ── Top productos ────────────────────────────────────────────────────────────
+.rg-toptabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: var(--spacing-md);
+}
+
+.rg-toptab {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--app-divider);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--app-text-muted);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+
+  &--active {
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    border-color: rgba(var(--ion-color-primary-rgb), 0.3);
+    color: var(--ion-color-primary);
+  }
+}
+
+.rg-toplist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.rg-topitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--spacing-sm) 4px;
+  border-bottom: 1px solid var(--app-surface-tint);
+
+  &:last-child { border-bottom: none; }
+}
+
+.rg-topitem__rank {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--app-surface-tint);
+  color: var(--app-text-soft);
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rg-topitem__name {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--app-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.rg-topitem__meta {
+  font-size: 11px;
+  color: var(--app-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rg-topitem__value {
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  // Siempre neutro: el tab activo ("Por ingreso"/"Por ganancia") ya da el
+  // contexto, y a este tamaño success-shade no alcanza contraste WCAG como texto.
+  color: var(--app-text);
+  flex-shrink: 0;
+}
+
+.rg-topempty {
+  padding: var(--spacing-lg) 4px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--app-text-muted);
+}

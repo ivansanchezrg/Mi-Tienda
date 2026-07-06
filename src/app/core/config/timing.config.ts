@@ -18,4 +18,12 @@ export const TIMING = {
 
   /** Throttle entre intentos de refreshSessionOnResume (ms). */
   resumeRefreshThrottleMs: 30_000,
+
+  /**
+   * Tiempo mínimo en background (ms) para que el home se refresque solo al
+   * reanudar la app con proceso vivo. Por debajo de este umbral no se refetchea:
+   * los switches rápidos entre apps no ameritan re-query (el Realtime ya cubre
+   * los cambios de saldos entre medio).
+   */
+  resumeHomeRefreshMinMs: 60_000,
 } as const;
