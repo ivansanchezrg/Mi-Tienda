@@ -24,6 +24,12 @@
       [debounce]="0">
     </ion-searchbar>
   </ion-toolbar>
+
+  @if (sinRed && horaCache) {
+  <ion-toolbar class="freshness-toolbar">
+    <p class="freshness-note">Datos sin conexión · Actualizado {{ horaCache }}</p>
+  </ion-toolbar>
+  }
 </ion-header>
 
 <ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
@@ -77,7 +83,7 @@
       <ion-item button class="client-item" (click)="verCliente(cliente)">
 
         <!-- Avatar con iniciales -->
-        <div slot="start" class="client-avatar" [class.tiene-deuda]="cliente.total_deuda > 0">
+        <div slot="start" class="client-avatar" [class.tiene-deuda]="(cliente.total_deuda ?? 0) > 0">
           <span class="avatar-text">{{ iniciales(cliente.cliente_nombre) }}</span>
         </div>
 
@@ -98,7 +104,7 @@
             </span>
             }
           </p>
-          @if (cliente.total_deuda > 0 && cliente.ultima_venta_fecha) {
+          @if ((cliente.total_deuda ?? 0) > 0 && cliente.ultima_venta_fecha) {
           <p class="deuda-meta">
             {{ cliente.cantidad_ventas_fiadas }} {{ cliente.cantidad_ventas_fiadas === 1 ? 'venta' : 'ventas' }}
             · Última: {{ formatFecha(cliente.ultima_venta_fecha) }}
@@ -106,9 +112,11 @@
           }
         </ion-label>
 
-        <!-- Monto deuda o sin deuda -->
+        <!-- Monto deuda, sin deuda, o requiere conexión (total_deuda null = offline, §4.3) -->
         <div slot="end" class="client-end">
-          @if (cliente.total_deuda > 0) {
+          @if (cliente.total_deuda === null) {
+          <span class="deuda-badge deuda-badge--offline">Sin conexión</span>
+          } @else if (cliente.total_deuda > 0) {
           <span class="deuda-badge">${{ currencyService.format(cliente.total_deuda) }}</span>
           }
           <ion-icon name="chevron-forward-outline" class="chevron-icon"></ion-icon>

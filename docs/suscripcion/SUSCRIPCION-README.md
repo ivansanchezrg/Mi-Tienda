@@ -136,7 +136,7 @@ Punto único de acceso al estado de suscripción. **No usar RPC directo desde co
 ```typescript
 private suscripcion = inject(SuscripcionService);
 
-// Estado del negocio activo (cacheado con TTL 5 min, fail-open ante error de red)
+// Estado del negocio activo (cache RAM + snapshot en Preferences, fail-open ante error de red)
 const estado = await this.suscripcion.getEstado();
 
 // Verificar si está bloqueado (el campo bloqueada resume vencida/suspendida/cancelada)
@@ -152,9 +152,13 @@ const config = await this.suscripcion.getConfigPlataforma();
 const pagos = await this.suscripcion.listarPagos(page, pageSize); // → SuscripcionPago[]
 ```
 
-**Estrategia de cache:** RAM + TTL 5 min. El guard se ejecuta en cada navegación; sin cache serían decenas de queries por sesión. Patrón idéntico a `ConfigService`. Se invalida al cambiar de negocio o tras registrar un pago.
+**Estrategia de cache (stale-while-revalidate, 2026-07-06):** RAM + snapshot persistido en Preferences, patrón idéntico a `ConfigService`. El guard se ejecuta en cada navegación; sin cache serían decenas de queries por sesión.
+- **RAM hit** (mismo negocio, TTL 5 min vivo) → ~0ms.
+- **Preferences hit** (snapshot del mismo negocio, sin importar TTL) → ~5-10ms: se sirve **al instante** y se dispara una revalidación en background. Es lo que evita que `suscripcionGuard` bloquee la primera navegación de cada cold start con un roundtrip de red — corre en el camino más caliente del arranque (tras `authGuard`, antes de `NavigationEnd`). Ver `docs/guides/PERFORMANCE-STARTUP.md` §15.
+- **Sin snapshot** (primer arranque tras login/instalación) → espera la RPC, pero con **tope fail-open de 4s** (`GUARD_TIMEOUT_MS`) para no colgar la navegación contra "red mala" (WiFi asociado pero sin respuesta — ver §21). La carga real sigue en background y puebla el cache para el próximo arranque.
+- Se invalida (RAM + Preferences) al cambiar de negocio o tras registrar un pago/reactivar; se limpia en logout.
 
-**Fail-open:** ante error de red o BD, `getEstado()` devuelve `{ bloqueada: false }` y el guard deja entrar. El usuario no queda encerrado por un problema de conectividad.
+**Fail-open:** ante error de red o BD (o timeout), `getEstado()` devuelve `{ bloqueada: false }` y el guard deja entrar. El usuario no queda encerrado por un problema de conectividad. El Realtime de `suscripciones` y la revalidación en background corrigen en segundos si hubo una suspensión real mientras se servía el snapshot stale.
 
 ### Realtime — detección instantánea de suspensión (2026-06-16)
 

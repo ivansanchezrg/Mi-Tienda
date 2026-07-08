@@ -8,6 +8,7 @@ import { AuthService } from '../../features/auth/services/auth.service';
 import { UiService } from './ui.service';
 import { LoggerService } from './logger.service';
 import { NetworkService } from './network.service';
+import { ImagenLocalService } from './imagen-local.service';
 import { getFechaLocal } from '../utils/date.util';
 import { OptionsModalComponent, ModalOptionGroup } from '../../shared/components/options-modal/options-modal.component';
 import { ImageCropperModalComponent, ImageCropperResult, AspectRatioPreset } from '../../shared/components/image-cropper-modal/image-cropper-modal.component';
@@ -28,6 +29,7 @@ export class StorageService {
   private sanitizer   = inject(DomSanitizer);
   private modalCtrl   = inject(ModalController);
   private network     = inject(NetworkService);
+  private imagenLocal = inject(ImagenLocalService);
 
   // Cache de URLs firmadas por path crudo de Storage.
   // El path es estable entre categorías/búsquedas → una imagen se firma UNA vez (online)
@@ -248,6 +250,17 @@ export class StorageService {
 
   async getSignedUrl(path: string, expiresIn: number = 3600): Promise<string | null> {
     try {
+      // Si la app se reanuda tras estar en background/reposo (el proceso murió y el
+      // access token expiró), refreshSessionOnResume() corre en paralelo con el
+      // arranque. createSignedUrl() no pasa por SupabaseService.call() —a diferencia
+      // de toda otra query del proyecto— así que sin esto sale con el JWT viejo,
+      // Supabase responde error de auth y esta imagen queda en null hasta el próximo
+      // refresco manual del catálogo (bug reportado: fotos del POS en blanco tras
+      // reabrir la app en reposo). Mismo wait que ya hace call() en supabase.service.ts.
+      if (this.supabase.resumeRefreshInFlight) {
+        await this.supabase.resumeRefreshInFlight;
+      }
+
       const { data, error } = await this.supabase.client.storage
         .from(BUCKET)
         .createSignedUrl(path, expiresIn);
@@ -277,19 +290,28 @@ export class StorageService {
     }
   }
 
-  // Resuelve el path de Storage a una URL firmada válida.
+  // Resuelve el path de Storage a una URL mostrable por <img>.
   // Si ya es una URL completa (http/https) la retorna tal cual — evita doble resolución.
-  // Cachea la URL firmada por path: una imagen firmada online se reutiliza al filtrar,
-  // buscar o perder la red — la foto se mantiene visible sin re-firmar.
-  // Sin red: si hay una URL cacheada se sirve (mejor que un placeholder); si no, null
-  // (firmar offline solo se cuelga hasta timeout y resuelve null igual).
+  //
+  // Estrategia de resolución (en orden):
+  //   1. Binario local en disco (ImagenLocalService): la fuente más robusta offline —
+  //      sobrevive cold start y días sin red. Se prioriza siempre que exista.
+  //   2. signed URL cacheada en RAM: rápida, pero muere con el proceso y expira a 60 min.
+  //   3. Online: firmar contra Supabase + disparar la descarga del binario en background
+  //      para que la PRÓXIMA vez (aunque sea offline tras un cold start) la foto esté local.
+  //   4. Offline sin binario ni cache RAM: null (placeholder) — no hay forma de mostrarla.
   async resolveImageUrl(path: string | null | undefined): Promise<string | null> {
     if (!path) return null;
     if (path.startsWith('http')) return path;
 
-    const cached = this.signedUrlCache.get(path);
     const offline = !this.network.isConnected();
 
+    // 1. Binario persistido en disco — sobrevive cold start + días sin red.
+    const local = await this.imagenLocal.obtenerLocal(path);
+    if (local) return local;
+
+    // 2. signed URL cacheada en RAM (misma sesión de proceso).
+    const cached = this.signedUrlCache.get(path);
     if (cached) {
       const fresca = Date.now() - cached.firmadaEn < StorageService.SIGNED_URL_REUSE_MS;
       // Online: reusar solo si está fresca. Offline: reusar siempre (no hay forma de re-firmar).
@@ -298,8 +320,12 @@ export class StorageService {
 
     if (offline) return null;
 
+    // 3. Online: firmar para este render + descargar el binario en background para el offline futuro.
     const url = await this.getSignedUrl(path);
-    if (url) this.signedUrlCache.set(path, { url, firmadaEn: Date.now() });
+    if (url) {
+      this.signedUrlCache.set(path, { url, firmadaEn: Date.now() });
+      void this.imagenLocal.descargar(path); // best-effort, no bloquea el render
+    }
     return url;
   }
 

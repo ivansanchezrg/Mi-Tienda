@@ -2,14 +2,12 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { Network } from '@capacitor/network';
 import { AuthService } from '../../features/auth/services/auth.service';
-import { UiService } from '../services/ui.service';
 import { LoggerService } from '../services/logger.service';
 import { SupabaseService } from '../services/supabase.service';
 
 export const authGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
-  const ui = inject(UiService);
   const logger = inject(LoggerService);
   const supabase = inject(SupabaseService);
   const t0 = Date.now();
@@ -27,7 +25,11 @@ export const authGuard: CanActivateFn = async (_route, state) => {
       // reiniciar la app, rompiendo el botón Abrir/Cerrar del home al volver la red.
       if (usuario) auth.hidratarUsuarioOffline(usuario);
       logger.info('authGuard', 'Acceso offline con sesión local');
-      ui.showToast('Sin conexión a internet', 'warning');
+      // Sin toast: el banner global (app-offline-banner) ya muestra la franja
+      // "Sin conexión" de forma persistente. Un toast aquí, además de redundante,
+      // aparece justo en el arranque y da la sensación de "verificando internet"
+      // — lo contrario del enfoque local-first (la app abre desde local, la red
+      // no es un paso de arranque). Mismo criterio que feedback_toast_offline_silenciado.
       return true;
     }
     logger.warn('authGuard', 'Sin internet y sin sesión local → login');

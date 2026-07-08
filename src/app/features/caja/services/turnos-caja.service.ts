@@ -8,11 +8,12 @@ import { LoggerService } from '@core/services/logger.service';
 import { ConfigService } from '@core/services/config.service';
 import { TurnoLocalService } from '@core/services/turno-local.service';
 import { NetworkService } from '@core/services/network.service';
+import { SyncService } from '@core/services/sync.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../models/turno-caja.model';
 import { Caja } from './cajas.service';
 import { DatosCierreDiario } from '../models/saldos-anteriores.model';
-import { getFechaLocal, getInicioDiaSiguienteISO, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
+import { getFechaLocal, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
 
 /**
  * Snapshot consolidado del dashboard del home (devuelto por la RPC fn_home_dashboard).
@@ -64,6 +65,7 @@ export class TurnosCajaService {
   private zone = inject(NgZone);
   private turnoLocal = inject(TurnoLocalService);
   private network = inject(NetworkService);
+  private syncService = inject(SyncService);
 
   // ==========================================
   // ESTADO REACTIVO — turno activo + caja abierta
@@ -158,9 +160,41 @@ export class TurnosCajaService {
    */
   async inicializarEstadoReactivo(): Promise<void> {
     try {
-      const turno = await this.obtenerTurnoActivo();
-      this._turnoActivo$.next(turno);
-      await this.sincronizarSnapshotLocal(turno);
+      // 1. LOCAL-FIRST (2026-07-08): hidratar del snapshot local ANTES de tocar la red.
+      //    Cubre el caso "red presente pero mala" (lejos del router, WiFi intermitente):
+      //    isConnected() reporta true pero la query puede tardar 5-30s. Sin esto,
+      //    esMiTurno quedaba false todo ese tiempo → botón del turno roto y POS
+      //    bloqueado aunque el turno del usuario siga abierto. Con el turno local
+      //    emitido, el usuario puede vender de inmediato; la BD reconcilia después.
+      if (!this._turnoActivo$.value) {
+        const local = await this.reconstruirTurnoDesdeSnapshot();
+        if (local) {
+          this._turnoActivo$.next(local);
+          // El cajaAbiertaGuard ya puede dejar entrar al POS sin esperar la BD.
+          this._inicializado$.next(true);
+        }
+      }
+
+      // 2. Reconciliar con el servidor. consultarTurnoActivoServidor() distingue
+      //    "respuesta real" de "fallo" — SOLO una respuesta 200 del servidor pisa el
+      //    estado local. Antes la distinción era isConnected(), que miente con red
+      //    mala: un fallo de transporte con isConnected()=true entraba a la rama
+      //    "online", pisaba turnoActivo$ con null y BORRABA el snapshot local del
+      //    turno — destruyendo el cobro offline justo cuando más se necesita.
+      const resultado = await this.consultarTurnoActivoServidor();
+
+      if (resultado.ok) {
+        this._turnoActivo$.next(resultado.turno);
+        await this.sincronizarSnapshotLocal(resultado.turno);
+      } else if (!this._turnoActivo$.value) {
+        // La query no obtuvo respuesta confiable (offline real, red rota, JWT en
+        // renovación fallida). Fallback: snapshot local si el paso 1 no lo cargó
+        // (p. ej. arranque offline donde el usuario del snapshot aún no coincidía).
+        const local = await this.reconstruirTurnoDesdeSnapshot();
+        this._turnoActivo$.next(local);
+      }
+      // resultado.ok === false CON turno local ya emitido → no tocar nada:
+      // el estado local vigente es la mejor información disponible.
     } catch (err) {
       // Sin red la query del turno falla; no es fatal. El estado se reconcilia
       // cuando vuelve la conexión (home llama de nuevo a inicializarEstadoReactivo).
@@ -172,6 +206,62 @@ export class TurnosCajaService {
       this.abrirRealtimeTurnos();
       this._inicializado$.next(true);
     }
+  }
+
+  /**
+   * Consulta el turno activo distinguiendo "respuesta real del servidor" (ok: true,
+   * turno puede ser null = no hay turno) de "fallo" (ok: false = transporte, JWT,
+   * RLS — cualquier cosa que NO sea una lectura confiable). Los callers usan esa
+   * distinción para decidir si es seguro pisar el estado local: `null` de un fallo
+   * NO significa "no hay turno".
+   *
+   * No usa supabase.call() a propósito: call() silencia el error de transporte y
+   * devuelve null, indistinguible de "no hay turno". Sí espera resumeRefreshInFlight
+   * (mismo contrato que call()) para no salir con un token vencido.
+   */
+  private async consultarTurnoActivoServidor(): Promise<{ ok: true; turno: TurnoCajaConEmpleado | null } | { ok: false }> {
+    try {
+      if (this.supabase.resumeRefreshInFlight) {
+        await this.supabase.resumeRefreshInFlight;
+      }
+      const { data, error } = await this.supabase.client
+        .from('turnos_caja')
+        .select('*, empleado:usuarios(id, nombre)')
+        .is('hora_fecha_cierre', null)
+        .maybeSingle();
+
+      if (error) {
+        this.logger.warn('TurnosCajaService', `Query del turno sin respuesta confiable: ${error.message}`);
+        return { ok: false };
+      }
+      return { ok: true, turno: data as TurnoCajaConEmpleado | null };
+    } catch (err: any) {
+      this.logger.warn('TurnosCajaService', `Query del turno falló por transporte: ${err?.message ?? err}`);
+      return { ok: false };
+    }
+  }
+
+  /**
+   * Reconstruye un TurnoCajaConEmpleado mínimo desde el snapshot local (offline).
+   * El nombre del empleado sale del usuario actual: el snapshot solo se puede haber
+   * escrito para el turno del propio usuario, así que es el mismo empleado. Devuelve
+   * null si no hay snapshot o si el empleado del snapshot no es el usuario actual
+   * (defensa: nunca habilitar el POS de otro empleado offline).
+   */
+  private async reconstruirTurnoDesdeSnapshot(): Promise<TurnoCajaConEmpleado | null> {
+    const snapshot = await this.turnoLocal.obtener();
+    const usuario = this.authService.usuarioActualValue;
+    if (!snapshot || !usuario || snapshot.empleadoId !== usuario.id) return null;
+
+    return {
+      id:                  snapshot.turnoId,
+      numero_turno:        snapshot.numeroTurno,
+      empleado_id:         snapshot.empleadoId,
+      hora_fecha_apertura: new Date(snapshot.abiertoAt).toISOString(),
+      hora_fecha_cierre:   null,
+      fondo_apertura:      0, // no se persiste en el snapshot; irrelevante para esMiTurno/POS
+      empleado:            { id: usuario.id, nombre: usuario.nombre },
+    };
   }
 
   /**
@@ -420,6 +510,12 @@ export class TurnosCajaService {
 
     await this.refrescarTurnoActivo();
     await this.ui.showSuccess('Caja abierta');
+
+    // Priming de respaldo (Fase P, PLAN-OFFLINE-CALLE §2.9): si el arranque de la app
+    // no llegó a precalentar el cache (o el snapshot ya venció), esta es la última red
+    // garantizada antes de que el vendedor salga a la calle. Best-effort, no bloquea.
+    void this.syncService.precalentarOffline();
+
     return { ok: true, errorHandled: false };
   }
 
@@ -525,10 +621,12 @@ export class TurnosCajaService {
       this.supabase.client.rpc('fn_home_dashboard')
     );
 
-    // Sin respuesta (offline o error de red): servir el último snapshot del día en vez
-    // de pintar el home en ceros. Si tampoco hay snapshot, sigue el flujo con defaults.
+    // Sin respuesta (offline o error de red): servir el último snapshot CRUDO (no
+    // degradado) en vez de pintar el home en ceros — si el usuario sigue offline con
+    // un turno de ayer abierto, necesita seguir viendo ese turno para operar POS/Cajón.
+    // Si tampoco hay snapshot, sigue el flujo con defaults.
     if (!data) {
-      const cacheado = await this.obtenerHomeDashboardCacheado();
+      const cacheado = await this.leerSnapshotCrudo();
       if (cacheado) return cacheado;
     }
 
@@ -596,9 +694,42 @@ export class TurnosCajaService {
   private static readonly HOME_DASHBOARD_CACHE_KEY = 'mi-tienda:home-dashboard-cache:v2';
 
   /**
-   * Último snapshot del dashboard persistido en Preferences, o null si no hay,
-   * es de otro día o de otro negocio. El home lo pinta al instante en el cold
-   * start mientras refresca contra el servidor en background.
+   * Último snapshot CRUDO del dashboard persistido en Preferences, tal cual se guardó
+   * (sin importar el día), o null si no hay o es de otro negocio. Uso exclusivo: fallback
+   * offline en `obtenerHomeDashboard()` cuando la RPC no responde por falta de red — ahí
+   * SÍ hace falta el turno tal cual estaba (si el usuario sigue offline con un turno de
+   * ayer abierto, necesita seguir viendo ese turno para operar POS/Cajón). No usar este
+   * método para el pintado optimista del home — ver `obtenerHomeDashboardCacheado()`.
+   */
+  private async leerSnapshotCrudo(): Promise<HomeDashboard | null> {
+    try {
+      const { value } = await Preferences.get({ key: TurnosCajaService.HOME_DASHBOARD_CACHE_KEY });
+      if (!value) return null;
+
+      const snapshot: HomeDashboardSnapshot = JSON.parse(value);
+
+      // Invalidación automática al cambiar de tenant
+      if (snapshot.negocio_id !== (this.authService.usuarioActualValue?.negocio_id ?? null)) return null;
+
+      return snapshot.data;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Snapshot del dashboard para el pintado optimista del home (stale-while-revalidate
+   * con conexión disponible). A diferencia de `leerSnapshotCrudo()`, un snapshot de
+   * OTRO día se DEGRADA en vez de descartarse: los saldos de cajas y flags de módulos
+   * no son diarios (son vaults que persisten), solo el turno y los deltas del día sí.
+   *
+   * Por qué esto importa: el arranque tras reposo largo más frecuente es la primera
+   * apertura de cada mañana — descartar el snapshot completo en ese caso (como se hacía
+   * antes) forzaba skeleton + espera de red exactamente en el escenario más común. Con
+   * la degradación, el home aparece lleno (saldos reales) todos los días, con el turno
+   * en estado neutro hasta que el fetch fresco (que corre en paralelo) lo reconcilie
+   * en ~1s — mismo criterio de "mejor un dato levemente stale que una pantalla vacía"
+   * ya aceptado para el resto del stale-while-revalidate de esta clase.
    */
   async obtenerHomeDashboardCacheado(): Promise<HomeDashboard | null> {
     try {
@@ -610,11 +741,25 @@ export class TurnosCajaService {
       // Invalidación automática al cambiar de tenant
       if (snapshot.negocio_id !== (this.authService.usuarioActualValue?.negocio_id ?? null)) return null;
 
-      // Solo vale el mismo día local — los turnos son diarios, un snapshot de ayer
-      // pintaría un estado de turno que ya no existe
-      if (snapshot.fecha !== getFechaLocal()) return null;
+      // Mismo día local → snapshot tal cual (el turno/deltas siguen vigentes)
+      if (snapshot.fecha === getFechaLocal()) return snapshot.data;
 
-      return snapshot.data;
+      // Otro día → degradar: saldos y módulos sí, turno/deltas se resetean a neutro.
+      // Sin esto el chip mostraría "TURNO_EN_CURSO" de un turno que probablemente ya
+      // se cerró, o "CERRADA" bloqueando un botón que hoy debería decir "Abrir caja".
+      return {
+        ...snapshot.data,
+        estadoCaja: {
+          estado: 'SIN_ABRIR',
+          turnoActivo: null,
+          empleadoNombre: '',
+          horaApertura: '',
+          turnosHoy: 0,
+          fechaUltimoCierre: snapshot.data.estadoCaja.fechaUltimoCierre,
+        },
+        ingresosHoy: 0,
+        egresosHoy: 0,
+      };
     } catch {
       return null;
     }

@@ -171,6 +171,35 @@ export class OutboxService {
         this._pendientes$.next(await this.cantidadPendientes());
     }
 
+    /**
+     * Reescribe el clienteId de todas las ventas en cola que apuntaban al UUID local
+     * de un cliente creado offline, tras el upsert server-side (Fase D — el servidor
+     * detectó que la identificación ya existía y reusó su propio id). Sin esto la venta
+     * viajaría con un cliente_id que el servidor nunca creó → rechazo por FK.
+     */
+    async remapearClienteId(idViejo: string, idNuevo: string): Promise<void> {
+        const negocioId = this.negocioId;
+        if (!negocioId) return;
+
+        try {
+            const db  = await this.localDb.getDb(negocioId);
+            const res = await db.query(`SELECT * FROM outbox_ventas WHERE negocio_id = ?`, [negocioId]);
+            const afectadas = res
+                .map(r => this.mapRow(r))
+                .filter(v => v.payload.clienteId === idViejo);
+
+            for (const venta of afectadas) {
+                const payload = { ...venta.payload, clienteId: idNuevo };
+                await db.run(
+                    `UPDATE outbox_ventas SET payload_json = ? WHERE idempotency_key = ?`,
+                    [JSON.stringify(payload), venta.idempotencyKey]
+                );
+            }
+        } catch (err) {
+            this.logger.error('OutboxService', 'Error al remapear clienteId', err);
+        }
+    }
+
     private mapRow(r: { [col: string]: any }): OutboxVenta {
         return {
             idempotencyKey: r['idempotency_key'],

@@ -26,7 +26,9 @@ import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page'
 import { EditarClienteModalComponent } from '../../components/editar-cliente-modal/editar-cliente-modal.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ROUTES } from '../../../../core/config/routes.config';
-import { formatFechaEC } from '../../../../core/utils/date.util';
+import { formatFechaEC, formatHoraDesdeTimestamp } from '../../../../core/utils/date.util';
+import { NetworkService } from '../../../../core/services/network.service';
+import { ClientesLocalService } from '../../../../core/services/clientes-local.service';
 
 @Component({
     selector: 'app-clientes-listado',
@@ -52,8 +54,19 @@ export class ClientesListadoPage extends PaginatedListPage<ClienteConSaldo> impl
     protected currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
     private navCtrl = inject(NavController);
+    private network = inject(NetworkService);
+    private clientesLocal = inject(ClientesLocalService);
 
     esSuperadmin = false;
+
+    // Sello de frescura (Fase C) — solo se muestra offline, sirviendo la réplica local.
+    get sinRed(): boolean { return !this.network.isConnected(); }
+    timestampCache: number | null = null;
+
+    /** Sello "Actualizado HH:mm" — solo offline (Fase C). */
+    get horaCache(): string | null {
+        return this.timestampCache ? formatHoraDesdeTimestamp(this.timestampCache) : null;
+    }
 
     get clientes(): ClienteConSaldo[] { return this.items; }
 
@@ -87,7 +100,9 @@ export class ClientesListadoPage extends PaginatedListPage<ClienteConSaldo> impl
     }
 
     protected async fetchPage(page: number): Promise<ClienteConSaldo[]> {
-        return this.cuentasService.listarClientesConSaldo(page, this.busqueda || undefined);
+        const data = await this.cuentasService.listarClientesConSaldo(page, this.busqueda || undefined);
+        this.timestampCache = this.sinRed ? await this.clientesLocal.obtenerTimestamp() : null;
+        return data;
     }
 
     onBusquedaChange(event: CustomEvent) {

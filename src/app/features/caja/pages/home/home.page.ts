@@ -380,7 +380,11 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     if (!silencioso) {
       const snapshot = await this.turnosCajaService.obtenerHomeDashboardCacheado();
       if (snapshot) {
-        this.aplicarDashboard(snapshot);
+        // desdeSnapshot = true: pintar SIN reconciliar turnoActivo$. El snapshot
+        // puede estar degradado (cross-day: turno forzado a null) o simplemente
+        // viejo — pisar el subject con él rompería un turno local válido justo
+        // cuando la red está mala y el fetch fresco tarda o no llega.
+        this.aplicarDashboard(snapshot, true);
         this.cargando = false;
         this.cdr.detectChanges();
       } else {
@@ -417,8 +421,14 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
    * el mapeo para evitar duplicar la lógica entre `cargarDatos()` y `refrescarDashboard()`.
    * Incluye saldos de cajas (v1.3) para que cargarDatos() sea la única fuente de verdad
    * del Home — sin depender del timing del Realtime en el dispositivo local.
+   *
+   * @param desdeSnapshot true cuando el dashboard viene del cache optimista de
+   *        Preferences (pintado instantáneo del cold start) — en ese caso NO se
+   *        reconcilia turnoActivo$: el snapshot puede estar degradado (cross-day)
+   *        o desactualizado, y pisar el subject destruiría un turno local válido.
+   *        Solo los datos reales del servidor reconcilian el turno.
    */
-  private aplicarDashboard(dashboard: HomeDashboard): void {
+  private aplicarDashboard(dashboard: HomeDashboard, desdeSnapshot = false): void {
     this.estadoCaja          = { ...dashboard.estadoCaja };
     this.saldoVirtualCelular = dashboard.saldoVirtualCelular;
     this.saldoVirtualBus     = dashboard.saldoVirtualBus;
@@ -435,10 +445,25 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     // (de turnoActivo$) discrepan y el botón de turno muestra el estado equivocado.
     // Reconciliamos en ambos sentidos: servidor con turno → empuja el turno;
     // servidor sin turno pero subject con turno fantasma → lo limpia.
-    const turnoServidor = dashboard.estadoCaja.turnoActivo ?? null;
-    const turnoLocal = this.turnosCajaService.turnoActivoValue;
-    if (turnoServidor?.id !== turnoLocal?.id) {
-      this.turnosCajaService.sincronizarTurnoDesdeHome(turnoServidor);
+    if (!desdeSnapshot) {
+      const turnoServidor = dashboard.estadoCaja.turnoActivo ?? null;
+      const turnoLocal = this.turnosCajaService.turnoActivoValue;
+      if (turnoServidor?.id !== turnoLocal?.id) {
+        this.turnosCajaService.sincronizarTurnoDesdeHome(turnoServidor);
+      }
+    } else {
+      // Pintado optimista: si el subject ya tiene un turno más confiable que el del
+      // snapshot (hidratado local-first por TurnosCajaService), preferirlo para que
+      // el chip/botón del turno no parpadee un estado viejo.
+      const turnoVigente = this.turnosCajaService.turnoActivoValue;
+      if (turnoVigente && turnoVigente.id !== dashboard.estadoCaja.turnoActivo?.id) {
+        this.estadoCaja.estado = 'TURNO_EN_CURSO';
+        this.estadoCaja.turnoActivo = turnoVigente;
+        this.estadoCaja.empleadoNombre = turnoVigente.empleado?.nombre ?? '';
+        this.estadoCaja.horaApertura = new Date(turnoVigente.hora_fecha_apertura).toLocaleTimeString('es-ES', {
+          hour: '2-digit', minute: '2-digit', hour12: true
+        });
+      }
     }
 
     // Flags de visibilidad — fuente de verdad correcta por módulo:

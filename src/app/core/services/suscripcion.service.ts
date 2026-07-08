@@ -1,6 +1,7 @@
 import { Injectable, NgZone, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
+import { Preferences } from '@capacitor/preferences';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseService } from './supabase.service';
 import { LoggerService } from './logger.service';
@@ -18,19 +19,35 @@ import {
   SuscripcionPago,
 } from '../../features/suscripcion/models/suscripcion.model';
 
+/** Snapshot persistido en Preferences — permite resolver el guard sin red en cold start. */
+interface CacheSnapshot {
+  negocio_id: string | null;
+  cached_at: number; // epoch ms
+  data: EstadoSuscripcionResult;
+}
+
 /**
  * Estado de la suscripción del negocio activo (monetización SaaS).
  * Ver docs/PLAN-PLANES-SUSCRIPCION.md
  *
- * Estrategia de cache: RAM + TTL corto (el guard lo consulta en cada navegación;
- * sin cache serían decenas de queries por sesión). Patrón derivado de ConfigService,
- * pero sin Preferences: el estado de cobro debe revalidarse seguido y no vale la pena
- * persistirlo entre cold starts (el guard fail-open cubre el arranque sin red).
+ * Estrategia de cache: RAM + Preferences (TTL corto) — igual patrón que ConfigService
+ * (stale-while-revalidate). El guard (suscripcionGuard) sirve del snapshot persistido
+ * SIN esperar red y dispara una revalidación en background; solo va a BD en el primer
+ * arranque tras logout/instalación (sin snapshot todavía).
+ *
+ * Por qué ahora SÍ vale persistir (a diferencia del criterio original que solo usaba
+ * RAM): sin Preferences, `suscripcionGuard` bloqueaba la PRIMERA navegación de cada
+ * cold start con un roundtrip de red — justo el guard que corre en el camino más
+ * caliente del arranque (después de authGuard, antes de NavigationEnd). El fail-open
+ * ante error ya estaba aceptado; servir stale unos segundos hasta que la revalidación
+ * en background llegue (o el Realtime de `suscripciones` corrija al instante si hay
+ * una suspensión real) es el mismo nivel de riesgo con muchísimo menor costo percibido.
  *
  * Invalidación:
  *  - cambio de negocio (negocio_id distinto al cacheado) → automática
  *  - registrar pago / reactivar (evento explícito) → invalidar()
- *  - TTL expirado (5 min) → re-consulta a BD
+ *  - logout → Preferences se limpia (registerBeforeCleanup)
+ *  - TTL expirado (5 min) → re-consulta a BD en background, pero el guard ya no espera
  */
 @Injectable({ providedIn: 'root' })
 export class SuscripcionService {
@@ -43,6 +60,16 @@ export class SuscripcionService {
 
   /** TTL corto: el estado de cobro cambia (vence, se paga) y el guard lo lee seguido. */
   private readonly TTL_MS = 5 * 60 * 1000;
+  private readonly STORAGE_KEY = 'mi-tienda:suscripcion-cache:v1';
+
+  /**
+   * Tope de espera cuando NO hay snapshot y hay que ir a BD (primer arranque tras
+   * login/instalación). Con red mala (WiFi asociado pero sin respuesta) la RPC puede
+   * colgar sin timeout, bloqueando la navegación del guard. Pasado el tope se
+   * resuelve fail-open (mismo criterio que el catch) y la carga sigue en background
+   * para poblar el cache — el próximo arranque ya tendrá snapshot.
+   */
+  private readonly GUARD_TIMEOUT_MS = 4000;
 
   private cache: EstadoSuscripcionResult | null = null;
   private cacheNegocioId: string | null = null;
@@ -66,7 +93,7 @@ export class SuscripcionService {
     // Limpiar al cerrar sesión / cambiar de cuenta: evita arrastrar el estado del negocio anterior.
     this.supabase.registerBeforeCleanup(() => {
       this.cerrarRealtimeSuscripcion();
-      this.invalidar();
+      this.invalidar(); // ya limpia RAM + Preferences
     });
 
     // El canal de suscripción se ata al usuario activo, NO a la navegación del guard.
@@ -89,29 +116,66 @@ export class SuscripcionService {
 
   /**
    * Estado vigente de la suscripción del negocio activo.
-   * Sirve del cache si es del mismo negocio y el TTL no expiró; si no, consulta BD.
+   *
+   * Cascada por velocidad (mismo patrón que ConfigService):
+   *  1. RAM hit (mismo negocio, TTL vivo) → ~0ms
+   *  2. Preferences hit (snapshot del mismo negocio, sin importar TTL) → ~5-10ms,
+   *     se sirve YA y se dispara una revalidación en background
+   *  3. Sin snapshot (logout reciente / primera instalación) → espera la RPC
+   *
+   * Por qué el snapshot persistido se sirve aunque el TTL haya vencido: el guard
+   * necesita una respuesta INMEDIATA para no bloquear la navegación (ver comentario
+   * de clase). El TTL solo decide si además hace falta refrescar en background.
    * Nunca lanza: ante error devuelve un estado "no bloqueada" (fail-open) — el guard
    * no debe encerrar al usuario por un fallo de red.
    */
   async getEstado(forzar = false): Promise<EstadoSuscripcionResult> {
     const negocioId = this.getNegocioIdActual();
 
-    const cacheValido =
+    const ramValido =
       !forzar &&
       this.cache !== null &&
       this.cacheNegocioId === negocioId &&
       Date.now() - this.cacheAt < this.TTL_MS;
 
-    if (cacheValido) return this.cache!;
+    if (ramValido) return this.cache!;
 
-    if (this.loadingPromise) return this.loadingPromise;
-
-    this.loadingPromise = this.cargar(negocioId);
-    try {
-      return await this.loadingPromise;
-    } finally {
-      this.loadingPromise = null;
+    if (!forzar) {
+      const persistido = await this.leerCachePersistido(negocioId);
+      if (persistido) {
+        this.cache = persistido;
+        this.cacheNegocioId = negocioId;
+        this.cacheAt = Date.now();
+        this.estado$.next(persistido);
+        this.revalidarEnBackground(negocioId);
+        return persistido;
+      }
     }
+
+    if (!this.loadingPromise) {
+      const nueva = this.cargar(negocioId);
+      this.loadingPromise = nueva;
+      // Limpiar solo si nadie la reemplazó entre medio (invalidar() la anula a null).
+      nueva.finally(() => { if (this.loadingPromise === nueva) this.loadingPromise = null; });
+    }
+
+    // Sin snapshot no queda otra que esperar la RPC — pero con tope: si la red está
+    // "conectada pero rota" (lejos del router), la request puede colgar y este es el
+    // único punto que aún bloquearía la navegación. La carga real sigue en background.
+    const carga = this.loadingPromise;
+    return Promise.race([
+      carga,
+      new Promise<EstadoSuscripcionResult>(resolve =>
+        setTimeout(() => {
+          // Solo loguear si la carga sigue colgada de verdad (si ya terminó, el race
+          // la eligió a ella y este resolve cae al vacío).
+          if (this.loadingPromise === carga) {
+            this.logger.warn('SuscripcionService', `getEstado() superó ${this.GUARD_TIMEOUT_MS}ms — fail-open, la carga sigue en background`);
+          }
+          resolve({ tiene_suscripcion: false, bloqueada: false });
+        }, this.GUARD_TIMEOUT_MS)
+      ),
+    ]);
   }
 
   private async cargar(negocioId: string | null): Promise<EstadoSuscripcionResult> {
@@ -130,6 +194,7 @@ export class SuscripcionService {
       this.cacheNegocioId = negocioId;
       this.cacheAt = Date.now();
       this.estado$.next(estado);
+      this.guardarCachePersistido(negocioId, estado);
       // Red de seguridad: normalmente el canal ya lo abrió la suscripción a
       // usuarioActual$ (constructor). Aquí solo cubrimos el caso de que el guard
       // corra antes de que ese stream emita. Idempotente; exime al superadmin.
@@ -142,6 +207,38 @@ export class SuscripcionService {
       this.logger.warn('SuscripcionService', 'No se pudo obtener el estado de suscripción (fail-open)');
       return { tiene_suscripcion: false, bloqueada: false };
     }
+  }
+
+  /** Lectura silenciosa de Preferences. Devuelve null si no hay snapshot o cambió el negocio. */
+  private async leerCachePersistido(negocioActual: string | null): Promise<EstadoSuscripcionResult | null> {
+    try {
+      const { value } = await Preferences.get({ key: this.STORAGE_KEY });
+      if (!value) return null;
+
+      const snapshot: CacheSnapshot = JSON.parse(value);
+      if (snapshot.negocio_id !== negocioActual) return null;
+
+      return snapshot.data;
+    } catch {
+      return null;
+    }
+  }
+
+  private guardarCachePersistido(negocioId: string | null, data: EstadoSuscripcionResult): void {
+    const snapshot: CacheSnapshot = { negocio_id: negocioId, cached_at: Date.now(), data };
+    Preferences.set({ key: this.STORAGE_KEY, value: JSON.stringify(snapshot) }).catch(() => {});
+  }
+
+  /**
+   * Revalida contra BD sin bloquear al caller que ya recibió el snapshot persistido.
+   * Si detecta que quedó bloqueada, el propio cargar()/estado$ dispara la misma
+   * reacción que el Realtime (los componentes suscritos a estado$ reaccionan).
+   */
+  private revalidarEnBackground(negocioId: string | null): void {
+    if (this.loadingPromise) return; // ya hay una carga en curso, no dupliques
+    const nueva = this.cargar(negocioId);
+    this.loadingPromise = nueva;
+    nueva.finally(() => { if (this.loadingPromise === nueva) this.loadingPromise = null; });
   }
 
   /** True si el plan activo incluye la feature indicada. Sin estado conocido → false. */
@@ -387,6 +484,7 @@ export class SuscripcionService {
     this.cacheAt = 0;
     this.loadingPromise = null;
     this.estado$.next(null);
+    Preferences.remove({ key: this.STORAGE_KEY }).catch(() => {});
   }
 
   // ==========================================

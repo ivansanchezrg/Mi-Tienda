@@ -26,4 +26,20 @@ export const TIMING = {
    * los cambios de saldos entre medio).
    */
   resumeHomeRefreshMinMs: 60_000,
+
+  /**
+   * Delay antes de disparar el priming del catálogo/clientes en el arranque
+   * (Fase P — PLAN-OFFLINE-CALLE §2.9). El vendedor está en el local con WiFi,
+   * no hay apuro de milisegundos — diferirlo evita competir por ancho de banda/CPU
+   * con las queries del Home (fn_home_dashboard) justo en el instante más caliente
+   * del arranque, en gama baja.
+   */
+  primingArranqueDeferMs: 6_000,
+
+  /**
+   * Frescura del priming del cache offline (catálogo/clientes/CF): si el último
+   * snapshot tiene menos de este umbral, se salta la descarga. Evita bursts de red
+   * en reconexiones frecuentes (red que parpadea offline↔online).
+   */
+  primingFrescuraMinutos: 12,
 } as const;

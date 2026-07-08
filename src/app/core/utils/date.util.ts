@@ -123,3 +123,15 @@ export function formatFechaHoraEC(iso: string): string {
     timeZone: TZ_ECUADOR,
   });
 }
+
+/**
+ * Formatea un timestamp en milisegundos (Date.now()) como hora corta en hora Ecuador.
+ * Usado por los sellos de frescura offline ("Actualizado HH:mm").
+ * @example formatHoraDesdeTimestamp(1710000000000) // "09:11 p. m."
+ */
+export function formatHoraDesdeTimestamp(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString('es-EC', {
+    hour: '2-digit', minute: '2-digit',
+    timeZone: TZ_ECUADOR,
+  });
+}

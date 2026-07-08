@@ -50,6 +50,7 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   cuadreDisponible = false;
   private posSub!: Subscription;
   private turnoSub!: Subscription;
+  private configSub?: Subscription;
 
   homeIcon = homeOutline;
   posIcon = barcodeOutline;
@@ -71,18 +72,24 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   escaneandoPrecio = false;
 
   async ngOnInit() {
-    // Invalidar al montar el layout (PRIMER consumidor de config en el arranque):
-    // garantiza flags de módulos frescos desde BD para el FAB y para el sidebar,
-    // que reusa esta misma carga. Si invalidara solo el sidebar (hijo), llegaría
-    // tarde: se subiría a la carga stale de Preferences iniciada aquí.
-    this.configService.invalidar();
+    // Config local-first (2026-07-08, antes: invalidar() + get() bloqueante):
+    // get() sirve del cache (RAM/Preferences) al instante — el FAB y el sidebar
+    // pintan sin esperar la BD, clave con red mala/lenta donde la query fresca
+    // puede tardar segundos. revalidar() trae la config real en background y
+    // config$ re-emite: la suscripción de abajo corrige los flags si cambiaron
+    // (mismo mecanismo que resuelve la carrera del sidebar de 2026-06-11 — ya no
+    // importa qué carga "gana", la última emisión siempre re-aplica los flags).
     const [usuario, config] = await Promise.all([
       this.authService.getUsuarioActual(),
       this.configService.get()
     ]);
     this.esSuperadmin = usuario?.es_superadmin ?? false;
-    this.cuadreDisponible = (config?.recargas_celular_habilitada ?? false)
-                         || (config?.recargas_bus_habilitada ?? false);
+    this.aplicarConfig(config);
+    this.configService.revalidar();
+
+    this.configSub = this.configService.config$.subscribe(cfg => {
+      if (cfg) this.aplicarConfig(cfg);
+    });
 
     // El POS solo se habilita para el empleado que abrio el turno.
     this.posSub = this.turnosCajaService.esMiTurno$.subscribe(esMio => {
@@ -104,6 +111,13 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.posSub?.unsubscribe();
     this.turnoSub?.unsubscribe();
+    this.configSub?.unsubscribe();
+  }
+
+  /** Aplica los flags derivados de config. Se llama con el cache y con cada re-emisión de config$. */
+  private aplicarConfig(config: { recargas_celular_habilitada?: boolean; recargas_bus_habilitada?: boolean } | null) {
+    this.cuadreDisponible = (config?.recargas_celular_habilitada ?? false)
+                         || (config?.recargas_bus_habilitada ?? false);
   }
 
 /**

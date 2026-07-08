@@ -31,6 +31,20 @@ ion-toolbar {
     padding: var(--spacing-md) var(--spacing-md);
 }
 
+// ── Sello de frescura (Fase C) ──────────────────
+.freshness-toolbar {
+    --min-height: 28px;
+    --padding-top: 0;
+    --padding-bottom: 4px;
+}
+
+.freshness-note {
+    margin: 0;
+    font-size: 11px;
+    color: var(--clientes-text-soft);
+    text-align: center;
+}
+
 // ── Lista ───────────────────────────────────────
 .client-list {
     background: transparent;
@@ -120,6 +134,13 @@ ion-toolbar {
         font-weight: var(--font-weight-bold);
         color: var(--ion-color-danger);
         letter-spacing: -0.3px;
+
+        &.deuda-badge--offline {
+            font-size: 11px;
+            font-weight: var(--font-weight-medium);
+            color: var(--clientes-text-muted);
+            letter-spacing: 0;
+        }
     }
 
     .chevron-icon {

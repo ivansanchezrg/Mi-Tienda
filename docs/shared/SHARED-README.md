@@ -240,6 +240,7 @@ Modal fullscreen para recortar imágenes con `ngx-image-cropper` v9. Permite al 
 - **Status bar inteligente** — en Android, `StatusBar.getInfo()` guarda el estilo original al abrir y lo restaura tal cual al cerrar. No hardcodea colores.
 - **Memory-safe** — todas las `blob:` URLs creadas por `URL.createObjectURL` se revocan en `ngOnDestroy`.
 - **PNG durante el crop** — el cropper emite PNG lossless. La compresión real (WebP 0.92) ocurre en `StorageService.uploadImage()`, evitando doble compresión lossy.
+- **Recorte imperativo al confirmar (`[autoCrop]="false"`)** — el blob se genera en `confirmar()` llamando `cropperCmp.crop('blob')`, no vía el output `(imageCropped)` de la librería. **No reactivar `autoCrop`**: con autoCrop la librería regenera el blob de forma asíncrona tras cada gesto (canvas + encode PNG, 0.5–1.5s en Android); si el usuario confirma antes de que termine el encode del último resize, se despacha un blob desactualizado y la foto se guarda sin el recorte esperado. El botón ✓ muestra spinner (`procesando`) mientras genera el blob final.
 
 #### API (`@Input()`)
 

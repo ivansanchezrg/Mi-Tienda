@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
+import { BehaviorSubject } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { Configuracion, ConfiguracionRow, CONFIGURACION_DEFAULTS, mapRowsToConfig } from '../../features/configuracion/models/configuracion.model';
 
@@ -21,6 +22,10 @@ export class ConfigService {
     // Cache en memoria (más rápido que Preferences). Preferences se usa para cold start.
     private cache: Configuracion | null = null;
     private loadingPromise: Promise<Configuracion> | null = null;
+    // Marca si ya hay un refresh de BD en vuelo (disparado por cargar() al servir
+    // del cache persistido, o por revalidar()) — evita que ambos caminos disparen
+    // la misma query en el mismo arranque.
+    private refrescandoEnBackground = false;
 
     // Generación de invalidación: una carga en vuelo iniciada ANTES de invalidar()
     // no debe escribir su resultado (stale) en el cache después.
@@ -32,6 +37,14 @@ export class ConfigService {
     /** TTL: 1 hora. Las configuraciones rara vez cambian; cuando lo hacen, invalidar() las limpia. */
     private readonly TTL_MS = 60 * 60 * 1000;
     private readonly STORAGE_KEY = 'mi-tienda:config-cache:v1';
+
+    /**
+     * Emite cada vez que la configuración se carga o refresca (cache, BD o revalidación
+     * en background). Los consumidores que muestran flags dependientes de config
+     * (sidebar, FAB del layout) se suscriben aquí para auto-corregirse cuando llega
+     * un valor más fresco — sin necesidad de bloquear su render esperando la BD.
+     */
+    readonly config$ = new BehaviorSubject<Configuracion | null>(null);
 
     constructor() {
         // Limpiar cache persistida en logout/expiración. Evita que un usuario que cambia
@@ -74,6 +87,7 @@ export class ConfigService {
             if (gen === this.generation) {
                 this.cache = desdeCache;
                 this.loadingPromise = null;
+                this.config$.next(desdeCache);
                 this.refrescarDesdeBdEnBackground(negocioId);
             }
             return desdeCache;
@@ -87,6 +101,7 @@ export class ConfigService {
             const config = mapRowsToConfig(rows ?? []);
             if (gen === this.generation) {
                 this.cache = config;
+                this.config$.next(config);
                 await this.guardarCachePersistido(negocioId, config);
             }
             return config;
@@ -141,6 +156,9 @@ export class ConfigService {
      * Si el snapshot estaba desactualizado, el próximo `get()` ya tendrá el valor fresco en RAM.
      */
     private refrescarDesdeBdEnBackground(negocioId: string | null): void {
+        if (this.refrescandoEnBackground) return; // ya hay un refresh en vuelo, no dupliques la query
+        this.refrescandoEnBackground = true;
+
         const gen = this.generation;
         this.supabase
             .call<ConfiguracionRow[]>(
@@ -148,11 +166,30 @@ export class ConfigService {
             )
             .then(rows => {
                 if (gen !== this.generation) return; // hubo invalidar() mientras tanto
-                const config = mapRowsToConfig(rows ?? []);
+                if (rows === null) return;           // fallo de red silenciado por call() — no pisar con vacío
+                const config = mapRowsToConfig(rows);
                 this.cache = config;
+                this.config$.next(config);
                 this.guardarCachePersistido(negocioId, config);
             })
-            .catch(() => {});
+            .catch(() => {})
+            .finally(() => { this.refrescandoEnBackground = false; });
+    }
+
+    /**
+     * Revalidación NO destructiva: trae la config fresca de BD en background y la
+     * emite en config$, SIN borrar el cache vigente. Es el reemplazo del patrón
+     * "invalidar() al montar el layout" (2026-06-11 → 2026-07-08): aquel forzaba una
+     * query bloqueante a BD en cada arranque — con red mala/lenta el sidebar y el FAB
+     * quedaban esperando flags durante segundos. Con revalidar(), la UI pinta del
+     * cache al instante y se auto-corrige vía config$ cuando llega el valor real.
+     *
+     * invalidar() sigue siendo el método correcto tras una ESCRITURA de configuración
+     * (el cache local es obsoleto con certeza); revalidar() es para lecturas de
+     * arranque donde el cache es probablemente correcto y solo se quiere frescura.
+     */
+    revalidar(): void {
+        this.refrescarDesdeBdEnBackground(this.getNegocioIdActual());
     }
 
     private getNegocioIdActual(): string | null {

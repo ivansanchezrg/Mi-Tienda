@@ -1,8 +1,8 @@
-import { Component, Input, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy, ViewChild, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IonIcon, IonSpinner, ModalController } from '@ionic/angular/standalone';
-import { ImageCropperComponent, ImageCroppedEvent, LoadedImage, ImageTransform } from 'ngx-image-cropper';
+import { ImageCropperComponent, LoadedImage, ImageTransform } from 'ngx-image-cropper';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style, StatusBarInfo } from '@capacitor/status-bar';
 import { addIcons } from 'ionicons';
@@ -36,13 +36,18 @@ export class ImageCropperModalComponent implements OnInit, OnDestroy {
 
   private modalCtrl = inject(ModalController);
 
+  /** Referencia al cropper para recortar imperativamente al confirmar */
+  @ViewChild(ImageCropperComponent) private cropperCmp?: ImageCropperComponent;
+
   // ── Estado de imagen ──────────────────────────────────────────────────────
   imageSource    = signal<string | null>(null);
   imageLoaded    = signal(false);
   cropError      = signal(false);
-  private croppedBlob = signal<Blob | null>(null);
 
-  canConfirm = computed(() => this.imageLoaded() && !!this.croppedBlob());
+  /** true mientras se genera el blob del recorte al confirmar (encode lento en Android) */
+  procesando = signal(false);
+
+  canConfirm = computed(() => this.imageLoaded() && !this.procesando());
 
   // ── Herramientas ──────────────────────────────────────────────────────────
   toolTab = signal<ToolTab>('rotar');
@@ -121,10 +126,6 @@ export class ImageCropperModalComponent implements OnInit, OnDestroy {
     this.imageLoaded.set(true);
   }
 
-  onImageCropped(event: ImageCroppedEvent) {
-    if (event.blob) this.croppedBlob.set(event.blob);
-  }
-
   onLoadImageFailed() {
     this.cropError.set(true);
     this.imageLoaded.set(false);
@@ -155,10 +156,30 @@ export class ImageCropperModalComponent implements OnInit, OnDestroy {
     this.modalCtrl.dismiss(null, 'cancel');
   }
 
-  confirmar() {
-    const blob = this.croppedBlob();
-    if (!blob) return;
-    this.modalCtrl.dismiss({ croppedBlob: blob } as ImageCropperResult, 'confirm');
+  /**
+   * Genera el recorte EN el momento de confirmar, con la posición actual del
+   * recuadro, y recién entonces cierra el modal.
+   *
+   * Por qué imperativo y no (imageCropped) + autoCrop: el autoCrop de la librería
+   * genera el blob de forma asíncrona al terminar cada gesto (canvas + encode PNG,
+   * 0.5–1.5s en Android). Si el usuario confirmaba antes de que terminara, se
+   * despachaba el blob VIEJO — típicamente el inicial de la imagen completa —
+   * y la foto se guardaba sin recortar. Solo "funcionaba" si después de mover
+   * las esquinas también arrastraba el recuadro (ese gesto extra le daba tiempo
+   * al encode). En web nunca se notó porque el encode tarda ~50ms.
+   * crop('blob') usa la posición y transform actuales — inmune al timing.
+   */
+  async confirmar() {
+    if (this.procesando() || !this.imageLoaded() || !this.cropperCmp) return;
+    this.procesando.set(true);
+    try {
+      const resultado = await this.cropperCmp.crop('blob');
+      if (resultado?.blob) {
+        this.modalCtrl.dismiss({ croppedBlob: resultado.blob } as ImageCropperResult, 'confirm');
+      }
+    } finally {
+      this.procesando.set(false);
+    }
   }
 
   // ── Privados ──────────────────────────────────────────────────────────────

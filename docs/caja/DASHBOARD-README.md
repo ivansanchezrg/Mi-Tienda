@@ -217,6 +217,7 @@ esperarEstadoListo(): Promise<void>                    // resuelve cuando la car
 - Instanciado en `AppComponent` via `inject(TurnosCajaService)` porque `providedIn: 'root'` es lazy y necesitamos que el constructor corra al bootstrap.
 - El constructor se suscribe a `AuthService.usuarioActual$` y llama `inicializarEstadoReactivo()` al login / `cerrarRealtimeTurnos()` al logout. Se registra en `SupabaseService.registerBeforeCleanup` para limpiar canales antes del sign out.
 - Inversión de dependencia: no es `AuthService` quien llama a `TurnosCajaService` (evita ciclo), sino al revés.
+- **Local-first (2026-07-08):** `inicializarEstadoReactivo()` hidrata `turnoActivo$` desde el snapshot local `turno_activo_local` (SQLite, ~ms) **antes** de tocar la red, luego reconcilia con el servidor. La reconciliación usa `consultarTurnoActivoServidor()` — que distingue "respuesta real" de "fallo de transporte" — para que un fallo de red con `isConnected()=true` (red mala, lejos del router) **no** pise el turno local ni borre el snapshot. Así `esMiTurno` y el POS funcionan de inmediato aunque la red esté lenta o caída. Ver `PERFORMANCE-STARTUP.md` §18.
 
 **Realtime:** el canal `turnos-caja-activo` propaga apertura, cierre y eliminación de turnos a todos los dispositivos. Mecánica completa de eventos y setup SQL en [5_ACTUALIZACION-UI-SIN-RECARGA.md](./5_ACTUALIZACION-UI-SIN-RECARGA.md).
 

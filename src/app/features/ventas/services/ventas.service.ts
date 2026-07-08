@@ -1,5 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
+import { NetworkService } from '../../../core/services/network.service';
+import { VentasLocalService } from '../../../core/services/ventas-local.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { Venta, VentaDetalle, ReporteVentasDia } from '../models/venta.model';
 import { getFechaLocal } from '../../../core/utils/date.util';
@@ -10,6 +12,8 @@ import { PAGINATION_CONFIG } from '../../../core/config/pagination.config';
 })
 export class VentasService {
     private supabase = inject(SupabaseService);
+    private network = inject(NetworkService);
+    private ventasLocal = inject(VentasLocalService);
     private authService = inject(AuthService);
 
     // ──────────────────────────────────────────────
@@ -20,11 +24,22 @@ export class VentasService {
      * Devuelve las ventas según el filtro aplicado, paginadas.
      * Todos los roles ven todas las ventas. El filtro de turno es solo para ADMIN (frontend).
      *
+     * Offline (Fase B, PLAN-OFFLINE-CALLE §5): solo la vista default — filtro='hoy',
+     * página 0, sin búsqueda/estado/turno — sirve el snapshot cacheado de
+     * cache_ventas_dia. Cualquier otra combinación (filtro distinto, página 2+, con
+     * búsqueda/estado/turno) no tiene de dónde servirse sin red y devuelve [].
+     *
      * @param filtro    'hoy' | 'semana' | 'mes' | 'todo' | 'YYYY-MM-DD'
      * @param page      Página 0-based (infinite scroll)
      * @param busqueda  Término libre: nombre, cédula o número de comprobante
      */
     async obtenerVentas(filtro: string = 'hoy', page: number = 0, busqueda?: string, estado?: string, turnoId?: string): Promise<Venta[]> {
+        const esVistaDefaultDia = filtro === 'hoy' && page === 0 && !busqueda && !estado && !turnoId;
+
+        if (!this.network.isConnected()) {
+            return esVistaDefaultDia ? this.ventasLocal.obtener() : [];
+        }
+
         const raw = await this.supabase.call<any[]>(
             this.supabase.client.rpc('fn_listar_ventas', {
                 p_filtro:    filtro,
@@ -35,7 +50,15 @@ export class VentasService {
                 p_turno_id:  turnoId ?? null,
             })
         ) ?? [];
-        return raw.map(v => this.mapVenta(v));
+        const ventas = raw.map(v => this.mapVenta(v));
+
+        // Solo la vista default refresca el snapshot — un fetch filtrado o de página 2+
+        // no debe sobrescribir el snapshot del día (mismo criterio que el catálogo POS).
+        if (esVistaDefaultDia) {
+            void this.ventasLocal.guardar(ventas);
+        }
+
+        return ventas;
     }
 
 

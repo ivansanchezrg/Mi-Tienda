@@ -609,16 +609,180 @@ ANTES (reposo largo, proceso muerto):
 
 ## Estimación de mejora actualizada
 
-| Escenario | Original (pre-2026-05-22) | Post 2026-05-22 | Post 2026-05-30 | Post 2026-06-10 | **Post 2026-07-03** |
-|---|---|---|---|---|---|
-| Cold start con sesión válida (caso 95%) | ~5s | ~2s | ~1.2-1.5s | home visible al primer render (snapshot del día) | igual |
-| Primera instalación / login fresco | ~5s | ~3-3.5s | ~3-3.5s | ~3-3.5s | ~3-3.5s |
-| Re-apertura tras background corto | ~2-3s | ~1-1.5s | ~0.8-1.2s | instantáneo con snapshot (si Android mató el proceso) | igual |
-| **Reposo largo + proceso muerto + token vencido** (el caso reportado ~5s) | ~5s | ~4-5s | ~4-5s | ~4-5s (refresh bloqueaba el guard) | **~2s** (refresh en paralelo, guard no espera red) |
-| Warm restart tras 1+ hora background | ~4-5s | ~2s | ~2s | ~2s (token) + home del snapshot mientras | **~boot + snapshot** (token en paralelo) |
-| Primera navegación a /pos /ventas /inventario | ~400-800ms | ~400-800ms | ~0-100ms (precargado) | ~0-100ms | ~0-100ms |
-| **Pull-to-refresh en home** | — | ~400-800ms | ~250-500ms | ~250-500ms | algo menor (RPC v2 sin lista de movimientos) |
-| Primer arranque del día (sin snapshot) | — | — | — | skeleton normal ~1.2-1.5s (una vez al día) | skeleton, pero ya sin esperar el refresh del token |
+| Escenario | Original (pre-2026-05-22) | Post 2026-05-22 | Post 2026-05-30 | Post 2026-06-10 | Post 2026-07-03 | **Post 2026-07-06** |
+|---|---|---|---|---|---|---|
+| Cold start con sesión válida (caso 95%) | ~5s | ~2s | ~1.2-1.5s | home visible al primer render (snapshot del día) | igual | igual, sin el bloqueo de `suscripcionGuard` |
+| Primera instalación / login fresco | ~5s | ~3-3.5s | ~3-3.5s | ~3-3.5s | ~3-3.5s | ~3-3.5s |
+| Re-apertura tras background corto | ~2-3s | ~1-1.5s | ~0.8-1.2s | instantáneo con snapshot (si Android mató el proceso) | igual | igual |
+| **Reposo largo + proceso muerto + token vencido** (el caso reportado ~5s) | ~5s | ~4-5s | ~4-5s | ~4-5s (refresh bloqueaba el guard) | ~2s (refresh en paralelo, guard no espera red) | **~1.3-1.8s** (`suscripcionGuard` ya no espera red) |
+| Warm restart tras 1+ hora background | ~4-5s | ~2s | ~2s | ~2s (token) + home del snapshot mientras | ~boot + snapshot (token en paralelo) | igual |
+| **Primer arranque del día** (antes: sin snapshot válido) | — | — | — | skeleton normal ~1.2-1.5s (una vez al día) | skeleton, pero sin esperar el refresh del token | **home lleno al instante** (snapshot degradado: saldos reales, turno neutro hasta reconciliar) |
+| Primera navegación a /pos /ventas /inventario | ~400-800ms | ~400-800ms | ~0-100ms (precargado) | ~0-100ms | ~0-100ms | ~0-100ms |
+| **Pull-to-refresh en home** | — | ~400-800ms | ~250-500ms | ~250-500ms | algo menor (RPC v2 sin lista de movimientos) | igual |
+
+---
+
+## Cambios aplicados el 2026-07-06
+
+Revisión punta a punta del arranque/resume solicitada tras seguir midiendo ~5s en un Redmi
+gama baja pese a los fixes de 2026-07-03. Hallazgo: esos fixes arreglaron el `authGuard`,
+pero dejaron dos bloqueos intactos que se ejecutan en el mismo camino crítico.
+
+### 15. `suscripcionGuard` deja de bloquear la primera navegación de cada cold start
+
+**Archivo:** `src/app/core/services/suscripcion.service.ts`
+
+**Problema:** `SuscripcionService` cacheaba el estado de suscripción **solo en RAM**
+(decisión original: "no vale la pena persistirlo entre cold starts"). Pero
+`suscripcionGuard` corre encadenado DESPUÉS de `authGuard` en `app.routes.ts`
+(`canActivate: [authGuard, suscripcionGuard]`) — Angular no resuelve la ruta hasta que
+AMBOS guards terminan. En cada cold start, sin RAM cache, el guard esperaba un roundtrip
+completo de `fn_estado_suscripcion` (DNS + TLS frío + query), anulando en la práctica el
+fast path que el `authGuard` había ganado en la sesión 2026-07-03.
+
+**Solución:** mismo patrón stale-while-revalidate que `ConfigService` — snapshot en
+Preferences que se sirve de inmediato (sin importar TTL) mientras se revalida en
+background. El fail-open ante error de red ya estaba aceptado; servir un estado
+levemente stale unos segundos (con el Realtime de `suscripciones` y la revalidación
+en background corrigiendo si hubo una suspensión real) tiene el mismo riesgo con
+costo percibido casi nulo.
+
+**Impacto estimado:** -0.5 a -1.5s en TODOS los cold starts (no solo el de reposo largo).
+
+### 16. Snapshot del home ya no se descarta al cambiar el día — se degrada
+
+**Archivo:** `src/app/features/caja/services/turnos-caja.service.ts`
+
+**Problema:** `obtenerHomeDashboardCacheado()` descartaba el snapshot completo si era
+de "otro día" (`snapshot.fecha !== getFechaLocal()`). Efecto perverso: el arranque más
+frecuente tras un reposo largo — la PRIMERA apertura de cada mañana — siempre caía en
+el peor caso (skeleton + espera de red completa), porque el snapshot de ayer nunca
+pasaba el filtro.
+
+**Solución:** se separó en dos métodos:
+- `leerSnapshotCrudo()` (privado) — el snapshot tal cual, sin filtro de día. Uso
+  exclusivo: fallback offline dentro de `obtenerHomeDashboard()` cuando la RPC no
+  responde por falta de red (ahí sí hace falta el turno real, aunque sea de ayer, para
+  que el usuario pueda seguir operando POS/Cajón sin conexión).
+- `obtenerHomeDashboardCacheado()` (público, usado por `home.page.ts` para el pintado
+  optimista) — mismo día: snapshot tal cual. Otro día: se sirve degradado — saldos de
+  cajas y flags de módulos intactos (no son diarios, son vaults que persisten),
+  `estadoCaja` forzado a `SIN_ABRIR` sin turno y `ingresosHoy`/`egresosHoy` en 0. El
+  fetch fresco de `cargarDatos()` corre en paralelo y reconcilia en ~1s si había turno.
+
+**Impacto estimado:** el home aparece lleno en el primer render los 365 días del año,
+no solo a partir del segundo arranque de cada día.
+
+### 17. Priming offline diferido también en el disparador de reconexión de red
+
+**Archivo:** `src/app/core/services/sync.service.ts`
+
+**Problema:** `precalentarOffline()` (descarga catálogo POS + categorías + clientes +
+CF + binarios de imágenes) ya estaba diferido `TIMING.primingArranqueDeferMs` (6s) en
+el disparador de arranque con sesión, pero el disparador de reconexión de red
+(`network.getNetworkStatus().subscribe`) lo llamaba sin defer. `NetworkService` reemite
+`true` en cada resume de Android (~1-3s después de desbloquear, cuando el radio
+reconecta) — justo el instante más caliente del resume, compitiendo por ancho de
+banda/CPU con `fn_home_dashboard` y el refresh del token en gama baja.
+
+**Solución:** mismo defer en ambos disparadores. `precalentarOffline()` ya era
+reentrante-seguro (`primingEnCurso` + `esCacheFresco()`), así que no hay riesgo de
+duplicar trabajo si ambos disparadores coinciden en el arranque en frío.
+
+**Impacto estimado:** menos jank/contención de CPU-red durante el resume en gama baja;
+no cambia el tiempo hasta que el catálogo esté listo para el vendedor (6s es aceptable,
+está en el local con WiFi).
+
+---
+
+## Cambios aplicados el 2026-07-08 — arranque local-first ante "red mala"
+
+Revisión con una lente nueva: **"red presente pero mala"** (lejos del router, WiFi
+intermitente). Ahí `Network.getStatus()` reporta `connected: true`, la app toma el camino
+online, y las queries cuelgan contra una red que responde lentísimo — ni el camino offline
+(que es local) ni el online sano (que es rápido). El objetivo: la app abre SIEMPRE desde
+datos locales y la red solo corrige en background.
+
+**Principio adoptado:** `isConnected()` deja de usarse como señal de "la red funciona"
+para decisiones de estado. La única señal confiable es "¿el servidor respondió de verdad?"
+— un fallo de transporte puede ocurrir con `isConnected() === true`.
+
+### 18. Turno local-first — `inicializarEstadoReactivo()` hidrata del snapshot local ANTES de la red
+
+**Archivo:** `src/app/features/caja/services/turnos-caja.service.ts`
+
+**Problema (2 bugs con red mala):**
+1. La query del turno (`obtenerTurnoActivo()` vía `call()`) bloqueaba la cadena reactiva:
+   con red mala, `esMiTurno` quedaba `false` durante los segundos/minutos que tardara →
+   botón del turno roto y POS bloqueado aunque el turno del usuario siguiera abierto.
+2. Peor: un fallo de transporte con `isConnected() === true` entraba a la rama "online",
+   pisaba `turnoActivo$` con null y **borraba el snapshot local del turno**
+   (`turno_activo_local`) — destruyendo el cobro offline justo cuando más se necesita.
+
+**Solución:**
+- Paso 1 local-first: hidratar `turnoActivo$` desde `turno_activo_local` (SQLite, ~ms)
+  ANTES de tocar la red, y marcar `_inicializado$` de inmediato si había turno local —
+  el `cajaAbiertaGuard` deja entrar al POS sin esperar la BD.
+- Paso 2: `consultarTurnoActivoServidor()` (nuevo, privado) distingue "respuesta real"
+  (ok: true, turno puede ser null = de verdad no hay turno) de "fallo" (ok: false =
+  transporte/JWT/RLS). **Solo una respuesta 200 real pisa el estado local y el snapshot.**
+
+### 19. El snapshot optimista del home ya no reconcilia `turnoActivo$`
+
+**Archivo:** `src/app/features/caja/pages/home/home.page.ts`
+
+**Problema (introducido por §16):** `aplicarDashboard()` reconciliaba el turno también
+cuando el dashboard venía del snapshot de Preferences. Con el snapshot degradado
+(cross-day: turno forzado a null), `sincronizarTurnoDesdeHome(null)` limpiaba un turno
+local válido — y con red mala el fetch fresco que lo restauraría tarda o no llega.
+
+**Solución:** `aplicarDashboard(dashboard, desdeSnapshot)` — el pintado optimista NO toca
+`turnoActivo$` (solo pinta); si el subject ya tiene un turno más confiable (hidratado
+local-first por §18), el chip del turno lo prefiere sobre el del snapshot. Solo los datos
+reales del servidor reconcilian.
+
+### 20. `ConfigService` reactivo — el layout ya no fuerza query a BD al montar
+
+**Archivos:** `src/app/core/services/config.service.ts`,
+`src/app/features/layout/pages/main/main-layout.page.ts`,
+`src/app/shared/components/sidebar/sidebar.component.ts`
+
+**Problema (el "punto 4" diferido de la sesión 2026-07-06):** `main-layout.ngOnInit()`
+hacía `configService.invalidar()` al montar — forzaba una query fresca a `configuraciones`
+en cada arranque, anulando el cache persistido de §6. Con red mala, el FAB y el sidebar
+esperaban esa query durante segundos. El `invalidar()` había nacido para arreglar la
+carrera del sidebar (2026-06-11: flags stale tras un toggle del superadmin).
+
+**Solución (resuelve la carrera por reactividad, no por orden de cargas):**
+- `ConfigService.config$` (BehaviorSubject) emite en cada carga/refresh del cache.
+- `ConfigService.revalidar()` — revalidación NO destructiva: trae BD en background y
+  emite, sin borrar el cache vigente. Bonus fix: el refresh en background ya no pisa el
+  cache con defaults cuando la query falla por red (`rows === null` se ignora).
+- `main-layout` y `sidebar`: `get()` pinta del cache al instante + suscripción a `config$`
+  re-aplica los flags cuando llega el valor fresco. Ya no importa qué carga "gana".
+- `invalidar()` queda SOLO para escrituras (parámetros, toggle superadmin, POS, cierre) —
+  ahí el cache es obsoleto con certeza.
+
+### 21. Tope fail-open en `getEstado()` sin snapshot
+
+**Archivo:** `src/app/core/services/suscripcion.service.ts`
+
+**Problema:** tras §15, el único camino que aún podía colgar la navegación era el primer
+arranque post-login/instalación (sin snapshot): la RPC sin timeout contra red mala.
+
+**Solución:** `Promise.race` con tope de 4s (`GUARD_TIMEOUT_MS`) → fail-open (mismo
+criterio que el catch); la carga real sigue en background y puebla el cache para el
+próximo arranque.
+
+### Lo que NO se cambió (deliberadamente)
+
+- **`supabase.call()` sigue esperando `resumeRefreshInFlight` completo** — ponerle timeout
+  arriesga que queries salgan con token vencido → `handleExpiredSession()` → logout
+  indebido. Con red mala el refresh colgado ya no bloquea el paint (todo lo visible es
+  local); solo retrasa datos frescos, que es el comportamiento correcto.
+- **No se migró usuario/config/suscripción a SQLite** — ya son locales en Preferences,
+  que para blobs chicos es más rápido que abrir una conexión SQLite. SQLite queda para
+  lo que ya lo usa: catálogo, clientes, outbox, turno local.
 
 ---
 
@@ -691,3 +855,20 @@ ANTES (reposo largo, proceso muerto):
 | `src/app/features/caja/services/turnos-caja.service.ts` | `HomeDashboard` v2 (`ingresosHoy`/`egresosHoy` en vez de la lista); key del snapshot → `:v2` + limpieza del `:v1` |
 | `src/app/core/config/timing.config.ts` | Constante `resumeHomeRefreshMinMs` (60s) — umbral del refresco silencioso al reanudar |
 | `docs/caja/sql/functions/fn_home_dashboard.sql` | v2.0 — sin lista de movimientos; `resumen_dia` con agregados del día completo. **Re-ejecutar en Supabase** |
+
+### Sesión 2026-07-06
+| Archivo | Cambio |
+|---|---|
+| `src/app/core/services/suscripcion.service.ts` | Snapshot persistido en Preferences (`STORAGE_KEY`, `leerCachePersistido()`, `guardarCachePersistido()`, `revalidarEnBackground()`) — `getEstado()` sirve del snapshot sin esperar red; `invalidar()` también limpia Preferences |
+| `src/app/features/caja/services/turnos-caja.service.ts` | `obtenerHomeDashboardCacheado()` degrada (no descarta) el snapshot de otro día — saldos/módulos intactos, turno/deltas neutros. Snapshot crudo sin filtro de día movido a `leerSnapshotCrudo()` (privado), usado solo por el fallback offline de `obtenerHomeDashboard()` |
+| `src/app/core/services/sync.service.ts` | El disparador de reconexión de red (`network.getNetworkStatus().subscribe`) ahora difiere `precalentarOffline()` con `TIMING.primingArranqueDeferMs`, igual que el disparador de arranque en frío |
+
+### Sesión 2026-07-08
+| Archivo | Cambio |
+|---|---|
+| `src/app/features/caja/services/turnos-caja.service.ts` | `inicializarEstadoReactivo()` local-first: hidrata del snapshot local ANTES de la red y marca `_inicializado$` temprano si hay turno local. `consultarTurnoActivoServidor()` (nuevo): solo una respuesta real del servidor pisa el estado/snapshot local — un fallo de transporte con `isConnected()=true` ya no borra el turno offline |
+| `src/app/features/caja/pages/home/home.page.ts` | `aplicarDashboard(dashboard, desdeSnapshot)` — el pintado optimista del snapshot NO reconcilia `turnoActivo$` (fix del bug introducido en §16); prefiere el turno vigente del subject sobre el del snapshot para el chip |
+| `src/app/core/services/config.service.ts` | `config$` (BehaviorSubject) + `revalidar()` (refresh no destructivo). El refresh en background ya no pisa el cache cuando la query falla por red |
+| `src/app/features/layout/pages/main/main-layout.page.ts` | Ya no hace `invalidar()` al montar: `get()` del cache + `revalidar()` + suscripción a `config$` (flags se auto-corrigen) |
+| `src/app/shared/components/sidebar/sidebar.component.ts` | Suscripción a `config$` — los flags de módulos se re-aplican con cada emisión fresca |
+| `src/app/core/services/suscripcion.service.ts` | `GUARD_TIMEOUT_MS` (4s): tope fail-open cuando no hay snapshot y la RPC cuelga contra red mala; limpieza segura de `loadingPromise` |

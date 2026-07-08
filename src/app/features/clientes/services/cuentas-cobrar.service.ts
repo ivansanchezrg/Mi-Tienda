@@ -1,5 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/services/supabase.service';
+import { NetworkService } from '../../../core/services/network.service';
+import { ClientesLocalService } from '../../../core/services/clientes-local.service';
 import { PAGINATION_CONFIG } from '../../../core/config/pagination.config';
 import {
     ClienteConSaldo,
@@ -14,13 +16,38 @@ import {
 })
 export class CuentasCobrarService {
     private supabase = inject(SupabaseService);
+    private network = inject(NetworkService);
+    private clientesLocal = inject(ClientesLocalService);
 
     // ──────────────────────────────────────────────
     // LISTADO UNIFICADO — todos los clientes con saldo
     // ──────────────────────────────────────────────
 
-    /** Todos los clientes con su saldo pendiente (0 si no tiene deuda). */
+    /**
+     * Todos los clientes con su saldo pendiente (0 si no tiene deuda).
+     * Offline (§4.3 PLAN-OFFLINE-CALLE): el saldo es un agregado calculado en el
+     * servidor (fn_listar_clientes_con_saldo) — imposible de replicar sin red. Se pinta
+     * la réplica básica de clientes con total_deuda=null como señal explícita de
+     * "requiere conexión" (0 significaría, incorrectamente, "sin deuda").
+     * Solo la página 0 sirve la réplica — sin red no hay infinite scroll (hasMore=false).
+     */
     async listarClientesConSaldo(page: number, busqueda?: string): Promise<ClienteConSaldo[]> {
+        if (!this.network.isConnected()) {
+            if (page > 0) return [];
+            const clientes = busqueda
+                ? await this.clientesLocal.buscarPorTexto(busqueda)
+                : await this.clientesLocal.obtenerTodos();
+            return clientes.map(c => ({
+                cliente_id: c.id,
+                cliente_nombre: c.nombre,
+                cliente_identificacion: c.identificacion,
+                cliente_telefono: c.telefono,
+                total_deuda: null,
+                cantidad_ventas_fiadas: 0,
+                ultima_venta_fecha: null,
+            }));
+        }
+
         return await this.supabase.call<ClienteConSaldo[]>(
             this.supabase.client.rpc('fn_listar_clientes_con_saldo', {
                 p_busqueda: busqueda ?? null,

@@ -2,13 +2,17 @@
 // Modelo: Cuentas por Cobrar (Fiados)
 // ──────────────────────────────────────────────
 
-/** Cliente con saldo pendiente — listado unificado */
+/**
+ * Cliente con saldo pendiente — listado unificado.
+ * total_deuda: null significa "requiere conexión" (offline, §4.3 PLAN-OFFLINE-CALLE) —
+ * distinto de 0 (sin deuda), que sí es un valor real calculado por el servidor.
+ */
 export interface ClienteConSaldo {
     cliente_id: string;
     cliente_nombre: string;
     cliente_identificacion: string | null;
     cliente_telefono: string | null;
-    total_deuda: number;
+    total_deuda: number | null;
     cantidad_ventas_fiadas: number;
     ultima_venta_fecha: string | null;
 }

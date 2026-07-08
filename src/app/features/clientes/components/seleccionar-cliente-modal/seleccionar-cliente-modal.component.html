@@ -62,7 +62,12 @@
     }
 
     <!-- Buscador -->
-    <p class="section-label">Buscar cliente existente</p>
+    <p class="section-label">
+      Buscar cliente existente
+      @if (sinRed && horaCache) {
+      <span class="freshness-chip">Actualizado {{ horaCache }}</span>
+      }
+    </p>
     <div class="searchbar-wrap">
       <ion-searchbar [(ngModel)]="textoBusqueda" (ionInput)="buscar($event)"
         placeholder="Nombre, cédula o RUC..." [animated]="false" mode="ios" [debounce]="350">
@@ -108,6 +113,13 @@
     </button>
     } @else {
     <div class="new-client-form">
+
+      @if (sinRed) {
+      <div class="offline-notice">
+        <ion-icon name="information-circle-outline"></ion-icon>
+        <span>Sin conexión: el cliente se guarda para el ticket/nota. La Factura requiere conexión.</span>
+      </div>
+      }
 
       <!-- PASO 1: Cédula -->
       <div class="form-field">

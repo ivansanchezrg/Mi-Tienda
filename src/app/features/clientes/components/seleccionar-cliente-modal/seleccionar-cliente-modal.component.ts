@@ -16,7 +16,10 @@ import { ClientesService } from '../../services/clientes.service';
 import { Cliente } from '../../models/cliente.model';
 import { TipoComprobante } from '../../../pos/models/tipo-comprobante.enum';
 import { UiService } from '../../../../core/services/ui.service';
+import { NetworkService } from '../../../../core/services/network.service';
+import { ClientesLocalService } from '../../../../core/services/clientes-local.service';
 import { validarCedulaEcuatoriana } from '../../../../core/utils/cedula.util';
+import { formatHoraDesdeTimestamp } from '../../../../core/utils/date.util';
 
 @Component({
     selector: 'app-seleccionar-cliente-modal',
@@ -38,11 +41,17 @@ export class SeleccionarClienteModalComponent implements OnInit {
     private modalCtrl = inject(ModalController);
     private clientesService = inject(ClientesService);
     private ui = inject(UiService);
+    private network = inject(NetworkService);
+    private clientesLocal = inject(ClientesLocalService);
 
     consumidorFinal: Cliente | null = null;
     clientes: Cliente[] = [];
     buscando = false;
     textoBusqueda = '';
+
+    // Sello de frescura (Fase C) — solo se muestra offline, sirviendo la réplica local.
+    get sinRed(): boolean { return !this.network.isConnected(); }
+    timestampCache: number | null = null;
 
     // Formulario nuevo cliente — flujo: cédula primero
     mostrarFormNuevo = false;
@@ -65,6 +74,9 @@ export class SeleccionarClienteModalComponent implements OnInit {
 
     async ngOnInit() {
         this.consumidorFinal = await this.clientesService.obtenerConsumidorFinal();
+        if (this.sinRed) {
+            this.timestampCache = await this.clientesLocal.obtenerTimestamp();
+        }
     }
 
     async buscar(event: any) {
@@ -82,6 +94,11 @@ export class SeleccionarClienteModalComponent implements OnInit {
         } finally {
             this.buscando = false;
         }
+    }
+
+    /** Sello "Actualizado HH:mm" — solo offline (Fase C). */
+    get horaCache(): string | null {
+        return this.timestampCache ? formatHoraDesdeTimestamp(this.timestampCache) : null;
     }
 
     seleccionar(cliente: Cliente) {

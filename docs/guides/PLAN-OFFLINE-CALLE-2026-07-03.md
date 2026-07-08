@@ -13,7 +13,16 @@
 > drenado — §6.5.2), política cliente dead-letter → ventas (§6.5.4), reglas de silenciado de toasts +
 > deferral del priming (§P.3), trampa del parser WHERE del `IndexedDbAdapter` (§3) y condiciones
 > exactas del snapshot de ventas (§5.2).
-> **Estado: 📋 PLANIFICADO — pendiente de aprobación/implementación.**
+> **Implementado 2026-07-06 — todas las fases (P/0/A/B/C/D) en código, `ng build` limpio.**
+> Decisiones tomadas durante la implementación (ver §11 nuevo, al final):
+> 1. **A+D se implementaron integradas** (no en dos pasadas) — el selector de clientes del POS ya
+>    nace con búsqueda offline y creación offline vía `outbox_clientes`, sin pasar por un estado
+>    intermedio de "Crear cliente deshabilitado sin red".
+> 2. **`fn_upsert_cliente` es el camino único** online+offline (no solo offline como sugería §7) —
+>    `ClientesService.crearCliente()` la llama en ambos casos; se descarta el INSERT directo anterior.
+> 3. **El catálogo POS NO tenía sello de frescura** (la premisa de §6 era incorrecta) — decisión con
+>    el dueño: no agregarlo, el banner offline global + el patrón cache-first ya cubren la señal.
+> **Estado: ✅ IMPLEMENTADO — pendiente ejecutar `fn_upsert_cliente.sql` en Supabase antes de usar en producción.**
 >
 > Continúa el trabajo de `PLAN-OFFLINE-POS-2026-06-08.md` (Fases 1-8 ✅ completas y en
 > producción). Este plan NO reemplaza nada de aquel — amplía la **cobertura de lectura**
@@ -566,6 +575,80 @@ Editor cuando se implemente la Fase D (no antes).
 > y confianza. **P puede — y debe — ir primero, antes que 0/A/B/C.** **D es la última** (la
 > escritura offline más compleja) y **depende de A** — no tiene sentido crear clientes offline
 > sin la réplica de lectura que ya trae la Fase A.
+
+---
+
+## 11. Estado final de implementación (2026-07-06)
+
+Todas las fases (P, 0, A, B, C, D) están implementadas en código. `ng build --configuration
+development` compila sin errores. **Pendiente antes de producción:** ejecutar
+`docs/clientes/sql/functions/fn_upsert_cliente.sql` en Supabase SQL Editor (único cambio de BD
+del plan completo — nada más requiere migración).
+
+### Archivos nuevos
+
+| Archivo | Fase | Contenido |
+|---|---|---|
+| `core/services/clientes-local.service.ts` | A | Réplica de lectura de clientes (espejo de `CatalogoLocalService`) + `agregarUno()`/`obtenerTodos()` para el alta offline (D) y el listado de Clientes |
+| `core/services/ventas-local.service.ts` | B | Snapshot de la página 1 del día (`cache_ventas_dia`), invalidado por fecha local |
+| `core/services/outbox-clientes.service.ts` | D | Cola durable de clientes creados offline (espejo de `OutboxService`) |
+| `docs/clientes/sql/functions/fn_upsert_cliente.sql` | D | Único cambio de BD — idempotente por `id` y por `(negocio_id, identificacion)` |
+
+### Archivos modificados (resumen — detalle de cada cambio en las secciones §2.9-§6.5)
+
+| Archivo | Fases | Cambio |
+|---|---|---|
+| `core/services/local-db.service.ts` | 0/D | Tablas `cache_clientes`, `cache_ventas_dia`, `outbox_clientes`; `IDB_VERSION` 1→3 (separada de `SCHEMA_VERSION` de SQLite, que no se tocó) |
+| `core/services/sync.service.ts` | P/D | `precalentarOffline()` + ganchos de arranque/reconexión con defer y flag reentrante; `sincronizarClientes()` drena `outbox_clientes` a completitud ANTES de `outbox_ventas`; `empujarCliente()` con remapeo |
+| `core/services/outbox.service.ts` | D | `remapearClienteId()` — reescribe `payload_json` de ventas encoladas tras el upsert del servidor |
+| `core/config/timing.config.ts` | P | `primingArranqueDeferMs` (6s) y `primingFrescuraMinutos` (12min) |
+| `features/caja/services/turnos-caja.service.ts` | P | `abrirTurno()` dispara `precalentarOffline()` best-effort tras éxito (respaldo) |
+| `features/clientes/services/clientes.service.ts` | A/D | Rutas offline en `buscarClientes`/`buscarPorIdentificacion`; `descargarSnapshotParaCache()`; `crearCliente()` unificado vía `fn_upsert_cliente` (online) / `outbox_clientes` (offline) |
+| `features/clientes/services/cuentas-cobrar.service.ts` | A | `listarClientesConSaldo()` sirve la réplica básica offline con `total_deuda: null` ("requiere conexión", distinto de 0 = "sin deuda") |
+| `features/clientes/models/cuenta-cobrar.model.ts` | A | `total_deuda: number \| null` |
+| `features/clientes/components/seleccionar-cliente-modal/*` | A/D | Sello de frescura offline; aviso "el cliente se guarda para el ticket/nota, la Factura requiere conexión" — sin bloquear el botón "Crear cliente" (A+D integradas, ver §1) |
+| `features/clientes/pages/listado/*` | A/C | Sello de frescura; badge "Sin conexión" cuando `total_deuda === null` |
+| `features/ventas/services/ventas.service.ts` | B | `obtenerVentas()` sirve `cache_ventas_dia` solo en la vista default exacta (`hoy` + página 0 + sin búsqueda/estado/turno); refresca el snapshot con el mismo criterio |
+| `features/ventas/pages/listado/*` | B/C | `infiniteScrollDisabled` (fuerza `true` sin red, no depende de que el tamaño del snapshot calce con `pageSize`); sello de frescura |
+
+### Grafo de dependencias entre servicios (verificado sin ciclos)
+
+`TurnosCajaService → SyncService → { InventarioService, ClientesService, CatalogoLocalService,
+ClientesLocalService, ImagenLocalService, OutboxService, OutboxClientesService }`. Ninguno de estos
+vuelve a `TurnosCajaService` — la dependencia es unidireccional.
+
+---
+
+## 12. Fix posterior — fotos del catálogo POS offline tras cold start (2026-07-06)
+
+Durante el testing surgió un bug que el plan no cubría: **el catálogo POS mostraba las fotos en gris
+tras reabrir la app estando el proceso muerto (reposo) y sin red** (el escenario exacto del vendedor
+de calle). El plan asumía que el catálogo offline "ya funcionaba" incluidas sus imágenes — pero solo
+funcionaban los datos (texto/precio/stock), no las fotos.
+
+**Causa raíz:** las fotos se resolvían vía *signed URLs* de Supabase, cacheadas por
+`StorageService.signedUrlCache` — un `Map` **solo en RAM**. Ese cache muere cuando Android mata el
+proceso en reposo. Al reabrir la app **sin red**, no hay forma de re-firmar la URL → gris. Persistir
+la signed URL tampoco basta: expira a los 60 min, inútil para un día entero de calle.
+
+**Solución — binarios de imagen en disco (`core/services/imagen-local.service.ts`, nuevo):**
+- Descarga el **archivo binario** de cada foto del catálogo a `Directory.Data/catalogo-img/{hash}.ext`
+  (hash djb2 del path crudo — determinista). Solo nativo; web es no-op.
+- Se engancha al **priming de Fase P** (`SyncService.precalentarCatalogo` → `precalentarImagenes`):
+  baja en tandas de 5 y **poda huérfanos** (foto cambiada = path con UUID nuevo = el viejo se borra).
+- `StorageService.resolveImageUrl` resuelve ahora en orden: **(1) binario local en disco** (offline,
+  sobrevive cold start) → (2) signed URL en RAM → (3) online: firmar + `descargar()` el binario en
+  background para el offline futuro → (4) offline sin binario: `null` (placeholder).
+- Sin stale: el path lleva `crypto.randomUUID()` por imagen, así que binario viejo nunca compite con
+  foto nueva.
+
+> **Requisito operativo:** las fotos se ven offline **solo después** de que la app haya corrido una
+> vez con red (para bajarlas). El primer arranque con WiFi las descarga; de ahí en adelante funcionan
+> sin red. Es el mismo modelo que el resto del priming (Fase P).
+
+**Archivos:** `core/services/imagen-local.service.ts` (nuevo), `core/services/storage.service.ts`
+(resolución con prioridad al binario local + `getSignedUrl` espera `resumeRefreshInFlight`),
+`core/services/sync.service.ts` (`precalentarImagenes`).
 
 ---
 

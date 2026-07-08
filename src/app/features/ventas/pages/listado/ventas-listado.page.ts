@@ -25,13 +25,15 @@ import {
 import { VentasService } from '../../services/ventas.service';
 import { ShareVentaService } from '../../services/share-venta.service';
 import { AuthService } from '../../../auth/services/auth.service';
+import { NetworkService } from '../../../../core/services/network.service';
+import { VentasLocalService } from '../../../../core/services/ventas-local.service';
 import { TurnosCajaService } from '../../../caja/services/turnos-caja.service';
 import { RolUsuario } from '../../../auth/models/usuario-actual.model';
 import { TurnoCajaConEmpleado } from '../../../caja/models/turno-caja.model';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { Venta } from '../../models/venta.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
-import { getFechaLocal, formatFechaEC, formatHoraEC } from '../../../../core/utils/date.util';
+import { getFechaLocal, formatFechaEC, formatHoraEC, formatHoraDesdeTimestamp } from '../../../../core/utils/date.util';
 import { VentaDetalleModalComponent } from '../../components/venta-detalle-modal/venta-detalle-modal.component';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
@@ -68,6 +70,17 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
     protected currencyService = inject(CurrencyService);
     private modalCtrl = inject(ModalController);
     private alertCtrl = inject(AlertController);
+    private network = inject(NetworkService);
+    private ventasLocal = inject(VentasLocalService);
+
+    // Sello de frescura (Fase C) — solo se muestra offline, sirviendo el snapshot del día.
+    get sinRed(): boolean { return !this.network.isConnected(); }
+    timestampCache: number | null = null;
+
+    /** Sello "Actualizado HH:mm" — solo offline (Fase C). */
+    get horaCache(): string | null {
+        return this.timestampCache ? formatHoraDesdeTimestamp(this.timestampCache) : null;
+    }
 
     get ventas(): Venta[] { return this.items; }
 
@@ -171,12 +184,24 @@ export class VentasListadoPage extends PaginatedListPage<Venta> implements OnIni
 
     protected async fetchPage(page: number): Promise<Venta[]> {
         const filtro = this.filtroActivo === 'custom' ? this.fechaFiltro : this.filtroActivo;
-        return this.ventasService.obtenerVentas(
+        const data = await this.ventasService.obtenerVentas(
             filtro, page,
             this.busqueda || undefined,
             this.filtroEstado || undefined,
             this.turnoSeleccionado?.id
         );
+
+        this.timestampCache = this.sinRed ? await this.ventasLocal.obtenerTimestamp() : null;
+        return data;
+    }
+
+    /**
+     * Infinite scroll deshabilitado sin red (§5.2 PLAN-OFFLINE-CALLE): el snapshot
+     * offline es una única página fija — no depender de que su tamaño calce por
+     * casualidad con pageSize (lo que activaría `hasMore` heredado de PaginatedListPage).
+     */
+    get infiniteScrollDisabled(): boolean {
+        return !this.hasMore || this.sinRed;
     }
 
     toggleFiltroAnuladas() {

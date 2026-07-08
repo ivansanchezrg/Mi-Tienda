@@ -66,6 +66,12 @@ $accent-rgb:   var(--ion-color-primary-rgb);
   font-weight: 700;
   font-size: 20px;
 
+  ion-spinner {
+    width: 20px;
+    height: 20px;
+    color: inherit;
+  }
+
   &--active {
     background: $accent;
     color: #fff;
@@ -84,12 +90,20 @@ $accent-rgb:   var(--ion-color-primary-rgb);
   align-items: center;
   justify-content: center;
   min-height: 0;
+  touch-action: none;
 }
 
 .icm-cropper {
   width: 100%;
   height: 100%;
   max-height: 100%;
+  touch-action: none;
+
+  // El wrapper interno que la librería crea (<image-cropper> > div) también
+  // debe declararlo — es el ancestro directo de los handles.
+  ::ng-deep > div {
+    touch-action: none !important;
+  }
 
   ::ng-deep {
     .ngx-ic-source-image {
@@ -97,6 +111,17 @@ $accent-rgb:   var(--ion-color-primary-rgb);
     }
     .ngx-ic-overlay {
       outline-color: rgba(0, 0, 0, 0.55) !important;
+    }
+
+    // touch-action: none en todos los elementos interactivos del cropper —
+    // evita que el WebView de Android interprete el arrastre (mover o
+    // redimensionar) como scroll/pan del contenedor.
+    .ngx-ic-cropper,
+    .ngx-ic-cropper .ngx-ic-move,
+    .ngx-ic-resize,
+    .ngx-ic-resize .ngx-ic-square,
+    .ngx-ic-source-image {
+      touch-action: none !important;
     }
 
     // Borde del recuadro
@@ -122,21 +147,33 @@ $accent-rgb:   var(--ion-color-primary-rgb);
       pointer-events: none !important;
     }
 
-    // Esquinas: más grandes y visibles
+    // Esquinas: área táctil grande, cuadrado visible centrado.
+    // La librería posiciona cada handle con top/left/right/bottom: -12px, valor
+    // calibrado para su tamaño original (padding 8px + cuadrado 6px ≈ 22px de
+    // lado, mitad ≈ -11px). Al agrandar padding/cuadrado hay que recalcular ese
+    // offset para que el cuadrado que se ve quede centrado sobre la esquina real
+    // del recuadro. Con padding 20px + cuadrado 16px + borde 2.5px, el handle
+    // mide 20 + (16 + 2.5*2) ≈ 41px de lado → offset = -mitad ≈ -20px.
     .ngx-ic-resize.ngx-ic-topleft,
     .ngx-ic-resize.ngx-ic-topright,
     .ngx-ic-resize.ngx-ic-bottomleft,
     .ngx-ic-resize.ngx-ic-bottomright {
-      padding: 16px !important;
+      padding: 20px !important;
+      z-index: 2 !important;   // por encima de .ngx-ic-move para ganar el touchstart
 
       .ngx-ic-square {
-        width: 14px !important;
-        height: 14px !important;
+        width: 16px !important;
+        height: 16px !important;
         background: $accent !important;
         border: 2.5px solid #fff !important;
         border-radius: 3px !important;
       }
     }
+
+    .ngx-ic-resize.ngx-ic-topleft     { top: -20px !important; left: -20px !important; }
+    .ngx-ic-resize.ngx-ic-topright    { top: -20px !important; right: -20px !important; }
+    .ngx-ic-resize.ngx-ic-bottomleft  { bottom: -20px !important; left: -20px !important; }
+    .ngx-ic-resize.ngx-ic-bottomright { bottom: -20px !important; right: -20px !important; }
   }
 }
 

@@ -72,6 +72,10 @@
       </ion-searchbar>
     </div>
 
+    @if (sinRed && horaCache) {
+    <p class="freshness-note">Datos sin conexión · Actualizado {{ horaCache }}</p>
+    }
+
   </div>
 </ion-header>
 
@@ -184,7 +188,7 @@
   </div>
   }
 
-  <ion-infinite-scroll [disabled]="!hasMore" (ionInfinite)="cargarMas($event)">
+  <ion-infinite-scroll [disabled]="infiniteScrollDisabled" (ionInfinite)="cargarMas($event)">
     <ion-infinite-scroll-content loadingSpinner="crescent" [loadingText]="loadingMoreText"></ion-infinite-scroll-content>
   </ion-infinite-scroll>
 

@@ -119,6 +119,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   menuGroups: MenuGroup[] = [];
   private posSub!: Subscription;
   private usuarioSub!: Subscription;
+  private configSub?: Subscription;
   private posHabilitado = false;
   recargasCelularHabilitada = false;
   recargasBusHabilitada = false;
@@ -128,9 +129,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
-    // Los flags frescos los garantiza main-layout (padre), que invalida el caché
-    // al montar ANTES de este ngOnInit. get() aquí reusa esa misma carga desde BD
-    // — no invalidar de nuevo (duplicaría la query y reabriría la carrera).
+    // Config local-first (2026-07-08): get() sirve del cache al instante (main-layout,
+    // el padre, ya disparó revalidar() en background). La suscripción a config$ de
+    // abajo re-aplica los flags cuando llegue el valor fresco de BD — así el menú
+    // pinta sin esperar red y se auto-corrige si un módulo cambió (resuelve la
+    // carrera del 2026-06-11 por reactividad, no por orden de cargas).
     const [usuario, config] = await Promise.all([
       this.authService.getUsuarioActual(),
       this.configService.get()
@@ -143,6 +146,14 @@ export class SidebarComponent implements OnInit, OnDestroy {
       this.aplicarDatosUsuario(usuario);
     }
     this.nombreNegocio = usuario?.negocio_nombre || '';
+
+    // Flags de módulos: re-aplicar con cada emisión fresca de config.
+    this.configSub = this.configService.config$.subscribe(cfg => {
+      if (!cfg) return;
+      this.recargasCelularHabilitada = cfg.recargas_celular_habilitada ?? false;
+      this.recargasBusHabilitada     = cfg.recargas_bus_habilitada     ?? false;
+      this.recalcularMenu();
+    });
 
     // POS: solo para el empleado que abrió el turno (Realtime de turnos_caja).
     this.posSub = this.turnosCajaService.esMiTurno$.subscribe(esMio => {
@@ -162,6 +173,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.posSub?.unsubscribe();
     this.usuarioSub?.unsubscribe();
+    this.configSub?.unsubscribe();
   }
 
   private aplicarDatosUsuario(usuario: { id?: string; nombre: string; email: string; rol: RolUsuario; es_superadmin?: boolean; negocio_id?: string; negocio_nombre?: string }) {

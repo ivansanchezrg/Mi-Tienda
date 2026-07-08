@@ -91,19 +91,25 @@ Ubicacion: `src/app/core/services/config.service.ts`
   2. **Preferences** (~5-10ms) — snapshot persistido con TTL 1h y `negocio_id` para invalidación cross-tenant automática
   3. **BD** (~200-400ms) — query a Supabase como fallback
 - **Stale-while-revalidate**: si sirve del cache persistido, dispara refresh contra BD en background. El próximo `get()` ya tiene el valor fresco en RAM.
+- **Reactivo (`config$`, 2026-07-08)**: `BehaviorSubject` que emite en cada carga/refresh del cache. Los consumidores que muestran flags dependientes de config (sidebar, FAB del layout) se suscriben para auto-corregirse cuando llega un valor fresco — sin bloquear su render esperando la BD.
+- **`revalidar()` (2026-07-08)**: refresh NO destructivo — trae BD en background y emite en `config$`, **sin borrar** el cache vigente. Reemplaza el patrón "`invalidar()` al montar el layout": aquél forzaba una query bloqueante en cada arranque (con red mala, el sidebar/FAB esperaban segundos). Con `revalidar()`, la UI pinta del cache al instante y se auto-corrige por reactividad. Ver `PERFORMANCE-STARTUP.md` §20.
 - **Invalidación**:
   - Automática al cambiar de negocio (snapshot guarda `negocio_id`)
   - Automática en logout (`registerBeforeCleanup` borra la key)
-  - Manual con `invalidar()` cuando el admin edita parámetros
-- **Metodos**: `get()`, `invalidar()`
-- **Quien lo usa**: POS (descuentos, IVA), Dashboard (transferencia Varios), Recargas (alertas bus)
+  - Manual con `invalidar()` **solo tras una ESCRITURA** de configuración (parámetros, toggle de módulos del superadmin, descuentos POS, cierre) — ahí el cache local es obsoleto con certeza. Para lecturas de arranque usar `revalidar()`.
+- **Metodos**: `get()`, `revalidar()`, `invalidar()`, `config$`
+- **Quien lo usa**: POS (descuentos, IVA), Dashboard (transferencia Varios), Recargas (alertas bus), sidebar + layout (flags de módulos via `config$`)
 - **Nombre del negocio**: ya NO viene de `ConfigService`. Leer de `authService.usuarioActualValue?.negocio_nombre` (JWT/cache).
 
 ```typescript
 // Lectura tipada con cache (lee de RAM → Preferences → BD, en ese orden)
 const config = await this.configService.get();
 
-// Despues de que el admin guarda cambios:
+// Arranque de una vista que muestra flags de config: pinta del cache + revalida atrás
+this.configService.revalidar();
+this.configSub = this.configService.config$.subscribe(cfg => { if (cfg) this.aplicarFlags(cfg); });
+
+// Despues de que el admin GUARDA cambios (escritura):
 this.configService.invalidar(); // limpia cache RAM + Preferences → proxima lectura va a BD
 ```
 

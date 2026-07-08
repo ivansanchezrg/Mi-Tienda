@@ -17,7 +17,8 @@ import { LoggerService } from './logger.service';
  * CatalogoLocalService, OutboxService y TurnoLocalService no saben qué motor usan.
  *
  * Multi-tenant: una DB/store por negocio_id.
- * Esquema: outbox_ventas | turno_activo_local | cache_catalogo
+ * Esquema: outbox_ventas | outbox_clientes | turno_activo_local | cache_catalogo |
+ *          cache_clientes | cache_ventas_dia
  */
 
 // ── Interfaz común ──────────────────────────────────────────────────────────
@@ -56,9 +57,38 @@ const TABLES: Record<string, string> = {
         catalogo_json   TEXT NOT NULL,
         categorias_json TEXT NOT NULL,
         timestamp       INTEGER NOT NULL`,
+
+    cache_clientes: `
+        negocio_id      TEXT PRIMARY KEY,
+        clientes_json   TEXT NOT NULL,
+        timestamp       INTEGER NOT NULL`,
+
+    cache_ventas_dia: `
+        negocio_id      TEXT PRIMARY KEY,
+        fecha           TEXT NOT NULL,
+        ventas_json     TEXT NOT NULL,
+        timestamp       INTEGER NOT NULL`,
+
+    outbox_clientes: `
+        id              TEXT PRIMARY KEY,
+        negocio_id      TEXT NOT NULL,
+        payload_json    TEXT NOT NULL,
+        estado          TEXT NOT NULL DEFAULT 'PENDING',
+        intentos        INTEGER NOT NULL DEFAULT 0,
+        ultimo_error    TEXT,
+        created_at      INTEGER NOT NULL`,
 };
 
+// Versión del parámetro que recibe `createConnection()` del plugin SQLite nativo
+// (Android/iOS). El plugin la usa para SU propio sistema de upgrade statements —
+// NO subirla al agregar tablas: `CREATE TABLE IF NOT EXISTS` en _open() ya cubre
+// el caso. Solo subiría si se registrara addUpgradeStatement() explícitamente.
 const SCHEMA_VERSION = 1;
+
+// Versión de IndexedDB (web/PWA) — a diferencia de SQLite, los object stores
+// SOLO se crean en onupgradeneeded. Cada tabla nueva en TABLES exige subir este
+// número o el store nunca se crea en instalaciones web existentes.
+const IDB_VERSION = 3;
 
 // ── Adaptador SQLite (Android / iOS) ────────────────────────────────────────
 
@@ -86,7 +116,9 @@ class SQLiteAdapter implements IDbAdapter {
 // ── Adaptador IndexedDB (Web / PWA) ─────────────────────────────────────────
 // Implementa un motor SQL-like sobre IndexedDB usando un object store por tabla.
 // Cada registro usa su clave primaria como keyPath.
-// Soporta el subconjunto de SQL que usan CatalogoLocalService, OutboxService y TurnoLocalService.
+// Soporta el subconjunto de SQL que usan los servicios *LocalService/Outbox* de core/services/
+// (un SELECT/UPDATE/DELETE con a lo sumo un WHERE col = ? — ver nota de la Fase B en el plan
+// de calle sobre esta limitación al diseñar tablas nuevas).
 
 class IndexedDbAdapter implements IDbAdapter {
     private db!: IDBDatabase;
@@ -110,6 +142,9 @@ class IndexedDbAdapter implements IDbAdapter {
                     outbox_ventas:       'idempotency_key',
                     turno_activo_local:  'negocio_id',
                     cache_catalogo:      'negocio_id',
+                    cache_clientes:      'negocio_id',
+                    cache_ventas_dia:    'negocio_id',
+                    outbox_clientes:     'id',
                 };
                 for (const table of Object.keys(tables)) {
                     if (!db.objectStoreNames.contains(table)) {
@@ -295,7 +330,7 @@ export class LocalDbService {
         try {
             if (platform === 'web') {
                 // IndexedDB nativo — sin jeep-sqlite, sin WebAssembly
-                const adapter = await IndexedDbAdapter.open(dbName, TABLES, SCHEMA_VERSION, this.logger);
+                const adapter = await IndexedDbAdapter.open(dbName, TABLES, IDB_VERSION, this.logger);
                 this.logger.info('LocalDbService', `DB "${dbName}" lista en web (IndexedDB)`);
                 return adapter;
             }

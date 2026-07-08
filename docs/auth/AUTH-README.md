@@ -373,7 +373,7 @@ async handleExpiredSession(): Promise<void> {
 | App en background >55 min, <30 días | `refreshSessionOnResume()` renueva el token | Breve pausa (~500ms) mientras renueva |
 | App cerrada >30 días | Refresh token expiró → SDK emite `SIGNED_OUT` | Toast "Sesión expirada" + redirect a login |
 | Query falla con JWT expired | `call()` detecta y limpia | Toast "Sesión expirada" + redirect a login |
-| Sin internet + sesión local | `authGuard` permite acceso offline | Toast "Sin conexión a internet" |
+| Sin internet + sesión local | `authGuard` permite acceso offline | Sin toast (2026-07-08) — el banner global `app-offline-banner` ya muestra la franja "Sin conexión" persistente; un toast redundante en el arranque contradice el enfoque local-first |
 | Sin internet + sin sesión | `authGuard` redirige | Pantalla de login |
 | Email no existe en `usuarios` | Auto-registro (email + nombre) → crear negocio | Pantalla onboarding |
 | Sin negocios activos | Redirige a `/auth/crear-negocio` | Onboarding crear negocio |

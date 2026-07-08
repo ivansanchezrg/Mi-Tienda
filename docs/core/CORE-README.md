@@ -227,7 +227,7 @@ Punto único para captura, recorte, compresión y subida de imágenes a Supabase
 | `replaceImage(newImageUrl, subfolder, oldPath, useDatePrefix?)` | Sube nueva + elimina anterior atómicamente. Si el upload falla retorna null y no toca `oldPath`. |
 | `getSignedUrl(path, expiresIn?)` | URL firmada temporal (default: 1h). Para buckets privados como `comprobantes`. |
 | `getPublicUrl(path)` | URL pública directa. Solo para buckets/subfolders públicos. |
-| `resolveImageUrl(path)` / `resolveImageUrls(paths[])` | Resuelve path → signed URL. Si ya es URL completa la retorna tal cual. Versión plural usa `Promise.all` para listas. |
+| `resolveImageUrl(path)` / `resolveImageUrls(paths[])` | Resuelve path → URL mostrable por `<img>`. Si ya es URL completa la retorna tal cual. Orden de resolución: **(1) binario local en disco** (`ImagenLocalService` — se ve offline y sobrevive cold start) → (2) signed URL en cache RAM → (3) online: firmar + descargar el binario en background → (4) offline sin binario: `null` (placeholder). Versión plural usa `Promise.all`. |
 | `deleteFile(path)` | Elimina un archivo. Usar para rollback si el RPC falla después de subir. |
 | `deleteNegocioFolder(negocioId)` | **Uso exclusivo del flujo de purga de negocios** (`docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md`). Borra recursivamente TODO el contenido de `{negocioId}/` en el bucket, sin hardcodear nombres de subcarpeta. No llamar desde ningún flujo normal de la app ni exponer en menús de usuario — es irreversible y borra absolutamente todo lo del negocio. |
 | `capturarFoto(source)` | **Bajo nivel** — solo abre cámara/galería sin cropper. Prefiere `elegirFuenteFoto()` que incluye el flujo completo. |
@@ -405,16 +405,23 @@ this.currencyService.format(1250.5);     // → "1,250.50"
 
 ---
 
-## Servicios del modo offline (POS)
+## Servicios del modo offline (POS + calle)
 
-Capa de datos local que permite cobrar sin internet. Plan completo: `docs/guides/PLAN-OFFLINE-POS-2026-06-08.md`.
+Capa de datos local que permite cobrar y operar sin internet. Planes completos:
+`docs/guides/PLAN-OFFLINE-POS-2026-06-08.md` (POS: cobrar sin red) y
+`docs/guides/PLAN-OFFLINE-CALLE-2026-07-03.md` (calle: catálogo/clientes/ventas/fotos offline).
 
 ### LocalDbService (`core/services/local-db.service.ts`)
 
 Abstracción de almacenamiento local con patrón adaptador. **Android/iOS** → SQLite nativo
 (`@capacitor-community/sqlite`); **Web** → IndexedDB nativo del browser (sin jeep-sqlite, por su bug de wasm).
 API uniforme `run()`/`query()`/`execute()`. Una DB por `negocio_id` (`mi_tienda_<id>`). Tablas:
-`outbox_ventas`, `turno_activo_local`, `cache_catalogo`.
+`outbox_ventas`, `outbox_clientes`, `turno_activo_local`, `cache_catalogo`, `cache_clientes`, `cache_ventas_dia`.
+
+> **Versionado dual:** `SCHEMA_VERSION` (parámetro del plugin SQLite nativo) **no se sube** al agregar
+> tablas — `CREATE TABLE IF NOT EXISTS` en `_open()` ya las crea. `IDB_VERSION` (IndexedDB web) **sí se
+> sube** por cada tabla nueva (los object stores solo se crean en `onupgradeneeded`) — y hay que agregar
+> la tabla al mapa `primaryKeys`. Actualmente `IDB_VERSION = 3`.
 
 ### CatalogoLocalService (`core/services/catalogo-local.service.ts`)
 
@@ -422,6 +429,27 @@ Cache de solo lectura del catálogo aplanado (`ProductoPOS[]`) + categorías. Do
 **cache RAM** (evita re-leer la DB y re-parsear JSON en cada filtro offline → filtros instantáneos). Replica
 offline `fn_catalogo_productos_pos`, `fn_buscar_productos_pos` y el lookup por código de barras, en memoria.
 Stock cacheado es **optimista** — la verdad la define el servidor al sincronizar.
+
+### ClientesLocalService (`core/services/clientes-local.service.ts`)
+
+Espejo de `CatalogoLocalService` para clientes registrados (`cache_clientes`, cap 5000). Réplica de solo
+lectura para el selector del POS y la sección Clientes offline. Métodos: `guardar`, `buscarPorTexto`,
+`buscarPorIdentificacion`, `obtenerTodos`, `agregarUno` (alta local instantánea de un cliente creado offline),
+`obtenerTimestamp` (sello de frescura).
+
+### VentasLocalService (`core/services/ventas-local.service.ts`)
+
+Snapshot de la primera página del listado de ventas **del día actual** (`cache_ventas_dia`). Solo la vista
+default (filtro `hoy`, página 0, sin búsqueda/estado/turno) escribe/lee este snapshot. Se invalida por fecha
+local (un snapshot de ayer no se sirve). Métodos: `guardar`, `obtener`, `obtenerTimestamp`.
+
+### ImagenLocalService (`core/services/imagen-local.service.ts`)
+
+Persiste los **binarios** de las fotos del catálogo en disco (`Directory.Data/catalogo-img/{hash}.ext`) para
+que se vean offline tras un cold start (el `signedUrlCache` de `StorageService` es solo RAM y muere con el
+proceso; una signed URL además expira a 60 min). Solo nativo (web es no-op). Se alimenta desde el priming de
+Fase P (`SyncService`). Métodos: `obtenerLocal` (path → URL local vía `convertFileSrc`), `descargar` (un path),
+`precargarCatalogo` (lote + poda de huérfanos). `StorageService.resolveImageUrl` lo prioriza sobre la firma.
 
 ### TurnoLocalService (`core/services/turno-local.service.ts`)
 
@@ -435,14 +463,28 @@ falló", no "no hay turno" → no se borra el snapshot válido).
 Cola durable de ventas pendientes en `outbox_ventas` (estados `PENDING`/`SYNCING`/`SYNCED`/`ERROR`). Guarda el
 **payload crudo** del RPC (no recalcula nada local). Expone `pendientes$` (contador reactivo) que alimenta el
 badge del banner y la tab Pendientes. Métodos: `encolar`, `obtenerPendientes`, `marcarEstado`, `eliminar`,
-`refrescarContador`.
+`refrescarContador`, `remapearClienteId` (reescribe el `clienteId` de ventas encoladas tras el upsert de un
+cliente creado offline — ver Fase D del plan de calle).
+
+### OutboxClientesService (`core/services/outbox-clientes.service.ts`)
+
+Cola durable de clientes creados offline (`outbox_clientes`), espejo de `OutboxService`. El cliente recibe un
+UUID generado en el dispositivo (válido como PK real) y se drena **antes** que las ventas que lo referencian.
+Métodos: `encolar`, `obtenerPendientes`, `marcarEstado`, `eliminar`. No alimenta ningún badge (se drena
+silenciosamente antes de las ventas).
 
 ### SyncService (`core/services/sync.service.ts`)
 
-Drena la cola contra `fn_registrar_venta_pos` al volver la red (listener de `NetworkService`). **FIFO estricto**
-con corte al primer error para preservar el orden del ledger. Distingue error de red (deja `PENDING`, reintenta)
-de error de datos (marca `ERROR`/dead-letter, no reintenta en loop). La `idempotency_key UNIQUE` hace el reenvío
-100% seguro.
+Dos responsabilidades:
+1. **Drenado del outbox** contra `fn_registrar_venta_pos` al volver la red. **FIFO estricto** con corte al
+   primer error para preservar el orden del ledger. Distingue error de red (deja `PENDING`, reintenta) de error
+   de datos (`ERROR`/dead-letter). La `idempotency_key UNIQUE` hace el reenvío 100% seguro. **Orden entre colas:**
+   drena `outbox_clientes` a completitud **antes** de `outbox_ventas` (una venta puede referenciar un cliente
+   que también es offline; su UUID debe existir en el servidor antes de subir la venta).
+2. **Priming offline (Fase P)** — `precalentarOffline()`: descarga catálogo + categorías + clientes + CF + los
+   **binarios de las fotos** a disco, en los momentos con red garantizada (arranque con sesión, reconexión,
+   apertura de turno). Reentrante-seguro (`primingEnCurso`), salta si el snapshot es fresco (`< 12 min`), y en
+   el arranque se difiere unos segundos para no competir con la RPC del Home. Best-effort, nunca muestra toast.
 
 > **Errores offline:** el silenciado de toasts de red está centralizado en `SupabaseService.call()` (y el helper
 > público `debeSilenciarErrorOffline()` para las queries con `.client` directo). El `<app-offline-banner>` global

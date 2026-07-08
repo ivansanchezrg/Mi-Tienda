@@ -223,6 +223,16 @@ ion-content {
     }
 }
 
+// ── Sello de frescura (Fase C) ──────────────────
+.freshness-note {
+    margin: 0;
+    padding: 4px 8px 6px;
+    font-size: 11px;
+    color: var(--ion-color-medium);
+    text-align: center;
+    background: var(--bg-header);
+}
+
 
 // ─────────────────────────────────────────
 // ESTADOS
