@@ -10,16 +10,14 @@ import {
 import { addIcons } from 'ionicons';
 import {
     arrowBackOutline, timeOutline, trendingUpOutline, trendingDownOutline,
-    documentTextOutline, arrowUndoOutline, addOutline, checkmarkOutline,
-    closeOutline, removeOutline, pricetagOutline, createOutline
+    documentTextOutline, arrowUndoOutline, addOutline,
+    removeOutline, pricetagOutline, createOutline
 } from 'ionicons/icons';
 
 import { KardexInventario } from '../../models/kardex.model';
 import { InventarioService } from '../../services/inventario.service';
-import { UiService } from '@core/services/ui.service';
 import { LoggerService } from '@core/services/logger.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
-import { ROUTES } from '@core/config/routes.config';
 import { AjusteStockModalComponent, AjusteStockResult } from '../../components/ajuste-stock-modal/ajuste-stock-modal.component';
 
 @Component({
@@ -40,7 +38,6 @@ export class KardexPage implements OnInit {
     private modalCtrl     = inject(ModalController);
     private route         = inject(ActivatedRoute);
     private inventarioService = inject(InventarioService);
-    private ui            = inject(UiService);
     private logger        = inject(LoggerService);
 
     productoId!: string;
@@ -52,13 +49,12 @@ export class KardexPage implements OnInit {
 
     kardex: KardexInventario[] = [];
     cargando = true;
-    guardandoAjuste = false;
 
     constructor() {
         addIcons({
             arrowBackOutline, timeOutline, trendingUpOutline, trendingDownOutline,
-            documentTextOutline, arrowUndoOutline, addOutline, checkmarkOutline,
-            closeOutline, removeOutline, pricetagOutline, createOutline
+            documentTextOutline, arrowUndoOutline, addOutline,
+            removeOutline, pricetagOutline, createOutline
         });
     }
 
@@ -93,8 +89,15 @@ export class KardexPage implements OnInit {
         (event.target as HTMLIonRefresherElement).complete();
     }
 
+    /**
+     * El kárdex tiene dos orígenes válidos: desde editar (botón "Kárdex") y desde el
+     * listado (menú ⋮ → "Ver kárdex"). `back()` sin destino explícito respeta el
+     * historial real de Ionic y vuelve a donde el usuario vino realmente, en vez de
+     * forzar siempre "editar" (que mandaría al listado a la página de editar un
+     * producto al que nunca navegó).
+     */
     volver() {
-        this.navCtrl.navigateBack(ROUTES.inventario.editar(this.productoId));
+        this.navCtrl.back();
     }
 
     async abrirAjuste() {
@@ -104,35 +107,29 @@ export class KardexPage implements OnInit {
                 stockActual:  this.stockActual,
                 esPeso:       this.esPeso,
                 unidadMedida: this.unidadMedida,
-                guardando:    this.guardandoAjuste
+                // El modal espera esta promesa antes de cerrarse (patrón de
+                // PresentacionModalComponent.onConfirmar) — así "Procesando..." es
+                // visible de verdad, y si falla el modal sigue abierto para reintentar.
+                onConfirmar: (data: AjusteStockResult) => this.ejecutarAjuste(data)
             },
             cssClass: 'bottom-sheet-modal',
             breakpoints: [0, 1],
             initialBreakpoint: 1
         });
         await modal.present();
-
-        const { data } = await modal.onDidDismiss<AjusteStockResult | null>();
-        if (!data) return;
-
-        await this.ejecutarAjuste(data);
     }
 
-    private async ejecutarAjuste(data: AjusteStockResult) {
-        this.guardandoAjuste = true;
+    private async ejecutarAjuste(data: AjusteStockResult): Promise<boolean> {
         try {
             const res = await this.inventarioService.ajustarStock(
-                this.productoId,
-                data.tipo,
-                data.cantidad,
-                data.observaciones
+                this.productoId, data.tipo, data.cantidad, data.observaciones
             );
             this.stockActual = res.stock_nuevo;
             await this.cargarKardex();
+            return true;
         } catch (error) {
             this.logger.error('KardexPage', 'Error ajustando stock', error);
-        } finally {
-            this.guardandoAjuste = false;
+            return false;
         }
     }
 

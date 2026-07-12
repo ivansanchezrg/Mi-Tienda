@@ -1,9 +1,8 @@
 import { Component, Input, Output, EventEmitter, inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { IonIcon, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-    addOutline, trashOutline, closeOutline, refreshOutline, createOutline,
+    addOutline, trashOutline, refreshOutline, createOutline,
     chevronDownOutline, chevronUpOutline, informationCircleOutline, imageOutline
 } from 'ionicons/icons';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -32,7 +31,6 @@ export interface PresentacionNueva {
     styleUrls: ['./producto-presentaciones.component.scss'],
     standalone: true,
     imports: [
-        CommonModule,
         IonIcon,
     ]
 })
@@ -52,9 +50,6 @@ export class ProductoPresentacionesComponent implements OnInit {
     @Input()  presentacionesNuevas: PresentacionNueva[] = [];
     @Output() presentacionesNuevasChange = new EventEmitter<PresentacionNueva[]>();
 
-    /** Notifica que una presentación persisted fue creada/actualizada/desactivada */
-    @Output() cambioPersistido = new EventEmitter<void>();
-
     protected currencyService  = inject(CurrencyService);
     private modalCtrl          = inject(ModalController);
     private alertCtrl          = inject(AlertController);
@@ -71,7 +66,7 @@ export class ProductoPresentacionesComponent implements OnInit {
 
     constructor() {
         addIcons({
-            addOutline, trashOutline, closeOutline, refreshOutline, createOutline,
+            addOutline, trashOutline, refreshOutline, createOutline,
             chevronDownOutline, chevronUpOutline, informationCircleOutline, imageOutline
         });
     }
@@ -187,7 +182,6 @@ export class ProductoPresentacionesComponent implements OnInit {
                     }
                     this.animarPresentacion(creada.nombre);
                     this.ui.showToast(`Presentacion "${creada.nombre}" guardada`, 'success');
-                    this.cambioPersistido.emit();
                     return true;
                 }
                 if (imagenPath) await this.storageService.deleteFile(imagenPath);
@@ -228,7 +222,6 @@ export class ProductoPresentacionesComponent implements OnInit {
                     if (url) this.presentacionesImagenUrls.set(pres.id, url);
                 }
                 this.ui.showToast(`Presentacion "${result.nombre}" actualizada`, 'success');
-                this.cambioPersistido.emit();
                 return true;
             },
             pres.imagen_url ?? null
@@ -246,7 +239,6 @@ export class ProductoPresentacionesComponent implements OnInit {
                     handler: async () => {
                         await this.presentacionSvc.desactivarPresentacion(pres.id);
                         this.presentaciones = this.presentaciones.filter(p => p.id !== pres.id);
-                        this.cambioPersistido.emit();
                     }
                 }
             ]
@@ -259,7 +251,6 @@ export class ProductoPresentacionesComponent implements OnInit {
         this.presentacionesInactivas = this.presentacionesInactivas.filter(p => p.id !== pres.id);
         this.presentaciones = [...this.presentaciones, pres];
         this.animarPresentacion(pres.nombre);
-        this.cambioPersistido.emit();
     }
 
     // ─────────────────────────────────────────────────────────────────────────

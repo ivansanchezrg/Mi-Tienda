@@ -1,5 +1,4 @@
 import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup } from '@angular/forms';
 import { SafeUrl } from '@angular/platform-browser';
 import {
@@ -7,9 +6,9 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-    barcodeOutline, cameraOutline, closeCircle, ellipsisHorizontal,
-    chevronDownOutline, checkmarkCircleOutline, sparklesOutline,
-    cubeOutline, scaleOutline, cropOutline, trashOutline
+    barcodeOutline, cameraOutline, ellipsisHorizontal,
+    chevronDownOutline, sparklesOutline,
+    cubeOutline, scaleOutline
 } from 'ionicons/icons';
 import { StorageService } from '../../../../core/services/storage.service';
 import { BarcodeScannerService, getBarcodeInputHint } from '../../../../core/services/barcode-scanner.service';
@@ -29,7 +28,7 @@ export interface FotoSeleccionada {
     styleUrls: ['./producto-info-form.component.scss'],
     standalone: true,
     imports: [
-        CommonModule, ReactiveFormsModule,
+        ReactiveFormsModule,
         IonItem, IonInput, IonIcon, IonButton,
         ScannerOverlayComponent,
     ]
@@ -52,8 +51,6 @@ export class ProductoInfoFormComponent {
 
     @Output() fotoSeleccionada = new EventEmitter<FotoSeleccionada>();
     @Output() fotoRemovida     = new EventEmitter<void>();
-    @Output() codigoEscaneado  = new EventEmitter<string>();
-    @Output() tipoVentaCambiado = new EventEmitter<'UNIDAD' | 'PESO'>();
 
     escaneando = false;
     readonly barcodeHint = getBarcodeInputHint();
@@ -65,9 +62,9 @@ export class ProductoInfoFormComponent {
 
     constructor() {
         addIcons({
-            barcodeOutline, cameraOutline, closeCircle, ellipsisHorizontal,
-            chevronDownOutline, checkmarkCircleOutline, sparklesOutline,
-            cubeOutline, scaleOutline, cropOutline, trashOutline
+            barcodeOutline, cameraOutline, ellipsisHorizontal,
+            chevronDownOutline, sparklesOutline,
+            cubeOutline, scaleOutline
         });
     }
 
@@ -114,7 +111,6 @@ export class ProductoInfoFormComponent {
         this.escaneando = false;
         if (!codigo) return;
         this.formGroup.patchValue({ codigo_barras: codigo });
-        this.codigoEscaneado.emit(codigo);
         this.ui.showToast(`Codigo capturado: ${codigo}`, 'success');
     }
 
@@ -188,6 +184,5 @@ export class ProductoInfoFormComponent {
             tipo_venta: tipo,
             unidad_medida: tipo === 'PESO' ? 'lb' : 'und'
         });
-        this.tipoVentaCambiado.emit(tipo);
     }
 }

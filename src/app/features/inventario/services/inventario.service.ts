@@ -16,6 +16,14 @@ export interface ProductoChangeEvent {
     producto: Producto;
 }
 
+/** Métricas de cabecera del inventario (fn_metricas_inventario). */
+export interface MetricasInventario {
+    total_activos: number;
+    por_reponer: number;
+    agotados: number;
+    valor_inventario: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class InventarioService {
     private supabase          = inject(SupabaseService);
@@ -45,16 +53,17 @@ export class InventarioService {
     // LISTADO Y BÚSQUEDA DE PRODUCTOS
     // ==========================================
 
-    async obtenerProductos(buscar?: string, categoriaId?: string, templateId?: string, page = 0, pageSize = 25): Promise<Producto[]> {
+    async obtenerProductos(buscar?: string, categoriaId?: string, templateId?: string, page = 0, pageSize = 25, soloStockBajo = false): Promise<Producto[]> {
         const from = page * pageSize;
         const to   = from + pageSize - 1;
         const data = await this.supabase.call<Producto[]>(
             this.supabase.client.rpc('fn_listar_productos', {
-                p_buscar:       buscar      || null,
-                p_categoria_id: categoriaId || null,
-                p_template_id:  templateId  || null,
-                p_from:         from,
-                p_to:           to
+                p_buscar:          buscar      || null,
+                p_categoria_id:    categoriaId || null,
+                p_template_id:     templateId  || null,
+                p_from:            from,
+                p_to:              to,
+                p_solo_stock_bajo: soloStockBajo
             })
         );
         return data || [];
@@ -62,6 +71,13 @@ export class InventarioService {
 
     async obtenerProductosDesactivados(): Promise<Producto[]> {
         return this.productoService.obtenerProductosDesactivados();
+    }
+
+    /** Métricas de cabecera (total, por reponer, agotados, valor). Server-side sobre todo el catálogo. */
+    async obtenerMetricas(): Promise<MetricasInventario | null> {
+        return this.supabase.call<MetricasInventario>(
+            this.supabase.client.rpc('fn_metricas_inventario')
+        );
     }
 
     async obtenerProductoPorId(id: string): Promise<Producto | null> {
@@ -80,19 +96,8 @@ export class InventarioService {
     }
 
     // ==========================================
-    // BÚSQUEDA POS
+    // CATÁLOGO Y BÚSQUEDA POS
     // ==========================================
-
-    async buscarProductosPOS(texto: string): Promise<ProductoPOS[]> {
-        // Offline: buscar en memoria sobre el catálogo cacheado (replica fn_buscar_productos_pos).
-        if (!this.network.isConnected()) {
-            return this.catalogoLocal.buscarPorTexto(texto);
-        }
-        const data = await this.supabase.call<ProductoPOS[]>(
-            this.supabase.client.rpc('fn_buscar_productos_pos', { p_busqueda: texto })
-        );
-        return data ?? [];
-    }
 
     async obtenerProductosCatalogoPOS(categoriaId?: string, categoriasParaCache?: CategoriaProducto[]): Promise<ProductoPOS[]> {
         // Offline: servir del cache filtrando por categoría en memoria.
@@ -278,108 +283,18 @@ export class InventarioService {
     }
 
     // ==========================================
-    // DELEGADOS — mantienen retrocompatibilidad
-    // con los consumidores actuales mientras no
-    // se migren a los servicios específicos.
+    // DELEGADOS — en uso real por consumidores actuales
     // ==========================================
 
-    /** @deprecated Usar ProductoService.actualizar() */
-    async actualizarProducto(id: string, producto: Partial<Producto>): Promise<Producto> {
-        return this.productoService.actualizar(id, producto);
-    }
-
-    /** @deprecated Usar ProductoService.desactivar() */
     async desactivarProducto(id: string): Promise<void> {
         return this.productoService.desactivar(id);
     }
 
-    /** @deprecated Usar ProductoService.reactivar() */
     async reactivarProducto(id: string): Promise<Producto> {
         return this.productoService.reactivar(id);
     }
 
-    /** @deprecated Usar ProductoService.crearSimple() */
-    async crearProductoSimple(params: Parameters<ProductoService['crearSimple']>[0]): Promise<{ ok: boolean; producto_id?: string }> {
-        return this.productoService.crearSimple(params);
-    }
-
-    /** @deprecated Usar ProductoService.crearConVariantes() */
-    async crearProductoConVariantes(params: Parameters<ProductoService['crearConVariantes']>[0]): Promise<{ ok: boolean; template_id?: string; skus_creados?: number }> {
-        return this.productoService.crearConVariantes(params);
-    }
-
-    /** @deprecated Usar ProductoService.obtenerTemplatePorId() */
-    async obtenerTemplatePorId(id: string) {
-        return this.productoService.obtenerTemplatePorId(id);
-    }
-
-    /** @deprecated Usar ProductoService.obtenerSKUsDelTemplate() */
-    async obtenerSKUsDelTemplate(templateId: string, excluirProductoId?: string) {
-        return this.productoService.obtenerSKUsDelTemplate(templateId, excluirProductoId);
-    }
-
-    /** @deprecated Usar PresentacionService.obtenerPresentaciones() */
-    async obtenerPresentaciones(productoId: string) {
-        return this.presentacionSvc.obtenerPresentaciones(productoId);
-    }
-
-    /** @deprecated Usar PresentacionService.obtenerPresentacionesInactivas() */
-    async obtenerPresentacionesInactivas(productoId: string) {
-        return this.presentacionSvc.obtenerPresentacionesInactivas(productoId);
-    }
-
-    /** @deprecated Usar PresentacionService.crearPresentacion() */
-    async crearPresentacion(presentacion: Partial<ProductoPresentacion>, silencioso = false) {
-        return this.presentacionSvc.crearPresentacion(presentacion, silencioso);
-    }
-
-    /** @deprecated Usar PresentacionService.actualizarPresentacion() */
-    async actualizarPresentacion(id: string, presentacion: Partial<ProductoPresentacion>) {
-        return this.presentacionSvc.actualizarPresentacion(id, presentacion);
-    }
-
-    /** @deprecated Usar PresentacionService.desactivarPresentacion() */
-    async desactivarPresentacion(id: string) {
-        return this.presentacionSvc.desactivarPresentacion(id);
-    }
-
-    /** @deprecated Usar PresentacionService.reactivarPresentacion() */
-    async reactivarPresentacion(id: string) {
-        return this.presentacionSvc.reactivarPresentacion(id);
-    }
-
-    /** @deprecated Usar AtributoService */
-    async buscarAtributos(texto: string) {
-        return this.atributoSvc.buscarAtributos(texto);
-    }
-
-    /** @deprecated Usar AtributoService */
-    async crearOObtenerAtributo(nombre: string) {
-        return this.atributoSvc.crearOObtenerAtributo(nombre);
-    }
-
-    /** @deprecated Usar AtributoService */
-    async buscarOpcionesAtributo(atributoId: string, texto?: string) {
-        return this.atributoSvc.buscarOpcionesAtributo(atributoId, texto);
-    }
-
-    /** @deprecated Usar AtributoService */
-    async obtenerOpcionesAtributo(atributoId: string) {
-        return this.atributoSvc.obtenerOpcionesAtributo(atributoId);
-    }
-
-    /** @deprecated Usar AtributoService */
-    async crearOObtenerOpcionAtributo(atributoId: string, valor: string) {
-        return this.atributoSvc.crearOObtenerOpcionAtributo(atributoId, valor);
-    }
-
-    /** @deprecated Usar AtributoService */
     async obtenerAtributosProducto(productoId: string) {
         return this.atributoSvc.obtenerAtributosProducto(productoId);
-    }
-
-    /** @deprecated Usar AtributoService */
-    async guardarAtributosProducto(productoId: string, opcionIds: string[]) {
-        return this.atributoSvc.guardarAtributosProducto(productoId, opcionIds);
     }
 }

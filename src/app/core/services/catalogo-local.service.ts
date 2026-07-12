@@ -67,12 +67,6 @@ export class CatalogoLocalService {
     // LECTURA (offline ← cache)
     // ==========================================
 
-    /** True si el catálogo ya está en memoria (filtro de categoría será instantáneo). */
-    tieneCacheEnMemoria(): boolean {
-        const negocioId = this.negocioId;
-        return !!negocioId && this.memoryCatalogo.has(negocioId);
-    }
-
     /** True si hay un snapshot cacheado para el negocio activo. */
     async tieneCache(): Promise<boolean> {
         const negocioId = this.negocioId;
@@ -163,22 +157,6 @@ export class CatalogoLocalService {
         const catalogo = await this.leerCatalogo();
         if (!categoriaId) return catalogo;
         return catalogo.filter(p => p.categoria_id === categoriaId);
-    }
-
-    /**
-     * Replica fn_buscar_productos_pos offline.
-     * Búsqueda ILIKE '%texto%' en nombre y código de barras. Límite 20 igual que la RPC.
-     */
-    async buscarPorTexto(texto: string): Promise<ProductoPOS[]> {
-        const q = texto.trim().toLowerCase();
-        if (!q) return [];
-        const catalogo = await this.leerCatalogo();
-        return catalogo
-            .filter(p =>
-                p.nombre.toLowerCase().includes(q) ||
-                (p.codigo_barras?.toLowerCase().includes(q) ?? false)
-            )
-            .slice(0, 20);
     }
 
     /**

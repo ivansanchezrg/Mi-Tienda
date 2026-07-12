@@ -9,7 +9,7 @@
             }
         </div>
         <span class="bs-header__title">Ajuste de Stock</span>
-        <button class="bs-header__close" (click)="cerrar()">
+        <button class="bs-header__close" [disabled]="guardando" (click)="cerrar()">
             <ion-icon name="close-outline"></ion-icon>
         </button>
     </div>
@@ -84,7 +84,7 @@
 
     <!-- Acciones -->
     <div class="bs-actions bs-actions--row">
-        <ion-button fill="clear" color="medium" (click)="cerrar()">
+        <ion-button fill="clear" color="medium" [disabled]="guardando" (click)="cerrar()">
             Cancelar
         </ion-button>
         <ion-button [color]="esIngreso ? 'success' : 'danger'"

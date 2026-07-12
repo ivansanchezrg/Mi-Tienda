@@ -6,6 +6,7 @@ import { closeOutline, chevronForwardOutline, imageOutline, arrowForwardOutline 
 import { ProductoPOS, ProductoPresentacion } from '../../../inventario/models/producto.model';
 import { CartItem } from '../../models/cart-item.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
+import { volarCloneHacia } from '../../utils/fly-clone.util';
 
 export interface VarianteSelectorResult {
     varianteId: string;
@@ -174,46 +175,11 @@ export class VarianteSelectorModalComponent implements OnInit {
         const btnEl = this.continuarBtnRef?.nativeElement;
         if (!btnEl) return;
 
-        const btnRect = btnEl.getBoundingClientRect();
-        const btnCx = btnRect.left + btnRect.width / 2;
-        const btnCy = btnRect.top + btnRect.height / 2;
-
-        thumbClone.style.cssText = `
-            position: fixed;
-            left: ${thumbRect.left}px;
-            top: ${thumbRect.top}px;
-            width: ${thumbRect.width}px;
-            height: ${thumbRect.height}px;
-            margin: 0;
-            pointer-events: none;
-            z-index: 9999;
-            overflow: hidden;
-            border-radius: 6px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.18);
-            opacity: 1;
-            transform: scale(1);
-            transition:
-                left      0.45s cubic-bezier(0.4, 0, 0.2, 1),
-                top       0.45s cubic-bezier(0.4, 0, 0.2, 1),
-                width     0.45s cubic-bezier(0.4, 0, 0.2, 1),
-                height    0.45s cubic-bezier(0.4, 0, 0.2, 1),
-                opacity   0.3s ease 0.18s,
-                transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-        `;
-        document.body.appendChild(thumbClone);
-
-        // Forzar reflow para que la transición arranque desde el estado inicial
-        thumbClone.getBoundingClientRect();
-
-        const size = 28;
-        thumbClone.style.left      = `${btnCx - size / 2}px`;
-        thumbClone.style.top       = `${btnCy - size / 2}px`;
-        thumbClone.style.width     = `${size}px`;
-        thumbClone.style.height    = `${size}px`;
-        thumbClone.style.opacity   = '0';
-        thumbClone.style.transform = 'scale(0.3)';
-
-        thumbClone.addEventListener('transitionend', () => thumbClone.remove(), { once: true });
+        volarCloneHacia(thumbClone, thumbRect, btnEl, {
+            tamanoFinal: 28,
+            borderRadius: '6px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+        });
     }
 
     async incrementarItem(v: ProductoPOS, p?: ProductoPresentacion) {

@@ -120,7 +120,7 @@
 <!-- MODO NORMAL: POS completo -->
 <!-- ═══════════════════════════════════════ -->
 @if (!escaneando) {
-<ion-content color="light">
+<ion-content color="light" [scrollEvents]="true" (ionScroll)="scrollTop.onContentScroll($event)">
 
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
@@ -179,7 +179,8 @@
                     @if (mostrarDesglose && !item.tiene_iva) {
                       <ion-badge color="medium" class="stock-badge">IVA 0%</ion-badge>
                     }
-                    @let stockLibreItem = item.stock_disponible - item.cantidad * (item.factor_conversion ?? 1);
+                    <!-- Stock libre real: resta TODAS las líneas del producto (unidad + presentaciones) en unidades base -->
+                    @let stockLibreItem = item.stock_disponible - (carritoUnidadesBaseMap()[item.id] || 0);
                     @if (stockLibreItem <= 0) {
                       <span class="stock-inline stock-inline--danger">¡último!</span>
                     } @else if (stockLibreItem <= 10) {
@@ -308,14 +309,15 @@
                     <img [src]="item.producto.imagen_url" [alt]="item.producto.nombre" loading="lazy"
                       class="img-fade" (load)="$event.target['classList'].add('img-loaded')" />
                   } @else {
-                    <span class="catalogo-card-placeholder-nombre">{{ item.producto.nombre }}</span>
+                    <div class="catalogo-card-placeholder-nombre"><span>{{ item.producto.nombre }}</span></div>
                   }
                 </div>
                 <div class="catalogo-card-info">
                   <span class="catalogo-card-nombre">{{ item.producto.nombre }}</span>
                   <div class="catalogo-card-bottom-row">
                     <span class="catalogo-card-precio">${{ currencyService.format(item.producto.precio_venta) }}</span>
-                    @let stockLibre = item.producto.stock_actual - (carritoCountMap()[item.producto.id] || 0);
+                    <!-- Unidades base (cantidad × factor): 2 cajetillas x10 comprometen 20, no 2 -->
+                    @let stockLibre = item.producto.stock_actual - (carritoUnidadesBaseMap()[item.producto.id] || 0);
                     @if (stockLibre <= 0) {
                       <span class="catalogo-card-stock catalogo-card-stock--danger">¡último!</span>
                     } @else if (stockLibre <= 10) {
@@ -343,7 +345,7 @@
                     <img [src]="item.templateImagenUrl" [alt]="item.templateNombre" loading="lazy"
                       class="img-fade" (load)="$event.target['classList'].add('img-loaded')" />
                   } @else {
-                    <span class="catalogo-card-placeholder-nombre">{{ item.templateNombre }}</span>
+                    <div class="catalogo-card-placeholder-nombre"><span>{{ item.templateNombre }}</span></div>
                   }
                 </div>
                 <div class="catalogo-card-info">
@@ -356,23 +358,6 @@
         }
 
       </div>
-      }
-
-      <!-- Pill flotante — solo mobile -->
-      @if (vistaActual === 'catalogo' && carrito().length > 0) {
-      <button class="catalogo-cart-pill" slot="fixed" (click)="irAListaDesdeCatalogo()" type="button">
-        <ion-icon name="cart-outline"></ion-icon>
-        <span class="pill-count" [class.qty-bump]="totalAmountAnimando">{{ totalArticulos() }}</span>
-        <span class="pill-label">Ver carrito</span>
-        <span class="pill-total" [class.total-amount--bump]="totalAmountAnimando">${{ currencyService.format(totalPagar()) }}</span>
-        <ion-icon name="chevron-forward-outline" class="pill-arrow"></ion-icon>
-      </button>
-      }
-
-      @if (barcodeScanner.isAvailable) {
-        <button class="scanner-corner-btn" slot="fixed" (click)="abrirEscanerCamara()">
-          <ion-icon name="barcode-outline"></ion-icon>
-        </button>
       }
 
     </div><!-- /pos-col-main -->
@@ -544,6 +529,46 @@
     </aside><!-- /pos-panel -->
 
   </div><!-- /pos-layout -->
+
+  <!-- Elementos flotantes — DEBEN ser hijos directos de ion-content: slot="fixed" es
+       proyección de Shadow DOM y solo aplica en hijos directos. Anidados dentro de
+       .pos-col-main el slot se ignora y position:absolute los ancla al contenido
+       scrolleable → se iban con el scroll del catálogo. -->
+
+  <!-- Pill flotante "Ver carrito" — solo mobile -->
+  @if (vistaActual === 'catalogo' && carrito().length > 0) {
+  <button class="catalogo-cart-pill" slot="fixed" (click)="irAListaDesdeCatalogo()" type="button">
+    <ion-icon name="cart-outline"></ion-icon>
+    <span class="pill-count" [class.qty-bump]="totalAmountAnimando">{{ totalArticulos() }}</span>
+    <span class="pill-label">Ver carrito</span>
+    <span class="pill-total" [class.total-amount--bump]="totalAmountAnimando">${{ currencyService.format(totalPagar()) }}</span>
+    <ion-icon name="chevron-forward-outline" class="pill-arrow"></ion-icon>
+  </button>
+  }
+
+  @if (barcodeScanner.isAvailable) {
+    <button class="scanner-corner-btn" slot="fixed" (click)="abrirEscanerCamara()">
+      <ion-icon name="barcode-outline"></ion-icon>
+    </button>
+  }
+
+  <!-- FAB subir al inicio — mismo patrón que Inventario. Solo en catálogo (la vista
+       lista/carrito es corta, no lo necesita). Se apila arriba del botón del escáner
+       cuando este existe, alineado al mismo right (misma esquina) — ver .scroll-top-fab
+       en el SCSS. Sin vertical/horizontal: la posición la controla el CSS explícito,
+       no el auto-posicionamiento de ion-fab (evita conflicto de padding interno).
+       (pointerdown) en vez de (click): con el catálogo aún deslizándose por inercia
+       (momentum scroll), el WebView consume el primer toque solo para detener el
+       scroll y no dispara "click" — el usuario necesitaba tocar 2 veces. pointerdown
+       llega ANTES de ese ciclo, así el primer toque ya frena el scroll Y navega. -->
+  @if (vistaActual === 'catalogo' && scrollTop.showScrollTop) {
+  <ion-fab slot="fixed"
+    class="scroll-top-fab" [class.scroll-top-fab--sin-escaner]="!barcodeScanner.isAvailable">
+    <ion-fab-button size="small" color="primary" (pointerdown)="scrollTop.scrollToTop()">
+      <ion-icon name="arrow-up-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+  }
 
 </ion-content>
 

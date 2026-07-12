@@ -161,9 +161,9 @@
     </ion-infinite-scroll-content>
   </ion-infinite-scroll>
 
-  @if (showScrollTop) {
+  @if (scrollTop.showScrollTop) {
     <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
-      <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+      <ion-fab-button size="small" color="primary" (pointerdown)="scrollTop.scrollToTop()">
         <ion-icon name="arrow-up-outline"></ion-icon>
       </ion-fab-button>
     </ion-fab>

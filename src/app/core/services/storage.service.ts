@@ -37,6 +37,10 @@ export class StorageService {
   // (expiresIn de getSignedUrl); se reusa solo dentro de un margen seguro antes de caducar.
   private static readonly SIGNED_URL_REUSE_MS = 50 * 60 * 1000; // 50 min (TTL real: 60 min)
   private signedUrlCache = new Map<string, { url: string; firmadaEn: number }>();
+  // Dedup de firmas en vuelo: N resoluciones simultáneas del mismo path (p.ej. la imagen
+  // del template compartida por todas sus variantes en el burst inicial del catálogo)
+  // esperan la MISMA promesa en vez de disparar N createSignedUrl paralelos.
+  private signedUrlInflight = new Map<string, Promise<string | null>>();
 
   // true en Android/iOS, false en browser/desktop
   get isNative(): boolean {
@@ -320,13 +324,26 @@ export class StorageService {
 
     if (offline) return null;
 
-    // 3. Online: firmar para este render + descargar el binario en background para el offline futuro.
-    const url = await this.getSignedUrl(path);
-    if (url) {
-      this.signedUrlCache.set(path, { url, firmadaEn: Date.now() });
-      void this.imagenLocal.descargar(path); // best-effort, no bloquea el render
-    }
-    return url;
+    // 3. Online: firmar para este render + descargar el binario en background para el
+    //    offline futuro. Con dedup en vuelo: si otro render ya está firmando este mismo
+    //    path, se reutiliza su promesa.
+    const enVuelo = this.signedUrlInflight.get(path);
+    if (enVuelo) return enVuelo;
+
+    const firma = (async () => {
+      try {
+        const url = await this.getSignedUrl(path);
+        if (url) {
+          this.signedUrlCache.set(path, { url, firmadaEn: Date.now() });
+          void this.imagenLocal.descargar(path); // best-effort, no bloquea el render
+        }
+        return url;
+      } finally {
+        this.signedUrlInflight.delete(path);
+      }
+    })();
+    this.signedUrlInflight.set(path, firma);
+    return firma;
   }
 
   // Resuelve múltiples paths en paralelo — usar cuando se carga una lista de productos.

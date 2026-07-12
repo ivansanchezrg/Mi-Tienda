@@ -1,6 +1,10 @@
 -- ==========================================
--- fn_catalogo_productos_pos (v1.0 — 2026-05-30)
+-- fn_catalogo_productos_pos (v1.1 — 2026-07-11)
 -- ==========================================
+-- v1.1: json_agg de presentaciones con ORDER BY factor_conversion, nombre —
+--   sin ORDER BY el orden era no determinista y las presentaciones podían
+--   aparecer en distinto orden en el modal de variantes entre cargas.
+--
 -- Catálogo visual del POS — grid de productos con filtro por categoría.
 -- Devuelve TODOS los productos activos del negocio (sin paginación),
 -- con presentaciones completas + template (id, nombre, imagen_url) y
@@ -73,7 +77,7 @@ AS $$
         JOIN atributos a ON a.id = ta.atributo_id
         WHERE ta.template_id = t.id
     ) ta ON t.id IS NOT NULL
-    -- Presentaciones activas del producto
+    -- Presentaciones activas del producto (orden estable: menor factor primero)
     LEFT JOIN LATERAL (
         SELECT json_agg(
             json_build_object(
@@ -88,6 +92,7 @@ AS $$
                 'es_principal',      pp.es_principal,
                 'activo',            pp.activo
             )
+            ORDER BY pp.factor_conversion, pp.nombre
         ) AS lista
         FROM producto_presentaciones pp
         WHERE pp.producto_id = p.id AND pp.activo = TRUE
@@ -108,6 +113,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_catalogo_productos_pos(UUID) TO authenticat
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_catalogo_productos_pos IS
-    'v1.0 — Catálogo POS con filtro por categoría que aplica a simples Y variantes
-    (COALESCE template/producto). Devuelve presentaciones completas y atributos del template.
+    'v1.1 — Catálogo POS con filtro por categoría que aplica a simples Y variantes
+    (COALESCE template/producto). Devuelve presentaciones completas (orden estable por
+    factor_conversion) y atributos del template.
     Multi-tenant: filtra por get_negocio_id() del JWT.';

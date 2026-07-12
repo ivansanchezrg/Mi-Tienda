@@ -12,8 +12,14 @@ DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
 );
 
 -- ==========================================
--- FUNCIÓN: fn_registrar_venta_pos (v3.1 — soporte venta offline)
+-- FUNCIÓN: fn_registrar_venta_pos (v3.2 — validación de presentaciones)
 -- ==========================================
+-- v3.2 (2026-07-11):
+--   • Valida que cada presentacion_id de p_items pertenezca al negocio Y al producto
+--     del ítem. Antes solo se validaban los productos: una presentacion_id de otro
+--     producto (o de otro tenant) se insertaba tal cual en ventas_detalles y el trigger
+--     fn_actualizar_stock_venta usaba su factor_conversion — stock y kardex incorrectos.
+--
 -- v3.1 (2026-06-10):
 --   • p_permitir_stock_negativo (default false). Solo las ventas drenadas desde la
 --     cola offline (SyncService) lo activan. Setea la variable de sesión transaccional
@@ -128,6 +134,24 @@ BEGIN
     RAISE EXCEPTION 'Hay % producto(s) que no pertenecen a este negocio', v_invalid_count;
   END IF;
 
+  -- Validar que toda presentacion_id pertenezca al negocio Y al producto de su ítem.
+  -- Sin esto, el trigger de stock leería el factor_conversion de una presentación ajena.
+  v_invalid_count := (
+    SELECT COUNT(*)
+    FROM jsonb_array_elements(p_items) AS item
+    WHERE NULLIF(item->>'presentacion_id', '') IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM producto_presentaciones pp
+        WHERE pp.id = (item->>'presentacion_id')::UUID
+          AND pp.producto_id = (item->>'producto_id')::UUID
+          AND pp.negocio_id = v_negocio_id
+      )
+  );
+
+  IF v_invalid_count > 0 THEN
+    RAISE EXCEPTION 'Hay % presentacion(es) que no pertenecen a este negocio o al producto indicado', v_invalid_count;
+  END IF;
+
   -- ────────── Número de comprobante (atómico) ──────────
   UPDATE secuencias_comprobantes
   SET    ultimo_valor = ultimo_valor + 1
@@ -210,7 +234,8 @@ GRANT  EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, UUID, UUID, TEXT,
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_registrar_venta_pos IS
-  'v3.1 — Multi-tenant: valida turno/cliente/empleado/productos del negocio. '
+  'v3.2 — Multi-tenant: valida turno/cliente/empleado/productos Y presentaciones '
+  '(pertenencia al negocio y al producto del ítem) del negocio. '
   'Performance: detalles insertados en batch (INSERT ... SELECT) eliminando N+1. '
   'Idempotencia por p_idempotency_key. p_permitir_stock_negativo habilita stock negativo '
   'para ventas drenadas de la cola offline (stock optimista §5/§6). '

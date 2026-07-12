@@ -217,19 +217,126 @@ await this.inventarioService.crearProductoConVariantes({
 
 ---
 
-## Grid de inventario (`InventarioPage`)
+## Listado de inventario (`InventarioPage`) — panel operativo
 
-### Filtro por categorias — chips scrollables horizontales
+Desde **2026-07-08** el listado dejó de ser un grid de tarjetas tipo catálogo y es una
+**lista de items (`ion-list`) al estilo de la página de Ventas**: un panel de trabajo donde
+el dueño/cajero actúa sobre el stock sin navegar. Plan completo: `docs/inventario/PLAN-INVENTARIO-OPERATIVO.md`.
 
-El filtro cambio de un boton dropdown (modal) a una barra de chips horizontales estilo
-Google Play / supermercado:
+**Por qué lista y no tabla:** de los ~18 campos de `productos`, solo 5-6 tienen valor operativo
+(nombre, stock, precio, costo, categoría, unidad). Una tabla de columnas solo es legible en
+desktop; en móvil (plataforma principal) colapsa. La lista de items presenta esos datos bien
+en ambos, sin scroll horizontal ni vistas duplicadas.
 
-- Chips: "Todas" + una por categoria + "Desactivados" (al final, color neutro)
+### Anatomía del item (3 zonas, densidad del carrito POS)
+
+Desde **2026-07-09** el item adoptó la densidad de `.cart-item` (carrito del POS, `pos.page.html`):
+lista continua con separador fino (`border-bottom`) en vez de cards sueltas con `margin` + `box-shadow`,
+`--min-height: 56px` (antes 72px), thumbnail 44px, tipografías compactas. Más productos visibles por
+pantalla sin scrollear — mismo criterio que ya resolvió bien la densidad del carrito.
+
+```
+[thumb 44px]  Nombre + tags (peso/present./variante)   24 und
+              Categoría                                en stock    ⋮
+              $venta · costo $costo
+```
+
+- **`slot="start"`** — thumbnail 44px (o placeholder icono, bloque de color sólido).
+- **`ion-label`** — nombre · categoría+tags · precio+costo (texto secundario, no protagonista).
+- **`slot="end"`** — patrón `.item-actions` del carrito: dato grande arriba (`inv-precio-total`,
+  aquí el stock) + pill de estado abajo (`inv-stock`, aquí "en stock"/"stock bajo"/"agotado") +
+  `app-options-menu` (⋮).
+- **Tap en el cuerpo** → editar. **⋮** → Ajustar stock · Ver kárdex · Editar · Desactivar.
+- **La lista entera** (`.inv-list`) es una sola superficie con `box-shadow` + `border-radius`,
+  no una card por item — igual que `.cart-wrapper` del POS.
+
+### Menú ⋮ por item — todas las acciones (`app-options-menu`, mismo componente que Ventas)
+
+Opciones: **Ajustar stock · Ver kárdex · Editar · Desactivar** (último en rojo). Concentra toda
+acción secundaria en un solo punto → `slot="end"` limpio con el stock protagonista sin competencia
+visual. El popover ya hace `stopPropagation` internamente, así que `onMenuOpcion()` no recibe el
+evento DOM.
+
+**"Ajustar stock"** abre `AjusteStockModalComponent`, que obliga a **tipo + motivo** (compra, dañado,
+conteo físico…) → cada movimiento queda trazado en el kárdex. No se permite edición directa de la
+cifra (trazabilidad). Al confirmar, `ajustarStock()` emite `onProductoChange$:ACTUALIZADO` y el item
+se refresca solo, sin recargar la lista. `ajustandoId` bloquea el item durante la operación.
+
+> **Nota de diseño (2026-07-09):** se descartaron los botones − / + inline. Duplicaban "Ajustar stock"
+> del menú ⋮ (ambos abren el mismo modal) y sugerían un stepper de suma/resta directa, cuando en
+> realidad el ajuste exige tipo + motivo. El menú ⋮ es la vía única y más honesta.
+
+### Métricas de cabecera — stat-cards cuadradas de resumen ejecutivo (server-side)
+
+Desde **2026-07-11**, bajo el buscador hay **3 stat-cards cuadradas** con el resumen del inventario,
+calculadas server-side sobre **todo el catálogo** (no la página cargada) vía `fn_metricas_inventario()`
+— una sola pasada sobre `productos` filtrada por negocio:
+
+| Card | Qué muestra | Al tocar |
+|------|-------------|----------|
+| **Productos** | `total_activos` — productos vendibles (`activo = TRUE`). Tamaño del catálogo | Limpia filtros (muestra todo) |
+| **Reposición** | `por_reponer` grande (activos con `stock <= mínimo`) + sub-badge rojo "N agotados" (`agotados`, solo si > 0). Realce ámbar si hay algo por reponer | Activa filtro Reponer |
+| **En inventario** | `valor_inventario` — Σ `stock × precio_costo`. Capital invertido en mercadería | Informativa (sin navegación) |
+
+**Decisión de diseño (2026-07-11):** las cards son **bloques cuadrados verticales** (ícono arriba,
+número al centro, label abajo) — no pills horizontales — para diferenciarlas claramente de los chips
+de filtro que van debajo. Reponer y Agotados se **fusionaron en una sola card**: agotados es un
+subconjunto de por_reponer (stock 0 ⊂ stock ≤ mínimo), así que tenerlas separadas era redundante
+(ambas caían en el mismo filtro Reponer). Ahora "por reponer" es el número protagonista y los
+agotados aparecen como sub-badge rojo solo cuando existen — más limpio, menos ancho, mejor en celular.
+
+- **Clickeables**: informan Y navegan (Reposición → filtro Reponer, Productos → limpia filtros).
+- **Valor compacto**: el getter `valorInventarioCompacto` abrevia montos grandes (`12.5k`, `1.2M`)
+  para caber en la card; montos < 10.000 usan formato moneda estándar. Fuerza `Number()` porque el
+  `SUM(DECIMAL)` de Supabase puede llegar como string.
+- **Refresco reactivo**: `cargarMetricas()` se llama al entrar, en pull-to-refresh (`handleRefresh`
+  sobrescrito), y ante **toda** mutación de `onProductoChange$` (crear/ajustar/desactivar alteran
+  alguna métrica). Es silencioso — nunca bloquea la lista.
+- **Estética**: `.metric-card` con ícono en pastilla de color, `grid` de 3 columnas iguales. Design
+  tokens (`--ion-color-*`) → dark-mode aware. Las 3 caben sin scroll en celular.
+- **Multiplataforma (crítico)** — layout adaptativo dentro de la card:
+  - `min-height` fijo, **NO `aspect-ratio`** (un aspect-ratio ata el alto al ancho → en desktop las
+    cards se estirarían a cientos de px de alto).
+  - **Móvil**: `flex-direction: column` — ícono arriba, número y label debajo (compacto, centrado).
+  - **Tablet/desktop (`@media min-width: 600px`)**: `flex-direction: row` alineado al inicio
+    (`justify-content: flex-start`) — ícono grande a la izquierda + texto a su lado, tipo dashboard-tile.
+    Sin esto, en pantallas anchas el contenido queda flotando al centro con huecos vacíos a ambos lados.
+    El ícono y el número crecen en este breakpoint para llenar la card más grande.
+  - Hover sutil solo en `@media (hover: hover)` (desktop con puntero, no afecta el táctil).
+
+### Filtro "Reponer" — ¿qué compro? (server-side)
+
+Chip **"Reponer"** en la barra de categorías (junto a "Todas"). Filtra `stock_actual <= stock_minimo`
+vía `fn_listar_productos(..., p_solo_stock_bajo => true)` — server-side para respetar la paginación
+e infinite-scroll. `soloStockBajo` en el componente; cuando está activo la lista se muestra plana
+(sin agrupar por template, igual que "Desactivados").
+
+### Header — dos secciones fijas (búsqueda y filtros), no el patrón POS
+
+Desde **2026-07-09** el header dejó el patrón "lupa + swap de capas" (idéntico al POS, donde
+tocar la lupa oculta los chips y muestra el input encima). Ahora son **dos secciones propias,
+siempre visibles, apiladas**: `.inv-search-section` (buscador) arriba y `.inv-chips-section`
+(chips de categoría) debajo. Jerarquía explícita — el usuario ve de entrada "aquí busco" / "aquí
+filtro" sin tener que descubrir el botón lupa. Costo asumido: una fila fija más de alto en vez del
+ahorro de espacio del swap — se prioriza claridad sobre densidad en esta franja del header.
+
+`limpiarBusqueda()` reemplaza al antiguo `cerrarSearch()`: solo vacía `buscarTexto` y recarga —
+no oculta nada (ya no hay nada que ocultar) ni resetea filtros de categoría. **Búsqueda y chip de
+categoría ahora se combinan**, no se pisan: escribir texto con "Reponer" activo sigue filtrando
+por stock bajo + el texto buscado (ver `aplicarFiltro()`). Antes (patrón POS) escribir texto
+reseteaba categoría/reponer porque compartían la misma barra; con secciones independientes esa
+sorpresa ya no aplica. `mostrarDesactivados` y `templateSeleccionado` sí se limpian al buscar
+texto — son contextos distintos, no filtros de categoría.
+
+### Chips de categoría — scrollables horizontales
+
+Barra de chips horizontales estilo Google Play / supermercado, en su propia sección `.inv-chips-section`:
+
+- Chips: "Todas" + **"Reponer"** + una por categoria + "Desactivados" (al final, color neutro)
 - El chip activo se destaca con fondo primario
-- Al tocar un chip, **se centra automaticamente** en el contenedor con `scrollTo({ behavior: 'smooth' })`
+- Al tocar un chip, **se centra automaticamente** con `scrollTo({ behavior: 'smooth' })`
   usando la formula: `chipLeft - containerWidth/2 + chipWidth/2`
 - La barra oculta el scrollbar nativo en todas las plataformas (`scrollbar-width: none`)
-- El `@ViewChild('categoriaScroll')` apunta al contenedor `div.categories-scroll`
 
 ```typescript
 // inventario.page.ts
@@ -237,24 +344,18 @@ seleccionarCategoria(value: string, event: MouseEvent) {
     this.onFiltroChange(value);
     this.centrarChip(event.currentTarget as HTMLElement);
 }
-
-private centrarChip(chip: HTMLElement) {
-    const container = this.categoriaScrollRef.nativeElement;
-    const scrollTarget = chip.offsetLeft - container.offsetWidth / 2 + chip.offsetWidth / 2;
-    container.scrollTo({ left: scrollTarget, behavior: 'smooth' });
-}
 ```
 
-### Badges en las tarjetas de producto
+### Estado de stock en el item
 
-| Badge | Condicion | Estilo |
-|-------|-----------|--------|
-| `Agotado` | `stock_actual === 0` | Rojo, animacion pulse |
-| `Bajo: N` | `stock_actual <= stock_minimo` | Amarillo |
-| `N` (stock) | Normal | Negro semi-transparente |
-| `kg` / `lb` (tipo_tag) | `tipo_venta === 'PESO'` | Azul terciario |
-| `N present.` (tipo_tag) | Tiene presentaciones activas | Verde secundario |
-| `INACTIVO` (overlay) | Producto desactivado | Gris (pseudo-elemento `::after`) |
+| Indicador | Condicion | Estilo |
+|-----------|-----------|--------|
+| Bloque stock rojo + `N agot.` + fila teñida | `stock_actual === 0` | Rojo, animacion pulse, `border-left` rojo |
+| Bloque stock ámbar + fila teñida | `0 < stock_actual <= stock_minimo` | Ámbar, `border-left` ámbar |
+| Bloque stock neutro | Normal | Fondo `step-100` |
+| `kg` / `lb` (inv-tag) | `tipo_venta === 'PESO'` | Azul terciario |
+| `N` present. (inv-tag) | Tiene presentaciones activas | Verde secundario |
+| Botón "Reactivar" | Producto desactivado (`mostrarDesactivados`) | Item con `opacity: 0.6` |
 
 ---
 

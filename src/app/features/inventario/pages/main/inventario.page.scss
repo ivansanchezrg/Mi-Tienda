@@ -15,73 +15,15 @@ ion-toolbar {
 
 }
 
-// ── Barra de filtros animada (igual al POS) ──
-.inv-filter-bar {
-    position: relative;
-    display: flex;
-    align-items: center;
+// ── Sección búsqueda — fija, siempre visible, propia ──
+.inv-search-section {
     flex-shrink: 0;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--ion-item-background);
     border-bottom: 1px solid var(--ion-color-step-100);
-    background: var(--ion-item-background);
-    min-height: 50px;
-    overflow: hidden;
-}
-
-// Capa 1 — lupa + chips
-.inv-chips-layer {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    gap: var(--spacing-xs);
-    transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-
-    .inv-filter-bar--searching & {
-        opacity: 0;
-        transform: translateY(-6px);
-        pointer-events: none;
-    }
-}
-
-.inv-search-btn {
-    flex-shrink: 0;
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--ion-color-step-200);
-    background: transparent;
-    color: var(--ion-color-medium);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-
-    ion-icon { font-size: 18px; }
-    &:active { background: rgba(var(--ion-color-primary-rgb), 0.08); }
-}
-
-// Capa 2 — input de búsqueda a ancho completo
-.inv-search-layer {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    background: var(--ion-item-background);
-    opacity: 0;
-    transform: translateY(6px);
-    pointer-events: none;
-    transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-
-    .inv-filter-bar--searching & {
-        opacity: 1;
-        transform: translateY(0);
-        pointer-events: auto;
-    }
 }
 
 .inv-search-field {
-    flex: 1;
     display: flex;
     align-items: center;
     height: 38px;
@@ -91,18 +33,6 @@ ion-toolbar {
     padding: 0 4px 0 10px;
     gap: 6px;
 }
-
-.inv-chips-scroll {
-    display: flex;
-    flex-direction: row;
-    gap: var(--spacing-xs);
-    overflow-x: auto;
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
-}
-
 
 .inv-search-icon {
     flex-shrink: 0;
@@ -146,14 +76,164 @@ ion-toolbar {
     &:active { color: var(--ion-color-danger); }
 }
 
+// ── Sección métricas — stat-cards de resumen ejecutivo ──
+// Bloques verticales (ícono arriba, número al centro, label abajo) para
+// diferenciarlas de los chips pill horizontales de filtro.
+// Multiplataforma: altura FIJA por contenido (min-height), NO aspect-ratio.
+// El aspect-ratio ataba el alto al ancho → en tablet/desktop, donde cada
+// columna del grid es ancha, las cards se estirarían a cientos de px de alto
+// (cuadrados gigantes). Con min-height fijo las cards quedan anchas-y-bajas en
+// pantallas grandes (aceptable) y compactas en móvil, sin deformarse.
+.inv-metrics {
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-sm, 8px);
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+    background: var(--ion-item-background);
+    border-bottom: 1px solid var(--ion-color-step-100);
+}
+
+.metric-card {
+    display: flex;
+    flex-direction: column;         // móvil: ícono arriba, texto abajo (compacto)
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 76px;
+    padding: var(--spacing-sm, 8px) 4px;
+    border: 1px solid var(--ion-color-step-150);
+    border-radius: var(--radius-md, 12px);
+    // Fondo de página (gris sutil) en vez de blanco: la card se distingue del
+    // contenedor .inv-metrics (también blanco) por color, no solo por el borde.
+    background: var(--app-bg, #f4f5f8);
+    cursor: pointer;
+    text-align: center;
+    transition: transform var(--transition-fast), border-color var(--transition-fast);
+
+    &:active { transform: scale(0.97); }
+    &--static { cursor: default; &:active { transform: none; } }
+
+    // Puntero fino (desktop): feedback hover, ya que no hay :active táctil claro
+    @media (hover: hover) {
+        &:not(&--static):hover { border-color: var(--ion-color-step-300); }
+    }
+
+    // ── Pantallas anchas (tablet/desktop): layout horizontal tipo dashboard-tile ──
+    // El ícono pasa a la izquierda y el texto a su lado, alineados al inicio de la
+    // card (no centrados) — así se ve como un tile de dashboard y el contenido no
+    // queda flotando en el centro con huecos vacíos a ambos lados (problema visible
+    // en split-pane/desktop donde las cards son anchas).
+    @media (min-width: 600px) {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: var(--spacing-md, 14px);
+        padding: var(--spacing-md, 14px) var(--spacing-lg, 18px);
+
+        .metric-card__icon {
+            margin-bottom: 0;
+            width: 42px;
+            height: 42px;
+            ion-icon { font-size: 22px; }
+        }
+        .metric-card__value  { font-size: 24px; }
+        .metric-card__label,
+        .metric-card__sub    { font-size: 11px; }
+    }
+
+    &__icon {
+        flex-shrink: 0;
+        width: 34px;
+        height: 34px;
+        border-radius: var(--radius-sm, 9px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 2px;
+
+        ion-icon { font-size: 19px; }
+
+        &.total   { background: rgba(var(--ion-color-primary-rgb), 0.12); ion-icon { color: var(--ion-color-primary); } }
+        &.reponer { background: rgba(var(--ion-color-warning-rgb), 0.15); ion-icon { color: var(--ion-color-warning-shade, #c77800); } }
+        &.valor   { background: rgba(var(--ion-color-success-rgb), 0.12); ion-icon { color: var(--ion-color-success); } }
+    }
+
+    &__body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        min-width: 0;
+
+        @media (min-width: 600px) {
+            align-items: flex-start;   // texto alineado a la izquierda junto al ícono
+            text-align: left;
+        }
+    }
+
+    &__value {
+        font-size: 20px;
+        font-weight: var(--font-weight-bold, 700);
+        color: var(--ion-text-color);
+        letter-spacing: -0.5px;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    &__label {
+        font-size: 10px;
+        font-weight: var(--font-weight-medium, 500);
+        color: var(--ion-color-medium);
+        white-space: nowrap;
+    }
+
+    // Sub-badge rojo de agotados (dentro de la card de Reposición)
+    &__sub {
+        font-size: 10px;
+        font-weight: var(--font-weight-semibold, 600);
+        color: var(--ion-color-danger);
+        white-space: nowrap;
+    }
+
+    // Realce cuando hay productos por reponer: SOLO el color del número cambia
+    // a ámbar. Borde y fondo se mantienen neutros, iguales al resto de las cards
+    // — la alerta se nota en el dato, no en un marco de color alrededor.
+    &--alert {
+        .metric-card__value { color: var(--ion-color-warning-shade, #c77800); }
+    }
+}
+
+// ── Sección filtros (chips) — fija, siempre visible, propia ──
+// Densidad igualada al patrón de chips del POS (.cat-tab): sin altura fija,
+// menos padding lateral, borde más fino — más compacto.
+// El border-top usa el mismo separador que ya cierra .inv-metrics arriba (no
+// duplicar la línea) — junto con el border-bottom y el mismo padding vertical
+// arriba/abajo, enmarca la fila de chips entre dos líneas y la centra en el medio.
+.inv-chips-section {
+    flex-shrink: 0;
+    padding: var(--spacing-sm) var(--spacing-sm);
+    background: var(--ion-item-background);
+    border-bottom: 1px solid var(--ion-color-step-100);
+}
+
+.inv-chips-scroll {
+    display: flex;
+    flex-direction: row;
+    gap: var(--spacing-xs);
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+}
+
 .category-chip {
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
-    height: 32px;
-    padding: 0 var(--spacing-md);
+    padding: 6px 14px;
     border-radius: var(--radius-pill);
-    border: 1.5px solid var(--ion-color-step-200);
+    border: 1px solid var(--ion-color-step-200);
     background: var(--ion-item-background);
     color: var(--ion-color-step-600);
     font-size: 13px;
@@ -183,6 +263,21 @@ ion-toolbar {
         }
     }
 
+    // Chip "Reponer" — atajo a productos con stock bajo/agotado
+    &.reponer {
+        gap: 4px;
+        color: var(--ion-color-warning-shade, #c77800);
+        border-color: rgba(var(--ion-color-warning-rgb), 0.5);
+
+        ion-icon { font-size: 14px; }
+
+        &.active {
+            background: var(--ion-color-warning);
+            color: var(--ion-color-warning-contrast, #2d2100);
+            border-color: var(--ion-color-warning);
+        }
+    }
+
     &.template-chip {
         gap: 5px;
 
@@ -197,252 +292,231 @@ ion-toolbar {
 }
 
 
-.products-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: var(--spacing-md);
+// ═══════════════════════════════════════════════════════════
+// LISTA DE PRODUCTOS (ion-list de items — patrón Ventas)
+// ═══════════════════════════════════════════════════════════
 
-    // Tablet — 3 columnas fijas
-    @media (min-width: 600px) and (max-width: 991px) {
-        grid-template-columns: repeat(3, 1fr);
-    }
-
-    // Desktop — 4 columnas fijas
-    @media (min-width: 992px) {
-        grid-template-columns: repeat(4, 1fr);
-    }
-}
-
-.product-card {
-    margin: 0; // El grid gap se encarga del espaciado exterior
-    box-shadow: var(--shadow-level-1);
-    border-radius: 8px;
-    overflow: hidden;
+// Lista continua edge-to-edge — ocupa todo el ancho de pantalla, sin padding
+// lateral ni esquinas redondeadas (se adapta a los bordes reales del dispositivo,
+// igual que .cart-list del POS). Separador fino entre items en vez de cards sueltas.
+.inv-list {
     background: var(--ion-item-background);
-    transition: transform var(--transition-fast);
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
+    padding: 0;
+    border-radius: 0;
+}
 
-    &:active {
-        transform: scale(0.97);
+.inv-item {
+    --background: var(--ion-item-background);
+    --border-radius: 0;
+    --padding-start: var(--spacing-md, 12px);
+    --inner-padding-end: var(--spacing-md, 12px);
+    --padding-top: var(--spacing-xs, 4px);
+    --padding-bottom: var(--spacing-xs, 4px);
+    --min-height: 56px;
+
+    border-bottom: 1px solid var(--ion-color-step-100);
+
+    &:last-child { border-bottom: none; }
+
+    // ── Estados de stock (fila teñida sutil) ──
+    &--bajo {
+        --background: rgba(var(--ion-color-warning-rgb), 0.06);
+        border-left: 3px solid var(--ion-color-warning);
     }
-
-    ion-card-content {
-        padding: var(--spacing-md);
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
+    &--agotado {
+        --background: rgba(var(--ion-color-danger-rgb), 0.06);
+        border-left: 3px solid var(--ion-color-danger);
+    }
+    &--off {
+        opacity: 0.6;
+    }
+    // Item con un ajuste de stock en curso — feedback visual de "ocupado"
+    &--ajustando {
+        opacity: 0.65;
+        pointer-events: none;
     }
 }
 
-.product-image-container {
-    height: 120px;
+.inv-ajustando-spinner {
+    width: 18px;
+    height: 18px;
+}
+
+// ── Thumbnail ──
+.inv-thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 0;
+    overflow: hidden;
+    flex-shrink: 0;
+    margin-right: var(--spacing-md, 12px);
     background: var(--ion-color-step-100);
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
 
-    @media (min-width: 600px) {
-        height: 160px;
-    }
-
-    .placeholder-image {
-        ion-icon {
-            font-size: 48px;
-            color: var(--ion-color-step-300);
-        }
-    }
-
-    .real-image {
+    img {
         width: 100%;
         height: 100%;
         object-fit: cover;
     }
 
-    .stock-badge {
-        position: absolute;
-        top: 0;
-        right: 0;
-        padding: 5px 8px;
-        border-radius: 0 8px 0 8px;
-        font-size: 13px;
-        font-weight: var(--font-weight-bold);
+    // Placeholder sin foto — bloque gris neutro con ícono centrado.
+    // Gris (no primary/azul) a propósito: el azul queda reservado para el chip
+    // de filtro activo — si el thumbnail también fuera azul, competiría visualmente.
+    &__ph {
+        width: 100%;
+        height: 100%;
         display: flex;
         align-items: center;
-        gap: 4px;
+        justify-content: center;
+        background: var(--app-bg, #f4f5f8);
 
-        &.danger {
-            background: var(--ion-color-danger);
-            color: var(--ion-color-danger-contrast);
-            animation: pulse 2s infinite;
+        ion-icon {
+            font-size: 20px;
+            color: var(--ion-color-medium);
         }
+    }
 
-        &.warning {
-            background: var(--ion-color-warning);
-            color: var(--ion-color-warning-contrast);
-        }
+    &--template .inv-thumb__ph {
+        background: var(--app-bg, #f4f5f8);
 
-        &.success {
-            background: rgba(0, 0, 0, 0.55);
-            color: rgba(255, 255, 255, 0.92);
-        }
-
-        &.info {
-            background: var(--ion-color-primary);
-            color: var(--ion-color-primary-contrast);
-        }
+        ion-icon { color: var(--ion-color-tertiary, #5260ff); }
     }
 }
 
-.product-name {
-    margin: 0 0 4px;
+// ── Info (label) ──
+.inv-name {
     font-size: 14px;
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-semibold, 600);
     color: var(--ion-text-color);
-    line-height: 1.3;
-}
-
-// Truncate para limitar a 2 líneas
-.truncate-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
+    margin: 0 0 1px;
+    line-height: 1.2;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.product-category {
-    margin: 0;
+.inv-meta {
     font-size: 11px;
-
-    .tipo-tag {
-        display: inline-block;
-        font-size: 9px;
-        font-weight: var(--font-weight-bold);
-        padding: 1px 5px;
-        border-radius: var(--radius-pill);
-        margin-left: 4px;
-        vertical-align: middle;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-
-        &.peso {
-            background: rgba(var(--ion-color-tertiary-rgb, 82, 96, 255), 0.12);
-            color: var(--ion-color-tertiary, #5260ff);
-        }
-
-        &.presentaciones {
-            background: rgba(var(--ion-color-secondary-rgb, 0, 168, 108), 0.12);
-            color: var(--ion-color-secondary, #00a86c);
-            display: inline-flex;
-            align-items: center;
-            gap: 2px;
-
-            ion-icon { font-size: 8px; }
-        }
-
-        &.variante {
-            background: rgba(var(--ion-color-primary-rgb), 0.1);
-            color: var(--ion-color-primary);
-            display: inline-flex;
-            align-items: center;
-            gap: 2px;
-            cursor: pointer;
-            transition: background var(--transition-fast);
-
-            &:active {
-                background: rgba(var(--ion-color-primary-rgb), 0.22);
-            }
-
-            ion-icon { font-size: 8px; }
-        }
-
-        &.variantes {
-            background: rgba(var(--ion-color-primary-rgb), 0.1);
-            color: var(--ion-color-primary);
-            display: inline-flex;
-            align-items: center;
-            gap: 2px;
-
-            ion-icon { font-size: 8px; }
-        }
-
-    }
-}
-
-.card-footer {
+    color: var(--ion-color-medium);
+    margin: 0 0 1px;
     display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    border-top: 1px dashed var(--ion-color-step-150);
-    padding-top: var(--spacing-sm);
-    margin-top: auto;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    line-height: 1.3;
+}
 
-    .price {
-        font-size: 16px;
-        font-weight: var(--font-weight-bold);
+.inv-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 9px;
+    font-weight: var(--font-weight-bold, 700);
+    padding: 1px 5px;
+    border-radius: var(--radius-pill, 20px);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+
+    ion-icon { font-size: 9px; }
+
+    &.peso {
+        background: rgba(var(--ion-color-tertiary-rgb, 82, 96, 255), 0.12);
+        color: var(--ion-color-tertiary, #5260ff);
     }
+    &.present {
+        background: rgba(var(--ion-color-secondary-rgb, 0, 168, 108), 0.12);
+        color: var(--ion-color-secondary, #00a86c);
+    }
+    &.variante {
+        background: rgba(var(--ion-color-primary-rgb), 0.10);
+        color: var(--ion-color-primary);
+        cursor: pointer;
 
-    .text-sm {
+        &:active { background: rgba(var(--ion-color-primary-rgb), 0.22); }
+    }
+}
+
+.inv-precio {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    line-height: 1.2;
+
+    &__venta {
+        font-size: 12px;
+        font-weight: var(--font-weight-medium, 500);
+        color: var(--ion-color-medium);
+    }
+    &__costo {
         font-size: 11px;
+        color: var(--ion-color-medium);
+        opacity: 0.75;
     }
 }
 
-// ── Card de template agrupado ────────────────────────────────────────────────
-// Visualmente distinta para que se note que es un grupo de variantes, no un SKU individual.
-.product-card--template {
-    border: 1.5px solid rgba(var(--ion-color-primary-rgb), 0.18);
+// ── slot="end": total (precio) arriba + stock pill abajo — patrón .item-actions del carrito POS ──
+.inv-end {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: var(--spacing-xs, 4px);
+}
 
-    .product-image-container {
-        background: linear-gradient(
-            135deg,
-            rgba(var(--ion-color-primary-rgb), 0.06),
-            rgba(var(--ion-color-primary-rgb), 0.02)
-        );
+.inv-end-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
 
-        .placeholder-image ion-icon {
-            color: var(--ion-color-primary);
-            opacity: 0.4;
-        }
+.inv-precio-total {
+    font-size: 15px;
+    font-weight: var(--font-weight-bold, 700);
+    color: var(--ion-color-primary);
+    letter-spacing: -0.3px;
+    white-space: nowrap;
+}
+
+.inv-stock {
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--ion-color-medium);
+    background: var(--ion-color-step-100);
+    border-radius: var(--radius-pill, 20px);
+    padding: 1px 8px;
+    white-space: nowrap;
+
+    &.is-bajo {
+        background: rgba(var(--ion-color-warning-rgb), 0.18);
+        color: var(--ion-color-warning-shade, #c77800);
+    }
+    &.is-agotado {
+        background: rgba(var(--ion-color-danger-rgb), 0.18);
+        color: var(--ion-color-danger);
+        animation: pulse 2s infinite;
     }
 }
 
+// El botón ⋮ (app-options-menu) — compacto
+.inv-end app-options-menu ion-button {
+    --padding-start: 2px;
+    --padding-end: 2px;
+    height: 32px;
+    margin: 0;
+}
 
+.inv-chevron {
+    font-size: 18px;
+    color: var(--ion-color-step-350, #c0c0c0);
+}
 
 @keyframes pulse {
-    0% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.8;
-    }
-
-    100% {
-        opacity: 1;
-    }
-}
-
-// ── Producto desactivado ──
-.product-card.desactivado {
-    opacity: 0.55;
-
-    .product-image-container::after {
-        content: 'INACTIVO';
-        position: absolute;
-        bottom: var(--spacing-sm);
-        left: var(--spacing-sm);
-        padding: 2px 8px;
-        border-radius: var(--radius-pill);
-        background: var(--ion-color-medium);
-        color: var(--ion-color-medium-contrast);
-        font-size: 10px;
-        font-weight: var(--font-weight-bold);
-        letter-spacing: 0.5px;
-    }
+    0%   { opacity: 1; }
+    50%  { opacity: 0.75; }
+    100% { opacity: 1; }
 }
 
 // ── FAB scroll-to-top ──

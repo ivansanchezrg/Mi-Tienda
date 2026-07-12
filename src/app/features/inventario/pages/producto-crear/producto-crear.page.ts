@@ -1,6 +1,5 @@
 import { Component, inject } from '@angular/core';
 import { ViewWillEnter } from '@ionic/angular';
-import { CommonModule } from '@angular/common';
 import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import {
@@ -14,9 +13,9 @@ import {
     arrowBackOutline, cubeOutline, colorPaletteOutline, checkmarkOutline,
     addOutline, closeOutline, checkmarkCircleOutline, chevronForwardOutline,
     chevronUpOutline, chevronDownOutline, layersOutline,
-    sparklesOutline, pricetagOutline, createOutline, trashOutline,
+    sparklesOutline, pricetagOutline, trashOutline,
     informationCircleOutline, trendingUpOutline, warningOutline, barcodeOutline,
-    cameraOutline, imageOutline, closeCircle, saveOutline, ellipse
+    imageOutline, closeCircle, ellipse
 } from 'ionicons/icons';
 import { ActivatedRoute } from '@angular/router';
 import { ROUTES } from '../../../../core/config/routes.config';
@@ -73,7 +72,7 @@ interface SKUGenerado {
     styleUrls: ['./producto-crear.page.scss'],
     standalone: true,
     imports: [
-        CommonModule, ReactiveFormsModule, FormsModule,
+        ReactiveFormsModule, FormsModule,
         IonHeader, IonToolbar, IonButtons, IonButton, IonTitle,
         IonContent, IonFooter, IonIcon, IonInput, IonItem,
         IonSpinner, IonToggle, IonSkeletonText,
@@ -152,9 +151,9 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
             arrowBackOutline, cubeOutline, colorPaletteOutline, checkmarkOutline,
             addOutline, closeOutline, checkmarkCircleOutline, chevronForwardOutline,
             chevronUpOutline, chevronDownOutline, layersOutline,
-            sparklesOutline, pricetagOutline, createOutline, trashOutline,
+            sparklesOutline, pricetagOutline, trashOutline,
             informationCircleOutline, trendingUpOutline, warningOutline, barcodeOutline,
-            cameraOutline, imageOutline, closeCircle, saveOutline, ellipse
+            imageOutline, closeCircle, ellipse
         });
     }
 

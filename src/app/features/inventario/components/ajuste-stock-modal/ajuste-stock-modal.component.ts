@@ -17,6 +17,15 @@ export interface AjusteStockResult {
     observaciones: string;
 }
 
+/**
+ * Mismo patrón que PresentacionModalComponent.onConfirmar: el modal ejecuta el callback
+ * y espera su resultado ANTES de cerrarse, en vez de cerrarse al instante y dejar que el
+ * caller guarde después (con ese flujo el spinner "Procesando..." nunca llegaba a
+ * mostrarse — el modal ya no existía cuando `guardando` pasaba a true). Si el callback
+ * devuelve false o lanza, el modal sigue abierto con cantidad/observaciones intactas
+ * para reintentar. `HTMLIonModalElement` no expone `componentInstance` en su tipado
+ * público, así que un @Output() no es alcanzable desde el caller — de ahí el callback.
+ */
 @Component({
     selector: 'app-ajuste-stock-modal',
     templateUrl: './ajuste-stock-modal.component.html',
@@ -28,13 +37,16 @@ export class AjusteStockModalComponent {
     @Input() stockActual = 0;
     @Input() esPeso = false;
     @Input() unidadMedida = 'und';
-    @Input() guardando = false;
+
+    /** Ejecuta el ajuste real; retorna true si tuvo éxito (el modal solo se cierra en ese caso). */
+    @Input({ required: true }) onConfirmar!: (result: AjusteStockResult) => Promise<boolean>;
 
     private modalCtrl = inject(ModalController);
 
     tipoAjuste: TipoAjuste = 'COMPRA';
     cantidad: number | null = null;
     observaciones = '';
+    guardando = false;
 
     constructor() {
         addIcons({ closeOutline, trendingUpOutline, addOutline, removeOutline, checkmarkOutline });
@@ -62,16 +74,26 @@ export class AjusteStockModalComponent {
         this.tipoAjuste = tipo;
     }
 
-    confirmar() {
+    async confirmar() {
         if (this.confirmarDeshabilitado) return;
-        this.modalCtrl.dismiss({
+
+        this.guardando = true;
+        const result: AjusteStockResult = {
             tipo: this.tipoAjuste,
-            cantidad: this.cantidad,
+            cantidad: this.cantidad!,
             observaciones: this.observaciones.trim()
-        } as AjusteStockResult);
+        };
+
+        try {
+            const exito = await this.onConfirmar(result);
+            if (exito) this.modalCtrl.dismiss();
+        } finally {
+            this.guardando = false;
+        }
     }
 
     cerrar() {
+        if (this.guardando) return;
         this.modalCtrl.dismiss(null);
     }
 }

@@ -40,6 +40,10 @@ export class ImagenLocalService {
     // Promesa compartida de hidratación: las N resoluciones en paralelo del primer render
     // esperan el MISMO readdir en vez de cada una arrancar el suyo (o leer el Set a medio llenar).
     private hidratacion: Promise<void> | null = null;
+    // Cache RAM del URI convertido (nombre → convertFileSrc). Filesystem.getUri es una
+    // llamada al bridge nativo POR imagen; con catálogos grandes y republicaciones
+    // frecuentes del grid eso son cientos de idas al bridge para un valor estable.
+    private uriCache = new Map<string, string>();
 
     private get esNativo(): boolean {
         return Capacitor.isNativePlatform();
@@ -61,15 +65,21 @@ export class ImagenLocalService {
         const nombre = this.nombreArchivo(path);
         if (!this.descargadas.has(nombre)) return null;
 
+        const cacheado = this.uriCache.get(nombre);
+        if (cacheado) return cacheado;
+
         try {
             const { uri } = await Filesystem.getUri({
                 path: `${ImagenLocalService.DIR}/${nombre}`,
                 directory: Directory.Data,
             });
-            return Capacitor.convertFileSrc(uri);
+            const url = Capacitor.convertFileSrc(uri);
+            this.uriCache.set(nombre, url);
+            return url;
         } catch {
             // La entrada del índice quedó obsoleta (archivo borrado) — corregir y reportar miss.
             this.descargadas.delete(nombre);
+            this.uriCache.delete(nombre);
             return null;
         }
     }
@@ -147,6 +157,7 @@ export class ImagenLocalService {
                     directory: Directory.Data,
                 }).catch(() => { /* ya no existe */ });
                 this.descargadas.delete(nombre);
+                this.uriCache.delete(nombre);
             }
         } catch (err) {
             this.logger.error('ImagenLocalService', 'Error al podar imágenes huérfanas', err);

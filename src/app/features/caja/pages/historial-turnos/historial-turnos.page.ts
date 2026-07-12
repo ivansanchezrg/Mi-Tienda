@@ -20,6 +20,7 @@ import { UiService } from '@core/services/ui.service';
 import { getFechaLocal, formatHoraEC } from '@core/utils/date.util';
 import { PeriodFilterComponent, PeriodOption } from '@shared/components/period-filter/period-filter.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { crearScrollToTop } from '@shared/utils/scroll-to-top.util';
 
 import { CierresTurnoService } from '../../services/cierres-turno.service';
 import { CierreTurnoSnapshot } from '../../models/cierre-turno.model';
@@ -63,7 +64,10 @@ export class HistorialTurnosPage {
   cierresAgrupados: CierresAgrupados[] = [];
   loading = false;
   filtro: FiltroFecha = 'todas';
-  showScrollTop = false;
+
+  /** Controller de scroll-to-top (showScrollTop, onContentScroll, scrollToTop) —
+   *  compartido con PaginatedListPage y otras páginas (ver shared/utils/scroll-to-top.util.ts). */
+  readonly scrollTop = crearScrollToTop(() => this.contentRef?.nativeElement);
 
   page = 0;
   hasMore = false;
@@ -110,14 +114,6 @@ export class HistorialTurnosPage {
   async handleRefresh(event: CustomEvent) {
     await this.cargar(true);
     (event.target as HTMLIonRefresherElement).complete();
-  }
-
-  onScroll(event: CustomEvent) {
-    this.showScrollTop = (event.detail as any).scrollTop > 600;
-  }
-
-  scrollToTop() {
-    this.contentRef?.nativeElement?.scrollToTop?.(400);
   }
 
   // ── Carga ─────────────────────────────────────────────────────────

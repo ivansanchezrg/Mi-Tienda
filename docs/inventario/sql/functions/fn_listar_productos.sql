@@ -1,11 +1,19 @@
 DROP FUNCTION IF EXISTS public.fn_listar_productos(TEXT, UUID, INT, INT);
 DROP FUNCTION IF EXISTS public.fn_listar_productos(TEXT, UUID, UUID, INT, INT);
+DROP FUNCTION IF EXISTS public.fn_listar_productos(TEXT, UUID, UUID, INT, INT, BOOLEAN);
 
 -- ==========================================
--- fn_listar_productos (v2.0 — performance: subqueries → JOINs)
+-- fn_listar_productos (v2.1 — filtro "Reponer" stock bajo)
 -- ==========================================
 -- Lista productos activos con filtro por categoría (simples y variantes),
 -- filtro por template, búsqueda por nombre/código de barras, y paginación.
+--
+-- v2.1 (2026-07-08) — FILTRO "REPONER":
+--   + `p_solo_stock_bajo BOOLEAN DEFAULT FALSE` — cuando es TRUE, devuelve solo
+--     los productos con `stock_actual <= stock_minimo` (lo que hay que reabastecer).
+--     Se aplica en el WHERE para respetar la paginación e infinite-scroll
+--     (filtrar client-side solo cubriría las páginas ya descargadas).
+--     Panel operativo del inventario — responde "¿qué compro?".
 --
 -- v2.0 (2026-05-30) — PERFORMANCE:
 --   Reemplaza 3 subqueries por fila (categoria, template.categoria, presentaciones)
@@ -23,11 +31,12 @@ DROP FUNCTION IF EXISTS public.fn_listar_productos(TEXT, UUID, UUID, INT, INT);
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION public.fn_listar_productos(
-    p_buscar       TEXT  DEFAULT NULL,
-    p_categoria_id UUID  DEFAULT NULL,
-    p_template_id  UUID  DEFAULT NULL,
-    p_from         INT   DEFAULT 0,
-    p_to           INT   DEFAULT 24
+    p_buscar          TEXT    DEFAULT NULL,
+    p_categoria_id    UUID    DEFAULT NULL,
+    p_template_id     UUID    DEFAULT NULL,
+    p_from            INT     DEFAULT 0,
+    p_to              INT     DEFAULT 24,
+    p_solo_stock_bajo BOOLEAN DEFAULT FALSE
 )
 RETURNS SETOF JSON
 LANGUAGE sql
@@ -108,17 +117,22 @@ AS $$
           p_template_id IS NULL
           OR p.producto_template_id = p_template_id
       )
+      AND (
+          p_solo_stock_bajo IS NOT TRUE
+          OR p.stock_actual <= p.stock_minimo
+      )
     ORDER BY p.nombre
     LIMIT  (p_to - p_from + 1)
     OFFSET p_from;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.fn_listar_productos(TEXT, UUID, UUID, INT, INT) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.fn_listar_productos(TEXT, UUID, UUID, INT, INT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_listar_productos(TEXT, UUID, UUID, INT, INT, BOOLEAN) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_listar_productos(TEXT, UUID, UUID, INT, INT, BOOLEAN) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_listar_productos IS
-    'v2.0 — Performance: 3 subqueries por fila reemplazadas por JOINs explícitos. '
-    'LEFT JOIN categorias_productos (categoría efectiva + categoría del template) y '
-    'LEFT JOIN LATERAL para presentaciones. Contrato JSON sin cambios.';
+    'v2.1 — + p_solo_stock_bajo (filtro "Reponer": stock_actual <= stock_minimo, en el WHERE '
+    'para respetar paginación). v2.0 — Performance: 3 subqueries por fila reemplazadas por JOINs '
+    'explícitos (categoría efectiva + categoría del template + LATERAL de presentaciones). '
+    'Contrato JSON sin cambios.';

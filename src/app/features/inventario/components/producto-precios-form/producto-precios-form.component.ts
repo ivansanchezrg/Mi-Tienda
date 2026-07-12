@@ -1,14 +1,11 @@
-import { Component, Input, Output, EventEmitter, inject, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, inject, OnInit, OnDestroy } from '@angular/core';
 import { ReactiveFormsModule, FormGroup } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import {
     IonItem, IonInput, IonIcon, IonToggle
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import {
-    trendingUpOutline, checkmarkCircleOutline, informationCircleOutline
-} from 'ionicons/icons';
+import { trendingUpOutline } from 'ionicons/icons';
 import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only.directive';
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -20,7 +17,7 @@ import { calcularMargenDesdePrecio, resolverPrecioYMargen } from '../../../../co
     styleUrls: ['./producto-precios-form.component.scss'],
     standalone: true,
     imports: [
-        CommonModule, ReactiveFormsModule,
+        ReactiveFormsModule,
         IonItem, IonInput, IonIcon, IonToggle,
         NumbersOnlyDirective, CurrencyInputDirective,
     ]
@@ -28,9 +25,6 @@ import { calcularMargenDesdePrecio, resolverPrecioYMargen } from '../../../../co
 export class ProductoPreciosFormComponent implements OnInit, OnDestroy {
     /** FormGroup con: precio_costo, precio_venta, tiene_iva */
     @Input({ required: true }) formGroup!: FormGroup;
-
-    @Output() costoChange   = new EventEmitter<number>();
-    @Output() ventaChange   = new EventEmitter<number>();
 
     protected currencyService = inject(CurrencyService);
 
@@ -42,7 +36,7 @@ export class ProductoPreciosFormComponent implements OnInit, OnDestroy {
     private ventaSub!: Subscription;
 
     constructor() {
-        addIcons({ trendingUpOutline, checkmarkCircleOutline, informationCircleOutline });
+        addIcons({ trendingUpOutline });
     }
 
     ngOnInit() {
@@ -75,7 +69,6 @@ export class ProductoPreciosFormComponent implements OnInit, OnDestroy {
             } else {
                 this._recalcularMargen();
             }
-            this.costoChange.emit(costo);
         });
 
         this.ventaSub = this.formGroup.get('precio_venta')!.valueChanges.subscribe(() => {
@@ -83,7 +76,6 @@ export class ProductoPreciosFormComponent implements OnInit, OnDestroy {
             // Usuario borró el precio: volver a modo automático
             this._precioEditadoManualmente = venta > 0;
             this._recalcularMargen();
-            this.ventaChange.emit(venta);
         });
     }
 

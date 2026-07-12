@@ -1,4 +1,4 @@
-import { Component, Input, ViewChild, ElementRef, inject } from '@angular/core';
+import { Component, Input, ViewChild, ElementRef, inject, OnInit, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -24,7 +24,7 @@ type Paso = 'metodo' | 'monto' | 'confirmar-fiado';
     standalone: true,
     imports: [CommonModule, FormsModule, IonButton, IonIcon]
 })
-export class CobrarModalComponent {
+export class CobrarModalComponent implements OnInit, AfterViewInit {
     @Input() total!: number;
     @Input() subtotal!: number;
     @Input() descuento = 0;
@@ -103,10 +103,9 @@ export class CobrarModalComponent {
             return;
         }
 
-        if (metodo === 'EFECTIVO') {
-            this.paso = 'monto';
-            setTimeout(() => this.focusInput(), 50);
-        } else if (metodo === 'FIADO' && this.descuento > 0) {
+        // EFECTIVO nunca llega aquí: entra por el botón dedicado "Cobrar Efectivo"
+        // (iniciarEnEfectivo) que salta directo al paso 'monto'.
+        if (metodo === 'FIADO' && this.descuento > 0) {
             this.paso = 'confirmar-fiado';
         } else {
             this.modalCtrl.dismiss({ metodoPago: metodo, confirmado: true });

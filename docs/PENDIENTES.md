@@ -11,6 +11,28 @@
 
 ## 🟠 Funcional (corto plazo)
 
+### Ejecutar en Supabase el SQL de la auditoría POS 2026-07-11
+- **Qué:** la revisión completa del módulo POS actualizó dos funciones y eliminó una muerta.
+  Ejecutar en el SQL Editor, en este orden:
+  1. `docs/pos/sql/functions/fn_registrar_venta_pos.sql` (v3.2 — valida que cada
+     `presentacion_id` pertenezca al negocio Y al producto del ítem; antes una presentación
+     ajena distorsionaba stock/kardex vía el trigger).
+  2. `docs/pos/sql/functions/fn_catalogo_productos_pos.sql` (v1.1 — presentaciones con
+     `ORDER BY factor_conversion` para orden estable en el modal de variantes).
+  3. `DROP FUNCTION IF EXISTS public.fn_buscar_productos_pos(TEXT);` (RPC muerta — el POS
+     filtra el grid client-side desde 2026-05; su archivo y la cadena Angular ya se eliminaron).
+- Origen: auditoría POS 2026-07-11.
+
+### Pulido diferido de la auditoría POS 2026-07-11 (baja prioridad)
+- **Qué:** (a) el badge de stock tri-estado (¡último! / quedan N / N disp.) está repetido 5×
+  entre `pos.page.html` y `variante-selector-modal.component.html` con clases CSS distintas —
+  candidato a mini-componente compartido; (b) `.upselling-hint` (footer mobile) y
+  `.panel-upselling` (panel desktop) en `pos.page.scss` duplican estilos casi idénticos;
+  (c) `podarHuerfanos` de `ImagenLocalService` no es multi-negocio: al alternar sucursales se
+  purgan y re-descargan los binarios del otro negocio (solo churn de red, no fuga de datos).
+- **Archivos:** `pos.page.html`, `pos.page.scss`, `variante-selector-modal.component.html`, `imagen-local.service.ts`.
+- Origen: auditoría POS 2026-07-11.
+
 ### Verificar en dispositivo real la mejora del arranque tras reposo
 - **Qué:** se instrumentó el arranque Y el resume (logs "Fast path local en Xms", "Primera
   navegación resuelta en Xms", "App reanudada con proceso vivo tras Xs", "Sesión renovada en Xms"),

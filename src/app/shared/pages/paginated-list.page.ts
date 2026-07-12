@@ -2,6 +2,7 @@ import { Directive, ElementRef, inject, ViewChild } from '@angular/core';
 import { addIcons } from 'ionicons';
 import { arrowUpOutline } from 'ionicons/icons';
 import { UiService } from '../../core/services/ui.service';
+import { crearScrollToTop } from '../utils/scroll-to-top.util';
 
 /**
  * Clase base para páginas con listado paginado + infinite scroll + scroll-to-top.
@@ -11,22 +12,27 @@ import { UiService } from '../../core/services/ui.service';
  *   2. Implementar `pageSize` y `fetchPage(page)`.
  *   3. En el template, usar `items` + los métodos heredados.
  *   4. Llamar `this.cargar()` para cargar/recargar desde página 0.
- *   5. Agregar en el HTML: `<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">`
+ *   5. Agregar en el HTML: `<ion-content #content [scrollEvents]="true" (ionScroll)="scrollTop.onContentScroll($event)">`
  *   6. Agregar antes de cerrar ion-content el bloque del FAB scroll-to-top (ver abajo).
  *
  * Template del FAB (copiar antes de </ion-content>):
  * ```html
- * @if (showScrollTop) {
+ * @if (scrollTop.showScrollTop) {
  * <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
- *   <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+ *   <ion-fab-button size="small" color="primary" (pointerdown)="scrollTop.scrollToTop()">
  *     <ion-icon name="arrow-up-outline"></ion-icon>
  *   </ion-fab-button>
  * </ion-fab>
  * }
  * ```
+ * Y en el (ionScroll) del ion-content: `(ionScroll)="scrollTop.onContentScroll($event)"`.
  *
- * La subclase NO necesita declarar: loading, hasMore, cargarMas, handleRefresh,
- * showScrollTop, onContentScroll, scrollToTop.
+ * (pointerdown) en vez de (click): con la lista aún deslizándose por inercia (momentum
+ * scroll), el WebView consume el primer toque solo para detener el scroll y no dispara
+ * "click" — el usuario necesitaba tocar 2 veces. pointerdown llega ANTES de ese ciclo,
+ * así el primer toque ya frena el scroll Y navega.
+ *
+ * La subclase NO necesita declarar: loading, hasMore, cargarMas, handleRefresh, scrollTop.
  */
 @Directive()
 export abstract class PaginatedListPage<T> {
@@ -34,6 +40,10 @@ export abstract class PaginatedListPage<T> {
     @ViewChild('content', { read: ElementRef }) private contentRef!: ElementRef;
 
     protected ui = inject(UiService);
+
+    /** Controller de scroll-to-top (showScrollTop, onContentScroll, scrollToTop) —
+     *  compartido con PosPage y otras páginas que no pueden heredar de esta clase. */
+    readonly scrollTop = crearScrollToTop(() => this.contentRef?.nativeElement);
 
     /** Items cargados acumulados (todas las páginas) */
     items: T[] = [];
@@ -43,9 +53,6 @@ export abstract class PaginatedListPage<T> {
 
     /** Controla si el infinite scroll sigue activo */
     hasMore = false;
-
-    /** Muestra el FAB de scroll-to-top cuando el usuario baja lo suficiente */
-    showScrollTop = false;
 
     private _page = 0;
 
@@ -102,17 +109,5 @@ export abstract class PaginatedListPage<T> {
     async handleRefresh(event: CustomEvent): Promise<void> {
         await this.cargar(true);
         (event.target as HTMLIonRefresherElement).complete();
-    }
-
-    // ── Scroll-to-top ──────────────────────────────────────────────────
-
-    /** Handler de (ionScroll): muestra/oculta el FAB según posición */
-    onContentScroll(event: CustomEvent): void {
-        this.showScrollTop = event.detail.scrollTop > 600;
-    }
-
-    /** Sube al inicio con animación */
-    scrollToTop(): void {
-        this.contentRef?.nativeElement?.scrollToTop?.(400);
     }
 }

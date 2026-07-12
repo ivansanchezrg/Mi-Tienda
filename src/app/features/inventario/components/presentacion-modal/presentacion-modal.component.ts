@@ -1,10 +1,9 @@
 import { Component, Input, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { IonButton, IonIcon, IonSpinner, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, layersOutline, barcodeOutline, informationCircleOutline, trendingUpOutline, trendingDownOutline, removeOutline, checkmarkCircleOutline, sparklesOutline, imageOutline, cameraOutline, trashOutline } from 'ionicons/icons';
+import { closeOutline, layersOutline, barcodeOutline, informationCircleOutline, trendingUpOutline, sparklesOutline, imageOutline, ellipsisHorizontal } from 'ionicons/icons';
 import { UiService } from '../../../../core/services/ui.service';
 import { BarcodeScannerService, getBarcodeInputHint } from '../../../../core/services/barcode-scanner.service';
 import { StorageService } from '../../../../core/services/storage.service';
@@ -31,7 +30,6 @@ export interface PresentacionModalResult {
     styleUrls: ['./presentacion-modal.component.scss'],
     standalone: true,
     imports: [
-        CommonModule,
         ReactiveFormsModule,
         IonButton,
         IonIcon,
@@ -114,7 +112,7 @@ export class PresentacionModalComponent implements OnInit {
     }
 
     constructor() {
-        addIcons({ closeOutline, layersOutline, barcodeOutline, informationCircleOutline, trendingUpOutline, trendingDownOutline, removeOutline, checkmarkCircleOutline, sparklesOutline, imageOutline, cameraOutline, trashOutline });
+        addIcons({ closeOutline, layersOutline, barcodeOutline, informationCircleOutline, trendingUpOutline, sparklesOutline, imageOutline, ellipsisHorizontal });
     }
 
     async escanearCodigo() {

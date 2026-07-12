@@ -130,6 +130,11 @@ ion-toolbar {
 // LISTA DE CARRITO
 // ─────────────────────────────────────────
 
+// Spinner compacto "consultando stock" — badges de cantidad (lista, catálogo y panel)
+.qty-spinner {
+    width: 14px;
+    height: 14px;
+}
 
 .cart-wrapper {
     background: var(--ion-item-background);
@@ -275,11 +280,6 @@ ion-toolbar {
                     color: var(--ion-color-danger);
                     font-weight: var(--font-weight-semibold);
                 }
-            }
-
-            .qty-spinner {
-                width: 14px;
-                height: 14px;
             }
         }
     }
@@ -1040,28 +1040,41 @@ ion-toolbar {
     }
 }
 
-// Nombre como placeholder cuando no hay imagen
+// Nombre como placeholder cuando no hay imagen — más grande y legible que un badge de
+// stock; es la única pista visual del producto en la card, así que prioriza lectura
+// rápida. Contenedor centra con flex; el span interno trunca a 3 líneas con ellipsis
+// (line-clamp) para que un nombre largo nunca desborde ni empuje el layout de la card.
 .catalogo-card-placeholder-nombre {
-    font-size: 13px;
-    font-weight: var(--font-weight-semibold);
-    color: var(--ion-color-medium);
-    text-align: center;
-    padding: var(--spacing-sm);
-    line-height: 1.3;
-    user-select: none;
-    -webkit-user-select: none;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 100%;
     height: 100%;
+    padding: var(--spacing-sm);
+    user-select: none;
+    -webkit-user-select: none;
+
+    span {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        overflow: hidden;
+        font-size: 15px;
+        font-weight: var(--font-weight-semibold);
+        color: #ffffff;
+        text-align: center;
+        line-height: 1.25;
+    }
 }
 
 // Sección imagen — flex-grow ocupa todo el espacio disponible sobre la franja
 .catalogo-card-img {
     flex: 1;
     min-height: 0;
-    background: #e8eaed;
+    // Gris medio (mismo tinte azulado que el slate oscuro, a mitad de camino
+    // entre --ion-color-step-200 #cccccc y el slate #2f303c) — contraste claro
+    // contra el fondo de página (--app-bg, #f4f5f8) sin ser un bloque oscuro.
+    background: #8a8b93;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1154,6 +1167,44 @@ ion-toolbar {
     backdrop-filter: blur(4px);
 }
 
+
+// ─────────────────────────────────────────
+// FAB SCROLL-TO-TOP (mismo patrón que Inventario)
+// ─────────────────────────────────────────
+
+// Posicionado con position:absolute explícito (igual que .scanner-corner-btn) en vez
+// de confiar en el auto-posicionamiento de ion-fab[vertical/horizontal] — ese padding
+// interno de Ionic no coincide con el `right` del botón del escáner y desalineaba
+// ambos horizontalmente. Además se anula el margin:8px + width/height:40px que Ionic
+// aplica por defecto a ion-fab-button[size="small"] (:host(.fab-button-small)) y se
+// iguala a 50px — el mismo tamaño que .scanner-corner-btn. Con host (ion-fab) y botón
+// del MISMO tamaño y el MISMO right que el escáner, quedan perfectamente alineados.
+//
+// ⚠️ NO sumar env(safe-area-inset-bottom) aquí: slot="fixed" en Ionic YA calcula ese
+// offset dinámicamente sobre el propio wrapper del slot (por eso .scanner-corner-btn
+// tampoco lo suma en su `bottom` y aun así respeta la barra de gestos/navegación de
+// Android). Sumarlo de nuevo duplicaba el espacio → el hueco de más entre el FAB y
+// el escáner que se veía en el dispositivo real.
+.scroll-top-fab {
+    position: absolute;
+    right: var(--spacing-sm);   // mismo right que .scanner-corner-btn → ejes alineados
+    // .scanner-corner-btn: bottom var(--spacing-md), 50px de alto. Este FAB se apila
+    // justo arriba, con un gap de spacing-sm entre ambos — mismo origen "0" que Ionic
+    // ya resuelve para el slot fixed completo (footer + safe-area incluidos una sola vez).
+    bottom: calc(var(--spacing-md) + 50px + var(--spacing-sm));
+
+    ion-fab-button {
+        margin: 0;
+        width: 50px;
+        height: 50px;
+    }
+
+    // Sin escáner disponible (web/desktop sin cámara) no hay nada que evitar en esa
+    // esquina — mismo offset base que .scanner-corner-btn.
+    &--sin-escaner {
+        bottom: var(--spacing-md);
+    }
+}
 
 // ─────────────────────────────────────────
 // PILL FLOTANTE DEL CARRITO (modo catálogo)
@@ -1268,13 +1319,29 @@ ion-toolbar {
         flex: 1;
         min-width: 0;
         overflow-y: auto;
-        // Ocultar tabs y pill — en desktop el panel lateral los reemplaza
-        .catalogo-cart-pill,
+        // Ocultar botón volver — en desktop el panel lateral lo reemplaza
         .volver-catalogo-btn {
             display: none !important;
         }
         // Vista lista en desktop — se muestra siempre (catálogo + lista simultáneos no aplica)
         // El usuario usa el panel para ver el carrito — en desktop vistaActual queda en 'catalogo'
+    }
+
+    // Pill "Ver carrito" oculto en desktop — el panel lateral ES el carrito.
+    // (Selector top-level: el pill ya no vive dentro de .pos-col-main — es hijo
+    // directo de ion-content para que slot="fixed" lo mantenga estático al scroll)
+    .catalogo-cart-pill {
+        display: none !important;
+    }
+
+    // FAB scroll-to-top oculto en desktop (decisión, no solo limitación técnica):
+    // .pos-col-main tiene su propio scroll interno (overflow-y: auto) — el (ionScroll)
+    // de ion-content nunca dispara ahí, así que el listener actual no lo detectaría.
+    // Además en desktop el panel lateral con el carrito/total está siempre a la vista,
+    // por lo que el FAB es menos necesario que en mobile. Si se quisiera habilitar,
+    // requeriría un listener nativo de scroll sobre .pos-col-main (ver PENDIENTES.md).
+    .scroll-top-fab {
+        display: none !important;
     }
 
     // Footer móvil oculto en desktop

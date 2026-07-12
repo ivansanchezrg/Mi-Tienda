@@ -1,40 +1,46 @@
 import { Component, ElementRef, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  AlertController, NavController,
+  AlertController, ModalController, NavController,
   IonHeader, IonToolbar, IonButtons, IonMenuButton, IonTitle, IonButton, IonIcon,
   IonContent, IonRefresher, IonRefresherContent,
-  IonCard, IonCardContent, IonSkeletonText,
+  IonList, IonItem, IonLabel, IonSkeletonText,
   IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton, IonSpinner
 } from '@ionic/angular/standalone';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { Subscription } from 'rxjs';
 import { addIcons } from 'ionicons';
 import {
   addOutline,
-  barcodeOutline,
   imageOutline,
   alertCircleOutline,
   cubeOutline,
   scanOutline,
   searchOutline,
   closeOutline,
-  layersOutline,
   pricetagOutline,
   colorPaletteOutline,
   arrowUpOutline,
-  chevronForwardOutline
+  chevronForwardOutline,
+  timeOutline,
+  createOutline,
+  trashOutline,
+  checkmarkCircleOutline,
+  swapVerticalOutline,
+  walletOutline
 } from 'ionicons/icons';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
-import { InventarioService } from '../../services/inventario.service';
+import { InventarioService, MetricasInventario } from '../../services/inventario.service';
 import { Producto } from '../../models/producto.model';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
+import { AjusteStockModalComponent, AjusteStockResult } from '../../components/ajuste-stock-modal/ajuste-stock-modal.component';
+import { LoggerService } from '../../../../core/services/logger.service';
 import { ROUTES } from '../../../../core/config/routes.config';
 
 /**
@@ -64,12 +70,12 @@ type InventarioItem =
   styleUrls: ['./inventario.page.scss'],
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
+    FormsModule,
     IonHeader, IonToolbar, IonButtons, IonMenuButton, IonTitle, IonButton, IonIcon,
     IonSpinner, IonContent, IonRefresher, IonRefresherContent,
-    IonCard, IonCardContent, IonSkeletonText,
+    IonList, IonItem, IonLabel, IonSkeletonText,
     IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton,
-    EmptyStateComponent, ScannerOverlayComponent
+    EmptyStateComponent, ScannerOverlayComponent, OptionsMenuComponent
   ]
 })
 export class InventarioPage extends PaginatedListPage<Producto> implements OnInit, OnDestroy {
@@ -78,7 +84,9 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   private storageService = inject(StorageService);
   private navCtrl = inject(NavController);
   private alertCtrl = inject(AlertController);
+  private modalCtrl = inject(ModalController);
   protected barcodeScanner = inject(BarcodeScannerService);
+  private logger = inject(LoggerService);
 
   @ViewChild('categoriaScroll') categoriaScrollRef!: ElementRef<HTMLDivElement>;
 
@@ -91,12 +99,30 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   templateSeleccionado?: { id: string; nombre: string };
   escaneando = false;
   mostrarDesactivados = false;
+  soloStockBajo = false;
+  ajustandoId: string | null = null;
   readonly vistaAgrupada = true;
-  readonly skeletonItems = Array(6);
+  readonly skeletonItems = Array(8);
 
-  /** Items derivados para el grid — agrupa por template cuando vistaAgrupada=true */
+  /** Métricas de cabecera (total, por reponer, agotados, valor). Server-side. */
+  metricas: MetricasInventario | null = null;
+
+  /**
+   * Valor del inventario en formato compacto para caber en la stat-card:
+   *   < 10.000  → "1,250.00"  (formato moneda estándar)
+   *   >= 10.000 → "12.5k" / "1.2M"  (abreviado, sin saturar la card)
+   */
+  get valorInventarioCompacto(): string {
+    // SUM de DECIMAL puede llegar como string desde Supabase → forzar a número.
+    const v = Number(this.metricas?.valor_inventario ?? 0);
+    if (v >= 1_000_000) return (v / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (v >= 10_000)    return (v / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return this.currencyService.format(v);
+  }
+
+  /** Items derivados para la lista — agrupa por template cuando vistaAgrupada=true */
   get itemsGrid(): InventarioItem[] {
-    return this.vistaAgrupada && !this.mostrarDesactivados && !this.templateSeleccionado
+    return this.vistaAgrupada && !this.mostrarDesactivados && !this.soloStockBajo && !this.templateSeleccionado
       ? this.agruparItems(this.items)
       : this.items.map(p => ({ kind: 'simple' as const, producto: p }));
   }
@@ -142,6 +168,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
 
 get filtroSeleccionado(): string {
     if (this.mostrarDesactivados) return 'desactivados';
+    if (this.soloStockBajo) return 'reponer';
     if (this.templateSeleccionado) return `tmpl-${this.templateSeleccionado.id}`;
     if (this.categoriaSeleccionada) return `cat-${this.categoriaSeleccionada}`;
     return 'todas';
@@ -150,41 +177,32 @@ get filtroSeleccionado(): string {
   private searchDebounce: ReturnType<typeof setTimeout> | undefined;
   private productoChangeSub?: Subscription;
 
-  searchAbierto = false;
-
   constructor() {
     super();
     addIcons({
       addOutline,
-      barcodeOutline,
       imageOutline,
       alertCircleOutline,
       cubeOutline,
       scanOutline,
       searchOutline,
       closeOutline,
-      layersOutline,
       pricetagOutline,
       colorPaletteOutline,
       arrowUpOutline,
-      chevronForwardOutline
+      chevronForwardOutline,
+      timeOutline,
+      createOutline,
+      trashOutline,
+      checkmarkCircleOutline,
+      swapVerticalOutline,
+      walletOutline
     });
   }
 
-  abrirSearch() {
-    this.searchAbierto = true;
-    setTimeout(() => {
-      const input = document.querySelector('.inv-search-input') as HTMLInputElement;
-      input?.focus();
-    }, 260);
-  }
-
-  cerrarSearch() {
-    this.searchAbierto = false;
+  /** Botón "×" del input — solo vacía el texto de búsqueda, sin tocar los filtros de categoría. */
+  limpiarBusqueda() {
     this.buscarTexto = '';
-    this.categoriaSeleccionada = undefined;
-    this.templateSeleccionado = undefined;
-    this.mostrarDesactivados = false;
     clearTimeout(this.searchDebounce);
     this.cargar();
   }
@@ -197,10 +215,13 @@ get filtroSeleccionado(): string {
 
   async ngOnInit() {
     this.categorias = await this.inventarioService.obtenerCategorias();
-    await this.cargar();
+    await Promise.all([this.cargar(), this.cargarMetricas()]);
 
     // Escuchar cambios de producto desde la página de formulario
     this.productoChangeSub = this.inventarioService.onProductoChange$.subscribe(async event => {
+      // Toda mutación (crear/ajustar/desactivar) altera alguna métrica → refrescar siempre.
+      this.cargarMetricas();
+
       if (event.tipo === 'RECARGA') {
         this.cargar();
         return;
@@ -221,6 +242,15 @@ get filtroSeleccionado(): string {
     });
   }
 
+  /** Carga (o refresca) las métricas de cabecera. Silenciosa: nunca bloquea la lista. */
+  private async cargarMetricas() {
+    try {
+      this.metricas = await this.inventarioService.obtenerMetricas();
+    } catch (e) {
+      this.logger.error('InventarioPage', 'Error cargando métricas', e);
+    }
+  }
+
   protected async fetchPage(page: number): Promise<Producto[]> {
     if (this.mostrarDesactivados) {
       if (page > 0) return [];
@@ -232,28 +262,25 @@ get filtroSeleccionado(): string {
       this.categoriaSeleccionada,
       this.templateSeleccionado?.id,
       page,
-      this.pageSize
+      this.pageSize,
+      this.soloStockBajo
     );
     return this.resolverImagenesLote(productos);
   }
 
+  /**
+   * Búsqueda y filtros son secciones independientes y siempre visibles (no un swap de
+   * capas como el patrón POS) — por eso el texto se combina con el filtro de categoría
+   * activo en vez de resetearlo. `mostrarDesactivados` y `templateSeleccionado` sí se
+   * limpian: son contextos distintos (desactivados no tiene buscador propio; template
+   * es "viendo variantes de X", del que buscar texto libre debe sacarte).
+   */
   aplicarFiltro() {
     clearTimeout(this.searchDebounce);
     this.searchDebounce = setTimeout(async () => {
-      this.categoriaSeleccionada = undefined;
       this.templateSeleccionado = undefined;
       this.mostrarDesactivados = false;
-
       await this.cargar();
-
-      // 2️⃣ Auto-seleccionar categoría SOLO si hay texto y todos los
-      //    resultados pertenecen a la misma — actualiza el label del filtro
-      if (this.buscarTexto.trim() && this.items.length > 0) {
-        const categoriaIds = new Set(this.items.map(p => p.categoria_id).filter(Boolean));
-        if (categoriaIds.size === 1) {
-          this.categoriaSeleccionada = [...categoriaIds][0]!;
-        }
-      }
     }, 450);
   }
 
@@ -261,16 +288,45 @@ get filtroSeleccionado(): string {
     this.templateSeleccionado = undefined;
     if (value === 'desactivados') {
       this.mostrarDesactivados = true;
+      this.soloStockBajo = false;
       this.categoriaSeleccionada = undefined;
       this.buscarTexto = '';
+    } else if (value === 'reponer') {
+      this.soloStockBajo = true;
+      this.mostrarDesactivados = false;
+      this.categoriaSeleccionada = undefined;
     } else if (value === 'todas') {
       this.mostrarDesactivados = false;
+      this.soloStockBajo = false;
       this.categoriaSeleccionada = undefined;
     } else if (value.startsWith('cat-')) {
       this.mostrarDesactivados = false;
+      this.soloStockBajo = false;
       this.categoriaSeleccionada = value.replace('cat-', '');
     }
     this.cargar();
+  }
+
+  /**
+   * Tap en una stat-card de métrica → atajo al filtro correspondiente.
+   *   'total'    → limpia filtros (muestra todo el catálogo activo)
+   *   'reponer'  → filtro Reponer (por reponer y agotados: los agotados encabezan
+   *                con badge rojo, así que reponer los cubre — no hace falta un
+   *                filtro server-side separado solo para agotados)
+   *   'valor'    → informativa pura, sin navegación
+   */
+  onMetricaTap(metrica: 'total' | 'reponer' | 'valor') {
+    if (metrica === 'total') {
+      this.onFiltroChange('todas');
+    } else if (metrica === 'reponer') {
+      this.onFiltroChange('reponer');
+    }
+  }
+
+  /** Pull-to-refresh: además de la lista, refresca las métricas de cabecera. */
+  override async handleRefresh(event: CustomEvent): Promise<void> {
+    await Promise.all([this.cargar(true), this.cargarMetricas()]);
+    (event.target as HTMLIonRefresherElement).complete();
   }
 
   filtrarPorTemplate(template: { id: string; nombre: string }, event: MouseEvent) {
@@ -278,15 +334,17 @@ get filtroSeleccionado(): string {
     this.templateSeleccionado = template;
     this.categoriaSeleccionada = undefined;
     this.mostrarDesactivados = false;
+    this.soloStockBajo = false;
     this.buscarTexto = '';
     this.cargar();
   }
 
-  /** Tap en card de template agrupado → muestra las variantes filtradas */
+  /** Tap en item de template agrupado → muestra las variantes filtradas */
   abrirTemplate(item: Extract<InventarioItem, { kind: 'template' }>) {
     this.templateSeleccionado = { id: item.templateId, nombre: item.templateNombre };
     this.categoriaSeleccionada = undefined;
     this.mostrarDesactivados = false;
+    this.soloStockBajo = false;
     this.buscarTexto = '';
     this.cargar();
   }
@@ -338,6 +396,98 @@ get filtroSeleccionado(): string {
 
   irAEditar(producto: Producto) {
     this.navCtrl.navigateForward(ROUTES.inventario.editar(producto.id));
+  }
+
+  irAKardex(producto: Producto) {
+    this.navCtrl.navigateForward(ROUTES.inventario.kardex(producto.id));
+  }
+
+  // ==========================
+  // AJUSTE DE STOCK (desde el menú ⋮ del item)
+  // ==========================
+
+  /**
+   * Abre el modal de ajuste. El modal espera la promesa de `onConfirmar` antes de
+   * cerrarse (patrón de PresentacionModalComponent.onConfirmar) — así "Procesando..."
+   * es visible de verdad, y si falla el modal sigue abierto con cantidad/observaciones
+   * intactas para reintentar.
+   *
+   * `ajustandoId` marca el item en la lista como "ocupado" (fila atenuada + spinner
+   * en el stock, ver inv-item--ajustando en el HTML) mientras la operación está en
+   * curso — feedback visual de que el ajuste de ESE producto se está procesando.
+   */
+  private async abrirModalAjuste(producto: Producto) {
+    if (this.ajustandoId) return;
+
+    const modal = await this.modalCtrl.create({
+      component: AjusteStockModalComponent,
+      componentProps: {
+        stockActual:  producto.stock_actual,
+        esPeso:       producto.tipo_venta === 'PESO',
+        unidadMedida: producto.unidad_medida || 'und',
+        onConfirmar: (data: AjusteStockResult) => this.ejecutarAjuste(producto, data)
+      },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1
+    });
+    await modal.present();
+  }
+
+  private async ejecutarAjuste(producto: Producto, data: AjusteStockResult): Promise<boolean> {
+    this.ajustandoId = producto.id;
+    try {
+      await this.inventarioService.ajustarStock(producto.id, data.tipo, data.cantidad, data.observaciones);
+      // La lista se actualiza vía onProductoChange$:ACTUALIZADO (ver ngOnInit).
+      return true;
+    } catch (error) {
+      this.logger.error('InventarioPage', 'Error ajustando stock', error);
+      return false;
+    } finally {
+      this.ajustandoId = null;
+    }
+  }
+
+  // ==========================
+  // MENÚ ⋮ POR ITEM
+  // ==========================
+
+  menuOpcionesProducto(_producto: Producto): MenuOption[] {
+    return [
+      { label: 'Ajustar stock', icon: 'swap-vertical-outline', value: 'ajustar' },
+      { label: 'Ver kárdex',    icon: 'time-outline',          value: 'kardex'  },
+      { label: 'Editar',        icon: 'create-outline',        value: 'editar'  },
+      { label: 'Desactivar',    icon: 'trash-outline',         value: 'desactivar', color: 'danger' },
+    ];
+  }
+
+  async onMenuOpcion(opcion: MenuOption, producto: Producto) {
+    // El popover (app-options-menu) ya hace stopPropagation en su onSelect.
+    switch (opcion.value) {
+      case 'ajustar':    await this.abrirModalAjuste(producto); break;
+      case 'kardex':     this.irAKardex(producto); break;
+      case 'editar':     this.irAEditar(producto); break;
+      case 'desactivar': await this.desactivarProducto(producto); break;
+    }
+  }
+
+  private async desactivarProducto(producto: Producto) {
+    const alert = await this.alertCtrl.create({
+      header: `¿Quitar "${producto.nombre}"?`,
+      message: 'Dejará de aparecer en el inventario y el POS. Puedes reactivarlo cuando quieras.',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Quitar',
+          role: 'destructive',
+          handler: async () => {
+            await this.inventarioService.desactivarProducto(producto.id);
+            this.items = this.items.filter(p => p.id !== producto.id);
+          }
+        }
+      ]
+    });
+    await alert.present();
   }
 
   // ==========================

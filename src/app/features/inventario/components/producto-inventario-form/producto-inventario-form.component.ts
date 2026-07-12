@@ -1,5 +1,4 @@
 import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormGroup } from '@angular/forms';
 import {
     IonItem, IonInput, IonIcon, IonButton
@@ -14,7 +13,7 @@ import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only
     styleUrls: ['./producto-inventario-form.component.scss'],
     standalone: true,
     imports: [
-        CommonModule, ReactiveFormsModule,
+        ReactiveFormsModule,
         IonItem, IonInput, IonIcon, IonButton,
         NumbersOnlyDirective,
     ]

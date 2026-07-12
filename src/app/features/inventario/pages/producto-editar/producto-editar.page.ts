@@ -1,5 +1,4 @@
 import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
@@ -38,7 +37,7 @@ interface AtributoSeleccionado {
     styleUrls: ['./producto-editar.page.scss'],
     standalone: true,
     imports: [
-        CommonModule, ReactiveFormsModule,
+        ReactiveFormsModule,
         IonHeader, IonToolbar, IonButtons, IonButton, IonTitle,
         IonContent, IonIcon, IonCard, IonCardContent, IonSkeletonText, IonSpinner,
         ProductoInfoFormComponent,

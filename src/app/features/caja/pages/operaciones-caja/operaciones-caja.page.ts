@@ -33,6 +33,7 @@ import { OperacionLabelPipe } from '../../../../shared/pipes/operacion-label.pip
 import { PeriodFilterComponent, PeriodOption } from '../../../../shared/components/period-filter/period-filter.component';
 import { ROUTES } from '@core/config/routes.config';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
+import { crearScrollToTop } from '@shared/utils/scroll-to-top.util';
 
 interface OperacionAgrupada {
   fecha: string;
@@ -101,7 +102,10 @@ export class OperacionesCajaPage implements OnDestroy {
 
   // Header con saldo
   showHeaderBalance = false;
-  showScrollTop = false;
+
+  /** Controller de scroll-to-top (showScrollTop, onContentScroll, scrollToTop) —
+   *  compartido con PaginatedListPage y otras páginas (ver shared/utils/scroll-to-top.util.ts). */
+  readonly scrollTop = crearScrollToTop(() => this.content);
 
   // Estado de conexión
   isOnline = true;
@@ -154,10 +158,6 @@ export class OperacionesCajaPage implements OnDestroy {
       documentAttachOutline, ellipsisVertical, close,
       timeOutline
     });
-  }
-
-  scrollToTop() {
-    this.content.scrollToTop(300);
   }
 
   async ionViewWillEnter() {
@@ -314,10 +314,9 @@ export class OperacionesCajaPage implements OnDestroy {
     (event.target as HTMLIonRefresherElement).complete();
   }
 
-  onScroll(event: any) {
-    const top = event.detail.scrollTop;
-    this.showHeaderBalance = top > 150;
-    this.showScrollTop = top > 600;
+  onScroll(event: CustomEvent) {
+    this.showHeaderBalance = event.detail.scrollTop > 150;
+    this.scrollTop.onContentScroll(event);
   }
 
   async onMenuOpcion(option: MenuOption) {

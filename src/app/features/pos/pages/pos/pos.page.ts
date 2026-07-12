@@ -7,12 +7,12 @@ import {
   IonButtons, IonMenuButton, IonButton, IonIcon,
   IonFooter, IonList, IonItem, IonBadge, IonSpinner, IonSkeletonText,
   IonItemSliding, IonItemOptions, IonItemOption,
-  IonRefresher, IonRefresherContent,
+  IonRefresher, IonRefresherContent, IonFab, IonFabButton,
   AlertController, ModalController, ViewDidLeave, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, addCircleOutline, cardOutline, phonePortraitOutline, handRightOutline, personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, pricetagOutline, chevronDownCircleOutline, gridOutline, listOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, pricetagOutline, chevronDownCircleOutline, arrowUpOutline } from 'ionicons/icons';
 import { CategoriaProducto } from '../../../inventario/models/categoria-producto.model';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
@@ -22,7 +22,9 @@ import { ProductoPOS, ProductoPresentacion } from '../../../inventario/models/pr
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
 import { PosService, VentaPayload } from '../../services/pos.service';
-import { CartItem, CatalogoItem, ResultadoBusquedaPOS } from '../../models/cart-item.model';
+import { CartItem, CatalogoItem } from '../../models/cart-item.model';
+import { volarCloneHacia } from '../../utils/fly-clone.util';
+import { crearScrollToTop } from '../../../../shared/utils/scroll-to-top.util';
 import { ClientesService } from '../../../clientes/services/clientes.service';
 import { Cliente } from '../../../clientes/models/cliente.model';
 import { SeleccionarClienteModalComponent } from '../../../clientes/components/seleccionar-cliente-modal/seleccionar-cliente-modal.component';
@@ -48,7 +50,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
     IonButtons, IonMenuButton, IonButton, IonIcon,
     IonFooter, IonList, IonItem, IonBadge, IonSpinner, IonSkeletonText,
     IonItemSliding, IonItemOptions, IonItemOption,
-    IonRefresher, IonRefresherContent,
+    IonRefresher, IonRefresherContent, IonFab, IonFabButton,
     CommonModule, FormsModule,
     OptionsMenuComponent, EmptyStateComponent
   ]
@@ -82,7 +84,6 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   editandoItemKey: string | null = null;
   readonly carrito = signal<CartItem[]>([]);
   readonly buscarTexto = signal('');
-  productosBusqueda: ProductoPOS[] = [];
   buscando = false;
   modoBusqueda: 'codigo' | 'nombre' = 'nombre';
   private searchVersion = 0;
@@ -110,6 +111,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   readonly productosCatalogo = signal<ProductoPOS[]>([]);
   cargandoCatalogo = false;
   catalogoSearchAbierto = false;
+  /** Controller de scroll-to-top del catálogo (showScrollTop, onContentScroll, scrollToTop) —
+   *  compartido con PaginatedListPage y otras páginas (ver shared/utils/scroll-to-top.util.ts). */
+  readonly scrollTop = crearScrollToTop(() => this.content);
+  /** Snapshot completo del catálogo (todas las categorías) — filtro por categoría sin roundtrip. */
+  private catalogoCompleto: ProductoPOS[] | null = null;
+  /** Descarta resoluciones de imágenes en background que quedaron obsoletas (carrera filtro vs resolución). */
+  private catalogoVersion = 0;
 
   // IDs de productos con animación activa en el catálogo
   catalogoCardAnimando: string | null = null;
@@ -179,6 +187,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.volvioDesdeCatalogo = true;
     this.vistaActual = 'lista';
     this.catalogoSearchAbierto = false;
+    this.scrollTop.reset();
     this.limpiarBusqueda();
   }
 
@@ -201,16 +210,30 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
 
     try {
-      const categorias = await this.inventarioService.obtenerCategorias();
-      this.categoriasCatalogo = categorias;
-      // Pasar las categorías ya cargadas evita una query extra al guardar el cache.
-      const productos = await this.inventarioService.obtenerProductosCatalogoPOS(undefined, categorias);
-      // Pinta la cuadrícula fresca al instante; las imágenes se resuelven en background.
-      this.publicarCatalogoConImagenesProgresivas(productos);
+      await this.cargarCatalogoDesdeServidor();
     } finally {
       this.cargandoCatalogo = false;
       this.cdr.markForCheck();
     }
+  }
+
+  /**
+   * Núcleo compartido de carga del catálogo (lo usan cargarCatalogo y refrescarCatalogo):
+   * trae SIEMPRE el snapshot completo (refresca también el cache offline — un fetch
+   * filtrado no lo escribe), lo guarda en memoria para el filtro por categoría sin red,
+   * publica la vista filtrada y sincroniza el stock del carrito.
+   */
+  private async cargarCatalogoDesdeServidor(): Promise<void> {
+    const categorias = await this.inventarioService.obtenerCategorias();
+    if (categorias.length > 0) this.categoriasCatalogo = categorias;
+    // Pasar las categorías ya cargadas evita una query extra al guardar el cache.
+    const productos = await this.inventarioService.obtenerProductosCatalogoPOS(undefined, categorias);
+    // Respuesta vacía con catálogo ya pintado = casi seguro un fallo de red enmascarado
+    // (supabase.call retorna null → []). No pisar el catálogo visible con un grid vacío.
+    if (productos.length === 0 && (this.catalogoCompleto?.length ?? 0) > 0) return;
+    this.catalogoCompleto = productos;
+    this.publicarCatalogoConImagenesProgresivas(this.filtrarPorCategoria(productos));
+    this.sincronizarStockCarrito(productos);
   }
 
   /**
@@ -223,13 +246,22 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (cacheados.length === 0) return false;
     const categoriasCache = await this.catalogoLocal.obtenerCategorias();
     if (categoriasCache.length > 0) this.categoriasCatalogo = categoriasCache;
+    this.catalogoCompleto = cacheados;
     this.publicarCatalogoConImagenesProgresivas(cacheados);
     return true;
+  }
+
+  private filtrarPorCategoria(productos: ProductoPOS[]): ProductoPOS[] {
+    return this.categoriaActivaId
+      ? productos.filter(p => p.categoria_id === this.categoriaActivaId)
+      : productos;
   }
 
   async seleccionarCategoriaCatalogo(categoriaId: string | null) {
     if (this.categoriaActivaId === categoriaId) return;
     this.categoriaActivaId  = categoriaId;
+    this.scrollTop.reset();
+    this.content?.scrollToTop(0);
     this.cdr.markForCheck();
 
     // Scroll automático al tab activo dentro de la barra horizontal
@@ -239,15 +271,19 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       tabEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }, 0);
 
-    // Si hay cache en memoria el filtro es puro JS — no hay I/O, no hace falta spinner
-    const instantaneo = !this.network.isConnected() && this.catalogoLocal.tieneCacheEnMemoria();
-    if (!instantaneo) {
-      this.cargandoCatalogo = true;
-      this.cdr.markForCheck();
+    // Con el snapshot completo en memoria el filtro es puro JS — instantáneo, sin
+    // roundtrip ni spinner. La frescura del stock la garantizan el enter a la página,
+    // el pull-to-refresh y el descuento local tras cada venta.
+    if (this.catalogoCompleto) {
+      this.publicarCatalogoConImagenesProgresivas(this.filtrarPorCategoria(this.catalogoCompleto));
+      return;
     }
+
+    // Sin snapshot aún (primera carga en vuelo): fetch puntual con spinner
+    this.cargandoCatalogo = true;
+    this.cdr.markForCheck();
     try {
       const productos = await this.inventarioService.obtenerProductosCatalogoPOS(categoriaId ?? undefined);
-      // Pinta al instante reutilizando imágenes ya resueltas; resuelve nuevas en background.
       this.publicarCatalogoConImagenesProgresivas(productos);
     } finally {
       this.cargandoCatalogo = false;
@@ -259,10 +295,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
    * Publica el catálogo en dos pasos para que la cuadrícula aparezca al instante:
    *  Paso 1 (síncrono): pinta los productos reutilizando las imágenes ya resueltas en
    *    el catálogo actual (mismo producto/template) → 0 llamadas a Storage, render inmediato.
-   *  Paso 2 (background): resuelve las URLs nuevas sin bloquear la UI y re-publica.
+   *  Paso 2 (background): resuelve las URLs nuevas en tandas sin bloquear la UI y
+   *    re-publica progresivamente. Un contador de versión descarta resoluciones que
+   *    llegan tarde (p.ej. el usuario cambió de categoría con la anterior aún resolviendo).
    * Único punto de pintado del catálogo — lo usan cargarCatalogo, filtro y refresco.
    */
   private publicarCatalogoConImagenesProgresivas(productos: ProductoPOS[]) {
+    const version = ++this.catalogoVersion;
     const catalogoActual = this.productosCatalogo();
     const imagenesCacheadas = new Map(catalogoActual.map(p => [p.id, p.imagen_url]));
     const templateImagenesCacheadas = new Map(
@@ -292,14 +331,27 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.cdr.markForCheck();
 
     // Paso 2: resolver las URLs faltantes en background, sin bloquear el render
-    this.resolverImagenesCatalogo(productos).then(productosConImg => {
-      this.productosCatalogo.set(productosConImg);
-      this.cdr.markForCheck();
-    }).catch(() => { /* imagen fallida no rompe el flujo */ });
+    void this.resolverImagenesEnTandas(productos, productosConImagenCacheada, version);
   }
 
-  private async resolverImagenesCatalogo(productos: ProductoPOS[]): Promise<ProductoPOS[]> {
-    return Promise.all(productos.map(p => this.resolverImagen(p)));
+  /**
+   * Resuelve las imágenes del catálogo en tandas acotadas (evita cientos de requests
+   * concurrentes en la primera carga online) y re-publica progresivamente: las fotos
+   * van apareciendo por bloques en vez de todas al final.
+   */
+  private async resolverImagenesEnTandas(productos: ProductoPOS[], base: ProductoPOS[], version: number): Promise<void> {
+    const LOTE = 24;
+    const resultado = [...base];
+    for (let i = 0; i < productos.length; i += LOTE) {
+      const tanda = productos.slice(i, i + LOTE);
+      try {
+        const resueltos = await Promise.all(tanda.map(p => this.resolverImagen(p)));
+        if (version !== this.catalogoVersion) return; // llegó tarde — ya se publicó otro catálogo
+        for (let j = 0; j < resueltos.length; j++) resultado[i + j] = resueltos[j];
+        this.productosCatalogo.set([...resultado]);
+        this.cdr.markForCheck();
+      } catch { /* una tanda fallida no rompe el resto */ }
+    }
   }
 
   async editarCantidadDesdeCatalogo(producto: ProductoPOS) {
@@ -326,7 +378,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     const tienePresentaciones = (producto.presentaciones?.length ?? 0) > 0;
     const totalAntes = this.totalArticulos();
-    await this.seleccionarResultadoBusqueda({ tipo: 'simple', producto }, false);
+    await this.seleccionarProductoBusqueda(producto, false);
     const seAgrego = this.totalArticulos() > totalAntes;
 
     // Solo animar en productos simples sin presentaciones — en presentaciones/variantes
@@ -350,50 +402,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const pillEl = (pill && esVisible(pill)) ? pill : (panel && esVisible(panel)) ? panel : null;
     if (!pillEl) return;
 
-    const pillRect = pillEl.getBoundingClientRect();
-    const pillCx   = pillRect.left + pillRect.width  / 2;
-    const pillCy   = pillRect.top  + pillRect.height / 2;
-
-    cardClone.style.cssText = `
-      position: fixed;
-      left: ${cardRect.left}px;
-      top: ${cardRect.top}px;
-      width: ${cardRect.width}px;
-      height: ${cardRect.height}px;
-      margin: 0;
-      pointer-events: none;
-      z-index: 9999;
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      outline: none;
-      border: none;
-      -webkit-tap-highlight-color: transparent;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-      opacity: 1;
-      transform: scale(1);
-      transition:
-        left      0.45s cubic-bezier(0.4, 0, 0.2, 1),
-        top       0.45s cubic-bezier(0.4, 0, 0.2, 1),
-        width     0.45s cubic-bezier(0.4, 0, 0.2, 1),
-        height    0.45s cubic-bezier(0.4, 0, 0.2, 1),
-        opacity   0.35s ease 0.15s,
-        transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-    `;
-    document.body.appendChild(cardClone);
-
-    // Forzar reflow para que la transición arranque desde el estado inicial
-    cardClone.getBoundingClientRect();
-
-    // Estado final: encoge hasta el centro del pill y desaparece
-    const size = 32;
-    cardClone.style.left      = `${pillCx - size / 2}px`;
-    cardClone.style.top       = `${pillCy - size / 2}px`;
-    cardClone.style.width     = `${size}px`;
-    cardClone.style.height    = `${size}px`;
-    cardClone.style.opacity   = '0';
-    cardClone.style.transform = 'scale(0.3)';
-
-    cardClone.addEventListener('transitionend', () => cardClone.remove(), { once: true });
+    volarCloneHacia(cardClone, cardRect, pillEl, {
+      tamanoFinal: 32,
+      borderRadius: 'var(--radius-md)',
+      boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+    });
   }
 
   /** Pide confirmación antes de vaciar el carrito */
@@ -428,14 +441,17 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   // Control de página activa (Ionic cachea páginas)
   private paginaActiva = true;
 
+  // ngOnInit ya carga todo en la primera entrada — ionViewWillEnter no debe duplicarlo
+  private primeraActivacion = true;
+
   constructor() {
     addIcons({
       barcodeOutline, cartOutline, cashOutline,
       addOutline, removeOutline, trashOutline,
-      cubeOutline, searchOutline, addCircleOutline,
-      cardOutline, phonePortraitOutline, handRightOutline,
-      personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, checkmarkOutline, pricetagOutline, chevronDownCircleOutline,
-      gridOutline, listOutline
+      cubeOutline, searchOutline, personOutline,
+      chevronForwardOutline, chevronBackOutline, refreshOutline,
+      alertCircleOutline, closeOutline, pricetagOutline, chevronDownCircleOutline,
+      arrowUpOutline
     });
   }
 
@@ -530,6 +546,16 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }, {} as Record<string, number>)
   );
 
+  /** Unidades BASE comprometidas por producto (cantidad × factor_conversion) — para calcular
+   *  stock libre real en badges. carritoCountMap suma cantidades "como las cuenta el usuario"
+   *  (2 cajetillas = 2), este map las convierte a unidades de inventario (2 × 10 = 20). */
+  readonly carritoUnidadesBaseMap = computed(() =>
+    this.carrito().reduce((map, item) => {
+      map[item.id] = (map[item.id] || 0) + item.cantidad * (item.factor_conversion ?? 1);
+      return map;
+    }, {} as Record<string, number>)
+  );
+
   /** Suma de artículos en carrito agrupados por template_id — para el badge de cards de variantes. */
   readonly templateCountMap = computed(() =>
     this.carrito().reduce((map, item) => {
@@ -586,16 +612,27 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     )
   );
 
-  readonly baseIva0 = computed(() =>
-    Math.round(this._brutosDesglose().sinIva * this._factorDescuento() * 100) / 100
-  );
-  readonly baseIva15 = computed(() =>
-    Math.round((this._brutosDesglose().conIva * this._factorDescuento() / this._ivaDivisor()) * 100) / 100
-  );
-  readonly ivaValor = computed(() =>
-    Math.round((this.totalPagar() - this.baseIva0() - this.baseIva15()) * 100) / 100
-  );
-  readonly subtotalNeto = computed(() => Math.round((this.baseIva0() + this.baseIva15()) * 100) / 100);
+  /**
+   * Desglose fiscal para un factor de descuento y total dados. Lo reutilizan los
+   * computed de la UI (con descuento aplicado) y el cobro FIADO (factor 1 — el fiado
+   * anula el descuento, sus bases fiscales deben calcularse sin él).
+   */
+  private calcularDesglose(factor: number, total: number) {
+    const brutos = this._brutosDesglose();
+    const base0  = Math.round(brutos.sinIva * factor * 100) / 100;
+    const base15 = Math.round((brutos.conIva * factor / this._ivaDivisor()) * 100) / 100;
+    return {
+      base0, base15,
+      iva:  Math.round((total - base0 - base15) * 100) / 100,
+      neto: Math.round((base0 + base15) * 100) / 100,
+    };
+  }
+
+  private readonly _desglose = computed(() => this.calcularDesglose(this._factorDescuento(), this.totalPagar()));
+  readonly baseIva0     = computed(() => this._desglose().base0);
+  readonly baseIva15    = computed(() => this._desglose().base15);
+  readonly ivaValor     = computed(() => this._desglose().iva);
+  readonly subtotalNeto = computed(() => this._desglose().neto);
 
   get mostrarDesglose(): boolean { return this.tipoComprobante === TipoComprobante.FACTURA && this.ivaValor() > 0; }
 
@@ -645,6 +682,60 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
+  // ── Helpers del carrito ─────────────────────────────────────────────
+  // Toda mutación del carrito se hace por CLAVE compuesta (id + presentacion_id), la
+  // misma que usa el track del template. Nunca por identidad de objeto: los refrescos
+  // de stock reemplazan los objetos del array y una referencia capturada antes de un
+  // await queda huérfana — mutar por identidad fallaba silenciosamente en ese caso.
+
+  /** Clave única de una línea del carrito. */
+  private keyDe(item: CartItem): string {
+    return item.id + (item.presentacion_id ?? '');
+  }
+
+  private calcularSubtotal(cantidad: number, precioUnitario: number): number {
+    return Math.round(cantidad * precioUnitario * 100) / 100;
+  }
+
+  /** Actualiza cantidad y subtotal de una línea por su clave. */
+  private actualizarCantidad(key: string, cantidad: number) {
+    this.carrito.update(c => c.map(i => this.keyDe(i) === key
+      ? { ...i, cantidad, subtotal: this.calcularSubtotal(cantidad, i.precio_venta) }
+      : i
+    ));
+  }
+
+  /** Marca la línea recién agregada para su animación de entrada. */
+  private marcarAgregado(key: string) {
+    this.lastAddedKey = key;
+    this.cdr.markForCheck();
+    setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
+  }
+
+  /** Crea una línea nueva en el carrito (imagen resuelta) y dispara el feedback estándar. */
+  private async agregarLineaNueva(producto: ProductoPOS, cantidad: number, presentacion?: ProductoPresentacion) {
+    const precioVenta = presentacion?.precio_venta ?? producto.precio_venta;
+    const prod = await this.resolverImagen(producto, presentacion);
+    const item: CartItem = {
+      ...prod,
+      precio_venta: precioVenta,
+      cantidad,
+      subtotal: this.calcularSubtotal(cantidad, precioVenta),
+      stock_disponible: producto.stock_actual,
+      ...(presentacion ? {
+        presentacion_id: presentacion.id,
+        presentacion_nombre: presentacion.nombre,
+        factor_conversion: presentacion.factor_conversion
+      } : {})
+    };
+    this.carrito.update(c => [...c, item]);
+    const key = this.keyDe(item);
+    this.marcarAgregado(key);
+    this.dispararAnimacionPanel(key);
+    this.feedbackEscaneo(key);
+    this.scrollToBottom();
+  }
+
   async agregarAlCarrito(producto: ProductoPOS, presentacion?: ProductoPresentacion): Promise<boolean> {
     // PESO: si ya está en carrito, editar; si no, agregar nuevo
     if (producto.tipo_venta === 'PESO') {
@@ -659,10 +750,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     const stockBase = producto.stock_actual;
     const factor = presentacion?.factor_conversion ?? 1;
-    const precioVenta = presentacion?.precio_venta ?? producto.precio_venta;
     const stockUsado = this.stockUsadoPorProducto(producto.id);
-    const stockLibre = stockBase - stockUsado;
-    const maxUnidades = Math.floor(stockLibre / factor);
 
     const existe = this.carrito().find(item =>
         item.id === producto.id &&
@@ -670,49 +758,26 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     );
 
     if (existe) {
-      const stockLibreSinEste = stockBase - stockUsado + (existe.cantidad * factor);
-      const maxParaEste = Math.floor(stockLibreSinEste / factor);
+      const maxParaEste = Math.floor((stockBase - stockUsado + existe.cantidad * factor) / factor);
       if (existe.cantidad < maxParaEste) {
         navigator.vibrate?.(18);
         this.incrementar(existe);
-        this.triggerIncrementAnimation(existe);
-        this.dispararAnimacionPanel(existe.id + (presentacion?.id ?? ''));
-        this.feedbackEscaneo(existe.id);
+        this.dispararAnimacionPanel(this.keyDe(existe));
+        this.feedbackEscaneo(this.keyDe(existe));
         this.scrollToBottom();
         return true;
-      } else {
-        this.ui.showToast('Stock insuficiente', 'warning');
-        return false;
       }
-    } else {
-      if (maxUnidades > 0) {
-        const prod = await this.resolverImagen(producto, presentacion);
-        const item: CartItem = {
-          ...prod,
-          precio_venta: precioVenta,
-          cantidad: 1,
-          subtotal: precioVenta,
-          stock_disponible: stockBase,
-          ...(presentacion ? {
-            presentacion_id: presentacion.id,
-            presentacion_nombre: presentacion.nombre,
-            factor_conversion: presentacion.factor_conversion
-          } : {})
-        };
-        this.carrito.update(c => [...c, item]);
-        const addedKey = producto.id + (presentacion?.id ?? '');
-        this.lastAddedKey = addedKey;
-        this.cdr.markForCheck();
-        setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
-        this.dispararAnimacionPanel(addedKey);
-        this.feedbackEscaneo(producto.id);
-        this.scrollToBottom();
-        return true;
-      } else {
-        this.ui.showToast('Producto sin stock', 'danger');
-        return false;
-      }
+      this.ui.showToast('Stock insuficiente', 'warning');
+      return false;
     }
+
+    if (Math.floor((stockBase - stockUsado) / factor) <= 0) {
+      this.ui.showToast('Producto sin stock', 'danger');
+      return false;
+    }
+
+    await this.agregarLineaNueva(producto, 1, presentacion);
+    return true;
   }
 
   private async resolverImagen(producto: ProductoPOS, presentacion?: ProductoPresentacion): Promise<ProductoPOS> {
@@ -748,10 +813,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         .reduce((sum, i) => sum + i.cantidad * (i.factor_conversion ?? 1), 0);
   }
 
-  /** Modal para ingresar cantidad (granel o unidad) al agregar un producto nuevo */
-  private async pedirCantidadPeso(producto: ProductoPOS, itemExistente?: CartItem) {
-    const yaEnCarrito = itemExistente ? itemExistente.cantidad : 0;
-    const disponible = producto.stock_actual - yaEnCarrito;
+  /** Modal para ingresar cantidad (granel) al agregar un producto por peso NUEVO.
+   *  Si el producto ya está en el carrito, el flujo pasa por editarCantidad(). */
+  private async pedirCantidadPeso(producto: ProductoPOS) {
+    const disponible = producto.stock_actual;
     if (disponible <= 0) {
       this.ui.showToast('Stock insuficiente', 'warning');
       return;
@@ -765,9 +830,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         unidadMedida: producto.unidad_medida,
         esPeso: true,
         stockDisponible: disponible,
-        cantidadActual: yaEnCarrito,
-        esEdicion: !!itemExistente,
-        imagenUrl: itemExistente?.imagen_url ?? producto.imagen_url
+        cantidadActual: 0,
+        esEdicion: false,
+        imagenUrl: producto.imagen_url
       },
       cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
@@ -779,26 +844,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const { data, role } = await modal.onDidDismiss<CantidadModalResult>();
     if (role !== 'confirm' || !data) return;
 
-    const cantRedondeada = data.cantidad;
-    if (itemExistente) {
-      this.carrito.update(c => c.map(i => i === itemExistente
-        ? { ...i, cantidad: i.cantidad + cantRedondeada, subtotal: Math.round((i.cantidad + cantRedondeada) * i.precio_venta * 100) / 100 }
-        : i
-      ));
-    } else {
-      const prod = await this.resolverImagen(producto);
-      this.carrito.update(c => [...c, {
-        ...prod,
-        cantidad: cantRedondeada,
-        subtotal: Math.round(cantRedondeada * (prod.precio_venta) * 100) / 100,
-        stock_disponible: producto.stock_actual
-      }]);
-      this.lastAddedKey = producto.id;
-      this.cdr.markForCheck();
-      setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
-    }
-    this.feedbackEscaneo(producto.id);
-    this.scrollToBottom();
+    await this.agregarLineaNueva(producto, data.cantidad);
   }
 
   private scrollToBottom() {
@@ -811,17 +857,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }, 100);
   }
 
-  /** Agrega N unidades de un producto al carrito (para patrón cantidad*codigo) */
+  /** Agrega N unidades de un producto al carrito (para patrón cantidad.codigo) */
   async agregarAlCarritoConCantidad(producto: ProductoPOS, cantidad: number, presentacion?: ProductoPresentacion) {
     const stockBase = producto.stock_actual;
     const factor = presentacion?.factor_conversion ?? 1;
-    const precioVenta = presentacion?.precio_venta ?? producto.precio_venta;
-
     const stockUsado = this.stockUsadoPorProducto(producto.id);
     const stockLibre = stockBase - stockUsado;
-    const maxUnidades = Math.floor(stockLibre / factor);
 
-    if (maxUnidades <= 0) {
+    if (Math.floor(stockLibre / factor) <= 0) {
       this.ui.showToast('Producto sin stock', 'danger');
       return;
     }
@@ -833,7 +876,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     const stockLibreConEste = existe ? stockLibre + (existe.cantidad * factor) : stockLibre;
     const maxParaEste = Math.floor(stockLibreConEste / factor);
-    const yaEnCarrito = existe ? existe.cantidad : 0;
+    const yaEnCarrito = existe?.cantidad ?? 0;
     const cantidadReal = Math.min(cantidad, maxParaEste - yaEnCarrito);
 
     if (cantidadReal <= 0) {
@@ -842,59 +885,38 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
 
     if (existe) {
-      this.carrito.update(c => c.map(i => i === existe
-        ? { ...i, cantidad: i.cantidad + cantidadReal, subtotal: Math.round((i.cantidad + cantidadReal) * i.precio_venta * 100) / 100 }
-        : i
-      ));
+      this.actualizarCantidad(this.keyDe(existe), existe.cantidad + cantidadReal);
+      this.feedbackEscaneo(this.keyDe(existe));
+      this.scrollToBottom();
     } else {
-      const prod = await this.resolverImagen(producto, presentacion);
-      const item: CartItem = {
-        ...prod,
-        precio_venta: precioVenta,
-        cantidad: cantidadReal,
-        subtotal: Math.round(cantidadReal * precioVenta * 100) / 100,
-        stock_disponible: stockBase,
-        ...(presentacion ? {
-          presentacion_id: presentacion.id,
-          presentacion_nombre: presentacion.nombre,
-          factor_conversion: presentacion.factor_conversion
-        } : {})
-      };
-      this.carrito.update(c => [...c, item]);
-      this.lastAddedKey = producto.id + (presentacion?.id ?? '');
-      this.cdr.markForCheck();
-      setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
+      await this.agregarLineaNueva(producto, cantidadReal, presentacion);
     }
 
     if (cantidadReal < cantidad) {
       this.ui.showToast(`Solo se agregaron ${cantidadReal} (stock máximo)`, 'warning');
     }
-
-    this.feedbackEscaneo(producto.id);
-    this.scrollToBottom();
   }
 
   private triggerIncrementAnimation(item: CartItem) {
-    const key = item.id + (item.presentacion_id ?? '');
-    this.lastIncrementedKey = key;
+    this.lastIncrementedKey = this.keyDe(item);
     this.cdr.markForCheck();
     setTimeout(() => { this.lastIncrementedKey = null; this.cdr.markForCheck(); }, 350);
   }
 
-  /** Vibración + beep + preview efímero al agregar producto (feedback para escáner) */
-  private feedbackEscaneo(productoId: string) {
-    if (this.escaneando) {
-      this.barcodeScanner.feedback();
+  /** Vibración + beep + preview efímero al agregar producto (feedback para escáner).
+   *  Recibe la CLAVE de la línea (id + presentacion_id) para mostrar la línea correcta
+   *  cuando el mismo producto tiene unidad suelta y presentaciones en el carrito. */
+  private feedbackEscaneo(itemKey: string) {
+    if (!this.escaneando) return;
+    this.barcodeScanner.feedback();
 
-      // Mostrar preview del producto escaneado (2.5s)
-      const item = this.carrito().find(i => i.id === productoId);
-      if (item) {
-        clearTimeout(this.scanPreviewTimeout);
-        this.scanPreview = { nombre: item.nombre, cantidad: item.cantidad, subtotal: item.subtotal, precioUnitario: item.precio_venta };
-        this.cdr.markForCheck();
-        this.scanPreviewTimeout = setTimeout(() => { this.scanPreview = null; this.cdr.markForCheck(); }, 2500);
-      }
-    }
+    // Mostrar preview del producto escaneado (2.5s)
+    const item = this.carrito().find(i => this.keyDe(i) === itemKey);
+    if (!item) return;
+    clearTimeout(this.scanPreviewTimeout);
+    this.scanPreview = { nombre: item.nombre, cantidad: item.cantidad, subtotal: item.subtotal, precioUnitario: item.precio_venta };
+    this.cdr.markForCheck();
+    this.scanPreviewTimeout = setTimeout(() => { this.scanPreview = null; this.cdr.markForCheck(); }, 2500);
   }
 
   incrementar(item: CartItem): boolean {
@@ -903,11 +925,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const stockUsado = this.stockUsadoPorProducto(item.id);
     const maxParaEste = Math.floor((item.stock_disponible - stockUsado + item.cantidad * factor) / factor);
     if (item.cantidad < maxParaEste) {
-      const nuevaCantidad = item.cantidad + 1;
-      this.carrito.update(c => c.map(i => i === item
-        ? { ...i, cantidad: nuevaCantidad, subtotal: Math.round(nuevaCantidad * i.precio_venta * 100) / 100 }
-        : i
-      ));
+      this.actualizarCantidad(this.keyDe(item), item.cantidad + 1);
       this.triggerIncrementAnimation(item);
       return true;
     } else {
@@ -919,18 +937,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   decrementar(item: CartItem) {
     if (item.tipo_venta === 'PESO') { this.editarCantidad(item); return; }
     if (item.cantidad > 1) {
-      const nuevaCantidad = item.cantidad - 1;
-      this.carrito.update(c => c.map(i => i === item
-        ? { ...i, cantidad: nuevaCantidad, subtotal: Math.round(nuevaCantidad * i.precio_venta * 100) / 100 }
-        : i
-      ));
+      this.actualizarCantidad(this.keyDe(item), item.cantidad - 1);
     } else {
       this.eliminar(item);
     }
   }
 
   async editarCantidad(item: CartItem): Promise<number | null> {
-    const itemKey = item.id + (item.presentacion_id ?? '');
+    const itemKey = this.keyDe(item);
     if (this.editandoItemKey === itemKey) return null; // evitar doble tap
     this.editandoItemKey = itemKey;
     this.cdr.markForCheck();
@@ -938,24 +952,29 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const esPeso = item.tipo_venta === 'PESO';
     const factor = item.factor_conversion ?? 1;
     const stockUsadoOtros = this.carrito()
-        .filter(i => i.id === item.id && i !== item)
+        .filter(i => i.id === item.id && this.keyDe(i) !== itemKey)
         .reduce((sum, i) => sum + i.cantidad * (i.factor_conversion ?? 1), 0);
 
     try {
-      // Consultar stock fresco de BD — garantiza número correcto aunque haya latencia
-      const stockFresco = await this.inventarioService.obtenerStockActual(item.id);
-      if (stockFresco !== null && stockFresco !== item.stock_disponible) {
-        this.carrito.update(items =>
-          items.map(i => i === item ? { ...i, stock_disponible: stockFresco } : i)
-        );
-        item = { ...item, stock_disponible: stockFresco };
+      // Stock fresco de BD — solo online; offline el snapshot local es la única verdad
+      // y esperar un fetch destinado a fallar congelaría el spinner con señal mala.
+      if (this.network.isConnected()) {
+        const stockFresco = await this.inventarioService.obtenerStockActual(item.id);
+        if (stockFresco !== null && stockFresco !== item.stock_disponible) {
+          this.carrito.update(items =>
+            items.map(i => this.keyDe(i) === itemKey ? { ...i, stock_disponible: stockFresco } : i)
+          );
+          item = { ...item, stock_disponible: stockFresco };
+        }
       }
     } finally {
       this.editandoItemKey = null;
       this.cdr.markForCheck();
     }
 
-    const maxStock = Math.floor((item.stock_disponible - stockUsadoOtros) / factor);
+    // PESO admite fracciones (2.5 kg) — truncar solo cuando se vende por unidades
+    const stockLibre = (item.stock_disponible - stockUsadoOtros) / factor;
+    const maxStock = esPeso ? stockLibre : Math.floor(stockLibre);
 
     const modal = await this.modalCtrl.create({
       component: CantidadModalComponent,
@@ -985,16 +1004,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     if (role !== 'confirm' || !data) return null;
 
-    const cantidad = data.cantidad;
-    this.carrito.update(c => c.map(i => i === item
-      ? { ...i, cantidad, subtotal: Math.round(cantidad * i.precio_venta * 100) / 100 }
-      : i
-    ));
-    return cantidad;
+    this.actualizarCantidad(itemKey, data.cantidad);
+    return data.cantidad;
   }
 
   eliminar(item: CartItem) {
-    this.carrito.update(c => c.filter(i => i !== item));
+    const key = this.keyDe(item);
+    this.carrito.update(c => c.filter(i => this.keyDe(i) !== key));
   }
 
 
@@ -1004,9 +1020,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   toggleModoBusqueda() {
     this.modoBusqueda = this.modoBusqueda === 'codigo' ? 'nombre' : 'codigo';
-    this.buscarTexto.set('');
-    this.productosBusqueda = [];
-    this.cdr.markForCheck();
+    this.limpiarBusqueda();
     setTimeout(() => {
       const input = document.querySelector<HTMLInputElement>('.cat-search-input');
       input?.focus();
@@ -1015,14 +1029,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   limpiarBusqueda() {
     this.buscarTexto.set('');
-    this.productosBusqueda = [];
     this.cdr.markForCheck();
   }
 
   limpiarInputBusqueda() {
-    this.buscarTexto.set('');
-    this.productosBusqueda = [];
-    this.cdr.markForCheck();
+    this.limpiarBusqueda();
     setTimeout(() => {
       document.querySelector<HTMLInputElement>('.cat-search-input')?.focus();
     }, 0);
@@ -1099,25 +1110,15 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  // Clic en la lista de sugerencias — despacha según tipo de resultado
-  async seleccionarResultadoBusqueda(resultado: ResultadoBusquedaPOS, limpiar = true) {
-    if (resultado.tipo === 'template') {
-      await this.mostrarSelectorVariantes(resultado.templateNombre, resultado.variantes);
-    } else {
-      await this.seleccionarProductoBusqueda(resultado.producto, limpiar);
-    }
-    if (limpiar) {
-      this.limpiarBusqueda();
-    }
-  }
-
+  /** Despacha un producto elegido (catálogo o código): directo al carrito, o al modal
+   *  de variantes reutilizado como selector de presentaciones si las tiene. */
   async seleccionarProductoBusqueda(producto: ProductoPOS, limpiar = true) {
     const presentaciones = producto.presentaciones ?? [];
 
     if (presentaciones.length === 0) {
       await this.agregarAlCarrito(producto);
     } else {
-      await this.mostrarSelectorPresentacion(producto, presentaciones);
+      await this.mostrarSelectorVariantes(producto.nombre, [producto], 'Selecciona cómo venderlo');
     }
 
     if (limpiar) {
@@ -1184,11 +1185,6 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     await modal.present();
     await modal.onDidDismiss();
-  }
-
-  /** Modal de presentaciones para productos simples — reutiliza el mismo modal de variantes. */
-  private async mostrarSelectorPresentacion(producto: ProductoPOS, presentaciones: ProductoPresentacion[]) {
-    await this.mostrarSelectorVariantes(producto.nombre, [producto], 'Selecciona cómo venderlo');
   }
 
   // ==========================
@@ -1360,17 +1356,22 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const descuentoPct = esFiado ? 0 : this.descuentoPct;
     const totalFinal = esFiado ? this.subtotalBruto() : this.totalPagar();
     const esFactura = this.tipoComprobante === TipoComprobante.FACTURA;
+    // FIADO anula el descuento → sus bases fiscales se calculan con factor 1 y total
+    // bruto; usar los computed (descontados) dejaría base0+base15+iva ≠ total.
+    const desglose = esFactura
+      ? (esFiado ? this.calcularDesglose(1, this.subtotalBruto()) : this._desglose())
+      : null;
     const payload: VentaPayload = {
       total:             totalFinal,
-      subtotal:          esFactura ? this.subtotalNeto() : this.subtotalBruto(),
+      subtotal:          desglose ? desglose.neto : this.subtotalBruto(),
       descuento,
       descuentoPct,
       metodoPago,
       tipoComprobante:   this.tipoComprobante,
       clienteId:         this.clienteSeleccionado?.id,
-      baseIva0:          esFactura ? this.baseIva0()  : 0,
-      baseIva15:         esFactura ? this.baseIva15() : 0,
-      ivaValor:          esFactura ? this.ivaValor()  : 0,
+      baseIva0:          desglose?.base0 ?? 0,
+      baseIva15:         desglose?.base15 ?? 0,
+      ivaValor:          desglose?.iva ?? 0,
       idempotencyKey,
     };
 
@@ -1405,7 +1406,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         } else {
           this.ui.showToast(`Venta #${response.numeroComprobante} registrada`, 'success');
         }
-        this.limpiarCarrito();
+        this.limpiarCarrito(true);
       } else {
         this.ui.showToast('No se pudo registrar la venta. Intenta de nuevo.', 'danger');
       }
@@ -1442,7 +1443,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         // la cola es la fuente de verdad de lo pendiente.
         localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
         this.ui.showToast('Venta guardada — se sincronizará al volver la conexión', 'success');
-        this.limpiarCarrito();
+        this.limpiarCarrito(true);
       } else {
         this.ui.showToast('No se pudo guardar la venta. Intenta de nuevo.', 'danger');
       }
@@ -1456,17 +1457,36 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
-  limpiarCarrito() {
+  /**
+   * Vacía el carrito. Con ventaRealizada=true descuenta el stock vendido del catálogo
+   * en memoria — sin refetch del catálogo completo por venta (la RPC más pesada de la
+   * app). La verdad del servidor llega en el próximo enter a la página o pull-to-refresh.
+   */
+  limpiarCarrito(ventaRealizada = false) {
+    if (ventaRealizada) this.descontarStockLocal(this.carrito());
     this.carrito.set([]);
     this.buscarTexto.set('');
-    this.productosBusqueda = [];
     if (this.volvioDesdeCatalogo && !this.esDesktop) {
       this.volvioDesdeCatalogo = false;
       this.vistaActual = 'catalogo';
     }
-    // Ambos en background — no bloquean el vaciado del carrito
+    // En background — no bloquea el vaciado (resetea al Consumidor Final)
     this.cargarCliente();
-    this.refrescarCatalogo();
+  }
+
+  /** Descuenta optimistamente del catálogo en memoria las unidades base vendidas. */
+  private descontarStockLocal(items: CartItem[]) {
+    const vendido = new Map<string, number>();
+    for (const it of items) {
+      vendido.set(it.id, (vendido.get(it.id) ?? 0) + it.cantidad * (it.factor_conversion ?? 1));
+    }
+    const aplicar = (p: ProductoPOS) => {
+      const unidades = vendido.get(p.id);
+      return unidades ? { ...p, stock_actual: p.stock_actual - unidades } : p;
+    };
+    this.catalogoCompleto = this.catalogoCompleto?.map(aplicar) ?? null;
+    this.productosCatalogo.update(prods => prods.map(aplicar));
+    this.cdr.markForCheck();
   }
 
   // ==========================
@@ -1485,9 +1505,18 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   async ionViewWillEnter() {
     this.paginaActiva = true;
-    this.productosBusqueda = [];
     this.buscarTexto.set('');
     this.cdr.markForCheck();
+
+    // Primera activación: ngOnInit ya disparó config + cliente + catálogo. Sin este
+    // guard, la RPC más pesada de la app (fn_catalogo_productos_pos) corría DOS veces
+    // en paralelo al abrir el POS, y refrescarConfig invalidaba el config recién cargado.
+    if (this.primeraActivacion) {
+      this.primeraActivacion = false;
+      await this.recuperarVentaPendiente();
+      return;
+    }
+
     await Promise.all([
       this.recuperarVentaPendiente(),
       this.refrescarConfig(),
@@ -1503,17 +1532,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   /** Refresca el catálogo silenciosamente sin spinner ni pérdida del carrito.
-   *  Reutiliza el pintado progresivo (stock fresco al instante, imágenes en background)
-   *  y sincroniza el stock de los ítems del carrito con los valores frescos. */
+   *  Mismo núcleo que cargarCatalogo: snapshot completo, pintado progresivo y
+   *  sincronización del stock de los ítems del carrito. */
   private async refrescarCatalogo() {
     try {
-      const [categorias, productos] = await Promise.all([
-        this.inventarioService.obtenerCategorias(),
-        this.inventarioService.obtenerProductosCatalogoPOS(this.categoriaActivaId ?? undefined, undefined)
-      ]);
-      this.categoriasCatalogo = categorias;
-      this.publicarCatalogoConImagenesProgresivas(productos);
-      this.sincronizarStockCarrito(productos);
+      await this.cargarCatalogoDesdeServidor();
     } catch {
       // Silencioso — si falla la red el catálogo anterior sigue visible
     }
@@ -1554,18 +1577,24 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (!pendingKey) return;
 
     try {
-      const { data } = await this.posService.verificarVentaPorIdempotencyKey(pendingKey);
+      const { data, error } = await this.posService.verificarVentaPorIdempotencyKey(pendingKey);
+
+      // supabase-js NO lanza en fallos de red — los devuelve en `error`. Sin confirmación
+      // del servidor no se puede saber si la venta llegó: borrar la key aquí habilitaría
+      // un recobro con key nueva → venta duplicada. Reintentar en el próximo enter.
+      if (error) return;
+
       if (data) {
         // La venta SÍ se registró — limpiar todo
         localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
         this.ui.showToast('Venta pendiente confirmada exitosamente', 'success');
-        this.limpiarCarrito();
+        this.limpiarCarrito(true);
       } else {
         // La venta NO se registró — limpiar key para que pueda reintentar con nueva key
         localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
       }
     } catch {
-      // Sin conexión — no hacer nada, se reintentará en el próximo enter
+      // Excepción inesperada — mismo criterio que error de red: reintentar en el próximo enter
     }
   }
 

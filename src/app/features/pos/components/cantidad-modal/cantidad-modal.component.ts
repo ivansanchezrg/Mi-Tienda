@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, inject, ElementRef, ViewChild } from '@angular/core';
+import { Component, Input, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IonButton, IonIcon, ModalController } from '@ionic/angular/standalone';
@@ -18,8 +18,6 @@ export interface CantidadModalResult {
     imports: [CommonModule, FormsModule, IonButton, IonIcon]
 })
 export class CantidadModalComponent implements OnInit {
-    @ViewChild('cantidadInput') cantidadInputRef!: ElementRef<HTMLInputElement>;
-
     @Input() nombre!: string;
     @Input() precioUnitario!: number;
     @Input() unidadMedida: string = 'und';
@@ -79,11 +77,17 @@ export class CantidadModalComponent implements OnInit {
         setTimeout(() => this.stockBadgeAnimando = false, 450);
     }
 
+    /** Acepta coma o punto como separador decimal (teclados Android configurados con coma). */
+    private parseCantidad(val: string): number {
+        const normalizado = val.replace(',', '.');
+        return this.esPeso ? parseFloat(normalizado) : parseInt(normalizado, 10);
+    }
+
     onInput(event: Event) {
         const prevRestante = this.stockRestante;
         const val = (event.target as HTMLInputElement).value;
         this.cantidadStr = val;
-        const parsed = this.esPeso ? parseFloat(val) : parseInt(val, 10);
+        const parsed = this.parseCantidad(val);
         this.cantidad = isNaN(parsed) ? null : parsed;
         this.error = '';
         if (this.stockRestante <= 10 && this.stockRestante < prevRestante) {
@@ -116,9 +120,7 @@ export class CantidadModalComponent implements OnInit {
     }
 
     confirmar() {
-        const cant = this.esPeso
-            ? parseFloat(this.cantidadStr)
-            : parseInt(this.cantidadStr, 10);
+        const cant = this.parseCantidad(this.cantidadStr);
 
         if (!cant || isNaN(cant) || cant <= 0) {
             this.error = 'Ingresa una cantidad válida';
