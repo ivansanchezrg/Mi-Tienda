@@ -1,0 +1,152 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="volver()">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Editar plantilla</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content color="light">
+
+  @if (cargando) {
+  <div class="form-container">
+    <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+      <ion-card-content class="p-lg">
+        <ion-skeleton-text animated style="width: 40%; height: 20px; margin-bottom: 16px;"></ion-skeleton-text>
+        <ion-skeleton-text animated style="width: 100%; height: 48px; margin-bottom: 12px;"></ion-skeleton-text>
+        <ion-skeleton-text animated style="width: 100%; height: 180px;"></ion-skeleton-text>
+      </ion-card-content>
+    </ion-card>
+  </div>
+  } @else {
+
+  <form [formGroup]="form" class="form-container" (ngSubmit)="guardar()">
+
+    <!-- Contexto: qué es una plantilla -->
+    <div class="tpl-context-banner mb-lg">
+      <div class="tcb-icon">
+        <ion-icon name="color-palette-outline"></ion-icon>
+      </div>
+      <div class="tcb-body">
+        <p class="tcb-title">Datos generales del grupo de variantes</p>
+        <p class="tcb-hint">El nombre, la categoría y la imagen representan a todas las variantes. La imagen de cada variante se edita entrando a ella.</p>
+      </div>
+    </div>
+
+    <!-- ═══ Información general ═══ -->
+    <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+      <ion-card-content class="p-lg">
+        <h3 class="section-title">Información general</h3>
+
+        <!-- Nombre -->
+        <div class="input-group mb-md">
+          <ion-item class="custom-input flat-item" lines="none"
+            [class.ion-invalid]="esCampoInvalido('nombre')">
+            <ion-input [formControl]="$any(form.get('nombre'))"
+              label="Nombre del producto *"
+              labelPlacement="floating"
+              type="text"
+              placeholder="Ej. Camiseta básica">
+            </ion-input>
+          </ion-item>
+          @if (esCampoInvalido('nombre')) {
+          <span class="error-text">
+            @if (form.get('nombre')?.errors?.['required']) { El nombre es requerido }
+            @else if (form.get('nombre')?.errors?.['minlength']) { Mínimo 3 caracteres }
+            @else if (form.get('nombre')?.errors?.['maxlength']) { Máximo 100 caracteres }
+          </span>
+          }
+        </div>
+
+        <!-- Categoría -->
+        <div class="input-group mb-md">
+          <p class="field-label mb-xs">Categoría *</p>
+          <button type="button" class="filter-selector"
+            [class.filter-selector--invalid]="esCampoInvalido('categoria_id')"
+            (click)="abrirSelectorCategoria()">
+            <span class="filter-selector-label"
+              [class.filter-selector-label--placeholder]="!form.get('categoria_id')?.value">
+              {{ categoriaLabel }}
+            </span>
+            <ion-icon name="chevron-down-outline" class="filter-selector-arrow"></ion-icon>
+          </button>
+          @if (esCampoInvalido('categoria_id')) {
+          <span class="error-text">La categoría es requerida</span>
+          }
+        </div>
+
+        <!-- Imagen general -->
+        <div class="input-group m-0">
+          <div class="section-header">
+            <p class="field-label field-label--inline">Imagen general</p>
+            <span class="optional-badge">Opcional</span>
+          </div>
+          @if (!fotoPreviewUrl && !imagenUrlExistente) {
+          <button type="button" class="upload-btn" (click)="seleccionarFoto()">
+            <ion-icon name="camera-outline"></ion-icon>
+            <span>{{ storageService.isNative ? 'Tomar foto o seleccionar de galería' : 'Seleccionar de galería' }}</span>
+          </button>
+          } @else {
+          <div class="photo-preview" (click)="abrirOpcionesImagen()">
+            <img [src]="fotoPreviewUrl || imagenUrlExistente" alt="Imagen general del producto">
+            <button type="button" class="photo-menu" (click)="abrirOpcionesImagen(); $event.stopPropagation()" aria-label="Opciones de imagen">
+              <ion-icon name="ellipsis-horizontal"></ion-icon>
+            </button>
+          </div>
+          }
+        </div>
+
+      </ion-card-content>
+    </ion-card>
+
+    <!-- ═══ Variantes (solo lectura) ═══ -->
+    @if (variantes.length > 0) {
+    <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+      <ion-card-content class="p-lg">
+        <div class="section-header section-header--flush">
+          <h3 class="section-title section-title--flush">Variantes</h3>
+          <span class="variante-count">{{ variantes.length }}</span>
+        </div>
+        <p class="tpl-variantes-hint">Para editar una variante en concreto, entra a ella desde el inventario.</p>
+        <div class="tpl-variantes">
+          @for (v of variantes; track v.id) {
+          <div class="tpl-variante">
+            <div class="tpl-variante__thumb">
+              @if (v.imagen_url) {
+                <img [src]="v.imagen_url" [alt]="v.nombre" />
+              } @else {
+                <div class="tpl-variante__ph"><ion-icon name="image-outline"></ion-icon></div>
+              }
+            </div>
+            <span class="tpl-variante__name">{{ v.nombre }}</span>
+          </div>
+          }
+        </div>
+      </ion-card-content>
+    </ion-card>
+    }
+
+    <!-- ═══ Guardar ═══ -->
+    <div class="actions-row">
+      <ion-button expand="block" color="primary" type="submit"
+        [disabled]="form.invalid || guardando || form.pristine">
+        @if (guardando) {
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+          Guardando...
+        } @else if (form.pristine) {
+          <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+          Sin cambios
+        } @else {
+          <ion-icon slot="start" name="save-outline"></ion-icon>
+          Guardar
+        }
+      </ion-button>
+    </div>
+
+  </form>
+  }
+
+</ion-content>

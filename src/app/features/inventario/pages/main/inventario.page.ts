@@ -54,6 +54,10 @@ type InventarioItem =
         kind: 'template';
         templateId: string;
         templateNombre: string;
+        // Solo la imagen propia del template (producto_templates.imagen_url) — NUNCA
+        // caer a la imagen de una variante como fallback. Si el template no tiene
+        // imagen propia, se muestra el placeholder; el usuario la asigna desde el
+        // botón lápiz (irAEditarTemplate → TemplateEditarPage).
         templateImagenUrl?: string | null;
         categoriaNombre?: string;
         variantes: Producto[];
@@ -150,7 +154,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
           kind: 'template',
           templateId: p.producto_template_id,
           templateNombre: p.producto_template?.nombre ?? p.nombre,
-          templateImagenUrl: p.producto_template?.imagen_url ?? p.imagen_url,
+          templateImagenUrl: p.producto_template?.imagen_url,
           categoriaNombre: p.producto_template?.categoria?.nombre ?? p.categoria?.nombre,
           variantes: [p],
           stockTotal: stock,
@@ -166,7 +170,14 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     return items;
   }
 
-get filtroSeleccionado(): string {
+  /**
+   * Chip resaltado en la barra de filtros. Con texto de búsqueda activo, ningún chip
+   * se marca (ni siquiera "Todas") — el catálogo mostrado ya no es "todo sin filtrar",
+   * es un resultado de texto, y el chip no debe mentir sobre eso. Vaciar la búsqueda
+   * (input, "x", o tocar "Todas") vuelve a landear en el chip que corresponda.
+   */
+  get filtroSeleccionado(): string {
+    if (this.buscarTexto.trim()) return 'buscando';
     if (this.mostrarDesactivados) return 'desactivados';
     if (this.soloStockBajo) return 'reponer';
     if (this.templateSeleccionado) return `tmpl-${this.templateSeleccionado.id}`;
@@ -284,13 +295,20 @@ get filtroSeleccionado(): string {
     }, 450);
   }
 
+  /**
+   * Tocar cualquier chip (incluida "Todas") es una navegación explícita a un filtro
+   * concreto — sale del contexto de búsqueda de texto libre, igual que ya hacía con
+   * templateSeleccionado. Sin esto, un chip podía quedar "activo" en apariencia
+   * mientras buscarTexto seguía filtrando en silencio (ver filtroSeleccionado).
+   */
   onFiltroChange(value: string) {
     this.templateSeleccionado = undefined;
+    this.buscarTexto = '';
+    clearTimeout(this.searchDebounce);
     if (value === 'desactivados') {
       this.mostrarDesactivados = true;
       this.soloStockBajo = false;
       this.categoriaSeleccionada = undefined;
-      this.buscarTexto = '';
     } else if (value === 'reponer') {
       this.soloStockBajo = true;
       this.mostrarDesactivados = false;
@@ -396,6 +414,12 @@ get filtroSeleccionado(): string {
 
   irAEditar(producto: Producto) {
     this.navCtrl.navigateForward(ROUTES.inventario.editar(producto.id));
+  }
+
+  /** Edita los datos generales del grupo de variantes (nombre, categoría, imagen general). */
+  irAEditarTemplate(templateId: string, event: MouseEvent) {
+    event.stopPropagation();
+    this.navCtrl.navigateForward(ROUTES.inventario.editarTemplate(templateId));
   }
 
   irAKardex(producto: Producto) {

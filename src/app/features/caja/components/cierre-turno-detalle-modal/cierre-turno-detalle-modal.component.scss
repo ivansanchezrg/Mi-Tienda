@@ -315,3 +315,42 @@
   white-space: pre-wrap;
 }
 
+// ── FAB scroll-to-top (patrón compartido, ver scroll-to-top.util.ts) ──────
+// .bs-root (theme/custom/modals.scss) no trae position:relative — se agrega
+// aquí, local al modal, para que el FAB se posicione sobre TODO el bottom
+// sheet (no sobre .bs-content, que tiene su propio scroll) sin afectar a
+// otros modales bs-*.
+.bs-root {
+  position: relative;
+}
+
+.bs-scroll-top-fab {
+  position: absolute;
+  right: var(--spacing-md);
+  // Encima de .bs-actions--compact (footer fijo con el botón "Compartir"):
+  // padding-top + botón 44px + padding-bottom (sin la safe-area, que solo
+  // empuja el footer hacia abajo, no reduce su alto visible) + gap propio.
+  bottom: calc(var(--spacing-sm) + 44px + var(--spacing-sm) + var(--spacing-sm));
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--ion-color-primary);
+  color: var(--ion-color-primary-contrast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  z-index: 10;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  ion-icon {
+    font-size: 22px;
+  }
+
+  &:active {
+    background: var(--ion-color-primary-shade);
+  }
+}
+

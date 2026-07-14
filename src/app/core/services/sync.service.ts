@@ -143,8 +143,22 @@ export class SyncService {
         }
     }
 
-    /** Extrae todos los paths de imagen del catálogo (SKU + template + presentaciones) y los baja a disco. */
-    private async precalentarImagenes(catalogo: ProductoPOS[]): Promise<void> {
+    /**
+     * Extrae todos los paths de imagen del catálogo (SKU + template + presentaciones)
+     * y los baja a disco.
+     *
+     * PÚBLICO (2026-07-13): también lo llama PosPage cada vez que carga el catálogo
+     * online (carga inicial, ionViewWillEnter, pull-to-refresh). Sin ese hook, el POS
+     * solo descargaba los binarios de las imágenes que llegaban a RENDERIZARSE (vía
+     * resolveImageUrl → descarga en background del visible) — un producto nuevo creado
+     * en Inventario quedaba en el cache SQLite del catálogo pero SIN binario si no se
+     * pintó en pantalla, y en el próximo arranque offline aparecía sin foto. No usar
+     * precalentarOffline() para esto: su gate de frescura (esCacheFresco) saltaría el
+     * priming justo después de un refresh del catálogo (timestamp recién actualizado).
+     * Barato cuando no hay imágenes nuevas: precargarCatalogo() compara contra el
+     * índice en disco y solo descarga faltantes (tandas de 5, best-effort).
+     */
+    async precalentarImagenes(catalogo: ProductoPOS[]): Promise<void> {
         try {
             const paths: (string | null | undefined)[] = [];
             for (const p of catalogo) {

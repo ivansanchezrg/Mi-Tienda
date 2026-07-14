@@ -1,4 +1,4 @@
-import { Component, inject, Input } from '@angular/core';
+import { Component, inject, Input, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ModalController, IonIcon, IonButton } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -14,12 +14,14 @@ import {
   alertCircleOutline,
   informationCircleOutline,
   documentTextOutline,
-  logoWhatsapp
+  logoWhatsapp,
+  arrowUpOutline
 } from 'ionicons/icons';
 import { CierreTurnoSnapshot } from '../../models/cierre-turno.model';
 import { ShareCierreService } from '../../services/share-cierre.service';
 import { formatFechaHoraEC, formatHoraEC } from '@core/utils/date.util';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
+import { crearScrollToTopElemento } from '@shared/utils/scroll-to-top.util';
 
 @Component({
   selector: 'app-cierre-turno-detalle-modal',
@@ -31,8 +33,14 @@ import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
 export class CierreTurnoDetalleModalComponent {
   @Input({ required: true }) cierre!: CierreTurnoSnapshot;
 
+  @ViewChild('bsContent') private bsContentRef!: ElementRef<HTMLElement>;
+
   private modalCtrl = inject(ModalController);
   private shareCierreService = inject(ShareCierreService);
+
+  /** Controller de scroll-to-top del contenido del modal (div.bs-content, no
+   *  ion-content) — mismo patrón que el resto de la app, ver scroll-to-top.util.ts. */
+  readonly scrollTop = crearScrollToTopElemento(() => this.bsContentRef?.nativeElement);
 
   constructor() {
     addIcons({
@@ -47,7 +55,8 @@ export class CierreTurnoDetalleModalComponent {
       alertCircleOutline,
       informationCircleOutline,
       documentTextOutline,
-      logoWhatsapp
+      logoWhatsapp,
+      arrowUpOutline
     });
   }
 

@@ -57,6 +57,7 @@ export const ROUTES = {
     root:   '/inventario',
     nuevo:  '/inventario/nuevo',
     editar: (id: string) => `/inventario/editar/${id}`,
+    editarTemplate: (id: string) => `/inventario/template/${id}`,
     kardex: (id: string) => `/inventario/kardex/${id}`,
   },
 

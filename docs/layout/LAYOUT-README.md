@@ -44,3 +44,22 @@ Global en `app.component.html`, sobre el `ion-router-outlet`. Único punto visua
 - El sidebar es un componente compartido en `shared/components/sidebar/`.
 - Aplica el guard `authGuard` desde `app.routes.ts` (no en este feature).
 - Safe area de Android se compensa en `main-layout.page.scss`.
+
+## Candado del tab POS y del sidebar — orden de suscripción obligatorio
+
+`main-layout.page.ts` (tab bar) y `sidebar.component.ts` derivan el candado del POS y la
+visibilidad del menú del mismo estado reactivo (`TurnosCajaService.esMiTurno$`,
+`ConfigService.config$`). **Ambos `ngOnInit` deben suscribirse a esos observables de forma
+síncrona, ANTES de cualquier `await`** (ej. `authService.getUsuarioActual()`,
+`configService.get()`).
+
+**Por qué:** son `BehaviorSubject` — entregan su último valor al momento de suscribir, así
+que suscribir antes de hidratar no pierde ninguna emisión. Si en cambio se suscribe
+*después* de un `await` de I/O, y ese `await` se cuelga (típico tras un reposo largo: el
+cache de `ConfigService` tiene TTL de 1h, y con el TTL vencido `get()` va a BD justo cuando
+la radio del teléfono recién despierta), la UI queda congelada en su estado inicial
+mientras el `await` no resuelve: candado del POS cerrado en el tab bar y sidebar sin menú,
+aunque `esMiTurno$` ya haya emitido `true` (el turno se hidrata local-first sin red en
+`TurnosCajaService`). El Home no depende de ese `await` — pinta desde su propio snapshot —
+por lo que puede mostrar "caja abierta" al mismo tiempo que el candado sigue cerrado.
+Bug real, corregido 2026-07-12.

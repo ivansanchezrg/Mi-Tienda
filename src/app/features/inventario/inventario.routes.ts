@@ -16,6 +16,11 @@ export const INVENTARIO_ROUTES: Routes = [
     loadComponent: () => import('./pages/producto-editar/producto-editar.page').then(m => m.ProductoEditarPage)
   },
   {
+    path: 'template/:id',
+    loadComponent: () => import('./pages/template-editar/template-editar.page').then(m => m.TemplateEditarPage),
+    canDeactivate: [pendingChangesGuard]
+  },
+  {
     path: 'kardex/:id',
     loadComponent: () => import('./pages/kardex/kardex.page').then(m => m.KardexPage)
   }

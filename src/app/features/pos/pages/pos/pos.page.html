@@ -286,7 +286,10 @@
         <div class="catalogo-grid">
           @for (item of itemsCatalogo(); track (item.tipo === 'simple' ? item.producto.id : item.templateId)) {
             @if (item.tipo === 'simple') {
+              <!-- Unidades base (cantidad × factor): 2 cajetillas x10 comprometen 20, no 2 -->
+              @let stockLibre = item.producto.stock_actual - (carritoUnidadesBaseMap()[item.producto.id] || 0);
               <button class="catalogo-card" [class.catalogo-card--added]="catalogoCardAnimando === item.producto.id"
+                [class.catalogo-card--agotado]="stockLibre <= 0"
                 (click)="agregarDesdeCatalogo(item.producto, $event)" (contextmenu)="$event.preventDefault()" type="button">
                 @if (carritoCountMap()[item.producto.id] || editandoItemKey === item.producto.id) {
                   @if (item.producto.presentaciones && item.producto.presentaciones.length > 0) {
@@ -309,16 +312,18 @@
                     <img [src]="item.producto.imagen_url" [alt]="item.producto.nombre" loading="lazy"
                       class="img-fade" (load)="$event.target['classList'].add('img-loaded')" />
                   } @else {
-                    <div class="catalogo-card-placeholder-nombre"><span>{{ item.producto.nombre }}</span></div>
+                    <div class="catalogo-card-placeholder-nombre {{ colorPlaceholder(item.producto.nombre) }}"><span>{{ item.producto.nombre }}</span></div>
                   }
                 </div>
                 <div class="catalogo-card-info">
                   <span class="catalogo-card-nombre">{{ item.producto.nombre }}</span>
                   <div class="catalogo-card-bottom-row">
                     <span class="catalogo-card-precio">${{ currencyService.format(item.producto.precio_venta) }}</span>
-                    <!-- Unidades base (cantidad × factor): 2 cajetillas x10 comprometen 20, no 2 -->
-                    @let stockLibre = item.producto.stock_actual - (carritoUnidadesBaseMap()[item.producto.id] || 0);
+                    <!-- "sin stock" (0) y "¡último!" (1) son estados distintos: el primero ya no
+                         se puede vender, el segundo sí — no deben compartir la misma etiqueta. -->
                     @if (stockLibre <= 0) {
+                      <span class="catalogo-card-stock catalogo-card-stock--danger">sin stock</span>
+                    } @else if (stockLibre === 1) {
                       <span class="catalogo-card-stock catalogo-card-stock--danger">¡último!</span>
                     } @else if (stockLibre <= 10) {
                       <span class="catalogo-card-stock catalogo-card-stock--warning">{{ stockLibre }} und</span>
@@ -345,7 +350,7 @@
                     <img [src]="item.templateImagenUrl" [alt]="item.templateNombre" loading="lazy"
                       class="img-fade" (load)="$event.target['classList'].add('img-loaded')" />
                   } @else {
-                    <div class="catalogo-card-placeholder-nombre"><span>{{ item.templateNombre }}</span></div>
+                    <div class="catalogo-card-placeholder-nombre {{ colorPlaceholder(item.templateNombre) }}"><span>{{ item.templateNombre }}</span></div>
                   }
                 </div>
                 <div class="catalogo-card-info">

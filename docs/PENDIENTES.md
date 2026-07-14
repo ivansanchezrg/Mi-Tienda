@@ -11,6 +11,16 @@
 
 ## 🟠 Funcional (corto plazo)
 
+### Ejecutar en Supabase la función de editar plantilla (grupo de variantes)
+- **Qué:** nueva función para editar los datos generales de un producto con variantes
+  (nombre, categoría e imagen general del template). Habilita agregar/cambiar la imagen
+  representante del grupo cuando no se subió al crear el producto.
+  Ejecutar en el SQL Editor:
+  1. `docs/inventario/sql/functions/fn_actualizar_template.sql` (v1.0).
+- **Archivos front:** `template-editar.page.*` (nueva página `/inventario/template/:id`),
+  `ProductoService.actualizarTemplate()`, botón lápiz en la tarjeta agrupada de `inventario.page.html`.
+- Origen: 2026-07-13.
+
 ### Ejecutar en Supabase el SQL de la auditoría POS 2026-07-11
 - **Qué:** la revisión completa del módulo POS actualizó dos funciones y eliminó una muerta.
   Ejecutar en el SQL Editor, en este orden:
@@ -32,6 +42,20 @@
   purgan y re-descargan los binarios del otro negocio (solo churn de red, no fuga de datos).
 - **Archivos:** `pos.page.html`, `pos.page.scss`, `variante-selector-modal.component.html`, `imagen-local.service.ts`.
 - Origen: auditoría POS 2026-07-11.
+
+### Verificar en dispositivo real el fix de candado POS/sidebar tras reposo
+- **Qué:** bug intermitente reportado — tras un reposo largo del teléfono, el tab POS
+  quedaba con candado y el sidebar sin menú aunque el Home ya mostraba "caja abierta".
+  Causa: `main-layout.page.ts` y `sidebar.component.ts` se suscribían a `esMiTurno$`/`config$`
+  DESPUÉS de un `await` de hidratación que podía colgarse con el TTL de config vencido (1h)
+  + red lenta al despertar. Fix: suscripciones movidas a ANTES del await (los BehaviorSubjects
+  entregan su último valor al suscribir). Confirmar en dispositivo real: abrir turno, poner el
+  teléfono en reposo >1h (o desactivar red al despertar), reabrir la app y verificar que el
+  tab POS y el sidebar se desbloquean de inmediato, sin esperar a que la config termine de
+  refrescarse contra el servidor.
+- **Detalle:** `docs/layout/LAYOUT-README.md` → "Candado del tab POS y del sidebar — orden de suscripción obligatorio".
+- **Archivos:** `main-layout.page.ts`, `sidebar.component.ts`.
+- Origen: 2026-07-12.
 
 ### Verificar en dispositivo real la mejora del arranque tras reposo
 - **Qué:** se instrumentó el arranque Y el resume (logs "Fast path local en Xms", "Primera

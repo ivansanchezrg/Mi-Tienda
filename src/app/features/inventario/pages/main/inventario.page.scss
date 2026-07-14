@@ -513,6 +513,32 @@ ion-toolbar {
     color: var(--ion-color-step-350, #c0c0c0);
 }
 
+// Botón lápiz en la tarjeta agrupada → edita los datos generales del template.
+// 40px táctil (Material 48dp / WCAG 2.5.5) sin engordar la fila.
+.inv-tpl-edit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: var(--radius-full, 999px);
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    cursor: pointer;
+    transition: transform var(--transition-fast), background var(--transition-fast);
+
+    ion-icon {
+        font-size: 19px;
+        color: var(--ion-color-primary);
+    }
+
+    &:active {
+        transform: scale(0.9);
+        background: rgba(var(--ion-color-primary-rgb), 0.2);
+    }
+}
+
 @keyframes pulse {
     0%   { opacity: 1; }
     50%  { opacity: 0.75; }

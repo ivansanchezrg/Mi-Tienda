@@ -269,6 +269,10 @@
           </ion-label>
 
           <div slot="end" class="inv-end">
+            <button class="inv-tpl-edit" (click)="irAEditarTemplate(item.templateId, $event)"
+              aria-label="Editar datos generales del grupo">
+              <ion-icon name="create-outline"></ion-icon>
+            </button>
             <div class="inv-end-main">
               <span class="inv-precio-total">{{ item.stockTotal }}</span>
               <span class="inv-stock"

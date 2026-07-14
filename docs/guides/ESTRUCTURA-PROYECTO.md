@@ -78,8 +78,10 @@ shared/
 │   ├── currency-input.directive.ts  # [appCurrencyInput] — auto-formatea moneda en blur, limpia en focus
 │   ├── numbers-only.directive.ts    # [appNumbersOnly] — restringe input a números, puntos, comas
 │   └── scroll-reset.directive.ts    # [appScrollReset] — resetea scroll de ion-content al cambiar valor (útil en wizards)
-└── pages/
-    └── paginated-list.page.ts       # Clase base abstracta: items[], loading, hasMore, cargar(), cargarMas(), handleRefresh(), scrollToTop()
+├── pages/
+│   └── paginated-list.page.ts       # Clase base abstracta: items[], loading, hasMore, cargar(), cargarMas(), handleRefresh(), scrollTop (ver utils/scroll-to-top.util.ts)
+└── utils/
+    └── scroll-to-top.util.ts        # crearScrollToTop() — controller por composición (showScrollTop, onContentScroll, scrollToTop, reset). Usado por PaginatedListPage y por páginas que no pueden heredarla (PosPage, HistorialTurnosPage, OperacionesCajaPage)
 ```
 
 ---
@@ -325,7 +327,7 @@ movimientos-empleados/
   </ion-toolbar>
 </ion-header>
 
-<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
+<ion-content #content [scrollEvents]="true" (ionScroll)="scrollTop.onContentScroll($event)">
 
   <!-- Pull to refresh -->
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
@@ -387,10 +389,12 @@ movimientos-empleados/
     </ion-infinite-scroll-content>
   </ion-infinite-scroll>
 
-  <!-- FAB scroll to top -->
-  @if (showScrollTop) {
+  <!-- FAB scroll to top — (pointerdown) no (click): con la lista aún deslizándose
+       por inercia, el WebView consume el primer "click" solo para frenar el scroll
+       y no lo dispara; pointerdown llega antes de ese ciclo. -->
+  @if (scrollTop.showScrollTop) {
   <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
-    <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+    <ion-fab-button size="small" color="primary" (pointerdown)="scrollTop.scrollToTop()">
       <ion-icon name="arrow-up-outline"></ion-icon>
     </ion-fab-button>
   </ion-fab>

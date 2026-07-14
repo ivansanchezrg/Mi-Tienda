@@ -909,10 +909,9 @@ ion-toolbar {
         grid-template-columns: repeat(5, 1fr);
     }
 
-    // Desktop con split-pane (≥992px) — el área del POS es ~70% del viewport
-    @media (min-width: 992px) {
-        grid-template-columns: repeat(6, 1fr);
-    }
+    // Desktop (≥992px): columnas fijas definidas en el bloque "@media (min-width: 992px)"
+    // más abajo (junto al resto de ajustes del split-pane) — 4 columnas base, 5 en
+    // monitores ≥1440px. No declarar aquí para no tener dos fuentes de verdad.
 }
 
 // Skeleton del card — misma estructura que .catalogo-card (img + franja info)
@@ -988,6 +987,17 @@ ion-toolbar {
     &--added {
         animation: cardAdded 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
+
+    // Sin stock (0 unidades libres) — atenuada para que el cajero la descarte de un
+    // vistazo, sin bloquear el tap: al tocarla igual dispara el toast "Producto sin
+    // stock" (agregarAlCarritoConCantidad). Mismo patrón que Shopify/Square POS.
+    &--agotado {
+        opacity: 0.55;
+
+        .catalogo-card-img { filter: grayscale(0.4); }
+
+        &:active { transform: scale(0.97); }
+    }
 }
 
 @keyframes cardAdded {
@@ -1054,6 +1064,18 @@ ion-toolbar {
     user-select: none;
     -webkit-user-select: none;
 
+    // 5 tonos deterministas (colorPlaceholder() en pos.page.ts, hash del nombre) —
+    // rompen la monotonía de "todo gris igual" para que el cajero diferencie cards
+    // de un vistazo sin leer, sin llegar a un mapeo por categoría (descartado por
+    // ahora). Todos verificados ≥4.5:1 (WCAG AA texto normal) contra el texto
+    // blanco — el nombre es la ÚNICA identificación del producto sin foto, así que
+    // aquí el contraste no es negociable. No aclarar estos tonos sin re-verificar.
+    &.ph-color-0 { background: #71727b; }   // gris neutro   (4.8:1)
+    &.ph-color-1 { background: #5f7392; }   // azul acero    (4.8:1)
+    &.ph-color-2 { background: #67765e; }   // verde oliva   (4.9:1)
+    &.ph-color-3 { background: #8a6f5c; }   // terracota     (4.7:1)
+    &.ph-color-4 { background: #7a6a8c; }   // violáceo      (4.9:1)
+
     span {
         display: -webkit-box;
         -webkit-box-orient: vertical;
@@ -1074,6 +1096,8 @@ ion-toolbar {
     // Gris medio (mismo tinte azulado que el slate oscuro, a mitad de camino
     // entre --ion-color-step-200 #cccccc y el slate #2f303c) — contraste claro
     // contra el fondo de página (--app-bg, #f4f5f8) sin ser un bloque oscuro.
+    // Este gris queda visible solo como backdrop de fotos reales mientras cargan;
+    // los productos SIN foto lo tapan con .ph-color-N (ver placeholder abajo).
     background: #8a8b93;
     display: flex;
     align-items: center;
@@ -1108,14 +1132,19 @@ ion-toolbar {
     gap: 3px;
 }
 
+// 2 líneas con line-clamp (no 1 con nowrap): el nombre es la pista principal para
+// distinguir variantes (talla/color) y es el dato que menos se debe truncar. El
+// tamaño iguala al del placeholder sin foto (.catalogo-card-placeholder-nombre)
+// para que la legibilidad no dependa de si el producto tiene imagen o no.
 .catalogo-card-nombre {
-    font-size: 11px;
-    font-weight: var(--font-weight-semibold);
-    color: var(--ion-color-medium);
-    line-height: 1.2;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--ion-color-step-700);
+    line-height: 1.25;
 }
 
 // Fila precio + stock — en una línea
@@ -1761,11 +1790,22 @@ ion-toolbar {
         animation: none;
     }
 
-    // Ajustar grid del catálogo en desktop con panel lateral
+    // Grid del catálogo en desktop con panel lateral — columnas fijas (no auto-fill)
+    // para priorizar legibilidad sobre densidad: 4 columnas es el estándar de POS
+    // profesionales (Square, Shopify POS) porque reduce el costo de un mal-click y
+    // deja espacio para nombres largos (variantes con talla/color).
     .catalogo-grid {
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
         padding-bottom: var(--spacing-md);
+    }
+
+    // Monitores grandes (≥1440px): 5 columnas — ahí el área del catálogo (~70% del
+    // viewport) sobra espacio real sin apretar las cards, a diferencia de un laptop.
+    @media (min-width: 1440px) {
+        .catalogo-grid {
+            grid-template-columns: repeat(5, 1fr);
+        }
     }
 
 }

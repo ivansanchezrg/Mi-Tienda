@@ -15,7 +15,7 @@
   </div>
 
   <!-- Contenido scrollable -->
-  <div class="bs-content">
+  <div class="bs-content" #bsContent (scroll)="scrollTop.onContentScroll($event)">
     <div class="bs-body">
 
       <!-- Apertura y cierre -->
@@ -234,6 +234,14 @@
 
     </div>
   </div>
+
+  <!-- FAB subir al inicio — hermano de .bs-content (no hijo) para que position:absolute
+       lo posicione sobre .bs-root sin que el propio scroll del contenido lo arrastre. -->
+  @if (scrollTop.showScrollTop) {
+  <button class="bs-scroll-top-fab" (pointerdown)="scrollTop.scrollToTop()" aria-label="Subir al inicio">
+    <ion-icon name="arrow-up-outline"></ion-icon>
+  </button>
+  }
 
   <!-- Acciones — herramienta de lectura: un solo botón de acción, la ✕ cierra -->
   <div class="bs-actions bs-actions--compact">

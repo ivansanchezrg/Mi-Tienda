@@ -72,21 +72,17 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   escaneandoPrecio = false;
 
   async ngOnInit() {
-    // Config local-first (2026-07-08, antes: invalidar() + get() bloqueante):
-    // get() sirve del cache (RAM/Preferences) al instante — el FAB y el sidebar
-    // pintan sin esperar la BD, clave con red mala/lenta donde la query fresca
-    // puede tardar segundos. revalidar() trae la config real en background y
-    // config$ re-emite: la suscripción de abajo corrige los flags si cambiaron
-    // (mismo mecanismo que resuelve la carrera del sidebar de 2026-06-11 — ya no
-    // importa qué carga "gana", la última emisión siempre re-aplica los flags).
-    const [usuario, config] = await Promise.all([
-      this.authService.getUsuarioActual(),
-      this.configService.get()
-    ]);
-    this.esSuperadmin = usuario?.es_superadmin ?? false;
-    this.aplicarConfig(config);
-    this.configService.revalidar();
-
+    // ── SUSCRIPCIONES PRIMERO (síncronas, antes de cualquier await) ──────────
+    // Bug 2026-07-12: estas suscripciones se instalaban DESPUÉS del Promise.all
+    // de abajo. Tras un reposo largo (>1h) el TTL del cache de config vence y
+    // get() va a BD con la radio del teléfono recién despertando — ese await
+    // colgaba segundos/minutos y, mientras tanto, posHabilitado quedaba en su
+    // valor inicial (false): candado en el tab POS aunque esMiTurno$ ya era true
+    // (TurnosCajaService hidrata local-first sin red). El Home, que no espera
+    // este await, mostraba "caja abierta" a la vez — la contradicción reportada.
+    // Todos los observables son BehaviorSubjects (o derivados de ellos): entregan
+    // el último valor al suscribir, así que suscribir antes de hidratar no pierde
+    // ninguna emisión.
     this.configSub = this.configService.config$.subscribe(cfg => {
       if (cfg) this.aplicarConfig(cfg);
     });
@@ -106,6 +102,18 @@ export class MainLayoutPage implements OnInit, OnDestroy {
         this.posDisabledMessage = 'Para usar el POS primero abre la caja desde Inicio';
       }
     });
+
+    // ── HIDRATACIÓN (I/O — puede tardar con red mala; ya no bloquea la UI) ───
+    // Config local-first (2026-07-08): get() sirve del cache (RAM/Preferences) al
+    // instante cuando el TTL está vigente. revalidar() trae la config real en
+    // background y config$ re-emite: la suscripción de arriba re-aplica los flags.
+    const [usuario, config] = await Promise.all([
+      this.authService.getUsuarioActual(),
+      this.configService.get()
+    ]);
+    this.esSuperadmin = usuario?.es_superadmin ?? false;
+    this.aplicarConfig(config);
+    this.configService.revalidar();
   }
 
   ngOnDestroy() {

@@ -6,6 +6,67 @@ Todo lo que está aquí es **standalone** — se importa directamente en el comp
 
 ---
 
+## Utils
+
+### `crearScrollToTop()` — Patrón scroll-to-top
+
+**Archivo:** `utils/scroll-to-top.util.ts`
+
+Controller reutilizable por **composición** (no herencia) de "subir al inicio" para páginas con listas/grids largos dentro de un `ion-content`. Encapsula `showScrollTop`, `onContentScroll()`, `scrollToTop()` y `reset()`.
+
+**Por qué composición y no una clase base única:** algunas páginas ya extienden `PaginatedListPage<T>` (herencia de paginación), pero otras no pueden — `PosPage` implementa 4 interfaces de ciclo de vida y su catálogo no está paginado (carga completo y filtra en memoria para funcionar offline). TypeScript no permite heredar de 2 clases. `crearScrollToTop()` se usa por composición en ambos casos: `PaginatedListPage` lo usa internamente, y `PosPage`, `HistorialTurnosPage`, `OperacionesCajaPage` lo instancian directo.
+
+```typescript
+@ViewChild(IonContent) content!: IonContent;   // o { read: ElementRef } — ambos son compatibles
+readonly scrollTop = crearScrollToTop(() => this.content);
+```
+
+```html
+<ion-content [scrollEvents]="true" (ionScroll)="scrollTop.onContentScroll($event)">
+  ...
+  @if (scrollTop.showScrollTop) {
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
+    <ion-fab-button size="small" color="primary" (pointerdown)="scrollTop.scrollToTop()">
+      <ion-icon name="arrow-up-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+  }
+</ion-content>
+```
+
+**`(pointerdown)` y no `(click)` — obligatorio:** con la lista aún deslizándose por inercia (momentum scroll), el WebView consume el primer toque solo para detener el scroll y no dispara `click` — el usuario tenía que tocar el FAB 2 veces. `pointerdown` llega antes de ese ciclo, así el primer toque ya frena el scroll y navega. Bug real, corregido 2026-07-12.
+
+**`reset()`** oculta el FAB sin animar — usarlo cuando la página cambia de sub-vista o categoría y el nuevo contenido arranca desde arriba (ej. `PosPage` al cambiar de categoría del catálogo o salir a la vista lista).
+
+**Parámetros opcionales** de `crearScrollToTop(obtenerContent, umbralPx = 600, duracionMs = 400)` — umbral de scroll para mostrar el FAB y duración de la animación.
+
+> Posicionamiento CSS de `.scroll-top-fab` (bottom/right, safe area, apilado sobre otros FABs como el escáner del POS) es específico de cada página — no hay una clase compartida, cada `*.page.scss` lo define según su layout. Ver ejemplo real en `pos.page.scss`.
+
+#### `crearScrollToTopElemento()` — variante para modales bottom-sheet
+
+Mismo archivo, mismo `ScrollToTopController` público. Los modales `bs-*` (`bottom-sheet-modal`) usan `div.bs-content` con `overflow-y: auto`, no `ion-content` (ver sección "Modales" más abajo — `ion-content` colapsa con `--height: auto`). `div.bs-content` no expone `scrollToTop(ms)` ni emite `(ionScroll)`, así que necesita su propia función:
+
+```typescript
+@ViewChild('bsContent') private bsContentRef!: ElementRef<HTMLElement>;
+readonly scrollTop = crearScrollToTopElemento(() => this.bsContentRef?.nativeElement);
+```
+
+```html
+<div class="bs-content" #bsContent (scroll)="scrollTop.onContentScroll($event)">
+  <div class="bs-body">...</div>
+</div>
+
+@if (scrollTop.showScrollTop) {
+<button class="bs-scroll-top-fab" (pointerdown)="scrollTop.scrollToTop()" aria-label="Subir al inicio">
+  <ion-icon name="arrow-up-outline"></ion-icon>
+</button>
+}
+```
+
+El botón va **hermano** de `.bs-content` (no hijo), dentro de `.bs-root`, para poder posicionarlo `position: absolute` sobre el bottom sheet completo sin que el propio scroll del contenido lo arrastre. `.bs-root` no trae `position: relative` por defecto — agregarlo en el SCSS local del modal (no en `theme/custom/modals.scss`, afectaría a todos los modales `bs-*`). Umbral por defecto más bajo que el de listas: `300px` (vs `600px`) — el contenido de un modal es acotado, no un listado de cientos de ítems. Ejemplo real: `cierre-turno-detalle-modal.component.*`.
+
+---
+
 ## Componentes
 
 ### `app-options-menu` — Menú ⋮ (Popover)

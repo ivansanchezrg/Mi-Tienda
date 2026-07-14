@@ -706,17 +706,14 @@ Qué provee (ya no hay que declararlo en cada página):
 - `items: T[]` — array acumulado de todas las páginas
 - `loading: boolean` — skeleton en primera carga
 - `hasMore: boolean` — controla el infinite scroll
-- `showScrollTop: boolean` — muestra FAB "subir al inicio" al hacer scroll >600px
+- `scrollTop` — controller de scroll-to-top (`showScrollTop`, `onContentScroll()`, `scrollToTop()`, `reset()`) — ver abajo
 - `cargar()` — resetea a página 0 y recarga
 - `cargarMas(event)` — handler de `(ionInfinite)`
 - `handleRefresh(event)` — handler de `(ionRefresh)` (sin doble spinner)
-- `onContentScroll(event)` — handler de `(ionScroll)` para scroll-to-top
-- `scrollToTop()` — sube al inicio con animación
 - `loadingMoreText` — texto contextual del spinner de infinite scroll (abstracto, cada subclase lo define)
 - `ui` — instancia de `UiService` (heredada, no re-inyectar)
-- `content` — `@ViewChild` del `<ion-content #content>` (heredado, no re-declarar)
 
-Page sizes centralizados en `PAGINATION_CONFIG` (`src/app/core/config/pagination.config.ts`).
+Page sizes centralizados en `PAGINATION_CONFIG` (`src/app/core/config/pagination.config.ts`). La subclase declara su propio `@ViewChild('content', { read: ElementRef })` (usado por `scrollTop` internamente).
 
 Qué implementa cada subclase:
 ```typescript
@@ -738,7 +735,7 @@ export class MiListaPage extends PaginatedListPage<MiItem> implements OnInit {
 
 Template mínimo:
 ```html
-<ion-content #content [scrollEvents]="true" (ionScroll)="onContentScroll($event)">
+<ion-content #content [scrollEvents]="true" (ionScroll)="scrollTop.onContentScroll($event)">
 
   @if (loading) { <!-- skeleton --> }
   @else if (items.length === 0) { <!-- empty state --> }
@@ -750,9 +747,9 @@ Template mínimo:
     <ion-infinite-scroll-content loadingSpinner="crescent" [loadingText]="loadingMoreText"></ion-infinite-scroll-content>
   </ion-infinite-scroll>
 
-  @if (showScrollTop) {
+  @if (scrollTop.showScrollTop) {
   <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="scroll-top-fab">
-    <ion-fab-button size="small" color="primary" (click)="scrollToTop()">
+    <ion-fab-button size="small" color="primary" (pointerdown)="scrollTop.scrollToTop()">
       <ion-icon name="arrow-up-outline"></ion-icon>
     </ion-fab-button>
   </ion-fab>
@@ -760,12 +757,16 @@ Template mínimo:
 </ion-content>
 ```
 
+**`(pointerdown)` y no `(click)` — obligatorio.** Con la lista aún deslizándose por inercia (momentum scroll), el WebView consume el primer toque solo para detener el scroll y no dispara `click` — el usuario tenía que tocar el FAB 2 veces. `pointerdown` llega antes de ese ciclo, así el primer toque ya frena el scroll y navega.
+
 Estilo SCSS (en cada página, ajustar margin según si hay footer):
 ```scss
 .scroll-top-fab {
     margin-bottom: env(safe-area-inset-bottom);
 }
 ```
+
+**Patrón por composición (`crearScrollToTop()`, `src/app/shared/utils/scroll-to-top.util.ts`):** el controller de scroll-to-top vive fuera de `PaginatedListPage` — páginas que necesitan el mismo FAB pero **no pueden extender** esa clase (catálogo sin paginación, o que ya implementan otro contrato de ciclo de vida — ej. `PosPage`, `HistorialTurnosPage`, `OperacionesCajaPage`) lo instancian directo: `readonly scrollTop = crearScrollToTop(() => this.content)`. Mismo template, misma regla de `(pointerdown)`. Ver `docs/shared/SHARED-README.md` → "Patrón scroll-to-top".
 
 Ejemplo real: `VentasListadoPage`, `InventarioPage`
 

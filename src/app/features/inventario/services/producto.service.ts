@@ -41,6 +41,34 @@ export class ProductoService {
         );
     }
 
+    /**
+     * Actualiza los datos generales de un template (grupo de variantes): nombre,
+     * categoría e imagen general. La operación es atómica vía RPC y multi-tenant
+     * (la función valida pertenencia al negocio). Emite RECARGA porque el cambio
+     * afecta a la tarjeta agrupada del grid (nombre/imagen) y potencialmente a la
+     * categoría de todas las variantes.
+     */
+    async actualizarTemplate(params: {
+        template_id: string;
+        nombre: string;
+        categoria_id: string;
+        imagen_url?: string | null;
+    }): Promise<{ ok: boolean; template_id?: string }> {
+        const res = await this.supabase.call<{ ok: boolean; template_id?: string }>(
+            this.supabase.client.rpc('fn_actualizar_template', {
+                p_template_id:  params.template_id,
+                p_nombre:       params.nombre,
+                p_categoria_id: params.categoria_id,
+                p_imagen_url:   params.imagen_url || null
+            }),
+            'Cambios guardados exitosamente',
+            { showLoading: true }
+        );
+        const result = res || { ok: false };
+        if (result.ok) this.changeEmitter?.({ tipo: 'RECARGA', producto: {} as Producto });
+        return result;
+    }
+
     async obtenerSKUsDelTemplate(templateId: string, excluirProductoId?: string): Promise<Producto[]> {
         let query = this.supabase.client
             .from('productos')

@@ -33,6 +33,7 @@ import { CantidadModalComponent, CantidadModalResult } from '../../components/ca
 import { VarianteSelectorModalComponent, VarianteSelectorResult } from '../../components/variante-selector-modal/variante-selector-modal.component';
 import { NetworkService } from '../../../../core/services/network.service';
 import { CatalogoLocalService } from '../../../../core/services/catalogo-local.service';
+import { SyncService } from '../../../../core/services/sync.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { ConfigService } from '../../../../core/services/config.service';
@@ -69,6 +70,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   protected barcodeScanner = inject(BarcodeScannerService);
   private network = inject(NetworkService);
   private catalogoLocal = inject(CatalogoLocalService);
+  private syncService = inject(SyncService);
   private logger = inject(LoggerService);
   private storageService = inject(StorageService);
   private configService = inject(ConfigService);
@@ -234,6 +236,13 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.catalogoCompleto = productos;
     this.publicarCatalogoConImagenesProgresivas(this.filtrarPorCategoria(productos));
     this.sincronizarStockCarrito(productos);
+
+    // Descargar a disco los binarios de TODAS las imágenes del catálogo (no solo las
+    // que llegan a renderizarse) — un producto recién creado en Inventario quedaba en
+    // el cache SQLite pero sin binario si su card no se pintó, y en el próximo arranque
+    // offline aparecía sin foto. Best-effort, en tandas, no-op offline/web y casi
+    // gratis cuando no hay imágenes nuevas (solo compara contra el índice en disco).
+    void this.syncService.precalentarImagenes(productos);
   }
 
   /**
@@ -537,6 +546,22 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
 
     return items;
+  }
+
+  /**
+   * Tono de placeholder cuando el producto no tiene foto — hash determinista del
+   * nombre sobre 5 tonos (.ph-color-N en .catalogo-card-placeholder-nombre del SCSS,
+   * todos con contraste AA contra el texto blanco). El mismo producto siempre cae en
+   * el mismo tono entre recargas (no es aleatorio): el hash usa el NOMBRE y no el id
+   * a propósito — el color acompaña a la etiqueta que el cajero lee, y productos
+   * renombrados cambian de tono junto con su texto.
+   */
+  colorPlaceholder(nombre: string): string {
+    let hash = 0;
+    for (let i = 0; i < nombre.length; i++) {
+      hash = (hash * 31 + nombre.charCodeAt(i)) | 0;
+    }
+    return `ph-color-${Math.abs(hash) % 5}`;
   }
 
   readonly carritoCountMap = computed(() =>

@@ -129,23 +129,13 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
-    // Config local-first (2026-07-08): get() sirve del cache al instante (main-layout,
-    // el padre, ya disparó revalidar() en background). La suscripción a config$ de
-    // abajo re-aplica los flags cuando llegue el valor fresco de BD — así el menú
-    // pinta sin esperar red y se auto-corrige si un módulo cambió (resuelve la
-    // carrera del 2026-06-11 por reactividad, no por orden de cargas).
-    const [usuario, config] = await Promise.all([
-      this.authService.getUsuarioActual(),
-      this.configService.get()
-    ]);
-
-    this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
-    this.recargasBusHabilitada     = config?.recargas_bus_habilitada     ?? false;
-
-    if (usuario) {
-      this.aplicarDatosUsuario(usuario);
-    }
-    this.nombreNegocio = usuario?.negocio_nombre || '';
+    // ── SUSCRIPCIONES PRIMERO (síncronas, antes de cualquier await) ──────────
+    // Bug 2026-07-12 (mismo fix que main-layout): estas suscripciones se instalaban
+    // DESPUÉS del Promise.all de abajo. Tras un reposo largo el TTL del cache de
+    // config vence y get() va a BD con red lenta — el await colgaba y el sidebar
+    // quedaba SIN menú (menuGroups=[]) y con el POS candado, mientras el Home ya
+    // mostraba "caja abierta". Los observables son BehaviorSubjects: entregan el
+    // último valor al suscribir, no se pierde ninguna emisión por suscribir antes.
 
     // Flags de módulos: re-aplicar con cada emisión fresca de config.
     this.configSub = this.configService.config$.subscribe(cfg => {
@@ -165,9 +155,27 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.usuarioSub = this.authService.usuarioActual$.subscribe(usr => {
       if (usr) {
         this.aplicarDatosUsuario(usr);
+        this.nombreNegocio = usr.negocio_nombre || this.nombreNegocio;
         this.recalcularMenu();
       }
     });
+
+    // ── HIDRATACIÓN (I/O — puede tardar con red mala; ya no bloquea el menú) ─
+    // Config local-first (2026-07-08): get() sirve del cache al instante cuando el
+    // TTL está vigente (main-layout, el padre, ya disparó revalidar() en background).
+    const [usuario, config] = await Promise.all([
+      this.authService.getUsuarioActual(),
+      this.configService.get()
+    ]);
+
+    this.recargasCelularHabilitada = config?.recargas_celular_habilitada ?? false;
+    this.recargasBusHabilitada     = config?.recargas_bus_habilitada     ?? false;
+
+    if (usuario) {
+      this.aplicarDatosUsuario(usuario);
+    }
+    this.nombreNegocio = usuario?.negocio_nombre || this.nombreNegocio;
+    this.recalcularMenu();
   }
 
   ngOnDestroy() {

@@ -298,8 +298,9 @@ export class StorageService {
   // Si ya es una URL completa (http/https) la retorna tal cual — evita doble resolución.
   //
   // Estrategia de resolución (en orden):
-  //   1. Binario local en disco (ImagenLocalService): la fuente más robusta offline —
-  //      sobrevive cold start y días sin red. Se prioriza siempre que exista.
+  //   1. Binario local (ImagenLocalService — Filesystem en nativo, IndexedDB en web):
+  //      la fuente más robusta offline — sobrevive cold start / recarga y días sin red.
+  //      Se prioriza siempre que exista.
   //   2. signed URL cacheada en RAM: rápida, pero muere con el proceso y expira a 60 min.
   //   3. Online: firmar contra Supabase + disparar la descarga del binario en background
   //      para que la PRÓXIMA vez (aunque sea offline tras un cold start) la foto esté local.
@@ -310,7 +311,8 @@ export class StorageService {
 
     const offline = !this.network.isConnected();
 
-    // 1. Binario persistido en disco — sobrevive cold start + días sin red.
+    // 1. Binario persistido localmente (Filesystem en nativo, IndexedDB en web) —
+    //    sobrevive cold start / recarga de pestaña + días sin red.
     const local = await this.imagenLocal.obtenerLocal(path);
     if (local) return local;
 
