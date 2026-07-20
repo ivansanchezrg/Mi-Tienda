@@ -162,9 +162,9 @@ BEGIN
         END IF;
 
         -- purga_avisada_el / purga_programada_el en NULL: un pago siempre cancela
-        -- cualquier purga en curso (ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md,
-        -- Fase 3) — el negocio vuelve a ACTIVA, no tiene sentido que siga marcado
-        -- para borrarse.
+        -- cualquier purga en curso (ver docs/suscripcion/SUSCRIPCION-README.md,
+        -- seccion "Purga automatica de negocios vencidos") — el negocio vuelve
+        -- a ACTIVA, no tiene sentido que siga marcado para borrarse.
         INSERT INTO suscripciones (negocio_id, plan_id, estado, periodo_contratado,
                                    inicia_el, vence_el, actualizada_por, updated_at,
                                    purga_avisada_el, purga_programada_el)

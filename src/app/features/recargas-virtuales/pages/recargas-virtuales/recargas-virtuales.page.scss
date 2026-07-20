@@ -23,9 +23,9 @@ ion-content {
   gap: var(--spacing-xs);
 
   .saldo-label {
-    font-size: 11px;
+    font-size: 13px;
     font-weight: var(--font-weight-medium);
-    color: var(--ion-color-medium);
+    color: var(--ion-color-step-600);
     padding-bottom: var(--spacing-lg);
   }
 
@@ -36,29 +36,38 @@ ion-content {
     letter-spacing: -1.5px;
     line-height: 1.1;
   }
+
+  // El monto toma el color de la sección para reforzar en qué tab estoy
+  // (la pill hermana lleva la clase celular/bus). Coherente con las tarjetas.
+  .saldo-servicio-pill.bus ~ .saldo-monto {
+    color: var(--ion-color-secondary);
+  }
 }
 
-// Pill identificador de servicio (reemplaza saldo-tab-nombre)
+// Pill identificador de servicio — SIEMPRE visible (aunque estén activos ambos
+// módulos y haya pestañas arriba). Es el rótulo de "en qué sección estoy" para
+// usuarios que no reparan en las pestañas del header (ej. adultos mayores).
 .saldo-servicio-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
+  gap: 6px;
+  margin-bottom: var(--spacing-xs);
+  padding: 6px 14px;
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.4px;
 
-  ion-icon { font-size: 13px; }
+  ion-icon { font-size: 16px; }
 
   &.celular {
-    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    background: rgba(var(--ion-color-primary-rgb), 0.12);
     color: var(--ion-color-primary);
   }
 
   &.bus {
-    background: rgba(var(--ion-color-secondary-rgb), 0.12);
+    background: rgba(var(--ion-color-secondary-rgb), 0.14);
     color: var(--ion-color-secondary);
   }
 }
@@ -79,19 +88,32 @@ ion-content {
   width: 100%;
 
   ion-icon {
-    font-size: 14px;
-    color: var(--ion-color-medium);
+    font-size: 18px;
+    color: var(--ion-color-success);
+    flex-shrink: 0;
+  }
+
+  .saldo-caja-texto {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
   }
 
   .saldo-caja-label {
-    flex: 1;
-    font-size: 12px;
+    font-size: 14px;
+    color: var(--ion-color-step-700);
+    font-weight: 600;
+  }
+
+  .saldo-caja-sub {
+    font-size: 11px;
     color: var(--ion-color-medium);
-    font-weight: 500;
+    font-weight: 400;
   }
 
   .saldo-caja-valor {
-    font-size: 13px;
+    font-size: 16px;
     font-weight: 700;
     color: var(--ion-text-color);
   }
@@ -110,151 +132,156 @@ ion-content {
 }
 
 
-// ── Action cards ──────────────────────────────────────────────────────────────
+// ── Action cards (rv-*) ──────────────────────────────────────────────────────
+// Mismo patrón visual que .tipo-card (inventario → crear producto): la lengüeta
+// de icono ocupa todo el alto del card con esquinas derechas cóncavas. El color
+// es semántico según dirección del flujo, pero aplicado con sobriedad: fondo de
+// la lengüeta = tinte muy claro del color, icono a color pleno como acento.
+// primary = te acreditan (entra), rojo = pagas (sale), gris = neutro (historial).
 
-.action-card-large {
+.rv-cards {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  gap: var(--spacing-md);
   margin: 0 16px 12px;
-  padding: 16px;
+}
+
+.rv-card {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: var(--spacing-md);
+  width: 100%;
+  padding: 0 var(--spacing-md) 0 0;
   background: var(--ion-item-background);
-  border-radius: 14px;
-  box-shadow: var(--shadow-level-1);
+  border: 1.5px solid var(--ion-color-step-150);
+  border-radius: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  text-align: left;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 
   &:active {
-    transform: scale(0.97);
-    box-shadow: var(--shadow-none);
+    transform: scale(0.99);
+    background: rgba(var(--ion-color-primary-rgb), 0.03);
   }
 
-  &.danger {
-    border: 1.5px solid rgba(var(--ion-color-danger-rgb), 0.4);
-    background: rgba(var(--ion-color-danger-rgb), 0.03);
+  // Card con deuda pendiente — el usuario debe notarla primero
+  &--alerta {
+    border-color: rgba(var(--ion-color-danger-rgb), 0.4);
+    box-shadow:
+      0 0 0 3px rgba(var(--ion-color-danger-rgb), 0.06),
+      0 2px 6px rgba(var(--ion-color-danger-rgb), 0.06);
   }
 
-  &.success {
-    border: 1.5px solid rgba(var(--ion-color-success-rgb), 0.4);
-    background: rgba(var(--ion-color-success-rgb), 0.03);
+  // Movimientos / historial — jerarquía menor, no es la acción principal
+  &--secundaria {
+    box-shadow: none;
   }
 
-  &.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  &--skeleton {
+    align-items: center;
+    padding: var(--spacing-md);
 
-    &:active {
-      transform: none;
-      box-shadow: var(--shadow-level-1);
+    .rv-card__icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      align-self: center;
     }
   }
 
-  .action-icon {
-    width: 48px;
-    height: 48px;
-    flex-shrink: 0;
+  // Pestaña/sello del icono — ocupa el borde izquierdo, esquinas derechas cóncavas
+  &__icon {
+    width: 72px;
+    align-self: stretch;
+    padding: var(--spacing-sm) 0;
+    border-radius: 0 20px 20px 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 12px;
-    background: rgba(var(--ion-color-primary-rgb), 0.1);
+    flex-shrink: 0;
 
     ion-icon {
-      font-size: 24px;
-      color: var(--ion-color-primary);
+      font-size: 30px;
     }
 
-    &.celular {
+    // Estética sobria: fondo = tinte muy claro del color (casi gris), icono a
+    // color pleno como acento. El color deja de ser un bloque pesado y pasa a
+    // ser un detalle intencional.
+
+    // Celular: saldo entra
+    &--entra {
       background: rgba(var(--ion-color-primary-rgb), 0.1);
       ion-icon { color: var(--ion-color-primary); }
     }
 
-    &.bus {
+    // Bus: saldo entra (color secundario, coherente con el tab Bus)
+    &--entra-bus {
       background: rgba(var(--ion-color-secondary-rgb), 0.12);
       ion-icon { color: var(--ion-color-secondary); }
     }
 
-    &.danger {
+    // Dinero sale (pagar al proveedor)
+    &--sale {
       background: rgba(var(--ion-color-danger-rgb), 0.1);
       ion-icon { color: var(--ion-color-danger); }
     }
 
-    &.danger {
-      background: rgba(var(--ion-color-danger-rgb), 0.1);
-      ion-icon { color: var(--ion-color-danger); }
-    }
-
-    &.success {
-      background: rgba(var(--ion-color-success-rgb), 0.1);
-      ion-icon { color: var(--ion-color-success); }
-    }
-
-    &.disabled {
-      background: rgba(var(--ion-color-medium-rgb), 0.12);
+    // Neutro — historial/movimientos
+    &--neutro {
+      background: var(--ion-color-step-100);
       ion-icon { color: var(--ion-color-medium); }
     }
   }
 
-  .action-content {
+  &__body {
     flex: 1;
     min-width: 0;
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 22px;
-      height: 22px;
-      padding: 0 6px;
-      background: var(--ion-color-danger);
-      color: var(--ion-color-danger-contrast);
-      border-radius: 99px;
-      font-size: 11px;
-      font-weight: 700;
-
-      &.success {
-        background: var(--ion-color-success);
-      }
-
-      &.celular {
-        background: var(--ion-color-primary);
-      }
-
-      &.bus {
-        background: var(--ion-color-secondary);
-      }
-
-      &.muted {
-        background: var(--ion-color-medium);
-      }
-
-      &.danger {
-        background: var(--ion-color-danger);
-      }
-    }
-
-    h3 {
-      margin: 0 0 3px;
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--ion-text-color);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    p {
-      margin: 0;
-      font-size: 13px;
-      color: var(--ion-color-medium);
-      line-height: 1.4;
-    }
+    padding: var(--spacing-md) 0;
+    align-self: center;
   }
 
-  .chevron {
-    font-size: 18px;
-    color: var(--ion-color-step-400);
+  &__titulo {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ion-text-color);
+    line-height: 1.3;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  &__desc {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ion-color-medium);
+    line-height: 1.4;
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+
+    &--danger { background: var(--ion-color-danger); }
+    &--celular { background: var(--ion-color-primary); }
+    &--bus { background: var(--ion-color-secondary); }
+  }
+
+  &__arrow {
     flex-shrink: 0;
+    font-size: 18px;
+    color: var(--ion-color-step-300);
+    align-self: center;
   }
 }
 

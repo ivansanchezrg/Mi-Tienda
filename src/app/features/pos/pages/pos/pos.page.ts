@@ -12,15 +12,17 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, pricetagOutline, chevronDownCircleOutline, arrowUpOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, pricetagOutline, chevronDownCircleOutline, arrowUpOutline, star, colorPaletteOutline } from 'ionicons/icons';
 import { CategoriaProducto } from '../../../inventario/models/categoria-producto.model';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { InventarioService } from '../../../inventario/services/inventario.service';
+import { ProductoService } from '../../../inventario/services/producto.service';
 import { ProductoPOS, ProductoPresentacion } from '../../../inventario/models/producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
+import { FeedbackOverlayService } from '../../../../core/services/feedback-overlay.service';
 import { PosService, VentaPayload } from '../../services/pos.service';
 import { CartItem, CatalogoItem } from '../../models/cart-item.model';
 import { volarCloneHacia } from '../../utils/fly-clone.util';
@@ -61,8 +63,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   @ViewChild('panelItems') panelItemsRef!: ElementRef<HTMLElement>;
 
   private inventarioService = inject(InventarioService);
+  private productoService = inject(ProductoService);
   protected currencyService = inject(CurrencyService);
   private ui = inject(UiService);
+  private feedback = inject(FeedbackOverlayService);
   private posService = inject(PosService);
   private alertCtrl = inject(AlertController);
   private modalCtrl = inject(ModalController);
@@ -110,9 +114,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   get esDesktop(): boolean { return window.innerWidth >= 992; }
   categoriasCatalogo: CategoriaProducto[] = [];
   categoriaActivaId: string | null = null;  // null = TODOS
+  /** Sentinel del tab "Favoritos" — nunca es un UUID real, nunca baja a fn_catalogo_productos_pos ni al cache offline. */
+  readonly FAVORITOS_ID = '__favoritos__';
   readonly productosCatalogo = signal<ProductoPOS[]>([]);
   cargandoCatalogo = false;
   catalogoSearchAbierto = false;
+
   /** Controller de scroll-to-top del catálogo (showScrollTop, onContentScroll, scrollToTop) —
    *  compartido con PaginatedListPage y otras páginas (ver shared/utils/scroll-to-top.util.ts). */
   readonly scrollTop = crearScrollToTop(() => this.content);
@@ -140,15 +147,34 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   private dispararAnimacionCatalogo(productoId: string) {
+    // Solo la animación de la card. El total lo anima actualizarCantidad/agregarLineaNueva
+    // (único punto centralizado) — así mouse, pistola y botones +/- se comportan igual.
     this.catalogoCardAnimando = productoId;
     this.cdr.markForCheck();
     setTimeout(() => { this.catalogoCardAnimando = null; this.cdr.markForCheck(); }, 400);
+  }
+
+  /** Anima el total a pagar (panel desktop, footer mobile y pill del catálogo).
+   *  Único punto de disparo — se llama en TODA ruta que muta la cantidad del carrito
+   *  (mouse, pistola, listener global o botones +/-) para que el feedback sea idéntico
+   *  en web y APK. En escaneos rápidos consecutivos apaga y reenciende la clase para
+   *  reiniciar el keyframe (sin acumular timers). */
+  private animarTotal() {
+    clearTimeout(this.totalAnimTimeout);
+    // Apagar primero: si ya estaba animando, Angular quita la clase y el macrotask de
+    // abajo la repone → el navegador reinicia la animación desde el frame 0.
+    this.totalAmountAnimando = false;
+    this.cdr.markForCheck();
     setTimeout(() => {
       this.totalAmountAnimando = true;
       this.cdr.markForCheck();
-      setTimeout(() => { this.totalAmountAnimando = false; this.cdr.markForCheck(); }, 500);
-    }, 150);
+      this.totalAnimTimeout = setTimeout(() => {
+        this.totalAmountAnimando = false;
+        this.cdr.markForCheck();
+      }, 500);
+    }, 0);
   }
+  private totalAnimTimeout: ReturnType<typeof setTimeout> | undefined;
 
   abrirCatalogoSearch() {
     this.catalogoSearchAbierto = true;
@@ -261,6 +287,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   private filtrarPorCategoria(productos: ProductoPOS[]): ProductoPOS[] {
+    if (this.categoriaActivaId === this.FAVORITOS_ID) {
+      return productos.filter(p => p.favorito);
+    }
     return this.categoriaActivaId
       ? productos.filter(p => p.categoria_id === this.categoriaActivaId)
       : productos;
@@ -288,16 +317,30 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
-    // Sin snapshot aún (primera carga en vuelo): fetch puntual con spinner
+    // Sin snapshot aún (primera carga en vuelo): fetch puntual con spinner.
+    // ⚠️ El sentinel de favoritos NUNCA baja al RPC (p_categoria_id es UUID) ni al
+    // cache offline (categoria_id no calza) — se pide el catálogo completo y se
+    // filtra en memoria, igual que el resto de los casos con snapshot.
     this.cargandoCatalogo = true;
     this.cdr.markForCheck();
     try {
-      const productos = await this.inventarioService.obtenerProductosCatalogoPOS(categoriaId ?? undefined);
-      this.publicarCatalogoConImagenesProgresivas(productos);
+      const esFavoritos = categoriaId === this.FAVORITOS_ID;
+      const productos = await this.inventarioService.obtenerProductosCatalogoPOS(
+        esFavoritos ? undefined : categoriaId ?? undefined
+      );
+      this.publicarCatalogoConImagenesProgresivas(this.filtrarPorCategoria(productos));
     } finally {
       this.cargandoCatalogo = false;
       this.cdr.markForCheck();
     }
+  }
+
+  /**
+   * True si el valor ya es una URL que el <img> puede renderizar directamente (no un path
+   * crudo de Storage que haya que firmar). Mismo criterio que StorageService.resolveImageUrl.
+   */
+  private esUrlRenderizable(valor: string | null | undefined): boolean {
+    return !!valor && /^(https?:|blob:|data:|capacitor:)/.test(valor);
   }
 
   /**
@@ -315,16 +358,18 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const imagenesCacheadas = new Map(catalogoActual.map(p => [p.id, p.imagen_url]));
     const templateImagenesCacheadas = new Map(
       catalogoActual
-        .filter(p => p.producto_template_id && p.producto_template?.imagen_url?.startsWith('http'))
+        .filter(p => p.producto_template_id && this.esUrlRenderizable(p.producto_template?.imagen_url))
         .map(p => [p.producto_template_id!, p.producto_template!.imagen_url!])
     );
 
     // Paso 1: pintar ya, con las imágenes que tengamos a mano.
-    // Solo se usa una URL si ya está firmada (http). Si solo hay path crudo de Storage,
-    // se deja undefined (placeholder) — pintarlo haría que <img> pida el path como ruta
-    // local (localhost/{path}) → 404 en consola. El Paso 2 lo firma y re-publica.
+    // Solo se usa una URL ya renderizable (firmada http, blob local, data). Si solo hay
+    // path crudo de Storage, se deja undefined (placeholder) — pintarlo haría que <img>
+    // pida el path como ruta local (localhost/{path}) → 404 en consola. El Paso 2 lo firma
+    // y re-publica. Reconocer blob:/data: evita descartar imágenes locales ya resueltas y
+    // re-resolverlas en cada re-publish (parpadeo + trabajo redundante).
     const urlFirmada = (valor: string | null | undefined): string | undefined =>
-      valor?.startsWith('http') ? valor : undefined;
+      this.esUrlRenderizable(valor) ? valor! : undefined;
 
     const productosConImagenCacheada = productos.map(p => {
       const result = { ...p, imagen_url: urlFirmada(imagenesCacheadas.get(p.id) ?? p.imagen_url) };
@@ -377,8 +422,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     await this.mostrarSelectorVariantes(item.templateNombre, item.variantes, subtitle);
   }
 
-  async agregarDesdeCatalogo(producto: ProductoPOS, event?: MouseEvent | TouchEvent) {
-    // Capturar card y rect ANTES del await — tras el re-render el card puede reordenarse
+  async agregarDesdeCatalogo(producto: ProductoPOS, event?: MouseEvent | TouchEvent | PointerEvent) {
+    // Capturar card y rect ANTES del await — tras el re-render el card puede reordenarse.
+    // Con pointer capture activo, currentTarget/target apuntan al botón capturador; buscamos
+    // la .catalogo-card más cercana (que es el propio botón) para clonar la card correcta.
     const cardEl = event
       ? ((event.currentTarget ?? event.target) as HTMLElement).closest('.catalogo-card') as HTMLElement | null
       : null;
@@ -398,6 +445,131 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       this.dispararAnimacionPanel(producto.id);
       if (cardRect && cardClone) setTimeout(() => this.flyToPillFromClone(cardClone, cardRect), 0);
     }
+  }
+
+  // ==========================================
+  // GESTOS DE LA CARD DEL CATÁLOGO
+  //   • Tap / press corto → agregar al carrito (acción principal, instantánea al soltar)
+  //   • Long-press (≥450ms) → marcar/desmarcar favorito (solo productos SIN presentaciones)
+  //
+  // Diseño robusto contra taps rápidos: el estado del gesto está atado a UN pointerId a la
+  // vez, no hay evento (click) sintético en el flujo, y el ÚNICO timer (el del favorito) se
+  // cancela en todas las salidas (up/cancel/nuevo down). Así se eliminó el bug de timers
+  // huérfanos que disparaban favoritos fantasma y taps que se cruzaban entre cards.
+  //
+  // Scroll: touch-action: pan-y (SCSS) delega el scroll vertical al navegador, que al
+  // tomar el gesto emite pointercancel y limpia el gesto automáticamente. No escuchamos
+  // pointermove a propósito — dispararía change detection (OnPush) en cada píxel de
+  // movimiento sobre una grilla grande, sin aportar sobre lo que ya cubre pointercancel.
+  //
+  // El pointerup decide: si el favorito ya se disparó → no agrega; si no → agrega.
+  // ==========================================
+  private gesto: {
+    pointerId: number;
+    producto: ProductoPOS;
+    favoritoDisparado: boolean;
+    hapticTimer: ReturnType<typeof setTimeout> | null;
+  } | null = null;
+  private readonly LONG_PRESS_MS = 450;
+
+  onCardPointerDown(producto: ProductoPOS, event: PointerEvent) {
+    // Solo el botón primario / touch / lápiz. Ignorar clic derecho o punteros extra.
+    if (event.button !== 0) return;
+    // Si ya hay un gesto en curso (multitouch), lo descartamos: un solo gesto a la vez.
+    this.cancelarGesto();
+
+    // NOTA: no usamos setPointerCapture — en touch la captura es implícita (pointerup
+    // llega al mismo elemento) y capturar explícitamente puede interferir con el scroll
+    // del ion-content en algunos WebViews.
+    this.gesto = {
+      pointerId: event.pointerId,
+      producto,
+      favoritoDisparado: false,
+      hapticTimer: null,
+    };
+
+    // Favorito solo aplica a productos simples sin presentaciones (los que tienen
+    // presentaciones abren un modal al soltar). El timer da el feedback háptico + toggle
+    // en el instante que se cumple el umbral, sin esperar al pointerup.
+    if ((producto.presentaciones?.length ?? 0) === 0) {
+      this.gesto.hapticTimer = setTimeout(() => {
+        if (!this.gesto || this.gesto.pointerId !== event.pointerId) return;
+        this.gesto.favoritoDisparado = true;
+        this.gesto.hapticTimer = null;
+        navigator.vibrate?.(15);
+        this.toggleFavoritoCatalogo(producto);
+      }, this.LONG_PRESS_MS);
+    }
+  }
+
+  onCardPointerUp(event: PointerEvent) {
+    const g = this.gesto;
+    if (!g || g.pointerId !== event.pointerId) return;
+
+    const favoritoYaMarcado = g.favoritoDisparado;
+    const producto = g.producto;
+    this.cancelarGesto();
+
+    // Si el long-press ya marcó el favorito, este pointerup solo cierra el gesto — no
+    // agrega al carrito (sería una acción doble que el usuario no pidió).
+    // En cualquier otro caso (tap corto, o press largo sobre un producto que no puede ser
+    // favorito como los que tienen presentaciones) el pointerup agrega / abre el modal.
+    if (!favoritoYaMarcado) {
+      this.agregarDesdeCatalogo(producto, event);
+    }
+  }
+
+  onCardPointerCancel(event: PointerEvent) {
+    if (this.gesto && this.gesto.pointerId === event.pointerId) this.cancelarGesto();
+  }
+
+  private cancelarGesto() {
+    if (this.gesto?.hapticTimer) clearTimeout(this.gesto.hapticTimer);
+    this.gesto = null;
+  }
+
+  /**
+   * Toggle optimista sobre el snapshot en memoria (catalogoCompleto + productosCatalogo)
+   * — igual que el toggle de Inventario: sin loading ni toast (el ícono es el feedback).
+   * Si el tab activo es Favoritos, al desmarcar el producto desaparece de la vista
+   * porque filtrarPorCategoria() ya no lo incluye.
+   */
+  private async toggleFavoritoCatalogo(producto: ProductoPOS) {
+    const nuevo = !producto.favorito;
+    this.mutarFavoritoEnMemoria(producto.id, nuevo);
+    const updated = await this.productoService.toggleFavorito(producto.id, nuevo);
+    if (!updated) this.mutarFavoritoEnMemoria(producto.id, !nuevo);
+  }
+
+  /**
+   * Muta solo el flag `favorito` en el snapshot y en la vista. Un toggle de favorito NO
+   * cambia ninguna imagen, así que trabajamos sobre `productosCatalogo()` (que YA tiene
+   * las URLs firmadas resueltas) en vez de re-publicar desde `catalogoCompleto` (paths
+   * crudos de Storage → miniaturas rotas) ni re-disparar el pipeline de resolución de
+   * imágenes en tandas (innecesario). Bug de imágenes corruptas resuelto así (2026-07-16).
+   *
+   * En el tab Favoritos, desmarcar quita el producto de la vista (filtrarPorCategoria);
+   * por eso re-derivamos la lista visible desde el snapshot ya resuelto en memoria.
+   */
+  private mutarFavoritoEnMemoria(productoId: string, favorito: boolean) {
+    // Snapshot crudo (para filtros y próximas cargas) — se muta por identidad.
+    if (this.catalogoCompleto) {
+      const idx = this.catalogoCompleto.findIndex(p => p.id === productoId);
+      if (idx >= 0) this.catalogoCompleto[idx] = { ...this.catalogoCompleto[idx], favorito };
+    }
+
+    // Índice de imágenes YA firmadas (http) por id, tomado de la vista actual — así el
+    // re-render conserva las miniaturas sin volver a firmar nada.
+    const imagenesFirmadas = new Map(this.productosCatalogo().map(p => [p.id, p.imagen_url]));
+
+    const base = this.catalogoCompleto ?? this.productosCatalogo();
+    const visibles = this.filtrarPorCategoria(base).map(p => ({
+      ...p,
+      favorito: p.id === productoId ? favorito : p.favorito,
+      imagen_url: imagenesFirmadas.get(p.id) ?? p.imagen_url,
+    }));
+    this.productosCatalogo.set(visibles);
+    this.cdr.markForCheck();
   }
 
   /** Anima un clon visual exacto del card volando hacia el pill (mobile) o el total del panel (desktop) */
@@ -460,7 +632,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       cubeOutline, searchOutline, personOutline,
       chevronForwardOutline, chevronBackOutline, refreshOutline,
       alertCircleOutline, closeOutline, pricetagOutline, chevronDownCircleOutline,
-      arrowUpOutline
+      arrowUpOutline, star, colorPaletteOutline
     });
   }
 
@@ -722,12 +894,15 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     return Math.round(cantidad * precioUnitario * 100) / 100;
   }
 
-  /** Actualiza cantidad y subtotal de una línea por su clave. */
+  /** Actualiza cantidad y subtotal de una línea por su clave.
+   *  Toda mutación de cantidad pasa por aquí → único punto que anima el total,
+   *  garantizando feedback idéntico en mouse, pistola y botones +/- (web y APK). */
   private actualizarCantidad(key: string, cantidad: number) {
     this.carrito.update(c => c.map(i => this.keyDe(i) === key
       ? { ...i, cantidad, subtotal: this.calcularSubtotal(cantidad, i.precio_venta) }
       : i
     ));
+    this.animarTotal();
   }
 
   /** Marca la línea recién agregada para su animación de entrada. */
@@ -757,6 +932,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const key = this.keyDe(item);
     this.marcarAgregado(key);
     this.dispararAnimacionPanel(key);
+    this.animarTotal();
     this.feedbackEscaneo(key);
     this.scrollToBottom();
   }
@@ -911,6 +1087,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     if (existe) {
       this.actualizarCantidad(this.keyDe(existe), existe.cantidad + cantidadReal);
+      this.triggerIncrementAnimation(existe);
+      this.dispararAnimacionPanel(this.keyDe(existe));
       this.feedbackEscaneo(this.keyDe(existe));
       this.scrollToBottom();
     } else {
@@ -1210,39 +1388,71 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     await modal.present();
     await modal.onDidDismiss();
+    // Al cerrar, Android devuelve el foco a la <button> del catálogo que abrió el modal.
+    // Si luego llega el Enter de un escaneo, esa card se re-activaría (reabriría el modal).
+    // Blur preventivo: el foco queda en ningún elemento activable por teclado.
+    (document.activeElement as HTMLElement | null)?.blur();
   }
 
   // ==========================
   // ESCÁNER FÍSICO (PISTOLA USB/BT)
   // ==========================
-  @HostListener('document:keypress', ['$event'])
+  // keydown (no keypress: está deprecado y Chrome/Edge no lo disparan de forma
+  // confiable para todas las teclas). La pistola HID "teclea" el EAN + Enter en
+  // ráfaga; este buffer captura el escaneo cuando NINGÚN input tiene el foco.
+  /** ¿Hay un overlay de Ionic (modal/alert/action-sheet/loading/popover) abierto?
+   *  Chequeo síncrono del DOM — un overlay presente NO tiene la clase `.overlay-hidden`
+   *  que Ionic aplica mientras está oculto/saliendo. Cubre todos los overlays presentes
+   *  y futuros sin instrumentar cada modalCtrl.create(). */
+  private hayOverlayAbierto(): boolean {
+    return !!document.querySelector(
+      'ion-modal:not(.overlay-hidden), ion-alert:not(.overlay-hidden), ' +
+      'ion-action-sheet:not(.overlay-hidden), ion-loading:not(.overlay-hidden), ' +
+      'ion-popover:not(.overlay-hidden)'
+    );
+  }
+
+  @HostListener('document:keydown', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent) {
     // Ignorar si la página no está activa (Ionic cachea páginas)
     if (!this.paginaActiva) return;
 
-    // Si el usuario ya está enfocado en un input (ej. el searchbar), ignoramos
-    // para no duplicar el evento.
+    // Hay un overlay abierto (modal de variantes/cantidad/cliente, alert, loading)
+    // → NO procesar el escaneo global: el modal es un contexto modal y la pistola no
+    // debe operar el catálogo por detrás (apilaba otro modal al escanear). Descartamos
+    // también el buffer para no dejar restos que se procesen al cerrar el overlay.
+    if (this.hayOverlayAbierto()) {
+      this.barcodeBuffer = '';
+      return;
+    }
+
+    // Si el usuario ya está enfocado en un input (ej. el searchbar), ignoramos:
+    // ese input maneja el escaneo por su cuenta (onSearchKeyup) — evita duplicar.
     const target = event.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'ION-INPUT' || target.tagName === 'ION-SEARCHBAR') {
+    const tag = target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'ION-INPUT' ||
+        tag === 'ION-SEARCHBAR' || target.isContentEditable) {
       return;
     }
 
     if (event.key === 'Enter') {
-      // Si recibimos un Enter y el buffer tiene algo (ej. EAN típico de 8 a 13 digitos)
+      // El Enter de la pistola, si un <button> del catálogo tiene el foco (p.ej. la card
+      // que abrió un modal y recuperó el foco al cerrarlo), dispararía un click sintético
+      // en Android → reabría ese modal. Aquí el foco NO está en un input (ya salió por el
+      // guard de tag arriba), así que cualquier Enter global es de la pistola: preventDefault
+      // + blur neutraliza la activación fantasma, haya o no buffer que procesar.
+      event.preventDefault();
+      (document.activeElement as HTMLElement | null)?.blur();
+      // Enter con buffer suficiente (EAN típico 8-13 dígitos) → procesar escaneo
       if (this.barcodeBuffer.length > 3) {
         void this.procesarCodigoRapido(this.barcodeBuffer);
       }
       this.barcodeBuffer = '';
-    } else {
-      if (event.key.length === 1) { // Evitamos Shift, Ctrl, etc.
-        this.barcodeBuffer += event.key;
-        clearTimeout(this.barcodeTimeout);
-        // Las pistolas USB escriben ~5-20ms por tecla. 
-        // 100ms es seguro para resetear si fue tipeo humano lento.
-        this.barcodeTimeout = setTimeout(() => {
-          this.barcodeBuffer = '';
-        }, 100);
-      }
+    } else if (event.key.length === 1) { // 1 solo char: dígitos/letras. Descarta Shift, Tab, F1, etc.
+      this.barcodeBuffer += event.key;
+      clearTimeout(this.barcodeTimeout);
+      // Pistolas HID escriben ~5-20ms por tecla. 100ms resetea si fue tipeo humano lento.
+      this.barcodeTimeout = setTimeout(() => { this.barcodeBuffer = ''; }, 100);
     }
   }
 
@@ -1424,28 +1634,41 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
       if (response.success) {
         localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
+        // Overlay ANTES de limpiar: captura el total mientras el carrito aún existe.
         if (response.encolada) {
           // La señal cayó con el cobro en vuelo — la venta quedó en la cola local con la
           // misma idempotency key (reenviar es seguro) y se sincronizará sola.
-          this.ui.showToast('Conexión inestable — venta guardada, se sincronizará automáticamente', 'success');
+          this.mostrarExitoVenta(undefined, true);
         } else {
-          this.ui.showToast(`Venta #${response.numeroComprobante} registrada`, 'success');
+          this.mostrarExitoVenta(response.numeroComprobante);
         }
         this.limpiarCarrito(true);
       } else {
-        this.ui.showToast('No se pudo registrar la venta. Intenta de nuevo.', 'danger');
+        // El empleado ya "cerró" mentalmente la venta al confirmar el cobro — un toast
+        // en la esquina puede pasar desapercibido y seguir con el carrito lleno creyendo
+        // que ya cobró. Mismo peso que el success, sin auto-dismiss (debe leerlo y decidir).
+        this.feedback.error({
+          titulo: 'No se pudo registrar la venta',
+          subtitulo: 'Intenta de nuevo',
+        });
       }
     } catch (error) {
       await this.ui.hideLoading();
       if (error instanceof Error && error.message === 'SIN_TURNO') {
         await this.mostrarAlertSinTurno();
       } else if (error instanceof Error && /stock insuficiente/i.test(error.message)) {
-        this.ui.showToast('Stock insuficiente — el catálogo se actualizó con los valores reales', 'warning');
+        // Infrecuente y rompe el flujo esperado: el carrito se armó con stock que ya
+        // no está disponible (otra caja vendió lo mismo en simultáneo). El empleado
+        // necesita notar con claridad que debe revisar el carrito actualizado.
+        this.feedback.warning({
+          titulo: 'Stock insuficiente',
+          subtitulo: 'El catálogo se actualizó con los valores reales',
+        });
         this.refrescarCatalogo();
         this.logger.warn('PosPage', 'Venta rechazada por stock insuficiente en BD');
       } else {
         const mensaje = error instanceof Error ? error.message : 'Error inesperado al procesar la venta';
-        this.ui.showToast(mensaje, 'danger');
+        this.feedback.error({ titulo: 'No se pudo registrar la venta', subtitulo: mensaje });
         this.logger.error('PosPage', 'Error en proceso de cobro', error);
       }
     } finally {
@@ -1467,27 +1690,51 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         // La venta está en disco — la idempotency key ya no la maneja localStorage,
         // la cola es la fuente de verdad de lo pendiente.
         localStorage.removeItem(PosPage.IDEMPOTENCY_STORAGE_KEY);
-        this.ui.showToast('Venta guardada — se sincronizará al volver la conexión', 'success');
+        this.mostrarExitoVenta(undefined, true);
         this.limpiarCarrito(true);
       } else {
-        this.ui.showToast('No se pudo guardar la venta. Intenta de nuevo.', 'danger');
+        // Mismo criterio que el flujo online: el empleado ya confirmó el cobro.
+        this.feedback.error({ titulo: 'No se pudo guardar la venta', subtitulo: 'Intenta de nuevo' });
       }
     } catch (error) {
       if (error instanceof Error && error.message === 'SIN_TURNO') {
         await this.mostrarAlertSinTurno();
       } else {
-        this.ui.showToast('No se pudo guardar la venta sin conexión.', 'danger');
+        this.feedback.error({ titulo: 'No se pudo guardar la venta sin conexión' });
         this.logger.error('PosPage', 'Error al encolar venta offline', error);
       }
     }
   }
 
   /**
+   * Muestra el overlay de éxito con el total cobrado (capturado ANTES de vaciar el
+   * carrito, por eso se lee this.totalPagar() aquí). Reemplaza al toast como señal
+   * principal de "venta cerrada" — usa el overlay genérico y reutilizable de
+   * FeedbackOverlayService (shared, montado en AppComponent).
+   */
+  private mostrarExitoVenta(comprobante?: string | number | null, sincroniza = false) {
+    this.feedback.success({
+      titulo: '¡Venta registrada!',
+      destacado: `$${this.currencyService.format(this.totalPagar())}`,
+      subtitulo: comprobante
+        ? `Comprobante #${comprobante}`
+        : sincroniza ? 'Se sincronizará al volver la conexión' : undefined,
+    });
+  }
+
+  /**
    * Vacía el carrito. Con ventaRealizada=true descuenta el stock vendido del catálogo
    * en memoria — sin refetch del catálogo completo por venta (la RPC más pesada de la
    * app). La verdad del servidor llega en el próximo enter a la página o pull-to-refresh.
+   *
+   * ventaRealizada=false es el vaciado MANUAL (menú ⋮ → Limpiar carrito, tras el Alert
+   * de confirmación) — ahí sí se avisa con un toast neutro. Cuando es por venta, el
+   * overlay de éxito (mostrarExitoVenta) ya es la señal principal; un segundo aviso
+   * sería redundante.
    */
   limpiarCarrito(ventaRealizada = false) {
+    // Conteo capturado ANTES de vaciar — se usa en el overlay de éxito del vaciado manual
+    const articulosDescartados = this.totalArticulos();
     if (ventaRealizada) this.descontarStockLocal(this.carrito());
     this.carrito.set([]);
     this.buscarTexto.set('');
@@ -1497,6 +1744,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
     // En background — no bloquea el vaciado (resetea al Consumidor Final)
     this.cargarCliente();
+    if (!ventaRealizada) {
+      this.feedback.success({
+        titulo: 'Carrito vaciado',
+        subtitulo: `${articulosDescartados} ${articulosDescartados === 1 ? 'artículo descartado' : 'artículos descartados'}`,
+      });
+    }
   }
 
   /** Descuenta optimistamente del catálogo en memoria las unidades base vendidas. */
@@ -1526,6 +1779,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     clearTimeout(this.barcodeTimeout);
     clearTimeout(this.searchDebounce);
     clearTimeout(this.scanPreviewTimeout);
+    clearTimeout(this.totalAnimTimeout);
   }
 
   async ionViewWillEnter() {
@@ -1628,6 +1882,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     clearTimeout(this.barcodeTimeout);
     clearTimeout(this.searchDebounce);
     clearTimeout(this.scanPreviewTimeout);
+    clearTimeout(this.totalAnimTimeout);
+    this.cancelarGesto();
   }
 
 }

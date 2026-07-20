@@ -344,6 +344,7 @@ ion-toolbar {
 
 // ── Thumbnail ──
 .inv-thumb {
+    position: relative;
     width: 44px;
     height: 44px;
     border-radius: 0;
@@ -379,6 +380,22 @@ ion-toolbar {
         background: var(--app-bg, #f4f5f8);
 
         ion-icon { color: var(--ion-color-tertiary, #5260ff); }
+    }
+}
+
+// Estrella de favorito — superpuesta en la esquina inferior derecha del thumbnail.
+// Dentro del área del thumbnail (que tiene overflow: hidden) para no requerir
+// z-index ni recortes adicionales sobre el resto del item.
+.inv-fav {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.85);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+
+    &--on {
+        color: var(--ion-color-warning, #ffc409);
     }
 }
 

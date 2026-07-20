@@ -1,0 +1,50 @@
+@if (feedback.estado(); as data) {
+<div class="fbo-overlay" [attr.data-tipo]="data.tipo" (click)="feedback.cerrar()">
+  <div class="fbo-card" (click)="$event.stopPropagation()">
+
+    <div class="fbo-icon" [attr.data-color]="colorPorTipo(data.tipo)">
+      @if (data.icono) {
+        <ion-icon [name]="data.icono"></ion-icon>
+      } @else {
+        <svg viewBox="0 0 52 52" class="fbo-icon-svg">
+          <circle class="fbo-icon-circle" cx="26" cy="26" r="24" fill="none" />
+
+          @switch (data.tipo) {
+            @case ('success') {
+              <path class="fbo-icon-mark fbo-icon-mark--check" fill="none" d="M14 27 L22 35 L38 18" />
+            }
+            @case ('error') {
+              <path class="fbo-icon-mark fbo-icon-mark--x" fill="none" d="M17 17 L35 35 M35 17 L17 35" />
+            }
+            @case ('warning') {
+              <path class="fbo-icon-mark fbo-icon-mark--bang" fill="none" d="M26 14 L26 30" />
+              <circle class="fbo-icon-dot" cx="26" cy="37" r="2.2" />
+            }
+            @case ('info') {
+              <path class="fbo-icon-mark fbo-icon-mark--info" fill="none" d="M26 24 L26 36" />
+              <circle class="fbo-icon-dot" cx="26" cy="16" r="2.2" />
+            }
+          }
+        </svg>
+      }
+    </div>
+
+    <p class="fbo-title">{{ data.titulo }}</p>
+
+    @if (data.destacado) {
+      <p class="fbo-destacado" [attr.data-color]="colorPorTipo(data.tipo)">{{ data.destacado }}</p>
+    }
+
+    @if (data.subtitulo) {
+      <p class="fbo-subtitulo">{{ data.subtitulo }}</p>
+    }
+
+    @if (data.duracionMs === 0) {
+      <button class="fbo-close-btn" [attr.data-color]="colorPorTipo(data.tipo)" (click)="feedback.cerrar()" type="button">
+        Entendido
+      </button>
+    }
+
+  </div>
+</div>
+}

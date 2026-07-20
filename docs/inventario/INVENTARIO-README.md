@@ -250,6 +250,32 @@ pantalla sin scrollear — mismo criterio que ya resolvió bien la densidad del 
 - **La lista entera** (`.inv-list`) es una sola superficie con `box-shadow` + `border-radius`,
   no una card por item — igual que `.cart-wrapper` del POS.
 
+### Favorito — estrella en el thumbnail (2026-07-16)
+
+Estrella superpuesta en la esquina inferior derecha del thumbnail (`⭐`/`☆`, `star`/`star-outline`),
+solo en items individuales (`item.kind === 'simple'` — incluye simples, variante única y vista plana
+por template; **no** en la tarjeta agrupada del template, porque el favorito es por SKU). Toggle
+optimista: el ícono cambia al instante, sin loading ni toast — si `ProductoService.toggleFavorito()`
+falla, revierte el ícono (`call()` ya mostró el toast de error). Se marca igual sin importar si el
+producto tiene presentaciones (a diferencia del POS, donde el long-press está restringido a
+productos sin presentaciones — ver `docs/pos/POS-README.md` → "Favoritos").
+
+### Tarjeta agrupada de template (grupo de variantes) — botón lápiz (2026-07-13)
+
+Cuando varios SKUs comparten `producto_template_id`, el grid los agrupa en una sola tarjeta (imagen
+del template, nombre, rango de precios, stock total). Dos zonas de tap distintas:
+- **Tap en el cuerpo** → sigue filtrando y mostrando las variantes del grupo (comportamiento previo,
+  sin cambios).
+- **Botón lápiz** (`irAEditarTemplate()`) → abre `/inventario/template/:id` (`TemplateEditarPage`,
+  ver "Formulario de producto" más abajo) para editar nombre/categoría/imagen general del grupo.
+
+**`templateImagenUrl` solo usa la imagen propia del template** (`producto_templates.imagen_url`) —
+**nunca** cae a la imagen de una variante como fallback (fix 2026-07-13; antes, si el template no
+tenía imagen propia, tomaba prestada la foto del primer SKU alfabético, creando una dependencia
+oculta: cambiar/desactivar esa variante rompía el thumbnail del grupo entero sin que nadie lo hubiera
+decidido). Sin imagen propia, se muestra el placeholder de paleta de colores hasta que se asigne una
+desde el botón lápiz.
+
 ### Menú ⋮ por item — todas las acciones (`app-options-menu`, mismo componente que Ventas)
 
 Opciones: **Ajustar stock · Ver kárdex · Editar · Desactivar** (último en rojo). Concentra toda
@@ -453,6 +479,31 @@ private async emitirCambioPorPresentacion(productoId: string): Promise<void> {
 
 - **CREAR** (`/inventario/nuevo`): todos los campos editables, stock inicial obligatorio
 - **EDITAR** (`/inventario/editar/:id`): codigo de barras readonly, stock readonly, + seccion presentaciones
+- **EDITAR PLANTILLA** (`/inventario/template/:id`, `TemplateEditarPage`): edita los datos generales
+  de un producto con variantes (el template) — nombre, categoría e imagen general que representa a
+  todo el grupo. Se llega desde el botón lápiz de la tarjeta agrupada en el listado (el tap en el
+  cuerpo de la tarjeta sigue filtrando/mostrando las variantes, sin cambios). Muestra la lista de
+  variantes en solo-lectura como referencia; para editar una en concreto, se entra a ella desde el
+  listado. `ProductoService.actualizarTemplate()` → `fn_actualizar_template` (RPC, valida
+  pertenencia del template y la categoría al negocio del JWT). Cambiar la categoría aquí reclasifica
+  el grupo completo (los SKUs tienen `categoria_id = NULL`, heredan la del template — ver
+  `fn_catalogo_productos_pos`).
+
+### Feedback al guardar (2026-07-14/16) — overlay antes de navegar, no toast
+
+`ProductoCrearPage`/`ProductoEditarPage`/`TemplateEditarPage` hacen `navigateBack()` apenas termina
+de guardar. Un toast disparado justo antes de esa transición de página se pierde — por eso ninguno
+de los métodos de guardado de `ProductoService` (`crearSimple`, `crearConVariantes`, `actualizar`,
+`actualizarTemplate`) pasa `successMessage` a `supabase.call()`; en su lugar, la página llama
+`FeedbackOverlayService.success({ titulo, destacado: nombre })` **antes** de navegar. El error del
+`call()` sí se sigue mostrando como toast (ya trae el mensaje real) — ver criterio completo en
+`CLAUDE.md` § "Feedback de acciones — toast vs overlay".
+
+**Bug corregido:** `ProductoService.actualizar()` retornaba `{} as Producto` (objeto vacío, no
+`null`) cuando la mutación fallaba — la página no tenía forma de distinguir éxito de fallo y
+**navegaba igual aunque hubiera fallado**, perdiendo el contexto del error. Ahora retorna
+`Producto | null`; todo caller nuevo debe chequear `null` antes de navegar/continuar (mismo criterio
+para `actualizarTemplate()`, que ya retornaba `{ ok: boolean }` correctamente).
 
 ### Campo de codigo de barras — comportamiento dinamico
 
@@ -609,6 +660,7 @@ interface Producto {
     stock_minimo: number;
     tiene_iva: boolean;
     activo: boolean;
+    favorito: boolean;               // marcado por SKU (no por template) — acceso rapido en POS
     imagen_url?: string;
     tipo_venta: 'UNIDAD' | 'PESO';
     unidad_medida: string;           // 'und', 'kg', 'lb', etc.
@@ -686,10 +738,9 @@ const FORMATOS_DEFAULT = [
 
 | Metodo | Descripcion |
 |--------|-------------|
-| `obtenerProductos(buscar?, categoriaId?, page, pageSize)` | Paginado con join categoria |
-| `buscarProductosPOS(texto)` | Buscador del POS por texto. RPC `fn_buscar_productos_pos`. Limit 20, incluye presentaciones completas |
-| `buscarPorCodigoBarras(codigo)` | Busqueda dual en paralelo: producto + presentaciones. Retorna `{ producto, presentacion? }`. `presentacion` incluye `imagen_url` |
-| `obtenerProductosCatalogoPOS(categoriaId?)` | Catálogo completo del POS. RPC `fn_catalogo_productos_pos`. **Filtra correctamente por categoría heredada del template (fix bug 2026-05-30 — antes ocultaba variantes)** |
+| `obtenerProductos(buscar?, categoriaId?, templateId?, page, pageSize, soloStockBajo?)` | Paginado con join categoria. RPC `fn_listar_productos` |
+| `buscarPorCodigoBarras(codigo)` | Busqueda dual en paralelo: producto + presentaciones. Retorna `{ producto, presentacion? }`. Incluye `favorito` en ambos selects |
+| `obtenerProductosCatalogoPOS(categoriaId?)` | Catálogo completo del POS. RPC `fn_catalogo_productos_pos`. **Filtra correctamente por categoría heredada del template (fix bug 2026-05-30 — antes ocultaba variantes)**. Incluye `favorito` en el JSON (2026-07-16) |
 | `obtenerProductoPorCodigo(codigo)` | Por EAN exacto solo en productos. Usa `maybeSingle()` |
 | `obtenerProductoPorId(id)` | Con join categoria y `presentaciones:producto_presentaciones(id)` filtrado por `activo=true` |
 | `crearProducto(producto)` | INSERT + emite evento CREADO |
@@ -703,7 +754,9 @@ const FORMATOS_DEFAULT = [
 | `desactivarPresentacion(id)` | Soft delete + llama `emitirCambioPorPresentacion()` |
 | `reactivarPresentacion(id)` | `activo=true` + llama `emitirCambioPorPresentacion()` |
 | `ajustarStock(productoId, tipo, cantidad, obs)` | Via `fn_ajustar_stock_inventario`. Emite ACTUALIZADO |
-| `obtenerCategorias()` | Lista todas las categorias activas |
+| `obtenerCategorias()` | Lista categorias activas ordenadas por `orden` (desempate `nombre`) — orden manual, ver `docs/configuracion/CONFIGURACION-README.md` → "Orden manual — drag & drop" |
+| `crearCategoria(nombre)` | INSERT con `orden = max(orden) + 1` (al final) |
+| `reordenarCategorias(idsEnOrden)` | RPC `fn_reordenar_categorias` — persiste el nuevo orden manual (drag & drop) |
 | `buscarAtributos(texto)` | ILIKE, limit 10 — autocompletado en wizard variantes |
 | `obtenerOpcionesAtributo(atributoId)` | Lista todas las opciones de un atributo |
 | `buscarOpcionesAtributo(atributoId, texto)` | ILIKE, limit 10 — autocompletado en wizard |
@@ -720,9 +773,9 @@ const FORMATOS_DEFAULT = [
 | `fn_ajustar_stock_inventario` | `docs/inventario/sql/functions/` | v1.1 — Ajuste manual + kardex. Filtra por `negocio_id` (multi-tenant) |
 | `fn_crear_producto_simple` | `docs/inventario/sql/functions/` | RPC atómica. Valida que la categoría pertenezca al negocio |
 | `fn_crear_producto_con_variantes` | `docs/inventario/sql/functions/` | RPC atómica. Valida categoría + cada `atributo_opcion_id` del negocio |
-| `fn_listar_productos` | `docs/inventario/sql/functions/` | v2.0 — Lista paginada para gestión de inventario. Subqueries reemplazadas por JOINs explícitos (categoria + template.categoria + LEFT JOIN LATERAL para presentaciones) |
-| `fn_buscar_productos_pos` | `docs/pos/sql/functions/` | v1.0 — Buscador del POS por texto (nombre/código). Limit 20. Presentaciones completas + template básico |
-| `fn_catalogo_productos_pos` | `docs/pos/sql/functions/` | v1.0 — Catálogo POS con filtro por categoría heredada del template (fix bug variantes 2026-05-30). Presentaciones completas + template_atributos |
+| `fn_listar_productos` | `docs/inventario/sql/functions/` | v2.2 — Lista paginada para gestión de inventario. Subqueries reemplazadas por JOINs explícitos (categoria + template.categoria + LEFT JOIN LATERAL para presentaciones). v2.1 agregó `p_solo_stock_bajo` (filtro "Reponer"); v2.2 agregó `favorito` al JSON |
+| `fn_catalogo_productos_pos` | `docs/pos/sql/functions/` | v1.2 — Catálogo POS con filtro por categoría heredada del template (fix bug variantes 2026-05-30). Presentaciones completas + template_atributos. v1.1 ordenó presentaciones por `factor_conversion`; v1.2 agregó `favorito` al JSON. Sin paginar ni búsqueda por texto (el POS filtra el grid client-side desde 2026-07-11, `fn_buscar_productos_pos` eliminada) |
+| `fn_reordenar_categorias` | `docs/inventario/sql/functions/` | v1.0 — Persiste el orden manual de categorías (drag & drop). `UPDATE` atómico vía `unnest WITH ORDINALITY`. Valida pertenencia de todos los IDs al negocio del JWT |
 | `fn_generar_codigo_interno` | `docs/inventario/sql/functions/` | Trigger: genera `codigo_barras` interno si no se provee |
 | `fn_generar_codigo_interno_presentacion` | `docs/inventario/sql/functions/` | Idem para presentaciones |
 | `trg_descontar_stock_venta` | `docs/pos/sql/triggers/` | Trigger: descuenta stock al vender (multiplica por `factor_conversion` de la presentación si aplica) |

@@ -39,6 +39,11 @@ ion-content {
     color: var(--ion-color-step-400);
     flex-shrink: 0;
   }
+
+  ion-reorder {
+    flex-shrink: 0;
+    color: var(--ion-color-step-400);
+  }
 }
 
 .cat-info {

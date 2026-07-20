@@ -4,6 +4,13 @@
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
     <ion-title>Saldo Virtual</ion-title>
+    @if (tabActivo === 'BUS') {
+    <ion-buttons slot="end">
+      <ion-button (click)="mostrarAyudaBus()" aria-label="¿Cómo funciona?">
+        <ion-icon slot="icon-only" name="help-circle-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    }
   </ion-toolbar>
   @if (recargasCelularHabilitada && recargasBusHabilitada) {
   <div class="chrome-tabs">
@@ -33,18 +40,19 @@
     @if (!loading) {
 
     <div class="saldo-header">
-      @if (!(recargasCelularHabilitada && recargasBusHabilitada)) {
       <div class="saldo-servicio-pill celular">
         <ion-icon name="phone-portrait-outline"></ion-icon>
-        <span>Celular</span>
+        <span>Recargas Celular</span>
       </div>
-      }
       <div class="saldo-monto">${{ saldoVirtualCelular | appCurrency }}</div>
-      <div class="saldo-label">Saldo para vender recargas</div>
+      <div class="saldo-label">Disponible en tu teléfono para vender</div>
       <div class="saldo-divider"></div>
       <div class="saldo-caja-row">
-        <ion-icon name="wallet-outline"></ion-icon>
-        <span class="saldo-caja-label">Caja Celular</span>
+        <ion-icon name="cash-outline"></ion-icon>
+        <div class="saldo-caja-texto">
+          <span class="saldo-caja-label">Caja Celular</span>
+          <span class="saldo-caja-sub">Ventas de recargas acumuladas</span>
+        </div>
         <span class="saldo-caja-valor">${{ cajaCelularSaldo | appCurrency }}</span>
       </div>
     </div>
@@ -55,46 +63,56 @@
          funciones de mutación (fn_registrar_recarga_proveedor_celular,
          fn_pagar_proveedor_celular). El superadmin debe ver el flujo completo
          para dar soporte; si intenta ejecutar, recibe el toast de error de la BD. -->
-    <div class="action-card-large" (click)="abrirModalRecarga()">
-      <div class="action-icon celular">
-        <ion-icon name="phone-portrait-outline"></ion-icon>
-      </div>
-      <div class="action-content">
-        <h3>Recarga de proveedor</h3>
-        <p>Registra el saldo virtual que te acreditó el proveedor</p>
-      </div>
-      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
-    </div>
+    <div class="rv-cards">
 
-    @if (deudasCelular.length > 0) {
-    <div class="action-card-large" (click)="abrirModalPagarProveedor()">
-      <div class="action-icon danger">
-        <ion-icon name="card-outline"></ion-icon>
-      </div>
-      <div class="action-content">
-        <h3>Pagar al proveedor</h3>
-        <p>Debes <span class="badge danger">${{ totalDeudaCelular | appCurrency }}</span> · {{ deudasCelular.length }} recarga{{ deudasCelular.length === 1 ? '' : 's' }} pendiente{{ deudasCelular.length === 1 ? '' : 's' }}</p>
-      </div>
-      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
-    </div>
-    }
+      <!-- Registrar recarga recibida (dinero/saldo ENTRA) -->
+      <button type="button" class="rv-card" (click)="abrirModalRecarga()">
+        <div class="rv-card__icon rv-card__icon--entra">
+          <ion-icon name="arrow-down-circle-outline"></ion-icon>
+        </div>
+        <div class="rv-card__body">
+          <h3 class="rv-card__titulo">Registrar recarga recibida</h3>
+          <p class="rv-card__desc">El proveedor te cargó saldo al celular para vender recargas</p>
+        </div>
+        <ion-icon name="chevron-forward-outline" class="rv-card__arrow"></ion-icon>
+      </button>
 
-    @if (totalMovimientosCelular > 0) {
-    <div class="action-card-large" (click)="abrirHistorial('CELULAR')">
-      <div class="action-icon celular">
-        <ion-icon name="time-outline"></ion-icon>
-      </div>
-      <div class="action-content">
-        <h3>Movimientos</h3>
-        @if (gananciaCelularPendiente > 0) {
-          <p>Tienes <span class="badge celular">${{ gananciaCelularPendiente | appCurrency }}</span> por liquidar · Ver movimientos</p>
-        } @else {
-          <p>Ver movimientos</p>
-        }
-      </div>
-      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
+      <!-- Registrar pago al proveedor (dinero SALE) -->
+      @if (deudasCelular.length > 0) {
+      <button type="button" class="rv-card rv-card--alerta" (click)="abrirModalPagarProveedor()">
+        <div class="rv-card__icon rv-card__icon--sale">
+          <ion-icon name="cash-outline"></ion-icon>
+        </div>
+        <div class="rv-card__body">
+          <h3 class="rv-card__titulo">
+            Registrar pago al proveedor
+            <span class="rv-card__badge rv-card__badge--danger">${{ totalDeudaCelular | appCurrency }}</span>
+          </h3>
+          <p class="rv-card__desc">El proveedor viene a cobrar · {{ deudasCelular.length }} recarga{{ deudasCelular.length === 1 ? '' : 's' }} pendiente{{ deudasCelular.length === 1 ? '' : 's' }}</p>
+        </div>
+        <ion-icon name="chevron-forward-outline" class="rv-card__arrow"></ion-icon>
+      </button>
+      }
+
+      <!-- Movimientos -->
+      @if (totalMovimientosCelular > 0) {
+      <button type="button" class="rv-card rv-card--secundaria" (click)="abrirHistorial('CELULAR')">
+        <div class="rv-card__icon rv-card__icon--neutro">
+          <ion-icon name="time-outline"></ion-icon>
+        </div>
+        <div class="rv-card__body">
+          <h3 class="rv-card__titulo">Ver mis movimientos</h3>
+          @if (gananciaCelularPendiente > 0) {
+            <p class="rv-card__desc">Historial de recargas · <span class="rv-card__badge rv-card__badge--celular">${{ gananciaCelularPendiente | appCurrency }}</span> por liquidar</p>
+          } @else {
+            <p class="rv-card__desc">Historial de recargas y liquidaciones</p>
+          }
+        </div>
+        <ion-icon name="chevron-forward-outline" class="rv-card__arrow"></ion-icon>
+      </button>
+      }
+
     </div>
-    }
 
     } @else {
     <!-- SKELETON CELULAR -->
@@ -107,18 +125,20 @@
         <ion-skeleton-text animated style="width: 100%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
       </div>
     </div>
-    <div class="action-card-large">
-      <div class="action-icon" style="background: var(--ion-color-light);"></div>
-      <div class="action-content">
-        <h3><ion-skeleton-text animated style="width: 80%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
-        <p><ion-skeleton-text animated style="width: 60%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+    <div class="rv-cards">
+      <div class="rv-card rv-card--skeleton">
+        <div class="rv-card__icon" style="background: var(--ion-color-step-100);"></div>
+        <div class="rv-card__body">
+          <h3><ion-skeleton-text animated style="width: 80%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
+          <p><ion-skeleton-text animated style="width: 60%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+        </div>
       </div>
-    </div>
-    <div class="action-card-large">
-      <div class="action-icon" style="background: var(--ion-color-light);"></div>
-      <div class="action-content">
-        <h3><ion-skeleton-text animated style="width: 50%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
-        <p><ion-skeleton-text animated style="width: 70%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+      <div class="rv-card rv-card--skeleton">
+        <div class="rv-card__icon" style="background: var(--ion-color-step-100);"></div>
+        <div class="rv-card__body">
+          <h3><ion-skeleton-text animated style="width: 50%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
+          <p><ion-skeleton-text animated style="width: 70%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+        </div>
       </div>
     </div>
     }
@@ -135,18 +155,19 @@
     @if (!loading) {
 
     <div class="saldo-header">
-      @if (!(recargasCelularHabilitada && recargasBusHabilitada)) {
       <div class="saldo-servicio-pill bus">
         <ion-icon name="bus-outline"></ion-icon>
-        <span>Bus</span>
+        <span>Recargas Bus</span>
       </div>
-      }
       <div class="saldo-monto">${{ saldoVirtualBus | appCurrency }}</div>
-      <div class="saldo-label">Saldo para vender pasajes</div>
+      <div class="saldo-label">Disponible en la máquina para vender</div>
       <div class="saldo-divider"></div>
       <div class="saldo-caja-row">
-        <ion-icon name="wallet-outline"></ion-icon>
-        <span class="saldo-caja-label">Caja Bus</span>
+        <ion-icon name="cash-outline"></ion-icon>
+        <div class="saldo-caja-texto">
+          <span class="saldo-caja-label">Caja Bus</span>
+          <span class="saldo-caja-sub">Ventas de pasajes acumuladas</span>
+        </div>
         <span class="saldo-caja-valor">${{ cajaBusSaldo | appCurrency }}</span>
       </div>
     </div>
@@ -156,7 +177,7 @@
       <ion-icon name="information-circle-outline"></ion-icon>
       <div>
         <p class="hint-titulo">¿Cómo funciona?</p>
-        <p class="hint-texto">Deposita en el banco al proveedor Bus, luego en la máquina presiona F7 → Opción 2 (Recargas SAM en línea) para acreditar el saldo. Una vez acreditado, registra el depósito aquí.</p>
+        <p class="hint-texto">{{ ayudaBusTexto }}</p>
       </div>
     </div>
     }
@@ -165,33 +186,39 @@
 
     <!-- Sin @if (!esSuperadmin): la BD bloquea via fn_assert_no_superadmin en
          fn_registrar_compra_saldo_bus — ver nota equivalente en la tab CELULAR. -->
-    <div class="action-card-large" (click)="abrirModalCompraBus()">
-      <div class="action-icon bus">
-        <ion-icon name="bus-outline"></ion-icon>
-      </div>
-      <div class="action-content">
-        <h3>Recargar saldo máquina</h3>
-        <p>Consulta tu efectivo disponible antes de ir al banco</p>
-      </div>
-      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
-    </div>
+    <div class="rv-cards">
 
-    @if (totalMovimientosBus > 0) {
-    <div class="action-card-large" (click)="abrirHistorial('BUS')">
-      <div class="action-icon bus">
-        <ion-icon name="time-outline"></ion-icon>
-      </div>
-      <div class="action-content">
-        <h3>Movimientos</h3>
-        @if (gananciasBusPendiente > 0) {
-          <p>Tienes <span class="badge bus">${{ gananciasBusPendiente | appCurrency }}</span> por liquidar · Ver movimientos</p>
-        } @else {
-          <p>Ver movimientos</p>
-        }
-      </div>
-      <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
+      <!-- Deposité en el banco → me acreditan saldo en la máquina (dinero/saldo ENTRA) -->
+      <button type="button" class="rv-card" (click)="abrirModalCompraBus()">
+        <div class="rv-card__icon rv-card__icon--entra-bus">
+          <ion-icon name="arrow-down-circle-outline"></ion-icon>
+        </div>
+        <div class="rv-card__body">
+          <h3 class="rv-card__titulo">Ya deposité en el banco</h3>
+          <p class="rv-card__desc">Registra el saldo que te acreditaron en la máquina tras el depósito</p>
+        </div>
+        <ion-icon name="chevron-forward-outline" class="rv-card__arrow"></ion-icon>
+      </button>
+
+      <!-- Movimientos -->
+      @if (totalMovimientosBus > 0) {
+      <button type="button" class="rv-card rv-card--secundaria" (click)="abrirHistorial('BUS')">
+        <div class="rv-card__icon rv-card__icon--neutro">
+          <ion-icon name="time-outline"></ion-icon>
+        </div>
+        <div class="rv-card__body">
+          <h3 class="rv-card__titulo">Ver mis movimientos</h3>
+          @if (gananciasBusPendiente > 0) {
+            <p class="rv-card__desc">Historial de depósitos · <span class="rv-card__badge rv-card__badge--bus">${{ gananciasBusPendiente | appCurrency }}</span> por liquidar</p>
+          } @else {
+            <p class="rv-card__desc">Historial de depósitos y liquidaciones</p>
+          }
+        </div>
+        <ion-icon name="chevron-forward-outline" class="rv-card__arrow"></ion-icon>
+      </button>
+      }
+
     </div>
-    }
 
     } @else {
     <!-- SKELETON BUS -->
@@ -204,18 +231,20 @@
         <ion-skeleton-text animated style="width: 100%; height: 14px; border-radius: 4px;"></ion-skeleton-text>
       </div>
     </div>
-    <div class="action-card-large">
-      <div class="action-icon" style="background: var(--ion-color-light);"></div>
-      <div class="action-content">
-        <h3><ion-skeleton-text animated style="width: 70%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
-        <p><ion-skeleton-text animated style="width: 80%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+    <div class="rv-cards">
+      <div class="rv-card rv-card--skeleton">
+        <div class="rv-card__icon" style="background: var(--ion-color-step-100);"></div>
+        <div class="rv-card__body">
+          <h3><ion-skeleton-text animated style="width: 70%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
+          <p><ion-skeleton-text animated style="width: 80%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+        </div>
       </div>
-    </div>
-    <div class="action-card-large">
-      <div class="action-icon" style="background: var(--ion-color-light);"></div>
-      <div class="action-content">
-        <h3><ion-skeleton-text animated style="width: 60%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
-        <p><ion-skeleton-text animated style="width: 90%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+      <div class="rv-card rv-card--skeleton">
+        <div class="rv-card__icon" style="background: var(--ion-color-step-100);"></div>
+        <div class="rv-card__body">
+          <h3><ion-skeleton-text animated style="width: 60%; height: 16px; border-radius: 4px;"></ion-skeleton-text></h3>
+          <p><ion-skeleton-text animated style="width: 90%; height: 13px; border-radius: 4px; margin-top: 5px;"></ion-skeleton-text></p>
+        </div>
       </div>
     </div>
     }

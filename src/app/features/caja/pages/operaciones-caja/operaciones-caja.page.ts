@@ -368,7 +368,10 @@ export class OperacionesCajaPage implements OnDestroy {
         componentProps: {
           tipo: tipo,
           cajas: cajas,
-          cajaIdPreseleccionada: this.cajaId
+          cajaIdPreseleccionada: this.cajaId,
+          // El modal solo se cierra si esto retorna true (patrón onConfirmar) — en error
+          // queda abierto con los datos para reintentar.
+          onConfirmar: (data: OperacionModalResult) => this.ejecutarOperacion(tipo, data),
         },
         cssClass: 'bottom-sheet-modal',
         breakpoints: [0, 1],
@@ -376,17 +379,12 @@ export class OperacionesCajaPage implements OnDestroy {
       });
 
       await modal.present();
-      const { data, role } = await modal.onDidDismiss<OperacionModalResult>();
-
-      if (role === 'confirm' && data) {
-        await this.ejecutarOperacion(tipo, data);
-      }
     } catch (error: any) {
       await this.ui.showError('Error al abrir el formulario. Verifica tu conexión.');
     }
   }
 
-  async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModalResult) {
+  async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModalResult): Promise<boolean> {
     const success = await this.service.registrarOperacion(
       data.cajaId,
       tipo,
@@ -399,6 +397,7 @@ export class OperacionesCajaPage implements OnDestroy {
     if (success) {
       await this.cargarOperaciones(true);
     }
+    return success;
   }
 
   async abrirOpcionesComprobante(op: OperacionCaja) {

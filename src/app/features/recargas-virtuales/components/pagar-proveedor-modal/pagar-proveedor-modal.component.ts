@@ -1,16 +1,17 @@
 import { Component, inject, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCheckbox,
+  IonIcon, IonCheckbox, IonSpinner,
   ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, cardOutline } from 'ionicons/icons';
+import { closeOutline, cashOutline, trendingUpOutline, alertCircleOutline } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { FeedbackOverlayService } from '@core/services/feedback-overlay.service';
 import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
+import { CurrencyService } from '@core/services/currency.service';
 
 @Component({
   selector: 'app-pagar-proveedor-modal',
@@ -19,8 +20,7 @@ import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonCheckbox,
+    IonIcon, IonCheckbox, IonSpinner,
     AppCurrencyPipe,
   ]
 })
@@ -30,21 +30,23 @@ export class PagarProveedorModalComponent implements OnInit {
 
   private modalCtrl = inject(ModalController);
   private ui = inject(UiService);
+  private feedback = inject(FeedbackOverlayService);
   private service = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
+  private currencyService = inject(CurrencyService);
 
   // Estado de selección como objeto plano — Angular detecta cambios por referencia
   checked: Record<string, boolean> = {};
   guardando = false;
 
   constructor() {
-    addIcons({ closeOutline, cardOutline });
+    addIcons({ closeOutline, cashOutline, trendingUpOutline, alertCircleOutline });
   }
 
   ngOnInit() {
-    // Todas seleccionadas por defecto
+    // Ninguna seleccionada por defecto — el usuario marca manualmente lo que va a pagar
     const state: Record<string, boolean> = {};
-    this.deudas.forEach(d => state[d.id] = true);
+    this.deudas.forEach(d => state[d.id] = false);
     this.checked = state;
   }
 
@@ -108,10 +110,19 @@ export class PagarProveedorModalComponent implements OnInit {
         empleado.id,
         this.idsSeleccionadas
       );
-      await this.ui.showSuccess(resultado.message);
+      // Overlay (no toast): el modal se cierra inmediatamente después — un toast
+      // disparado justo antes de esa transición compite con ella y se pierde.
+      this.feedback.success({
+        titulo: 'Pago registrado',
+        destacado: `$${this.currencyService.format(resultado.total_pagado)}`,
+        subtitulo: `${resultado.filas_afectadas} recarga${resultado.filas_afectadas === 1 ? '' : 's'} pagada${resultado.filas_afectadas === 1 ? '' : 's'} · Caja Celular: $${this.currencyService.format(resultado.saldo_caja_celular_nuevo)}`,
+      });
       this.modalCtrl.dismiss({ success: true });
     } catch (err: any) {
-      await this.ui.showError(err?.message ?? 'Error al registrar el pago');
+      this.feedback.error({
+        titulo: 'No se pudo registrar el pago',
+        subtitulo: err?.message ?? 'Intenta de nuevo',
+      });
     } finally {
       this.guardando = false;
     }

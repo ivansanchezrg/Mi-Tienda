@@ -1,0 +1,10 @@
+:host {
+  display: block;
+}
+
+// Mismo patrón que offline-banner: reserva el safe-area superior solo mientras
+// el banner está visible. Sin banner, el :host no ocupa espacio.
+:host-context(body.sync-banner-visible) {
+  padding-top: env(safe-area-inset-top);
+  background: var(--app-bg);
+}

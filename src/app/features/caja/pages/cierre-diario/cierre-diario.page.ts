@@ -23,6 +23,9 @@ import {
 } from 'ionicons/icons';
 import { CommonModule } from '@angular/common';
 import { UiService } from '@core/services/ui.service';
+import { SupabaseService } from '@core/services/supabase.service';
+import { FeedbackOverlayService } from '@core/services/feedback-overlay.service';
+import { TimeoutError } from '@core/utils/timeout.util';
 import { HasPendingChanges } from '@core/guards/pending-changes.guard';
 import { CurrencyService } from '@core/services/currency.service';
 import { ConfigService } from '@core/services/config.service';
@@ -62,6 +65,8 @@ export class CierreDiarioPage implements HasPendingChanges {
   private router = inject(Router);
   private fb = inject(FormBuilder);
   private ui = inject(UiService);
+  private supabase = inject(SupabaseService);
+  private feedback = inject(FeedbackOverlayService);
   private recargasService   = inject(RecargasService);
   private turnosCajaService = inject(TurnosCajaService);
   private authService       = inject(AuthService);
@@ -106,6 +111,13 @@ export class CierreDiarioPage implements HasPendingChanges {
   // Datos para preview de distribución
   transferenciaDiariaVarios = 20;
   transferenciaCajaChicaYaHecha = false;
+
+  // Transferencias diarias a Varios no realizadas (turno abierto varios días).
+  // dias=0 en el caso normal. Se muestra como card informativa en el Paso 2.
+  variosPendienteDias = 0;
+  variosPendienteMonto = 0;
+  variosPendienteDesde: string | null = null;
+  variosPendienteHasta: string | null = null;
 
   // Saldos actuales de CAJA y VARIOS (para mostrar antes → después en Paso 2)
   saldoAnteriorCaja = 0;    // CAJA (Tienda) antes del cierre
@@ -220,6 +232,12 @@ export class CierreDiarioPage implements HasPendingChanges {
       // Distribución
       this.transferenciaDiariaVarios     = datos.transferenciaDiariaVarios;
       this.transferenciaCajaChicaYaHecha = datos.transferenciaYaHecha;
+
+      // Transferencias pendientes (turno abierto varios días)
+      this.variosPendienteDias  = datos.variosPendiente.dias;
+      this.variosPendienteMonto = datos.variosPendiente.monto;
+      this.variosPendienteDesde = datos.variosPendiente.desde;
+      this.variosPendienteHasta = datos.variosPendiente.hasta;
 
       // Resumen del turno (ventas POS + egresos — ya calculados en la RPC)
       this.ventasPosEfectivo = datos.resumenTurno.ventasPosEfectivo;
@@ -361,6 +379,29 @@ export class CierreDiarioPage implements HasPendingChanges {
 
   get saldoFinalCajaBus(): number {
     return this.saldoAnteriorCajaBus + this.ventaBus;
+  }
+
+  // ==========================================
+  // GETTERS — Paso 2: Transferencias pendientes (turno abierto varios días)
+  // ==========================================
+
+  /** ¿Hay transferencias a Varios pendientes de días anteriores? */
+  get hayVariosPendiente(): boolean {
+    return this.variosActiva && this.variosPendienteDias > 0;
+  }
+
+  /** Rango de días pendientes en formato corto, ej. "15/07 – 16/07" o "15/07" (un día). */
+  get variosPendienteRango(): string {
+    if (!this.variosPendienteDesde) return '';
+    const corto = (f: string) => {
+      const [, mes, dia] = f.split('-');
+      return `${dia}/${mes}`;
+    };
+    const desde = corto(this.variosPendienteDesde);
+    if (!this.variosPendienteHasta || this.variosPendienteHasta === this.variosPendienteDesde) {
+      return desde;
+    }
+    return `${desde} – ${corto(this.variosPendienteHasta)}`;
   }
 
   // ==========================================
@@ -508,18 +549,16 @@ export class CierreDiarioPage implements HasPendingChanges {
       });
 
       if (!resultado) {
+        // resultado === null → call() detectó "sin red" (isConnected() false + error de
+        // transporte). El banner global amarillo "Sin conexión a internet" ya comunica
+        // el estado de forma permanente → NO mostramos overlay redundante. Solo cerramos
+        // el loading. Timeout y errores de negocio NO llegan aquí (silentError los
+        // relanza → los maneja el catch de abajo, donde el banner sí puede no estar).
         await this.ui.hideLoading();
         return;
       }
 
       await this.ui.hideLoading();
-      await this.ui.showSuccess('Cierre guardado correctamente');
-
-      // Fecha local de apertura del turno — si difiere del día del cierre, el
-      // turno quedó abierto de un día anterior y la transferencia diaria a
-      // Varios de ese día no se realizó. El home muestra el aviso post-cierre.
-      const fechaApertura = new Date(this.turnoActivo.hora_fecha_apertura);
-      const aperturaLocal = `${fechaApertura.getFullYear()}-${String(fechaApertura.getMonth() + 1).padStart(2, '0')}-${String(fechaApertura.getDate()).padStart(2, '0')}`;
 
       // Capturar todos los valores del paso 2 ANTES de resetState(),
       // porque resetState() llama cierreForm.reset() y los getters que
@@ -530,7 +569,9 @@ export class CierreDiarioPage implements HasPendingChanges {
         observaciones:     this.cierreForm.get('observaciones')?.value || null,
         cajeroNombre:      this.turnoActivo.empleado?.nombre ?? empleado.nombre,
         horaApertura:      this.turnoActivo.hora_fecha_apertura,
-        aperturaEnOtroDia: aperturaLocal !== fechaLocal,
+        variosPendienteDias:  this.variosPendienteDias,
+        variosPendienteMonto: this.variosPendienteMonto,
+        variosPendienteRango: this.variosPendienteRango,
         fondoApertura:     this.fondoApertura,
         ventasPosEfectivo: this.ventasPosEfectivo,
         otrosIngresos:     this.otrosIngresos,
@@ -563,10 +604,45 @@ export class CierreDiarioPage implements HasPendingChanges {
       // Guardar datos para que el home abra el modal de compartir al detectar el pendiente
       this.shareCierreService.guardarPendiente(datosCierre);
 
+      // Overlay (no toast): la página navega al home inmediatamente después — un toast
+      // ahí compite con la transición y se pierde (Regla 2, design_toast_vs_overlay).
+      // Sin monto destacado: el desglose completo (efectivo contado, reparto a Varios/
+      // Tienda, saldos antes→después) ya se mostró en el paso 2 antes de confirmar —
+      // repetir una sola cifra aquí sería redundante y ambiguo (¿cuál de todas?).
+      // Duración corta (2s): si quien cierra es EMPLEADO, el home abre el modal
+      // "Cierre registrado / Enviar resumen" poco después — el overlay debe haberse
+      // disipado para no taparlo (el overlay tiene mayor z-index que el modal).
+      this.feedback.success({
+        titulo: 'Cierre registrado',
+        subtitulo: `Turno #${datosCierre.numeroTurno} cerrado correctamente`,
+        duracionMs: 2000,
+      });
+
       await this.router.navigate([ROUTES.home]);
     } catch (error: any) {
       await this.ui.hideLoading();
-      await this.ui.showError(error?.message || 'Error al guardar el cierre');
+
+      // Si el navegador YA sabe que no hay red, el banner global amarillo ya lo
+      // comunica → no mostramos overlay redundante (debeSilenciarErrorOffline =
+      // !isConnected() && esErrorDeTransporte). El overlay de red solo tiene sentido
+      // cuando el WiFi está "conectado pero roto" (timeout / transporte con
+      // isConnected() === true): ahí el banner NO aparece y el usuario se quedaría
+      // sin ninguna explicación de por qué no cerró.
+      if (this.supabase.debeSilenciarErrorOffline(error)) {
+        return;
+      }
+
+      // Fallo de red con red "conectada pero rota" (timeout, o transporte con el
+      // navegador creyendo que hay conexión) → mensaje de conexión, nunca el texto
+      // técnico del fetch. Error de negocio → mensaje real del RPC (ej. "El turno ya
+      // está cerrado", "Venta negativa..."), que el usuario debe leer para corregir.
+      const esFalloDeRed = error instanceof TimeoutError || this.supabase.esErrorDeTransporte(error);
+      this.feedback.error({
+        titulo: 'No se pudo cerrar el turno',
+        subtitulo: esFalloDeRed
+          ? 'El servidor no respondió. Verifica tu conexión e intenta de nuevo.'
+          : (error?.message || 'Intenta de nuevo'),
+      });
     }
   }
 

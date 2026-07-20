@@ -41,6 +41,16 @@
   </ion-toolbar>
 
 
+  <!-- Volver al catálogo — estático en el header (solo en lista, tras venir del catálogo) -->
+  @if (vistaActual === 'lista' && volvioDesdeCatalogo) {
+  <ion-toolbar class="volver-toolbar">
+    <button class="volver-catalogo-btn" (click)="volverAlCatalogo()" type="button">
+      <ion-icon name="chevron-back-outline"></ion-icon>
+      <span>Volver al catálogo</span>
+    </button>
+  </ion-toolbar>
+  }
+
   <!-- Fila cliente — mobile: solo en lista. Desktop: oculta (el panel tiene su propio selector) -->
   <ion-toolbar class="cliente-toolbar cliente-toolbar--mobile" [class.ion-hide]="vistaActual === 'catalogo'">
     <div class="cliente-header-row"
@@ -139,13 +149,6 @@
       @if (vistaActual === 'lista') {
       <div class="tab-animate">
 
-        @if (volvioDesdeCatalogo) {
-        <button class="volver-catalogo-btn" (click)="volverAlCatalogo()" type="button">
-          <ion-icon name="chevron-back-outline"></ion-icon>
-          <span>Volver al catálogo</span>
-        </button>
-        }
-
         @if (carrito().length === 0) {
           <app-empty-state
             icon="cart-outline"
@@ -226,6 +229,11 @@
               data-cat-id="__todos__" (click)="seleccionarCategoriaCatalogo(null)">
               Todos
             </button>
+            <button class="cat-tab cat-tab--favoritos" [class.cat-tab--active]="categoriaActivaId === FAVORITOS_ID"
+              [attr.data-cat-id]="FAVORITOS_ID" (click)="seleccionarCategoriaCatalogo(FAVORITOS_ID)"
+              aria-label="Favoritos">
+              <ion-icon name="star"></ion-icon>
+            </button>
             @for (cat of categoriasCatalogo; track cat.id) {
               <button class="cat-tab" [class.cat-tab--active]="categoriaActivaId === cat.id"
                 [attr.data-cat-id]="cat.id" (click)="seleccionarCategoriaCatalogo(cat.id)">
@@ -290,13 +298,21 @@
               @let stockLibre = item.producto.stock_actual - (carritoUnidadesBaseMap()[item.producto.id] || 0);
               <button class="catalogo-card" [class.catalogo-card--added]="catalogoCardAnimando === item.producto.id"
                 [class.catalogo-card--agotado]="stockLibre <= 0"
-                (click)="agregarDesdeCatalogo(item.producto, $event)" (contextmenu)="$event.preventDefault()" type="button">
+                (pointerdown)="onCardPointerDown(item.producto, $event)"
+                (pointerup)="onCardPointerUp($event)"
+                (pointercancel)="onCardPointerCancel($event)"
+                (contextmenu)="$event.preventDefault()" type="button">
+                @if (item.producto.favorito) {
+                  <ion-icon name="star" class="catalogo-card-fav"></ion-icon>
+                }
                 @if (carritoCountMap()[item.producto.id] || editandoItemKey === item.producto.id) {
                   @if (item.producto.presentaciones && item.producto.presentaciones.length > 0) {
                     <div class="catalogo-card-badge">{{ carritoCountMap()[item.producto.id] }}</div>
                   } @else {
                     <button class="catalogo-card-badge"
                       [disabled]="editandoItemKey === item.producto.id"
+                      (pointerdown)="$event.stopPropagation()"
+                      (pointerup)="$event.stopPropagation()"
                       (click)="$event.stopPropagation(); editarCantidadDesdeCatalogo(item.producto)"
                       type="button">
                       @if (editandoItemKey === item.producto.id) {
@@ -313,6 +329,14 @@
                       class="img-fade" (load)="$event.target['classList'].add('img-loaded')" />
                   } @else {
                     <div class="catalogo-card-placeholder-nombre {{ colorPlaceholder(item.producto.nombre) }}"><span>{{ item.producto.nombre }}</span></div>
+                  }
+                  @if (item.producto.tipo_venta === 'PESO') {
+                    <div class="catalogo-card-multi">{{ item.producto.unidad_medida }}</div>
+                  }
+                  @if (item.producto.presentaciones && item.producto.presentaciones.length > 0) {
+                    <div class="catalogo-card-tag catalogo-card-tag--present" aria-label="Tiene presentaciones">
+                      <ion-icon name="pricetag-outline"></ion-icon>
+                    </div>
                   }
                 </div>
                 <div class="catalogo-card-info">
@@ -332,9 +356,6 @@
                     }
                   </div>
                 </div>
-                @if (item.producto.tipo_venta === 'PESO') {
-                  <div class="catalogo-card-multi">{{ item.producto.unidad_medida }}</div>
-                }
               </button>
             }
             @if (item.tipo === 'template') {
@@ -352,6 +373,9 @@
                   } @else {
                     <div class="catalogo-card-placeholder-nombre {{ colorPlaceholder(item.templateNombre) }}"><span>{{ item.templateNombre }}</span></div>
                   }
+                  <div class="catalogo-card-tag catalogo-card-tag--variante" aria-label="Producto con variantes">
+                    <ion-icon name="color-palette-outline"></ion-icon>
+                  </div>
                 </div>
                 <div class="catalogo-card-info">
                   <span class="catalogo-card-nombre">{{ item.templateNombre }}</span>

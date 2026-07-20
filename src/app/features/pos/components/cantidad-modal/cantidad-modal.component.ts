@@ -1,7 +1,7 @@
 import { Component, Input, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { IonButton, IonIcon, ModalController } from '@ionic/angular/standalone';
+import { IonButton, IonIcon, IonSpinner, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline, addOutline, removeOutline, scaleOutline, cubeOutline, trashOutline } from 'ionicons/icons';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -15,7 +15,7 @@ export interface CantidadModalResult {
     templateUrl: './cantidad-modal.component.html',
     styleUrls: ['./cantidad-modal.component.scss'],
     standalone: true,
-    imports: [CommonModule, FormsModule, IonButton, IonIcon]
+    imports: [CommonModule, FormsModule, IonButton, IonIcon, IonSpinner]
 })
 export class CantidadModalComponent implements OnInit {
     @Input() nombre!: string;
@@ -119,7 +119,13 @@ export class CantidadModalComponent implements OnInit {
         }
     }
 
+    // Feedback inmediato: el dismiss de un bottom-sheet en Android anima ~300ms y tras
+    // cerrar el POS aún resuelve la imagen del ítem. Sin este flag el botón parece
+    // "trabado". Marcarlo disabled + spinner da respuesta al toque al instante.
+    cerrando = false;
+
     confirmar() {
+        if (this.cerrando) return; // anti doble-tap
         const cant = this.parseCantidad(this.cantidadStr);
 
         if (!cant || isNaN(cant) || cant <= 0) {
@@ -133,14 +139,19 @@ export class CantidadModalComponent implements OnInit {
         }
 
         const cantFinal = this.esPeso ? Math.round(cant * 1000) / 1000 : cant;
+        this.cerrando = true;
         this.modalCtrl.dismiss({ cantidad: cantFinal } as CantidadModalResult, 'confirm');
     }
 
     quitar() {
+        if (this.cerrando) return;
+        this.cerrando = true;
         this.modalCtrl.dismiss(null, 'quitar');
     }
 
     cancelar() {
+        if (this.cerrando) return;
+        this.cerrando = true;
         this.modalCtrl.dismiss(null, 'cancel');
     }
 }

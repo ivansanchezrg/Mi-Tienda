@@ -1,73 +1,122 @@
-ion-header {
-  &::after { display: none; }
+// Modal "Registrar recarga / depósito" — patrón bottom-sheet (bs-*).
+// Layout base (.bs-root, .bs-header, .bs-content) viene de modals.scss.
+// Aquí solo lo específico de este modal (prefijo rr-*). Sirve a dos flujos:
+// CELULAR (un input + cálculo automático) y BUS (dos pasos + desglose).
+
+// ── Header ────────────────────────────────────────────────────────────────
+.rr-header-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  // Estética sobria: fondo tinte claro del color, icono a color pleno.
+  background: rgba(var(--ion-color-primary-rgb), 0.1);
+
+  ion-icon {
+    font-size: 22px;
+    color: var(--ion-color-primary);
+  }
+
+  &--bus {
+    background: rgba(var(--ion-color-secondary-rgb), 0.12);
+    ion-icon { color: var(--ion-color-secondary); }
+  }
 }
 
-ion-toolbar {
-  --border-width: 0 !important;
+.rr-header-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-ion-content {
-  --background: var(--ion-background-color);
+.rr-header-subtitle {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  font-weight: 400;
 }
 
-.modal-content {
-  padding: var(--spacing-lg);
+// ── Body ──────────────────────────────────────────────────────────────────
+.rr-body {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
-  min-height: 100%;
+  padding: 4px var(--spacing-xl) 20px;
 }
 
-// Input group
-.input-group {
+// ── Campo de monto ──────────────────────────────────────────────────────────
+.rr-field {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
 }
 
-.helper-text {
-  font-size: 12px;
-  color: var(--ion-color-medium);
-  margin-top: 2px;
-}
-
-.input-label {
+.rr-field-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 14px;
-  font-weight: var(--font-weight-semibold);
+  font-weight: 600;
   color: var(--ion-text-color);
 }
 
-.amount-wrapper {
+// Número de paso (solo flujo BUS — indica secuencia 1 → 2)
+.rr-step-num {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--ion-color-secondary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rr-amount {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-md) var(--spacing-lg);
+  padding: 14px var(--spacing-lg);
   border: 2px solid var(--ion-color-step-150);
   border-radius: var(--radius-md);
   background: var(--ion-background-color);
-  transition: all var(--transition-fast);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 
   &:focus-within {
     border-color: var(--ion-color-primary);
     box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.1);
   }
 
-  &.filled {
+  &--filled {
     border-color: var(--ion-color-primary);
   }
 
-  .currency {
+  &--error,
+  &--error:focus-within {
+    border-color: var(--ion-color-danger);
+    box-shadow: none;
+  }
+
+  .rr-amount-currency {
     font-size: 24px;
-    font-weight: var(--font-weight-bold);
+    font-weight: 700;
     color: var(--ion-color-medium);
   }
 
   input {
     flex: 1;
+    min-width: 0;
     border: none;
     padding: 0;
     font-size: 28px;
-    font-weight: var(--font-weight-bold);
+    font-weight: 700;
     background: transparent;
     color: var(--ion-text-color);
     outline: none;
@@ -79,100 +128,159 @@ ion-content {
   }
 }
 
-// Card de disponibilidad BUS (saldo caja + ventas del día)
-.disponible-card {
-  background: var(--ion-item-background);
-  border: 1px solid var(--ion-color-secondary);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
+.rr-helper {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+// ── Desglose de disponibilidad (BUS) ────────────────────────────────────────
+.rr-desglose {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
+  padding: 14px 16px;
+  background: rgba(var(--ion-color-secondary-rgb), 0.06);
+  border: 1px solid rgba(var(--ion-color-secondary-rgb), 0.2);
+  border-radius: var(--radius-md);
+}
 
-  .disponible-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 13px;
-    color: var(--ion-color-step-600);
+.rr-desglose-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--ion-color-step-600);
 
-    &.total {
-      border-top: 1px solid var(--ion-color-step-150);
-      padding-top: var(--spacing-xs);
-      margin-top: var(--spacing-xs);
-      font-size: 14px;
-      font-weight: var(--font-weight-semibold);
-      color: var(--ion-text-color);
-    }
-  }
-
-  .valor-ventas {
-    color: var(--ion-color-secondary);
-    font-weight: var(--font-weight-semibold);
-  }
-
-  .valor-total {
-    color: var(--ion-color-secondary);
-    font-weight: var(--font-weight-bold);
+  &--total {
+    border-top: 1px solid rgba(var(--ion-color-secondary-rgb), 0.2);
+    padding-top: var(--spacing-xs);
+    margin-top: 2px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ion-text-color);
   }
 }
 
-// Cálculos
-.calculo-preview {
-  background: var(--ion-item-background);
-  border: 1px solid var(--ion-color-step-150);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
+.rr-desglose-ventas {
+  color: var(--ion-color-secondary);
+  font-weight: 600;
+}
+
+.rr-desglose-total {
+  color: var(--ion-color-secondary);
+  font-weight: 800;
+  font-size: 16px;
+}
+
+// ── Cálculo automático (CELULAR) ────────────────────────────────────────────
+.rr-calculo {
   display: flex;
   flex-direction: column;
+  padding: 4px 16px;
+  background: var(--ion-color-step-100);   // #E6E6E6 en claro, se adapta en dark
+  border-radius: var(--radius-md);
+}
+
+.rr-calculo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: 12px 0;
+}
+
+.rr-calculo-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.rr-calculo-titulo {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ion-text-color);
+}
+
+.rr-calculo-sub {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+}
+
+.rr-calculo-divider {
+  height: 1px;
+  background: var(--ion-color-step-200);
+}
+
+.rr-calculo-danger {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ion-color-danger);
+  letter-spacing: -0.3px;
+  flex-shrink: 0;
+}
+
+.rr-calculo-success {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ion-color-success);
+  letter-spacing: -0.3px;
+  flex-shrink: 0;
+
+  ion-icon { font-size: 16px; }
+}
+
+// ── Resultado depósito OK (BUS) ─────────────────────────────────────────────
+.rr-resultado {
+  display: flex;
+  align-items: center;
   gap: var(--spacing-sm);
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
 
-  .calculo-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 14px;
+  &--ok {
+    background: rgba(var(--ion-color-success-rgb), 0.08);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.25);
 
-    span:first-child {
-      color: var(--ion-text-color);
-      font-weight: var(--font-weight-medium);
-    }
-
-    .calculo-danger {
-      color: var(--ion-color-danger);
-      font-weight: var(--font-weight-bold);
-      font-size: 16px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .calculo-success {
+    ion-icon {
+      font-size: 22px;
       color: var(--ion-color-success);
-      font-weight: var(--font-weight-bold);
-      font-size: 16px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
+      flex-shrink: 0;
     }
   }
 }
 
-// Alerta saldo insuficiente
-.alerta-saldo {
+.rr-resultado-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ion-text-color);
+}
+
+.rr-resultado-valor {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ion-color-success);
+  letter-spacing: -0.3px;
+}
+
+// ── Alerta saldo insuficiente ───────────────────────────────────────────────
+.rr-alerta {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+  padding: 12px 14px;
   background: rgba(var(--ion-color-danger-rgb), 0.08);
-  border: 1px solid var(--ion-color-danger);
+  border: 1px solid rgba(var(--ion-color-danger-rgb), 0.25);
   border-radius: var(--radius-md);
 
   ion-icon {
     font-size: 22px;
     color: var(--ion-color-danger);
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: 1px;
   }
 
   strong {
@@ -190,50 +298,46 @@ ion-content {
   }
 }
 
-// Acciones
-.modal-actions {
-  display: flex;
-  flex-direction: row;
-  gap: var(--spacing-md);
+// ── Footer: botón único de acción ────────────────────────────────────────────
+.rr-footer {
+  flex-shrink: 0;
+  padding: var(--spacing-sm) var(--spacing-xl);
+  padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--app-divider);
+  background: var(--app-bg);
 }
 
-.primary-btn,
-.secondary-btn {
-  flex: 1;
+.rr-confirmar-btn {
+  width: 100%;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-md);
+  gap: 8px;
   border: none;
   border-radius: var(--radius-md);
-  font-size: 15px;
-  font-weight: var(--font-weight-bold);
-  cursor: pointer;
-  transition: all var(--transition-normal);
-
-  ion-icon {
-    font-size: 20px;
-  }
-
-  &:active {
-    transform: scale(0.98);
-  }
-}
-
-.primary-btn {
   background: var(--ion-color-primary);
   color: var(--ion-color-primary-contrast);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
   box-shadow: var(--shadow-level-2);
+  transition: transform 0.12s ease, opacity 0.2s ease;
+
+  ion-icon { font-size: 20px; }
+  ion-spinner { width: 20px; height: 20px; }
+
+  // Flujo Bus usa el color secundario en toda la sección — el botón lo respeta
+  &--bus {
+    background: var(--ion-color-secondary);
+    color: var(--ion-color-secondary-contrast);
+  }
+
+  &:active:not(:disabled) { transform: scale(0.98); }
 
   &:disabled {
     opacity: 0.4;
     cursor: not-allowed;
-    transform: none;
+    box-shadow: none;
   }
-}
-
-.secondary-btn {
-  background: var(--ion-color-step-100);
-  color: var(--ion-text-color);
 }

@@ -307,7 +307,15 @@ export class StorageService {
   //   4. Offline sin binario ni cache RAM: null (placeholder) — no hay forma de mostrarla.
   async resolveImageUrl(path: string | null | undefined): Promise<string | null> {
     if (!path) return null;
-    if (path.startsWith('http')) return path;
+    // Ya es una URL utilizable directamente por el <img> — NO intentar firmarla en Storage.
+    //   • http(s):    signed URL ya resuelta o pública (incluye convertFileSrc en Android:
+    //                 https://localhost/_capacitor_file_/…).
+    //   • blob:       object URL de un binario local (ImagenLocalService en web / IndexedDB).
+    //   • data:       imagen embebida en base64.
+    //   • capacitor:  esquema nativo de convertFileSrc en iOS.
+    // Sin este corte, un blob:/data: (ej. la imagen del template heredada por una variante
+    // sin foto) se enviaba a getSignedUrl → 400 "Object not found" (bug 2026-07-17).
+    if (/^(https?:|blob:|data:|capacitor:)/.test(path)) return path;
 
     const offline = !this.network.isConnected();
 
@@ -382,8 +390,9 @@ export class StorageService {
   }
 
   // Borra TODO el contenido de un negocio en el bucket — uso exclusivo del flujo
-  // de purga (PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md, Fase 4). No se llama desde el
-  // guard ni desde ninguna página normal de la app — no exponer en menús de usuario.
+  // de purga (docs/suscripcion/SUSCRIPCION-README.md, sección "Purga automática
+  // de negocios vencidos"). No se llama desde el guard ni desde ninguna página
+  // normal de la app — no exponer en menús de usuario.
   //
   // Recorre recursivamente {negocioId}/ sin hardcodear nombres de subcarpeta
   // (comprobantes/, productos/, etc.): list() de Supabase Storage no es recursivo,
@@ -391,6 +400,10 @@ export class StorageService {
   // entrada con metadata.size (archivo) se acumula para el remove() final.
   // Hardcodear subcarpetas es frágil — un subfolder nuevo agregado a futuro
   // (ej. notas/adjuntos) quedaría huérfano si este método no se actualiza a mano.
+  //
+  // Si el listado o el borrado fallan, la excepción propaga (nunca se traga el
+  // error): SuscripcionService.purgarNegocio depende de que este método lance
+  // para NO continuar con el DELETE en BD si Storage no terminó de limpiarse.
   async deleteNegocioFolder(negocioId: string): Promise<void> {
     const paths = await this.listarArchivosRecursivo(negocioId);
     if (paths.length === 0) return;
@@ -405,25 +418,42 @@ export class StorageService {
     }
   }
 
+  // list() de Supabase Storage pagina con limit:100 por default — una carpeta con
+  // más de 100 archivos (ej. catálogo grande, muchos meses de comprobantes) dejaba
+  // los archivos 101+ huérfanos en silencio. Loop con limit/offset hasta agotar.
   private async listarArchivosRecursivo(prefix: string): Promise<string[]> {
-    const { data, error } = await this.supabase.client.storage.from(BUCKET).list(prefix);
-    if (error) {
-      this.logger.error('StorageService', `Error al listar ${prefix}`, error);
-      return [];
-    }
-    if (!data) return [];
-
     const archivos: string[] = [];
-    for (const entry of data) {
-      const entryPath = `${prefix}/${entry.name}`;
-      // Una carpeta no tiene metadata.size (id es null) en la respuesta de Storage;
-      // un archivo real sí lo tiene.
-      if (entry.id === null) {
-        archivos.push(...await this.listarArchivosRecursivo(entryPath));
-      } else {
-        archivos.push(entryPath);
+    const pageSize = 1000;
+    let offset = 0;
+
+    for (;;) {
+      const { data, error } = await this.supabase.client.storage
+        .from(BUCKET)
+        .list(prefix, { limit: pageSize, offset });
+
+      if (error) {
+        this.logger.error('StorageService', `Error al listar ${prefix}`, error);
+        // Propaga: tragarse el error convierte un fallo de listado en "carpeta
+        // vacía", y la purga seguiría con BD dejando archivos huérfanos en Storage.
+        throw error;
       }
+      if (!data || data.length === 0) break;
+
+      for (const entry of data) {
+        const entryPath = `${prefix}/${entry.name}`;
+        // Una carpeta no tiene metadata.size (id es null) en la respuesta de Storage;
+        // un archivo real sí lo tiene.
+        if (entry.id === null) {
+          archivos.push(...await this.listarArchivosRecursivo(entryPath));
+        } else {
+          archivos.push(entryPath);
+        }
+      }
+
+      if (data.length < pageSize) break;
+      offset += pageSize;
     }
+
     return archivos;
   }
 

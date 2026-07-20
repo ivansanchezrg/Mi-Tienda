@@ -235,11 +235,20 @@ export class VarianteSelectorModalComponent implements OnInit {
         }
     }
 
+    protected cerrando = false;
+
     continuar() {
+        if (this.cerrando) return; // anti doble-tap
+        // Feedback inmediato: el dismiss de un bottom-sheet en Android anima ~300ms.
+        // Sin este flag el botón parece "trabado" durante la transición. Marcarlo
+        // disabled + spinner da respuesta al toque al instante.
+        this.cerrando = true;
         this.modalCtrl.dismiss(null, 'continuar');
     }
 
     cerrar() {
+        if (this.cerrando) return;
+        this.cerrando = true;
         this.modalCtrl.dismiss(null, 'cancel');
     }
 }

@@ -87,11 +87,28 @@ export class NotasService {
         return raw ? mapNota(raw) : null;
     }
 
-    async eliminar(id: string): Promise<boolean> {
-        const result = await this.supabase.call(
-            this.supabase.client.from('notas').delete().eq('id', id),
-            'Nota eliminada'
+    /** Cualquier usuario puede editar cualquier nota — sin restricción de creador. */
+    async editar(id: string, texto: string): Promise<Nota | null> {
+        const raw = await this.supabase.call<any>(
+            this.supabase.client.from('notas')
+                .update({ texto })
+                .eq('id', id)
+                .select(SELECT_NOTA)
+                .single()
         );
-        return result !== null;
+        return raw ? mapNota(raw) : null;
+    }
+
+    /**
+     * No pasa por supabase.call() a propósito: call() ya muestra su propio toast de
+     * error, y la página necesita controlar el feedback ella misma (overlay de error,
+     * no toast — es destructiva e irreversible, el usuario ya la confirmó en un Alert
+     * antes de llegar aquí). En éxito no hay ningún aviso: la nota desaparece de la
+     * lista ante sus ojos, feedback visual directo. Ver design_toast_vs_overlay_feedback.md.
+     */
+    async eliminar(id: string): Promise<{ ok: true } | { ok: false; sinConexion: boolean; mensaje?: string }> {
+        const { error } = await this.supabase.client.from('notas').delete().eq('id', id);
+        if (!error) return { ok: true };
+        return { ok: false, sinConexion: this.supabase.esErrorDeTransporte(error), mensaje: error.message };
     }
 }

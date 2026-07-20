@@ -1,30 +1,43 @@
-<ion-header class="ion-no-border">
-  <ion-toolbar>
-    <ion-title>{{ tituloModal }}</ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="cerrar()">
-        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
-</ion-header>
+<div class="bs-root">
 
-<ion-content>
-  @if (loading) {
-    <div class="loading-state">
+  <!-- Header con icono del servicio -->
+  <div class="bs-header">
+    <div class="hm-header-icon" [class.hm-header-icon--bus]="tipo === 'BUS'">
       @if (tipo === 'CELULAR') {
         <ion-icon name="phone-portrait-outline"></ion-icon>
       } @else {
         <ion-icon name="bus-outline"></ion-icon>
       }
-      <p>Cargando historial...</p>
     </div>
-  } @else {
-    <div class="modal-content">
+    <div class="hm-header-text">
+      <span class="bs-header__title">{{ tituloModal }}</span>
+      <span class="hm-header-subtitle">Historial de {{ tipo === 'CELULAR' ? 'recargas' : 'depósitos' }} y liquidaciones</span>
+    </div>
+    <button class="bs-header__close" (click)="cerrar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
 
-      @if (historial.length > 0) {
-        <ion-card class="historial-card">
+  <div class="bs-content">
+    @if (loading) {
+      <div class="hm-loading">
+        @if (tipo === 'CELULAR') {
+          <ion-icon name="phone-portrait-outline"></ion-icon>
+        } @else {
+          <ion-icon name="bus-outline"></ion-icon>
+        }
+        <p>Cargando historial...</p>
+      </div>
+    } @else if (historial.length === 0) {
+      @if (tipo === 'CELULAR') {
+      <app-empty-state icon="phone-portrait-outline" hint="Sin movimientos registrados"></app-empty-state>
+      } @else {
+      <app-empty-state icon="bus-outline" hint="Sin movimientos registrados"></app-empty-state>
+      }
+    } @else {
+      <div class="hm-body">
 
+        <div class="hm-tabla">
           <!-- Header de columnas — Bus no tiene etapa de "pago a proveedor" (nace
                disponible de inmediato), por eso no muestra esa columna: a diferencia
                de Celular, en Bus siempre sería el mismo valor y no aporta información. -->
@@ -74,81 +87,68 @@
             </span>
           </div>
           }
+        </div>
 
-          <!-- Aviso: ganancia atrapada hasta pagar al proveedor (solo CELULAR) -->
-          @if (gananciaSinPagarProveedor > 0) {
-            <div class="proveedor-pendiente-banner">
-              <ion-icon name="alert-circle-outline"></ion-icon>
-              <span>
-                <strong>${{ gananciaSinPagarProveedor | appCurrency }}</strong> en ganancia no se puede liquidar todavía —
-                primero debes pagar al proveedor esas recargas.
+        <!-- Aviso: ganancia atrapada hasta pagar al proveedor (solo CELULAR) -->
+        @if (gananciaSinPagarProveedor > 0) {
+          <div class="proveedor-pendiente-banner">
+            <ion-icon name="alert-circle-outline"></ion-icon>
+            <span>
+              <strong>${{ gananciaSinPagarProveedor | appCurrency }}</strong> en ganancia no se puede liquidar todavía —
+              primero debes pagar al proveedor esas recargas.
+            </span>
+          </div>
+        }
+
+        <!-- Totales -->
+        <div class="totales-section">
+          @if (totalLiquidado > 0) {
+            <div class="total-col">
+              <div class="total-col-label">
+                <span class="total-dot liquidado"></span>
+                <span>Ya transferido</span>
+              </div>
+              <span class="total-col-monto liquidado">${{ totalLiquidado | appCurrency }}</span>
+            </div>
+          }
+          @if (totalPorLiquidar > 0) {
+            <div class="total-col">
+              <div class="total-col-label">
+                <span class="total-dot" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'"></span>
+                <span>Por liquidar</span>
+              </div>
+              <span class="total-col-monto" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'">
+                ${{ totalPorLiquidar | appCurrency }}
               </span>
             </div>
           }
-
-          <!-- Totales -->
-          <div class="totales-section">
-            @if (totalLiquidado > 0) {
-              <div class="total-col">
-                <div class="total-col-label">
-                  <span class="total-dot liquidado"></span>
-                  <span>Ya transferido</span>
-                </div>
-                <span class="total-col-monto liquidado">${{ totalLiquidado | appCurrency }}</span>
+          @if (totalLiquidado > 0 && totalPorLiquidar > 0) {
+            <div class="total-col">
+              <div class="total-col-label">
+                <span>Total ganancia</span>
               </div>
-            }
-            @if (totalPorLiquidar > 0) {
-              <div class="total-col">
-                <div class="total-col-label">
-                  <span class="total-dot" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'"></span>
-                  <span>Por liquidar</span>
-                </div>
-                <span class="total-col-monto" [class.celular]="tipo === 'CELULAR'" [class.bus]="tipo === 'BUS'">
-                  ${{ totalPorLiquidar | appCurrency }}
-                </span>
-              </div>
-            }
-            @if (totalLiquidado > 0 && totalPorLiquidar > 0) {
-              <div class="total-col">
-                <div class="total-col-label">
-                  <span>Total ganancia</span>
-                </div>
-                <span class="total-col-monto total">${{ totalGanancia | appCurrency }}</span>
-              </div>
-            }
-          </div>
-
-          <!-- Botón liquidar — visible siempre que haya pendiente, sin exigir saldo
-               suficiente. Si la caja origen no alcanza, confirmarLiquidacion() lo
-               explica con un toast antes de abrir la confirmación (el botón nunca
-               desaparece sin que el usuario sepa por qué). Sin @if (!esSuperadmin):
-               la BD bloquea via fn_assert_no_superadmin en fn_liquidar_ganancias. -->
-          @if (puedeLiquidar) {
-          <ion-button
-            expand="block"
-            [color]="tipo === 'CELULAR' ? 'primary' : 'secondary'"
-            class="liquidar-btn"
-            (click)="confirmarLiquidacion()">
-            Transferir ${{ totalPorLiquidar | appCurrency }} a {{ nombreCajaDestino }}
-            <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
-          </ion-button>
+              <span class="total-col-monto total">${{ totalGanancia | appCurrency }}</span>
+            </div>
           }
+        </div>
 
-        </ion-card>
-      } @else {
-        @if (tipo === 'CELULAR') {
-        <app-empty-state
-          icon="phone-portrait-outline"
-          hint="Sin movimientos registrados">
-        </app-empty-state>
-        } @else {
-        <app-empty-state
-          icon="bus-outline"
-          hint="Sin movimientos registrados">
-        </app-empty-state>
-        }
-      }
+      </div>
+    }
+  </div>
 
-    </div>
+  <!-- Footer: botón liquidar — visible siempre que haya pendiente, sin exigir saldo
+       suficiente. Si la caja origen no alcanza, confirmarLiquidacion() lo explica con
+       un toast antes de abrir la confirmación (el botón nunca desaparece sin que el
+       usuario sepa por qué). Sin @if (!esSuperadmin): la BD bloquea via
+       fn_assert_no_superadmin en fn_liquidar_ganancias. -->
+  @if (!loading && puedeLiquidar) {
+  <div class="hm-footer">
+    <button class="hm-liquidar-btn" [class.hm-liquidar-btn--bus]="tipo === 'BUS'"
+      (click)="confirmarLiquidacion()" type="button">
+      <span>Transferir ${{ totalPorLiquidar | appCurrency }} a {{ nombreCajaDestino }}</span>
+      <ion-icon name="arrow-forward-outline"></ion-icon>
+    </button>
+  </div>
   }
-</ion-content>
+
+</div>

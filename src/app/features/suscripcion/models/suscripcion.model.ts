@@ -1,6 +1,6 @@
 /**
  * Modelos del sistema de planes y suscripciones (monetización SaaS).
- * Ver docs/PLAN-PLANES-SUSCRIPCION.md
+ * Ver docs/suscripcion/SUSCRIPCION-README.md
  *
  * Terminología: "suscripción"/"plan" — NO confundir con "membresía"
  * (usuario_negocios = rol del usuario en el negocio).
@@ -105,7 +105,7 @@ export interface SuscripcionAdmin {
 
 /**
  * Fila del listado de negocios en cuenta regresiva de purga (panel admin).
- * Ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md. Un item por negocio — los del
+ * Ver docs/suscripcion/SUSCRIPCION-README.md. Un item por negocio — los del
  * mismo propietario comparten propietario_id/purga_programada_el (sincronizados).
  */
 export interface NegocioPendientePurga {

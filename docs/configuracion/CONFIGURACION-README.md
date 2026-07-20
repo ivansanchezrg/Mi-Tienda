@@ -245,16 +245,37 @@ Ubicacion: `features/configuracion/components/categoria-operacion-modal/`
 ### Categorias de Productos (`pages/categorias-productos/`)
 
 CRUD de categorias para clasificar el catalogo de inventario. Estas categorias son
-las que aparecen en los chips de filtro del grid de inventario.
+las que aparecen en los chips de filtro del grid de inventario y en los tabs de
+categoria del catalogo POS.
 
-- Lista flat (sin segmentos): todas las categorias activas
-- FAB: crear nueva categoria
+- Lista flat (sin segmentos): todas las categorias activas, ordenadas por `orden` (con
+  desempate `nombre`) — el orden es manual (ver "Orden manual — drag & drop" abajo)
+- FAB: crear nueva categoria (se inserta al final: `orden = max(orden) + 1`)
 - Modal `categoria-producto-modal` (bottom-sheet): nombre + toggle activo/inactivo
   - **Modo crear**: solo campo nombre
   - **Modo editar**: nombre + toggle para desactivar
   - No se puede desactivar una categoria que tenga productos activos o desactivados asignados (validacion en el servicio antes de llamar a BD)
 - Pull-to-refresh
 - Al tocar una categoria: abre modal en modo editar
+
+#### Orden manual — drag & drop (2026-07-16)
+
+El ADMIN reordena las categorias arrastrandolas; ese orden se propaga automaticamente
+a todo consumidor de `InventarioService.obtenerCategorias()` (filtro de Inventario,
+tabs del catalogo POS, selectores de categoria en formularios) — un solo punto de
+lectura, sin cambios adicionales en esas paginas.
+
+- `IonReorderGroup` + `IonReorder` (Ionic nativo, primer uso en el proyecto) envolviendo
+  el `@for` de categorias. Handle `<ion-reorder>` con `(click)="$event.stopPropagation()"`
+  para no disparar la apertura del modal de edicion al arrastrar.
+- Handler `onReorder(event: ItemReorderCustomEvent)`: `event.detail.complete(categorias)`
+  reacomoda el array en memoria; luego persiste via `InventarioService.reordenarCategorias()`.
+  Guard `reordenando` evita que dos drags rapidos se pisen la persistencia.
+- Si la persistencia falla, revierte recargando desde BD (`cargarCategorias()`) — no hay
+  revert manual del array, se confia en la fuente de verdad del servidor.
+- Persistencia: `fn_reordenar_categorias(p_categoria_ids UUID[])` — un solo `UPDATE`
+  atomico via `unnest WITH ORDINALITY` que asigna `orden = posicion` (0-based). Multi-tenant:
+  valida que todos los IDs pertenezcan al negocio del JWT. Bloqueada para superadmin.
 
 #### `CategoriaProductoModalComponent`
 
@@ -316,5 +337,6 @@ Setup ejecutado una sola vez: [`sql/setup/realtime_configuraciones.sql`](./sql/s
 | `fn_configurar_caja_varios` | `docs/configuracion/sql/functions/` | Solo ADMIN del negocio (superadmin bloqueado) | Activa/desactiva la Caja Varios (reversible). Activar: crea o reactiva la caja + flag + monto. Desactivar: exige saldo $0 y pone `cajas.activo = FALSE` conservando historial. Parametros: `p_activar BOOLEAN`, `p_monto DECIMAL`. |
 | `fn_configurar_modulos` | `docs/onboarding/sql/functions/` | Solo superadmin (desde dentro del negocio) | Habilita los modulos CELULAR y/o BUS. Crea las cajas y categorias del modulo activado y actualiza los flags. Parametros: `p_celular BOOLEAN`, `p_bus BOOLEAN`. |
 | `fn_configurar_modulos_admin` | `docs/admin/sql/functions/` | Solo superadmin (desde `/admin`) | Igual que `fn_configurar_modulos` pero opera sobre un negocio especificado por parametro, sin necesitar JWT del negocio. |
+| `fn_reordenar_categorias` | `docs/inventario/sql/functions/` | Solo ADMIN del negocio (superadmin bloqueado) | Persiste el orden manual de categorias de productos (drag & drop). Parametro: `p_categoria_ids UUID[]` ya en el orden deseado. `UPDATE` atomico via `unnest WITH ORDINALITY`. Valida que todos los IDs pertenezcan al negocio del JWT. |
 
 > Los flags `recargas_celular_habilitada`, `recargas_bus_habilitada` y `caja_varios_activa` se leen via `ConfigService.get()` desde el dashboard, sidebar, paginas de recargas e historial para ocultar UI y saltear queries de modulos inactivos.

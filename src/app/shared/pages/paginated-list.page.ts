@@ -56,6 +56,19 @@ export abstract class PaginatedListPage<T> {
 
     private _page = 0;
 
+    /**
+     * Token de generación de la carga. Cada `cargar()` (reset por filtro/búsqueda/refresh)
+     * lo incrementa. Los resultados de un `fetchPage` en vuelo se DESCARTAN si su generación
+     * ya no es la vigente al resolver → evita la carrera clásica: el usuario cambia de filtro
+     * mientras un `cargarMas` está esperando, y al llegar tarde ese `cargarMas` mezclaba
+     * productos del filtro viejo, dejaba `hasMore`/`_page` desincronizados y el infinite
+     * scroll dejaba de cargar. (Bug reportado en Inventario, 2026-07.)
+     */
+    private _generacion = 0;
+
+    /** Evita que dos `cargarMas` se solapen (doble disparo del ionInfinite). */
+    private _cargandoMas = false;
+
     /** Registros por página — debe definirlo cada subclase */
     protected abstract readonly pageSize: number;
 
@@ -77,31 +90,48 @@ export abstract class PaginatedListPage<T> {
      * @param silencioso  true → no muestra spinner (para pull-to-refresh)
      */
     protected async cargar(silencioso = false): Promise<void> {
+        // Nueva generación: invalida cualquier fetchPage (cargar o cargarMas) en vuelo.
+        const gen = ++this._generacion;
+        this._cargandoMas = false;
         if (!silencioso) this.loading = true;
         this._page = 0;
         try {
             const data = await this.fetchPage(0);
+            if (gen !== this._generacion) return;  // llegó tarde: otro cargar/filtro ya tomó el control
             this.items = data;
             this.hasMore = data.length === this.pageSize;
         } catch {
+            if (gen !== this._generacion) return;
             // showError silencia el toast cuando es por falta de red (el banner global ya avisa).
             await this.ui.showError('Error al cargar los datos. Verifica tu conexión.');
         } finally {
-            this.loading = false;
+            if (gen === this._generacion) this.loading = false;
         }
     }
 
     /** Handler del ion-infinite-scroll: carga la siguiente página y la acumula */
     async cargarMas(event: CustomEvent): Promise<void> {
-        this._page++;
+        const complete = () => (event.target as HTMLIonInfiniteScrollElement).complete();
+
+        // Guard: no acumular sobre un reset en curso ni solapar dos cargarMas.
+        if (this._cargandoMas || !this.hasMore) { complete(); return; }
+        this._cargandoMas = true;
+
+        const gen = this._generacion;
+        const page = this._page + 1;
         try {
-            const mas = await this.fetchPage(this._page);
+            const mas = await this.fetchPage(page);
+            // Si un cargar()/filtro corrió mientras esperábamos, este resultado es obsoleto:
+            // descartarlo (no tocar items/page/hasMore — ya los maneja el cargar vigente).
+            if (gen !== this._generacion) return;
+            this._page = page;
             this.items = [...this.items, ...mas];
             this.hasMore = mas.length === this.pageSize;
         } catch {
-            await this.ui.showToast('Error al cargar más datos', 'danger');
+            if (gen === this._generacion) await this.ui.showToast('Error al cargar más datos', 'danger');
         } finally {
-            (event.target as HTMLIonInfiniteScrollElement).complete();
+            if (gen === this._generacion) this._cargandoMas = false;
+            complete();
         }
     }
 

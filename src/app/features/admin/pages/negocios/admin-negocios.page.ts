@@ -68,7 +68,8 @@ export class AdminNegociosPage implements OnInit {
   busqueda = '';
   acordeonesAbiertos = new Set<string>();
 
-  // Purga automática de negocios vencidos (PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md).
+  // Purga automática de negocios vencidos (docs/suscripcion/SUSCRIPCION-README.md,
+  // sección "Purga automática de negocios vencidos").
   // Indexado por propietario_id — todos sus negocios comparten estas fechas.
   private purgaPorPropietario = new Map<string, NegocioPendientePurga>();
   detectandoPurga = false;
@@ -345,9 +346,9 @@ export class AdminNegociosPage implements OnInit {
       }
     ];
 
-    // Acciones de purga (PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md) — solo si el
-    // propietario está marcado para purga. Grupo aparte para separarlo
-    // visualmente de la gestión normal de cobro.
+    // Acciones de purga (docs/suscripcion/SUSCRIPCION-README.md, sección "Purga
+    // automática de negocios vencidos") — solo si el propietario está marcado
+    // para purga. Grupo aparte para separarlo visualmente de la gestión normal de cobro.
     if (grupo.purga) {
       groups.push({
         options: [
@@ -513,7 +514,7 @@ export class AdminNegociosPage implements OnInit {
   /**
    * Detecta propietarios vencidos hace ≥23 días y los marca para purga
    * (fn_marcar_negocios_para_purga). El superadmin la dispara manualmente desde
-   * este botón — no hay cron (ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md).
+   * este botón — no hay cron (ver docs/suscripcion/SUSCRIPCION-README.md).
    */
   async detectarPurgaPendiente() {
     if (this.detectandoPurga) return;

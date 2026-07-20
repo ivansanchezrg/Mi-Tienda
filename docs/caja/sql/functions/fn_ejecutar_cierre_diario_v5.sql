@@ -11,8 +11,23 @@ DROP FUNCTION IF EXISTS public.fn_ejecutar_cierre_diario(
 );
 
 -- ==========================================
--- FUNCIÓN: fn_ejecutar_cierre_diario (v6.3 — todo el efectivo a CAJA/VARIOS)
+-- FUNCIÓN: fn_ejecutar_cierre_diario (v6.5 — fix atribución DEF-REPONER por turno referenciado)
 -- ==========================================
+-- CAMBIOS v6.5 respecto a v6.4 (bug de dinero real — "la reposición cuenta como la
+-- transferencia de hoy"):
+--   - "¿VARIOS ya recibió su transferencia hoy?" ahora atribuye un INGRESO DEF-REPONER
+--     por el turno que referencia (tipo_referencia_id=turnos_caja + JOIN a su
+--     hora_fecha_cierre), no por la fecha del asiento. Antes, reparar el déficit de un
+--     cierre de ayer esta mañana (reapertura al día siguiente) hacía que el cierre de
+--     HOY viera "Varios ya cobró" y perdiera la transferencia del día en curso.
+--     Fallback por fecha del asiento para filas DEF-REPONER viejas sin referencia.
+--   - Nuevo campo/dato varios_pendiente expuesto vía fn_datos_cierre_diario (no en esta
+--     función): días en que el turno estuvo abierto sin cerrar y VARIOS no cobró.
+--
+-- CAMBIOS v6.4 respecto a v6.3:
+--   - Categorías DEF-RETIRAR/DEF-REPONER/COMP-DIA-* migradas a categorias_sistema
+--     (UUIDs fijos) — ver docs/setup/04_categorias_sistema.sql.
+--
 -- CAMBIOS v6.3 respecto a v6.2:
 --   - Distribución simplificada: el fondo declarado al abrir (v_fondo_fijo) ya no se
 --     retiene en el cajón al cerrar. Todo el efectivo contado se deposita completo.
@@ -42,7 +57,7 @@ DROP FUNCTION IF EXISTS public.fn_ejecutar_cierre_diario(
 --   - 1 sola transferencia a VARIOS por día
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v6.3
+CREATE OR REPLACE FUNCTION public.fn_ejecutar_cierre_diario(  -- v6.5
   p_turno_id               UUID,
   p_fecha                  DATE,
   p_empleado_id            UUID,
@@ -103,6 +118,10 @@ DECLARE
   -- Ajuste por diferencia de conteo físico
   v_efectivo_esperado          DECIMAL(12,2);  -- saldo_digital + fondo_apertura
   v_diferencia                 DECIMAL(12,2);  -- p_efectivo_fisico - efectivo_esperado
+
+  -- Ventana UTC del día local p_fecha (para el check "¿VARIOS ya cobró hoy?")
+  v_inicio_utc                 TIMESTAMPTZ;
+  v_fin_utc                    TIMESTAMPTZ;
 
   -- Distribución de efectivo
   v_transferencia_efectiva    DECIMAL(12,2);   -- Lo que va a VARIOS
@@ -372,19 +391,57 @@ BEGIN
   -- ==========================================
 
   -- ¿VARIOS ya recibió su transferencia diaria hoy?
+  --
+  -- Dos formas de "ya cobró hoy":
+  --   a) TRANSFERENCIA_ENTRANTE fechada hoy → un cierre normal previo del día (2do turno).
+  --   b) INGRESO DEF-REPONER (reparación de déficit) que cubre la transferencia de HOY —
+  --      es decir, cuya reparación repuso el déficit de un turno cerrado HOY mismo
+  --      (reapertura el mismo día). Se atribuye por el turno referenciado, NO por la
+  --      fecha en que se ejecutó la reparación: un déficit de ayer reparado esta mañana
+  --      NO debe suprimir la transferencia de hoy (bug v6.3 y anteriores).
+  --
+  -- Fallback para filas DEF-REPONER viejas sin referencia (reparaciones previas a v4.3):
+  -- se conserva el criterio por fecha para no cambiar el comportamiento histórico de esas.
+  --
+  -- Ventana UTC del día local (Ecuador UTC-5, sin DST) — evita AT TIME ZONE en el WHERE
+  -- para aprovechar el índice sobre operaciones_cajas.fecha.
+  v_inicio_utc := (p_fecha::TIMESTAMP        AT TIME ZONE 'America/Guayaquil');
+  v_fin_utc    := ((p_fecha + 1)::TIMESTAMP  AT TIME ZONE 'America/Guayaquil');
+
   v_transferencia_ya_hecha := EXISTS (
     SELECT 1
     FROM operaciones_cajas oc
     WHERE oc.caja_id    = v_varios_id
       AND oc.negocio_id = v_negocio_id
-      AND (oc.fecha AT TIME ZONE 'America/Guayaquil')::date = p_fecha
-      AND (
-        oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
-        OR (
-          oc.tipo_operacion = 'INGRESO'
-          AND oc.categoria_sistema_id = 'a1000001-0000-0000-0000-000000000005'  -- DEF-REPONER
-        )
-      )
+      AND oc.fecha     >= v_inicio_utc
+      AND oc.fecha     <  v_fin_utc
+      AND oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
+  )
+  OR EXISTS (
+    -- DEF-REPONER con referencia (v4.3+): cuenta como "cobró hoy" solo si el turno que
+    -- repone cerró HOY (reapertura mismo día). Si referencia un turno que cerró otro día,
+    -- cubre la transferencia de ESE día, no la de hoy — no la suprime.
+    SELECT 1
+    FROM operaciones_cajas oc
+    JOIN turnos_caja tr ON tr.id = oc.referencia_id AND tr.negocio_id = v_negocio_id
+    WHERE oc.caja_id    = v_varios_id
+      AND oc.negocio_id = v_negocio_id
+      AND oc.tipo_operacion = 'INGRESO'
+      AND oc.categoria_sistema_id = 'a1000001-0000-0000-0000-000000000005'  -- DEF-REPONER
+      AND tr.hora_fecha_cierre >= v_inicio_utc
+      AND tr.hora_fecha_cierre <  v_fin_utc
+  )
+  OR EXISTS (
+    -- Fallback filas viejas sin referencia: criterio histórico por fecha del asiento.
+    SELECT 1
+    FROM operaciones_cajas oc
+    WHERE oc.caja_id    = v_varios_id
+      AND oc.negocio_id = v_negocio_id
+      AND oc.tipo_operacion = 'INGRESO'
+      AND oc.categoria_sistema_id = 'a1000001-0000-0000-0000-000000000005'  -- DEF-REPONER
+      AND oc.referencia_id IS NULL
+      AND oc.fecha >= v_inicio_utc
+      AND oc.fecha <  v_fin_utc
   );
 
   -- Distribución simplificada (v6.3 — fondo libre, sin retención en cajón):
@@ -683,7 +740,11 @@ GRANT EXECUTE ON FUNCTION public.fn_ejecutar_cierre_diario(
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_ejecutar_cierre_diario IS
-'Cierre diario v6.4 — categorías migradas a categorias_sistema (UUIDs fijos). '
+'Cierre diario v6.5 — "¿VARIOS cobró hoy?" atribuye el DEF-REPONER por el turno que referencia '
+'(tipo_referencia_id=turnos_caja), no por la fecha del asiento. Una reparación de déficit ejecutada '
+'al día siguiente ya NO suprime la transferencia del día en curso (bug histórico). Fallback por fecha '
+'para filas DEF-REPONER viejas sin referencia. Ventana UTC en el check (sin AT TIME ZONE en WHERE). '
+'v6.4 — categorías migradas a categorias_sistema (UUIDs fijos). '
 'v6.3: todo el efectivo se deposita al cerrar (sin retención en cajón). '
 'v_fondo_fijo leído de turnos_caja.fondo_apertura solo para calcular efectivo_esperado. '
 'Distribución: VARIOS recibe su transferencia si hay suficiente efectivo; resto íntegro a CAJA. '

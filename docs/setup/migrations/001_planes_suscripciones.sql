@@ -17,7 +17,7 @@
 --   - Ejecutar este archivo completo en el SQL Editor de Supabase.
 --   - O ejecutar por bloques si prefieres ir verificando.
 --
--- Ver docs/PLAN-PLANES-SUSCRIPCION.md para el detalle de diseño.
+-- Ver docs/suscripcion/SUSCRIPCION-README.md para el detalle de diseño.
 -- =============================================================================
 
 

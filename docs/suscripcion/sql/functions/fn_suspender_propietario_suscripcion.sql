@@ -76,10 +76,10 @@ BEGIN
     -- Reactivacion (p_suspender = FALSE): tambien limpia purga_avisada_el/
     -- purga_programada_el, por si el superadmin reactiva manualmente a un
     -- propietario que ya estaba en cuenta regresiva de purga automatica (ver
-    -- docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md, Fase 3). Al suspender no se
-    -- tocan: la purga programada sigue su curso independiente del bloqueo
-    -- manual, y SUSPENDIDA ya queda excluida del calculo de
-    -- fn_marcar_negocios_para_purga.
+    -- docs/suscripcion/SUSCRIPCION-README.md, seccion "Purga automatica de
+    -- negocios vencidos"). Al suspender no se tocan: la purga programada
+    -- sigue su curso independiente del bloqueo manual, y SUSPENDIDA ya queda
+    -- excluida del calculo de fn_marcar_negocios_para_purga.
     UPDATE suscripciones s
     SET estado              = v_nuevo_estado,
         actualizada_por     = v_caller_id,

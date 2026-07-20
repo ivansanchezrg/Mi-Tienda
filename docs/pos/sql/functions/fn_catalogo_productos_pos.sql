@@ -1,6 +1,10 @@
 -- ==========================================
--- fn_catalogo_productos_pos (v1.1 — 2026-07-11)
+-- fn_catalogo_productos_pos (v1.2 — 2026-07-16)
 -- ==========================================
+-- v1.2: agrega campo `favorito` al JSON — habilita el tab "Favoritos" del POS
+--   (filtro 100% client-side, igual que categoría). El sentinel '__favoritos__'
+--   del frontend NUNCA llega aquí (p_categoria_id es UUID) — ver
+--   docs/pos/POS-README.md → "Favoritos".
 -- v1.1: json_agg de presentaciones con ORDER BY factor_conversion, nombre —
 --   sin ORDER BY el orden era no determinista y las presentaciones podían
 --   aparecer en distinto orden en el modal de variantes entre cargas.
@@ -48,6 +52,7 @@ AS $$
             'stock_minimo',         p.stock_minimo,
             'imagen_url',           p.imagen_url,
             'tiene_iva',            p.tiene_iva,
+            'favorito',             p.favorito,
             'tipo_venta',           COALESCE(t.tipo_venta,    p.tipo_venta),
             'unidad_medida',        COALESCE(t.unidad_medida, p.unidad_medida),
             'categoria_id',         COALESCE(t.categoria_id,  p.categoria_id),
@@ -113,7 +118,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_catalogo_productos_pos(UUID) TO authenticat
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_catalogo_productos_pos IS
-    'v1.1 — Catálogo POS con filtro por categoría que aplica a simples Y variantes
-    (COALESCE template/producto). Devuelve presentaciones completas (orden estable por
-    factor_conversion) y atributos del template.
-    Multi-tenant: filtra por get_negocio_id() del JWT.';
+    'v1.2 — Catálogo POS con filtro por categoría que aplica a simples Y variantes
+    (COALESCE template/producto). Incluye campo favorito (filtro client-side en POS).
+    Devuelve presentaciones completas (orden estable por factor_conversion) y atributos
+    del template. Multi-tenant: filtra por get_negocio_id() del JWT.';

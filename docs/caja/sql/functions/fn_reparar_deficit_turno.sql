@@ -7,9 +7,19 @@ DROP FUNCTION IF EXISTS public.fn_reparar_deficit_turno(UUID, DECIMAL, UUID, UUI
 DROP FUNCTION IF EXISTS public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMAL);
 
 -- ==========================================
--- FUNCIÓN: fn_reparar_deficit_turno (v4.2 — validación de turno abierto sin filtro de fecha)
+-- FUNCIÓN: fn_reparar_deficit_turno (v4.3 — referencia al turno reparado en DEF-*)
 -- ==========================================
--- CAMBIOS v4.2:
+-- CAMBIOS v4.3 (bug de dinero real — la reposición "contaba" como la transferencia de hoy):
+--   - El INGRESO DEF-REPONER (y el EGRESO DEF-RETIRAR, por simetría) ahora se graban
+--     con tipo_referencia_id = turnos_caja + referencia_id = <turno cerrado que se repara>.
+--     Antes se insertaban SIN referencia y se atribuían por fecha calendario, así que la
+--     reposición ejecutada al día siguiente (caso típico: cierre de noche, reapertura a la
+--     mañana) hacía que el cierre de ESE día viera "Varios ya cobró hoy" y NO transfiriera
+--     lo del día en curso — perdiendo una transferencia por cada déficit reparado.
+--     Con la referencia, los checks "¿Varios cobró?" atribuyen la reposición al día que
+--     cubre (el del turno reparado), no al día en que se ejecuta.
+--
+-- HEREDA DE v4.2:
 --   - La validación de turno abierto ya no filtra por fecha: un turno de un día
 --     anterior sin cerrar también bloquea la apertura con mensaje limpio (antes
 --     el INSERT chocaba contra idx_un_turno_abierto_por_caja con unique_violation crudo).
@@ -50,6 +60,10 @@ DECLARE
   v_negocio_id   UUID;
   v_caja_id      UUID;
   v_varios_id    UUID;
+  -- Nombres editables de las cajas (el negocio puede renombrar VARIOS/CAJA).
+  -- Se usan solo en las descripciones legibles del historial, nunca en lógica.
+  v_tienda_nombre TEXT;
+  v_varios_nombre TEXT;
   v_saldo_tienda DECIMAL(12,2);
   v_saldo_varios DECIMAL(12,2);
   v_op_egreso_id  UUID;
@@ -62,6 +76,11 @@ DECLARE
   v_numero_turno INTEGER;
   v_turno_id     UUID;
   v_caja_chica_id UUID;
+  -- Trazabilidad: el turno cerrado cuya transferencia a VARIOS se está reponiendo.
+  -- Los asientos DEF-* se atan a este turno para que los checks "¿Varios cobró?"
+  -- atribuyan la reposición al día que cubre, no al día en que se ejecuta.
+  v_tipo_ref_turnos_id INTEGER;
+  v_turno_reparado_id  UUID;
 BEGIN
   PERFORM public.fn_assert_no_superadmin();
 
@@ -69,6 +88,17 @@ BEGIN
   IF v_negocio_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'No hay negocio activo en el JWT');
   END IF;
+
+  -- Turno cuyo cierre dejó el déficit que se está reponiendo = último turno cerrado.
+  -- (La reparación siempre ocurre al abrir el turno inmediatamente posterior.)
+  v_tipo_ref_turnos_id := (SELECT id FROM tipos_referencia WHERE tabla = 'turnos_caja');
+  v_turno_reparado_id  := (
+    SELECT id FROM turnos_caja
+    WHERE negocio_id = v_negocio_id
+      AND hora_fecha_cierre IS NOT NULL
+    ORDER BY hora_fecha_cierre DESC
+    LIMIT 1
+  );
 
   IF p_deficit_varios <= 0 THEN
     RETURN json_build_object('success', false, 'error', 'El déficit de VARIOS debe ser mayor a cero');
@@ -78,10 +108,12 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'El fondo de apertura no puede ser negativo');
   END IF;
 
-  -- Obtener IDs de cajas por código
+  -- Obtener IDs de cajas por código (+ nombre editable para las descripciones)
   v_caja_id       := (SELECT id FROM cajas WHERE codigo = 'CAJA'       AND negocio_id = v_negocio_id);
   v_varios_id     := (SELECT id FROM cajas WHERE codigo = 'VARIOS'     AND negocio_id = v_negocio_id);
   v_caja_chica_id := (SELECT id FROM cajas WHERE codigo = 'CAJA_CHICA' AND negocio_id = v_negocio_id);
+  v_tienda_nombre := COALESCE((SELECT nombre FROM cajas WHERE id = v_caja_id),   'Tienda');
+  v_varios_nombre := COALESCE((SELECT nombre FROM cajas WHERE id = v_varios_id), 'Varios');
 
   -- Obtener saldo actual de Tienda (con lock)
   PERFORM id FROM cajas WHERE id = v_caja_id AND negocio_id = v_negocio_id FOR UPDATE;
@@ -109,12 +141,14 @@ BEGIN
   v_op_egreso_id := gen_random_uuid();
   INSERT INTO operaciones_cajas (
     id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_sistema_id,
-    monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
+    monto, saldo_anterior, saldo_actual, descripcion, comprobante_url,
+    tipo_referencia_id, referencia_id
   ) VALUES (
     v_op_egreso_id, v_negocio_id, v_caja_id, p_empleado_id, 'EGRESO', v_cat_egreso_id,
     p_deficit_varios, v_saldo_tienda, v_saldo_tienda - p_deficit_varios,
-    FORMAT('Ajuste déficit turno anterior — Varios: $%s', TO_CHAR(p_deficit_varios, 'FM999990.00')),
-    NULL
+    FORMAT('Ajuste déficit turno anterior — %s: $%s', v_varios_nombre, TO_CHAR(p_deficit_varios, 'FM999990.00')),
+    NULL,
+    v_tipo_ref_turnos_id, v_turno_reparado_id
   );
 
   UPDATE cajas SET saldo_actual = v_saldo_tienda - p_deficit_varios
@@ -132,12 +166,14 @@ BEGIN
   v_op_ingreso_id := gen_random_uuid();
   INSERT INTO operaciones_cajas (
     id, negocio_id, caja_id, empleado_id, tipo_operacion, categoria_sistema_id,
-    monto, saldo_anterior, saldo_actual, descripcion, comprobante_url
+    monto, saldo_anterior, saldo_actual, descripcion, comprobante_url,
+    tipo_referencia_id, referencia_id
   ) VALUES (
     v_op_ingreso_id, v_negocio_id, v_varios_id, p_empleado_id, 'INGRESO', v_cat_ingreso_id,
     p_deficit_varios, v_saldo_varios, v_saldo_varios + p_deficit_varios,
-    'Reposición déficit turno anterior — pendiente cobrado de Tienda',
-    NULL
+    FORMAT('Reposición déficit turno anterior — pendiente cobrado de %s', v_tienda_nombre),
+    NULL,
+    v_tipo_ref_turnos_id, v_turno_reparado_id
   );
 
   UPDATE cajas SET saldo_actual = v_saldo_varios + p_deficit_varios
@@ -220,6 +256,8 @@ GRANT  EXECUTE ON FUNCTION public.fn_reparar_deficit_turno(UUID, DECIMAL, DECIMA
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_reparar_deficit_turno IS
+  'v4.3 — DEF-REPONER/DEF-RETIRAR referencian el turno reparado (tipo_referencia_id=turnos_caja). '
+  'Los checks "¿Varios cobró?" atribuyen la reposición al día del turno reparado, no al día en que se ejecuta. '
   'v4.2 — Validación de turno abierto sin filtro de fecha (cubre turno de día anterior sin cerrar). '
   'v4.1 — Validación de saldo incluye fondo de apertura (p_deficit_varios + p_fondo_apertura). '
   'Agrega EGRESO FONDO-APERTURA de Tienda cuando p_fondo_apertura > 0 (mismo comportamiento que fn_abrir_turno). '

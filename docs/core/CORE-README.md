@@ -31,6 +31,38 @@ Ionic encola los "Overlays" (`LoadingController`, `ToastController`). Si existe 
 
 Para evitar lag visual o "Toasts fantasma", es **obligatorio** invocar `await this.ui.hideLoading()` *antes* de invocar una alerta o toast, especialmente dentro de bloques `catch()`.
 
+### FeedbackOverlayService (`core/services/feedback-overlay.service.ts`)
+
+Overlay centrado (blur de fondo, `z-index: 30000` — por encima de cualquier overlay de Ionic, incluido un modal abierto) reservado para resultados "de ley" que necesitan un cierre visual inequívoco. **No reemplaza a `UiService`** — sigue siendo el default para el 95% de los mensajes. Criterio completo de cuándo usar cada uno: `CLAUDE.md` § "Feedback de acciones — toast vs overlay".
+
+```typescript
+private feedback = inject(FeedbackOverlayService);
+
+this.feedback.success({ titulo: '¡Venta registrada!', destacado: '$45.00', subtitulo: 'Comprobante #142' });
+this.feedback.error({ titulo: 'No se pudo registrar la venta' });   // sin auto-dismiss
+this.feedback.warning({ titulo: 'Stock insuficiente' });
+this.feedback.info({ titulo: 'Catálogo actualizado' });
+```
+
+`success`/`info` se auto-cierran a los 3000ms; `warning`/`error` requieren tap en "Entendido" o tocar fuera (default, configurable con `duracionMs`). El componente visual (`shared/components/feedback-overlay/`) se monta **una única vez** en `AppComponent`, mismo patrón que `app-offline-banner` — nunca se declara en una página.
+
+Para servicios que necesitan disparar el overlay de error ellos mismos (en vez del toast automático de `SupabaseService.call()`), usar `this.supabase.esErrorDeTransporte(error)` para distinguir "sin conexión" de un error de negocio real y dar el mensaje correcto. Ver `OperacionesCajaService.registrarOperacion()` y `NotasService.eliminar()` como referencia.
+
+### SyncBannerService (`core/services/sync-banner.service.ts`)
+
+Banner efímero "Conexión restablecida" (franja verde, ~2.5s) que confirma al usuario que la red volvió tras haber estado offline. **No requiere que ningún componente lo llame** — el propio servicio se suscribe a `NetworkService.getNetworkStatus()` desde su constructor y detecta el flanco offline→online por su cuenta (rastrea `ultimoEstado`, empieza en `undefined` para no disparar en el arranque en frío).
+
+```typescript
+// No hay API pública para dispararlo manualmente — es 100% automático.
+// El componente visual solo lee el signal:
+readonly visible = inject(SyncBannerService).visible;
+```
+
+**Por qué banner y no overlay:** la reconexión puede repetirse varias veces por turno de trabajo (red parpadeante) — un overlay centrado sería la "fatiga de interrupción" que `CLAUDE.md` § toast vs overlay busca evitar. El banner es una franja que no bloquea nada y se auto-oculta sola.
+
+**Por qué la detección vive en el servicio (`root`) y no en una página:** una primera versión disparaba el banner desde `HomePage.reactivarTrasReconexion()` — pero el banner es global (montado en `AppComponent`) y ese trigger solo corría si el usuario estaba mirando el Home en el instante exacto de la reconexión. Centralizar la detección en el servicio (que se instancia desde el arranque vía `SyncBannerComponent` en `app.component.html`) hace que funcione sin importar qué pantalla esté activa.
+
+Componente visual: `core/components/sync-banner/`, montado una única vez en `AppComponent` (mismo patrón que `app-offline-banner` y `app-suscripcion-banner`) — togglea la clase `sync-banner-visible` en `<body>`, sumada al selector compartido de `global.scss` que anula el safe-area duplicado de los headers de página.
 
 ### SupabaseService (`core/services/supabase.service.ts`)
 
@@ -89,6 +121,36 @@ const [usuarios, productos, ventas] = await Promise.all([
   this.service.getVentas()
 ]);
 ```
+
+#### Patrón C: Mutaciones críticas con timeout + feedback propio (2026-07-18)
+
+Para mutaciones de peso donde una red "conectada pero rota" no puede dejar un spinner eterno, y el caller necesita distinguir "sin red" / "timeout" / "error de negocio" para dar su propio feedback (overlay, mensaje inline en un modal, etc.) — usar `timeoutMs` + `silentError`:
+
+```typescript
+try {
+  const response = await this.supabase.call(
+    this.supabase.client.rpc('fn_operacion_critica', params),
+    undefined,
+    { timeoutMs: 20_000, silentError: true }
+  );
+  if (response === null) { /* sin red — el banner global ya avisa, no mostrar nada */ }
+  // ... procesar response.success / response.error normalmente
+} catch (error: any) {
+  // silentError RELANZA (nunca traga) tanto el TimeoutError como una excepción de
+  // negocio real (RAISE EXCEPTION del RPC) — el caller decide el feedback exacto:
+  if (this.supabase.debeSilenciarErrorOffline(error)) return;               // sin red
+  const esFalloDeRed = error instanceof TimeoutError || this.supabase.esErrorDeTransporte(error);
+  // esFalloDeRed → overlay "El servidor no respondió..."
+  // !esFalloDeRed → error.message es el motivo real del RPC (mostrar tal cual)
+}
+```
+
+| Opción | Efecto |
+| --- | --- |
+| `timeoutMs` | Envuelve la promesa con `conTimeout()` (`core/utils/timeout.util.ts`, exporta también `TimeoutError`). Al vencer, `call()` **relanza** `TimeoutError` — nunca lo convierte en `null`. El `finally` de `call()` sigue garantizando `hideLoading()`. |
+| `silentError` | `call()` no muestra su toast automático; **relanza** el error (negocio o transporte) para que el caller decida. Excepciones que se mantienen igual: "sin red" retorna `null` (no lanza — el banner global ya avisa) y JWT expirado limpia sesión igual (es seguridad, no UX). |
+
+Implementado por `TurnosCajaService.abrirTurno()` / `.repararDeficit()` y `RecargasService.ejecutarCierreDiario()` — ver `docs/caja/8_PROCESO_ABRIR_CAJA.md` §11 para el contrato `TurnoMutacionResult` completo (clasificación centralizada `'silenciar' | 'red' | 'mensaje'`). Úsalo como referencia si necesitas el mismo patrón en otra mutación crítica — no reinventar la clasificación en cada feature.
 
 #### Errores offline — no mostrar toast (el banner global ya avisa)
 
@@ -227,9 +289,9 @@ Punto único para captura, recorte, compresión y subida de imágenes a Supabase
 | `replaceImage(newImageUrl, subfolder, oldPath, useDatePrefix?)` | Sube nueva + elimina anterior atómicamente. Si el upload falla retorna null y no toca `oldPath`. |
 | `getSignedUrl(path, expiresIn?)` | URL firmada temporal (default: 1h). Para buckets privados como `comprobantes`. |
 | `getPublicUrl(path)` | URL pública directa. Solo para buckets/subfolders públicos. |
-| `resolveImageUrl(path)` / `resolveImageUrls(paths[])` | Resuelve path → URL mostrable por `<img>`. Si ya es URL completa la retorna tal cual. Orden de resolución: **(1) binario local en disco** (`ImagenLocalService` — se ve offline y sobrevive cold start) → (2) signed URL en cache RAM → (3) online: firmar + descargar el binario en background → (4) offline sin binario: `null` (placeholder). Versión plural usa `Promise.all`. |
+| `resolveImageUrl(path)` / `resolveImageUrls(paths[])` | Resuelve path → URL mostrable por `<img>`. Si ya es una URL renderizable la retorna tal cual **sin intentar firmarla** — reconoce los prefijos `http(s):`, `blob:` (object URL de un binario local, `ImagenLocalService`/IndexedDB en web), `data:` (base64) y `capacitor:` (convertFileSrc en iOS). Antes solo reconocía `http:` — un `blob:`/`data:` heredado (ej. la imagen del template que hereda una variante sin foto propia) se enviaba a `getSignedUrl()` y fallaba con 400 "Object not found" (fix 2026-07-17). Orden de resolución si es un path crudo de Storage: **(1) binario local en disco** (`ImagenLocalService` — se ve offline y sobrevive cold start) → (2) signed URL en cache RAM → (3) online: firmar + descargar el binario en background → (4) offline sin binario: `null` (placeholder). Versión plural usa `Promise.all`. |
 | `deleteFile(path)` | Elimina un archivo. Usar para rollback si el RPC falla después de subir. |
-| `deleteNegocioFolder(negocioId)` | **Uso exclusivo del flujo de purga de negocios** (`docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md`). Borra recursivamente TODO el contenido de `{negocioId}/` en el bucket, sin hardcodear nombres de subcarpeta. No llamar desde ningún flujo normal de la app ni exponer en menús de usuario — es irreversible y borra absolutamente todo lo del negocio. |
+| `deleteNegocioFolder(negocioId)` | **Uso exclusivo del flujo de purga de negocios** (`docs/suscripcion/SUSCRIPCION-README.md`, sección "Purga automática de negocios vencidos"). Borra recursivamente TODO el contenido de `{negocioId}/` en el bucket, sin hardcodear nombres de subcarpeta. No llamar desde ningún flujo normal de la app ni exponer en menús de usuario — es irreversible y borra absolutamente todo lo del negocio. |
 | `capturarFoto(source)` | **Bajo nivel** — solo abre cámara/galería sin cropper. Prefiere `elegirFuenteFoto()` que incluye el flujo completo. |
 
 #### Flujo principal — selección + recorte + upload
@@ -445,11 +507,20 @@ local (un snapshot de ayer no se sirve). Métodos: `guardar`, `obtener`, `obtene
 
 ### ImagenLocalService (`core/services/imagen-local.service.ts`)
 
-Persiste los **binarios** de las fotos del catálogo en disco (`Directory.Data/catalogo-img/{hash}.ext`) para
-que se vean offline tras un cold start (el `signedUrlCache` de `StorageService` es solo RAM y muere con el
-proceso; una signed URL además expira a 60 min). Solo nativo (web es no-op). Se alimenta desde el priming de
-Fase P (`SyncService`). Métodos: `obtenerLocal` (path → URL local vía `convertFileSrc`), `descargar` (un path),
-`precargarCatalogo` (lote + poda de huérfanos). `StorageService.resolveImageUrl` lo prioriza sobre la firma.
+Persiste los **binarios** de las fotos del catálogo localmente para que se vean offline tras un cold start /
+recarga de pestaña (el `signedUrlCache` de `StorageService` es solo RAM y muere con el proceso; una signed URL
+además expira a 60 min). Se alimenta desde el priming de Fase P (`SyncService`). Métodos públicos: `obtenerLocal`
+(path → URL local), `descargar` (un path), `precargarCatalogo` (lote + poda de huérfanos). `StorageService.resolveImageUrl`
+lo prioriza sobre la firma.
+
+**Multiplataforma vía adaptador por backend (`ImagenStore`, desde 2026-07-14)** — antes era solo nativo (web
+era no-op y las fotos NO se veían offline en modo web). El servicio elige el store una vez en el constructor
+según `Capacitor.isNativePlatform()`:
+- **Nativo** → `FilesystemStore` (`Directory.Data/catalogo-img/{hash}.ext`, lectura vía `convertFileSrc`).
+- **Web** → `IndexedDbStore` (DB `mi-tienda-img`, object store `binarios`, guarda `Blob`, lectura vía `URL.createObjectURL` cacheado en RAM y revocado al podar).
+
+No se apoya en `LocalDbService` (el motor SQL-like de `cache_catalogo`/outbox) a propósito: ese motor es para
+filas de texto/JSON; los blobs binarios pesados van en su propia DB, separada del catálogo.
 
 ### TurnoLocalService (`core/services/turno-local.service.ts`)
 

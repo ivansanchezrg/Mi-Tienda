@@ -4,6 +4,17 @@ import { AuthService } from '../../auth/services/auth.service';
 import { Producto, ProductoTemplate } from '../models/producto.model';
 import { ProductoChangeEvent } from './inventario.service';
 
+/**
+ * Mensajes de éxito: NINGÚN método de este servicio pasa `successMessage` a
+ * supabase.call() a propósito. Crear/editar producto o plantilla navega fuera de la
+ * página apenas termina (navigateBack) — un toast ahí compite con la transición y se
+ * pierde. La página muestra el overlay de éxito (FeedbackOverlayService) DESPUÉS de
+ * confirmar el resultado y ANTES de navegar. El error, en cambio, SÍ lo maneja
+ * call() (toast con el mensaje real) — el problema aquí no era el error, era que el
+ * éxito no se veía y que un resultado fallido igual dejaba navegar (ver retornos
+ * `| null` en vez de objetos vacíos). Ver design_toast_vs_overlay_feedback.md.
+ */
+
 @Injectable({ providedIn: 'root' })
 export class ProductoService {
     private supabase = inject(SupabaseService);
@@ -61,7 +72,7 @@ export class ProductoService {
                 p_categoria_id: params.categoria_id,
                 p_imagen_url:   params.imagen_url || null
             }),
-            'Cambios guardados exitosamente',
+            undefined,
             { showLoading: true }
         );
         const result = res || { ok: false };
@@ -94,18 +105,19 @@ export class ProductoService {
     // MUTACIONES DIRECTAS (edición de campos)
     // ==========================================
 
-    async actualizar(id: string, producto: Partial<Producto>): Promise<Producto> {
+    /** Retorna null si falló (call() ya mostró el toast de error) — la página NO debe navegar en ese caso. */
+    async actualizar(id: string, producto: Partial<Producto>): Promise<Producto | null> {
         const res = await this.supabase.call<Producto[]>(
             this.supabase.client
                 .from('productos')
                 .update(producto)
                 .eq('id', id)
                 .select('*, categoria:categorias_productos(*), producto_template:producto_templates(*, categoria:categorias_productos(*))'),
-            'Producto actualizado exitosamente',
+            undefined,
             { showLoading: true }
         );
-        const updated = res ? res[0] : ({} as Producto);
-        if (updated.id) this.changeEmitter?.({ tipo: 'ACTUALIZADO', producto: updated });
+        const updated = res?.[0] ?? null;
+        if (updated) this.changeEmitter?.({ tipo: 'ACTUALIZADO', producto: updated });
         return updated;
     }
 
@@ -130,6 +142,24 @@ export class ProductoService {
         );
         const updated = res ? res[0] : ({} as Producto);
         if (updated.id) this.changeEmitter?.({ tipo: 'ACTUALIZADO', producto: updated });
+        return updated;
+    }
+
+    /**
+     * Toggle de favorito (por SKU). Sin showLoading ni toast: el ícono de estrella
+     * cambiando en el momento ya es el feedback — el caller hace el toggle optimista
+     * y revierte si esto retorna null (call() ya mostró el toast de error).
+     */
+    async toggleFavorito(id: string, favorito: boolean): Promise<Producto | null> {
+        const res = await this.supabase.call<Producto[]>(
+            this.supabase.client
+                .from('productos')
+                .update({ favorito })
+                .eq('id', id)
+                .select('*, categoria:categorias_productos(*), producto_template:producto_templates(*, categoria:categorias_productos(*))')
+        );
+        const updated = res?.[0] ?? null;
+        if (updated) this.changeEmitter?.({ tipo: 'ACTUALIZADO', producto: updated });
         return updated;
     }
 
@@ -173,7 +203,7 @@ export class ProductoService {
                 p_stock_minimo:   params.stock_minimo,
                 p_presentaciones: params.presentaciones || []
             }),
-            'Producto creado exitosamente',
+            undefined,
             { showLoading: true }
         );
         const result = res || { ok: false };
@@ -222,7 +252,7 @@ export class ProductoService {
                 p_atributos_template: params.atributos_template,
                 p_variantes:          params.variantes
             }),
-            `${params.variantes.length} variantes creadas`,
+            undefined,
             { showLoading: true }
         );
         const result = res || { ok: false };

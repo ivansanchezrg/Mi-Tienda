@@ -42,6 +42,7 @@ import {
 import { Subscription } from 'rxjs';
 import { ScrollablePage } from '@core/pages/scrollable.page';
 import { UiService } from '@core/services/ui.service';
+import { FeedbackOverlayService } from '@core/services/feedback-overlay.service';
 import { RecargasService } from '../../services/recargas.service';
 import { CajasService, Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
@@ -81,6 +82,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private ui = inject(UiService);
+  private feedback = inject(FeedbackOverlayService);
   private recargasService = inject(RecargasService);
   private cajasService = inject(CajasService);
   private operacionesCajaService = inject(OperacionesCajaService);
@@ -329,6 +331,8 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     await this.turnosCajaService.reabrirRealtimeTurnos();
     await this.turnosCajaService.inicializarEstadoReactivo();
     await this.cargarDatos();
+    // El banner "Conexión restablecida" es global: SyncBannerService detecta el
+    // flanco offline→online por su cuenta (no depende de que el home esté montado).
   }
 
   ngOnDestroy() {
@@ -655,15 +659,19 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
 
     const modal = await this.modalCtrl.create({
       component: OperacionModalComponent,
-      componentProps: { tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada, excluirCajaChica: !this.cajaAbierta, variosActiva: this.variosActiva },
+      componentProps: {
+        tipo: tipoOperacion, cajas: this.cajas, cajaIdPreseleccionada,
+        excluirCajaChica: !this.cajaAbierta, variosActiva: this.variosActiva,
+        // El modal ejecuta esto y solo se cierra si retorna true (patrón onConfirmar):
+        // así en error queda abierto con los datos para reintentar.
+        onConfirmar: (data: OperacionModalResult) => this.ejecutarOperacion(tipoOperacion, data),
+      },
       cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
     });
 
     await modal.present();
-    const { data, role } = await modal.onDidDismiss<OperacionModalResult>();
-    if (role === 'confirm' && data) await this.ejecutarOperacion(tipoOperacion, data);
   }
 
   private async abrirTraspaso() {
@@ -685,11 +693,12 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     if (role === 'confirm') await this.refrescarDashboard();
   }
 
-  private async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModalResult) {
+  private async ejecutarOperacion(tipo: 'INGRESO' | 'EGRESO', data: OperacionModalResult): Promise<boolean> {
     const success = await this.operacionesCajaService.registrarOperacion(
       data.cajaId, tipo, data.categoriaId, data.monto, data.descripcion, data.fotoComprobante
     );
     if (success) await this.refrescarDashboard();
+    return success;
   }
 
   async onAbrirCaja() {
@@ -709,25 +718,21 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       return;
     }
 
+    // El modal ejecuta la mutación real internamente (patrón onConfirmar) y solo se
+    // cierra con role 'confirm' si tuvo éxito — tanto el camino con déficit
+    // (repararDeficit) como el sin déficit (onAbrir → abrirTurno). Si retorna null,
+    // el usuario canceló o la operación falló y el modal quedó abierto para reintentar.
     const resultado = await this.mostrarModalVerificacionFondo();
     if (!resultado) return;
 
-    // Caso sin déficit: el modal devuelve fondoApertura y el home ejecuta abrirTurno()
-    // Caso con déficit: el modal ya ejecutó repararDeficit() internamente (turnoId viene poblado)
-    if (!resultado.turnoId) {
-      const { ok, errorHandled, errorMsg } = await this.turnosCajaService.abrirTurno(resultado.fondoApertura);
-      if (!ok) {
-        // errorHandled → transporte (sin red/JWT): supabase.call() ya mostró el toast.
-        // Si no, la BD rechazó por regla de negocio: mostramos su mensaje real (ej. "Ya
-        // hay un turno abierto por X") y refrescamos para sincronizar el estado del chip
-        // —cubre el caso de carrera donde otro dispositivo abrió y Realtime aún no llegó.
-        if (!errorHandled) {
-          await this.ui.showError(errorMsg ?? 'No se pudo abrir el turno. Intenta de nuevo.');
-          await this.cargarDatos();
-        }
-        return;
-      }
-    }
+    // Overlay (no toast): hoy no había ningún feedback de éxito al abrir turno —
+    // el usuario solo veía cambiar el chip del home en silencio. Es información
+    // nueva que necesita percibir con claridad (Regla 4, design_toast_vs_overlay).
+    this.feedback.success({
+      titulo: 'Turno abierto',
+      destacado: `$${this.currency.format(resultado.fondoApertura)}`,
+      subtitulo: 'Fondo declarado en el cajón',
+    });
 
     await this.cargarDatos();
     this.cdr.detectChanges();
@@ -809,22 +814,66 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
   }
 
   /**
-   * Turno abierto un día anterior: la transferencia diaria a Varios de ese día
-   * no se realizó. Caso excepcional — alert (no toast) para que no se pierda.
-   * La compensación es deliberadamente manual: traspaso Tienda → Varios.
-   * Independiente del rol de quien cierra (a diferencia de ofrecerCompartirCierre):
-   * el déficit afecta al negocio sin importar quién esté cerrando el turno.
+   * Turno abierto varios días: las transferencias diarias a Varios de esos días no se
+   * realizaron. Se informa con monto y días exactos, y se ofrece compensarlo con 1 tap
+   * (traspaso Tienda → Varios vía fn_compensar_varios_pendiente — NO una transferencia
+   * normal: usa categorías que no contaminan la cuota del día en curso).
+   * La compensación sigue siendo una decisión del usuario (botón "Registrar traspaso"),
+   * no automática en el cierre. Independiente del rol de quien cierra: el pendiente afecta
+   * al negocio sin importar quién cerró el turno.
    */
   private async avisarDeficitVariosSiAplica(datos: DatosCierreParaCompartir): Promise<void> {
-    if (!datos.aperturaEnOtroDia || !datos.variosActiva) return;
+    if (!datos.variosActiva || datos.variosPendienteDias <= 0) return;
 
-    const fecha = this.formatearFecha(new Date(datos.horaApertura));
+    const monto  = `$${this.currency.format(datos.variosPendienteMonto)}`;
+    const plural = datos.variosPendienteDias === 1 ? 'día' : 'días';
+    const rango  = datos.variosPendienteRango ? ` (${datos.variosPendienteRango})` : '';
+
     const alert = await this.alertCtrl.create({
       header: 'Transferencia a Varios pendiente',
-      message: `Este turno se abrió el ${fecha} y se cerró hoy. La transferencia diaria a Varios del día anterior no se realizó. Si quieres compensarla, haz un traspaso manual de Tienda a Varios.`,
-      buttons: ['Entendido'],
+      message: `El turno estuvo abierto ${datos.variosPendienteDias} ${plural} sin cierre${rango}. `
+        + `Varios tiene ${monto} pendiente de esos días. Toma ese efectivo de Tienda y colócalo en Varios; `
+        + `el sistema registra el movimiento contable si lo confirmas aquí.`,
+      buttons: [
+        { text: 'Después', role: 'cancel' },
+        {
+          text: 'Registrar traspaso',
+          handler: () => {
+            // No await dentro del handler (Ionic cierra el alert de inmediato);
+            // se dispara la compensación en background y refresca al terminar.
+            void this.compensarVariosPendiente(datos);
+          },
+        },
+      ],
     });
     await alert.present();
+  }
+
+  /**
+   * Ejecuta la compensación de transferencias pendientes a Varios (Tienda → Varios).
+   * Muestra overlay de éxito/error y refresca el dashboard (los saldos cambian).
+   */
+  private async compensarVariosPendiente(datos: DatosCierreParaCompartir): Promise<void> {
+    const plural  = datos.variosPendienteDias === 1 ? 'día' : 'días';
+    const detalle = `${datos.variosPendienteDias} ${plural}`
+      + (datos.variosPendienteRango ? ` (${datos.variosPendienteRango})` : '');
+
+    const res = await this.turnosCajaService.compensarVariosPendiente(datos.variosPendienteMonto, detalle);
+
+    if (res.ok) {
+      this.feedback.success({
+        titulo: 'Traspaso registrado',
+        destacado: `$${this.currency.format(datos.variosPendienteMonto)}`,
+        subtitulo: 'Varios recibió las transferencias pendientes',
+      });
+      await this.cargarDatos();
+    } else if (res.error) {
+      // res.error vacío = "sin red" (banner global ya avisa) → no molestar con overlay.
+      this.feedback.error({
+        titulo: 'No se pudo registrar el traspaso',
+        subtitulo: res.error,
+      });
+    }
   }
 
   async mostrarModalVerificacionFondo(): Promise<{ turnoId: string | null; fondoApertura: number } | null> {
@@ -837,6 +886,9 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
         component: VerificarFondoModalComponent,
         componentProps: {
           deficitVarios: deficit?.deficitVarios ?? 0,
+          // El modal ejecuta la apertura sin déficit él mismo (spinner real + reintento
+          // sin cerrar en error). El home solo provee la mutación; ver onAbrir en el modal.
+          onAbrir: (fondoApertura: number) => this.turnosCajaService.abrirTurno(fondoApertura),
         },
         cssClass: 'bottom-sheet-modal',
         breakpoints: [0, 1],

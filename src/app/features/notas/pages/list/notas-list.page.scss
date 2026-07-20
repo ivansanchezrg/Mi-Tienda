@@ -8,21 +8,9 @@
     padding: 0;
 }
 
-// ── Sliding wrapper ───────────────────────────────
-ion-item-sliding.nota-sliding {
-    margin-bottom: var(--spacing-sm);
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, 0.08));
-}
-
-ion-item-sliding.nota-sliding ion-item-options {
-    border-bottom-right-radius: 12px;
-    border-top-right-radius: 12px;
-    overflow: hidden;
-}
-
 // ── Item ─────────────────────────────────────────
+// Antes vivía dentro de ion-item-sliding (swipe-to-delete); ahora es el elemento raíz
+// de cada fila — el menú ⋮ (app-options-menu) reemplazó el swipe.
 .nota-item {
     --background: var(--ion-item-background);
     --border-radius: 12px;
@@ -32,17 +20,45 @@ ion-item-sliding.nota-sliding ion-item-options {
     --padding-bottom: 12px;
     --min-height: 0;
 
+    margin-bottom: var(--spacing-sm);
+    border-radius: 12px;
+    box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, 0.08));
     transition: opacity 0.2s ease;
+
+    // Por defecto ion-item centra sus slots (start/end) respecto a TODA la altura del
+    // ítem — con una nota expandida (hasta 280px de scroll interno) el check y el menú
+    // ⋮ quedaban flotando a media altura en vez de anclados junto a la primera línea.
+    // ion-item usa shadow DOM: align-items normal no penetra, hay que ir por ::part.
+    &::part(native) {
+        align-items: flex-start;
+    }
+}
+
+// ion-label trae su propio margin-top/bottom por defecto (pensado para listas de un
+// solo renglón) — con flex-start eso empujaba el bloque de texto por debajo del check
+// y el menú ⋮ en vez de alinearse con ellos en la misma línea. Se anula y se controla
+// la alineación fina manualmente contra la primera línea de texto (15px, line-height 1.55).
+ion-label {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+.nota-check {
+    margin-top: 1px;
+}
+
+app-options-menu {
+    margin-top: -6px; // el botón ⋮ trae su propio padding vertical; compensa el flex-start
 }
 
 // Nota completada: texto atenuado sin transparencia en el fondo
-.nota-completada .nota-item {
+.nota-item.nota-completada {
     --background: var(--ion-color-step-50, #f9f9f9);
 }
 
-.nota-completada .nota-texto,
-.nota-completada .nota-prefijo,
-.nota-completada .meta-chip {
+.nota-item.nota-completada .nota-texto,
+.nota-item.nota-completada .nota-prefijo,
+.nota-item.nota-completada .meta-chip {
     color: var(--ion-color-medium);
 }
 
@@ -71,8 +87,8 @@ ion-item-sliding.nota-sliding ion-item-options {
     transition: opacity 0.15s ease;
 }
 
-// Ítem siendo eliminado — fade out
-.nota-procesando .nota-item {
+// Ítem siendo eliminado/editado — fade out
+.nota-item.nota-procesando {
     opacity: 0.4;
     pointer-events: none;
 }
@@ -85,6 +101,16 @@ ion-item-sliding.nota-sliding ion-item-options {
     &.nota-texto--tachado .nota-prefijo {
         text-decoration: line-through;
         color: var(--ion-color-medium);
+    }
+
+    // Notas muy largas expandidas ("Ver más") no deben estirar la card sin límite —
+    // rompe el ritmo visual de la lista. Tope con scroll interno propio; el usuario
+    // sigue viendo todo el contenido, solo que dentro de un área acotada.
+    &--expandida {
+        max-height: 280px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding-right: 4px;
     }
 }
 
@@ -104,8 +130,11 @@ ion-item-sliding.nota-sliding ion-item-options {
     padding-left: 12px;
 }
 
+// El prefijo ("1.", "-", "•") es un marcador, no el contenido — peso normal y tono
+// más tenue para que el ojo vaya directo al texto de la nota, no al número/viñeta.
 .nota-prefijo {
-    font-weight: 700;
+    font-weight: 400;
+    color: var(--ion-color-medium);
     flex-shrink: 0;
 }
 
@@ -157,14 +186,6 @@ ion-item-sliding.nota-sliding ion-item-options {
     padding: 14px 12px;
     margin-bottom: var(--spacing-sm);
     box-shadow: var(--shadow-level-1, 0 1px 4px rgba(0, 0, 0, 0.08));
-}
-
-// ── Delete swipe ──────────────────────────────────
-.delete-option {
-    background: var(--ion-color-danger);
-    color: var(--ion-color-danger-contrast);
-    --padding-start: var(--spacing-xl);
-    --padding-end: var(--spacing-xl);
 }
 
 // ── FAB scroll top ────────────────────────────────

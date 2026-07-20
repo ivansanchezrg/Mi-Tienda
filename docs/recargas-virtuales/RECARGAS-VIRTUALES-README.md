@@ -53,10 +53,14 @@ La tienda vende recargas de celular y pasajes de bus usando **saldo virtual** de
 
 Única página del feature. Dos tabs (Celular/Bus) si ambos módulos están activos; si solo uno está activo, muestra su contenido directo sin tabs.
 
+**Rediseño de jerarquía visual y UX (2026-07-17/18):** las acciones migraron del patrón viejo `action-card-large` (icono circular sólido) al patrón `rv-card` — lengüeta de icono a todo el alto del card con esquinas derechas cóncavas (mismo lenguaje que `.tipo-card` en Inventario → crear producto), fondo con tinte muy claro del color + icono a color pleno (nunca color sólido saturado). El color de la lengüeta es semántico según dirección del flujo de dinero: **primary/secondary = te acreditan saldo (entra)**, **danger = pagas al proveedor (sale)**, **gris = neutro (historial)**. Los títulos usan lenguaje coloquial con el verbo "Registrar" para dar consistencia entre acciones, conservando el complemento con dirección para no perder claridad narrativa.
+
 | Tab | Muestra | Acciones |
 | --- | --- | --- |
-| CELULAR | Saldo virtual, saldo de Caja Celular, card "Recarga de proveedor", card "Pagar al proveedor" (solo si hay deudas), card "Movimientos" (con badge de ganancia por liquidar) | Registrar recarga, Pagar al proveedor, Ver movimientos (liquidar desde ahí) |
-| BUS | Saldo virtual, saldo de Caja Bus, hint "¿Cómo funciona?" (solo onboarding, sin movimientos aún), card "Recargar saldo máquina", card "Movimientos" (con badge de ganancia por liquidar) | Comprar saldo, Ver movimientos (liquidar desde ahí) |
+| CELULAR | Saldo virtual ("Disponible en tu teléfono para vender"), Caja Celular ("Ventas de recargas acumuladas"), card **"Registrar recarga recibida"** (icono ↓ azul), card **"Registrar pago al proveedor"** (icono billete rojo, badge con monto, solo si hay deudas), card **"Ver mis movimientos"** (icono reloj gris, con badge de ganancia por liquidar) | Registrar recarga, Registrar pago, Ver movimientos (liquidar desde ahí) |
+| BUS | Saldo virtual ("Disponible en la máquina para vender"), Caja Bus ("Ventas de pasajes acumuladas"), botón `?` en el header (siempre visible, abre alert con el instructivo del banco/F7), card **"Ya deposité en el banco"** (icono ↓ secundario), card **"Ver mis movimientos"** | Registrar depósito, Ver movimientos (liquidar desde ahí) |
+
+> El identificador de sección ("Recargas Celular"/"Recargas Bus", pill sobre el monto) **siempre está visible**, incluso con ambos módulos activos y tabs arriba — antes se ocultaba justo en ese caso, dejando sin referencia a usuarios que no reparan en las pestañas (ej. adultos mayores).
 
 > **No hay liquidación desde la página principal.** Liquidar ganancia es una acción del `HistorialModalComponent` (ver abajo) — la página solo enlaza a "Movimientos", que muestra el badge de cuánto hay pendiente.
 
@@ -66,6 +70,8 @@ La tienda vende recargas de celular y pasajes de bus usando **saldo virtual** de
 
 ## Componentes Modales
 
+**Los 3 modales del feature migraron al patrón bottom-sheet estándar del proyecto (2026-07-17/18)** — antes usaban el chrome legacy (`ion-header`/`ion-content` fullscreen). Ahora todos usan `bs-root`/`bs-header`/`bs-content` (ver `docs/shared/SHARED-README.md` → "bottom-sheet-modal"), se abren desde el caller con `cssClass: 'bottom-sheet-modal', breakpoints: [0, 1], initialBreakpoint: 1`, header con icono del servicio a color (tinte claro + icono pleno, azul Celular / secundario Bus) y footer fijo con el botón de acción.
+
 ### Registrar Recarga Modal (`components/registrar-recarga-modal/`)
 
 Modal compartido para dos flujos según el `tipo` recibido:
@@ -73,15 +79,21 @@ Modal compartido para dos flujos según el `tipo` recibido:
 - **CELULAR:** Registra una carga del proveedor → crea deuda pendiente (`pagado_proveedor=false`), vía `fn_registrar_recarga_proveedor_celular`.
 - **BUS:** Registra una compra de saldo → EGRESO inmediato de CAJA_BUS, `pagado_proveedor=true` desde el INSERT (ganancia disponible de inmediato para liquidar), vía `fn_registrar_compra_saldo_bus`. Soporta modo básico y modo con mini cierre (ventas del día calculadas con `saldo_virtual_maquina`).
 
+**UX del flujo BUS — wizard visual de 2 pasos (2026-07-18):** los campos "Saldo actual en la máquina" (①) y "Monto a depositar" (②) llevan numeritos que guían el orden. El paso ① dispara un desglose (Caja acumulada + Ventas del día = Disponible); el paso ② muestra "Quedará en Caja Bus $X" en verde o una alerta roja si el monto excede lo disponible. CELULAR conserva un solo campo con cálculo automático de deuda/ganancia en una card sobria (fondo `step-100`).
+
 **Formato de los inputs de monto (fix 2026-07-03):** los campos "Saldo actual en la máquina" y "Monto a depositar/virtual" bindean al **texto visible** (`saldoVirtualMaquinaTexto`, `montoVirtualTexto`), no al número — `montoVirtual`/`saldoVirtualMaquina` son getters derivados (`CurrencyService.parse()`) que consume toda la aritmética y el RPC. Antes bindeaban directo a propiedades `number` sobre un `<input type="number">`: el navegador nunca aceptaba el string formateado que escribe `appCurrencyInput` en el blur (`"694.70"`), y el campo BUS "Monto a depositar" — que se autocompleta **por código**, no por interacción del usuario — nunca pasaba por blur y mostraba el número JS crudo (`694.7`, con coma según el locale del dispositivo: `694,7`). Con el modelo de texto separado, el auto-relleno escribe directamente `currencyService.format(...)` — el campo siempre se ve formateado, haya sido tecleado o calculado. Ver también `CurrencyInputDirective`, que ahora soporta `blur`/`focus` nativos además de `ionBlur`/`ionFocus` (afecta a todo `<input>` HTML plano con esta directiva en la app, no solo aquí).
+
+**Feedback (2026-07-18):** el éxito de ambas ramas (CELULAR/BUS) usa `FeedbackOverlayService` en vez de toast — el modal se cierra inmediatamente después de confirmar (Regla 2 de `CLAUDE.md` § toast vs overlay). CELULAR muestra *"Recarga registrada · $X · Debes $Y al proveedor · Ganancia $Z"*; BUS muestra *"Depósito registrado · $X"*. El error de negocio de la rama CELULAR (antes toast) también pasó a overlay por ser la misma transacción financiera.
 
 ### Pagar Proveedor Modal (`components/pagar-proveedor-modal/`)
 
-Solo CELULAR. Lista deudas pendientes (`pagado_proveedor=false`) con selección individual o total via `IonCheckbox`. **Solo paga al proveedor** — descuenta `monto_a_pagar` de CAJA_CELULAR y marca `pagado_proveedor=true` (vía `fn_pagar_proveedor_celular`). La ganancia queda en CAJA_CELULAR hasta que se liquide desde el Historial Modal.
+Solo CELULAR. Lista deudas pendientes (`pagado_proveedor=false`) con selección individual o total via `IonCheckbox`. **Ninguna fila viene premarcada por defecto** (2026-07-18) — el usuario selecciona manualmente qué recargas va a pagar; el total y el botón reflejan solo lo marcado. **Solo paga al proveedor** — descuenta `monto_a_pagar` de CAJA_CELULAR y marca `pagado_proveedor=true` (vía `fn_pagar_proveedor_celular`). La ganancia queda en CAJA_CELULAR hasta que se liquide desde el Historial Modal.
+
+**UX:** bloque de contexto "Caja Celular disponible" reactivo — se pone en rojo si el total seleccionado excede el saldo (antes solo cambiaba un texto). Filas con fondo `--ion-color-step-100` (se adapta a dark), fila seleccionada resaltada en azul. Footer fijo con total + botón "Registrar pago" (icono de billete). Éxito/error vía `FeedbackOverlayService` (mismo criterio que Registrar Recarga — mutación real + `dismiss()` inmediato).
 
 ### Historial Modal (`components/historial-modal/`)
 
-Muestra el historial reciente (últimas 50 filas, `obtenerHistorial()`) del servicio activo, y permite liquidar la ganancia pendiente.
+Muestra el historial reciente (últimas 50 filas, `obtenerHistorial()`) del servicio activo, y permite liquidar la ganancia pendiente. La tabla original (5 columnas CELULAR / 4 BUS) se conservó tal cual dentro del nuevo chrome bottom-sheet — solo cambió el contenedor, no la lógica de columnas. El botón "Transferir $X" pasó a footer fijo (antes flotaba dentro de la card); su éxito usa `FeedbackOverlayService` (*"Ganancia liquidada · $X · Transferida de Caja X a Varios/Tienda"*).
 
 **Tabla** — columnas según servicio:
 
@@ -380,8 +392,9 @@ Si no hay FACTURACION_BUS_PENDIENTE y diasHastaFinMes <= bus_dias_antes_facturac
 ## Estado del Proyecto
 
 - ✅ Registro de recargas CELULAR (con deuda pendiente, `pagado_proveedor=false`)
-- ✅ Pago al proveedor CELULAR — modal `PagarProveedorModalComponent` con selección múltiple via `IonCheckbox`, EGRESO atómico via `fn_pagar_proveedor_celular`
+- ✅ Pago al proveedor CELULAR — modal `PagarProveedorModalComponent` con selección manual via `IonCheckbox` (ninguna premarcada), EGRESO atómico via `fn_pagar_proveedor_celular`
 - ✅ Compra de saldo BUS (modo básico y extendido con mini cierre), `pagado_proveedor=true` desde el registro (v4.1)
 - ✅ Liquidación de ganancia CELULAR/BUS — desde el Historial Modal, filtra `pagado_proveedor=true AND ganancia_liquidada=false` con `SELECT FOR UPDATE`
 - ✅ Historial modal: tabla de 5 columnas (CELULAR) / 4 columnas (BUS), totales, banner de ganancia atrapada por proveedor (solo CELULAR), botón de liquidar que nunca se oculta por falta de saldo (toast explicativo en su lugar)
+- ✅ Rediseño UX completo (2026-07-17/18) — jerarquía visual de acciones (`rv-card`, color semántico por dirección de flujo), títulos coloquiales consistentes, identificador de sección siempre visible, los 3 modales migrados al patrón bottom-sheet estándar, feedback de mutaciones reales vía `FeedbackOverlayService` en vez de toast
 - ✅ Badge de notificación en Home cuando hay ganancia BUS pendiente de liquidar

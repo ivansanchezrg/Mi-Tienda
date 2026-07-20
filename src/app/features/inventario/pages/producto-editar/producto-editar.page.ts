@@ -15,6 +15,7 @@ import {
 import { ROUTES } from '../../../../core/config/routes.config';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
+import { FeedbackOverlayService } from '../../../../core/services/feedback-overlay.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { Producto, ProductoTemplate, Atributo, AtributoOpcion } from '../../models/producto.model';
@@ -54,6 +55,7 @@ export class ProductoEditarPage implements OnInit, ViewWillEnter {
     private productoSvc     = inject(ProductoService);
     protected currencyService = inject(CurrencyService);
     private ui              = inject(UiService);
+    private feedback         = inject(FeedbackOverlayService);
     protected storageService = inject(StorageService);
     private alertCtrl       = inject(AlertController);
     private logger          = inject(LoggerService);
@@ -217,8 +219,15 @@ export class ProductoEditarPage implements OnInit, ViewWillEnter {
                 payload.imagen_url = null;
             }
 
-            await this.productoSvc.actualizar(this.producto.id, payload);
+            const actualizado = await this.productoSvc.actualizar(this.producto.id, payload);
+            // null = falló (call() ya mostró el toast de error con el motivo real) — no
+            // navegar, así el usuario no pierde el formulario ni el contexto del fallo.
+            if (!actualizado) { this.guardando = false; return; }
+
             this.productoForm.markAsPristine();
+            // Overlay ANTES de navegar: un toast aquí competiría con la transición de
+            // página y se perdería (ver design_toast_vs_overlay_feedback.md).
+            this.feedback.success({ titulo: 'Producto actualizado', destacado: actualizado.nombre });
             this.navCtrl.navigateBack(ROUTES.inventario.root);
         } catch (error) {
             this.logger.error('ProductoEditarPage', 'Error guardando', error);

@@ -2,16 +2,16 @@ import { Component, inject, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, ModalController
+  IonIcon, IonSpinner, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  closeOutline, addCircleOutline,
+  closeOutline, checkmarkOutline,
   phonePortraitOutline, busOutline,
-  checkmarkCircleOutline, alertCircleOutline
+  checkmarkCircleOutline, alertCircleOutline, trendingUpOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { FeedbackOverlayService } from '@core/services/feedback-overlay.service';
 import { SupabaseService } from '@core/services/supabase.service';
 import { RecargasVirtualesService } from '../../services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
@@ -31,8 +31,7 @@ type TipoServicio = 'CELULAR' | 'BUS';
   imports: [
     CommonModule,
     FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon,
+    IonIcon, IonSpinner,
     CurrencyInputDirective,
     NumbersOnlyDirective,
     AppCurrencyPipe,
@@ -43,6 +42,7 @@ export class RegistrarRecargaModalComponent implements OnInit {
 
   private modalCtrl = inject(ModalController);
   private ui = inject(UiService);
+  private feedback = inject(FeedbackOverlayService);
   private supabase = inject(SupabaseService);
   private service = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
@@ -87,11 +87,12 @@ export class RegistrarRecargaModalComponent implements OnInit {
   constructor() {
     addIcons({
       closeOutline,
-      addCircleOutline,
+      checkmarkOutline,
       phonePortraitOutline,
       busOutline,
       checkmarkCircleOutline,
-      alertCircleOutline
+      alertCircleOutline,
+      trendingUpOutline
     });
   }
 
@@ -164,15 +165,17 @@ export class RegistrarRecargaModalComponent implements OnInit {
   // ──────────────────────────────
 
   get tituloModal(): string {
-    return this.tipo === 'CELULAR' ? 'Recarga del Proveedor - Celular' : 'Comprar Saldo - Bus';
+    return this.tipo === 'CELULAR' ? 'Registrar recarga' : 'Registrar depósito';
+  }
+
+  get subtituloModal(): string {
+    return this.tipo === 'CELULAR'
+      ? 'El proveedor te cargó saldo al celular'
+      : 'Ya depositaste en el banco';
   }
 
   get labelMonto(): string {
-    return this.tipo === 'CELULAR' ? 'Monto virtual cargado' : 'Monto a depositar';
-  }
-
-  get iconoServicio(): string {
-    return this.tipo === 'CELULAR' ? 'phone-portrait-outline' : 'bus-outline';
+    return this.tipo === 'CELULAR' ? '¿Cuánto te cargó el proveedor?' : '¿Cuánto vas a depositar?';
   }
 
   // ──────────────────────────────
@@ -226,16 +229,20 @@ export class RegistrarRecargaModalComponent implements OnInit {
         });
 
         if (!resultado?.success) {
-          await this.ui.showError('Error al registrar recarga');
+          this.feedback.error({
+            titulo: 'No se pudo registrar la recarga',
+            subtitulo: 'Intenta de nuevo',
+          });
           return;
         }
 
-        await this.ui.showSuccess(
-          `Recarga registrada: $${this.currencyService.format(resultado.monto_virtual)}\n` +
-          `Deuda pendiente: $${this.currencyService.format(resultado.monto_a_pagar)}\n` +
-          `Ganancia: $${this.currencyService.format(resultado.ganancia)}\n` +
-          `Saldo Virtual Celular: $${this.currencyService.format(resultado.saldo_virtual_celular)}`
-        );
+        // Overlay (no toast): el modal se cierra inmediatamente después — un toast
+        // disparado justo antes de esa transición compite con ella y se pierde.
+        this.feedback.success({
+          titulo: 'Recarga registrada',
+          destacado: `$${this.currencyService.format(resultado.monto_virtual)}`,
+          subtitulo: `Debes $${this.currencyService.format(resultado.monto_a_pagar)} al proveedor · Ganancia $${this.currencyService.format(resultado.ganancia)}`,
+        });
 
         this.modalCtrl.dismiss({ success: true, data: resultado });
 
@@ -250,7 +257,12 @@ export class RegistrarRecargaModalComponent implements OnInit {
 
         if (!resultado?.success) return;  // supabase.call() ya mostró el toast de error
 
-        await this.ui.showSuccess(`Compra registrada: $${this.currencyService.format(this.montoVirtual)}`);
+        // Overlay (no toast): el modal se cierra inmediatamente después — ver nota
+        // equivalente en la rama CELULAR.
+        this.feedback.success({
+          titulo: 'Depósito registrado',
+          destacado: `$${this.currencyService.format(this.montoVirtual)}`,
+        });
         this.modalCtrl.dismiss({ success: true });
       }
     } catch {

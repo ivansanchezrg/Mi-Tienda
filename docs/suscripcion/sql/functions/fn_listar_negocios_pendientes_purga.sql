@@ -1,8 +1,9 @@
 -- =============================================================================
 -- fn_listar_negocios_pendientes_purga — Lista negocios en cuenta regresiva de purga
 -- =============================================================================
--- Ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md (Fase 2/5). Solo lectura, para la
--- seccion del panel /admin que muestra a quien avisar y a quien purgar.
+-- Ver docs/suscripcion/SUSCRIPCION-README.md, sección "Purga automática de
+-- negocios vencidos". Solo lectura, para la seccion del panel /admin que
+-- muestra a quien avisar y a quien purgar.
 --
 -- Devuelve un item POR NEGOCIO con purga_avisada_el IS NOT NULL (ya sea que solo
 -- este en cuenta regresiva, o que purga_programada_el ya este vencida y el boton

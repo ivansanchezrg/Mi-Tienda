@@ -1,7 +1,7 @@
 -- =============================================================================
 -- fix_triggers_purga.sql — Permite que fn_purgar_negocio borre sin restricciones
 -- =============================================================================
--- Ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md (Fase 4).
+-- Ver docs/suscripcion/SUSCRIPCION-README.md, sección "Purga automática de negocios vencidos".
 --
 -- Problema: los triggers de inmutabilidad de operaciones_cajas, movimientos_empleados
 -- y usuario_negocios bloquean el DELETE en CASCADE que dispara fn_purgar_negocio.

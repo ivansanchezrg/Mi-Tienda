@@ -3,7 +3,6 @@ import { BehaviorSubject, map, distinctUntilChanged, combineLatest, filter, firs
 import { Preferences } from '@capacitor/preferences';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseService } from '@core/services/supabase.service';
-import { UiService } from '@core/services/ui.service';
 import { LoggerService } from '@core/services/logger.service';
 import { ConfigService } from '@core/services/config.service';
 import { TurnoLocalService } from '@core/services/turno-local.service';
@@ -14,6 +13,8 @@ import { TurnoCaja, TurnoCajaConEmpleado, EstadoCaja, EstadoCajaTipo } from '../
 import { Caja } from './cajas.service';
 import { DatosCierreDiario } from '../models/saldos-anteriores.model';
 import { getFechaLocal, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
+import { TIMING } from '@core/config/timing.config';
+import { TimeoutError } from '@core/utils/timeout.util';
 
 /**
  * Snapshot consolidado del dashboard del home (devuelto por la RPC fn_home_dashboard).
@@ -53,13 +54,31 @@ interface HomeDashboardSnapshot {
   data: HomeDashboard;
 }
 
+/**
+ * Instrucción de feedback que el caller (modal / página) debe aplicar en un fallo
+ * de mutación de turno. Centraliza la decisión "qué mostrar" en el servicio para que
+ * el caller no re-derive el tipo de error:
+ *  - 'silenciar' → sin red y el banner global ya avisa; no mostrar nada.
+ *  - 'red'       → red "conectada pero rota" (timeout); mostrar overlay de conexión.
+ *  - 'mensaje'   → error de negocio con texto propio en `errorMsg`; mostrarlo tal cual.
+ */
+type TurnoFeedback = 'silenciar' | 'red' | 'mensaje';
+
+export interface TurnoMutacionResult {
+  ok: boolean;
+  turnoId?: string;
+  /** Presente solo cuando ok === false. */
+  feedback?: TurnoFeedback;
+  /** Texto del error de negocio (solo con feedback === 'mensaje'). */
+  errorMsg?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class TurnosCajaService {
   private supabase = inject(SupabaseService);
   private authService = inject(AuthService);
-  private ui = inject(UiService);
   private logger = inject(LoggerService);
   private configService = inject(ConfigService);
   private zone = inject(NgZone);
@@ -480,43 +499,55 @@ export class TurnosCajaService {
    * Una sola transacción reemplaza las 3 queries separadas del enfoque anterior
    * (check open → count → insert), eliminando la race condition TOCTOU.
    *
-   * Contrato del retorno:
-   *  - `errorHandled: true`  → fue un fallo de transporte (sin red / JWT / error SQL crudo);
-   *    supabase.call() ya mostró el toast y retornó null. El home no debe mostrar nada.
-   *  - `errorHandled: false` + `errorMsg` → la BD rechazó la operación por una regla de
-   *    negocio (ej. "Ya hay un turno abierto por X"). El mensaje lo redacta fn_abrir_turno;
-   *    el home solo lo muestra tal cual. Nunca inventar aquí el texto del error.
+   * Contrato del retorno (`feedback` le dice al caller QUÉ mostrar, sin re-derivar):
+   *  - `ok: true`               → turno abierto. El caller muestra su overlay de éxito.
+   *  - `feedback: 'silenciar'`  → sin red detectada (navegador sabe que no hay conexión):
+   *    el banner global amarillo ya lo comunica → NO mostrar overlay redundante.
+   *  - `feedback: 'red'`        → red "conectada pero rota" (timeout / transporte con el
+   *    navegador creyendo que hay conexión): el banner NO aparece → mostrar overlay de red.
+   *  - `feedback: 'mensaje'` + `errorMsg` → regla de negocio (ej. "Ya hay un turno abierto
+   *    por X"). El texto lo redacta fn_abrir_turno; mostrarlo tal cual, nunca inventarlo.
    */
-  async abrirTurno(fondoApertura: number = 0): Promise<{ ok: boolean; errorHandled: boolean; errorMsg?: string }> {
+  async abrirTurno(fondoApertura: number = 0): Promise<TurnoMutacionResult> {
     const empleado = await this.authService.getUsuarioActual();
-    if (!empleado) return { ok: false, errorHandled: false, errorMsg: 'No se pudo obtener el empleado actual' };
+    if (!empleado) return { ok: false, feedback: 'mensaje', errorMsg: 'No se pudo obtener el empleado actual' };
 
-    const response = await this.supabase.call(
-      this.supabase.client.rpc('fn_abrir_turno', {
-        p_empleado_id:    empleado.id,
-        p_fondo_apertura: fondoApertura
-      })
-    );
+    let response: unknown;
+    try {
+      response = await this.supabase.call(
+        this.supabase.client.rpc('fn_abrir_turno', {
+          p_empleado_id:    empleado.id,
+          p_fondo_apertura: fondoApertura
+        }),
+        undefined,
+        { timeoutMs: TIMING.turnoMutacionTimeoutMs, silentError: true }
+      );
+    } catch (error: any) {
+      return { ok: false, ...this.clasificarErrorMutacion(error, 'No se pudo abrir el turno') };
+    }
 
-    // response === null → supabase.call() ya mostró el toast del error de transporte
-    if (response === null) return { ok: false, errorHandled: true };
+    // response === null → "sin red" detectado por call() (retorna null, no lanza).
+    // El banner ya avisa → silenciar.
+    if (response === null) return { ok: false, feedback: 'silenciar' };
 
     const data = response as any;
     // success: false → la BD rechazó por regla de negocio. Propagar su mensaje (data.error)
     // — es la fuente de verdad y describe la causa real (turno ya abierto, saldo, etc.).
     if (!data?.success) {
-      return { ok: false, errorHandled: false, errorMsg: data?.error ?? 'No se pudo abrir el turno' };
+      return { ok: false, feedback: 'mensaje', errorMsg: data?.error ?? 'No se pudo abrir el turno' };
     }
 
     await this.refrescarTurnoActivo();
-    await this.ui.showSuccess('Caja abierta');
+
+    // Overlay de éxito (no toast): lo muestra home.page.ts (onAbrirCaja) después de
+    // este return, con el fondo declarado — ver design_toast_vs_overlay_feedback.md.
 
     // Priming de respaldo (Fase P, PLAN-OFFLINE-CALLE §2.9): si el arranque de la app
     // no llegó a precalentar el cache (o el snapshot ya venció), esta es la última red
     // garantizada antes de que el vendedor salga a la calle. Best-effort, no bloquea.
     void this.syncService.precalentarOffline();
 
-    return { ok: true, errorHandled: false };
+    return { ok: true };
   }
 
   /**
@@ -537,32 +568,39 @@ export class TurnosCajaService {
    * Usa la función dedicada `reparar_deficit_turno`.
    * El RPC valida que Tienda tenga saldo suficiente — si no, retorna error con mensaje.
    *
-   * Retorna { ok: true } si todo OK, o { ok: false, errorMsg } con el mensaje del RPC.
+   * Mismo contrato de retorno que abrirTurno (ver TurnoMutacionResult): `feedback` le
+   * dice al modal qué mostrar en el fallo (silenciar / overlay de red / mensaje).
    */
-  async repararDeficit(deficitVarios: number, fondoApertura: number): Promise<{ ok: boolean; turnoId?: string; errorMsg?: string }> {
+  async repararDeficit(deficitVarios: number, fondoApertura: number): Promise<TurnoMutacionResult> {
     const empleado = await this.authService.getUsuarioActual();
-    if (!empleado) return { ok: false, errorMsg: 'No se pudo obtener el empleado actual' };
+    if (!empleado) return { ok: false, feedback: 'mensaje', errorMsg: 'No se pudo obtener el empleado actual' };
 
     // Las categorías DEF-RETIRAR y DEF-REPONER son UUIDs fijos en categorias_sistema —
     // fn_reparar_deficit_turno las resuelve internamente, no las recibe como parámetros.
-    const response = await this.supabase.call(
-      this.supabase.client.rpc('fn_reparar_deficit_turno', {
-        p_empleado_id:    empleado.id,
-        p_deficit_varios: deficitVarios,
-        p_fondo_apertura: fondoApertura,
-      }),
-      undefined,
-      { showLoading: true }
-    );
+    let response: unknown;
+    try {
+      response = await this.supabase.call(
+        this.supabase.client.rpc('fn_reparar_deficit_turno', {
+          p_empleado_id:    empleado.id,
+          p_deficit_varios: deficitVarios,
+          p_fondo_apertura: fondoApertura,
+        }),
+        undefined,
+        { showLoading: true, timeoutMs: TIMING.turnoMutacionTimeoutMs, silentError: true }
+      );
+    } catch (error: any) {
+      return { ok: false, ...this.clasificarErrorMutacion(error, 'Error inesperado al registrar el ajuste') };
+    }
 
+    // response === null → "sin red" detectado por call(). El banner ya avisa → silenciar.
     if (response === null) {
-      return { ok: false, errorMsg: 'Error de conexión con el servidor' };
+      return { ok: false, feedback: 'silenciar' };
     }
 
     const data = response as any;
 
     if (!data?.success) {
-      return { ok: false, errorMsg: data?.error || 'Error desconocido al registrar el ajuste' };
+      return { ok: false, feedback: 'mensaje', errorMsg: data?.error || 'Error desconocido al registrar el ajuste' };
     }
 
     // Sincronizar turnoActivo$ proactivamente (la apertura con reparacion de
@@ -570,6 +608,68 @@ export class TurnosCajaService {
     await this.refrescarTurnoActivo();
 
     return { ok: true, turnoId: data.turno_id };
+  }
+
+  /**
+   * Compensa manualmente las transferencias diarias a Varios que no se realizaron
+   * mientras el turno estuvo abierto varios días (fn_compensar_varios_pendiente).
+   *
+   * NO es una transferencia normal: usa categorías COMP-DIA-* que ningún check de cuota
+   * diaria observa, así no contamina la transferencia del día en curso. El RPC valida el
+   * saldo de Tienda; si no alcanza, retorna { ok:false, error } con el mensaje del backend.
+   *
+   * @param monto   monto total a compensar (dias × transferencia diaria)
+   * @param detalle rango de días descriptivo para el historial, ej. "2 días (15/07–16/07)"
+   */
+  async compensarVariosPendiente(monto: number, detalle: string): Promise<{ ok: boolean; error?: string }> {
+    const empleado = await this.authService.getUsuarioActual();
+    if (!empleado) return { ok: false, error: 'No se pudo obtener el empleado actual' };
+
+    let response: unknown;
+    try {
+      response = await this.supabase.call(
+        this.supabase.client.rpc('fn_compensar_varios_pendiente', {
+          p_empleado_id: empleado.id,
+          p_monto:       monto,
+          p_detalle:     detalle,
+        }),
+        undefined,
+        { showLoading: true, silentError: true }
+      );
+    } catch (error: any) {
+      if (this.supabase.debeSilenciarErrorOffline(error)) return { ok: false };
+      return { ok: false, error: error?.message ?? 'No se pudo registrar la compensación' };
+    }
+
+    // response === null → "sin red" detectado por call(); el banner global ya avisa.
+    if (response === null) return { ok: false };
+
+    const data = response as any;
+    if (!data?.success) {
+      return { ok: false, error: data?.error || 'No se pudo registrar la compensación' };
+    }
+
+    // Refrescar saldos del home (Tienda bajó, Varios subió).
+    await this.refrescarTurnoActivo();
+    return { ok: true };
+  }
+
+  /**
+   * Clasifica una excepción de una mutación de turno (relanzada por call() con
+   * silentError) en la instrucción de feedback que el caller debe aplicar. Centraliza
+   * aquí la decisión para que abrirTurno/repararDeficit no dupliquen el criterio:
+   *  - sin red (navegador sabe que no hay conexión) → 'silenciar' (banner global cubre).
+   *  - timeout / transporte con red "conectada pero rota" → 'red' (overlay de conexión).
+   *  - excepción real del servidor (respondió con error) → 'mensaje' con su texto.
+   */
+  private clasificarErrorMutacion(error: any, mensajeFallback: string): Omit<TurnoMutacionResult, 'ok'> {
+    if (this.supabase.debeSilenciarErrorOffline(error)) {
+      return { feedback: 'silenciar' };
+    }
+    if (error instanceof TimeoutError || this.supabase.esErrorDeTransporte(error)) {
+      return { feedback: 'red' };
+    }
+    return { feedback: 'mensaje', errorMsg: error?.message ?? mensajeFallback };
   }
 
   /**
@@ -792,6 +892,7 @@ export class TurnosCajaService {
       saldos_antes_cierre:   { caja: number; varios: number };
       transferencia_diaria_varios: number;
       transferencia_ya_hecha: boolean;
+      varios_pendiente:      { dias: number; monto: number; desde: string | null; hasta: string | null };
       resumen_turno:         { ventas_pos_efectivo: number; egresos: number };
       configuracion:         { recargas_celular_habilitada: boolean; recargas_bus_habilitada: boolean; caja_varios_activa: boolean };
     }>(
@@ -803,6 +904,7 @@ export class TurnosCajaService {
     const ag  = data?.agregado_virtual_hoy  ?? { celular: 0, bus: 0 };
     const sc  = data?.saldos_cajas          ?? { caja_chica_digital: 0, caja_celular: 0, caja_bus: 0 };
     const sac = data?.saldos_antes_cierre   ?? { caja: 0, varios: 0 };
+    const vp  = data?.varios_pendiente      ?? { dias: 0, monto: 0, desde: null, hasta: null };
     const rt  = data?.resumen_turno         ?? { ventas_pos_efectivo: 0, egresos: 0 };
     const cfg = data?.configuracion         ?? { recargas_celular_habilitada: false, recargas_bus_habilitada: false, caja_varios_activa: false };
 
@@ -815,6 +917,7 @@ export class TurnosCajaService {
       saldosAntesCierre:         { caja: sac.caja ?? 0, varios: sac.varios ?? 0 },
       transferenciaDiariaVarios: data?.transferencia_diaria_varios ?? 0,
       transferenciaYaHecha:      data?.transferencia_ya_hecha      ?? false,
+      variosPendiente:           { dias: vp.dias ?? 0, monto: vp.monto ?? 0, desde: vp.desde ?? null, hasta: vp.hasta ?? null },
       resumenTurno:              { ventasPosEfectivo: rt.ventas_pos_efectivo ?? 0, egresos: rt.egresos ?? 0 },
       configuracion: {
         recargasCelularHabilitada: cfg.recargas_celular_habilitada ?? false,

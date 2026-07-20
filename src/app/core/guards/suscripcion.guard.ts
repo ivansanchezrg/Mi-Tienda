@@ -10,7 +10,8 @@ import { ROUTES } from '../config/routes.config';
  *
  * Responsabilidad única: valida SOLO la suscripción. Se compone en cadena DESPUÉS
  * de authGuard (que ya garantizó sesión + negocio activo). No se mezcla con authGuard
- * para no convertirlo en un "god guard" — ver docs/PLAN-PLANES-SUSCRIPCION.md §4.1.
+ * para no convertirlo en un "god guard" — ver docs/suscripcion/SUSCRIPCION-README.md,
+ * sección "suscripcionGuard".
  *
  * Exenciones:
  *  - Superadmin: nunca se bloquea (entra a los negocios para dar soporte).

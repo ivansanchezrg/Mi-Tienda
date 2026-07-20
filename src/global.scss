@@ -223,7 +223,8 @@ img.img-fade {
 // banner y header. Aplica a CUALQUIER banner global superior; al agregar uno nuevo
 // que reserve safe-area-top, sumar su clase de body a este selector.
 body.offline-banner-visible,
-body.suscripcion-banner-visible {
+body.suscripcion-banner-visible,
+body.sync-banner-visible {
   --ion-safe-area-top: 0px;
 
   // Solo los headers de PÁGINA (dentro del router-outlet) pierden el safe-area:

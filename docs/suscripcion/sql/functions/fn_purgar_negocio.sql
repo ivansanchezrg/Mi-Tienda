@@ -1,7 +1,8 @@
 -- =============================================================================
 -- fn_purgar_negocio — Borrado real e irreversible de un negocio vencido
 -- =============================================================================
--- Ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md (Fase 4). Disparada manualmente
+-- Ver docs/suscripcion/SUSCRIPCION-README.md, sección "Purga automática de
+-- negocios vencidos". Disparada manualmente
 -- por el superadmin desde /admin ("Purgar ahora") DESPUES de haber borrado la
 -- carpeta de Storage del negocio (StorageService.deleteNegocioFolder).
 --
@@ -16,9 +17,10 @@
 --      SET LOCAL limita el efecto a esta transaccion — al terminar desaparece.
 --   2. Borrado MANUAL y ORDENADO de las tablas hijas (hijos → padres). No se
 --      confia en el CASCADE de negocios porque hay FK internas entre tablas del
---      negocio SIN ON DELETE CASCADE (ej: ventas_detalles.producto_id → productos)
---      que bloquean el borrado por orden no determinista. Borrar en orden explicito
---      evita tocar esas constraints (que protegen la integridad en operacion normal).
+--      negocio SIN ON DELETE CASCADE (ej: ventas_detalles.producto_id → productos,
+--      movimientos_empleados.turno_id → turnos_caja) que bloquean el borrado por
+--      orden no determinista. Borrar en orden explicito evita tocar esas
+--      constraints (que protegen la integridad en operacion normal).
 --   3. UPDATE negocios SET propietario_usuario_id = NULL — rompe el FK RESTRICT.
 --   4. DELETE FROM negocios — borra el negocio y sus tablas restantes por CASCADE.
 --      suscripcion_pagos NO se borra: su FK es ON DELETE SET NULL (historial
@@ -113,11 +115,17 @@ BEGIN
     DELETE FROM recargas_virtuales WHERE negocio_id = p_negocio_id;
     DELETE FROM operaciones_cajas  WHERE negocio_id = p_negocio_id;
 
-    -- 2c. turnos_caja.caja_id ahora es SET NULL, pero borramos turnos antes de cajas igual.
+    -- 2c. movimientos_empleados.turno_id → turnos_caja (SIN cascade, ej. FALTANTE_CAJA
+    --     generado por fn_ejecutar_cierre_diario_v5). Borrar antes que turnos_caja o el
+    --     DELETE queda bloqueado por esta FK. El trigger fn_bloquear_delete_movimiento
+    --     ya cede por el bypass de app.purga_en_curso activado en el paso 1.
+    DELETE FROM movimientos_empleados WHERE negocio_id = p_negocio_id;
+
+    -- 2d. turnos_caja.caja_id ahora es SET NULL, pero borramos turnos antes de cajas igual.
     DELETE FROM turnos_caja        WHERE negocio_id = p_negocio_id;
     DELETE FROM cajas              WHERE negocio_id = p_negocio_id;
 
-    -- 2d. Catalogo de productos. productos.categoria_id → categorias_productos (SIN cascade),
+    -- 2e. Catalogo de productos. productos.categoria_id → categorias_productos (SIN cascade),
     --     producto_atributos.atributo_opcion_id → atributo_opciones (SIN cascade).
     --     Al borrar productos se limpian codigos_barras, producto_atributos,
     --     producto_presentaciones (todas CASCADE hacia productos).

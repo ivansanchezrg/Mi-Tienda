@@ -33,14 +33,17 @@
     </app-empty-state>
 
     } @else {
+    <ion-reorder-group [disabled]="false" (ionItemReorder)="onReorder($event)">
     @for (cat of categorias; track cat.id) {
     <div class="categoria-item" (click)="onItemClick(cat)">
       <div class="cat-info">
         <p class="cat-nombre">{{ cat.nombre }}</p>
       </div>
       <ion-icon name="chevron-forward-outline" class="chevron"></ion-icon>
+      <ion-reorder (click)="$event.stopPropagation()"></ion-reorder>
     </div>
     }
+    </ion-reorder-group>
     }
 
   </div>

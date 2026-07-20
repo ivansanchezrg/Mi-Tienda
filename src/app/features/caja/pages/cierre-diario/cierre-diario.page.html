@@ -347,6 +347,28 @@
         </ion-card-content>
       </ion-card>
 
+      <!-- Transferencia a Varios pendiente de días anteriores (turno abierto varios días).
+           Informativo: NO se incluye en este cierre; el home ofrece compensarla tras cerrar. -->
+      @if (hayVariosPendiente) {
+      <ion-card class="varios-pendiente-card">
+        <ion-card-content>
+          <div class="vp-header">
+            <ion-icon name="alert-circle-outline"></ion-icon>
+            <span class="vp-title">Transferencia a Varios pendiente</span>
+          </div>
+          <p class="vp-monto">${{ variosPendienteMonto | appCurrency }}</p>
+          <p class="vp-detalle">
+            @if (variosPendienteDias === 1) {
+              1 día sin cierre ({{ variosPendienteRango }})
+            } @else {
+              {{ variosPendienteDias }} días sin cierre ({{ variosPendienteRango }})
+            }
+          </p>
+          <p class="vp-nota">No se incluye en este cierre. Podrás registrar el traspaso de Tienda a Varios al finalizar.</p>
+        </ion-card-content>
+      </ion-card>
+      }
+
       <!-- Observaciones -->
       <ion-card class="observaciones-card" [formGroup]="cierreForm">
         <ion-card-header>

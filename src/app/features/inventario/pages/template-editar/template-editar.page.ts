@@ -16,6 +16,7 @@ import {
 } from 'ionicons/icons';
 import { ROUTES } from '../../../../core/config/routes.config';
 import { UiService } from '../../../../core/services/ui.service';
+import { FeedbackOverlayService } from '../../../../core/services/feedback-overlay.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { HasPendingChanges } from '../../../../core/guards/pending-changes.guard';
@@ -56,6 +57,7 @@ export class TemplateEditarPage implements OnInit, HasPendingChanges {
     private inventarioSvc = inject(InventarioService);
     private productoSvc   = inject(ProductoService);
     private ui            = inject(UiService);
+    private feedback      = inject(FeedbackOverlayService);
     protected storageService = inject(StorageService);
     private modalCtrl     = inject(ModalController);
     private logger        = inject(LoggerService);
@@ -281,11 +283,16 @@ export class TemplateEditarPage implements OnInit, HasPendingChanges {
                 imagen_url:   imagenPath,
             });
 
+            // res.ok === false: falló (call() ya mostró el toast de error real) — no
+            // navegar, el usuario conserva el formulario para reintentar.
             if (!res.ok) { this.guardando = false; return; }
 
             this.form.markAsPristine();
             this.fotoNueva = false;
             this.fotoEliminada = false;
+            // Overlay ANTES de navegar: un toast aquí competiría con la transición de
+            // página y se perdería (ver design_toast_vs_overlay_feedback.md).
+            this.feedback.success({ titulo: 'Plantilla actualizada', destacado: v.nombre });
             this.navCtrl.navigateBack(ROUTES.inventario.root);
         } catch (error) {
             this.logger.error('TemplateEditarPage', 'Error guardando template', error);

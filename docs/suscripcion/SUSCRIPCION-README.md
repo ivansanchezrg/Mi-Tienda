@@ -2,8 +2,6 @@
 
 Sistema de monetización SaaS de Mi Tienda. Cada negocio paga una suscripción para operar; al vencer, la app bloquea el acceso hasta que el superadmin registre el pago.
 
-Diseño completo y decisiones en [`docs/PLAN-PLANES-SUSCRIPCION.md`](../PLAN-PLANES-SUSCRIPCION.md).
-
 ---
 
 ## Terminología importante
@@ -50,12 +48,32 @@ Se evalúa por **fecha**, no por instante: si vence "el 18", el cliente opera **
 
 ### Purga automática de negocios vencidos (`purga_avisada_el` / `purga_programada_el`)
 
-Dos columnas nullable en `suscripciones`, agregadas vía `docs/suscripcion/sql/setup/alter_suscripciones_purga.sql`. Plan completo en [docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md](../PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md):
+Un negocio cuyo trial o suscripción vence nunca se borraba solo: quedaba bloqueado indefinidamente pero sus datos y fotos vivían para siempre en BD y Storage. Este flujo agrega un **periodo de gracia + purga diferida** (patrón estándar SaaS — Notion, Linear): nunca se borra en caliente, siempre hay aviso previo, el borrado real ocurre días después del vencimiento. Implementado 2026-06-27, auditado y corregido 2026-07-18.
 
+**Decisiones de diseño:**
+- **Facturación y purga por propietario, no por negocio.** El plan MAX cubre hasta 3 negocios del mismo `propietario_usuario_id` bajo un solo ciclo de pago — si el propietario no paga, se purgan **todos** sus negocios juntos (mismo criterio que `fn_suspender_propietario_suscripcion`). Esto incluye negocios `SUSPENDIDA` manualmente por otro motivo — la purga no hace excepción por estado de bloqueo individual (confirmado 2026-07-18).
+- **Periodo de gracia: 30 días desde el vencimiento.** Aviso al día 23 (marca `purga_avisada_el`), 7 días de cuenta regresiva, purga habilitada al día 30 (`purga_programada_el`).
+- **El usuario global (`usuarios`) nunca se borra automáticamente** — solo sus negocios y datos asociados. `negocios.propietario_usuario_id` es nullable (Fase 1) para que `fn_purgar_negocio` pueda ponerlo en `NULL` transitoriamente antes del `DELETE`, rompiendo el `ON DELETE RESTRICT` sin tocar `usuarios`.
+- **Flujo 100% manual, sin cron ni Edge Function.** El superadmin opera desde `/admin`: detecta pendientes, avisa por WhatsApp, ejecuta "Purgar ahora" verificando con sus propios ojos que BD + Storage quedaron limpios. Automatizar esto (Edge Function + `pg_cron`/`pg_net`) queda diferido hasta que el volumen lo justifique.
+
+**Columnas** (`suscripciones`, agregadas vía `docs/suscripcion/sql/setup/alter_suscripciones_purga.sql`):
 - `purga_avisada_el` — cuándo `fn_marcar_negocios_para_purga` detectó vencimiento + gracia cumplida (≥23 días) y marcó al propietario.
 - `purga_programada_el` — fecha desde la que el botón "Purgar ahora" queda habilitado en `/admin` (`purga_avisada_el` + 7 días). `fn_purgar_negocio` exige `purga_programada_el <= NOW()` antes de borrar.
 - Ambas se limpian (`NULL`) si el propietario paga antes de la purga (`fn_registrar_pago_propietario`) o el superadmin la cancela manualmente (`fn_cancelar_purga_negocio`).
-- El flujo es **manual** (sin cron): el superadmin avisa por WhatsApp y dispara la purga desde el panel.
+
+**Funciones SQL** (`docs/suscripcion/sql/functions/`):
+| Función | Descripción |
+|---------|-------------|
+| `fn_marcar_negocios_para_purga()` | Detecta propietarios vencidos ≥23 días (excluye `SUSPENDIDA`/`CANCELADA` de la *detección*), marca `purga_avisada_el`/`purga_programada_el` en todos sus negocios. Sin parámetros — evalúa todo el sistema. Disparada por el botón "Detectar pendientes". |
+| `fn_listar_negocios_pendientes_purga()` | Solo lectura. Devuelve cada negocio con `purga_avisada_el IS NOT NULL`, con `dias_restantes_purga` y `puede_purgar_ya` ya calculados, y `telefono_contacto` (del negocio ancla del propietario, el más antiguo por `created_at`). |
+| `fn_purgar_negocio(p_negocio_id)` | Borrado real e irreversible. Exige `purga_programada_el <= NOW()`. Borra en orden manual (hijos → padres) las tablas con FK interna sin CASCADE, luego `DELETE FROM negocios` limpia el resto vía CASCADE. `suscripcion_pagos` conserva su historial con `negocio_id = NULL`. |
+| `fn_cancelar_purga_negocio(p_propietario_id)` | Excepción de soporte: limpia las columnas de purga de todos los negocios del propietario sin que medie un pago real. |
+
+**Storage:** `StorageService.deleteNegocioFolder(negocioId)` borra recursivamente `{negocioId}/` en el bucket `mi-tienda` **antes** de `fn_purgar_negocio` (si Storage falla, no se continúa con el DELETE en BD — ver `SuscripcionService.purgarNegocio`). La RLS de Storage (`docs/setup/03_storage_rls.sql`) tiene una rama de superadmin (`EXISTS ... es_superadmin = true`) en `SELECT`/`DELETE`, necesaria porque el superadmin purga desde `/admin` sin tener ese negocio activo en su JWT — sin esa rama, `list()` devuelve `[]` sin error (RLS filtra en silencio) y los archivos quedan huérfanos aunque la BD sí se purgue.
+
+**Triggers de inmutabilidad:** `fn_purgar_negocio` activa `SET LOCAL app.purga_en_curso = 'true'` (efecto acotado a la transacción) para que `fn_proteger_operacion_caja`, `fn_bloquear_delete_movimiento` y `fn_proteger_propietario_negocio` cedan durante el borrado — ver `docs/suscripcion/sql/setup/fix_triggers_purga.sql`.
+
+**Panel `/admin`:** integrado en el flujo existente de Negocios (`admin-negocios.page.ts`), no es una pantalla separada. Botón "Detectar pendientes" en el header; badge "Purga en X día(s)" / "Lista para purgar" por propietario marcado; 3 acciones en su menú (Avisar por WhatsApp, Purgar ahora, Cancelar purga).
 
 ### Estado actual vs. historial financiero (dos tablas)
 
@@ -510,13 +528,51 @@ El componente `SuscripcionPage` tiene un mapa `FEATURE_LABELS` que convierte cad
 
 ---
 
+## Diferenciadores del plan MAX — roadmap de bloqueo técnico
+
+**Planes actuales:** Plan PRO (acceso completo al sistema base — POS, inventario, clientes, caja; solo web, 1 negocio) y Plan MAX (todo lo del PRO, más Multisucursal, Multiplataforma y próximamente IA).
+
+Los tres diferenciadores del MAX se muestran hoy como bloques visuales en la tarjeta de planes (`susc-plan__extra-bloque`) — son **marketing**, sin bloqueo técnico real todavía, salvo Multisucursal que ya está implementado.
+
+### 1. Multiplataforma — pendiente
+
+```sql
+UPDATE planes SET features = features || '{"movil": true}' WHERE codigo = 'MAX';
+```
+```typescript
+// En suscripcionGuard, tras verificar estado:
+if (Capacitor.isNativePlatform() && !suscripcionService.tieneFeature('movil')) {
+  router.navigate([ROUTES.suscripcion.root]);
+  return false;
+}
+```
+Mensaje en pantalla de suscripción: "Tu plan Pro solo está disponible en web. Actualiza al Max para usar la app en celular y tablet."
+
+### 2. Multisucursal — ✅ implementado (2026-06-16)
+
+```sql
+-- migrations/003_planes_max_negocios.sql
+ALTER TABLE planes ADD COLUMN IF NOT EXISTS max_negocios INT; -- NULL = ilimitado
+UPDATE planes SET max_negocios = 1 WHERE codigo = 'PRO';
+UPDATE planes SET max_negocios = 3 WHERE codigo = 'MAX';
+```
+
+`fn_completar_onboarding` (paso de validación) cuenta todos los negocios del propietario y los compara con `max_negocios` del plan vigente — si alcanzó el tope, lanza `RAISE EXCEPTION 'limite_negocios: ...'`. Ver sección "Límite de negocios por plan" arriba para el detalle completo (frontend, absoluto también para superadmin, sin bloqueo preventivo del botón).
+
+**Beneficio MAX concreto ya construido sobre esto:** el dashboard "Resumen General" multi-negocio (módulo `grupo`) — ver [`docs/grupo/GRUPO-README.md`](../grupo/GRUPO-README.md).
+
+### 3. Inteligencia artificial — pendiente
+
+Feature key `ia: true` ya está en el JSON de features del MAX (ver "Planes actuales" arriba). Cuando el módulo de IA esté construido, `tieneFeature('ia')` ya funcionará sin cambios de esquema.
+
+### Por qué se difirió
+
+Solo hay clientes de prueba — bloquear hoy generaría fricción sin beneficio comercial. La señal visual es suficiente para el pitch de venta. Los cambios de esquema (`max_negocios`) son simples y no bloquean el desarrollo actual.
+
+---
+
 ## Pendientes
 
-- **El dueño debe ejecutar en Supabase** (una sola vez por entorno):
-  - `docs/setup/migrations/001_planes_suscripciones.sql` — crea tablas + seed.
-  - `docs/setup/migrations/005_suscripciones_estado_pagos.sql` — **modelo de 2 tablas** (estado + `suscripcion_pagos`), `negocio_id` UNIQUE, quita `mensaje_suspension`, `REPLICA IDENTITY FULL`.
-  - Re-ejecutar las **5 funciones** de `docs/suscripcion/sql/functions/` + `fn_completar_onboarding` (usan el nuevo modelo).
-  - UPDATE de `features` para planes PRO y MAX (ver sección "Planes actuales" arriba).
-- **Fase 7 (feature gates):** `tieneFeature()` ya existe en `SuscripcionService`. Pendiente: agregar `@if` en sidebar/templates cuando haya planes con features distintas. Los bloques visuales de Multisucursal, Multiplataforma e IA en el plan MAX son marketing por ahora — la implementación técnica está documentada en `docs/PLAN-PLANES-SUSCRIPCION.md §11`.
+- **Fase 7 (feature gates):** `tieneFeature()` ya existe en `SuscripcionService`. Pendiente: agregar `@if` en sidebar/templates cuando haya planes con features distintas. Ver "Diferenciadores del plan MAX" arriba para el roadmap de Multiplataforma e IA (Multisucursal ya implementado). Referencia en backlog: `docs/PENDIENTES.md` → "Bloqueo técnico por dispositivo y multisucursal según plan".
 - **CRUD de métodos de pago desde UI:** hoy se gestiona por SQL/seed. El selector en `RegistrarPagoModalComponent` ya los consume.
 - **Cobro automático con tarjeta (Payphone/Kushki):** arquitectura preparada. `fn_registrar_pago_propietario` es el punto único de renovación — el webhook de la pasarela lo llamaría. Evaluable cuando el cobro manual sea tedioso con múltiples clientes.

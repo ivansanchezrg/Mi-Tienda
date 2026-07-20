@@ -44,25 +44,29 @@
             <ion-icon name="remove-outline"></ion-icon>
           </button>
 
-          @if (esPeso) {
-            <input
-              class="cm-input"
-              type="text"
-              inputmode="decimal"
-              placeholder="0.00"
-              autocomplete="off"
-              [value]="cantidadStr"
-              (input)="onInput($event)" />
-          } @else {
-            <input
-              class="cm-input"
-              type="text"
-              inputmode="numeric"
-              placeholder="0"
-              autocomplete="off"
-              [value]="cantidadStr"
-              (input)="onInput($event)" />
-          }
+          <!-- Caja del input con la unidad como sufijo interno (adorno) -->
+          <div class="cm-input-box">
+            @if (esPeso) {
+              <input
+                class="cm-input"
+                type="text"
+                inputmode="decimal"
+                placeholder="0.00"
+                autocomplete="off"
+                [value]="cantidadStr"
+                (input)="onInput($event)" />
+            } @else {
+              <input
+                class="cm-input"
+                type="text"
+                inputmode="numeric"
+                placeholder="0"
+                autocomplete="off"
+                [value]="cantidadStr"
+                (input)="onInput($event)" />
+            }
+            <span class="cm-input-suffix">{{ esPeso ? unidadMedida : 'und' }}</span>
+          </div>
 
           <button class="cm-step-btn cm-step-btn--plus"
             (mousedown)="$event.preventDefault()"
@@ -72,20 +76,16 @@
           </button>
         </div>
 
-        <span class="cm-unidad-label">{{ esPeso ? unidadMedida : 'unidades' }}</span>
-
         @if (error) {
           <p class="cm-error">{{ error }}</p>
         }
       </div>
 
-      <!-- Subtotal preview -->
-      @if (subtotal > 0) {
+      <!-- Subtotal preview — siempre visible (ancla de layout estable, $0.00 si vacío) -->
       <div class="cm-subtotal">
         <span class="cm-subtotal-label">Subtotal</span>
-        <span class="cm-subtotal-value">${{ currencyService.format(subtotal) }}</span>
+        <span class="cm-subtotal-value" [class.cm-subtotal-value--vacio]="subtotal <= 0">${{ currencyService.format(subtotal) }}</span>
       </div>
-      }
 
     </div>
   </div>
@@ -93,14 +93,18 @@
   <!-- Botones -->
   <div class="bs-actions bs-actions--row">
     @if (esEdicion) {
-      <ion-button fill="outline" color="danger" (click)="quitar()" class="cm-btn-quitar">
+      <ion-button fill="outline" color="danger" (click)="quitar()" class="cm-btn-quitar" [disabled]="cerrando">
         <ion-icon name="trash-outline" slot="start"></ion-icon>
         Quitar
       </ion-button>
     }
     <ion-button fill="solid" color="primary" (click)="confirmar()"
-      [disabled]="!cantidad || cantidad <= 0">
-      {{ esEdicion ? 'Confirmar' : 'Agregar' }}
+      [disabled]="!cantidad || cantidad <= 0 || cerrando">
+      @if (cerrando) {
+        <ion-spinner name="crescent" class="cm-btn-spinner"></ion-spinner>
+      } @else {
+        {{ esEdicion ? 'Confirmar' : 'Agregar' }}
+      }
     </ion-button>
   </div>
 

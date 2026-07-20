@@ -1,74 +1,97 @@
-<ion-header class="ion-no-border">
-  <ion-toolbar>
-    <ion-title>Pagar al proveedor</ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="cerrar()">
-        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
-</ion-header>
+<div class="bs-root">
 
-<ion-content>
-  <div class="modal-content">
-
-    <!-- Resumen saldo -->
-    <div class="saldo-row">
-      <span class="saldo-label">Caja Celular disponible</span>
-      <span class="saldo-valor">${{ cajaCelularSaldo | appCurrency }}</span>
+  <!-- Header -->
+  <div class="bs-header">
+    <div class="pp-header-text">
+      <span class="bs-header__title">Pagar al proveedor</span>
+      <span class="pp-header-subtitle">Elige qué recargas le vas a pagar</span>
     </div>
+    <button class="bs-header__close" (click)="cerrar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
 
-    <!-- Toggle seleccionar todas -->
-    <div class="select-all-row">
-      <ion-checkbox
-        [checked]="todasSeleccionadas"
-        [indeterminate]="indeterminate"
-        (ionChange)="onToggleTodas($event.detail.checked)">
-      </ion-checkbox>
-      <span>Seleccionar todas ({{ deudas.length }})</span>
-    </div>
+  <div class="bs-content">
+    <div class="pp-body">
 
-    <!-- Lista de deudas -->
-    <div class="deudas-list">
-      @for (deuda of deudas; track deuda.id) {
-        <div class="deuda-item">
+      <!-- Contexto: cuánto hay en la caja para pagar -->
+      <div class="pp-caja" [class.pp-caja--insuficiente]="!saldoSuficiente && algunaSeleccionada">
+        <div class="pp-caja-icon">
+          <ion-icon name="cash-outline"></ion-icon>
+        </div>
+        <div class="pp-caja-info">
+          <span class="pp-caja-label">Tienes en Caja Celular</span>
+          <span class="pp-caja-sub">Efectivo disponible para pagar</span>
+        </div>
+        <span class="pp-caja-valor">${{ cajaCelularSaldo | appCurrency }}</span>
+      </div>
+
+      <!-- Lista de deudas -->
+      <div class="pp-lista-header">
+        <span class="pp-lista-titulo">Recargas por pagar</span>
+        <button class="pp-select-all" type="button" (click)="onToggleTodas(!todasSeleccionadas)">
           <ion-checkbox
-            [checked]="checked[deuda.id]"
-            (ionChange)="onItemChange(deuda.id, $event.detail.checked)">
+            [checked]="todasSeleccionadas"
+            [indeterminate]="indeterminate"
+            (ionChange)="onToggleTodas($event.detail.checked)"
+            (click)="$event.stopPropagation()">
           </ion-checkbox>
-          <div class="deuda-info">
-            <span class="deuda-fecha">{{ formatearFecha(deuda.fecha) }}</span>
-            <span class="deuda-virtual">Virtual: ${{ deuda.monto_virtual | appCurrency }}</span>
+          <span>Todas ({{ deudas.length }})</span>
+        </button>
+      </div>
+
+      <div class="pp-deudas">
+        @for (deuda of deudas; track deuda.id) {
+          <div class="pp-deuda" [class.pp-deuda--activa]="checked[deuda.id]"
+            (click)="onItemChange(deuda.id, !checked[deuda.id])">
+            <ion-checkbox
+              [checked]="checked[deuda.id]"
+              (ionChange)="onItemChange(deuda.id, $event.detail.checked)"
+              (click)="$event.stopPropagation()">
+            </ion-checkbox>
+            <div class="pp-deuda-info">
+              <span class="pp-deuda-fecha">{{ formatearFecha(deuda.fecha) }}</span>
+              <span class="pp-deuda-virtual">Recarga de ${{ deuda.monto_virtual | appCurrency }}</span>
+            </div>
+            <div class="pp-deuda-monto">
+              <span class="pp-deuda-pagar">${{ deuda.monto_a_pagar | appCurrency }}</span>
+              <span class="pp-deuda-ganancia">
+                <ion-icon name="trending-up-outline"></ion-icon>
+                ${{ deuda.ganancia | appCurrency }}
+              </span>
+            </div>
           </div>
-          <div class="deuda-monto">
-            <span class="monto-pagar">${{ deuda.monto_a_pagar | appCurrency }}</span>
-            <span class="ganancia-label">ganancia ${{ deuda.ganancia | appCurrency }}</span>
-          </div>
+        }
+      </div>
+
+      <!-- Alerta saldo insuficiente -->
+      @if (!saldoSuficiente && algunaSeleccionada) {
+        <div class="pp-alerta">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <p>No te alcanza el efectivo de Caja Celular para pagar ${{ totalSeleccionado | appCurrency }}. Deselecciona algunas recargas.</p>
         </div>
       }
+
     </div>
-
-    <!-- Total + alerta saldo insuficiente -->
-    <div class="total-row" [class.insuficiente]="!saldoSuficiente && algunaSeleccionada">
-      <span>Total a pagar</span>
-      <span class="total-valor">${{ totalSeleccionado | appCurrency }}</span>
-    </div>
-
-    @if (!saldoSuficiente && algunaSeleccionada) {
-      <div class="alerta-saldo">
-        <ion-icon name="card-outline"></ion-icon>
-        <p>Caja Celular no tiene fondos suficientes para pagar ${{ totalSeleccionado | appCurrency }}</p>
-      </div>
-    }
-
-    <!-- Botones -->
-    <div class="modal-actions">
-      <button class="secondary-btn" (click)="cerrar()">Cancelar</button>
-      <button class="primary-btn" [disabled]="!puedePagar" (click)="confirmar()">
-        <ion-icon name="card-outline"></ion-icon>
-        Registrar pago
-      </button>
-    </div>
-
   </div>
-</ion-content>
+
+  <!-- Footer: total + acción -->
+  <div class="pp-footer">
+    <div class="pp-total">
+      <span class="pp-total-label">Total a pagar</span>
+      <span class="pp-total-valor" [class.pp-total-valor--insuficiente]="!saldoSuficiente && algunaSeleccionada">
+        ${{ totalSeleccionado | appCurrency }}
+      </span>
+    </div>
+    <button class="pp-pagar-btn" [disabled]="!puedePagar" (click)="confirmar()" type="button">
+      @if (guardando) {
+        <ion-spinner name="crescent"></ion-spinner>
+        <span>Registrando…</span>
+      } @else {
+        <ion-icon name="cash-outline"></ion-icon>
+        <span>Registrar pago</span>
+      }
+    </button>
+  </div>
+
+</div>

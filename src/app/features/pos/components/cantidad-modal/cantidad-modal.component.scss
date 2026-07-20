@@ -4,6 +4,12 @@
     flex: 0.6;
 }
 
+.cm-btn-spinner {
+    width: 20px;
+    height: 20px;
+    color: var(--ion-color-primary-contrast);
+}
+
 .cm-thumb {
   width: 44px;
   height: 44px;
@@ -108,39 +114,58 @@
   }
 }
 
-// Input tradicional con borde gris → azul al hacer foco
-.cm-input {
+// Caja del input: tiene el borde/fondo (antes los tenía el <input>). Contiene el número
+// y la unidad como sufijo pegado. El focus-ring se activa con :focus-within.
+.cm-input-box {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   border: 2px solid var(--ion-color-step-250, #d0d0d0);
   border-radius: var(--radius-md, 12px);
   background: var(--ion-color-step-50, #f8f8f8);
-  font-size: 40px;
-  font-weight: 700;
-  color: var(--ion-text-color);
-  text-align: center;
-  padding: var(--spacing-sm) var(--spacing-xs);
-  outline: none;
-  caret-color: var(--ion-color-primary);
+  padding: var(--spacing-sm) var(--spacing-sm);
   transition: border-color 0.15s, background 0.15s;
 
-  &::placeholder {
-    color: var(--ion-color-step-350, #b0b0b0);
-    font-weight: 400;
-  }
-
-  &:focus {
+  &:focus-within {
     border-color: var(--ion-color-primary);
     background: var(--ion-background-color);
   }
 }
 
-// Etiqueta de unidad debajo del número
-.cm-unidad-label {
-  font-size: 12px;
+// Input transparente — el borde/fondo lo aporta .cm-input-box. Toma el espacio
+// disponible y alinea el número a la derecha para que quede pegado al sufijo.
+.cm-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--ion-text-color);
+  text-align: right;
+  padding: 0;
+  outline: none;
+  caret-color: var(--ion-color-primary);
+
+  &::placeholder {
+    color: var(--ion-color-step-350, #b0b0b0);
+    font-weight: 400;
+  }
+}
+
+// Unidad como sufijo interno (lb / und) — pegada al número, alineada a su base.
+// flex:1 espejo del input para que el número quede visualmente centrado en la caja.
+.cm-input-suffix {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 600;
   color: var(--ion-color-medium);
   letter-spacing: 0.3px;
   text-transform: lowercase;
+  text-align: left;
 }
 
 // ── Error ──
@@ -173,4 +198,11 @@
   font-size: 22px;
   font-weight: 700;
   color: var(--ion-color-primary);
+  transition: color 0.15s ease;
+
+  // Sin cantidad válida: $0.00 atenuado — indica que aún no hay valor real
+  &--vacio {
+    color: var(--ion-color-medium);
+    opacity: 0.5;
+  }
 }

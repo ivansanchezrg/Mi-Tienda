@@ -1,4 +1,4 @@
-# Cierre Diario — Referencia Técnica (v6.3 — 2026-06-05)
+# Cierre Diario — Referencia Técnica (v6.5 — 2026-07-18 — atribución de reposición por turno + pendiente cuantificado)
 
 ## 1. Arquitectura
 
@@ -154,9 +154,37 @@ depositoCaja        = efectivoFisico - transferenciaVarios   // todo lo demás v
 
 **Después del cierre exitoso:** la página guarda los datos del cierre con `ShareCierreService.guardarPendiente(datos)` y navega al home. Es el home quien detecta el pendiente con `ShareCierreService.consumirPendiente()`. El texto plano lo construye `ShareCierreService.enviarResumenWhatsApp(datos)`. Los datos incluyen `esModoSinPos` y `observaciones`.
 
+**Feedback de éxito/error — overlay, no toast (2026-07-18):** justo antes de navegar al home, la página muestra `FeedbackOverlayService.success({ titulo: 'Cierre registrado', subtitulo: 'Turno #N cerrado correctamente' })` **sin monto destacado** — el desglose completo (efectivo contado, reparto Varios/Tienda, saldos antes→después) ya se mostró en el Paso 2 antes de confirmar; repetir una cifra aquí sería redundante y ambiguo (¿cuál de todas?). Duración corta (2s) para que se disipe antes de que el modal "Enviar resumen" (solo EMPLEADO) tome protagonismo — el overlay tiene mayor `z-index` que ese modal.
+
+En error, la clasificación sigue el mismo contrato que abrir caja (ver `8_PROCESO_ABRIR_CAJA.md` §11): `ejecutarCierreDiario()` usa `{ timeoutMs: TIMING.turnoMutacionTimeoutMs, silentError: true }`, así que un timeout o una excepción real del RPC (`RAISE EXCEPTION`, ej. "El turno ya está cerrado", "Venta celular negativa...") llegan al `catch` de `ejecutarCierre()` en vez de perderse:
+
+```typescript
+catch (error: any) {
+  if (this.supabase.debeSilenciarErrorOffline(error)) return;   // banner global ya avisa
+  const esFalloDeRed = error instanceof TimeoutError || this.supabase.esErrorDeTransporte(error);
+  this.feedback.error({
+    titulo: 'No se pudo cerrar el turno',
+    subtitulo: esFalloDeRed
+      ? 'El servidor no respondió. Verifica tu conexión e intenta de nuevo.'
+      : (error?.message || 'Intenta de nuevo'),
+  });
+}
+```
+
+El caso `resultado === null` (sin `throw`) solo ocurre cuando `call()` detecta "sin red" — ahí no se muestra overlay (redundante con el banner), solo se cierra el loading.
+
 > **Modal de compartir solo para EMPLEADO (2026-07-01):** el modal "Enviar resumen / Omitir" **solo aparece si quien cierra tiene rol `EMPLEADO`** (`authService.usuarioActualValue?.rol === 'EMPLEADO'` en `home.ionViewWillEnter`). Razón: el ADMIN/dueño ya sabe lo que pasó (cerró él mismo) y no necesita notificarse a sí mismo por WhatsApp — para eso está el historial de cierres, que además tiene su propio botón "Compartir". El empleado sí necesita avisar al dueño ausente en tiempo real. El botón "Compartir" del historial (`CierreTurnoDetalleModalComponent`) sigue disponible para todos, siempre. El aviso de "Transferencia a Varios pendiente" se separó a su propio método (`avisarDeficitVariosSiAplica`) y se muestra **siempre** tras un cierre que lo requiera, independiente del rol.
 
-**Turno abierto en un día anterior (`aperturaEnOtroDia`):** al armar `DatosCierreParaCompartir`, la página compara la fecha local de `hora_fecha_apertura` con la fecha del cierre. Si difieren, el turno quedó abierto de un día anterior — ese día la transferencia diaria a Varios no se realizó. Tras cerrarse el modal de compartir, el home muestra un alert informativo ("Transferencia a Varios pendiente") sugiriendo compensarla con un traspaso manual de Tienda a Varios. El resumen de WhatsApp incluye una línea de aviso equivalente. **La compensación es deliberadamente manual** (decidido 2026-06-11): la transferencia a Varios es "una por cierre, máximo una por día" — no se acumula ni se cobra retroactivamente, porque el dinero no se pierde (queda en Tienda) y automatizar el cobro múltiple agregaría modos de fallo al cierre para un caso excepcional.
+**Turno abierto varios días (`varios_pendiente`) — v6.5 (2026-07-18):** `fn_datos_cierre_diario` v1.2 calcula, día por día, cuántas transferencias diarias a Varios quedaron sin realizarse mientras el turno estuvo abierto. Retorna `varios_pendiente { dias, monto, desde, hasta }` — itera los días locales en `[fecha_apertura, hoy)` y cuenta los que no cobraron (ni `TRANSFERENCIA_ENTRANTE` ese día, ni un `DEF-REPONER` cuyo turno referenciado cerró ese día). `monto = dias × caja_varios_transferencia_dia`. Excluye días previos a `cajas.created_at` de VARIOS (módulo recién activado). En el caso normal (abierto y cerrado el mismo día) `dias = 0` y no se muestra nada.
+
+Con este dato, tres puntos de la UI informan el pendiente **cuantificado**:
+- **Wizard Paso 2** — card `varios-pendiente-card` con monto, número de días y rango de fechas, antes de confirmar el cierre (el empleado no se sorprende con el alert después). Es solo informativa: el pendiente **no** se suma a este cierre.
+- **Alert post-cierre (home)** — `avisarDeficitVariosSiAplica` muestra monto + días + rango y ofrece **[Después] [Registrar traspaso]**. El segundo botón ejecuta `TurnosCajaService.compensarVariosPendiente()`.
+- **Resumen WhatsApp** — línea con las cifras exactas (`ShareCierreService`).
+
+**La compensación es una acción explícita del usuario, no automática** (decisión de 2026-06-11 conservada): la transferencia a Varios es "una por cierre, máximo una por día" — el cierre no la acumula ni la cobra retroactivamente (el dinero no se pierde, queda en Tienda). Lo que cambió en v6.5 es que el aviso pasó de vago a cuantificado y accionable con 1 tap.
+
+> **Por qué la compensación NO usa `fn_crear_transferencia`:** una `TRANSFERENCIA_ENTRANTE` en VARIOS la interpretarían los checks "¿Varios cobró hoy?" como la cuota del día en curso, reintroduciendo el bug de "la reposición cuenta como la transferencia de hoy" por otra vía. `fn_compensar_varios_pendiente` usa categorías propias (`COMP-DIA-RETIRAR`/`COMP-DIA-REPONER`, UUIDs `...014`/`...015`) que **ningún** check de cuota diaria observa. Códigos abstractos a propósito — no nombran "Varios"/"Tienda" (cajas renombrables); el nombre real se resuelve de `cajas.nombre` para las descripciones del ledger.
 
 ---
 
@@ -271,7 +299,9 @@ El `negocio_id` **no se pasa como parámetro** — la función lo lee internamen
 
 **Cubre dos casos** (ventana del día en UTC calculada desde la fecha local Ecuador):
 1. `TRANSFERENCIA_ENTRANTE` en VARIOS hoy → cierre normal anterior del día
-2. `INGRESO` con `categoria_sistema_id = DEF-REPONER` en VARIOS hoy → reparación de déficit ejecutada al abrir
+2. `INGRESO` con `categoria_sistema_id = DEF-REPONER` en VARIOS **cuyo turno referenciado cerró hoy** → reparación de un déficit generado hoy mismo (reapertura el mismo día)
+
+> **Fix v6.5 (2026-07-18) — atribución por turno, no por fecha:** antes el caso 2 se atribuía por la **fecha del asiento** `DEF-REPONER`. Como la reparación se ejecuta al abrir el turno siguiente (típicamente al día siguiente del cierre deficitario), un déficit de ayer reparado esta mañana quedaba fechado hoy → el cierre de hoy veía "Varios ya cobró" y **no transfería lo del día en curso**, perdiendo esa transferencia de forma permanente. Ahora `fn_reparar_deficit_turno` v4.3 graba el `DEF-REPONER` con `tipo_referencia_id = turnos_caja` + `referencia_id = <turno reparado>`, y el check solo lo cuenta como "cobró hoy" si ese turno **cerró hoy**. Fallback por fecha para filas `DEF-REPONER` viejas sin referencia. Mismo criterio aplicado en `fn_ejecutar_cierre_diario`, `fn_datos_cierre_diario` y `fn_obtener_deficit_turno_anterior`.
 
 Si `transferencia_ya_hecha = true`, el cierre muestra `transferenciaCajaChicaYaHecha = true`: el valor de VARIOS en la distribución aparece como "$0.00 — ✅ Ya recibió hoy" en gris (`.muted`), y la alerta de déficit no se muestra.
 
@@ -325,12 +355,12 @@ La función que ejecuta la reparación:
 
 > 📄 [`docs/caja/sql/functions/fn_reparar_deficit_turno.sql`](./sql/functions/fn_reparar_deficit_turno.sql) — v4.0 (categorías en `categorias_sistema`)
 
-En una transacción atómica:
-1. **EGRESO** de CAJA por `deficit_varios` — categoría `DEF-RETIRAR` (`categorias_sistema`)
-2. **INGRESO** a VARIOS por `deficit_varios` — categoría `DEF-REPONER` (`categorias_sistema`)
+En una transacción atómica (v4.3):
+1. **EGRESO** de CAJA por `deficit_varios` — categoría `DEF-RETIRAR` (`categorias_sistema`), con `tipo_referencia_id = turnos_caja` + `referencia_id = <turno reparado>`
+2. **INGRESO** a VARIOS por `deficit_varios` — categoría `DEF-REPONER` (`categorias_sistema`), con la misma referencia al turno reparado
 3. **INSERT** en `turnos_caja` con `fondo_apertura` libre — abre el nuevo turno
 
-El INGRESO `DEF-REPONER` es lo que `obtenerDeficitTurnoAnterior()` detecta para no re-detectar el déficit el mismo día.
+El INGRESO `DEF-REPONER` es lo que `obtenerDeficitTurnoAnterior()` detecta para no re-detectar el déficit del turno reparado. **Desde v4.3 la detección es por `referencia_id` (el turno reparado), no por la fecha del asiento** — así una reparación ejecutada días después del cierre deficitario sigue marcando ese turno como saldado, y no interfiere con la cuota diaria del día en que se ejecuta. Las descripciones usan `cajas.nombre` real (no el literal "Varios"/"Tienda"), ya que esas cajas son renombrables.
 
 ---
 

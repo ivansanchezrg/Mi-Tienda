@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
+  IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton, IonButton,
   IonContent, IonIcon,
   IonRefresher, IonRefresherContent, IonSkeletonText,
   ModalController, AlertController
@@ -12,8 +12,9 @@ import { addIcons } from 'ionicons';
 import {
   phonePortraitOutline, busOutline,
   chevronForwardOutline, timeOutline,
-  walletOutline, informationCircleOutline,
-  cardOutline
+  cashOutline, informationCircleOutline,
+  arrowDownCircleOutline,
+  helpCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
@@ -33,7 +34,7 @@ type TabActivo = 'CELULAR' | 'BUS';
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
+    IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton, IonButton,
     IonContent, IonIcon,
     IonRefresher, IonRefresherContent, IonSkeletonText,
     AppCurrencyPipe,
@@ -68,15 +69,22 @@ export class RecargasVirtualesPage {
   pendientesBus: RecargaVirtual[] = [];
   totalMovimientosBus = 0;
 
+  // Instructivo del flujo de Bus — usado en el card de bienvenida (saldo en cero)
+  // y en el alert de ayuda (botón "?" del header, siempre disponible).
+  readonly ayudaBusTexto =
+    'Deposita en el banco al proveedor Bus. Luego, en la máquina, presiona F7 → Opción 2 ' +
+    '(Recargas SAM en línea) para acreditar el saldo. Una vez acreditado, registra el depósito aquí.';
+
   constructor() {
     addIcons({
       phonePortraitOutline,
       busOutline,
       chevronForwardOutline,
       timeOutline,
-      walletOutline,
+      cashOutline,
       informationCircleOutline,
-      cardOutline,
+      arrowDownCircleOutline,
+      helpCircleOutline,
     });
   }
 
@@ -182,7 +190,10 @@ export class RecargasVirtualesPage {
       componentProps: {
         deudas: this.deudasCelular,
         cajaCelularSaldo: this.cajaCelularSaldo,
-      }
+      },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
     });
     await modal.present();
     const { data } = await modal.onWillDismiss();
@@ -192,7 +203,10 @@ export class RecargasVirtualesPage {
   async abrirModalRecarga() {
     const modal = await this.modalCtrl.create({
       component: RegistrarRecargaModalComponent,
-      componentProps: { tipo: 'CELULAR' }
+      componentProps: { tipo: 'CELULAR' },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
     });
     await modal.present();
     const { data } = await modal.onWillDismiss();
@@ -214,7 +228,10 @@ export class RecargasVirtualesPage {
     }
     const modal = await this.modalCtrl.create({
       component: RegistrarRecargaModalComponent,
-      componentProps: { tipo: 'BUS' }
+      componentProps: { tipo: 'BUS' },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
     });
     await modal.present();
     const { data } = await modal.onWillDismiss();
@@ -230,7 +247,10 @@ export class RecargasVirtualesPage {
         cajaSaldo:        esCelular ? this.cajaCelularSaldo : this.cajaBusSaldo,
         cajaVariosActiva: this.cajaVariosActiva,
         pendientes:       esCelular ? this.pendientesCelular : this.pendientesBus,
-      }
+      },
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
     });
     await modal.present();
     // Siempre recarga al cerrar — el modal pudo cambiar el estado del negocio (pagar
@@ -238,6 +258,15 @@ export class RecargasVirtualesPage {
     // confirma la liquidación. Garantiza que la próxima apertura reciba @Input frescos.
     await modal.onWillDismiss();
     await this.cargarDatos();
+  }
+
+  async mostrarAyudaBus() {
+    const alert = await this.alertCtrl.create({
+      header: '¿Cómo funciona?',
+      message: this.ayudaBusTexto,
+      buttons: [{ text: 'Entendido', role: 'cancel' }],
+    });
+    await alert.present();
   }
 
   // ==========================================

@@ -28,12 +28,15 @@ import {
   trashOutline,
   checkmarkCircleOutline,
   swapVerticalOutline,
-  walletOutline
+  walletOutline,
+  star,
+  starOutline
 } from 'ionicons/icons';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { InventarioService, MetricasInventario } from '../../services/inventario.service';
+import { ProductoService } from '../../services/producto.service';
 import { Producto } from '../../models/producto.model';
 import { CategoriaProducto } from '../../models/categoria-producto.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -84,6 +87,7 @@ type InventarioItem =
 })
 export class InventarioPage extends PaginatedListPage<Producto> implements OnInit, OnDestroy {
   private inventarioService = inject(InventarioService);
+  private productoService = inject(ProductoService);
   protected currencyService = inject(CurrencyService);
   private storageService = inject(StorageService);
   private navCtrl = inject(NavController);
@@ -207,7 +211,9 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       trashOutline,
       checkmarkCircleOutline,
       swapVerticalOutline,
-      walletOutline
+      walletOutline,
+      star,
+      starOutline
     });
   }
 
@@ -381,9 +387,27 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     this.navCtrl.navigateForward(ROUTES.inventario.nuevo, { queryParams: { codigo: codigoBarras } });
   }
 
+  /**
+   * Resuelve tanto la imagen del SKU como la del template (cuando aplica) — un producto
+   * con variantes se muestra en la card agrupada usando producto_template.imagen_url
+   * (ver agruparItems), así que dejar ese campo sin resolver rompe el thumbnail tras
+   * cualquier evento ACTUALIZADO (favorito, ajuste de stock, etc.) en productos con
+   * template. Mismo criterio que resolverImagenesLote (carga inicial de la página).
+   */
   private async resolverImagenUrl(producto: Producto): Promise<Producto> {
-    const url = await this.storageService.resolveImageUrl(producto.imagen_url);
-    return { ...producto, imagen_url: url ?? undefined };
+    const [url, templateUrl] = await Promise.all([
+      this.storageService.resolveImageUrl(producto.imagen_url),
+      producto.producto_template?.imagen_url
+        ? this.storageService.resolveImageUrl(producto.producto_template.imagen_url)
+        : Promise.resolve(null)
+    ]);
+    return {
+      ...producto,
+      imagen_url: url ?? undefined,
+      producto_template: producto.producto_template
+        ? { ...producto.producto_template, imagen_url: templateUrl ?? undefined }
+        : undefined
+    };
   }
 
   private async resolverImagenesLote(productos: Producto[]): Promise<Producto[]> {
@@ -414,6 +438,19 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
 
   irAEditar(producto: Producto) {
     this.navCtrl.navigateForward(ROUTES.inventario.editar(producto.id));
+  }
+
+  /**
+   * Toggle optimista: el ícono cambia al instante (feedback visual suficiente, sin
+   * toast — mismo criterio que ajustar stock). Si la mutación falla, revierte el
+   * ícono (toggleFavorito() ya mostró el toast de error via supabase.call()).
+   */
+  async toggleFavorito(producto: Producto, event: MouseEvent) {
+    event.stopPropagation();
+    const nuevo = !producto.favorito;
+    producto.favorito = nuevo;
+    const updated = await this.productoService.toggleFavorito(producto.id, nuevo);
+    if (!updated) producto.favorito = !nuevo;
   }
 
   /** Edita los datos generales del grupo de variantes (nombre, categoría, imagen general). */

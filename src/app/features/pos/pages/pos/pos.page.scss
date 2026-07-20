@@ -683,15 +683,23 @@ ion-toolbar {
 // BOTÓN VOLVER AL CATÁLOGO (modo lista)
 // ─────────────────────────────────────────
 
+// Toolbar del botón "Volver al catálogo" — estático en el header (como cliente-toolbar)
+.volver-toolbar {
+    --background: var(--ion-item-background);
+    --border-width: 0;
+    --min-height: 0;
+    padding: 0;
+    border-bottom: 1px solid var(--ion-color-step-100);
+}
+
 .volver-catalogo-btn {
     display: flex;
     align-items: center;
     gap: 4px;
     width: 100%;
     padding: 9px var(--spacing-md);
-    background: var(--ion-color-step-50);
+    background: transparent;
     border: none;
-    border-bottom: 1px solid var(--ion-color-step-150);
     color: var(--ion-color-primary);
     font-size: 13px;
     font-weight: var(--font-weight-semibold);
@@ -894,6 +902,24 @@ ion-toolbar {
     &:active:not(.cat-tab--active) {
         background: rgba(var(--ion-color-primary-rgb), 0.08);
     }
+
+    // Solo ícono, sin texto — botón compacto cuadrado en vez de píldora ancha.
+    &.cat-tab--favoritos {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        padding: 6px 0;
+
+        ion-icon {
+            font-size: 16px;
+            color: var(--ion-color-warning, #ffc409);
+        }
+
+        &.cat-tab--active ion-icon {
+            color: var(--ion-color-dark-contrast);
+        }
+    }
 }
 
 // Grid de productos — auto-fill con tarjetas de ~110px mínimo
@@ -976,6 +1002,10 @@ ion-toolbar {
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
+    // El navegador maneja el scroll vertical nativo; nuestros handlers de pointer
+    // reciben tap/long-press. Al iniciar un scroll vertical, el navegador emite
+    // pointercancel y el gesto de favorito se cancela solo — sin bloquear el scroll.
+    touch-action: pan-y;
 
     &:active {
         transform: scale(0.95);
@@ -1014,6 +1044,19 @@ ion-toolbar {
 
 // Badge de cantidad — pegado a la esquina superior derecha del card
 // top-right sigue el radius del card, las otras 3 esquinas rectas
+// Estrella de favorito — esquina superior izquierda (el badge de cantidad ya ocupa
+// la derecha). Marcada con long-press sobre la card (ver onCardPointerDown en el .ts).
+.catalogo-card-fav {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    font-size: 16px;
+    color: var(--ion-color-warning, #ffc409);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+    z-index: 3;
+    pointer-events: none;
+}
+
 .catalogo-card-badge {
     position: absolute;
     top: 0;
@@ -1091,6 +1134,7 @@ ion-toolbar {
 
 // Sección imagen — flex-grow ocupa todo el espacio disponible sobre la franja
 .catalogo-card-img {
+    position: relative;  // ancla el badge de tipo de venta (.catalogo-card-multi) a la zona de foto
     flex: 1;
     min-height: 0;
     // Gris medio (mismo tinte azulado que el slate oscuro, a mitad de camino
@@ -1180,9 +1224,12 @@ ion-toolbar {
 }
 
 // Indicador venta por peso
+// Badge del tipo de venta por peso (KG, LB…) — esquina INFERIOR izquierda de la foto.
+// Se movió abajo (antes top:5px/left:5px) para no solaparse con la estrella de favorito,
+// que ocupa la esquina superior izquierda. Anclado a .catalogo-card-img (position:relative).
 .catalogo-card-multi {
     position: absolute;
-    top: 5px;
+    bottom: 5px;
     left: 5px;
     z-index: 3;
     padding: 2px 6px;
@@ -1194,6 +1241,38 @@ ion-toolbar {
     text-transform: uppercase;
     letter-spacing: 0.3px;
     backdrop-filter: blur(4px);
+}
+
+// Indicador de que la card abre un selector al tocar (sub-opciones): presentaciones o
+// variantes. Mismo lenguaje visual que Inventario (.inv-tag): ícono pricetag verde para
+// presentaciones, paleta primary para variantes. Formato ícono-badge compacto (sin texto)
+// por el espacio reducido de la card. Esquina INFERIOR derecha — única libre.
+.catalogo-card-tag {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    z-index: 3;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+
+    ion-icon {
+        font-size: 12px;
+    }
+
+    &--present {
+        background: rgba(var(--ion-color-secondary-rgb, 0, 168, 108), 0.85);
+        color: #ffffff;
+    }
+    &--variante {
+        background: rgba(var(--ion-color-primary-rgb), 0.85);
+        color: var(--ion-color-primary-contrast, #ffffff);
+    }
 }
 
 
@@ -1282,6 +1361,12 @@ ion-toolbar {
         font-size: 15px;
         font-weight: var(--font-weight-bold);
         opacity: 0.9;
+
+        // Solo escala — el pill tiene fondo primary, animar el color (como totalBump)
+        // dejaría el texto invisible. pillCountBump ya es scale-only. Es flex item, admite transform.
+        &.total-amount--bump {
+            animation: pillCountBump 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
     }
 
     .pill-arrow {
@@ -1348,10 +1433,6 @@ ion-toolbar {
         flex: 1;
         min-width: 0;
         overflow-y: auto;
-        // Ocultar botón volver — en desktop el panel lateral lo reemplaza
-        .volver-catalogo-btn {
-            display: none !important;
-        }
         // Vista lista en desktop — se muestra siempre (catálogo + lista simultáneos no aplica)
         // El usuario usa el panel para ver el carrito — en desktop vistaActual queda en 'catalogo'
     }
@@ -1782,6 +1863,11 @@ ion-toolbar {
 
     // Ocultar la toolbar de cliente del header en desktop — el panel tiene la suya
     .cliente-toolbar--mobile {
+        display: none !important;
+    }
+
+    // Ocultar "Volver al catálogo" en desktop — el split pane muestra catálogo + lista juntos
+    .volver-toolbar {
         display: none !important;
     }
 

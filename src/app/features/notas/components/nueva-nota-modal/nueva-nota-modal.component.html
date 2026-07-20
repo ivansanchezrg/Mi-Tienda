@@ -5,7 +5,7 @@
     <div class="bs-header__icon">
       <ion-icon name="create-outline"></ion-icon>
     </div>
-    <span class="bs-header__title">Nueva nota</span>
+    <span class="bs-header__title">{{ esEdicion ? 'Editar nota' : 'Nueva nota' }}</span>
     <button class="bs-header__close" (click)="cancelar()" type="button">
       <ion-icon name="close-outline"></ion-icon>
     </button>
@@ -38,7 +38,7 @@
   <!-- Botones -->
   <div class="bs-actions bs-actions--row">
     <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">Salir</ion-button>
-    <ion-button expand="block" fill="solid" color="secondary" (click)="guardar()" [disabled]="!valido">Guardar</ion-button>
+    <ion-button expand="block" fill="solid" color="secondary" (click)="guardar()" [disabled]="!valido">{{ esEdicion ? 'Guardar cambios' : 'Guardar' }}</ion-button>
   </div>
 
 </div>

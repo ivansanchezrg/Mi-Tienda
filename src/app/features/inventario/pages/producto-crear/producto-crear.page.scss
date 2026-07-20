@@ -231,7 +231,8 @@
     // Pestaña / sello del icono: ocupa el borde izquierdo completo del card (rectos arriba-izq
     // y abajo-izq, ya que la card también es recta) y las dos esquinas del lado derecho son
     // cóncavas — forma una figura con curvas espejadas arriba y abajo.
-    // Mismo patrón visual que los iconos de cajas en el home: fondo de color sólido + icono blanco.
+    // Estética sobria: fondo = tinte muy claro del color, icono a color pleno como
+    // acento. El color deja de ser un bloque pesado y pasa a ser un detalle intencional.
     &__icon {
         width: 80px;
         align-self: stretch;
@@ -244,12 +245,20 @@
 
         ion-icon {
             font-size: 36px;
-            color: var(--ion-color-primary-contrast, #fff);
         }
 
-        &--simple        { background: var(--ion-color-primary); }
-        &--presentaciones { background: var(--ion-color-secondary); }
-        &--variantes     { background: var(--ion-color-tertiary); }
+        &--simple {
+            background: rgba(var(--ion-color-primary-rgb), 0.1);
+            ion-icon { color: var(--ion-color-primary); }
+        }
+        &--presentaciones {
+            background: rgba(var(--ion-color-secondary-rgb), 0.12);
+            ion-icon { color: var(--ion-color-secondary); }
+        }
+        &--variantes {
+            background: rgba(var(--ion-color-tertiary-rgb), 0.12);
+            ion-icon { color: var(--ion-color-tertiary); }
+        }
     }
 
     &__body {

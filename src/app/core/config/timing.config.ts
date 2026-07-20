@@ -42,4 +42,13 @@ export const TIMING = {
    * en reconexiones frecuentes (red que parpadea offline↔online).
    */
   primingFrescuraMinutos: 12,
+
+  /**
+   * Tope de espera (ms) para las mutaciones críticas de turno (abrir / cerrar).
+   * Con red "conectada pero rota" (WiFi asociado sin respuesta del servidor) el
+   * fetch puede colgar hasta el timeout del sistema (30-60s+), dejando un spinner
+   * eterno. Pasado este tope se corta con un mensaje claro para que el usuario
+   * reintente, en vez de esperar indefinidamente. Ver conTimeout() en timeout.util.
+   */
+  turnoMutacionTimeoutMs: 20_000,
 } as const;

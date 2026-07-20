@@ -247,7 +247,7 @@ CREATE TABLE IF NOT EXISTS tipos_referencia (
 
 -- ==========================================
 -- MONETIZACION / SUSCRIPCIONES (Grupo C/D — catalogos globales + estado por tenant)
--- Sistema de planes de cobro del SaaS. Ver docs/PLAN-PLANES-SUSCRIPCION.md
+-- Sistema de planes de cobro del SaaS. Ver docs/suscripcion/SUSCRIPCION-README.md
 -- Nota de terminologia: "suscripcion"/"plan" != "membresia" (usuario_negocios = rol).
 -- ==========================================
 
@@ -318,7 +318,8 @@ CREATE TABLE IF NOT EXISTS suscripciones (
     actualizada_por UUID REFERENCES usuarios(id),            -- ultimo superadmin que modifico el estado
     created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    -- Borrado automatico de negocios vencidos (PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md):
+    -- Borrado automatico de negocios vencidos (docs/suscripcion/SUSCRIPCION-README.md,
+    -- seccion "Purga automatica de negocios vencidos"):
     -- ambas se llenan cuando fn_marcar_negocios_para_purga detecta vencimiento + gracia
     -- cumplida, y se limpian (NULL) si el propietario paga antes de la purga
     -- (fn_registrar_pago_propietario) o el superadmin la cancela manualmente.
@@ -516,10 +517,13 @@ CREATE TABLE IF NOT EXISTS movimientos_empleados (
 );
 
 -- 14. categorias_productos — UUID (antes SERIAL). Por negocio.
+-- orden: posicion manual definida por el usuario (drag & drop en Configuracion ->
+--   Categorias de Producto). Se lee siempre con ORDER BY orden, nombre (desempate).
 CREATE TABLE IF NOT EXISTS categorias_productos (
     id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     negocio_id UUID        NOT NULL REFERENCES negocios(id) ON DELETE CASCADE,
     nombre     VARCHAR(100) NOT NULL,
+    orden      INTEGER NOT NULL DEFAULT 0,
     activo     BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (negocio_id, nombre)
@@ -590,6 +594,7 @@ CREATE TABLE IF NOT EXISTS productos (
     stock_minimo         INTEGER DEFAULT 5,
     tiene_iva            BOOLEAN DEFAULT TRUE,
     activo               BOOLEAN DEFAULT TRUE,
+    favorito             BOOLEAN NOT NULL DEFAULT FALSE,  -- marcado por SKU (no por template) para acceso rapido en POS
     imagen_url           TEXT,
     tipo_venta           VARCHAR(10) DEFAULT 'UNIDAD' CHECK (tipo_venta IN ('UNIDAD', 'PESO')),
     unidad_medida        VARCHAR(10) DEFAULT 'und',

@@ -3,6 +3,7 @@ import { SupabaseService } from '@core/services/supabase.service';
 import { LoggerService } from '@core/services/logger.service';
 import { ParamsCierreDiario } from '../models/saldos-anteriores.model';
 import { getFechaLocal, getInicioDiaSiguienteDeISO } from '@core/utils/date.util';
+import { TIMING } from '@core/config/timing.config';
 
 /**
  * Interface para historial de recargas
@@ -82,7 +83,11 @@ export class RecargasService {
         p_observaciones: params.observaciones || null
       }),
       undefined,
-      { showLoading: true }
+      // timeoutMs: si el servidor no responde, call() relanza TimeoutError → lo captura
+      // el catch de ejecutarCierre() y muestra su overlay. silentError: las excepciones
+      // de negocio (RAISE EXCEPTION del RPC, ej. "turno ya cerrado") también deben
+      // propagarse al catch con su mensaje real, no mostrarse como toast genérico aquí.
+      { showLoading: true, timeoutMs: TIMING.turnoMutacionTimeoutMs, silentError: true }
     );
 
     return resultado;

@@ -28,7 +28,7 @@ interface CacheSnapshot {
 
 /**
  * Estado de la suscripción del negocio activo (monetización SaaS).
- * Ver docs/PLAN-PLANES-SUSCRIPCION.md
+ * Ver docs/suscripcion/SUSCRIPCION-README.md
  *
  * Estrategia de cache: RAM + Preferences (TTL corto) — igual patrón que ConfigService
  * (stale-while-revalidate). El guard (suscripcionGuard) sirve del snapshot persistido
@@ -331,7 +331,7 @@ export class SuscripcionService {
    * Detecta propietarios vencidos hace ≥23 días y los marca para purga
    * (fn_marcar_negocios_para_purga) — solo marca a quienes aún no estaban
    * avisados; quienes ya están en cuenta regresiva no se tocan (no reinicia
-   * su plazo). Ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md.
+   * su plazo). Ver docs/suscripcion/SUSCRIPCION-README.md.
    * El superadmin la dispara manualmente desde /admin (no hay cron).
    */
   async marcarNegociosParaPurga(): Promise<NegocioPendientePurga[]> {

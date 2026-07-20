@@ -1,8 +1,9 @@
 -- =============================================================================
 -- fn_cancelar_purga_negocio — Excepcion de soporte: cancela la purga sin pago
 -- =============================================================================
--- Ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md (Fase 5). Limpia
--- purga_avisada_el/purga_programada_el de TODOS los negocios del propietario
+-- Ver docs/suscripcion/SUSCRIPCION-README.md, sección "Purga automática de
+-- negocios vencidos". Limpia purga_avisada_el/purga_programada_el de TODOS
+-- los negocios del propietario
 -- SIN que medie un pago real — a diferencia de fn_registrar_pago_propietario,
 -- que tambien limpia estas columnas pero como efecto secundario de un pago.
 --

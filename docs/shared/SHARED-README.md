@@ -127,6 +127,54 @@ onMenuOption(opt: MenuOption) {
 ```
 
 > **Caso real en el POS:** El `tipoComprobante` (Ticket / Nota de Venta / Factura) se selecciona desde este menú en el header de la página POS. Ver `pos.page.ts` → `comprobanteOptions` y `onComprobanteOption()`.
+>
+> **Caso real en Inventario:** menú por producto en el grid (Ajustar stock / Ver kárdex / Editar / Desactivar). Ver `inventario.page.ts` → `menuOpcionesProducto()`.
+>
+> **Caso real en Notas (2026-07-16):** reemplazó el swipe-to-delete (`ion-item-sliding`) del listado — cada nota tiene Editar (todos) y Eliminar (solo ADMIN, condicional con `if (this.esAdmin)`). Ver `notas-list.page.ts` → `menuOpciones()`/`onMenuOpcion()`. `<ion-popover>` va inline en el HTML, no `PopoverController.create()` — por eso no cae en la prohibición de popovers/action sheets en Android que sí aplica a los *Controllers* instanciados dinámicamente (ver sección "No hacer" de `CLAUDE.md`).
+
+---
+
+### `app-feedback-overlay` — Overlay de confirmación centrado
+
+**Archivo:** `components/feedback-overlay/`
+
+Overlay `fixed` a todo el viewport (blur de fondo, `z-index: 30000` — por encima de cualquier overlay de Ionic, incluido un modal abierto), con un ícono trazado animado (check/X/!/i según el tipo) + título + dato destacado opcional + subtítulo opcional. Se monta **una única vez** en `AppComponent` (mismo patrón que `app-offline-banner`/`app-suscripcion-banner`) — las páginas nunca lo declaran, solo inyectan `FeedbackOverlayService` y llaman sus métodos.
+
+No reemplaza a `UiService.showToast()`/`showSuccess()`/`showError()`: sigue siendo el default para la mayoría de los mensajes. Este overlay es solo para momentos "de ley" — ver criterio completo de cuándo usar cada uno en `CLAUDE.md` § "Feedback de acciones — toast vs overlay".
+
+#### API — `FeedbackOverlayService` (`core/services/feedback-overlay.service.ts`)
+
+```typescript
+private feedback = inject(FeedbackOverlayService);
+
+this.feedback.success({ titulo: '¡Venta registrada!', destacado: '$45.00', subtitulo: 'Comprobante #142' });
+this.feedback.error({ titulo: 'No se pudo registrar la venta', subtitulo: 'Intenta de nuevo' });
+this.feedback.warning({ titulo: 'Stock insuficiente' });
+this.feedback.info({ titulo: 'Catálogo actualizado' });
+```
+
+| Campo (`FeedbackOverlayData`) | Tipo | Descripción |
+|---|---|---|
+| `tipo` | `'success' \| 'error' \| 'warning' \| 'info'` | Asignado automáticamente por el método usado |
+| `titulo` | `string` | Obligatorio — lo primero que lee el usuario |
+| `destacado` | `string?` | Dato grande (monto, cantidad, código) |
+| `subtitulo` | `string?` | Línea secundaria (comprobante, aclaración, motivo del error) |
+| `icono` | `string?` | Nombre de ionicon en vez del ícono trazado default del tipo |
+| `duracionMs` | `number?` | Auto-cierre. Si se omite, usa el default por tipo (ver abajo) |
+
+| Tipo | Auto-dismiss default | Por qué |
+|---|---|---|
+| `success` / `info` | 3000ms | Notifica un estado que ya ocurrió, no requiere acción — el usuario solo necesita percibirlo |
+| `warning` / `error` | Sin auto-dismiss (requiere tap en "Entendido" o tocar fuera) | Casi siempre requieren LEER la causa o decidir algo; auto-ocultarlos arriesga que el usuario pierda el motivo del problema |
+
+`FeedbackOverlayService.cerrar()` lo oculta manualmente (p. ej. al navegar fuera de la página que lo disparó, si aplica).
+
+#### Ejemplos reales en el proyecto
+
+- **POS** (`pos.page.ts`): venta registrada (`success`, con el total en `destacado`), venta fallida online/offline (`error`), stock insuficiente detectado en servidor al cobrar (`warning`).
+- **Caja** (`operaciones-caja.service.ts`): registrar ingreso/egreso — `success` con el monto en `destacado`, `error` con el mensaje real (distingue sin-conexión vía `SupabaseService.esErrorDeTransporte()` del error de negocio).
+- **Inventario** (`producto-crear.page.ts`, `producto-editar.page.ts`, `template-editar.page.ts`): crear/editar producto o plantilla — `success` justo **antes** de `navigateBack()` (un toast ahí competiría con la transición de página y se perdería).
+- **Notas** (`notas-list.page.ts`): `error` si falla eliminar o editar una nota (en éxito no hay aviso — el cambio ya se ve en la lista).
 
 ---
 

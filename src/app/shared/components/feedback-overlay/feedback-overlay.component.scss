@@ -1,0 +1,175 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Overlay genérico de feedback — confirmación/aviso inequívoco para eventos
+// "de ley" (ver FeedbackOverlayService). Fixed a viewport, cubre toda la app.
+// ═══════════════════════════════════════════════════════════════════════════
+
+.fbo-overlay {
+    position: fixed;
+    inset: 0;
+    // Los overlays de Ionic (modal, loading, toast) parten de 1000 y se INCREMENTAN
+    // dinámicamente al apilarse (pueden llegar a ~20000+). Este overlay debe ganar
+    // siempre — incluso sobre un modal abierto (caso error: el modal queda abierto y el
+    // overlay aparece encima). 30000 lo mantiene por sobre el techo práctico de Ionic.
+    z-index: 30000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-lg);
+    background: rgba(var(--ion-color-dark-rgb), 0.45);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    animation: fboFadeIn 0.2s ease-out both;
+}
+
+.fbo-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 28px 36px 24px;
+    border-radius: var(--radius-lg, 20px);
+    background: var(--ion-item-background, #fff);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+    animation: fboPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    max-width: 320px;
+    text-align: center;
+}
+
+// ── Ícono (SVG trazado, mismo mecanismo para los 4 tipos) ──
+.fbo-icon {
+    width: 72px;
+    height: 72px;
+    margin-bottom: 4px;
+}
+
+.fbo-icon-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.fbo-icon-circle {
+    fill: none; // hueco — solo el contorno (stroke) es visible
+    stroke-width: 3;
+    stroke-dasharray: 151; // 2πr ≈ 2·π·24
+    stroke-dashoffset: 151;
+    animation: fboDrawCircle 0.45s ease-out 0.1s forwards;
+}
+
+.fbo-icon-mark {
+    fill: none; // solo trazo (check/x/bang/info)
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    animation: fboDrawMark 0.3s ease-out 0.5s forwards;
+
+    &--check { stroke-dasharray: 48;  stroke-dashoffset: 48; }
+    &--x     { stroke-dasharray: 52;  stroke-dashoffset: 52; }
+    &--bang  { stroke-dasharray: 16;  stroke-dashoffset: 16; }
+    &--info  { stroke-dasharray: 12;  stroke-dashoffset: 12; }
+}
+
+.fbo-icon-dot {
+    opacity: 0;
+    animation: fboDotIn 0.2s ease-out 0.55s forwards;
+}
+
+// Color por tipo. CLAVE: el círculo de contorno y las marcas van solo con `stroke`
+// (fill:none, para que se vean como trazo hueco); el `fill` SOLO al punto (`!`/`i`,
+// que sí es sólido). Aplicar `fill` al círculo lo rellena de color y tapa el check
+// (bug 2026-07-14: el fill de CSS gana sobre el fill="none" del atributo SVG).
+.fbo-icon[data-color="success"] { .fbo-icon-circle, .fbo-icon-mark { stroke: var(--ion-color-success); } .fbo-icon-dot { fill: var(--ion-color-success); } }
+.fbo-icon[data-color="danger"]  { .fbo-icon-circle, .fbo-icon-mark { stroke: var(--ion-color-danger); }  .fbo-icon-dot { fill: var(--ion-color-danger); } }
+.fbo-icon[data-color="warning"] { .fbo-icon-circle, .fbo-icon-mark { stroke: var(--ion-color-warning-shade); } .fbo-icon-dot { fill: var(--ion-color-warning-shade); } }
+.fbo-icon[data-color="primary"] { .fbo-icon-circle, .fbo-icon-mark { stroke: var(--ion-color-primary); } .fbo-icon-dot { fill: var(--ion-color-primary); } }
+
+// Ícono custom (ion-icon) en vez del SVG trazado — mismo tamaño y color del tipo.
+.fbo-icon ion-icon {
+    width: 100%;
+    height: 100%;
+}
+.fbo-icon[data-color="success"] ion-icon { color: var(--ion-color-success); }
+.fbo-icon[data-color="danger"]  ion-icon { color: var(--ion-color-danger); }
+.fbo-icon[data-color="warning"] ion-icon { color: var(--ion-color-warning-shade); }
+.fbo-icon[data-color="primary"] ion-icon { color: var(--ion-color-primary); }
+
+// ── Texto ──
+.fbo-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: var(--font-weight-bold, 700);
+    color: var(--ion-text-color);
+}
+
+.fbo-destacado {
+    margin: 0;
+    font-size: 30px;
+    font-weight: var(--font-weight-extrabold, 800);
+    letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+
+    &[data-color="success"] { color: var(--ion-color-success); }
+    &[data-color="danger"]  { color: var(--ion-color-danger); }
+    &[data-color="warning"] { color: var(--ion-color-warning-shade); }
+    &[data-color="primary"] { color: var(--ion-color-primary); }
+}
+
+.fbo-subtitulo {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: var(--ion-color-medium);
+}
+
+// ── Botón "Entendido" — solo en tipos sin auto-dismiss (warning/error por default) ──
+.fbo-close-btn {
+    margin-top: 14px;
+    padding: 10px 28px;
+    min-height: 44px; // táctil (Apple HIG 44pt / Material 48dp / WCAG 2.5.5)
+    border: none;
+    border-radius: var(--radius-md, 10px);
+    background: var(--ion-color-step-100);
+    color: var(--ion-text-color);
+    font-size: 14px;
+    font-weight: var(--font-weight-semibold, 600);
+    cursor: pointer;
+    transition: background var(--transition-fast, 0.15s);
+
+    &:active { transform: scale(0.97); }
+
+    &[data-color="success"] { background: rgba(var(--ion-color-success-rgb), 0.12); color: var(--ion-color-success-shade); }
+    &[data-color="danger"]  { background: rgba(var(--ion-color-danger-rgb), 0.12);  color: var(--ion-color-danger-shade); }
+    &[data-color="warning"] { background: rgba(var(--ion-color-warning-rgb), 0.18); color: var(--ion-color-warning-shade); }
+    &[data-color="primary"] { background: rgba(var(--ion-color-primary-rgb), 0.12); color: var(--ion-color-primary-shade); }
+}
+
+// ── Animaciones ──
+@keyframes fboFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes fboPop {
+    0%   { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes fboDrawCircle {
+    to { stroke-dashoffset: 0; }
+}
+
+@keyframes fboDrawMark {
+    to { stroke-dashoffset: 0; }
+}
+
+@keyframes fboDotIn {
+    to { opacity: 1; }
+}
+
+// Respeta reduce-motion: sin trazado ni pop, solo aparece.
+@media (prefers-reduced-motion: reduce) {
+    .fbo-overlay,
+    .fbo-card { animation: none; }
+    .fbo-icon-circle,
+    .fbo-icon-mark { animation: none; stroke-dashoffset: 0; }
+    .fbo-icon-dot { animation: none; opacity: 1; }
+}

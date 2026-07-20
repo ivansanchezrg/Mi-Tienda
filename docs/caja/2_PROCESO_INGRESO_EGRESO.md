@@ -37,24 +37,39 @@ Otros `@Input()`: `cajaIdPreseleccionada` (preselecciona y muestra la mini-card 
 
 ## 2. Flujo del proceso
 
+**Patrón `onConfirmar` (2026-07-16)** — el modal ya NO se cierra al confirmar y luego dispara la mutación desde el caller. En su lugar, `ejecutarOperacion` se pasa como `@Input() onConfirmar` al **crear** el modal, y el propio modal la ejecuta y espera el resultado antes de decidir si se cierra:
+
 ```
 Usuario toca "⋮" en la caja → OptionsModalComponent: Ingreso / Egreso
         ↓
 abrirModalOperacion(tipo)
-  └─ OperacionModalComponent (recibe cajas + flags)
+  └─ modalCtrl.create({ component: OperacionModalComponent, componentProps: {
+       cajas, flags, onConfirmar: (data) => this.ejecutarOperacion(tipo, data)  ← callback, no post-dismiss
+     }})
        ├─ ngOnInit: filtra cajasFiltradas (CAJA/CAJA_CHICA/VARIOS/CUSTOM_* según flags)
        │            + obtenerCategorias(tipo) → categorías filtradas por INGRESO/EGRESO
        ├─ Usuario completa: caja + categoría + monto (+ descripción/foto según reglas)
-       └─ confirmar() → role: 'confirm', data: OperacionModalResult
-        ↓
-ejecutarOperacion(tipo, data)
+       └─ confirmar() → guardando = true → await this.onConfirmar(result)
+            ├─ true  → modalCtrl.dismiss(result, 'confirm')   (el modal se cierra)
+            └─ false → el modal SIGUE ABIERTO, datos intactos, guardando = false (reintentar)
+```
+
+`ejecutarOperacion(tipo, data)` (en `HomePage`/`OperacionesCajaPage`) retorna `Promise<boolean>` — es el mismo booleano que decide si el modal se cierra:
+
+```
+ejecutarOperacion(tipo, data): Promise<boolean>
   └─ registrarOperacion(cajaId, tipo, categoriaId, monto, descripcion, foto)
        ├─ getUsuarioActual() PRIMERO (si falla, no se sube nada — sin huérfanos)
        ├─ Si hay foto → uploadImage(rawUrl, 'comprobantes/operaciones') → path en Storage
        ├─ rpc('fn_registrar_operacion_manual', {...})
        │    └─ Si RPC falla y había foto → storageService.deleteFile(path) (limpieza)
-       └─ refresco de saldo + lista de operaciones
+       ├─ Éxito → FeedbackOverlayService.success({ titulo, destacado: "$monto" }) → refresco de saldo/lista → true
+       └─ Fallo → FeedbackOverlayService.error({ titulo, subtitulo: mensaje real }) → false
 ```
+
+**No hay `ui.showLoading()` en este flujo** — el propio botón "Confirmar" del modal muestra spinner + texto "Registrando..." mientras `guardando = true` (visible de verdad, porque el modal sigue existiendo mientras la operación corre — antes con dismiss-then-execute el modal ya no estaba cuando el spinner debía aparecer). Patrón general documentado en `CLAUDE.md` § "Patrón `onConfirmar` — modales que ejecutan una mutación real".
+
+**Feedback (`FeedbackOverlayService`, no toast):** es dinero real entrando/saliendo de una caja — mismo peso que una venta del POS, aunque hubo confirmación previa en el formulario (ver `CLAUDE.md` § "Feedback de acciones — toast vs overlay", regla de excepción para transacciones financieras). El error distingue sin-conexión (`SupabaseService.esErrorDeTransporte()`) de error de negocio real, y usa el mensaje del backend (incluye `superadmin_blocked:...`).
 
 ---
 

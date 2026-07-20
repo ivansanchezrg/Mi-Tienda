@@ -5,24 +5,27 @@ import {
     IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
     IonContent, IonIcon, IonButton,
     IonRefresher, IonRefresherContent,
-    IonList, IonItem, IonLabel, IonItemSliding, IonItemOptions, IonItemOption,
+    IonList, IonItem, IonLabel,
     IonSkeletonText, IonSpinner,
     IonInfiniteScroll, IonInfiniteScrollContent,
     IonFab, IonFabButton,
-    ModalController
+    ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
     readerOutline, addOutline, checkmarkCircleOutline, checkmarkCircle,
-    arrowUpOutline, trashOutline, personOutline, ellipseOutline
+    arrowUpOutline, personOutline, ellipseOutline,
+    createOutline, trashOutline
 } from 'ionicons/icons';
 import { NotasService } from '../../services/notas.service';
 import { AuthService } from '../../../auth/services/auth.service';
+import { FeedbackOverlayService } from '../../../../core/services/feedback-overlay.service';
 import { PAGINATION_CONFIG } from '../../../../core/config/pagination.config';
 import { Nota } from '../../models/nota.model';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { NuevaNotaModalComponent } from '../../components/nueva-nota-modal/nueva-nota-modal.component';
+import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
 
 @Component({
     selector: 'app-notas-list',
@@ -34,11 +37,11 @@ import { NuevaNotaModalComponent } from '../../components/nueva-nota-modal/nueva
         IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton,
         IonContent, IonIcon, IonButton,
         IonRefresher, IonRefresherContent,
-        IonList, IonItem, IonLabel, IonItemSliding, IonItemOptions, IonItemOption,
+        IonList, IonItem, IonLabel,
         IonSkeletonText, IonSpinner,
         IonInfiniteScroll, IonInfiniteScrollContent,
         IonFab, IonFabButton,
-        EmptyStateComponent
+        EmptyStateComponent, OptionsMenuComponent
     ]
 })
 export class NotasListPage extends PaginatedListPage<Nota> implements OnInit, OnDestroy {
@@ -46,6 +49,8 @@ export class NotasListPage extends PaginatedListPage<Nota> implements OnInit, On
     private notasService = inject(NotasService);
     private authService = inject(AuthService);
     private modalCtrl = inject(ModalController);
+    private alertCtrl = inject(AlertController);
+    private feedback = inject(FeedbackOverlayService);
 
     get notas(): Nota[] { return this.items; }
 
@@ -94,7 +99,8 @@ export class NotasListPage extends PaginatedListPage<Nota> implements OnInit, On
         super();
         addIcons({
             readerOutline, addOutline, checkmarkCircleOutline, checkmarkCircle,
-            arrowUpOutline, trashOutline, personOutline, ellipseOutline
+            arrowUpOutline, personOutline, ellipseOutline,
+            createOutline, trashOutline
         });
     }
 
@@ -143,6 +149,54 @@ export class NotasListPage extends PaginatedListPage<Nota> implements OnInit, On
         }
     }
 
+    // ==========================
+    // MENÚ ⋮ POR NOTA (Editar / Eliminar)
+    // ==========================
+
+    menuOpciones(nota: Nota): MenuOption[] {
+        const opciones: MenuOption[] = [
+            { label: 'Editar', icon: 'create-outline', value: 'editar' },
+        ];
+        if (this.esAdmin) {
+            opciones.push({ label: 'Eliminar', icon: 'trash-outline', value: 'eliminar', color: 'danger' });
+        }
+        return opciones;
+    }
+
+    async onMenuOpcion(opcion: MenuOption, nota: Nota) {
+        if (opcion.value === 'editar') await this.editarNota(nota);
+        else if (opcion.value === 'eliminar') await this.confirmarEliminar(nota);
+    }
+
+    private async editarNota(nota: Nota) {
+        if (this.procesando.has(nota.id)) return;
+
+        const modal = await this.modalCtrl.create({
+            component: NuevaNotaModalComponent,
+            componentProps: { textoInicial: nota.texto },
+            cssClass: 'bottom-sheet-modal',
+            breakpoints: [0, 1],
+            initialBreakpoint: 1,
+        });
+        await modal.present();
+        const { data, role } = await modal.onDidDismiss<{ texto: string }>();
+        if (role !== 'confirm' || !data?.texto) return;
+
+        this.procesando.add(nota.id);
+        try {
+            const actualizada = await this.notasService.editar(nota.id, data.texto);
+            if (actualizada) {
+                // El texto cambia en la card ante sus ojos — feedback visual directo,
+                // no hace falta ningún aviso adicional. Ver design_toast_vs_overlay_feedback.md.
+                this.reemplazarNota(actualizada);
+            } else {
+                this.feedback.error({ titulo: 'No se pudieron guardar los cambios' });
+            }
+        } finally {
+            this.procesando.delete(nota.id);
+        }
+    }
+
     async toggleCompletada(nota: Nota) {
         if (!this.usuarioId || this.procesando.has(nota.id)) return;
 
@@ -169,10 +223,42 @@ export class NotasListPage extends PaginatedListPage<Nota> implements OnInit, On
         }
     }
 
-    async eliminar(nota: Nota, slidingItem: IonItemSliding) {
-        await slidingItem.close();
-        this.notasService.eliminar(nota.id);
-        this.items = this.items.filter(n => n.id !== nota.id);
+    private async confirmarEliminar(nota: Nota) {
+        if (this.procesando.has(nota.id)) return;
+
+        const alert = await this.alertCtrl.create({
+            header: '¿Eliminar esta nota?',
+            message: 'Esta acción no se puede deshacer.',
+            buttons: [
+                { text: 'Cancelar', role: 'cancel' },
+                {
+                    text: 'Eliminar',
+                    role: 'destructive',
+                    handler: async () => {
+                        this.procesando.add(nota.id);
+                        try {
+                            const result = await this.notasService.eliminar(nota.id);
+                            if (result.ok) {
+                                // La nota desaparece de la lista ante sus ojos — feedback
+                                // visual directo, no hace falta ningún aviso adicional.
+                                this.items = this.items.filter(n => n.id !== nota.id);
+                            } else {
+                                // No se quita de la lista: sigue existiendo en el servidor.
+                                this.feedback.error({
+                                    titulo: 'No se pudo eliminar la nota',
+                                    subtitulo: result.sinConexion
+                                        ? 'Sin conexión a internet. Verifica tu red e intenta de nuevo.'
+                                        : result.mensaje,
+                                });
+                            }
+                        } finally {
+                            this.procesando.delete(nota.id);
+                        }
+                    }
+                }
+            ]
+        });
+        await alert.present();
     }
 
     private reemplazarNota(actualizada: Nota) {

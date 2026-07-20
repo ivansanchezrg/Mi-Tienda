@@ -53,8 +53,12 @@ Usuario toca "⋮" → OptionsMenuComponent con opciones filtradas (ver tabla de
        ├─ EDITAR           → NuevaCajaModalComponent (editar nombre/icono/color)
        ├─ HISTORIAL_TURNOS → navega a Historial de cierres
        └─ INGRESO/EGRESO   → abrirModalOperacion(tipo) → OperacionModalComponent
-            └─ ejecutarOperacion() → registrarOperacion() → rpc('fn_registrar_operacion_manual')
-                 └─ cargarOperaciones(reset) (el saldo se actualiza vía cajas$ Realtime)
+            (con onConfirmar = ejecutarOperacion, el modal ejecuta y espera el resultado
+             ANTES de cerrarse — ver flujo detallado en 2_PROCESO_INGRESO_EGRESO.md §2)
+            └─ registrarOperacion() → rpc('fn_registrar_operacion_manual')
+                 ├─ Éxito → FeedbackOverlayService.success() → cargarOperaciones(reset)
+                 │          (el saldo se actualiza vía cajas$ Realtime)
+                 └─ Fallo → FeedbackOverlayService.error() → el modal sigue abierto
 ```
 
 > **Restricción de turno (Caja Chica):** el home pasa `esMiTurno` en query params. Si el turno

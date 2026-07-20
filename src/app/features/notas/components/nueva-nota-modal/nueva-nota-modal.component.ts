@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, Input, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IonButton, IonIcon, ModalController } from '@ionic/angular/standalone';
@@ -8,6 +8,11 @@ import { closeOutline, checkmarkOutline, createOutline } from 'ionicons/icons';
 // Detecta líneas de lista — con o sin espacio después del prefijo
 const LIST_PATTERN = /^(\d+)[.)]\s*|^[-*•]\s*/;
 
+/**
+ * Modal único para crear Y editar notas — mismo formulario, cambia título/botón según
+ * si llega `textoInicial`. Evita duplicar el editor de texto (autolistas, contador de
+ * caracteres) en dos componentes.
+ */
 @Component({
     selector: 'app-nueva-nota-modal',
     templateUrl: './nueva-nota-modal.component.html',
@@ -15,15 +20,26 @@ const LIST_PATTERN = /^(\d+)[.)]\s*|^[-*•]\s*/;
     standalone: true,
     imports: [CommonModule, FormsModule, IonButton, IonIcon]
 })
-export class NuevaNotaModalComponent {
+export class NuevaNotaModalComponent implements OnInit {
 
     private modalCtrl = inject(ModalController);
+
+    /** Si viene con texto, el modal entra en modo edición (título/botón cambian). */
+    @Input() textoInicial: string | null = null;
 
     texto = '';
     readonly MAX = 500;
 
+    get esEdicion(): boolean {
+        return this.textoInicial !== null;
+    }
+
     constructor() {
         addIcons({ closeOutline, checkmarkOutline, createOutline });
+    }
+
+    ngOnInit() {
+        if (this.textoInicial !== null) this.texto = this.textoInicial;
     }
 
     get restantes(): number {
@@ -31,7 +47,10 @@ export class NuevaNotaModalComponent {
     }
 
     get valido(): boolean {
-        return this.texto.trim().length > 0;
+        if (this.texto.trim().length === 0) return false;
+        // En edición, sin cambios no hay nada que guardar — evita un UPDATE innecesario.
+        if (this.esEdicion && this.texto.trim() === this.textoInicial?.trim()) return false;
+        return true;
     }
 
 
@@ -92,6 +111,25 @@ export class NuevaNotaModalComponent {
 
     guardar() {
         if (!this.valido) return;
-        this.modalCtrl.dismiss({ texto: this.texto.trim() }, 'confirm');
+        this.modalCtrl.dismiss({ texto: this.limpiarTextoFinal(this.texto) }, 'confirm');
+    }
+
+    /**
+     * El auto-numerado de onKeydown agrega el siguiente prefijo ("5. ") al presionar
+     * Enter en una línea de lista — si el usuario guarda sin escribir contenido después,
+     * queda una línea huérfana con solo el prefijo (ej. "5." suelto al final). trim()
+     * no la detecta porque no es whitespace. Se quitan las líneas finales (y solo las
+     * finales — una línea vacía en medio de la nota es intencional) cuyo contenido tras
+     * el prefijo de lista está vacío.
+     */
+    private limpiarTextoFinal(texto: string): string {
+        const lineas = texto.split('\n');
+        while (lineas.length > 0) {
+            const ultima = lineas[lineas.length - 1];
+            const sinPrefijo = ultima.replace(LIST_PATTERN, '').trim();
+            if (sinPrefijo === '') lineas.pop();
+            else break;
+        }
+        return lineas.join('\n').trim();
     }
 }

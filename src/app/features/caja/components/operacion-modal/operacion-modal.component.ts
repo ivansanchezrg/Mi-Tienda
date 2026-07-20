@@ -73,6 +73,15 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   @Input() excluirCajaChica = false;
   @Input() variosActiva = false;
 
+  /**
+   * Ejecuta la operación real; retorna true si tuvo éxito (el modal solo se cierra en
+   * ese caso). Mismo patrón que AjusteStockModalComponent: en vez de cerrar el modal al
+   * instante y ejecutar después, el modal espera el resultado. Si falla (p.ej. sin red),
+   * queda abierto con los datos intactos para reintentar, y el spinner "Registrando..."
+   * es visible de verdad porque el modal aún existe mientras la operación corre.
+   */
+  @Input({ required: true }) onConfirmar!: (result: OperacionModalResult) => Promise<boolean>;
+
   form!: FormGroup;
   cajasFiltradas: Caja[] = [];
   categorias: CategoriaOperacion[] = [];
@@ -80,6 +89,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   saldoCajaSeleccionada = 0;
   fotoPreviewUrl: SafeUrl | null = null;
   fotoRawUrl: string | null = null;
+  guardando = false;
   private cajaIdSub?: Subscription;
 
   constructor() {
@@ -258,11 +268,12 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   }
 
   cancelar() {
+    if (this.guardando) return;
     this.modalCtrl.dismiss(null, 'cancel');
   }
 
-  confirmar() {
-    if (this.form.invalid || this.montoExcedeSaldo) {
+  async confirmar() {
+    if (this.guardando || this.form.invalid || this.montoExcedeSaldo) {
       this.form.markAllAsTouched();
       return;
     }
@@ -275,6 +286,17 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
       fotoComprobante: this.fotoRawUrl
     };
 
-    this.modalCtrl.dismiss(result, 'confirm');
+    this.guardando = true;
+    this.cdr.detectChanges();
+    try {
+      // El modal se cierra SOLO si la operación tuvo éxito. Si falla (sin red, saldo
+      // insuficiente, etc.) queda abierto con los datos intactos para reintentar —
+      // el overlay de error del servicio ya explica el motivo real.
+      const exito = await this.onConfirmar(result);
+      if (exito) this.modalCtrl.dismiss(result, 'confirm');
+    } finally {
+      this.guardando = false;
+      this.cdr.detectChanges();
+    }
   }
 }

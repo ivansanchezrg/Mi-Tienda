@@ -1,7 +1,7 @@
 -- =============================================================================
 -- ALTER suscripciones — columnas de purga automatica de negocios vencidos
 -- =============================================================================
--- Ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md (Fase 1).
+-- Ver docs/suscripcion/SUSCRIPCION-README.md, sección "Purga automática de negocios vencidos".
 --
 -- purga_avisada_el    — cuando fn_marcar_negocios_para_purga detecto vencimiento
 --                       + gracia cumplida (>= 23 dias) y marco al propietario.

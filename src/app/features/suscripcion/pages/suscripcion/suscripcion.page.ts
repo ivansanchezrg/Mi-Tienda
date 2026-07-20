@@ -49,7 +49,8 @@ const FEATURE_LABELS: Record<string, string> = {
  * (plan actual marcado primero, luego los superiores). Toggle global Mensual/Anual que
  * cambia el precio mostrado de todas las tarjetas y resalta el ahorro anual. El cliente
  * no paga aquí (cobro manual); "Quiero este plan" abre WhatsApp con el lead pre-armado
- * (incluye el periodo elegido) y el superadmin registra el pago. Ver docs/PLAN-PLANES-SUSCRIPCION.md §8.1.
+ * (incluye el periodo elegido) y el superadmin registra el pago. Ver docs/suscripcion/SUSCRIPCION-README.md,
+ * sección "Modo Planes y precios — punto de venta (upsell)".
  *
  * Es el destino del suscripcionGuard cuando bloquea. Vive fuera del layout
  * (sin tab bar/sidebar) para que el bloqueo sea pantalla completa.

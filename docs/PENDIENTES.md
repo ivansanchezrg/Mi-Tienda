@@ -11,6 +11,24 @@
 
 ## 🟠 Funcional (corto plazo)
 
+### Ejecutar en Supabase el fix de transferencias a Varios (turno abierto varios días)
+- **Qué:** corrige dos bugs del cierre relacionados con la transferencia diaria a Varios.
+  (1) Bug de dinero real: al reparar un déficit al día siguiente, la reposición se
+  atribuía por fecha del asiento → el cierre de ese día veía "Varios ya cobró" y perdía
+  la transferencia del día en curso, de forma permanente. Ahora los asientos `DEF-REPONER`/
+  `DEF-RETIRAR` referencian el turno reparado y los checks atribuyen por `referencia_id`.
+  (2) UX: si el turno estuvo abierto varios días, el aviso ahora informa monto/días/rango
+  exactos y ofrece compensar con 1 tap (traspaso Tienda → Varios). Detalle: `docs/caja/3_PROCESO_CIERRE_CAJA.md` (v6.5) + `8_PROCESO_ABRIR_CAJA.md`.
+  Ejecutar en el SQL Editor, en este orden:
+  1. `docs/setup/04_categorias_sistema.sql` (agrega `COMP-DIA-RETIRAR`/`COMP-DIA-REPONER`, UUIDs `...014`/`...015`; es `ON CONFLICT DO NOTHING`, seguro re-ejecutar).
+  2. `docs/caja/sql/functions/fn_reparar_deficit_turno.sql` (v4.3).
+  3. `docs/caja/sql/functions/fn_ejecutar_cierre_diario_v5.sql` (v6.5).
+  4. `docs/caja/sql/functions/fn_obtener_deficit_turno_anterior.sql` (v1.1).
+  5. `docs/caja/sql/functions/fn_datos_cierre_diario.sql` (v1.2).
+  6. `docs/caja/sql/functions/fn_compensar_varios_pendiente.sql` (nueva, v1.0).
+- **Archivos front:** `saldos-anteriores.model.ts`, `turnos-caja.service.ts` (`compensarVariosPendiente()` + mapeo `variosPendiente`), `share-cierre.service.ts`, `cierre-diario.page.*` (card Paso 2), `home.page.ts` (alert cuantificado + botón), `cierre-turno-detalle-modal.component.ts`.
+- Origen: 2026-07-18.
+
 ### Ejecutar en Supabase la función de editar plantilla (grupo de variantes)
 - **Qué:** nueva función para editar los datos generales de un producto con variantes
   (nombre, categoría e imagen general del template). Habilita agregar/cambiar la imagen
@@ -20,6 +38,22 @@
 - **Archivos front:** `template-editar.page.*` (nueva página `/inventario/template/:id`),
   `ProductoService.actualizarTemplate()`, botón lápiz en la tarjeta agrupada de `inventario.page.html`.
 - Origen: 2026-07-13.
+
+### Ejecutar en Supabase el SQL de orden de categorías + productos favoritos
+- **Qué:** dos features nuevas — orden manual de categorías (drag & drop en Configuración →
+  Categorías de Producto) y productos favoritos (estrella en Inventario y long-press en el
+  catálogo POS, solo productos simples sin presentaciones). Código frontend y archivos SQL
+  fuente ya están en el repo (`docs/setup/schema.sql` ya tiene ambas columnas); falta ejecutar
+  en el SQL Editor de Supabase, en este orden:
+  1. `ALTER TABLE categorias_productos ADD COLUMN orden` + `ALTER TABLE productos ADD COLUMN favorito` (ver `docs/setup/schema.sql` líneas ~519-526 y ~596 para la definición exacta).
+  2. Backfill de `orden` (numera categorías existentes por orden alfabético actual).
+  3. `docs/inventario/sql/functions/fn_reordenar_categorias.sql` (función nueva).
+  4. `docs/pos/sql/functions/fn_catalogo_productos_pos.sql` (v1.2 — agrega `favorito`).
+  5. `docs/inventario/sql/functions/fn_listar_productos.sql` (v2.2 — agrega `favorito`).
+- **Archivos front:** `categorias-productos.page.*` (drag & drop), `inventario.page.*` (estrella),
+  `pos.page.*` (tab Favoritos + long-press), `InventarioService.reordenarCategorias()`,
+  `ProductoService.toggleFavorito()`.
+- Origen: 2026-07-16.
 
 ### Ejecutar en Supabase el SQL de la auditoría POS 2026-07-11
 - **Qué:** la revisión completa del módulo POS actualizó dos funciones y eliminó una muerta.
@@ -113,14 +147,13 @@
 
 ---
 
-### Bloqueo técnico por dispositivo y multisucursal según plan (plan MAX)
-- **Qué:** el plan MAX muestra bloques visuales de Multisucursal, Multiplataforma e IA como marketing puro — sin bloqueo técnico real. Implementar cuando MAX esté en producción con clientes reales:
+### Bloqueo técnico por dispositivo e IA según plan (plan MAX)
+- **Qué:** el plan MAX muestra bloques visuales de Multisucursal, Multiplataforma e IA como marketing. **Multisucursal ya tiene bloqueo técnico real implementado** (`max_negocios` en `planes`, validado en `fn_completar_onboarding`). Faltan:
   - **Multiplataforma:** detectar `Capacitor.isNativePlatform()`, verificar feature key `movil: true` en `planes.features`, redirigir a suscripción si no la tiene.
-  - **Multisucursal:** agregar campo `max_negocios` a tabla `planes`, validar en `fn_completar_onboarding` que `COUNT(negocios del propietario) < max_negocios`, y ocultar "Nueva sucursal" en el sidebar si se alcanzó el límite.
   - **IA:** feature key `ia: true` ya en el JSON de features; implementar cuando el módulo esté construido.
-- **Archivos:** `suscripcion.guard.ts`, `suscripcion.service.ts` (`tieneFeature()`), `suscripcion.page.html` (bloques `susc-plan__extra-bloque`), `fn_completar_onboarding.sql`, `selector-negocio-modal.component.ts`, seed de `planes`.
-- **Detalle:** `docs/PLAN-PLANES-SUSCRIPCION.md` §Restricción por dispositivo.
-- Origen: 2026-06-15 (bloques visuales implementados; bloqueo técnico diferido hasta tener plan MAX en producción).
+- **Archivos:** `suscripcion.guard.ts`, `suscripcion.service.ts` (`tieneFeature()`), `suscripcion.page.html` (bloques `susc-plan__extra-bloque`).
+- **Detalle:** `docs/suscripcion/SUSCRIPCION-README.md` sección "Diferenciadores del plan MAX — roadmap de bloqueo técnico".
+- Origen: 2026-06-15 (bloques visuales implementados; bloqueo técnico diferido hasta tener plan MAX en producción). Multisucursal completado 2026-06-16.
 
 ---
 

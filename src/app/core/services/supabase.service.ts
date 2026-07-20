@@ -10,6 +10,7 @@ import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { ROUTES } from '@core/config/routes.config';
 import { TIMING } from '@core/config/timing.config';
+import { conTimeout, TimeoutError } from '@core/utils/timeout.util';
 
 
 @Injectable({ providedIn: 'root' })
@@ -158,14 +159,27 @@ export class SupabaseService {
    * @param promise La promesa de la query de Supabase
    * @param successMessage (Opcional) Mensaje para mostrar Toast si sale bien
    * @param options.showLoading (Opcional) Si mostrar spinner de carga, default: false
+   * @param options.timeoutMs (Opcional) Tope de espera para mutaciones críticas sobre
+   *        red "conectada pero rota". Al vencer, se RELANZA `TimeoutError` (nunca se
+   *        traga): quien pasa timeoutMs debe manejarlo en su catch. El finally cierra
+   *        el loading igual.
+   * @param options.silentError (Opcional) El caller controla todo el feedback de error:
+   *        no se muestra el toast genérico y los errores se RELANZAN con su mensaje
+   *        real (para que el catch del caller lo lea de error.message). Excepciones:
+   *        "sin red detectada" retorna null (el banner global ya avisa) y el JWT
+   *        expirado se maneja igual (limpiar sesión — es seguridad, no UX).
    */
   async call<T>(
     promise: PromiseLike<any>,
     successMessage?: string,
-    options?: { showLoading?: boolean }
+    options?: { showLoading?: boolean; timeoutMs?: number; silentError?: boolean }
   ): Promise<T | null> { // Retorna null si hay error
 
     const showLoading = options?.showLoading === true;
+    // silentError: no mostrar NINGÚN toast de error — el caller controla el feedback
+    // (ej. abrir/cerrar turno, que muestran su propio overlay). El JWT expirado sí se
+    // maneja igual (limpiar sesión) porque es una excepción de seguridad, no de UX.
+    const silentError = options?.silentError === true;
     if (showLoading) await this.ui.showLoading();
 
     try {
@@ -178,8 +192,11 @@ export class SupabaseService {
         await this.resumeRefreshInFlight;
       }
 
-      // 1. Ejecutamos la promesa
-      const response = await promise;
+      // 1. Ejecutamos la promesa (con tope de tiempo opcional para mutaciones
+      // críticas sobre red "conectada pero rota" — el finally garantiza hideLoading).
+      const response = options?.timeoutMs
+        ? await conTimeout(promise, options.timeoutMs)
+        : await promise;
 
       // 2. Verificamos si Supabase devolvió error (Supabase no siempre hace throw)
       if (response.error) {
@@ -197,6 +214,14 @@ export class SupabaseService {
     } catch (error: any) {
       // 5. Manejo Centralizado de Errores
       this.logger.error('SupabaseService', 'Query error', error);
+
+      // Timeout de una mutación con `timeoutMs`: el servidor no respondió a tiempo
+      // (red "conectada pero rota"). Quien pasa `timeoutMs` es siempre una mutación
+      // crítica que maneja este caso en su propio catch (overlay/reintento), así que
+      // RELANZAMOS el TimeoutError en vez de tragárnoslo. El finally cierra el loading.
+      if (error instanceof TimeoutError) {
+        throw error;
+      }
 
       const rawMsg = error.message || error.error_description || 'Ocurrió un error inesperado';
       const superadminMatch = rawMsg.match(/superadmin_blocked:\s*(.+)/i);
@@ -217,6 +242,11 @@ export class SupabaseService {
         await this.handleExpiredSession();
         return null;
       }
+
+      // silentError: el caller maneja el feedback. Relanzamos el error de negocio con
+      // su mensaje (el catch del caller lo lee de error.message) en vez de tragarlo y
+      // retornar null — así no se pierde la causa real (ej. "El turno ya está cerrado").
+      if (silentError) throw error;
 
       await this.ui.showError(msg);
       return null;

@@ -1,4 +1,4 @@
-# Abrir Caja — Referencia Técnica (v6.5 — 2026-06-11 — UI del home sincronizada; validación de turno abierto sin filtro de fecha)
+# Abrir Caja — Referencia Técnica (v7.0 — 2026-07-18 — mutación ejecuta dentro del modal + feedback de red/timeout)
 
 ## 1. Arquitectura
 
@@ -7,9 +7,10 @@
 | Archivo | Rol |
 | --- | --- |
 | `pages/home/home.page.ts` | `onAbrirCaja()`, `mostrarModalVerificacionFondo()` |
-| `components/verificar-fondo-modal/verificar-fondo-modal.component.ts` | Modal de apertura. **Sin déficit:** un paso — input libre del fondo → `dismiss` con `fondoApertura`; el home llama `abrirTurno()`. **Con déficit (flujo secuencial, 2026-07-01):** primero aviso + checkbox "Ya hice el traspaso"; al confirmarlo se revela el input de fondo + botón. Llama `repararDeficit()` internamente y solo cierra si todo OK. |
-| `services/turnos-caja.service.ts` | `obtenerDeficitTurnoAnterior()` (delegado a `fn_obtener_deficit_turno_anterior`), `abrirTurno(fondoApertura)`, `repararDeficit(deficitVarios, fondoApertura)` |
+| `components/verificar-fondo-modal/verificar-fondo-modal.component.ts` | Modal de apertura. **Sin déficit:** un paso — input libre del fondo; el modal ejecuta `onAbrir()` (callback provisto por el home = `abrirTurno()`) **dentro de sí mismo** (patrón onConfirmar, 2026-07-18) y solo hace `dismiss` si tuvo éxito. **Con déficit (flujo secuencial, 2026-07-01):** primero aviso + checkbox "Ya hice el traspaso"; al confirmarlo se revela el input de fondo + botón. Llama `repararDeficit()` internamente y solo cierra si todo OK. |
+| `services/turnos-caja.service.ts` | `obtenerDeficitTurnoAnterior()` (delegado a `fn_obtener_deficit_turno_anterior`), `abrirTurno(fondoApertura)`, `repararDeficit(deficitVarios, fondoApertura)` — ambas retornan `TurnoMutacionResult` (ver §11) |
 | `models/turno-caja.model.ts` | `TurnoCaja`, `TurnoCajaConEmpleado`, `EstadoCaja` |
+| `core/utils/timeout.util.ts` | `conTimeout()` + `TimeoutError` — envuelve una promesa con tope de tiempo (usado por `supabase.call({ timeoutMs })`, ver §11) |
 | `sql/functions/fn_abrir_turno.sql` | Apertura atómica sin déficit: validación + cálculo número turno + INSERT en una transacción |
 | `sql/functions/fn_reparar_deficit_turno.sql` | Apertura con déficit: EGRESO + INGRESO + INSERT turno en una transacción |
 | `sql/functions/fn_obtener_deficit_turno_anterior.sql` | **RPC consolidada** (v1.0 — 2026-06-03). Reemplaza 4 round-trips del cliente en 1 sola llamada al servidor. Retorna `{ deficit_varios: number }` |
@@ -39,17 +40,21 @@ onAbrirCaja()
   │
   └─ mostrarModalVerificacionFondo()
        └─ fn_obtener_deficit_turno_anterior()  ← 1 RPC, reemplaza 4 round-trips
+       └─ componentProps: { deficitVarios, onAbrir: (fondo) => turnosCajaService.abrirTurno(fondo) }
         ↓
-[VerificarFondoModalComponent]
+[VerificarFondoModalComponent] — cssClass: bottom-sheet-modal
   │  Input libre: "¿Cuánto efectivo dejas en el cajón?"
   │
-  ├─ Sin déficit (hayDeficit = false)
-  │    → dismiss { confirmado: true, fondoApertura }
-  │    → HOME llama abrirTurno(fondoApertura) → fn_abrir_turno(empleado, fondoApertura)
-  │       ├─ Si ok: cargarDatos() → refresca home
-  │       └─ Si error: muestra errorMsg (mensaje real de la BD, ej. "Ya hay un
-  │          turno abierto por X") si errorHandled=false; si errorHandled=true,
-  │          supabase.call() ya mostró el toast — no se duplica (fix 2026-06-22)
+  ├─ Sin déficit (hayDeficit = false) — patrón onConfirmar (2026-07-18)
+  │    → botón "Abrir caja": abriendo=true, spinner "Abriendo..." REAL (ya no es
+  │      cosmético) → ejecuta this.onAbrir(fondoApertura) DENTRO del modal
+  │       ├─ ok: true  → dismiss { confirmado: true, fondoApertura }
+  │       │              → HOME solo muestra el overlay de éxito + cargarDatos()
+  │       └─ ok: false → el modal NO se cierra; aplica result.feedback (§11):
+  │              'silenciar' → nada (banner offline ya avisa)
+  │              'red'       → overlay "servidor no respondió" — reintentar sin perder el input
+  │              'mensaje'   → texto inline en el modal (regla de negocio real)
+  │      Sin `onAbrir` provisto → fail-closed: error inline, nunca finge éxito.
   │
   └─ Con déficit de VARIOS (hayDeficit = true) — FLUJO SECUENCIAL (2026-07-01)
        → PASO 1: se muestra SOLO una tarjeta única con el aviso + checklist:
@@ -63,12 +68,15 @@ onAbrirCaja()
            • el aviso+checklist desaparecen; aparece un chip verde "Traspaso a
              Varios realizado" + el input de fondo + el botón "Abrir caja"
              (revelados con .tab-animate). El foco pasa al input automáticamente.
-       → MODAL llama repararDeficit(deficitVarios, fondoApertura)
-       → dismiss { confirmado: true, turnoId: uuid }  ← ya abierto atómicamente
-       → home detecta turnoId → NO llama abrirTurno()
+       → MODAL llama repararDeficit(deficitVarios, fondoApertura) — mismo manejo
+         de result.feedback que la rama sin déficit
+       → dismiss { confirmado: true, turnoId: uuid, fondoApertura }  ← ya abierto atómicamente
         ↓
-cargarDatos() → refresca banner en Home
+HOME: this.feedback.success({ titulo: 'Turno abierto', destacado: '$fondoApertura', ... })
+  → cargarDatos() → refresca banner en Home
 ```
+
+> **Por qué la mutación se movió adentro del modal (2026-07-18):** antes, en la rama sin déficit, el modal mostraba "Abriendo..." pero hacía `dismiss` **de inmediato** — el RPC real corría *después*, en el home, sin ningún indicador. Si la red fallaba en ese instante, el usuario veía el modal cerrarse sin explicación. Con el patrón onConfirmar (ya usado por la rama con déficit desde antes), el spinner refleja la mutación real y un fallo deja el modal abierto para reintentar, en vez de perder el fondo tecleado.
 
 > **Por qué el checkbox (gate de responsabilidad humana, 2026-07-01):** el registro
 > contable (EGRESO Tienda + INGRESO Varios) lo ejecuta el sistema automáticamente al
@@ -147,11 +155,13 @@ async obtenerDeficitTurnoAnterior(): Promise<{ deficitVarios: number } | null> {
 
 ### Por qué se verifica INGRESO DEF-REPONER además de TRANSFERENCIA_ENTRANTE
 
-Cuando un cierre tuvo déficit en VARIOS, `fn_reparar_deficit_turno` inserta un `INGRESO` (cat `DEF-REPONER` de `categorias_sistema`) en VARIOS — no una `TRANSFERENCIA_ENTRANTE`. Sin esta verificación doble, el sistema re-detectaría el déficit al re-abrir el mismo día.
+Cuando un cierre tuvo déficit en VARIOS, `fn_reparar_deficit_turno` inserta un `INGRESO` (cat `DEF-REPONER` de `categorias_sistema`) en VARIOS — no una `TRANSFERENCIA_ENTRANTE`. Sin esta verificación doble, el sistema re-detectaría el déficit del turno reparado.
+
+> **Fix v1.1 (2026-07-18) — detección por `referencia_id`, no por fecha:** `fn_obtener_deficit_turno_anterior` ahora considera saldado el déficit del último turno cerrado si existe un `DEF-REPONER` cuyo `referencia_id` es **exactamente ese turno** (grabado por `fn_reparar_deficit_turno` v4.3), sin importar en qué día se ejecutó la reparación. Antes se buscaba por fecha en la ventana del día del último cierre; como la reparación ocurre al día siguiente, ese asiento caía fuera de la ventana y el sistema **re-detectaba un déficit ya reparado** si el turno se abría y cerraba en días distintos. Fallback por fecha para filas viejas sin referencia.
 
 ### Un día sin cierre NO genera déficit (por diseño)
 
-La transferencia a VARIOS es **"una por cierre, máximo una por día"** — la detección evalúa el día local del **último cierre**, no los días calendario transcurridos. Si un turno se abrió un día y se cerró al siguiente, el día saltado no se acumula ni se cobra retroactivamente: el dinero no se pierde (queda en Tienda en vez de en Varios). El cierre detecta el caso (`aperturaEnOtroDia`) y el home muestra un alert post-cierre sugiriendo compensarlo con un **traspaso manual** de Tienda a Varios. Ver [3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md) → "Turno abierto en un día anterior".
+La transferencia a VARIOS es **"una por cierre, máximo una por día"** — `fn_obtener_deficit_turno_anterior` (usada al abrir) solo mira el **último cierre**, no los días calendario transcurridos, así que el déficit que repara la apertura es siempre el de un solo día. Los días saltados cuando un turno estuvo abierto varios días no se acumulan ni se cobran retroactivamente: el dinero no se pierde (queda en Tienda). Ese pendiente multi-día lo cuantifica **el cierre** (no la apertura): `fn_datos_cierre_diario` v1.2 devuelve `varios_pendiente { dias, monto, desde, hasta }`, el wizard lo muestra en el Paso 2 y el home ofrece compensarlo con 1 tap (`fn_compensar_varios_pendiente`, traspaso Tienda → Varios). La compensación sigue siendo una acción explícita del usuario. Ver [3_PROCESO_CIERRE_CAJA.md](./3_PROCESO_CIERRE_CAJA.md) → "Turno abierto varios días".
 
 ---
 
@@ -222,10 +232,7 @@ Delega en `rpc('fn_abrir_turno', { p_empleado_id, p_fondo_apertura })`. La funci
 
 **Ventaja sobre el enfoque anterior** (3 queries separadas): elimina la race condition TOCTOU — el check y el INSERT ocurren en la misma transacción con lock implícito.
 
-`abrirTurno()` retorna `{ ok: boolean, errorHandled: boolean, errorMsg?: string }` (firma ampliada 2026-06-22 — antes no tenía `errorMsg` y el home mostraba un texto genérico de "verifica tu conexión" incluso cuando la BD sí había respondido con un motivo de negocio concreto). La llamada ocurre en el **home** (`onAbrirCaja()`) cuando el modal devuelve el resultado sin déficit — el modal no llama `abrirTurno()` directamente.
-
-- `errorHandled === true` → fallo de transporte (sin red/JWT); `SupabaseService.call()` ya mostró el toast. El home no muestra nada adicional.
-- `errorHandled === false` → la BD rechazó por una regla de negocio (ej. "Ya hay un turno abierto por X"); el home muestra `errorMsg` tal cual (nunca redacta su propio texto) y refresca `cargarDatos()` para sincronizar el chip de estado — cubre el caso de carrera donde otro dispositivo abrió el turno y el Realtime local aún no había llegado.
+`abrirTurno()` retorna `TurnoMutacionResult` — ver §11 para el contrato completo y su historia. **La llamada ya no ocurre en el home:** desde 2026-07-18 el home solo provee `abrirTurno` como callback (`onAbrir`) al modal, que lo ejecuta él mismo dentro de `abrirCaja()` (patrón onConfirmar). El home únicamente reacciona al `dismiss` exitoso mostrando el overlay de éxito.
 
 ---
 
@@ -302,7 +309,73 @@ Solo se bloquea si **el turno activo pertenece al usuario logueado**. Si el turn
 
 ---
 
-## 10. Queries de auditoría
+## 10. Feedback de éxito y error (`FeedbackOverlayService`)
+
+**Éxito:** el home muestra un overlay (no toast) tras el `dismiss` exitoso del modal — antes no había ningún feedback al abrir turno, el usuario solo veía cambiar el chip en silencio:
+
+```typescript
+this.feedback.success({
+  titulo: 'Turno abierto',
+  destacado: `$${this.currency.format(resultado.fondoApertura)}`,
+  subtitulo: 'Fondo declarado en el cajón',
+});
+```
+
+**Error:** dentro del modal, según `result.feedback` (ver §11) — `'silenciar'` no muestra nada, `'red'` muestra overlay, `'mensaje'` pinta el texto inline (no overlay, para no interrumpir con un error de negocio que el usuario ya está viendo en el mismo formulario).
+
+---
+
+## 11. Contrato de red/timeout de las mutaciones de turno (2026-07-18)
+
+**Problema resuelto:** con red "conectada pero rota" (WiFi asociado que no responde), el fetch podía colgarse hasta el timeout del sistema (30-60s+) sin ningún feedback — o, peor, un error de transporte silenciado por error mostraba el texto técnico del fetch (`Failed to fetch`) al usuario.
+
+### `timeoutMs` y `silentError` en `supabase.call()`
+
+Dos opciones nuevas, acotadas **solo** a mutaciones críticas que las piden explícitamente (el resto de la app no cambia de comportamiento):
+
+| Opción | Efecto |
+| --- | --- |
+| `timeoutMs` | Envuelve la promesa con `conTimeout()` (`core/utils/timeout.util.ts`). Si el servidor no responde en ese tiempo, `call()` **relanza** `TimeoutError` — nunca lo traga. El `finally` de `call()` sigue garantizando `hideLoading()`. |
+| `silentError` | `call()` no muestra su toast genérico de error; en su lugar **relanza** el error (de negocio o transporte) para que el caller decida el feedback exacto con el contexto que solo él tiene (ej. si el modal debe seguir abierto). Excepciones: "sin red" sigue retornando `null` (el banner global ya avisa) y el JWT expirado se sigue manejando igual (seguridad, no UX). |
+
+`TIMING.turnoMutacionTimeoutMs` (`core/config/timing.config.ts`) = 20 segundos. Usado por `abrirTurno`, `repararDeficit` y `ejecutarCierreDiario` (ver `3_PROCESO_CIERRE_CAJA.md`).
+
+### `TurnoMutacionResult` — contrato de retorno unificado
+
+```typescript
+// turnos-caja.service.ts
+type TurnoFeedback = 'silenciar' | 'red' | 'mensaje';
+
+interface TurnoMutacionResult {
+  ok: boolean;
+  turnoId?: string;
+  feedback?: TurnoFeedback;   // presente solo cuando ok === false
+  errorMsg?: string;          // solo con feedback === 'mensaje'
+}
+```
+
+`abrirTurno()` y `repararDeficit()` retornan este tipo. El `feedback` es la **instrucción** de qué mostrar — el caller (modal) no re-deriva el tipo de error, solo aplica un `switch`:
+
+| `feedback` | Cuándo | Qué hace el modal |
+| --- | --- | --- |
+| `'silenciar'` | Sin red detectada (`!isConnected()` + error de transporte) | Nada — el `<app-offline-banner>` global ya lo comunica |
+| `'red'` | Timeout, o transporte con `isConnected() === true` ("conectada pero rota") | Overlay: *"No se pudo abrir el turno · El servidor no respondió. Verifica tu conexión e intenta de nuevo."* — el banner NO aparece en este caso, así que sin el overlay el usuario no tendría ninguna pista |
+| `'mensaje'` + `errorMsg` | Excepción real del servidor / rechazo de negocio | Texto inline en el modal (nunca overlay — es una causa concreta que se lee en el mismo formulario) |
+
+Clasificación centralizada en `TurnosCajaService.clasificarErrorMutacion(error, mensajeFallback)` (privado) — usa `supabase.debeSilenciarErrorOffline(error)` y `supabase.esErrorDeTransporte(error)` para no reinventar la detección en cada método.
+
+### Por qué el `feedback` se decide en el servicio, no en el modal
+
+Antes de esta unificación, el modal recibía solo `{ ok, errorMsg }` y decidía "overlay si no hay errorMsg" — ambiguo, porque tanto un timeout como una excepción inesperada llegaban sin `errorMsg`. Centralizar la clasificación en el servicio (que tiene el objeto `error` original) evita que el modal reinvente el criterio y garantiza que abrir/cerrar caja siempre den el mismo feedback ante el mismo tipo de fallo.
+
+### Robustez del modal (`VerificarFondoModalComponent.abrirCaja()`)
+
+- **Fail-closed sin callback:** si `onAbrir` no fue provisto por el home, el modal no asume éxito — muestra error y no cierra. Nunca "finge" abrir un turno sin ejecutar la mutación.
+- **`try/catch` envolvente:** si la mutación rechaza de forma inesperada (los servicios normalmente devuelven `{ok:false}`, no lanzan, pero un fallo previo como `getUsuarioActual()` sí puede rechazar), el botón nunca queda atascado en "Abriendo..." — se restaura y se muestra el error.
+
+---
+
+## 12. Queries de auditoría
 
 ### Estado de turnos del día
 

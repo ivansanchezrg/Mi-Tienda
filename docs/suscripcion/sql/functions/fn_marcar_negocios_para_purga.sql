@@ -1,11 +1,12 @@
 -- =============================================================================
 -- fn_marcar_negocios_para_purga — Marca propietarios vencidos para purga diferida
 -- =============================================================================
--- Ver docs/PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md (Fase 2). Job de detección, NO borra
--- nada todavía — solo marca purga_avisada_el/purga_programada_el en suscripciones
--- para que el panel /admin sepa a quién avisar y, 7 días después, a quién purgar.
+-- Ver docs/suscripcion/SUSCRIPCION-README.md, sección "Purga automática de
+-- negocios vencidos". Job de detección, NO borra nada todavía — solo marca
+-- purga_avisada_el/purga_programada_el en suscripciones para que el panel
+-- /admin sepa a quién avisar y, 7 días después, a quién purgar.
 --
--- Criterio de vencimiento (confirmado contra el codigo real, ver plan): la
+-- Criterio de vencimiento (confirmado contra el codigo real): la
 -- suscripcion se paga POR PROPIETARIO — fn_registrar_pago_propietario y
 -- fn_suspender_propietario_suscripcion sincronizan vence_el/estado en TODOS los
 -- negocios de un propietario en cada pago/suspension. MIN(vence_el) por
@@ -15,8 +16,15 @@
 --
 -- Solo marca propietarios cuyo estado efectivo (mismo criterio de fecha que
 -- fn_estado_suscripcion, comparando por FECHA local Ecuador) sea TRIAL_VENCIDO o
--- VENCIDA. SUSPENDIDA/CANCELADA quedan excluidas — son bloqueo manual del
--- superadmin, no se purgan automaticamente.
+-- VENCIDA. SUSPENDIDA/CANCELADA quedan excluidas SOLO de la deteccion (no
+-- disparan el marcado por si mismas).
+--
+-- Importante: una vez que el propietario califica por OTRO negocio suyo vencido,
+-- el UPDATE marca TODOS sus negocios sin filtrar por estado — incluye negocios
+-- SUSPENDIDA/CANCELADA del mismo propietario. Decision consciente (confirmada
+-- 2026-07-18): la facturacion es por propietario, no por negocio (ver decision #1
+-- del plan) — si el propietario no paga, se purga TODO su grupo, sin excepcion
+-- para negocios bloqueados por otros motivos.
 --
 -- Filtra MIN(vence_el) con >= 23 dias vencidos Y purga_avisada_el IS NULL (no
 -- vuelve a marcar a quien ya esta en cuenta regresiva). Al marcar, actualiza

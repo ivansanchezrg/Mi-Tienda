@@ -186,6 +186,7 @@ src/app/
 | ------------------------- | ----------------------------------------------------------- |
 | `SupabaseService`         | Todas las queries y auth. Usar siempre `.call()` o `.rpc()`. Tiene listener global de auth (TOKEN_REFRESHED, SIGNED_OUT), detección de JWT expirado en `call()`, refresh proactivo al volver del background (`refreshSessionOnResume()`), y `handleExpiredSession()` como punto centralizado de limpieza de sesión |
 | `UiService`               | Loading, toasts, alertas, confirmaciones, `hideTabs()`/`showTabs()` para ocultar tabs en páginas de detalle |
+| `FeedbackOverlayService`  | Overlay centrado (success/error/warning/info) para resultados "de ley" — no reemplaza a `UiService`, es el default para el 95% de los casos. Ver sección "Feedback de acciones — toast vs overlay" |
 | `ConfigService`           | Lee tabla `configuraciones` (clave/valor con prefijo por módulo: `caja_`, `bus_`, `pos_`, `nomina_`) con cache en memoria. Métodos: `get()`, `invalidar()`. **No** leer nombre/teléfono/dirección del negocio de aquí — viven en `negocios`. Nombre: `authService.usuarioActualValue?.negocio_nombre`. Resto de datos: `ConfiguracionService.getDatosNegocio()` |
 | `CurrencyService`         | Formateo de moneda. Métodos: `format(value)` (display estándar `1,250.00`), `parse(value)` (string → number), `parteEntera(monto)` (entero truncado con `Math.floor`, sin redondeo), `centavos(monto)` (2 dígitos decimales). No formatear moneda manualmente — ver patrón abajo |
 | `StorageService`          | Flujo completo de imágenes: captura (cámara/galería) → cropper integrado (5 ratios) → compresión WebP → upload a Supabase Storage. Bucket único `mi-tienda` aislado por `negocio_id`. Métodos clave: `elegirFuenteFoto()`, `recortarImagen()`, `mostrarOpcionesImagen()`, `uploadImage()`, `replaceImage()`. Ver sección "Storage multi-tenant" |
@@ -219,6 +220,56 @@ if (!ok) this.ui.showToast('No hay teléfono configurado', 'warning');
 **Callers actuales:** `SuscripcionPage`, `ShareCierreService` (caja), `ShareEstadoCuentaService` (clientes), `AdminNegociosPage` (purga).
 
 **Al agregar un nuevo feature con WhatsApp:** inyectar `WhatsAppService`, armar el array de líneas del mensaje, y llamar `abrir()`. No hay ningún otro paso.
+
+---
+
+## Feedback de acciones — toast vs overlay
+
+Dos sistemas de feedback conviven a propósito, cada uno para un caso distinto. **`UiService`** (`showToast()`, `showSuccess()`, `showError()`) sigue siendo el default para el 95% de los mensajes. **`FeedbackOverlayService`** (`shared/components/feedback-overlay/`, montado una única vez en `AppComponent`) es un overlay centrado con blur de fondo, reservado solo para eventos "de ley" que necesitan un cierre visual inequívoco.
+
+```typescript
+private feedback = inject(FeedbackOverlayService);
+
+this.feedback.success({ titulo: '¡Venta registrada!', destacado: '$45.00', subtitulo: 'Comprobante #142' });
+this.feedback.error({ titulo: 'No se pudo registrar la venta', subtitulo: 'Intenta de nuevo' });
+```
+
+### Criterio de decisión (en orden — el primero que aplique gana)
+
+1. **¿La acción ocurre muchas veces por turno de trabajo?** (agregar producto sin stock, código no encontrado, validación de formulario) → **toast**, sin importar lo demás. Un overlay que aparece decenas de veces al día se vuelve fatiga de interrupción y el usuario deja de leerlo.
+2. **¿La página navega fuera (`navigateBack()`/`navigateForward()`) inmediatamente después de la mutación exitosa?** → **overlay**, aunque haya habido confirmación previa en un formulario. Un toast disparado justo antes de una transición de página compite con esa transición y se pierde — mostrar el overlay **antes** de navegar.
+3. **¿El usuario ya confirmó explícitamente el resultado antes de este momento?** (`Alert` "¿Seguro? → Confirmar", o un formulario transaccional con botón Guardar) **y la página se queda en la misma pantalla viendo el resultado** (el ítem cambia/desaparece ante sus ojos) → **toast** (o sin feedback si el cambio ya es visualmente obvio, ej. un ícono de check).
+4. Si nada de lo anterior aplica → **overlay**: es información nueva que el usuario necesita percibir con claridad.
+
+### Antes de decidir feedback en una acción destructiva: ¿es segura?
+
+Para acciones irreversibles (eliminar), la pregunta de toast-vs-overlay es secundaria a dos preguntas de seguridad de la acción:
+1. **¿Tiene `Alert` de confirmación previo?** Si no lo tiene, agregarlo es prioritario — no es una decisión de feedback, es que la acción no debe dispararse con un solo tap/gesto accidental.
+2. **¿La UI espera el resultado REAL de la mutación antes de reflejar el cambio?** Un patrón optimista que quita el ítem de la lista sin chequear `error` hace que la acción "tenga éxito visualmente" aunque haya fallado en el backend.
+
+### Duración por tipo (`FeedbackOverlayService`)
+
+| Tipo | Auto-dismiss default | Por qué |
+|---|---|---|
+| `success` / `info` | 3000ms | Notifica un estado que ya ocurrió, no requiere acción |
+| `warning` / `error` | Sin auto-dismiss (botón "Entendido" o tap fuera) | El usuario debe LEER la causa o decidir algo — auto-ocultar arriesga que se pierda el motivo |
+
+### Ejemplos ya resueltos en el proyecto
+
+| Caso | Elegido | Por qué |
+|---|---|---|
+| Venta registrada / falla al registrar (POS) | overlay `success`/`error` | El modal de cobro confirmó el método de pago, no el resultado — es información nueva |
+| Stock insuficiente detectado en servidor al cobrar | overlay `warning` | Infrecuente, rompe el flujo esperado (otra caja vendió lo mismo en simultáneo) |
+| Vaciar carrito manual (POS, menú ⋮) | overlay `success` | Descartar todo el carrito es una acción destructiva "de ley" — el overlay da un cierre visual inequívoco (cuántos artículos se descartaron) tras el Alert de confirmación. Decidido 2026-07-20 |
+| Registrar ingreso/egreso de caja | overlay `success`/`error` | Confirmación previa en el modal, pero es dinero real entrando/saliendo de una caja — mismo peso que una venta |
+| Crear/editar producto o plantilla (Inventario) | overlay `success` antes de `navigateBack()` | Regla 2: la página navega fuera inmediatamente tras guardar |
+| Desactivar/reactivar producto, ajustar stock (Inventario) | toast | No navega, el usuario ve el cambio en la misma lista |
+| Eliminar nota | Alert de confirmación + sin feedback en éxito + overlay `error` en fallo | El problema real no era toast-vs-overlay: la acción no tenía confirmación ni esperaba el resultado real (ver "¿es segura?" arriba) |
+| Editar nota, crear nota, completar/reactivar nota | sin overlay | Se queda en la lista viendo el cambio reflejado de inmediato |
+
+### Errores de red vs errores de negocio fuera de `supabase.call()`
+
+Cuando un servicio necesita controlar el feedback él mismo (overlay en vez del toast automático de `call()`), no debe pasar `successMessage` a `call()` — o, si necesita distinguir error de transporte de error de negocio con una query directa (`this.supabase.client...` sin pasar por `call()`), usar `this.supabase.esErrorDeTransporte(error)` para dar el mensaje real ("Sin conexión a internet..." vs el mensaje del backend). Ver `OperacionesCajaService.registrarOperacion()` y `NotasService.eliminar()` como referencia.
 
 ---
 
@@ -446,6 +497,49 @@ await modal.present();
 ```
 
 **No importar `IonContent`** en el componente del modal — ni en el `import` TS ni en `imports[]` del decorador.
+
+### Patrón `onConfirmar` — modales que ejecutan una mutación real
+
+**Disponible para modales transaccionales que disparan una operación con superficie de fallo real** (red, validación de servidor) — no es obligatorio para todo modal con botón Confirmar, es la elección correcta cuando el resultado de la mutación debe decidir si el modal se cierra o no.
+
+Por defecto, un modal bottom-sheet hace `modalCtrl.dismiss(result, 'confirm')` en su botón Confirmar, y el **caller** ejecuta la mutación después de que el modal ya se cerró (`await modal.onDidDismiss()`). Eso tiene un problema: si la mutación falla, el modal ya no existe — el usuario pierde el formulario y no hay dónde mostrarle "seguí abierto y reintenta".
+
+El patrón alternativo: el modal recibe un `@Input({ required: true }) onConfirmar: (result) => Promise<boolean>`, lo ejecuta él mismo al confirmar, y **solo se cierra si retorna `true`**:
+
+```typescript
+// Componente del modal
+@Input({ required: true }) onConfirmar!: (result: MiResult) => Promise<boolean>;
+guardando = false;
+
+async confirmar() {
+  if (this.guardando || this.form.invalid) return;
+  const result: MiResult = { /* ... */ };
+  this.guardando = true;
+  try {
+    const exito = await this.onConfirmar(result);
+    if (exito) this.modalCtrl.dismiss(result, 'confirm');
+  } finally {
+    this.guardando = false;
+  }
+}
+```
+
+```typescript
+// Caller — el callback se pasa como componentProp ANTES de modal.present()
+const modal = await this.modalCtrl.create({
+  component: MiModalComponent,
+  componentProps: {
+    onConfirmar: (result: MiResult) => this.ejecutarOperacion(result), // debe retornar Promise<boolean>
+  },
+  cssClass: 'bottom-sheet-modal', breakpoints: [0, 1], initialBreakpoint: 1,
+});
+await modal.present();
+// Sin modal.onDidDismiss() disparando la mutación — ya corrió dentro del modal.
+```
+
+Botón Confirmar debe mostrar el estado `guardando` (spinner + texto "Procesando..." + `[disabled]`) — con este patrón el spinner es visible de verdad, porque el modal sigue existiendo mientras la operación corre.
+
+**Ejemplos reales:** `AjusteStockModalComponent` (inventario), `OperacionModalComponent` (caja — ingreso/egreso).
 
 ### `bs-actions` — variantes de layout de botones
 
@@ -713,6 +807,8 @@ Qué provee (ya no hay que declararlo en cada página):
 - `loadingMoreText` — texto contextual del spinner de infinite scroll (abstracto, cada subclase lo define)
 - `ui` — instancia de `UiService` (heredada, no re-inyectar)
 
+**Carrera filtro vs scroll (fix 2026-07-16):** la clase base ya protege contra que el usuario filtre/busque mientras un `cargarMas()` está en vuelo — un token de generación interno descarta el resultado del `fetchPage` obsoleto (evita mezclar datos del filtro viejo y que el infinite scroll deje de disparar). No hay que manejar esta carrera en la subclase ni reimplementarla.
+
 Page sizes centralizados en `PAGINATION_CONFIG` (`src/app/core/config/pagination.config.ts`). La subclase declara su propio `@ViewChild('content', { read: ElementRef })` (usado por `scrollTop` internamente).
 
 Qué implementa cada subclase:
@@ -962,7 +1058,7 @@ PERFORM public.fn_assert_no_superadmin();
 La función helper está en `docs/setup/fn_assert_no_superadmin.sql` y debe ejecutarse en Supabase **antes** que cualquier función de mutación. Lanza `RAISE EXCEPTION` internamente — esa excepción burbujea automáticamente y aborta la función llamante, independientemente de si retorna `void`, `JSON` o `TABLE`.
 
 **Funciones que SÍ deben bloquearse** — toda función que toque caja, ventas, inventario, clientes, recargas, nómina o notas:
-`fn_abrir_turno`, `fn_ejecutar_cierre_diario_v5`, `fn_registrar_operacion_manual`, `fn_crear_transferencia`, `fn_reparar_deficit_turno`, `fn_registrar_venta_pos`, `fn_anular_venta`, `fn_ajustar_stock_inventario`, `fn_crear_producto_simple`, `fn_crear_producto_con_variantes`, `fn_registrar_pago_fiado`, `fn_registrar_recarga_proveedor_celular`, `fn_registrar_pago_proveedor_celular`, `fn_registrar_compra_saldo_bus`, `fn_liquidar_ganancias_bus`, `fn_registrar_adelanto_sueldo`, `fn_pagar_nomina_empleado`, `fn_eliminar_nota`, `fn_configurar_caja_varios`, `fn_upsert_cliente`.
+`fn_abrir_turno`, `fn_ejecutar_cierre_diario_v5`, `fn_registrar_operacion_manual`, `fn_crear_transferencia`, `fn_reparar_deficit_turno`, `fn_compensar_varios_pendiente`, `fn_registrar_venta_pos`, `fn_anular_venta`, `fn_ajustar_stock_inventario`, `fn_crear_producto_simple`, `fn_crear_producto_con_variantes`, `fn_registrar_pago_fiado`, `fn_registrar_recarga_proveedor_celular`, `fn_registrar_pago_proveedor_celular`, `fn_registrar_compra_saldo_bus`, `fn_liquidar_ganancias_bus`, `fn_registrar_adelanto_sueldo`, `fn_pagar_nomina_empleado`, `fn_eliminar_nota`, `fn_configurar_caja_varios`, `fn_upsert_cliente`.
 
 **Funciones que NO se bloquean** — funciones de setup/admin que el superadmin usa deliberadamente:
 `fn_configurar_modulos`, `fn_configurar_modulos_admin`, `fn_suspender_usuario`, `fn_actualizar_membresia`, `fn_transferir_empleado`, `fn_set_negocio_activo`, `fn_completar_onboarding`, `fn_suspender_negocio`.
@@ -1345,11 +1441,10 @@ WITH CHECK (
 | Layout              | `docs/layout/LAYOUT-README.md`                             |
 | Historial Recargas  | `docs/historial-recargas/HISTORIAL-RECARGAS-README.md`     |
 | Crear Negocio       | `docs/crear-negocio/CREAR-NEGOCIO-README.md`               |
-| Grupo (Resumen General) | `docs/grupo/GRUPO-README.md` (dashboard multi-negocio plan MAX) + `docs/PLAN-DASHBOARD-RESUMEN-GENERAL.md` (plan por fases) |
+| Grupo (Resumen General) | `docs/grupo/GRUPO-README.md` (dashboard multi-negocio plan MAX) |
 | Auditoría producción | `docs/guides/AUDITORIA-PRODUCCION-2026-05-07.md`          |
 | Auditoría SQL 2026-05 | `docs/guides/RESUMEN-AUDITORIA-SQL-2026-05-30.md` (documento único — consolidado 2026-06-10) |
 | Performance arranque | `docs/guides/PERFORMANCE-STARTUP.md`                       |
 | Builds Android / entornos | `docs/guides/ANDROID-BUILD.md`                        |
-| Planes / Suscripciones | `docs/PLAN-PLANES-SUSCRIPCION.md` (monetización SaaS — plan por fases) |
-| Suscripciones (módulo) | `docs/suscripcion/SUSCRIPCION-README.md` |
+| Suscripciones (módulo) | `docs/suscripcion/SUSCRIPCION-README.md` (monetización SaaS — planes, pagos, purga, roadmap MAX) |
 | Pendientes / backlog técnico | `docs/PENDIENTES.md` (al completar un ítem, borrarlo del archivo) |

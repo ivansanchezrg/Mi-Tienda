@@ -243,15 +243,18 @@ BEGIN
     (v_negocio_id, 'Otros Ingresos', 'INGRESO', 'Otros ingresos no clasificados',          TRUE);
 
     -- ── 7. Categorías de productos ──
-    INSERT INTO categorias_productos (negocio_id, nombre) VALUES
-    (v_negocio_id, 'Sin categoria'),
-    (v_negocio_id, 'Bebidas'),
-    (v_negocio_id, 'Snacks'),
-    (v_negocio_id, 'Abarrotes'),
-    (v_negocio_id, 'Lacteos'),
-    (v_negocio_id, 'Limpieza'),
-    (v_negocio_id, 'Aseo Personal'),
-    (v_negocio_id, 'Panaderia')
+    -- orden explícito ("Sin categoria" primero) para que el negocio nazca con un
+    -- orden semántico en vez de todas en 0 (no determinista) — ver
+    -- docs/configuracion/CONFIGURACION-README.md → "Orden manual — drag & drop"
+    INSERT INTO categorias_productos (negocio_id, nombre, orden) VALUES
+    (v_negocio_id, 'Sin categoria', 0),
+    (v_negocio_id, 'Bebidas',       1),
+    (v_negocio_id, 'Snacks',        2),
+    (v_negocio_id, 'Abarrotes',     3),
+    (v_negocio_id, 'Lacteos',       4),
+    (v_negocio_id, 'Limpieza',      5),
+    (v_negocio_id, 'Aseo Personal', 6),
+    (v_negocio_id, 'Panaderia',     7)
     ON CONFLICT (negocio_id, nombre) DO NOTHING;
 
     -- ── 8. Configuraciones (solo parámetros operativos — datos de identidad van en negocios) ──

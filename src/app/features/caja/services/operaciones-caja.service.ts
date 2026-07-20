@@ -2,6 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '@core/services/supabase.service';
 import { StorageService } from '@core/services/storage.service';
 import { UiService } from '@core/services/ui.service';
+import { FeedbackOverlayService } from '@core/services/feedback-overlay.service';
+import { CurrencyService } from '@core/services/currency.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { PAGINATION_CONFIG } from '@core/config/pagination.config';
 import { getInicioDiaSiguienteISO, getInicioHaceNDiasISO } from '@core/utils/date.util';
@@ -19,6 +21,8 @@ export class OperacionesCajaService {
   private supabase = inject(SupabaseService);
   private storageService = inject(StorageService);
   private ui = inject(UiService);
+  private feedback = inject(FeedbackOverlayService);
+  private currency = inject(CurrencyService);
   private authService = inject(AuthService);
   private pageSize = PAGINATION_CONFIG.operacionesCaja.pageSize;
 
@@ -198,20 +202,23 @@ export class OperacionesCajaService {
         return false;
       }
 
+      // Nota: no se usa ui.showLoading() en este flujo — el modal de operación
+      // (OperacionModalComponent) muestra su propio spinner "Registrando..." mientras
+      // espera este método (patrón onConfirmar). Un ion-loading global encima del modal
+      // sería un doble indicador solapado.
       let pathImagen: string | null = null;
 
       if (fotoComprobante) {
-        await this.ui.showLoading('Subiendo comprobante...');
         pathImagen = await this.storageService.uploadImage(fotoComprobante, 'comprobantes/operaciones');
-        await this.ui.hideLoading();
 
         if (!pathImagen) {
-          await this.ui.showError('Error al subir el comprobante. Intenta de nuevo.');
+          this.feedback.error({
+            titulo: `No se pudo registrar el ${tipo.toLowerCase()}`,
+            subtitulo: 'Error al subir el comprobante. Intenta de nuevo.',
+          });
           return false;
         }
       }
-
-      await this.ui.showLoading(`Registrando ${tipo.toLowerCase()}...`);
 
       const { data, error } = await this.supabase.client.rpc('fn_registrar_operacion_manual', {
         p_caja_id: cajaId,
@@ -223,32 +230,53 @@ export class OperacionesCajaService {
         p_comprobante_url: pathImagen
       });
 
-      await this.ui.hideLoading();
-
       if (error) {
         // Rollback: eliminar imagen huérfana en Storage si el RPC falla
         if (pathImagen) {
           await this.storageService.deleteFile(pathImagen);
         }
 
+        // supabase-js NO lanza en fallo de red — lo devuelve en `error`. Distinguir el
+        // "sin conexión" del error de negocio: el RPC directo no pasa por call(), así que
+        // hay que detectar el error de transporte manualmente y dar el mensaje REAL.
         const rawMsg = error.message ?? '';
         const superadminMatch = rawMsg.match(/superadmin_blocked:\s*(.+)/i);
-        await this.ui.showError(superadminMatch ? superadminMatch[1].trim() : 'Error al registrar la operación');
+        // Transacción financiera real (mismo peso que la venta del POS) — el
+        // empleado necesita certeza de que el dinero NO quedó registrado, no un
+        // toast que puede perderse. Ver design_toast_vs_overlay_feedback.md.
+        this.feedback.error({
+          titulo: `No se pudo registrar el ${tipo.toLowerCase()}`,
+          subtitulo: superadminMatch
+            ? superadminMatch[1].trim()
+            : this.supabase.esErrorDeTransporte(error)
+              ? 'Sin conexión a internet. Verifica tu red e intenta de nuevo.'
+              : rawMsg || undefined,
+        });
         return false;
       }
 
       if (!data || !data.success) {
         if (pathImagen) await this.storageService.deleteFile(pathImagen);
-        await this.ui.showError(data?.error || 'Error al registrar la operación');
+        this.feedback.error({
+          titulo: `No se pudo registrar el ${tipo.toLowerCase()}`,
+          subtitulo: data?.error,
+        });
         return false;
       }
 
-      await this.ui.showSuccess(`${tipo} registrado correctamente`);
+      this.feedback.success({
+        titulo: `${tipo === 'INGRESO' ? 'Ingreso' : 'Egreso'} registrado`,
+        destacado: `$${this.currency.format(monto)}`,
+      });
       return true;
 
     } catch (error) {
-      await this.ui.hideLoading();
-      await this.ui.showError('Error inesperado');
+      this.feedback.error({
+        titulo: `No se pudo registrar el ${tipo.toLowerCase()}`,
+        subtitulo: this.supabase.esErrorDeTransporte(error)
+          ? 'Sin conexión a internet. Verifica tu red e intenta de nuevo.'
+          : 'Error inesperado. Intenta de nuevo.',
+      });
       return false;
     }
   }

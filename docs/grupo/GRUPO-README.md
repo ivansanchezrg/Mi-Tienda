@@ -4,8 +4,6 @@ Vista **consolidada y de solo lectura** de todos los negocios del propietario. E
 
 **Nota de vocabulario:** "grupo" es el nombre técnico del módulo (`GrupoService`, `fn_grupo_*`, `docs/grupo/`) — **nunca aparece así en la UI**. De cara al usuario, todo el texto dice **"tus negocios"** (coherente con "Mis negocios" del sidebar): "Ventas totales de tus negocios", "Deuda por cobrar de tus negocios", "Top productos de tus negocios", "Total de tus negocios". El campo `dashboard.grupo.*` del contrato TS/JSON es interno y no se traduce.
 
-Diseño completo, decisiones de arquitectura y plan por fases en [`docs/PLAN-DASHBOARD-RESUMEN-GENERAL.md`](../PLAN-DASHBOARD-RESUMEN-GENERAL.md).
-
 ---
 
 ## Qué es (y qué NO es)
@@ -100,12 +98,36 @@ grupo/
 
 ---
 
-## Pasos manuales (deploy)
+## ⏳ Pasos manuales pendientes (deploy) — dashboard NO operativo aún
 
-Las funciones SQL son la fuente de verdad pero **aún no están en Supabase**. Ejecutar en el SQL Editor (en orden): `fn_grupo_top_productos` (si aún no está), `fn_grupo_dashboard`, `fn_grupo_ventas_series`, `fn_grupo_alertas`. Detalle + `DROP` de las funciones borradas en [`docs/PLAN-DASHBOARD-RESUMEN-GENERAL.md`](../PLAN-DASHBOARD-RESUMEN-GENERAL.md) §11.
+Las funciones SQL son la fuente de verdad pero **aún no están ejecutadas en Supabase** — hasta que esto se haga, `/resumen-general` no tiene datos reales. Ejecutar en el SQL Editor, en este orden:
+
+1. `docs/grupo/sql/functions/fn_grupo_top_productos.sql` (si aún no está desplegada)
+2. `docs/grupo/sql/functions/fn_grupo_dashboard.sql`
+3. `docs/grupo/sql/functions/fn_grupo_ventas_series.sql`
+4. `docs/grupo/sql/functions/fn_grupo_alertas.sql`
+
+**Limpieza (solo si en algún momento se ejecutaron las versiones viejas ya borradas del repo):** `fn_grupo_resumen_ventas`, `fn_grupo_ventas_por_sucursal` y `fn_grupo_negocios` fueron absorbidas/eliminadas. Si nunca se desplegaron, no hay nada que hacer; si sí:
+
+```sql
+DROP FUNCTION IF EXISTS public.fn_grupo_resumen_ventas(TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.fn_grupo_ventas_por_sucursal(TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.fn_grupo_negocios();
+NOTIFY pgrst, 'reload schema';
+```
+
+**Verificación rápida** (con un dueño de 2-3 negocios de prueba, plan MAX):
+
+```sql
+SELECT public.fn_grupo_dashboard('2026-07-01', '2026-07-02');
+SELECT public.fn_grupo_ventas_series('2026-06-01', '2026-07-02');
+SELECT public.fn_grupo_alertas('2026-07-01', '2026-07-02');
+```
+
+Luego en la app (sesión de ese dueño): sidebar → **Mis negocios** → **Ver resumen general**.
 
 ---
 
 ## Pendiente relacionado
 
-El gate por plan MAX en el frontend es de UX; el bloqueo técnico duro por plan (multisucursal/multiplataforma/IA) se documenta en [`docs/PENDIENTES.md`](../PENDIENTES.md) y [`docs/PLAN-PLANES-SUSCRIPCION.md`](../PLAN-PLANES-SUSCRIPCION.md) §11. Este dashboard no lo modifica.
+El gate por plan MAX en el frontend es de UX; el bloqueo técnico duro por plan (multisucursal/multiplataforma/IA) se documenta en [`docs/PENDIENTES.md`](../PENDIENTES.md) y [`docs/suscripcion/SUSCRIPCION-README.md`](../suscripcion/SUSCRIPCION-README.md). Este dashboard no lo modifica.

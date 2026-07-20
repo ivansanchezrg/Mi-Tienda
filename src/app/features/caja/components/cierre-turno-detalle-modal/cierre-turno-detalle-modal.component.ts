@@ -118,16 +118,18 @@ export class CierreTurnoDetalleModalComponent {
   // ── Compartir por WhatsApp ──────────────────────────────────
 
   async compartirWhatsApp(): Promise<void> {
-    // Fecha local de apertura vs cierre — el aviso de transferencia a Varios
-    // pendiente aplica también al compartir un cierre desde el historial.
-    const apertura = new Date(this.cierre.hora_fecha_apertura);
-    const cierre   = new Date(this.cierre.hora_fecha_cierre);
-
+    // El desglose día-a-día de transferencias a Varios pendientes solo lo calcula
+    // fn_datos_cierre_diario (en vivo, al cerrar). El historial reconstruye el cierre
+    // desde el ledger y no dispone de ese detalle, así que aquí no se cuantifica el
+    // pendiente (dias=0) — la línea de aviso ya se mostró al momento de cerrar. El
+    // resumen del historial se centra en los saldos del turno, no en el aviso.
     await this.shareCierreService.enviarResumenWhatsApp({
       numeroTurno:       this.cierre.numero_turno,
       cajeroNombre:      this.cierre.empleado_nombre,
       horaApertura:      this.cierre.hora_fecha_apertura,
-      aperturaEnOtroDia: apertura.toDateString() !== cierre.toDateString(),
+      variosPendienteDias:  0,
+      variosPendienteMonto: 0,
+      variosPendienteRango: '',
       esModoSinPos:      !this.cierre.usa_pos,
       observaciones:     this.cierre.observaciones,
       fondoApertura:     this.cierre.fondo_apertura,

@@ -16,6 +16,9 @@ export interface DatosCierreDiario {
   saldosAntesCierre:    { caja: number; varios: number };
   transferenciaDiariaVarios: number;
   transferenciaYaHecha: boolean;
+  /** Transferencias diarias a Varios no realizadas (turno abierto varios días).
+   *  dias=0 en el caso normal. desde/hasta son fechas locales 'YYYY-MM-DD' o null. */
+  variosPendiente:      { dias: number; monto: number; desde: string | null; hasta: string | null };
   resumenTurno:         { ventasPosEfectivo: number; egresos: number };
   configuracion:        { recargasCelularHabilitada: boolean; recargasBusHabilitada: boolean; cajaVariosActiva: boolean };
 }

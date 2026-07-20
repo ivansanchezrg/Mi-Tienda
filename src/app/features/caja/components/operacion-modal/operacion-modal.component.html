@@ -163,13 +163,18 @@
 
   <!-- Acciones -->
   <div class="bs-actions bs-actions--row">
-    <ion-button expand="block" fill="outline" color="medium" (click)="cancelar()">Cancelar</ion-button>
+    <ion-button expand="block" fill="outline" color="medium" [disabled]="guardando" (click)="cancelar()">Cancelar</ion-button>
     <ion-button
       expand="block"
       [color]="esIngreso ? 'success' : 'danger'"
-      [disabled]="form.invalid || montoExcedeSaldo"
+      [disabled]="form.invalid || montoExcedeSaldo || guardando"
       (click)="confirmar()">
-      {{ esIngreso ? 'Ingresar' : 'Retirar' }}
+      @if (guardando) {
+        <ion-spinner name="crescent" slot="start"></ion-spinner>
+        Registrando...
+      } @else {
+        {{ esIngreso ? 'Ingresar' : 'Retirar' }}
+      }
     </ion-button>
   </div>
 

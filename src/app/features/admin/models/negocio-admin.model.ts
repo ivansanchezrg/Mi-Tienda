@@ -51,7 +51,7 @@ export interface PropietarioGrupo {
   suspendido: boolean;
   negocios:   NegocioAdmin[];
   /** Presente solo si el propietario está marcado para purga (ver
-   *  PLAN-BORRADO-AUTOMATICO-NEGOCIOS.md). Viene de fn_listar_negocios_pendientes_purga,
+   *  docs/suscripcion/SUSCRIPCION-README.md). Viene de fn_listar_negocios_pendientes_purga,
    *  un solo registro representativo (todos sus negocios comparten estas fechas). */
   purga?: {
     telefono_contacto:   string | null;

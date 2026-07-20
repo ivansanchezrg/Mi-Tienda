@@ -13,13 +13,15 @@ import { TurnosCajaService } from './features/caja/services/turnos-caja.service'
 import { Capacitor } from '@capacitor/core';
 import { OfflineBannerComponent } from './core/components/offline-banner/offline-banner.component';
 import { SuscripcionBannerComponent } from './core/components/suscripcion-banner/suscripcion-banner.component';
+import { SyncBannerComponent } from './core/components/sync-banner/sync-banner.component';
+import { FeedbackOverlayComponent } from './shared/components/feedback-overlay/feedback-overlay.component';
 import { ROUTES } from './core/config/routes.config';
 
 @Component({
   selector: 'app-root',
   templateUrl: 'app.component.html',
   styleUrl: 'app.component.scss',
-  imports: [IonApp, IonRouterOutlet, OfflineBannerComponent, SuscripcionBannerComponent],
+  imports: [IonApp, IonRouterOutlet, OfflineBannerComponent, SuscripcionBannerComponent, SyncBannerComponent, FeedbackOverlayComponent],
 })
 export class AppComponent implements OnDestroy {
 

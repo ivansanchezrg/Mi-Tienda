@@ -13,7 +13,8 @@ type AdminTab = 'negocios' | 'planes' | 'configuracion';
 /**
  * Tabs internas del panel /admin (patrón chrome-tabs, igual que el módulo ventas).
  * Detecta la ruta activa con NavigationEnd — no con @Input(). Cada página del panel
- * incluye este componente en su header. Ver docs/PLAN-PLANES-SUSCRIPCION.md §4.7.
+ * incluye este componente en su header. Ver docs/suscripcion/SUSCRIPCION-README.md,
+ * sección "Panel del superadmin (/admin)".
  */
 @Component({
   selector: 'app-admin-tabs',

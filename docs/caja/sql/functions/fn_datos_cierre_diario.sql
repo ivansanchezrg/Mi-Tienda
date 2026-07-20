@@ -1,6 +1,14 @@
 -- =============================================================================
--- fn_datos_cierre_diario (v1.1 — 2026-06-05)
+-- fn_datos_cierre_diario (v1.2 — 2026-07-18)
 -- =============================================================================
+-- CAMBIOS v1.2:
+--   - transferencia_ya_hecha usa el mismo criterio corregido que fn_ejecutar_cierre_diario
+--     v6.5: el DEF-REPONER cuenta como "cobró hoy" solo si repone un turno cerrado HOY
+--     (por referencia_id), no por la fecha del asiento.
+--   - Nuevo campo varios_pendiente { dias, monto, desde, hasta }: días locales en
+--     [apertura, hoy) donde VARIOS no recibió su transferencia (turno abierto varios días).
+--     El wizard lo muestra en el Paso 2 y el home ofrece compensarlo tras el cierre.
+--
 -- Consolida en una sola RPC todos los datos que necesita el wizard de cierre
 -- diario para cargarse. Reemplaza las 8-9 queries paralelas que hacía
 -- cargarDatosIniciales() en cierre-diario.page.ts.
@@ -76,6 +84,18 @@ DECLARE
     v_fin_utc               TIMESTAMPTZ;
     v_cat_def_reponer CONSTANT UUID := 'a1000001-0000-0000-0000-000000000005';
 
+    -- Transferencias diarias pendientes (turno abierto varios días sin cerrar).
+    -- Cada día local en [apertura, hoy) donde VARIOS no cobró es un día perdido.
+    v_varios_created_at     TIMESTAMPTZ;   -- desde cuándo existe la obligación de transferir
+    v_apertura_local        DATE;          -- día local de apertura del turno activo
+    v_dia                   DATE;          -- cursor del loop de días
+    v_dia_ini_utc           TIMESTAMPTZ;
+    v_dia_fin_utc           TIMESTAMPTZ;
+    v_dia_cobro             BOOLEAN;
+    v_pend_dias             INTEGER := 0;
+    v_pend_desde            DATE;          -- primer día pendiente
+    v_pend_hasta            DATE;          -- último día pendiente
+
     -- Resumen del turno
     v_ventas_pos_efectivo   NUMERIC(12,2);
     v_egresos               NUMERIC(12,2);
@@ -97,6 +117,7 @@ BEGIN
             'saldos_antes_cierre',        json_build_object('caja', 0, 'varios', 0),
             'transferencia_diaria_varios',0,
             'transferencia_ya_hecha',     FALSE,
+            'varios_pendiente',           json_build_object('dias', 0, 'monto', 0, 'desde', NULL, 'hasta', NULL),
             'resumen_turno',              json_build_object('ventas_pos_efectivo', 0, 'egresos', 0),
             'configuracion',              json_build_object('recargas_celular_habilitada', FALSE, 'recargas_bus_habilitada', FALSE, 'caja_varios_activa', FALSE)
         );
@@ -189,6 +210,11 @@ BEGIN
     v_inicio_utc  := (v_fecha_local::TIMESTAMP        AT TIME ZONE 'America/Guayaquil');
     v_fin_utc     := ((v_fecha_local + 1)::TIMESTAMP  AT TIME ZONE 'America/Guayaquil');
 
+    -- ¿VARIOS ya recibió la transferencia de HOY?
+    -- Mismo criterio que fn_ejecutar_cierre_diario v6.5: el DEF-REPONER cuenta como
+    -- "cobró hoy" solo si repone el déficit de un turno cerrado HOY (reapertura mismo día),
+    -- atribuido por referencia_id — no por la fecha del asiento. Una reparación de un
+    -- déficit anterior ejecutada esta mañana NO marca la transferencia de hoy como hecha.
     v_varios_ya_cobro := FALSE;
     IF v_varios_id IS NOT NULL THEN
         v_varios_ya_cobro := EXISTS (
@@ -198,11 +224,90 @@ BEGIN
               AND oc.caja_id    = v_varios_id
               AND oc.fecha     >= v_inicio_utc
               AND oc.fecha     <  v_fin_utc
-              AND (
-                oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
-                OR (oc.tipo_operacion = 'INGRESO' AND oc.categoria_sistema_id = v_cat_def_reponer)
-              )
+              AND oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM operaciones_cajas oc
+            JOIN turnos_caja tr ON tr.id = oc.referencia_id AND tr.negocio_id = v_negocio_id
+            WHERE oc.negocio_id = v_negocio_id
+              AND oc.caja_id    = v_varios_id
+              AND oc.tipo_operacion = 'INGRESO'
+              AND oc.categoria_sistema_id = v_cat_def_reponer
+              AND tr.hora_fecha_cierre >= v_inicio_utc
+              AND tr.hora_fecha_cierre <  v_fin_utc
+        )
+        OR EXISTS (
+            -- Fallback filas DEF-REPONER viejas sin referencia: por fecha del asiento.
+            SELECT 1
+            FROM operaciones_cajas oc
+            WHERE oc.negocio_id = v_negocio_id
+              AND oc.caja_id    = v_varios_id
+              AND oc.tipo_operacion = 'INGRESO'
+              AND oc.categoria_sistema_id = v_cat_def_reponer
+              AND oc.referencia_id IS NULL
+              AND oc.fecha >= v_inicio_utc
+              AND oc.fecha <  v_fin_utc
         );
+    END IF;
+
+    -- ── 4b. TRANSFERENCIAS DIARIAS PENDIENTES (turno abierto varios días) ─────
+    -- Si el turno activo se abrió en un día local anterior a hoy, cada día local en
+    -- [apertura, hoy) en el que VARIOS no recibió su transferencia es un día perdido.
+    -- La transferencia es "una por día, máximo una": no se acumula en el cierre (queda
+    -- en Tienda), pero se informa aquí para que el wizard lo muestre y el empleado pueda
+    -- compensarlo manualmente con un traspaso Tienda → VARIOS.
+    --
+    -- Reglas de exclusión:
+    --   • Solo aplica si VARIOS está activa y la transferencia diaria configurada > 0.
+    --   • Días anteriores a cajas.created_at de VARIOS no cuentan (módulo recién activado).
+    --   • Un día cuenta como "cobrado" si tuvo TRANSFERENCIA_ENTRANTE ese día o un
+    --     DEF-REPONER cuyo turno referenciado cerró ese día (mismo criterio que arriba).
+    --   • El día de hoy NO entra en el rango — la transferencia de hoy la resuelve este
+    --     cierre (o su déficit se repara al abrir mañana). Solo se cuentan días ya pasados.
+    IF v_varios_id IS NOT NULL
+       AND v_transferencia_diaria > 0
+       AND v_hora_apertura IS NOT NULL THEN
+
+        v_varios_created_at := (SELECT created_at FROM cajas WHERE id = v_varios_id);
+        v_apertura_local    := (v_hora_apertura AT TIME ZONE 'America/Guayaquil')::DATE;
+
+        v_dia := v_apertura_local;
+        WHILE v_dia < v_fecha_local LOOP
+            -- No exigir transferencia en días previos a la existencia de la caja VARIOS.
+            IF (v_dia + 1)::TIMESTAMP AT TIME ZONE 'America/Guayaquil' > v_varios_created_at THEN
+                v_dia_ini_utc := (v_dia::TIMESTAMP        AT TIME ZONE 'America/Guayaquil');
+                v_dia_fin_utc := ((v_dia + 1)::TIMESTAMP  AT TIME ZONE 'America/Guayaquil');
+
+                v_dia_cobro := EXISTS (
+                    SELECT 1
+                    FROM operaciones_cajas oc
+                    WHERE oc.negocio_id = v_negocio_id
+                      AND oc.caja_id    = v_varios_id
+                      AND oc.fecha     >= v_dia_ini_utc
+                      AND oc.fecha     <  v_dia_fin_utc
+                      AND oc.tipo_operacion = 'TRANSFERENCIA_ENTRANTE'
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM operaciones_cajas oc
+                    JOIN turnos_caja tr ON tr.id = oc.referencia_id AND tr.negocio_id = v_negocio_id
+                    WHERE oc.negocio_id = v_negocio_id
+                      AND oc.caja_id    = v_varios_id
+                      AND oc.tipo_operacion = 'INGRESO'
+                      AND oc.categoria_sistema_id = v_cat_def_reponer
+                      AND tr.hora_fecha_cierre >= v_dia_ini_utc
+                      AND tr.hora_fecha_cierre <  v_dia_fin_utc
+                );
+
+                IF NOT v_dia_cobro THEN
+                    v_pend_dias := v_pend_dias + 1;
+                    IF v_pend_desde IS NULL THEN v_pend_desde := v_dia; END IF;
+                    v_pend_hasta := v_dia;
+                END IF;
+            END IF;
+            v_dia := v_dia + 1;
+        END LOOP;
     END IF;
 
     -- ── 5. RESUMEN DEL TURNO ACTIVO ───────────────────────────────────────────
@@ -271,6 +376,14 @@ BEGIN
         ),
         'transferencia_diaria_varios', v_transferencia_diaria,
         'transferencia_ya_hecha',      v_varios_ya_cobro,
+        -- Transferencias diarias no realizadas mientras el turno estuvo abierto varios días.
+        -- dias=0 en el caso normal (turno abierto y cerrado el mismo día). monto = dias × diaria.
+        'varios_pendiente',     json_build_object(
+            'dias',  v_pend_dias,
+            'monto', v_pend_dias * v_transferencia_diaria,
+            'desde', v_pend_desde,
+            'hasta', v_pend_hasta
+        ),
         'resumen_turno',        json_build_object(
             'ventas_pos_efectivo', v_ventas_pos_efectivo,
             'egresos',             v_egresos
@@ -290,7 +403,10 @@ GRANT  EXECUTE ON FUNCTION public.fn_datos_cierre_diario() TO authenticated;
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_datos_cierre_diario IS
-'v1.1 — Agrega snapshot_virtuales (valor puro del último registro en recargas, sin agregado).
+'v1.2 — transferencia_ya_hecha atribuye DEF-REPONER por turno referenciado (no por fecha);
+nuevo campo varios_pendiente { dias, monto, desde, hasta } con las transferencias diarias no
+realizadas mientras el turno estuvo abierto varios días.
+v1.1 — Agrega snapshot_virtuales (valor puro del último registro en recargas, sin agregado).
 La página usa saldos_virtuales para mostrar el total en UI y snapshot_virtuales para enviarlo
 como p_saldo_anterior_* a fn_ejecutar_cierre_diario (el SQL recalcula el agregado internamente).
 v1.0: Consolida en 1 RPC todos los datos iniciales del wizard de cierre diario.

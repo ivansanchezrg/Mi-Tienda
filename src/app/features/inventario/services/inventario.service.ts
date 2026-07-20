@@ -150,7 +150,7 @@ export class InventarioService {
             this.supabase.call<ProductoPOS>(
                 this.supabase.client
                     .from('productos')
-                    .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id')
+                    .select('id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, favorito, tipo_venta, unidad_medida, producto_template_id')
                     .eq('codigo_barras', codigo)
                     .eq('activo', true)
                     .maybeSingle()
@@ -158,7 +158,7 @@ export class InventarioService {
             this.supabase.call<PresRow>(
                 this.supabase.client
                     .from('producto_presentaciones')
-                    .select('id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, imagen_url, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, tipo_venta, unidad_medida, producto_template_id)')
+                    .select('id, producto_id, nombre, factor_conversion, precio_venta, precio_costo, codigo_barras, imagen_url, es_principal, activo, producto:producto_id(id, nombre, codigo_barras, precio_venta, stock_actual, stock_minimo, imagen_url, tiene_iva, favorito, tipo_venta, unidad_medida, producto_template_id)')
                     .eq('codigo_barras', codigo)
                     .eq('activo', true)
                     .maybeSingle()
@@ -190,16 +190,19 @@ export class InventarioService {
             return this.catalogoLocal.obtenerCategorias();
         }
         const res = await this.supabase.call<CategoriaProducto[]>(
-            this.supabase.client.from('categorias_productos').select('*').eq('activo', true).order('nombre')
+            this.supabase.client.from('categorias_productos').select('*').eq('activo', true)
+                .order('orden').order('nombre')
         );
         return res || [];
     }
 
     async crearCategoria(nombre: string): Promise<CategoriaProducto | null> {
+        const actuales = await this.obtenerCategorias();
+        const siguienteOrden = actuales.length > 0 ? Math.max(...actuales.map(c => c.orden)) + 1 : 0;
         const res = await this.supabase.call<CategoriaProducto[]>(
             this.supabase.client
                 .from('categorias_productos')
-                .insert({ nombre, negocio_id: this.auth.usuarioActualValue?.negocio_id })
+                .insert({ nombre, negocio_id: this.auth.usuarioActualValue?.negocio_id, orden: siguienteOrden })
                 .select(),
             'Categoría creada',
             { showLoading: true }
@@ -213,6 +216,14 @@ export class InventarioService {
             'Categoría renombrada',
             { showLoading: true }
         );
+    }
+
+    /** Persiste el nuevo orden manual (drag & drop). Retorna false si falló (call() ya mostró el toast). */
+    async reordenarCategorias(idsEnOrden: string[]): Promise<boolean> {
+        const res = await this.supabase.call<{ ok: boolean }>(
+            this.supabase.client.rpc('fn_reordenar_categorias', { p_categoria_ids: idsEnOrden })
+        );
+        return res !== null;
     }
 
     async contarProductosPorCategoria(categoriaId: string): Promise<{ activos: number; inactivos: number }> {

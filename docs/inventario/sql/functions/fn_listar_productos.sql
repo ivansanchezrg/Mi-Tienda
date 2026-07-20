@@ -3,10 +3,15 @@ DROP FUNCTION IF EXISTS public.fn_listar_productos(TEXT, UUID, UUID, INT, INT);
 DROP FUNCTION IF EXISTS public.fn_listar_productos(TEXT, UUID, UUID, INT, INT, BOOLEAN);
 
 -- ==========================================
--- fn_listar_productos (v2.1 — filtro "Reponer" stock bajo)
+-- fn_listar_productos (v2.2 — campo favorito)
 -- ==========================================
 -- Lista productos activos con filtro por categoría (simples y variantes),
 -- filtro por template, búsqueda por nombre/código de barras, y paginación.
+--
+-- v2.2 (2026-07-16) — + campo `favorito` en el JSON (toggle de favoritos en
+--   Inventario / tab Favoritos del POS — ver docs/inventario/INVENTARIO-README.md
+--   y docs/pos/POS-README.md → "Favoritos").
+--   Sin p_solo_favoritos: el filtro de favoritos es exclusivo del POS y client-side.
 --
 -- v2.1 (2026-07-08) — FILTRO "REPONER":
 --   + `p_solo_stock_bajo BOOLEAN DEFAULT FALSE` — cuando es TRUE, devuelve solo
@@ -57,6 +62,7 @@ AS $$
             'stock_minimo',         p.stock_minimo,
             'tiene_iva',            p.tiene_iva,
             'activo',               p.activo,
+            'favorito',             p.favorito,
             'imagen_url',           p.imagen_url,
             'categoria_id',         COALESCE(t.categoria_id, p.categoria_id),
             'tipo_venta',           COALESCE(t.tipo_venta,   p.tipo_venta),
@@ -132,7 +138,6 @@ GRANT  EXECUTE ON FUNCTION public.fn_listar_productos(TEXT, UUID, UUID, INT, INT
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_listar_productos IS
-    'v2.1 — + p_solo_stock_bajo (filtro "Reponer": stock_actual <= stock_minimo, en el WHERE '
-    'para respetar paginación). v2.0 — Performance: 3 subqueries por fila reemplazadas por JOINs '
-    'explícitos (categoría efectiva + categoría del template + LATERAL de presentaciones). '
-    'Contrato JSON sin cambios.';
+    'v2.2 — + campo favorito en el JSON. v2.1 — + p_solo_stock_bajo (filtro "Reponer"). '
+    'v2.0 — Performance: JOINs explícitos en vez de subqueries por fila. '
+    'Contrato JSON: solo agrega campos, no cambia los existentes.';

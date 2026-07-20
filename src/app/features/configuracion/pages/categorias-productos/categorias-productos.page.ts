@@ -5,7 +5,8 @@ import {
   IonButtons, IonBackButton, IonIcon,
   IonRefresher, IonRefresherContent,
   IonFab, IonFabButton, IonSkeletonText,
-  ModalController
+  IonReorderGroup, IonReorder,
+  ModalController, ItemReorderCustomEvent
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { addOutline, chevronForwardOutline, pricetagOutline } from 'ionicons/icons';
@@ -26,6 +27,7 @@ import { UiService } from '@core/services/ui.service';
     IonButtons, IonBackButton, IonIcon, IonSkeletonText,
     IonRefresher, IonRefresherContent,
     IonFab, IonFabButton,
+    IonReorderGroup, IonReorder,
     EmptyStateComponent
   ]
 })
@@ -36,6 +38,7 @@ export class CategoriasProductosPage implements OnInit {
 
   categorias: CategoriaProducto[] = [];
   loading = false;
+  private reordenando = false;
 
   constructor() {
     addIcons({ addOutline, chevronForwardOutline, pricetagOutline });
@@ -71,6 +74,23 @@ export class CategoriasProductosPage implements OnInit {
 
   onItemClick(categoria: CategoriaProducto) {
     this.abrirModalEditar(categoria);
+  }
+
+  /**
+   * complete() reacomoda el array en memoria y cierra la animación del gesto.
+   * El guard `reordenando` evita que dos drags rápidos se pisen la persistencia;
+   * el array en memoria ya queda con el orden final apenas termina el gesto.
+   */
+  async onReorder(event: ItemReorderCustomEvent) {
+    this.categorias = event.detail.complete(this.categorias) as CategoriaProducto[];
+    if (this.reordenando) return;
+    this.reordenando = true;
+    try {
+      const ok = await this.inventarioService.reordenarCategorias(this.categorias.map(c => c.id));
+      if (!ok) await this.cargarCategorias();
+    } finally {
+      this.reordenando = false;
+    }
   }
 
   async abrirModalNueva() {

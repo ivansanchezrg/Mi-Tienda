@@ -1,8 +1,7 @@
 import { Component, inject, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonCard,
+  IonIcon,
   ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -10,6 +9,7 @@ import {
   closeOutline, phonePortraitOutline, busOutline, arrowForwardOutline, alertCircleOutline
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { FeedbackOverlayService } from '@core/services/feedback-overlay.service';
 import { SupabaseService } from '@core/services/supabase.service';
 import { RecargasVirtualesService, RecargaVirtual } from '../../services/recargas-virtuales.service';
 import { AuthService } from '../../../auth/services/auth.service';
@@ -26,8 +26,7 @@ type TipoServicio = 'CELULAR' | 'BUS';
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-    IonContent, IonIcon, IonCard,
+    IonIcon,
     EmptyStateComponent,
     AppCurrencyPipe,
   ]
@@ -49,6 +48,7 @@ export class HistorialModalComponent implements OnInit {
   private modalCtrl = inject(ModalController);
   private alertCtrl = inject(AlertController);
   private ui = inject(UiService);
+  private feedback = inject(FeedbackOverlayService);
   private supabase = inject(SupabaseService);
   private service = inject(RecargasVirtualesService);
   private authService = inject(AuthService);
@@ -167,7 +167,13 @@ export class HistorialModalComponent implements OnInit {
     // ganancias pendientes"). No mostrar un segundo toast genérico aquí.
     if (!resultado) return;
 
-    await this.ui.showSuccess(resultado.message);
+    // Overlay (no toast): el modal se cierra inmediatamente después — un toast
+    // disparado justo antes de esa transición compite con ella y se pierde.
+    this.feedback.success({
+      titulo: 'Ganancia liquidada',
+      destacado: `$${this.currencyService.format(this.totalPorLiquidar)}`,
+      subtitulo: `Transferida de ${this.nombreCajaOrigen} a ${this.nombreCajaDestino}`,
+    });
     this.liquidado = true;
     this.modalCtrl.dismiss({ liquidado: true });
   }

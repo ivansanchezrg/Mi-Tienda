@@ -22,6 +22,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
 import { HasPendingChanges } from '../../../../core/guards/pending-changes.guard';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { UiService } from '../../../../core/services/ui.service';
+import { FeedbackOverlayService } from '../../../../core/services/feedback-overlay.service';
 import { StorageService } from '../../../../core/services/storage.service';
 import { LoggerService } from '../../../../core/services/logger.service';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
@@ -95,6 +96,7 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
     private alertCtrl       = inject(AlertController);
     protected currencyService = inject(CurrencyService);
     private ui              = inject(UiService);
+    private feedback        = inject(FeedbackOverlayService);
     protected storageService = inject(StorageService);
     private logger          = inject(LoggerService);
     protected barcodeScanner = inject(BarcodeScannerService);
@@ -422,6 +424,9 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
 
             if (resultado.ok) {
                 this.guardadoExitoso = true;
+                // Overlay ANTES de navegar: cierra el wizard con certeza — un toast aquí
+                // competiría con la transición de página y se perdería.
+                this.feedback.success({ titulo: 'Producto creado', destacado: v.nombre });
                 this.navCtrl.navigateBack(ROUTES.inventario.root);
             } else if (imagenUrl) {
                 await this.storageService.deleteFile(imagenUrl);
@@ -859,6 +864,15 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
 
             if (resultado.ok) {
                 this.guardadoExitoso = true;
+                // Overlay ANTES de navegar: cierra el wizard con certeza — un toast aquí
+                // competiría con la transición de página y se perdería.
+                this.feedback.success({
+                    titulo: 'Producto creado',
+                    destacado: v.nombre,
+                    subtitulo: resultado.skus_creados
+                        ? `${resultado.skus_creados} variante${resultado.skus_creados === 1 ? '' : 's'}`
+                        : undefined,
+                });
                 this.navCtrl.navigateBack(ROUTES.inventario.root);
             } else {
                 await Promise.all(uploadedPaths.map(p => this.storageService.deleteFile(p)));

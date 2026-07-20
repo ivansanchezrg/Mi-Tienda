@@ -51,9 +51,11 @@ core/
 ├── services/
 │   ├── supabase.service.ts          # Queries y auth centralizados (.call(), .rpc())
 │   ├── ui.service.ts                # Loading, toasts, alertas, hideTabs()/showTabs()
+│   ├── feedback-overlay.service.ts  # Overlay centrado success/error/warning/info — ver CLAUDE.md "toast vs overlay"
 │   ├── config.service.ts            # Tabla configuraciones con cache: get(), getNombreNegocio(), invalidar()
 │   ├── currency.service.ts          # Formateo de moneda: format(value), parse(value)
 │   ├── storage.service.ts           # Captura de fotos (capturarFoto), compresión WebP y upload a Supabase Storage
+│   ├── imagen-local.service.ts      # Cache de binarios de imagen offline — Filesystem (nativo) / IndexedDB (web)
 │   ├── logger.service.ts            # Logs a filesystem con rotación (max 3 archivos)
 │   ├── network.service.ts           # Estado de conectividad: isOnline$ (BehaviorSubject)
 │   ├── ganancias.service.ts         # Comisiones recargas virtuales (liquidación BUS mensual)
@@ -73,6 +75,7 @@ shared/
 │   ├── sidebar/                     # Menú lateral (links a features, user info, logout)
 │   ├── options-modal/               # Reemplazo de ion-select y ActionSheet (modo acción + modo selección)
 │   ├── options-menu/                # Menú popover con opciones (icon + label). Input: options[], Output: (select)
+│   ├── feedback-overlay/            # Overlay centrado de resultado (success/error/warning/info) — montado 1 vez en AppComponent
 │   └── under-construction/          # Placeholder para features en desarrollo. Input: title, icon, description, features[]
 ├── directives/
 │   ├── currency-input.directive.ts  # [appCurrencyInput] — auto-formatea moneda en blur, limpia en focus
@@ -947,6 +950,16 @@ NOTIFY pgrst, 'reload schema';
 - `FOR UPDATE` en SELECTs que preceden UPDATEs — evita condiciones de carrera
 - Validar con `RAISE EXCEPTION` antes de modificar datos
 - Retornar `JSON` con resultado (el frontend lo recibe vía `supabase.rpc()`)
+
+**Referenciar categorías de sistema — por UUID fijo, no por `codigo`:**
+
+Las categorías de `categorias_sistema` (seed: `docs/setup/04_categorias_sistema.sql`) tienen **UUIDs asignados a mano** (`gen_random_uuid()` NO se usa): son un catálogo global fijo, conocido en tiempo de código. Dentro de una función se referencian declarando el UUID como constante local:
+
+```sql
+v_cat_def_reponer CONSTANT UUID := 'a1000001-0000-0000-0000-000000000005';  -- DEF-REPONER
+```
+
+**Por qué el UUID y no `(SELECT id FROM categorias_sistema WHERE codigo = 'DEF-REPONER')`:** tanto el UUID como el `codigo` son estables (nunca cambian sin un deploy). Se elige el UUID directo para ahorrarse una subquery por cada uso; el `codigo` va en el comentario de la constante para que siga siendo legible. Nunca hardcodear el UUID inline en las queries — siempre vía la constante `CONSTANT`, un solo lugar por función.
 
 ### Template: Trigger (`trg_{nombre}.sql`)
 

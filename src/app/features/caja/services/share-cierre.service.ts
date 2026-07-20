@@ -11,9 +11,12 @@ export interface DatosCierreParaCompartir {
   numeroTurno:      number;
   cajeroNombre:     string;
   horaApertura:     string;  // ISO
-  /** true si el turno se abrió en un día local anterior al del cierre —
-   *  la transferencia diaria a Varios de ese día quedó sin realizarse */
-  aperturaEnOtroDia: boolean;
+  /** Transferencias diarias a Varios que quedaron sin realizarse porque el turno
+   *  estuvo abierto varios días. 0 = caso normal (abierto y cerrado el mismo día). */
+  variosPendienteDias:  number;
+  variosPendienteMonto: number;
+  /** Rango descriptivo de los días pendientes, ej. "15/07–16/07" ('' si no aplica) */
+  variosPendienteRango: string;
   // Modo de operación
   esModoSinPos:     boolean; // true = cajón sin movimientos (sin POS, sin ingresos manuales, sin egresos)
   // Observaciones del cajero (opcional)
@@ -110,8 +113,10 @@ export class ShareCierreService {
     lineas.push(`Cajero: ${d.cajeroNombre} · Apertura: ${hora}`);
     lineas.push('');
 
-    if (d.aperturaEnOtroDia && d.variosActiva) {
-      lineas.push(`${E.warning} Turno abierto el ${fecha} y cerrado en un día posterior — la transferencia a Varios del día de apertura quedó pendiente`);
+    if (d.variosActiva && d.variosPendienteDias > 0) {
+      const plural = d.variosPendienteDias === 1 ? 'día' : 'días';
+      const rango  = d.variosPendienteRango ? ` (${d.variosPendienteRango})` : '';
+      lineas.push(`${E.warning} Transferencia a Varios pendiente: ${this.fmt(d.variosPendienteMonto)} — ${d.variosPendienteDias} ${plural} sin cierre${rango}. No incluida en este cierre.`);
       lineas.push('');
     }
 

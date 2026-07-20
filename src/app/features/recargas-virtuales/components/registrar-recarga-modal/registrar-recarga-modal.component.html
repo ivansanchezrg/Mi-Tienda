@@ -1,127 +1,168 @@
-<ion-header class="ion-no-border">
-  <ion-toolbar>
-    <ion-title>{{ tituloModal }}</ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="cerrar()">
-        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
-</ion-header>
+<div class="bs-root">
 
-<ion-content>
-  <div class="modal-content">
-
-    <!-- ── SECCIÓN BUS: saldo en máquina (paso previo) ── -->
-    @if (tipo === 'BUS') {
-      <div class="input-group">
-        <label class="input-label">Saldo actual en la máquina</label>
-        <div class="amount-wrapper" [class.filled]="saldoVirtualMaquinaTexto">
-          <span class="currency">$</span>
-          <input
-            type="text"
-            inputmode="decimal"
-            placeholder="0.00"
-            [(ngModel)]="saldoVirtualMaquinaTexto"
-            (ngModelChange)="onSaldoMaquinaChange()"
-            appCurrencyInput
-            appNumbersOnly
-            autofocus>
-        </div>
-        <span class="helper-text">Lo que muestra la máquina de bus ahora mismo</span>
-      </div>
-
-      <!-- Info de disponibilidad (cuando ingresó saldo máquina) -->
-      @if (maquinaIngresada) {
-        <div class="disponible-card">
-          <div class="disponible-row">
-            <span>Caja BUS acumulada</span>
-            <span>${{ saldoCajaBus | appCurrency }}</span>
-          </div>
-          <div class="disponible-row">
-            <span>Ventas del día (sin cerrar)</span>
-            <span class="valor-ventas">+${{ ventaBusCalculada | appCurrency }}</span>
-          </div>
-          <div class="disponible-row total">
-            <span>Disponible para depositar</span>
-            <span class="valor-total">${{ disponibleParaDepositar | appCurrency }}</span>
-          </div>
-        </div>
-      }
-    }
-
-    <!-- Input monto a depositar / monto virtual -->
-    <div class="input-group">
-      <label class="input-label">{{ labelMonto }}</label>
-      <div class="amount-wrapper" [class.filled]="montoVirtualTexto">
-        <span class="currency">$</span>
-        <input
-          type="text"
-          inputmode="decimal"
-          placeholder="0.00"
-          [(ngModel)]="montoVirtualTexto"
-          appCurrencyInput
-          appNumbersOnly
-          [autofocus]="tipo === 'CELULAR'">
-      </div>
-    </div>
-
-    <!-- Cálculos (solo CELULAR) -->
-    @if (mostrarCalculos) {
-      <div class="calculo-preview">
-        <div class="calculo-row">
-          <span>Deuda a pagar al proveedor</span>
-          <span class="calculo-danger">${{ montoAPagar | appCurrency }}</span>
-        </div>
-        <div class="calculo-row">
-          <span>Ganancia ({{ comisionPct }}%)</span>
-          <span class="calculo-success">${{ ganancia | appCurrency }}</span>
-        </div>
-      </div>
-    }
-
-    <!-- Preview CAJA_BUS después del depósito (solo BUS con monto ingresado) -->
-    @if (tipo === 'BUS' && montoVirtual && montoVirtual > 0) {
-      @if (!saldoBusInsuficiente) {
-        <div class="calculo-preview">
-          <div class="calculo-row">
-            <span>CAJA BUS después del depósito</span>
-            <span class="calculo-success">
-              ${{ saldoBusDespues | appCurrency }}
-              <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
-            </span>
-          </div>
-        </div>
+  <!-- Header con icono del servicio -->
+  <div class="bs-header">
+    <div class="rr-header-icon" [class.rr-header-icon--bus]="tipo === 'BUS'">
+      @if (tipo === 'CELULAR') {
+        <ion-icon name="phone-portrait-outline"></ion-icon>
       } @else {
-        <div class="alerta-saldo">
-          <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
-          <div>
-            <strong>Efectivo insuficiente</strong>
-            <p>El monto supera el efectivo disponible (${{ disponibleParaDepositar | appCurrency }})</p>
+        <ion-icon name="bus-outline"></ion-icon>
+      }
+    </div>
+    <div class="rr-header-text">
+      <span class="bs-header__title">{{ tituloModal }}</span>
+      <span class="rr-header-subtitle">{{ subtituloModal }}</span>
+    </div>
+    <button class="bs-header__close" (click)="cerrar()" type="button">
+      <ion-icon name="close-outline"></ion-icon>
+    </button>
+  </div>
+
+  <div class="bs-content">
+    <div class="rr-body">
+
+      <!-- ═══════════════ FLUJO BUS ═══════════════ -->
+      @if (tipo === 'BUS') {
+
+        <!-- Paso 1: saldo actual en la máquina -->
+        <div class="rr-field">
+          <div class="rr-field-label">
+            <span class="rr-step-num">1</span>
+            <span>Saldo actual en la máquina</span>
+          </div>
+          <div class="rr-amount" [class.rr-amount--filled]="saldoVirtualMaquinaTexto">
+            <span class="rr-amount-currency">$</span>
+            <input
+              type="text"
+              inputmode="decimal"
+              placeholder="0.00"
+              [(ngModel)]="saldoVirtualMaquinaTexto"
+              (ngModelChange)="onSaldoMaquinaChange()"
+              appCurrencyInput
+              appNumbersOnly
+              autofocus>
+          </div>
+          <span class="rr-helper">Lo que muestra la máquina de bus ahora mismo</span>
+        </div>
+
+        <!-- Desglose de disponibilidad (aparece cuando ingresó saldo máquina) -->
+        @if (maquinaIngresada) {
+          <div class="rr-desglose">
+            <div class="rr-desglose-row">
+              <span>Caja Bus acumulada</span>
+              <span>${{ saldoCajaBus | appCurrency }}</span>
+            </div>
+            <div class="rr-desglose-row">
+              <span>Ventas del día (sin cerrar)</span>
+              <span class="rr-desglose-ventas">+${{ ventaBusCalculada | appCurrency }}</span>
+            </div>
+            <div class="rr-desglose-row rr-desglose-row--total">
+              <span>Disponible para depositar</span>
+              <span class="rr-desglose-total">${{ disponibleParaDepositar | appCurrency }}</span>
+            </div>
+          </div>
+        }
+
+        <!-- Paso 2: monto a depositar -->
+        <div class="rr-field">
+          <div class="rr-field-label">
+            <span class="rr-step-num">2</span>
+            <span>{{ labelMonto }}</span>
+          </div>
+          <div class="rr-amount" [class.rr-amount--filled]="montoVirtualTexto" [class.rr-amount--error]="saldoBusInsuficiente">
+            <span class="rr-amount-currency">$</span>
+            <input
+              type="text"
+              inputmode="decimal"
+              placeholder="0.00"
+              [(ngModel)]="montoVirtualTexto"
+              appCurrencyInput
+              appNumbersOnly>
           </div>
         </div>
-      }
-    }
 
-    <!-- Botones -->
-    <div class="modal-actions">
-      <button
-        class="secondary-btn"
-        (click)="cerrar()">
-        Cancelar
-      </button>
-      <button
-        class="primary-btn"
-        [disabled]="!montoVirtual || montoVirtual <= 0 || saldoBusInsuficiente || guardando"
-        (click)="confirmar()">
-        <ion-icon name="add-circle-outline"></ion-icon>
-        @if (tipo === 'CELULAR') {
-          Registrar deuda
-        } @else {
-          Confirmar depósito
+        <!-- Resultado del depósito o alerta de saldo insuficiente -->
+        @if (montoVirtual && montoVirtual > 0) {
+          @if (!saldoBusInsuficiente) {
+            <div class="rr-resultado rr-resultado--ok">
+              <ion-icon name="checkmark-circle-outline"></ion-icon>
+              <span class="rr-resultado-label">Quedará en Caja Bus</span>
+              <span class="rr-resultado-valor">${{ saldoBusDespues | appCurrency }}</span>
+            </div>
+          } @else {
+            <div class="rr-alerta">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+              <div>
+                <strong>No te alcanza el efectivo</strong>
+                <p>El monto supera lo disponible (${{ disponibleParaDepositar | appCurrency }}). Baja el monto a depositar.</p>
+              </div>
+            </div>
+          }
         }
-      </button>
-    </div>
+      }
 
+      <!-- ═══════════════ FLUJO CELULAR ═══════════════ -->
+      @if (tipo === 'CELULAR') {
+
+        <div class="rr-field">
+          <div class="rr-field-label">
+            <span>{{ labelMonto }}</span>
+          </div>
+          <div class="rr-amount" [class.rr-amount--filled]="montoVirtualTexto">
+            <span class="rr-amount-currency">$</span>
+            <input
+              type="text"
+              inputmode="decimal"
+              placeholder="0.00"
+              [(ngModel)]="montoVirtualTexto"
+              appCurrencyInput
+              appNumbersOnly
+              autofocus>
+          </div>
+          <span class="rr-helper">El saldo que el proveedor cargó a tu celular</span>
+        </div>
+
+        <!-- Cálculo automático de deuda y ganancia -->
+        @if (mostrarCalculos) {
+          <div class="rr-calculo">
+            <div class="rr-calculo-row">
+              <div class="rr-calculo-info">
+                <span class="rr-calculo-titulo">Le debes al proveedor</span>
+                <span class="rr-calculo-sub">Lo que te pasará a cobrar</span>
+              </div>
+              <span class="rr-calculo-danger">${{ montoAPagar | appCurrency }}</span>
+            </div>
+            <div class="rr-calculo-divider"></div>
+            <div class="rr-calculo-row">
+              <div class="rr-calculo-info">
+                <span class="rr-calculo-titulo">Tu ganancia</span>
+                <span class="rr-calculo-sub">Comisión del {{ comisionPct }}%</span>
+              </div>
+              <span class="rr-calculo-success">
+                <ion-icon name="trending-up-outline"></ion-icon>
+                ${{ ganancia | appCurrency }}
+              </span>
+            </div>
+          </div>
+        }
+      }
+
+    </div>
   </div>
-</ion-content>
+
+  <!-- Footer: botón único de acción -->
+  <div class="rr-footer">
+    <button class="rr-confirmar-btn" [class.rr-confirmar-btn--bus]="tipo === 'BUS'"
+      [disabled]="!montoVirtual || montoVirtual <= 0 || saldoBusInsuficiente || guardando"
+      (click)="confirmar()" type="button">
+      @if (guardando) {
+        <ion-spinner name="crescent"></ion-spinner>
+        <span>Registrando…</span>
+      } @else {
+        <ion-icon name="checkmark-outline"></ion-icon>
+        <span>{{ tipo === 'CELULAR' ? 'Registrar recarga' : 'Confirmar depósito' }}</span>
+      }
+    </button>
+  </div>
+
+</div>

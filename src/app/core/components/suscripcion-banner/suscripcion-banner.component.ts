@@ -17,7 +17,7 @@ import { EstadoSuscripcionResult } from '../../../features/suscripcion/models/su
  * (cuando está bloqueada no es un banner: es la pantalla completa del suscripcionGuard).
  * Tocar el banner lleva a "Mi Plan". El superadmin nunca lo ve.
  *
- * Ver docs/PLAN-PLANES-SUSCRIPCION.md §4.3.
+ * Ver docs/suscripcion/SUSCRIPCION-README.md, sección "Banner de aviso preventivo".
  */
 @Component({
   selector: 'app-suscripcion-banner',

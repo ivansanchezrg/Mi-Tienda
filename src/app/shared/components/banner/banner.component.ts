@@ -9,7 +9,7 @@ export type BannerColor = 'warning' | 'primary' | 'danger' | 'success';
  * No conoce red, ventas ni suscripciones: recibe todo por @Input(). Lo consumen
  * componentes con lógica propia (offline-banner, suscripcion-banner). Esto da
  * "un banner para toda clase de aviso" por composición, sin acoplar la presentación
- * a un dominio. Ver docs/PLAN-PLANES-SUSCRIPCION.md §4.3.
+ * a un dominio. Ver docs/suscripcion/SUSCRIPCION-README.md, sección "Banner de aviso preventivo".
  *
  * Maneja: animación slideDown, alto mínimo 44px y la franja de safe-area-top
  * (status bar de Android). El consumidor decide CUÁNDO mostrarlo (con @if).

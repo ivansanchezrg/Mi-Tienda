@@ -41,6 +41,13 @@ VALUES
 
   -- Recargas virtuales
   ('a1000001-0000-0000-0000-000000000011', 'PAGO-PROV-CEL',  'EGRESO',  'Pago Proveedor Recargas',            'Pago al proveedor de recargas celulares (descuenta CAJA_CELULAR)'),
-  ('a1000001-0000-0000-0000-000000000012', 'COMPRA-BUS',     'EGRESO',  'Compra Saldo Virtual Bus',           'Compra de saldo al proveedor de recargas bus (descuenta CAJA_BUS)')
+  ('a1000001-0000-0000-0000-000000000012', 'COMPRA-BUS',     'EGRESO',  'Compra Saldo Virtual Bus',           'Compra de saldo al proveedor de recargas bus (descuenta CAJA_BUS)'),
+
+  -- Compensación de transferencias diarias no realizadas (turno abierto varios días).
+  -- Códigos abstractos a propósito: NO nombran a "Varios" ni a "Tienda" porque esas cajas
+  -- son renombrables por el negocio. El nombre real se resuelve en runtime desde cajas.nombre
+  -- y se escribe en la descripción de cada operación (igual que fn_crear_transferencia).
+  ('a1000001-0000-0000-0000-000000000014', 'COMP-DIA-RETIRAR', 'EGRESO',  'Compensación Días Pendientes (retiro)',   'Retiro de la caja bóveda para compensar transferencias diarias no realizadas mientras el turno estuvo abierto varios días'),
+  ('a1000001-0000-0000-0000-000000000015', 'COMP-DIA-REPONER', 'INGRESO', 'Compensación Días Pendientes (reposición)','Ingreso a la caja de fondo para compensar transferencias diarias no realizadas mientras el turno estuvo abierto varios días')
 
 ON CONFLICT (id) DO NOTHING;

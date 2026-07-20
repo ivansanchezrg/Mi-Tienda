@@ -53,13 +53,49 @@ Grid de cards de productos. Es el modo principal de entrada de productos.
 - Cards de producto simple muestran badge de cantidad en la esquina superior derecha cuando el producto ya está en el carrito. Tocar el badge abre `CantidadModalComponent` directamente. Mientras dura la consulta de stock fresco, el badge muestra un micro-spinner (flag `editandoItemKey`).
 - Cards de template (producto con variantes) muestran un badge visual `catalogo-card-badge--template` — no es clickeable para editar cantidad.
 - Al agregar un producto desde catálogo se dispara la animación "fly to pill": se clona visualmente el card y vuela hacia el pill flotante del carrito (mobile) o hacia el total del panel lateral `.panel-total-monto` (desktop). El destino se resuelve dinámicamente verificando cuál elemento es visible (`getBoundingClientRect().width > 0`).
-- La franja inferior de cada card muestra precio + stock disponible (`stockLibre = stock_actual - carritoUnidadesBaseMap[productoId]`). El stock libre se calcula en **unidades base** (cantidad × `factor_conversion`) — así 2 cajetillas de x10 comprometen 20 unidades, no 2. Color: gris si > 10, naranja si ≤ 10, rojo si agotado.
+- La franja inferior de cada card muestra precio + stock disponible (`stockLibre = stock_actual - carritoUnidadesBaseMap[productoId]`). El stock libre se calcula en **unidades base** (cantidad × `factor_conversion`) — así 2 cajetillas de x10 comprometen 20 unidades, no 2. Etiqueta: `"sin stock"` (rojo) si `stockLibre <= 0`, `"¡último!"` (rojo) si `stockLibre === 1`, `"N und"` (naranja) si `≤ 10`, gris si más. **"sin stock" y "¡último!" son estados distintos a propósito** — el primero ya no se puede vender, el segundo sí (es la última unidad disponible).
+- **Card agotada (`stock_actual = 0`)**: se atenúa visualmente (`.catalogo-card--agotado`, `opacity: 0.55` + `grayscale(0.4)` en la imagen) para que el cajero la descarte de un vistazo sin necesidad de leer el badge de texto. El tap sigue funcionando igual (dispara el toast "Producto sin stock" si se intenta agregar).
 - La barra de búsqueda por texto solo existe en el modo catálogo. El filtro de categorías también es exclusivo de este modo.
 - `carritoCountMap` (cantidades por línea) y `carritoUnidadesBaseMap` (unidades base comprometidas, para el stock libre) son `computed()` signals — se recalculan solo cuando el carrito cambia.
 - `itemsCatalogo` es un `computed<CatalogoItem[]>()` — filtra y agrupa productos solo cuando cambia `productosCatalogo` o `buscarTexto`.
 - Las imágenes usan fade-in (`img-fade` + `img-loaded`) — el contenedor gris actúa como placeholder hasta que carga.
-- **Sin foto**: el nombre del producto se muestra centrado sobre el fondo gris (`.catalogo-card-placeholder-nombre`), 15px, truncado a 3 líneas con ellipsis (`-webkit-line-clamp`) para que nombres largos no desborden la card.
+- **Sin foto**: el nombre del producto se muestra centrado sobre uno de **5 tonos deterministas** (`colorPlaceholder(nombre)` en `pos.page.ts` — hash del nombre, clases `.ph-color-0` a `.ph-color-4`: neutro, azul acero, verde oliva, terracota, violáceo; todos verificados ≥4.5:1 de contraste WCAG AA contra el texto blanco), 15px, truncado a 3 líneas con ellipsis (`-webkit-line-clamp`). El hash usa el nombre (no el id) a propósito: el color acompaña la etiqueta que el cajero lee. Antes era un único gris fijo — con catálogos donde la mayoría de productos no tiene foto, todas las cards se veían idénticas y obligaban a leer en vez de reconocer.
+- **Nombre del producto en la franja info** (cuando SÍ hay foto): 13px, 2 líneas con `line-clamp` (antes 11px, 1 línea truncada con `...`) — el nombre es la pista principal para distinguir variantes de talla/color, y es el dato que menos debe truncarse.
 - **FAB "subir al inicio"**: aparece tras 600px de scroll en el catálogo (mobile only — oculto en desktop, donde `.pos-col-main` tiene su propio scroll interno). Se apila justo arriba del botón del escáner (misma esquina, alineado). Usa el controller compartido `crearScrollToTop()` — ver `docs/shared/SHARED-README.md` → "Patrón scroll-to-top".
+
+**Columnas del grid (`.catalogo-grid`):** `auto-fill, minmax(110px, 1fr)` en mobile; 5 columnas fijas en tablet (600–991px); en desktop **4 columnas** (992–1439px) y **5 columnas** (≥1440px) — no `auto-fill`. Decisión deliberada: reducir de 6 a 4/5 prioriza legibilidad sobre densidad (estándar de POS profesionales como Square/Shopify POS) — con 6 columnas fijas el ancho de card variaba mucho entre laptop y monitor grande, y en laptops pequeños quedaba casi tan apretado como en mobile.
+
+#### Favoritos (2026-07-16)
+
+Tab fijo "Favoritos" (solo ícono ⭐, sin texto) junto a "Todos" en la barra de categorías —
+filtra el catálogo a los productos marcados como favoritos, para acceso rápido a los más
+vendidos. Favorito es un campo por **SKU** (`productos.favorito`), no por template.
+
+- **Sentinel `FAVORITOS_ID = '__favoritos__'`** en `categoriaActivaId` — nunca es un UUID
+  real y **nunca** baja al RPC `fn_catalogo_productos_pos` (su parámetro es `UUID`) ni al
+  cache offline (`categoria_id` no calzaría). Cuando el tab activo es el sentinel, siempre
+  se trae el catálogo completo y se filtra en memoria (`filtrarPorCategoria`), igual que el
+  filtro por categoría — cero roundtrips extra.
+- **Marcar/desmarcar favorito — solo productos simples sin presentaciones**: long-press
+  (≥450ms) sobre la card del catálogo togglea el favorito con vibración de feedback. El
+  gesto está deliberadamente restringido a productos simples: las cards de variantes
+  (template) y los productos con presentaciones abren un modal de selección al soltar, y
+  mezclar "hold = favorito" con "hold = abre modal" resultaba confuso. Esos productos
+  **no tienen forma de marcarse favorito desde el POS** — se marcan desde Inventario
+  (estrella en cada SKU de la lista, sin esa restricción porque ahí no hay ningún modal
+  de por medio).
+- Diseño del gesto (robusto contra taps rápidos): todo se decide en `pointerup` según la
+  duración del MISMO `pointerId` — no se usa el evento `(click)` sintético del navegador.
+  Un único timer (el del favorito) se cancela en toda salida (`up`/`cancel`/nuevo `down`).
+  No se escucha `pointermove` a propósito (dispararía change detection en cada píxel bajo
+  `OnPush`); el scroll vertical se resuelve solo con `touch-action: pan-y` + `pointercancel`.
+- Toggle optimista + revert si falla la persistencia (`ProductoService.toggleFavorito()`),
+  sin loading ni toast — el ícono cambiando es el feedback (mismo criterio que ajustar stock).
+- Indicador visual: estrella semi-transparente en la esquina superior izquierda de la card
+  cuando `favorito = true` (`pointer-events: none`, no interfiere con el gesto).
+- Badges de "abre selector" en la esquina inferior derecha (mismo lenguaje visual que
+  Inventario): ícono `pricetag-outline` verde para presentaciones, `color-palette-outline`
+  primary para variantes — así el cajero sabe de un vistazo que esa card no agrega directo.
 
 ### Vista lista (carrito)
 
@@ -185,12 +221,23 @@ El botón ⋮ del header abre un `OptionsMenuComponent` con una sola opción:
 
 ## Manejo de errores en cobro
 
-`ejecutarCobro()` captura errores de dos formas:
+El resultado del cobro (éxito o fallo) se comunica con `FeedbackOverlayService` — no con un toast. El empleado ya "cerró mentalmente" la venta al confirmar el método de pago en el modal; un toast en la esquina se puede perder y el usuario sigue con el carrito lleno creyendo que ya cobró. Ver criterio completo en `CLAUDE.md` § "Feedback de acciones — toast vs overlay".
 
-1. **`response.success === false`** → toast "No se pudo registrar la venta"
-2. **Excepción (throw)** → muestra `error.message` directamente al usuario (ej: "No hay un turno de caja abierto")
+`ejecutarCobro()` → `mostrarExitoVenta()` privado centraliza el overlay de éxito (captura `this.totalPagar()` **antes** de `limpiarCarrito()`, que vacía el carrito):
 
-La validación de turno activo vive en `PosService.procesarVenta()` (no en la página). Si falla, lanza `throw new Error(...)` que la página captura y muestra como toast rojo.
+| Caso | Overlay | Contenido |
+|---|---|---|
+| Venta OK, online | `success` | `destacado`: total cobrado. `subtitulo`: `"Comprobante #N"` |
+| Venta OK, cayó la red durante el cobro (`response.encolada`) | `success` | `subtitulo`: `"Se sincronizará al volver la conexión"` |
+| Venta OK, cobro offline directo | `success` | Igual que el caso anterior |
+| `response.success === false` | `error` (sin auto-dismiss) | `"No se pudo registrar la venta"` |
+| Excepción con `/stock insuficiente/i` en el mensaje | `warning` (sin auto-dismiss) | `"Stock insuficiente — el catálogo se actualizó con los valores reales"` + `refrescarCatalogo()` en paralelo |
+| Excepción genérica | `error` (sin auto-dismiss) | `error.message` real |
+| `error.message === 'SIN_TURNO'` | — | No usa el overlay: `mostrarAlertSinTurno()` (Alert con acción "Ir a Inicio") |
+
+La validación de turno activo vive en `PosService.procesarVenta()` (no en la página). Si falla, lanza `throw new Error('SIN_TURNO')` que la página captura.
+
+**Vaciar carrito manualmente** (menú ⋮ → Limpiar carrito): Alert de confirmación previo + overlay `success` `'Carrito vaciado'` con subtítulo del conteo descartado (`N artículos descartados`, capturado antes de vaciar). Descartar todo el carrito es una acción destructiva "de ley" — el overlay da un cierre visual inequívoco, más contundente que un toast (decidido 2026-07-20; antes era toast neutro). `limpiarCarrito(ventaRealizada)` usa ese flag para decidir: `true` (post-venta) omite el overlay porque el de éxito de venta ya es la señal; `false` (manual) muestra el overlay de vaciado.
 
 > **Importante**: todo error en `catch` se loguea con `LoggerService`, nunca con `console.error`.
 
@@ -209,7 +256,7 @@ La validación de turno activo vive en `PosService.procesarVenta()` (no en la p�
 | Turno inactivo | `PosService.resolverTurno()` | Online: consulta el servidor. Offline: lee `turno_activo_local`. Lanza `SIN_TURNO` si ninguno tiene turno |
 | FIADO con Consumidor Final | `CobrarModalComponent.confirmarMetodo()` | Alert con opción de seleccionar cliente — el modal de clientes se apila encima sin cerrar el modal de cobro |
 | Factura sin cliente válido | `abrirModalCobro()` | Bloquea con toast si `es_consumidor_final` antes de abrir el modal |
-| Fallo silencioso en cobro | `ejecutarCobro()` | Toast rojo si `response.success === false` o si hay excepción |
+| Fallo silencioso en cobro | `ejecutarCobro()` | `FeedbackOverlayService.error()` si `response.success === false` o si hay excepción — ver "Manejo de errores en cobro" |
 | Idempotencia de cobro | `ejecutarCobro()` + `fn_registrar_venta_pos` | UUID persistido en localStorage antes del RPC + `UNIQUE` constraint en BD |
 
 ---
@@ -228,7 +275,7 @@ Protege contra ventas duplicadas cuando la red falla después de que la BD ya pr
 4. Si la respuesta llega OK → `localStorage.removeItem()` limpia la key
 5. Si la app se cerró antes de limpiar → `ionViewWillEnter` llama a `recuperarVentaPendiente()`:
    - Consulta BD por la key pendiente
-   - Si la venta existe → limpia carrito + key + toast de confirmación
+   - Si la venta existe → limpia carrito + key + **toast** `'Venta pendiente confirmada exitosamente'` (no overlay: es una recuperación silenciosa en segundo plano al re-entrar a la página, no el resultado de un cobro que el usuario acaba de confirmar activamente)
    - Si no existe → limpia solo la key (el usuario puede reintentar)
 
 ### Columna en BD
@@ -246,10 +293,10 @@ Migración: `docs/pos/sql/migrations/001_add_idempotency_key.sql`
 `ejecutarCobro()` es **híbrido** según `NetworkService.isConnected()`:
 
 - **Online** → `procesarVenta()` directo contra `fn_registrar_venta_pos`. Muestra el número de comprobante real.
-- **Offline** → `cobrarOffline()` encola la venta en el outbox local (`OutboxService`) y responde al instante
-  ("Venta guardada — se sincronizará al volver la conexión"). El `SyncService` la sube al reconectar. La misma
-  `idempotency_key` que ya existía hace el reenvío 100% seguro — el outbox es la generalización de "1 venta
-  pendiente en localStorage" a "cola de N en SQLite/IndexedDB".
+- **Offline** → `cobrarOffline()` encola la venta en el outbox local (`OutboxService`) y responde al instante con
+  overlay `success` (`subtitulo: "Se sincronizará al volver la conexión"`). El `SyncService` la sube al reconectar.
+  La misma `idempotency_key` que ya existía hace el reenvío 100% seguro — el outbox es la generalización de "1
+  venta pendiente en localStorage" a "cola de N en SQLite/IndexedDB".
 
 **Restricciones offline:** FIADO y FACTURA no se pueden encolar (requieren el servidor — saldo de crédito /
 secuencias SRI). El POS las bloquea con toast sin encolar. El catálogo, las búsquedas y el Consumidor Final se
@@ -433,9 +480,8 @@ El catálogo aparece al instante mediante dos técnicas combinadas (un único m�
 ## Dependencias clave
 
 - `InventarioService` — queries de productos:
-  - `buscarProductosPOS(texto)` → RPC `fn_buscar_productos_pos` (búsqueda por texto, limit 20, presentaciones completas)
-  - `obtenerProductosCatalogoPOS(categoriaId?)` → RPC `fn_catalogo_productos_pos` (catálogo del grid con filtro de categoría que incluye variantes)
-  - `buscarPorCodigoBarras(codigo)` → query directa (lookup dual producto + presentación)
+  - `obtenerProductosCatalogoPOS(categoriaId?)` → RPC `fn_catalogo_productos_pos` (v1.2 — catálogo completo del grid, sin paginar; filtro de categoría que incluye variantes vía `COALESCE(template.categoria_id, producto.categoria_id)`; incluye `favorito` en el JSON). La búsqueda por texto (`fn_buscar_productos_pos`) se eliminó 2026-07-11 — el POS filtra el grid client-side desde entonces.
+  - `buscarPorCodigoBarras(codigo)` → query directa (lookup dual producto + presentación, incluye `favorito`)
 - `PosService` — RPC `fn_registrar_venta_pos`
 - `BarcodeScannerService` — escáner de cámara centralizado (permisos, overlay, beep, vibración, formatos QR + lineales)
 - `CobrarModalComponent` — modal unificado de cobro (reemplaza OptionsModal + VueltoModal)

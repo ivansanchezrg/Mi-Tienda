@@ -196,14 +196,19 @@
   <div class="vsm-footer">
     <button #continuarBtn class="vsm-continuar-btn" (click)="continuar()" type="button"
       [class.vsm-continuar-btn--activo]="totalArticulosCarrito() > 0"
-      [class.vsm-continuar-btn--bump]="footerAnimando">
-      <span class="vsm-continuar-label">{{ totalArticulosCarrito() > 0 ? 'Continuar venta' : 'Cancelar' }}</span>
-      @if (totalArticulosCarrito() > 0) {
-        <ion-icon name="arrow-forward-outline" class="vsm-continuar-arrow"></ion-icon>
-        <div class="vsm-continuar-resumen">
-          <span class="vsm-continuar-items" [class.vsm-continuar-items--bump]="footerAnimando">{{ totalArticulosCarrito() }} {{ totalArticulosCarrito() === 1 ? 'ítem' : 'ítems' }}</span>
-          <span class="vsm-continuar-total">${{ currencyService.format(totalCarrito()) }}</span>
-        </div>
+      [class.vsm-continuar-btn--bump]="footerAnimando"
+      [disabled]="cerrando">
+      @if (cerrando) {
+        <ion-spinner name="crescent" class="vsm-continuar-spinner"></ion-spinner>
+      } @else {
+        <span class="vsm-continuar-label">{{ totalArticulosCarrito() > 0 ? 'Continuar venta' : 'Cancelar' }}</span>
+        @if (totalArticulosCarrito() > 0) {
+          <ion-icon name="arrow-forward-outline" class="vsm-continuar-arrow"></ion-icon>
+          <div class="vsm-continuar-resumen">
+            <span class="vsm-continuar-items" [class.vsm-continuar-items--bump]="footerAnimando">{{ totalArticulosCarrito() }} {{ totalArticulosCarrito() === 1 ? 'ítem' : 'ítems' }}</span>
+            <span class="vsm-continuar-total">${{ currencyService.format(totalCarrito()) }}</span>
+          </div>
+        }
       }
     </button>
   </div>
