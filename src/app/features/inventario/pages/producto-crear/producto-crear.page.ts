@@ -3,7 +3,7 @@ import { ViewWillEnter } from '@ionic/angular';
 import { SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import {
-    NavController, ModalController, AlertController,
+    NavController, AlertController,
     IonHeader, IonToolbar, IonButtons, IonButton, IonTitle,
     IonContent, IonFooter, IonIcon, IonInput, IonItem,
     IonSpinner, IonToggle, IonSkeletonText
@@ -15,7 +15,7 @@ import {
     chevronUpOutline, chevronDownOutline, layersOutline,
     sparklesOutline, pricetagOutline, trashOutline,
     informationCircleOutline, trendingUpOutline, warningOutline, barcodeOutline,
-    imageOutline, closeCircle, ellipse
+    imageOutline, closeCircle, ellipse, star
 } from 'ionicons/icons';
 import { ActivatedRoute } from '@angular/router';
 import { ROUTES } from '../../../../core/config/routes.config';
@@ -35,7 +35,6 @@ import { AtributoService } from '../../services/atributo.service';
 import { NumbersOnlyDirective } from '../../../../shared/directives/numbers-only.directive';
 import { CurrencyInputDirective } from '../../../../shared/directives/currency-input.directive';
 import { UppercaseInputDirective } from '../../../../shared/directives/uppercase-input.directive';
-import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/components/options-modal/options-modal.component';
 import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
 import { ProductoInfoFormComponent, FotoSeleccionada } from '../../components/producto-info-form/producto-info-form.component';
 import { ProductoPreciosFormComponent } from '../../components/producto-precios-form/producto-precios-form.component';
@@ -43,7 +42,9 @@ import { ProductoInventarioFormComponent } from '../../components/producto-inven
 import { ProductoPresentacionesComponent, PresentacionNueva } from '../../components/producto-presentaciones/producto-presentaciones.component';
 
 type TipoProducto = 'simple' | 'variantes';
-type TipoSelector = 'simple' | 'simple-presentaciones' | 'variantes';
+// 2026-07-21: se fusionó 'simple-presentaciones' en 'simple' — las presentaciones son
+// una sección opcional colapsable DENTRO del form simple, no un tipo elegido de antemano.
+type TipoSelector = 'simple' | 'variantes';
 
 interface AtributoEditor {
     atributo: Atributo;
@@ -92,7 +93,6 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
     private inventarioSvc   = inject(InventarioService);
     private productoSvc     = inject(ProductoService);
     private atributoSvc     = inject(AtributoService);
-    private modalCtrl       = inject(ModalController);
     private alertCtrl       = inject(AlertController);
     protected currencyService = inject(CurrencyService);
     private ui              = inject(UiService);
@@ -108,13 +108,12 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
     guardadoExitoso  = false;  // evita que canDeactivate pregunte tras un guardado exitoso
     categorias: CategoriaProducto[] = [];
 
-    // paso 0 = selector visual de tipo
-    // simple:               paso 1 = formulario (info + precio + stock) → guardar
-    // simple-presentaciones: paso 1 = formulario + sección presentaciones → guardar
-    // variantes:             paso 1 = datos base, paso 2 = atributos, paso 3 = SKUs → guardar
+    // paso 0 = selector visual de tipo (2 opciones: simple | variantes)
+    // simple:    paso 1 = formulario (info + precio + stock + presentaciones opcionales) → guardar
+    // variantes: paso 1 = datos base, paso 2 = atributos, paso 3 = SKUs → guardar
     paso         = 0;
     tipoProducto: TipoProducto = 'simple';
-    /** true cuando el usuario eligió "Tamaños o empaques distintos" en paso 0 */
+    /** Controlado por el toggle "Presentaciones (opcional)" dentro del form simple */
     mostrarPresentaciones = false;
     /** Código de barras pre-cargado desde el escáner — se muestra como chip en el paso 0 */
     codigoCapturado: string | null = null;
@@ -155,7 +154,7 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
             chevronUpOutline, chevronDownOutline, layersOutline,
             sparklesOutline, pricetagOutline, trashOutline,
             informationCircleOutline, trendingUpOutline, warningOutline, barcodeOutline,
-            imageOutline, closeCircle, ellipse
+            imageOutline, closeCircle, ellipse, star
         });
     }
 
@@ -215,6 +214,7 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
             tiene_iva:     [true],
             tipo_venta:    ['UNIDAD'],
             unidad_medida: ['und'],
+            favorito:      [false],
         });
     }
 
@@ -227,6 +227,7 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
             precio_costo_base: ['', [Validators.required, Validators.min(0.01)]],
             precio_venta_base: ['', [Validators.required, Validators.min(0.01)]],
             stock_minimo:      [5,  [Validators.required, Validators.min(0)]],
+            favorito:          [false],
         });
     }
 
@@ -237,8 +238,16 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
 
     elegirTipo(tipo: TipoSelector) {
         this.tipoProducto = tipo === 'variantes' ? 'variantes' : 'simple';
-        this.mostrarPresentaciones = tipo === 'simple-presentaciones';
+        // mostrarPresentaciones ya no se decide aquí — es un toggle dentro del form simple.
+        this.mostrarPresentaciones = false;
         this.paso = 1;
+    }
+
+    /** Toggle de la sección de presentaciones dentro del form simple. Al ocultarla, se
+     *  descartan las presentaciones ingresadas para no guardar datos que el usuario ya no ve. */
+    togglePresentaciones() {
+        this.mostrarPresentaciones = !this.mostrarPresentaciones;
+        if (!this.mostrarPresentaciones) this.presentacionesNuevas = [];
     }
 
     async volver() {
@@ -302,8 +311,8 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
 
     /** Requerido por HasPendingChanges: limpia el estado del formulario activo. */
     resetState() {
-        this.simpleForm?.reset({ tiene_iva: true, tipo_venta: 'UNIDAD', unidad_medida: 'und', stock_minimo: 5 });
-        this.templateForm?.reset({ tiene_iva: true, tipo_venta: 'UNIDAD', stock_minimo: 5 });
+        this.simpleForm?.reset({ tiene_iva: true, tipo_venta: 'UNIDAD', unidad_medida: 'und', stock_minimo: 5, favorito: false });
+        this.templateForm?.reset({ tiene_iva: true, tipo_venta: 'UNIDAD', stock_minimo: 5, favorito: false });
         this.fotoPreviewUrl = null;
         this.fotoRawUrl = null;
         this.templateFotoPreviewUrl = null;
@@ -321,7 +330,7 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
         if (this.paso === 0) return 'Nuevo producto';
 
         if (this.tipoProducto === 'simple') {
-            return this.mostrarPresentaciones ? 'Tamaños o empaques distintos' : 'Producto simple';
+            return 'Producto simple';
         }
 
         // Variantes: paso 1 = datos base (mismo nombre que la card),
@@ -419,6 +428,7 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
                 precio_venta:  this.currencyService.parse(v.precio_venta),
                 stock_actual:  Number(v.stock_actual) || 0,
                 stock_minimo:  Number(v.stock_minimo) || 0,
+                favorito:      !!v.favorito,
                 presentaciones: presentacionesConImagen
             });
 
@@ -492,29 +502,6 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
     esCampoInvalidoTemplate(campo: string): boolean {
         const c = this.templateForm.get(campo);
         return !!(c && c.invalid && (c.dirty || c.touched));
-    }
-
-    async abrirSelectorCategoriaTemplate() {
-        const groups: ModalOptionGroup[] = [{ title: 'Categorias', options: this.categorias.map(c => ({ label: c.nombre, value: String(c.id) })) }];
-        const current = this.templateForm.get('categoria_id')?.value;
-        const modal = await this.modalCtrl.create({
-            component: OptionsModalComponent,
-            componentProps: { title: 'Categoria', groups, selectedValue: current ? String(current) : undefined },
-            cssClass: 'options-modal',
-            breakpoints: [0, 1],
-            initialBreakpoint: 1
-        });
-        await modal.present();
-        const { data } = await modal.onDidDismiss();
-        this.templateForm.get('categoria_id')?.markAsTouched();
-        if (data) this.templateForm.patchValue({ categoria_id: data });
-    }
-
-    async seleccionarFotoTemplate() {
-        const result = await this.storageService.elegirFuenteFoto();
-        if (!result) return;
-        this.templateFotoPreviewUrl = result.previewUrl;
-        this.templateFotoRawUrl     = result.rawUrl;
     }
 
     removerFotoTemplate() {
@@ -597,12 +584,6 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
             const el = document.getElementById(`opcion-input-${atributoId}`);
             el?.focus();
         }, 50);
-    }
-
-    cerrarEdicionOpciones() {
-        this.tipoEnEdicion = null;
-        this.textoNuevaOpcion = '';
-        this.opcionesSugeridas = [];
     }
 
     onOpcionInput(valor: string) {
@@ -844,6 +825,7 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
                 tiene_iva:   v.tiene_iva,
                 tipo_venta:  v.tipo_venta,
                 unidad_medida: 'und',
+                favorito:    !!v.favorito,
                 imagen_url: templateImagenUrl || undefined,
                 atributos_template: this.atributosEditor.map(a => ({
                     atributo_nombre: a.atributo.nombre,

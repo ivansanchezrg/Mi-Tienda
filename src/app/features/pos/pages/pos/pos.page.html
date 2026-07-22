@@ -89,42 +89,45 @@
 <!-- ═══════════════════════════════════════ -->
 <!-- MODO ESCÁNER: fullscreen cámara + badge info + finalizar -->
 <!-- ═══════════════════════════════════════ -->
-@if (escaneando) {
-<div class="scanner-stack">
-  <div class="scanner-camera-layer">
-    <div class="scanner-frame">
-      <div class="scan-line"></div>
+<!-- Escáner continuo del catálogo: reusa el overlay compartido (marco/línea/hint) y
+     proyecta los extras propios del POS (preview del producto + badge del carrito).
+     showClose=false: el badge reemplaza al ✕ como forma de cerrar. -->
+<app-scanner-overlay [visible]="escaneando" [showClose]="false">
+  <!-- Preview del último producto escaneado — TOCABLE: abre su modal de cantidad para
+       corregir (ej. si se escaneó de más). El pencil comunica que es editable. -->
+  @if (scanPreview) {
+  <button class="scanner-preview" (click)="corregirDesdeBanner()" type="button">
+    <div class="sp-left">
+      <span class="sp-name">{{ scanPreview.nombre }}</span>
+      <span class="sp-unit">${{ currencyService.format(scanPreview.precioUnitario) }} c/u</span>
     </div>
-    <p class="scanner-hint">Apunta al código de barras</p>
+    <div class="sp-right">
+      <span class="sp-total">${{ currencyService.format(scanPreview.subtotal) }}</span>
+      <span class="sp-qty">x{{ scanPreview.cantidad }}</span>
+    </div>
+    <span class="sp-edit">
+      <ion-icon name="create-outline"></ion-icon>
+      <span>Editar</span>
+    </span>
+  </button>
+  }
 
-    <!-- Preview efímero del último producto escaneado -->
-    @if (scanPreview) {
-    <div class="scanner-preview">
-      <div class="sp-left">
-        <span class="sp-name">{{ scanPreview.nombre }}</span>
-        <span class="sp-unit">${{ currencyService.format(scanPreview.precioUnitario) }} c/u</span>
-      </div>
-      <div class="sp-right">
-        <span class="sp-total">${{ currencyService.format(scanPreview.subtotal) }}</span>
-        <span class="sp-qty">x{{ scanPreview.cantidad }}</span>
-      </div>
-    </div>
+  <!-- Acción de salida del escaneo. Distinta del pill "Ver carrito" del catálogo:
+       menos redondeada y con etiqueta "Continuar la venta" (vuelve al catálogo para
+       seguir agregando manualmente), con el total escaneado como progreso secundario. -->
+  <button class="scanner-continue" (click)="cerrarEscaner()" type="button">
+    @if (carrito().length > 0) {
+      <span class="sc-main">
+        <span class="sc-label">Continuar la venta</span>
+        <span class="sc-total">{{ totalArticulos() }} art. · ${{ currencyService.format(totalPagar()) }}</span>
+      </span>
+      <ion-icon name="chevron-forward-outline" class="sc-arrow"></ion-icon>
+    } @else {
+      <ion-icon name="close-outline"></ion-icon>
+      <span class="sc-label">Cerrar escáner</span>
     }
-
-    <!-- Badge-botón: tap para cerrar escáner -->
-    <button class="scanner-cart-badge" (click)="cerrarEscaner()">
-      @if (carrito().length > 0) {
-        <ion-icon name="cart-outline"></ion-icon>
-        <span>{{ totalArticulos() }} · ${{ currencyService.format(totalPagar()) }}</span>
-        <ion-icon name="chevron-forward-outline" class="badge-arrow"></ion-icon>
-      } @else {
-        <ion-icon name="close-outline"></ion-icon>
-        <span>Cerrar escáner</span>
-      }
-    </button>
-  </div>
-</div>
-}
+  </button>
+</app-scanner-overlay>
 
 <!-- ═══════════════════════════════════════ -->
 <!-- MODO NORMAL: POS completo -->
@@ -361,6 +364,9 @@
             @if (item.tipo === 'template') {
               <button class="catalogo-card" [class.catalogo-card--added]="catalogoCardAnimando === item.templateId"
                 (click)="abrirVariantesDesdeCatalogo(item)" (contextmenu)="$event.preventDefault()" type="button">
+                @if (item.variantes.length > 0 && item.variantes[0].favorito) {
+                  <ion-icon name="star" class="catalogo-card-fav"></ion-icon>
+                }
                 @if (templateCountMap()[item.templateId]) {
                   <div class="catalogo-card-badge catalogo-card-badge--template">
                     {{ templateCountMap()[item.templateId] }}
@@ -438,6 +444,7 @@
           @let itemKey = item.id + (item.presentacion_id ?? '');
           <div class="panel-item"
             [attr.data-item-key]="itemKey"
+            [class.panel-item--enter]="lastAddedKey === itemKey"
             [class.panel-item--loading]="editandoItemKey === itemKey">
             <div class="panel-item-thumb">
               @if (item.imagen_url) {
@@ -460,7 +467,7 @@
                 <button class="pis-btn pis-btn--minus" (click)="decrementar(item)" type="button">
                   <ion-icon name="remove-outline"></ion-icon>
                 </button>
-                <span class="pis-val" (click)="editarCantidad(item)">
+                <span class="pis-val" [class.qty-bump]="lastIncrementedKey === itemKey" (click)="editarCantidad(item)">
                   @if (editandoItemKey === itemKey) {
                     <ion-spinner name="crescent" class="qty-spinner"></ion-spinner>
                   } @else if (item.tipo_venta === 'PESO') {
@@ -565,6 +572,22 @@
        scrolleable → se iban con el scroll del catálogo. -->
 
   <!-- Pill flotante "Ver carrito" — solo mobile -->
+  <!-- Preview efímero del último producto escaneado (pistola/código) — sobre el pill.
+       Confirma "esto acabas de agregar" sin salir del catálogo (2.5s, ver feedbackEscaneo). -->
+  @if (vistaActual === 'catalogo' && scanPreview) {
+  <div class="catalogo-scan-preview" slot="fixed">
+    <ion-icon name="checkmark-circle" class="csp-check"></ion-icon>
+    <div class="csp-info">
+      <span class="csp-nombre">{{ scanPreview.nombre }}</span>
+      <span class="csp-unit">${{ currencyService.format(scanPreview.precioUnitario) }} c/u</span>
+    </div>
+    <div class="csp-right">
+      <span class="csp-total">${{ currencyService.format(scanPreview.subtotal) }}</span>
+      <span class="csp-qty">x{{ scanPreview.cantidad }}</span>
+    </div>
+  </div>
+  }
+
   @if (vistaActual === 'catalogo' && carrito().length > 0) {
   <button class="catalogo-cart-pill" slot="fixed" (click)="irAListaDesdeCatalogo()" type="button">
     <ion-icon name="cart-outline"></ion-icon>
@@ -575,7 +598,9 @@
   </button>
   }
 
-  @if (barcodeScanner.isAvailable) {
+  <!-- Escáner de cámara — solo en catálogo (el escaneo es una acción del catálogo;
+       en la vista lista/carrito no aplica). -->
+  @if (barcodeScanner.isAvailable && vistaActual === 'catalogo') {
     <button class="scanner-corner-btn" slot="fixed" (click)="abrirEscanerCamara()">
       <ion-icon name="barcode-outline"></ion-icon>
     </button>
@@ -590,7 +615,9 @@
        (momentum scroll), el WebView consume el primer toque solo para detener el
        scroll y no dispara "click" — el usuario necesitaba tocar 2 veces. pointerdown
        llega ANTES de ese ciclo, así el primer toque ya frena el scroll Y navega. -->
-  @if (vistaActual === 'catalogo' && scrollTop.showScrollTop) {
+  <!-- FAB oculto mientras el preview del escaneo está visible (2.5s) — el banner ancho
+       lo taparía; reaparece al desvanecerse el banner. -->
+  @if (vistaActual === 'catalogo' && scrollTop.showScrollTop && !scanPreview) {
   <ion-fab slot="fixed"
     class="scroll-top-fab" [class.scroll-top-fab--sin-escaner]="!barcodeScanner.isAvailable">
     <ion-fab-button size="small" color="primary" (pointerdown)="scrollTop.scrollToTop()">

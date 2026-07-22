@@ -27,18 +27,6 @@
         <span class="total-label">Total a cobrar</span>
         <span class="total-monto">${{ currencyService.format(paso === 'confirmar-fiado' ? totalFiado : total) }}</span>
         <span class="total-articulos">{{ totalArticulos }} {{ totalArticulos === 1 ? 'artículo' : 'artículos' }}</span>
-        @if (paso === 'monto') {
-          <div class="metodo-chip">
-            <ion-icon name="cash-outline"></ion-icon>
-            <span>Efectivo</span>
-          </div>
-        }
-        @if (paso === 'confirmar-fiado') {
-          <div class="metodo-chip metodo-chip--fiado">
-            <ion-icon name="hand-right-outline"></ion-icon>
-            <span>Fiado</span>
-          </div>
-        }
       </div>
 
       <!-- ══ PASO 1: Método de pago ══ -->

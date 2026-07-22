@@ -1,21 +1,23 @@
 import { AfterViewInit, Component, ElementRef, inject, Input, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { addIcons } from 'ionicons';
-import { IonButton, IonIcon, IonSpinner, ModalController } from '@ionic/angular/standalone';
-import { closeOutline, barcodeOutline, alertCircleOutline, layersOutline, pricetagOutline, cubeOutline } from 'ionicons/icons';
+import { IonIcon, IonSpinner, ModalController } from '@ionic/angular/standalone';
+import { closeOutline, barcodeOutline, scanOutline, alertCircleOutline, layersOutline, pricetagOutline, cubeOutline } from 'ionicons/icons';
 import { InventarioService } from 'src/app/features/inventario/services/inventario.service';
 import { ProductoPOS, ProductoPresentacion } from 'src/app/features/inventario/models/producto.model';
 import { StorageService } from '@core/services/storage.service';
 import { CurrencyService } from '@core/services/currency.service';
 import { UiService } from '@core/services/ui.service';
 import { LoggerService } from '@core/services/logger.service';
+import { BarcodeScannerService } from '@core/services/barcode-scanner.service';
+import { ScannerOverlayComponent } from '@shared/components/scanner-overlay/scanner-overlay.component';
 
 @Component({
   selector: 'app-consulta-precio-modal',
   templateUrl: './consulta-precio-modal.component.html',
   styleUrls: ['./consulta-precio-modal.component.scss'],
   standalone: true,
-  imports: [CommonModule, IonButton, IonIcon, IonSpinner]
+  imports: [CommonModule, IonIcon, IonSpinner, ScannerOverlayComponent]
 })
 export class ConsultaPrecioModalComponent implements OnInit, AfterViewInit {
   private modalCtrl = inject(ModalController);
@@ -24,11 +26,19 @@ export class ConsultaPrecioModalComponent implements OnInit, AfterViewInit {
   private currencyService = inject(CurrencyService);
   private ui = inject(UiService);
   private logger = inject(LoggerService);
+  protected scanner = inject(BarcodeScannerService);
 
-  /** Código ya escaneado (cámara nativa). Sin él → modo manual (pistola HID / teclado). */
+  /**
+   * Código opcional pre-cargado (ej. si algún caller ya tiene uno). Ya NO define el modo
+   * del modal: el input siempre está disponible (pistola HID / teclado) y la cámara es
+   * un botón opcional dentro del input — mismo patrón que el catálogo del POS.
+   */
   @Input() codigoInicial?: string;
 
   @ViewChild('codigoInput') codigoInputRef?: ElementRef<HTMLInputElement>;
+
+  /** true mientras el escáner de cámara está activo (oculta el resto del modal). */
+  escaneando = false;
 
   buscando = false;
   productoEncontrado: ProductoPOS | null = null;
@@ -37,13 +47,8 @@ export class ConsultaPrecioModalComponent implements OnInit, AfterViewInit {
   imagenUrl: string | null = null;
   error: string | null = null;
 
-  /** Web/desktop: la pistola de escaneo actúa como teclado — escribe en el input + Enter */
-  get modoManual(): boolean {
-    return !this.codigoInicial;
-  }
-
   constructor() {
-    addIcons({ closeOutline, barcodeOutline, alertCircleOutline, layersOutline, pricetagOutline, cubeOutline });
+    addIcons({ closeOutline, barcodeOutline, scanOutline, alertCircleOutline, layersOutline, pricetagOutline, cubeOutline });
   }
 
   async ngOnInit() {
@@ -53,10 +58,41 @@ export class ConsultaPrecioModalComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit() {
-    // La pistola HID escribe donde esté el foco — enfocar apenas el modal se asienta
-    if (this.modoManual) {
-      setTimeout(() => this.codigoInputRef?.nativeElement?.focus(), 150);
+    // La pistola HID escribe donde esté el foco — enfocar apenas el modal se asienta.
+    // Siempre: el input es la vía principal (pistola/teclado); la cámara es opcional.
+    this.enfocarInput(150);
+  }
+
+  /** Enfoca el input tras un delay — la pistola HID necesita el foco para escribir. */
+  private enfocarInput(delay = 0): void {
+    setTimeout(() => this.codigoInputRef?.nativeElement?.focus(), delay);
+  }
+
+  /**
+   * Abre la cámara del dispositivo para escanear un código (solo nativo). Al leer,
+   * cierra la cámara y busca el producto en el mismo modal — el input sigue disponible
+   * para el siguiente (pistola/teclado/cámara), flujo continuo como en el POS.
+   */
+  async escanearConCamara(): Promise<void> {
+    if (!this.scanner.isAvailable || this.escaneando) return;
+
+    this.escaneando = true;
+    try {
+      const codigo = await this.scanner.scan();
+      if (codigo) await this.buscarProducto(codigo);
+    } catch (err) {
+      this.logger.error('ConsultaPrecioModal', 'Error al escanear con cámara', err);
+    } finally {
+      this.escaneando = false;
+      // Devolver el foco al input para encadenar con la pistola sin tocar nada.
+      this.enfocarInput(150);
     }
+  }
+
+  /** Cierra el escáner desde el overlay (botón ✕) — mismo patrón que inventario/POS. */
+  async cerrarEscaner(): Promise<void> {
+    await this.scanner.stop();
+    this.escaneando = false;
   }
 
   async buscarManual(codigo: string) {
@@ -111,12 +147,6 @@ export class ConsultaPrecioModalComponent implements OnInit, AfterViewInit {
 
   formatearPrecio(precio: number): string {
     return this.currencyService.format(precio);
-  }
-
-  /** Solo modo cámara: cierra con role 'rescanear' y el layout reabre el escáner.
-   *  En modo manual no hay botón — el input siempre visible ES la acción. */
-  consultarOtro() {
-    this.modalCtrl.dismiss(null, 'rescanear');
   }
 
   cerrar() {

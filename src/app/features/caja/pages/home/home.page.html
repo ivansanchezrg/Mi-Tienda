@@ -353,6 +353,59 @@
        completo vive en el detalle de cada cuenta (operaciones-caja). Los deltas
        del hero ahora vienen agregados del día completo desde fn_home_dashboard v2. -->
 
+  <!-- ── Banner informativo del turno en curso ─────────────────────────────
+       Solo con turno abierto. Reusa el estado reactivo (turnoActivo$), así que
+       aparece/desaparece solo cuando otro dispositivo abre o cierra el turno.
+       El acento verde marca "es tu turno"; neutro para el resto (y superadmin). -->
+  @if (mostrarBannerTurno) {
+    <div class="section-header">
+      <span class="section-header__title">TURNO EN CURSO</span>
+    </div>
+
+    <div class="turno-banner" [class.turno-banner--propio]="bannerTurnoEsPropio">
+      <div class="turno-banner__header">
+        <div class="turno-banner__icon">
+          <ion-icon name="information-circle-outline"></ion-icon>
+        </div>
+        <div class="turno-banner__heading">
+          <span class="turno-banner__title">{{ tituloBannerTurno }}</span>
+          @if (turnoNumero > 0) {
+            <span class="turno-banner__badge">Turno #{{ turnoNumero }}</span>
+          }
+        </div>
+      </div>
+
+      <div class="turno-banner__rows">
+        <div class="turno-banner__row">
+          <ion-icon name="person-outline" class="turno-banner__row-icon"></ion-icon>
+          <span class="turno-banner__row-label">Abierto por</span>
+          <span class="turno-banner__row-value">{{ turnoEmpleadoNombre }}</span>
+        </div>
+
+        <div class="turno-banner__row">
+          <ion-icon name="time-outline" class="turno-banner__row-icon"></ion-icon>
+          <span class="turno-banner__row-label">Hora de apertura</span>
+          <span class="turno-banner__row-value">{{ estadoCaja.horaApertura }}</span>
+        </div>
+
+        @if (mostrarFondoApertura) {
+          <div class="turno-banner__row">
+            <ion-icon name="cash-outline" class="turno-banner__row-icon"></ion-icon>
+            <span class="turno-banner__row-label">Fondo del cajón</span>
+            <span class="turno-banner__row-value">
+              @if (montosOcultos) { •••• } @else { ${{ turnoFondoApertura | appCurrency }} }
+            </span>
+          </div>
+        }
+      </div>
+
+      <div class="turno-banner__note">
+        <ion-icon name="lock-closed-outline"></ion-icon>
+        <span>{{ mensajeCierreTurno }}</span>
+      </div>
+    </div>
+  }
+
   <div class="bottom-spacer"></div>
 
 </ion-content>

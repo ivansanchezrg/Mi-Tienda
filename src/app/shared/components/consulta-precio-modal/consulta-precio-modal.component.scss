@@ -4,29 +4,36 @@
   ion-icon { color: var(--ion-color-warning-shade); }
 }
 
-// Modo manual no tiene bs-actions — safe area en el contenido (CLAUDE.md: modales sin footer)
+// Sin bs-actions — safe area en el contenido (CLAUDE.md: modales sin footer)
 .sin-footer .bs-body {
   padding-bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
 }
 
-// ── Entrada manual (pistola HID / teclado) ─────
+// ── Entrada de código (pistola HID / teclado + cámara opcional) ─────
 .codigo-input-wrap {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
   margin: var(--spacing-md) var(--spacing-lg) 0;
-  padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-xs) var(--spacing-md);
+  padding: 4px 4px 4px var(--spacing-md);
   background: var(--ion-color-step-50, #f5f6f7);
   border: 1px solid var(--ion-color-step-150);
   border-radius: var(--radius-sm);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 
-  > ion-icon {
+  // Realce cuando la pistola/teclado está escribiendo (foco en el input)
+  &:focus-within {
+    border-color: var(--ion-color-warning);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-warning-rgb), 0.14);
+  }
+
+  &__lead {
     font-size: 20px;
     color: var(--ion-color-medium);
     flex-shrink: 0;
   }
 
-  input {
+  &__field {
     flex: 1;
     min-width: 0;
     border: none;
@@ -40,6 +47,38 @@
       font-size: 13px;
     }
   }
+
+  // Botón de cámara (solo nativo) — abre el escáner del dispositivo
+  &__cam {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--radius-xs);
+    background: rgba(var(--ion-color-warning-rgb), 0.14);
+    cursor: pointer;
+    transition: background var(--transition-fast), transform var(--transition-fast);
+
+    ion-icon {
+      font-size: 22px;
+      color: var(--ion-color-warning-shade);
+    }
+
+    &:active {
+      background: rgba(var(--ion-color-warning-rgb), 0.28);
+      transform: scale(0.92);
+    }
+  }
+}
+
+// Estado inicial (guía): más aire arriba, sin competir con el input
+.estado-container--hint {
+  padding-top: var(--spacing-lg);
+
+  .estado-icono { opacity: 0.55; }
 }
 
 // ── Resultado ──────────────────────────────────

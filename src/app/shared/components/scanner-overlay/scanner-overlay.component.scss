@@ -1,3 +1,15 @@
+// Base visual ÚNICA del escáner (marco de esquinas + línea + hint + ✕). El POS proyecta
+// su preview/badge dentro vía <ng-content> y estiliza esos extras en su propio SCSS.
+//
+// Estilo: esquinas en L (brackets) blancas, línea de escaneo neutra con degradado en los
+// extremos, hint con fondo pill. Look minimalista tipo Google Lens / Apple Wallet.
+
+$frame-w: 264px;
+$frame-h: 172px;
+$corner: 30px; // largo de cada tramo de la esquina en L
+$corner-thick: 3px;
+$corner-radius: 16px;
+
 .scanner-overlay {
     position: fixed;
     inset: 0;
@@ -6,56 +18,114 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 22px;
     visibility: visible;
 
+    // Máscara oscura con "recorte" translúcido en el centro (el marco vive dentro)
     .scanner-frame {
-        width: 260px;
-        height: 160px;
-        border: 2px solid white;
-        border-radius: var(--radius-lg);
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
-        overflow: hidden;
         position: relative;
+        width: $frame-w;
+        height: $frame-h;
+        border-radius: $corner-radius;
+        // El agujero de enfoque: leve oscurecido alrededor para separar del fondo real
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.48);
+        overflow: hidden;
     }
 
+    // ── Esquinas en L ────────────────────────────────────────────────
+    .scanner-corner {
+        position: absolute;
+        width: $corner;
+        height: $corner;
+        border: $corner-thick solid rgba(255, 255, 255, 0.95);
+        // Sutil sombra para que las esquinas se lean sobre fondos claros
+        filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.35));
+
+        &--tl {
+            top: 0; left: 0;
+            border-right: none; border-bottom: none;
+            border-top-left-radius: $corner-radius;
+        }
+        &--tr {
+            top: 0; right: 0;
+            border-left: none; border-bottom: none;
+            border-top-right-radius: $corner-radius;
+        }
+        &--bl {
+            bottom: 0; left: 0;
+            border-right: none; border-top: none;
+            border-bottom-left-radius: $corner-radius;
+        }
+        &--br {
+            bottom: 0; right: 0;
+            border-left: none; border-top: none;
+            border-bottom-right-radius: $corner-radius;
+        }
+    }
+
+    // ── Línea de escaneo ─────────────────────────────────────────────
+    // Blanca con degradado que se desvanece en los extremos (más pulida que una
+    // línea sólida de punta a punta). Un halo suave la hace visible sobre cualquier fondo.
     .scan-line {
         position: absolute;
-        left: 0;
-        right: 0;
+        left: 8%;
+        right: 8%;
         height: 2px;
-        background: var(--ion-color-success);
-        box-shadow: 0 0 8px var(--ion-color-success);
-        animation: scanMove 2s ease-in-out infinite;
+        border-radius: 2px;
+        background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.95) 50%,
+            rgba(255, 255, 255, 0) 100%
+        );
+        box-shadow: 0 0 10px 1px rgba(255, 255, 255, 0.55);
+        animation: scanMove 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
     }
 
+    // ── Hint ─────────────────────────────────────────────────────────
     .scanner-hint {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 14px;
-        margin-top: var(--spacing-lg);
-        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+        margin: 0;
+        padding: 7px 16px;
+        background: rgba(0, 0, 0, 0.42);
+        border-radius: var(--radius-pill);
+        backdrop-filter: blur(6px);
+        color: rgba(255, 255, 255, 0.94);
+        font-size: 13.5px;
+        font-weight: var(--font-weight-medium);
+        letter-spacing: 0.2px;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     }
 
+    // ── Botón cerrar ─────────────────────────────────────────────────
     .scanner-close-btn {
         pointer-events: all;
         position: absolute;
-        top: calc(var(--spacing-xl) + env(safe-area-inset-top));
-        right: var(--spacing-md);
-        background: rgba(0, 0, 0, 0.5);
-        border: none;
-        border-radius: 50%;
-        width: 44px;
-        height: 44px;
+        top: calc(var(--spacing-lg) + env(safe-area-inset-top));
+        right: var(--spacing-lg);
+        width: 42px;
+        height: 42px;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.42);
+        backdrop-filter: blur(8px);
+        color: rgba(255, 255, 255, 0.95);
+        transition: background var(--transition-fast), transform var(--transition-fast);
 
-        ion-icon { font-size: 24px; }
+        ion-icon { font-size: 22px; }
+
+        &:active {
+            background: rgba(0, 0, 0, 0.62);
+            transform: scale(0.92);
+        }
     }
 }
 
+// Recorrido de la línea dentro del marco (con un respiro arriba/abajo)
 @keyframes scanMove {
-    0%   { top: 10%; }
-    50%  { top: 90%; }
-    100% { top: 10%; }
+    0%   { top: 12%; }
+    50%  { top: 88%; }
+    100% { top: 12%; }
 }

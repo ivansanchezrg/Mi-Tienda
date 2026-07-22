@@ -300,6 +300,7 @@ export class SyncService {
                 p_items:                   p.items,
                 p_idempotency_key:         venta.idempotencyKey,
                 p_permitir_stock_negativo: true, // stock offline optimista (§5)
+                p_fecha:                   p.fechaVenta, // fecha REAL de la venta, no la de sincronización
             });
 
             if (!error) {

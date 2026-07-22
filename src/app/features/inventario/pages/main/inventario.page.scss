@@ -386,29 +386,35 @@ ion-toolbar {
 // Estrella de favorito — superpuesta en la esquina inferior derecha del thumbnail.
 // Dentro del área del thumbnail (que tiene overflow: hidden) para no requerir
 // z-index ni recortes adicionales sobre el resto del item.
-.inv-fav {
-    position: absolute;
-    right: 2px;
-    bottom: 2px;
-    font-size: 15px;
-    color: rgba(255, 255, 255, 0.85);
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
-
-    &--on {
-        color: var(--ion-color-warning, #ffc409);
-    }
-}
-
 // ── Info (label) ──
+// Flex para que el indicador de favorito quede pegado al nombre y NUNCA se trunque:
+// solo el texto (.inv-name__text) trunca con ellipsis.
 .inv-name {
+    display: flex;
+    align-items: center;
+    gap: 5px;
     font-size: 14px;
     font-weight: var(--font-weight-semibold, 600);
     color: var(--ion-text-color);
     margin: 0 0 1px;
     line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 0;
+
+    .inv-name__text {
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+}
+
+// Indicador de favorito (solo lectura) — junto al nombre. Para cambiarlo, el usuario
+// entra a editar el producto (switch). NO es accionable aquí.
+.inv-fav-ind {
+    flex-shrink: 0;
+    font-size: 15px;
+    color: var(--ion-color-warning, #ffc409);
+    pointer-events: none;
 }
 
 .inv-meta {

@@ -11,6 +11,18 @@
 
 ## 🟠 Funcional (corto plazo)
 
+### Ejecutar en Supabase los RPCs de creación con favorito (switch en crear producto)
+- **Qué:** los formularios de crear producto ahora tienen un switch "Favorito" que se pasa a
+  los RPCs de creación como `p_favorito BOOLEAN DEFAULT FALSE`. Hay que re-ejecutar las dos
+  funciones para que acepten el parámetro (tienen `DROP FUNCTION ... CASCADE`, seguro re-ejecutar).
+  Sin esto, crear un producto con el switch activado no marca el favorito (el resto del feature
+  —estrella en modal POS, switch en editar, toggle de template— funciona sin tocar SQL, usa
+  UPDATE directo). Detalle: `docs/inventario/INVENTARIO-README.md` → "Favorito".
+  Ejecutar en el SQL Editor:
+  1. `docs/inventario/sql/functions/fn_crear_producto_simple.sql`
+  2. `docs/inventario/sql/functions/fn_crear_producto_con_variantes.sql`
+- **Origen:** 2026-07-21.
+
 ### Ejecutar en Supabase el fix de transferencias a Varios (turno abierto varios días)
 - **Qué:** corrige dos bugs del cierre relacionados con la transferencia diaria a Varios.
   (1) Bug de dinero real: al reparar un déficit al día siguiente, la reposición se

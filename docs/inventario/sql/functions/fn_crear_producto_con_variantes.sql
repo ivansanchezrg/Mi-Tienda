@@ -13,6 +13,7 @@ CREATE OR REPLACE FUNCTION public.fn_crear_producto_con_variantes(
     p_tiene_iva         BOOLEAN,   -- aplica a los SKUs; el template ya no tiene este campo
     p_tipo_venta        TEXT,
     p_unidad_medida     TEXT,
+    p_favorito          BOOLEAN DEFAULT FALSE,   -- all-or-nothing: aplica a TODOS los SKUs
     p_imagen_url        TEXT DEFAULT NULL,
 
     -- Definicion de atributos del template:
@@ -151,7 +152,7 @@ BEGIN
             producto_template_id,
             tiene_iva,
             nombre, precio_costo, precio_venta, stock_actual, stock_minimo,
-            codigo_barras, imagen_url, activo
+            codigo_barras, imagen_url, favorito, activo
         ) VALUES (
             v_producto_id, v_negocio_id,
             v_template_id,
@@ -163,7 +164,7 @@ BEGIN
             COALESCE((v_variante->>'stock_minimo')::INTEGER, 5),
             NULLIF(TRIM(COALESCE(v_variante->>'codigo_barras', '')), ''),
             NULLIF(TRIM(COALESCE(v_variante->>'imagen_url', '')), ''),
-            TRUE
+            COALESCE(p_favorito, FALSE), TRUE
         );
 
         -- Vincular atributos al SKU (producto_atributos)

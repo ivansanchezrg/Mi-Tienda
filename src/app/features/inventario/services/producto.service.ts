@@ -65,15 +65,15 @@ export class ProductoService {
         categoria_id: string;
         imagen_url?: string | null;
     }): Promise<{ ok: boolean; template_id?: string }> {
+        // Sin showLoading: el botón del formulario ya muestra su propio spinner
+        // ("Guardando...") + está disabled — un overlay global "Procesando" sería redundante.
         const res = await this.supabase.call<{ ok: boolean; template_id?: string }>(
             this.supabase.client.rpc('fn_actualizar_template', {
                 p_template_id:  params.template_id,
                 p_nombre:       params.nombre,
                 p_categoria_id: params.categoria_id,
                 p_imagen_url:   params.imagen_url || null
-            }),
-            undefined,
-            { showLoading: true }
+            })
         );
         const result = res || { ok: false };
         if (result.ok) this.changeEmitter?.({ tipo: 'RECARGA', producto: {} as Producto });
@@ -107,14 +107,13 @@ export class ProductoService {
 
     /** Retorna null si falló (call() ya mostró el toast de error) — la página NO debe navegar en ese caso. */
     async actualizar(id: string, producto: Partial<Producto>): Promise<Producto | null> {
+        // Sin showLoading: el botón del formulario de edición ya muestra su spinner.
         const res = await this.supabase.call<Producto[]>(
             this.supabase.client
                 .from('productos')
                 .update(producto)
                 .eq('id', id)
-                .select('*, categoria:categorias_productos(*), producto_template:producto_templates(*, categoria:categorias_productos(*))'),
-            undefined,
-            { showLoading: true }
+                .select('*, categoria:categorias_productos(*), producto_template:producto_templates(*, categoria:categorias_productos(*))')
         );
         const updated = res?.[0] ?? null;
         if (updated) this.changeEmitter?.({ tipo: 'ACTUALIZADO', producto: updated });
@@ -163,6 +162,26 @@ export class ProductoService {
         return updated;
     }
 
+    /**
+     * Toggle de favorito a nivel TEMPLATE (all-or-nothing): marca TODAS las variantes
+     * del template como favoritas o no. El favorito vive en productos.favorito (por SKU),
+     * pero un template está en favoritos como un todo — nunca variantes sueltas. Un solo
+     * UPDATE con filtro por producto_template_id (una tabla → query directa). Sin toast:
+     * la estrella cambiando es el feedback; el caller revierte optimista si retorna null.
+     */
+    async toggleFavoritoTemplate(templateId: string, favorito: boolean): Promise<boolean> {
+        const res = await this.supabase.call<Producto[]>(
+            this.supabase.client
+                .from('productos')
+                .update({ favorito })
+                .eq('producto_template_id', templateId)
+                .select('id')
+        );
+        const ok = res !== null;
+        if (ok) this.changeEmitter?.({ tipo: 'RECARGA', producto: {} as Producto });
+        return ok;
+    }
+
     // ==========================================
     // CREACIÓN ATÓMICA VIA RPC
     // ==========================================
@@ -179,6 +198,7 @@ export class ProductoService {
         precio_venta: number;
         stock_actual: number;
         stock_minimo: number;
+        favorito?: boolean;
         presentaciones?: {
             nombre: string;
             factor_conversion: number;
@@ -201,10 +221,10 @@ export class ProductoService {
                 p_precio_venta:   params.precio_venta,
                 p_stock_actual:   params.stock_actual,
                 p_stock_minimo:   params.stock_minimo,
+                p_favorito:       params.favorito ?? false,
                 p_presentaciones: params.presentaciones || []
-            }),
-            undefined,
-            { showLoading: true }
+            })
+            // Sin showLoading: el botón "Guardar producto" ya muestra su spinner.
         );
         const result = res || { ok: false };
         if (result.ok && result.producto_id) {
@@ -220,6 +240,7 @@ export class ProductoService {
         tiene_iva: boolean;
         tipo_venta: string;
         unidad_medida: string;
+        favorito?: boolean;
         imagen_url?: string;
         atributos_template: { atributo_nombre: string; opcion_ids: string[] }[];
         variantes: {
@@ -248,12 +269,12 @@ export class ProductoService {
                 p_tiene_iva:          params.tiene_iva,
                 p_tipo_venta:         params.tipo_venta,
                 p_unidad_medida:      params.unidad_medida,
+                p_favorito:           params.favorito ?? false,
                 p_imagen_url:         params.imagen_url || null,
                 p_atributos_template: params.atributos_template,
                 p_variantes:          params.variantes
-            }),
-            undefined,
-            { showLoading: true }
+            })
+            // Sin showLoading: el botón "Guardar producto" ya muestra su spinner.
         );
         const result = res || { ok: false };
         if (result.ok) this.changeEmitter?.({ tipo: 'RECARGA', producto: {} as Producto });

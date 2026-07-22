@@ -421,17 +421,21 @@ Reemplaza un `<ion-tab-button>` cuando la feature está deshabilitada por estado
 
 **Archivo:** `components/scanner-overlay/`
 
-Overlay de cámara con marco animado, línea verde de escaneo y botón de cerrar. **Siempre se usa junto a `BarcodeScannerService`** — el servicio activa la cámara, este componente provee el diseño visual encima.
+**Fuente ÚNICA del diseño visual del escáner** (marco animado + línea verde + hint + ✕). **Siempre se usa junto a `BarcodeScannerService`** — el servicio activa la cámara y hace transparente el WebView (`body.scanner-active`), este componente provee el marco visual encima. Tras la unificación (2026-07-21) el POS también lo usa (antes duplicaba el marco/línea con otro color) — no hay CSS de escáner repetido en ninguna página.
 
 #### API
 
-| `@Input()` | Tipo | Descripción |
-|---|---|---|
-| `visible` | `boolean` | Muestra/oculta el overlay |
+| `@Input()` | Tipo | Default | Descripción |
+|---|---|---|---|
+| `visible` | `boolean` | `false` | Muestra/oculta el overlay |
+| `hint` | `string` | `'Apunta al código de barras'` | Texto guía bajo el marco |
+| `showClose` | `boolean` | `true` | Muestra el botón ✕. El POS lo pone `false` y proyecta su propio badge de cierre |
 
 | `@Output()` | Tipo | Descripción |
 |---|---|---|
-| `cerrar` | `EventEmitter<void>` | El usuario pulsó el botón ✕ |
+| `cerrar` | `EventEmitter<void>` | El usuario pulsó el botón ✕ (solo con `showClose = true`) |
+
+**Contenido proyectado (`<ng-content>`):** para escaneo **continuo** (POS), se proyectan extras dentro del overlay — preview del producto escaneado y badge del carrito — que reemplazan al ✕. El contexto de esas expresiones es el componente que las declara (el POS), no el overlay. Los estilos de esos extras viven en el SCSS del POS (`.scanner-preview`, `.scanner-cart-badge`).
 
 #### Patrón de uso (con `BarcodeScannerService.scan()`)
 
@@ -455,11 +459,17 @@ cerrarEscaner() {
 ```
 
 ```html
-<!-- Al inicio del template, antes del ion-header -->
+<!-- One-shot (con ✕): al inicio del template -->
 <app-scanner-overlay [visible]="escaneando" (cerrar)="cerrarEscaner()"></app-scanner-overlay>
+
+<!-- Continuo (POS): sin ✕, con extras proyectados -->
+<app-scanner-overlay [visible]="escaneando" [showClose]="false">
+  <!-- preview del producto + badge del carrito -->
+</app-scanner-overlay>
 ```
 
-> Ejemplos actuales: `inventario.page`, `producto-form.page`, `presentacion-modal`, `producto-variantes.page`, `consulta-precio-modal`.
+> **Modo one-shot** (✕ visible, `scanner.scan()`): `inventario.page`, `producto-form.page`, `presentacion-modal`, `producto-variantes.page`, `consulta-precio-modal`.
+> **Modo continuo** (`showClose=false` + `<ng-content>`, `scanner.startContinuous()`): `pos.page`.
 
 ---
 
@@ -484,17 +494,27 @@ await modal.present();
 
 ---
 
-### `app-consulta-precio-modal` — Consulta de precio por escáner
+### `app-consulta-precio-modal` — Consulta de precio por código
 
 **Archivo:** `components/consulta-precio-modal/`
 
-Modal que permite consultar el precio y stock de un producto escaneando su código de barras. Resuelve tanto productos simples como presentaciones (`producto_presentaciones`). Activa el escáner automáticamente al abrirse.
+Modal que consulta precio y stock de un producto por su código de barras. Resuelve productos simples y presentaciones (`producto_presentaciones`).
 
-Se abre exclusivamente desde el FAB central del `main-layout`. No recibe `@Input()`.
+**Patrón de entrada (2026-07-21 — igual que el catálogo del POS):** el modal **abre siempre en modo input**, no lanza la cámara automáticamente. Tres vías convergen en `buscarProducto()`:
+1. **Pistola de escaneo (HID)** — escribe en el input (auto-enfocado al abrir) + Enter. Flujo en cadena: tras un acierto el input se limpia y re-enfoca para el siguiente.
+2. **Teclado** — el usuario escribe el código + Enter / botón Buscar.
+3. **Cámara** — botón `camera-outline` dentro del input, visible **solo en nativo** (`BarcodeScannerService.isAvailable`). Llama `scanner.scan()` (one-shot); al leer, busca en el mismo modal y devuelve el foco al input.
+
+El escáner de cámara lo maneja el propio modal (inyecta `BarcodeScannerService`) — el `main-layout` ya **no** abre la cámara ni monta un `<app-scanner-overlay>` para esto. El resultado se muestra bajo el input, que sigue disponible para consultar el siguiente (flujo continuo).
+
+Se abre exclusivamente desde el FAB central del `main-layout`. `@Input() codigoInicial?` opcional (pre-carga una búsqueda; ya no define el modo).
 
 ```typescript
 const modal = await this.modalCtrl.create({
   component: ConsultaPrecioModalComponent,
+  cssClass: 'bottom-sheet-modal',
+  breakpoints: [0, 1],
+  initialBreakpoint: 1,
 });
 await modal.present();
 ```

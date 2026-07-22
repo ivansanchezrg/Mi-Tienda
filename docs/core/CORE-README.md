@@ -209,7 +209,7 @@ const FORMATOS_DEFAULT: BarcodeFormat[] = [
 | Método | Descripción | Uso |
 |--------|-------------|-----|
 | `scan()` | Abre cámara, escanea 1 código y cierra. Retorna `string \| null` | Inventario, formulario de producto, modal de presentación |
-| `startContinuous(onScan)` | Abre cámara y llama `onScan(codigo)` por cada lectura. Retorna `boolean` (permiso concedido) | POS — queda abierto para múltiples productos |
+| `startContinuous(onScan, formats?, areaProvider?)` | Abre cámara y llama `onScan(codigo)` por cada lectura. Retorna `boolean` (permiso concedido). `areaProvider` opcional → **detection area** (ver abajo) | POS — queda abierto para múltiples productos |
 | `stop()` | Cierra la cámara si está abierta | Botón ✕ del escáner en POS; `ionViewDidLeave`; `ngOnDestroy` |
 | `feedback()` | Vibración (40ms) + beep (Web Audio API) | `scan()` lo llama internamente. En POS el caller lo llama explícitamente después de su lógica anti-duplicado |
 
@@ -240,6 +240,25 @@ async abrirEscanerCamara() {
     if (!iniciado) this.escaneando = false;  // permiso denegado
 }
 ```
+
+#### Detection area — solo leer códigos dentro del recuadro (2026-07-22)
+
+En nativo la cámara MLKit es **fullscreen** (no se puede confinar a un `<div>` — el parámetro `videoElement` es solo web). Para que el escáner del POS solo lea el código **dentro del recuadro central** (y no capture un código vecino por accidente), `startContinuous` acepta un tercer parámetro `areaProvider: () => AreaDeteccion | null` con el rect del marco en píxeles CSS:
+
+```typescript
+this.barcodeScanner.startContinuous(onScan, undefined, () => {
+    const el = document.querySelector('.scanner-frame');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left, y: r.top, width: r.width, height: r.height };
+});
+```
+
+El service recorre todos los `barcodes` del frame y acepta el primero cuyo **centro** (promedio de sus 4 `cornerPoints`) caiga dentro del área. **Sistema de coordenadas (verificado en el código nativo Android del plugin):** los `cornerPoints` llegan normalizados a **píxeles FÍSICOS de pantalla** (el plugin escala la imagen al `displayMetrics.widthPixels/heightPixels`); el rect del DOM viene en **píxeles CSS lógicos** → el service convierte CSS→físico multiplicando por `window.devicePixelRatio`. Sin `cornerPoints` (caso raro) no bloquea el escaneo (acepta el código). El filtro NO aplica a la pistola HID (esa lee lo que se apunta físicamente, no pasa por `startContinuous`).
+
+#### Cierre fluido (revelar WebView antes de apagar la cámara)
+
+`detener()` quita la clase `scanner-active` (devuelve el body a opaco → reaparece la página) **antes** de `stopScan()`/`removeAllListeners()`, no después. Así la vuelta al catálogo es instantánea; la cámara se apaga en background ya tapada por el body opaco (sin flash). El POS complementa: `cerrarEscaner()` baja `escaneando=false` + `detectChanges()` **antes** del `stop()`, para que el `@if(!escaneando)` monte el catálogo antes de revelar el WebView.
 
 #### Setup Android (obligatorio)
 

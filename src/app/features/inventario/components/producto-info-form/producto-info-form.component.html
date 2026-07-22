@@ -89,8 +89,8 @@
     }
   </div>
 
-  <!-- Tipo de venta (oculto para variantes — heredan del template; oculto cuando se eligió "tamaños o empaques") -->
-  @if (!esVariante && !ocultarTipoVenta) {
+  <!-- Tipo de venta (oculto para variantes — heredan del template) -->
+  @if (!esVariante) {
   <div class="input-group m-0">
     <p class="field-label mb-xs">Tipo de venta</p>
     <div class="tipo-venta-selector">

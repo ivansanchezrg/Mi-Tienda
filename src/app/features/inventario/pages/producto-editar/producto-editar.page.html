@@ -104,6 +104,24 @@
       </ion-card-content>
     </ion-card>
 
+    <!-- ═══ Favorito — solo productos NO variante (el favorito de variantes es del grupo) ═══ -->
+    @if (!templateSeleccionado) {
+    <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">
+      <ion-card-content class="p-lg">
+        <label class="fav-row">
+          <div class="fav-text">
+            <span class="fav-title">
+              <ion-icon name="star"></ion-icon>
+              Favorito
+            </span>
+            <span class="fav-hint">Aparece en el acceso rápido del POS</span>
+          </div>
+          <ion-toggle formControlName="favorito" color="warning"></ion-toggle>
+        </label>
+      </ion-card-content>
+    </ion-card>
+    }
+
     <!-- ═══ Presentaciones ═══ -->
     @if (productoForm.get('tipo_venta')?.value === 'UNIDAD' || templateSeleccionado) {
     <ion-card class="form-card shadow-2 rounded-lg m-0 mb-lg">

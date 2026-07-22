@@ -10,18 +10,27 @@ export function volarCloneHacia(
     clone: HTMLElement,
     desde: DOMRect,
     objetivo: HTMLElement,
-    opts: { tamanoFinal: number; borderRadius: string; boxShadow: string }
+    opts: { tamanoFinal: number; borderRadius: string; boxShadow: string; escalaInicial?: number }
 ): void {
     const rect = objetivo.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
 
+    // El clon puede partir más pequeño que el elemento original (escalaInicial < 1) —
+    // se centra en la posición original para no saltar. Un arranque más chico hace el
+    // vuelo más ligero (menos "peso" visual atravesando la pantalla).
+    const escala = opts.escalaInicial ?? 1;
+    const w0 = desde.width * escala;
+    const h0 = desde.height * escala;
+    const left0 = desde.left + (desde.width - w0) / 2;
+    const top0  = desde.top + (desde.height - h0) / 2;
+
     clone.style.cssText = `
         position: fixed;
-        left: ${desde.left}px;
-        top: ${desde.top}px;
-        width: ${desde.width}px;
-        height: ${desde.height}px;
+        left: ${left0}px;
+        top: ${top0}px;
+        width: ${w0}px;
+        height: ${h0}px;
         margin: 0;
         pointer-events: none;
         z-index: 9999;
@@ -54,5 +63,16 @@ export function volarCloneHacia(
     clone.style.opacity   = '0';
     clone.style.transform = 'scale(0.3)';
 
-    clone.addEventListener('transitionend', () => clone.remove(), { once: true });
+    // Limpieza robusta: normalmente el transitionend remueve el clon. Fallback por timeout
+    // (transición = 0.45s) por si transitionend no dispara — con taps muy rápidos evita que
+    // queden clones huérfanos acumulándose en el <body>. clearTimeout impide doble-remove.
+    let limpio = false;
+    const remover = () => {
+        if (limpio) return;
+        limpio = true;
+        clearTimeout(fallback);
+        clone.remove();
+    };
+    const fallback = setTimeout(remover, 700);
+    clone.addEventListener('transitionend', remover, { once: true });
 }

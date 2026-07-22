@@ -1,11 +1,12 @@
-import { Component, ElementRef, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   AlertController, ModalController, NavController,
   IonHeader, IonToolbar, IonButtons, IonMenuButton, IonTitle, IonButton, IonIcon,
   IonContent, IonRefresher, IonRefresherContent,
   IonList, IonItem, IonLabel, IonSkeletonText,
-  IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton, IonSpinner
+  IonInfiniteScroll, IonInfiniteScrollContent, IonFab, IonFabButton, IonSpinner,
+  ViewWillEnter, ViewDidLeave
 } from '@ionic/angular/standalone';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
@@ -29,8 +30,7 @@ import {
   checkmarkCircleOutline,
   swapVerticalOutline,
   walletOutline,
-  star,
-  starOutline
+  star
 } from 'ionicons/icons';
 import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
 import { PaginatedListPage } from '../../../../shared/pages/paginated-list.page';
@@ -85,7 +85,7 @@ type InventarioItem =
     EmptyStateComponent, ScannerOverlayComponent, OptionsMenuComponent
   ]
 })
-export class InventarioPage extends PaginatedListPage<Producto> implements OnInit, OnDestroy {
+export class InventarioPage extends PaginatedListPage<Producto> implements OnInit, OnDestroy, ViewWillEnter, ViewDidLeave {
   private inventarioService = inject(InventarioService);
   private productoService = inject(ProductoService);
   protected currencyService = inject(CurrencyService);
@@ -114,6 +114,16 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
 
   /** Métricas de cabecera (total, por reponer, agotados, valor). Server-side. */
   metricas: MetricasInventario | null = null;
+
+  // Buffer para pistola lectora física (mismo patrón que el POS) — captura el escaneo
+  // cuando NINGÚN input tiene el foco y dispara el mismo flujo que la cámara.
+  private barcodeBuffer = '';
+  private barcodeTimeout: ReturnType<typeof setTimeout> | undefined;
+  /** Evita reentrada mientras un escaneo (alert/navegación) está en curso. */
+  private procesandoEscaneoFisico = false;
+  /** El @HostListener sigue vivo mientras la página está cacheada (IonicRouteStrategy).
+   *  Este flag evita procesar escaneos cuando el usuario está en OTRA página. */
+  private paginaActiva = true;
 
   /**
    * Valor del inventario en formato compacto para caber en la stat-card:
@@ -212,8 +222,7 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
       checkmarkCircleOutline,
       swapVerticalOutline,
       walletOutline,
-      star,
-      starOutline
+      star
     });
   }
 
@@ -228,6 +237,19 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     const input = event.target as HTMLInputElement;
     this.buscarTexto = input.value ?? '';
     this.aplicarFiltro();
+  }
+
+  /** Enter en el buscador (la pistola envía Enter al final): si el texto parece un código
+   *  de barras (solo dígitos, ≥8), dispara el mismo flujo que la cámara/pistola global
+   *  (crear si es nuevo, alert si existe). Si es texto normal, no hace nada (sigue filtrando). */
+  onSearchKeyup(event: KeyboardEvent) {
+    if (event.key !== 'Enter') return;
+    const texto = this.buscarTexto.trim();
+    if (/^\d{8,}$/.test(texto)) {
+      (event.target as HTMLInputElement).blur();
+      this.limpiarBusqueda();
+      void this.procesarEscaneoFisico(texto);
+    }
   }
 
   async ngOnInit() {
@@ -440,19 +462,6 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     this.navCtrl.navigateForward(ROUTES.inventario.editar(producto.id));
   }
 
-  /**
-   * Toggle optimista: el ícono cambia al instante (feedback visual suficiente, sin
-   * toast — mismo criterio que ajustar stock). Si la mutación falla, revierte el
-   * ícono (toggleFavorito() ya mostró el toast de error via supabase.call()).
-   */
-  async toggleFavorito(producto: Producto, event: MouseEvent) {
-    event.stopPropagation();
-    const nuevo = !producto.favorito;
-    producto.favorito = nuevo;
-    const updated = await this.productoService.toggleFavorito(producto.id, nuevo);
-    if (!updated) producto.favorito = !nuevo;
-  }
-
   /** Edita los datos generales del grupo de variantes (nombre, categoría, imagen general). */
   irAEditarTemplate(templateId: string, event: MouseEvent) {
     event.stopPropagation();
@@ -596,6 +605,63 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
   // ESCÁNER → CREAR PRODUCTO
   // ==========================
 
+  /** ¿Hay un overlay de Ionic abierto? (modal, alert, action-sheet, loading, popover)
+   *  Chequeo síncrono del DOM — un overlay presente NO tiene `.overlay-hidden`. Evita que
+   *  la pistola dispare el flujo por detrás mientras un alert/modal está abierto. */
+  private hayOverlayAbierto(): boolean {
+    return !!document.querySelector(
+      'ion-modal:not(.overlay-hidden), ion-alert:not(.overlay-hidden), ' +
+      'ion-action-sheet:not(.overlay-hidden), ion-loading:not(.overlay-hidden), ' +
+      'ion-popover:not(.overlay-hidden)'
+    );
+  }
+
+  // Pistola lectora física (HID): captura el escaneo cuando NINGÚN input tiene el foco y
+  // dispara el MISMO flujo que la cámara (procesarCodigoEscaneado). keydown, no keypress
+  // (deprecado). Con el input de búsqueda enfocado, el input maneja el escaneo por su cuenta.
+  @HostListener('document:keydown', ['$event'])
+  handleKeyboardEvent(event: KeyboardEvent) {
+    // Página cacheada pero no visible (el usuario está en otra ruta) → no procesar.
+    if (!this.paginaActiva) return;
+
+    // Overlay abierto (alert "producto encontrado", modal de ajuste, etc.) → no procesar.
+    if (this.hayOverlayAbierto()) { this.barcodeBuffer = ''; return; }
+
+    // Foco en un input (ej. el buscador) → ese input maneja el escaneo (onSearchKeyup).
+    const target = event.target as HTMLElement;
+    const tag = target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'ION-INPUT' ||
+        tag === 'ION-SEARCHBAR' || target.isContentEditable) {
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      (document.activeElement as HTMLElement | null)?.blur();
+      if (this.barcodeBuffer.length > 3) {
+        void this.procesarEscaneoFisico(this.barcodeBuffer);
+      }
+      this.barcodeBuffer = '';
+    } else if (event.key.length === 1) { // dígitos/letras; descarta Shift, Tab, F1…
+      this.barcodeBuffer += event.key;
+      clearTimeout(this.barcodeTimeout);
+      // Pistolas HID escriben ~5-20ms por tecla. 100ms resetea si fue tipeo humano lento.
+      this.barcodeTimeout = setTimeout(() => { this.barcodeBuffer = ''; }, 100);
+    }
+  }
+
+  /** Procesa un escaneo de pistola física con guard de reentrada (evita alerts/navegaciones
+   *  duplicadas si llegan dos Enter seguidos). Reutiliza el flujo de la cámara. */
+  private async procesarEscaneoFisico(codigo: string) {
+    if (this.procesandoEscaneoFisico) return;
+    this.procesandoEscaneoFisico = true;
+    try {
+      await this.procesarCodigoEscaneado(codigo);
+    } finally {
+      this.procesandoEscaneoFisico = false;
+    }
+  }
+
   async escanearYCrear() {
     this.escaneando = true;
     const codigo = await this.barcodeScanner.scan();
@@ -635,9 +701,23 @@ export class InventarioPage extends PaginatedListPage<Producto> implements OnIni
     this.escaneando = false;
   }
 
+  // La página se cachea (IonicRouteStrategy): activar/desactivar el listener de pistola
+  // según visibilidad, para no capturar escaneos destinados a otra página.
+  ionViewWillEnter() {
+    this.paginaActiva = true;
+    this.procesandoEscaneoFisico = false; // reset por si quedó colgado tras navegar a crear/editar
+  }
+
+  ionViewDidLeave() {
+    this.paginaActiva = false;
+    this.barcodeBuffer = '';
+    clearTimeout(this.barcodeTimeout);
+  }
+
   ngOnDestroy() {
     if (this.escaneando) this.cerrarEscaner();
     clearTimeout(this.searchDebounce);
+    clearTimeout(this.barcodeTimeout);
     this.productoChangeSub?.unsubscribe();
   }
 }

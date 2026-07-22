@@ -11,6 +11,9 @@ export type OutboxEstado = 'PENDING' | 'SYNCING' | 'SYNCED' | 'ERROR';
 export interface OutboxVentaPayload {
     turnoId: string;
     empleadoId: string;
+    /** Instante real de la venta (ISO 8601 UTC). Viaja a fn_registrar_venta_pos como
+     *  p_fecha para preservar la fecha original al sincronizar (no la de sincronización). */
+    fechaVenta: string;
     clienteId: string | null;
     tipoComprobante: string;
     total: number;

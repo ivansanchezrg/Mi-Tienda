@@ -29,6 +29,7 @@
         placeholder="Buscar por nombre o EAN..."
         inputmode="search"
         (input)="onSearchInputNativo($event)"
+        (keyup)="onSearchKeyup($event)"
         autocomplete="off"
         autocorrect="off"
         spellcheck="false" />
@@ -174,18 +175,16 @@
             } @else {
               <div class="inv-thumb__ph"><ion-icon name="image-outline"></ion-icon></div>
             }
-            @if (!mostrarDesactivados) {
-              @if (item.producto.favorito) {
-                <ion-icon name="star" class="inv-fav inv-fav--on" (click)="toggleFavorito(item.producto, $event)"></ion-icon>
-              } @else {
-                <ion-icon name="star-outline" class="inv-fav" (click)="toggleFavorito(item.producto, $event)"></ion-icon>
-              }
-            }
           </div>
 
           <!-- Info -->
           <ion-label>
-            <h3 class="inv-name">{{ item.producto.nombre }}</h3>
+            <h3 class="inv-name">
+              <span class="inv-name__text">{{ item.producto.nombre }}</span>
+              @if (!mostrarDesactivados && item.producto.favorito) {
+                <ion-icon name="star" class="inv-fav-ind" aria-label="Favorito"></ion-icon>
+              }
+            </h3>
             <p class="inv-meta">
               {{ item.producto.categoria?.nombre || item.producto.producto_template?.categoria?.nombre || 'Sin categoría' }}
               @if (item.producto.tipo_venta === 'PESO') {
@@ -257,7 +256,12 @@
           </div>
 
           <ion-label>
-            <h3 class="inv-name">{{ item.templateNombre }}</h3>
+            <h3 class="inv-name">
+              <span class="inv-name__text">{{ item.templateNombre }}</span>
+              @if (!mostrarDesactivados && item.variantes.length > 0 && item.variantes[0].favorito) {
+                <ion-icon name="star" class="inv-fav-ind" aria-label="Favorito"></ion-icon>
+              }
+            </h3>
             <p class="inv-meta">
               {{ item.categoriaNombre || 'Sin categoría' }}
               <span class="inv-tag variante">

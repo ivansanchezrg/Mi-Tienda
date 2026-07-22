@@ -85,7 +85,7 @@ ion-toolbar {
     .chr-value {
         display: flex;
         align-items: center;
-        gap: 3px;
+        gap: 8px;   // aire entre el nombre del cliente y el botón de la flecha
         font-size: 13px;
         font-weight: var(--font-weight-semibold);
         color: var(--ion-text-color);
@@ -314,166 +314,175 @@ ion-toolbar {
 }
 
 // ─────────────────────────────────────────
-// MODO ESCÁNER
+// MODO ESCÁNER — extras del POS proyectados dentro de <app-scanner-overlay>
+// (el marco/línea/hint/✕ los provee el componente compartido ScannerOverlayComponent).
 // ─────────────────────────────────────────
 
-.scanner-stack {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    visibility: visible;
+// Preview del último producto escaneado — card TOCABLE (abre su modal de cantidad).
+// Justo arriba del botón "Continuar la venta".
+.scanner-preview {
+    position: absolute;
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    width: 78%;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    background: rgba(0, 0, 0, 0.74);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: var(--radius-md);
+    padding: 11px 12px 11px var(--spacing-md);
+    z-index: 1;
+    text-align: left;
+    backdrop-filter: blur(8px);
+    cursor: pointer;
+    // Banner estático (persiste en modo cámara). Entrada suave, sin bounce de "notificación"
+    // —al reemplazarse en cada escaneo un overshoot repetido distraería del escaneo.
+    animation: previewIn 0.22s ease-out both;
+    transition: background var(--transition-fast), transform var(--transition-fast);
+
+    &:active {
+        background: rgba(0, 0, 0, 0.88);
+        transform: translateX(-50%) scale(0.98);
+    }
+
+    .sp-left {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .sp-name {
+        font-size: 15px;
+        font-weight: var(--font-weight-bold);
+        color: rgba(255, 255, 255, 0.96);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sp-unit {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .sp-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        flex-shrink: 0;
+    }
+
+    .sp-total {
+        font-size: 17px;
+        font-weight: var(--font-weight-extrabold);
+        color: var(--ion-color-primary);
+        letter-spacing: -0.5px;
+    }
+
+    .sp-qty {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.5);
+        font-weight: var(--font-weight-semibold);
+    }
+
+    // Afordancia de edición — separada por una divisoria sutil
+    .sp-edit {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1px;
+        flex-shrink: 0;
+        padding-left: 12px;
+        margin-left: 2px;
+        border-left: 1px solid rgba(255, 255, 255, 0.14);
+        color: rgba(255, 255, 255, 0.82);
+
+        ion-icon { font-size: 19px; }
+
+        span {
+            font-size: 10px;
+            font-weight: var(--font-weight-semibold);
+            letter-spacing: 0.2px;
+        }
+    }
 }
 
-// Capa cámara
-.scanner-camera-layer {
+@keyframes previewIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+// "Continuar la venta" — salida del escaneo hacia el catálogo. DELIBERADAMENTE distinto
+// del pill "Ver carrito" del catálogo (pill azul muy redondeado): aquí radius medio
+// (esquinas suaves, no pill) + fondo oscuro translúcido, para que se lean como acciones
+// diferentes. El total va como progreso secundario debajo del label.
+.scanner-continue {
     position: absolute;
-    inset: 0;
-    z-index: 2;
+    bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
-    flex-direction: column;
     align-items: center;
+    gap: var(--spacing-sm);
+    min-width: 240px;
     justify-content: center;
-    gap: var(--spacing-md);
+    background: rgba(0, 0, 0, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: var(--radius-md);
+    padding: 10px var(--spacing-lg);
+    color: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+    z-index: 1;
+    transition: background var(--transition-fast), transform var(--transition-fast);
 
-    .scanner-frame {
-        position: relative;
-        width: 260px;
-        height: 160px;
-        border: 2px solid rgba(255, 255, 255, 0.90);
-        border-radius: var(--radius-lg);
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
-        overflow: hidden;
-
-        .scan-line {
-            position: absolute;
-            left: 10%;
-            width: 80%;
-            height: 2px;
-            background: var(--app-hero-accent);
-            box-shadow: 0 0 8px var(--app-hero-accent);
-            border-radius: 2px;
-            animation: scanMove 2s ease-in-out infinite;
-        }
+    &:active {
+        background: rgba(0, 0, 0, 0.88);
+        transform: translateX(-50%) scale(0.97);
     }
 
-    @keyframes scanMove {
-        0%, 100% { top: 10%; }
-        50%       { top: 90%; }
-    }
-
-    .scanner-hint {
-        color: rgba(255, 255, 255, 0.92);
-        font-size: 14px;
-        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-        margin: 0;
-    }
-
-    // Preview efímero — card full-width justo arriba del badge
-    .scanner-preview {
-        position: absolute;
-        bottom: calc(65px + env(safe-area-inset-bottom));
-        left: 50%;
-        transform: translateX(-50%);
-        width: 70%;
+    .sc-main {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: rgba(0, 0, 0, 0.72);
-        border-radius: var(--radius-md);
-        padding: 12px var(--spacing-md);
-        animation: previewIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-
-        .sp-left {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .sp-name {
-            font-size: 16px;
-            font-weight: var(--font-weight-bold);
-            color: rgba(255, 255, 255, 0.96);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .sp-unit {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.5);
-        }
-
-        .sp-right {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 2px;
-            flex-shrink: 0;
-            margin-left: var(--spacing-md);
-        }
-
-        .sp-total {
-            font-size: 18px;
-            font-weight: var(--font-weight-extrabold);
-            color: var(--ion-color-primary);
-            letter-spacing: -0.5px;
-        }
-
-        .sp-qty {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.5);
-            font-weight: var(--font-weight-semibold);
-        }
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1px;
+        line-height: 1.2;
     }
 
-    @keyframes previewIn {
-        from {
-            opacity: 0;
-            transform: translateX(-50%) scale(0.5);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateX(-50%) scale(1);
-        }
+    .sc-label {
+        font-size: 15px;
+        font-weight: var(--font-weight-bold);
+        color: #fff;
     }
 
-    // Badge-botón — tap para cerrar escáner e ir al POS
-    .scanner-cart-badge {
-        position: absolute;
-        bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-xs);
-        background: rgba(0, 0, 0, 0.7);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: var(--radius-pill);
-        padding: 10px var(--spacing-lg);
-        color: rgba(255, 255, 255, 0.92);
-        font-size: 14px;
+    .sc-total {
+        font-size: 12px;
         font-weight: var(--font-weight-semibold);
-        backdrop-filter: blur(8px);
-        cursor: pointer;
+        color: rgba(255, 255, 255, 0.62);
+    }
 
-        ion-icon {
-            font-size: 18px;
-            color: var(--ion-color-primary);
-        }
+    .sc-arrow {
+        font-size: 20px;
+        color: rgba(255, 255, 255, 0.7);
+        margin-left: auto;
+    }
 
-        .badge-arrow {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.5);
-            margin-left: 2px;
-        }
-
-        &:active {
-            background: rgba(0, 0, 0, 0.85);
-            border-color: var(--ion-color-primary);
-        }
+    // Estado "carrito vacío": ✕ + texto en una línea
+    > ion-icon {
+        font-size: 18px;
+        color: rgba(255, 255, 255, 0.85);
     }
 }
 
@@ -704,10 +713,23 @@ ion-toolbar {
     font-size: 13px;
     font-weight: var(--font-weight-semibold);
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease;
 
-    ion-icon { font-size: 16px; }
+    // La flecha desliza a la izquierda al tocar — refuerza la dirección "volver".
+    ion-icon {
+        font-size: 16px;
+        transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
 
-    &:active { background: rgba(var(--ion-color-primary-rgb), 0.06); }
+    &:active {
+        background: rgba(var(--ion-color-primary-rgb), 0.06);
+        ion-icon { transform: translateX(-4px); }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .volver-catalogo-btn ion-icon { transition: none; }
 }
 
 // ─────────────────────────────────────────
@@ -1030,10 +1052,13 @@ ion-toolbar {
     }
 }
 
+// Solo pulso (scale) — sin el anillo azul (box-shadow primary) que se leía como un
+// "borde de selección" no deseado al agregar. El feedback de "agregado" ya lo da el
+// pulso + el fly-to-pill (clon que vuela al carrito).
 @keyframes cardAdded {
     0%   { transform: scale(1); }
-    35%  { transform: scale(0.91); box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.5); }
-    100% { transform: scale(1);   box-shadow: var(--shadow-level-1); }
+    35%  { transform: scale(0.91); }
+    100% { transform: scale(1); }
 }
 
 @keyframes totalBump {
@@ -1300,6 +1325,8 @@ ion-toolbar {
     // justo arriba, con un gap de spacing-sm entre ambos — mismo origen "0" que Ionic
     // ya resuelve para el slot fixed completo (footer + safe-area incluidos una sola vez).
     bottom: calc(var(--spacing-md) + 50px + var(--spacing-sm));
+    // Fade-in suave: reaparece tras ocultarse mientras el banner del escaneo estaba visible.
+    animation: fabFadeIn 0.2s ease both;
 
     ion-fab-button {
         margin: 0;
@@ -1312,6 +1339,15 @@ ion-toolbar {
     &--sin-escaner {
         bottom: var(--spacing-md);
     }
+}
+
+@keyframes fabFadeIn {
+    from { opacity: 0; transform: scale(0.85); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .scroll-top-fab { animation: none; }
 }
 
 // ─────────────────────────────────────────
@@ -1385,6 +1421,80 @@ ion-toolbar {
     to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);   }
 }
 
+// ── Preview efímero del último escaneado (catálogo) — card clara sobre el pill ──
+.catalogo-scan-preview {
+    position: absolute;
+    // Sobre el pill (pill: bottom var(--spacing-md) + ~48px alto + gap)
+    bottom: calc(var(--spacing-md) + 60px);
+    left: 50%;
+    transform: translateX(-50%);
+    // z-index alto: el banner es efímero (2.5s) y se sobrepone a TODO lo que haya en
+    // pantalla en ese momento (incluido el FAB de subir). Al desaparecer, lo de abajo
+    // vuelve a estar disponible — comportamiento estándar de un toast.
+    z-index: 200;
+    width: min(88%, 420px);
+
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 10px var(--spacing-md);
+    background: var(--ion-item-background);
+    border: 1px solid var(--ion-color-step-100);
+    border-radius: var(--radius-md);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
+    animation: previewIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+    .csp-check {
+        font-size: 26px;
+        color: var(--ion-color-success);
+        flex-shrink: 0;
+    }
+
+    .csp-info {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        flex: 1; // ocupa el espacio; el nombre trunca con ellipsis si es largo
+        min-width: 0;
+    }
+
+    .csp-nombre {
+        font-size: 15px;
+        font-weight: var(--font-weight-bold);
+        color: var(--ion-text-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .csp-unit {
+        font-size: 12px;
+        color: var(--ion-color-medium);
+    }
+
+    .csp-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 1px;
+        flex-shrink: 0;
+        margin-left: var(--spacing-sm);
+    }
+
+    .csp-total {
+        font-size: 17px;
+        font-weight: var(--font-weight-extrabold);
+        color: var(--ion-color-primary);
+        letter-spacing: -0.5px;
+    }
+
+    .csp-qty {
+        font-size: 12px;
+        color: var(--ion-color-medium);
+        font-weight: var(--font-weight-semibold);
+    }
+}
+
 @keyframes pillCountBump {
     0%   { transform: scale(1); }
     40%  { transform: scale(1.4); }
@@ -1441,6 +1551,12 @@ ion-toolbar {
     // (Selector top-level: el pill ya no vive dentro de .pos-col-main — es hijo
     // directo de ion-content para que slot="fixed" lo mantenga estático al scroll)
     .catalogo-cart-pill {
+        display: none !important;
+    }
+
+    // Preview del último escaneado oculto en desktop — el panel lateral ya muestra los
+    // ítems agregados en vivo, así que el banner flotante sería redundante.
+    .catalogo-scan-preview {
         display: none !important;
     }
 
@@ -1569,6 +1685,10 @@ ion-toolbar {
     .panel-items {
         flex: 1;
         overflow-y: auto;
+        // overflow-x hidden explícito: sin esto, el scale de la animación de entrada
+        // (cartItemEnter) provoca un micro-desborde horizontal que hace parpadear el
+        // scrollbar horizontal por un frame. Solo debe scrollear en vertical.
+        overflow-x: hidden;
         padding: 8px 0;
 
         &::-webkit-scrollbar { width: 4px; }
@@ -1614,13 +1734,16 @@ ion-toolbar {
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 10px 20px;
-        border-bottom: 1px solid var(--ion-color-step-50);
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--ion-color-step-150);
         transition: background 0.15s ease;
 
         &:last-child { border-bottom: none; }
 
         &--loading { opacity: 0.6; pointer-events: none; }
+
+        // Animación de entrada al agregar línea nueva — consistente con la vista mobile.
+        &--enter { animation: cartItemEnter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
     }
 
     .panel-item-thumb {
@@ -1680,17 +1803,19 @@ ion-toolbar {
     .panel-item-right {
         display: flex;
         flex-direction: column;
-        align-items: flex-end;
-        gap: 6px;
+        align-items: center;   // subtotal centrado SOBRE el stepper (mismo eje)
+        gap: 8px;
         flex-shrink: 0;
     }
 
     .panel-item-subtotal {
-        font-size: 14px;
-        font-weight: var(--font-weight-bold);
-        color: var(--ion-text-color);
+        font-size: 15px;
+        font-weight: var(--font-weight-extrabold);
+        color: var(--ion-color-primary);   // el subtotal es lo que importa → color de énfasis
         font-variant-numeric: tabular-nums;
         letter-spacing: -0.3px;
+        line-height: 1;
+        text-align: center;    // centrado dentro del ancho del bloque (= ancho del stepper)
     }
 
     // Stepper inline del panel

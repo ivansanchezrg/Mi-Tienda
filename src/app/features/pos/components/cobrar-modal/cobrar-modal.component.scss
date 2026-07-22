@@ -44,26 +44,6 @@
         font-size: 13px;
         color: var(--ion-color-medium);
     }
-
-    .metodo-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        margin-top: var(--spacing-xs);
-        padding: 4px 12px;
-        background: rgba(var(--ion-color-primary-rgb), 0.1);
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--ion-color-primary);
-
-        ion-icon { font-size: 16px; }
-
-        &--fiado {
-            background: rgba(var(--ion-color-danger-rgb), 0.1);
-            color: var(--ion-color-danger);
-        }
-    }
 }
 
 // ── Métodos de pago ───────────────────────────
@@ -132,6 +112,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
+    // Separador sutil arriba: distingue "lo que cobro" (total) de "lo que recibo" (input).
+    // padding-top moderado — el bs-body ya aporta gap entre secciones.
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--ion-color-step-100);
 
     .input-label {
         font-size: 12px;
@@ -148,11 +132,11 @@
         background: var(--ion-item-background);
         border: 2px solid var(--ion-color-primary);
         border-radius: var(--radius-md);
-        padding: var(--spacing-md) var(--spacing-lg);
+        padding: var(--spacing-lg);
         box-shadow: 0 0 0 4px rgba(var(--ion-color-primary-rgb), 0.1);
 
         .input-prefix {
-            font-size: 28px;
+            font-size: 30px;
             font-weight: 700;
             color: var(--ion-color-primary);
             margin-right: var(--spacing-sm);
@@ -162,11 +146,12 @@
             flex: 1;
             border: none;
             background: transparent;
-            font-size: 28px;
+            font-size: 30px;
             font-weight: 700;
             color: var(--ion-text-color);
             outline: none;
             width: 100%;
+            font-variant-numeric: tabular-nums;
 
             &::placeholder {
                 color: var(--ion-color-medium);

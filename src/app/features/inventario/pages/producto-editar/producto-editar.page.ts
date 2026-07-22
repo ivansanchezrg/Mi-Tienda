@@ -4,13 +4,13 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import {
     AlertController, NavController, IonHeader, IonToolbar, IonButtons, IonButton,
     IonTitle, IonContent, IonIcon, IonCard, IonCardContent, IonSkeletonText, IonSpinner,
-    ViewWillEnter
+    IonToggle, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
 import {
     arrowBackOutline, saveOutline, informationCircleOutline,
-    trashOutline, refreshOutline, warningOutline, checkmarkCircleOutline
+    trashOutline, refreshOutline, warningOutline, checkmarkCircleOutline, star
 } from 'ionicons/icons';
 import { ROUTES } from '../../../../core/config/routes.config';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -40,7 +40,7 @@ interface AtributoSeleccionado {
     imports: [
         ReactiveFormsModule,
         IonHeader, IonToolbar, IonButtons, IonButton, IonTitle,
-        IonContent, IonIcon, IonCard, IonCardContent, IonSkeletonText, IonSpinner,
+        IonContent, IonIcon, IonCard, IonCardContent, IonSkeletonText, IonSpinner, IonToggle,
         ProductoInfoFormComponent,
         ProductoPreciosFormComponent,
         ProductoInventarioFormComponent,
@@ -87,7 +87,7 @@ export class ProductoEditarPage implements OnInit, ViewWillEnter {
     constructor() {
         addIcons({
             arrowBackOutline, saveOutline, informationCircleOutline,
-            trashOutline, refreshOutline, warningOutline, checkmarkCircleOutline
+            trashOutline, refreshOutline, warningOutline, checkmarkCircleOutline, star
         });
     }
 
@@ -158,6 +158,7 @@ export class ProductoEditarPage implements OnInit, ViewWillEnter {
             tiene_iva:      [this.producto.tiene_iva ?? true],
             tipo_venta:     [this.producto.tipo_venta || 'UNIDAD'],
             unidad_medida:  [this.producto.unidad_medida || 'und'],
+            favorito:       [this.producto.favorito ?? false],
         });
     }
 

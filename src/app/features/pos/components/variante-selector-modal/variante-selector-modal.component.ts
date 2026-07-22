@@ -2,7 +2,7 @@ import { Component, Input, OnInit, inject, computed, signal, Signal, ElementRef,
 import { CommonModule } from '@angular/common';
 import { IonIcon, IonSpinner, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, chevronForwardOutline, imageOutline, arrowForwardOutline } from 'ionicons/icons';
+import { closeOutline, chevronForwardOutline, imageOutline, arrowForwardOutline, star, starOutline } from 'ionicons/icons';
 import { ProductoPOS, ProductoPresentacion } from '../../../inventario/models/producto.model';
 import { CartItem } from '../../models/cart-item.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
@@ -35,6 +35,11 @@ export class VarianteSelectorModalComponent implements OnInit {
     @Input() totalCarrito!: Signal<number>;
     /** Signal del total de artículos del carrito completo. */
     @Input() totalArticulosCarrito!: Signal<number>;
+    /** Favorito del grupo (all-or-nothing): true si TODAS las variantes / el producto lo son. */
+    @Input() esFavorito = false;
+    /** Persiste el nuevo estado de favorito (template completo o producto con presentaciones).
+     *  Retorna true si se guardó; el modal revierte el toggle optimista si retorna false. */
+    @Input() onToggleFavorito?: (favorito: boolean) => Promise<boolean>;
 
     @ViewChild('continuarBtn') private continuarBtnRef!: ElementRef<HTMLButtonElement>;
 
@@ -46,6 +51,17 @@ export class VarianteSelectorModalComponent implements OnInit {
     // Key del ítem cuyo modal de cantidad está cargando (consulta stock fresco)
     protected editandoKey: string | null = null;
 
+    /**
+     * Ventana anti click-fantasma. Cuando el − lleva una fila de 1 → 0, el stepper se
+     * destruye y el botón + se monta en la MISMA posición donde estaba el −. Al soltar el
+     * dedo, el navegador sintetiza un `click` en ese punto que cae sobre el + recién
+     * montado (o la fila) → dispararía `agregar()` y su animación sin que el usuario lo
+     * pidiera. Registramos el instante del decremento a 0 y descartamos cualquier
+     * `agregar()` que llegue dentro de GHOST_MS. Un toque intencional posterior sí agrega.
+     */
+    private supresionAgregarHasta = 0;
+    private static readonly GHOST_MS = 350;
+
     protected readonly _contadores = signal<Map<string, number>>(new Map());
 
     /** Cantidad total de ítems en carrito relacionados con este modal. */
@@ -55,8 +71,25 @@ export class VarianteSelectorModalComponent implements OnInit {
         return total;
     });
 
+    protected favoritoGuardando = false;
+
     constructor() {
-        addIcons({ closeOutline, chevronForwardOutline, imageOutline, arrowForwardOutline });
+        addIcons({ closeOutline, chevronForwardOutline, imageOutline, arrowForwardOutline, star, starOutline });
+    }
+
+    /** Toggle de favorito del grupo (all-or-nothing). Optimista: cambia la estrella al
+     *  instante y revierte si la persistencia falla. */
+    async toggleFavorito() {
+        if (this.favoritoGuardando || !this.onToggleFavorito) return;
+        const nuevo = !this.esFavorito;
+        this.esFavorito = nuevo; // optimista
+        this.favoritoGuardando = true;
+        try {
+            const ok = await this.onToggleFavorito(nuevo);
+            if (!ok) this.esFavorito = !nuevo; // revertir si falló
+        } finally {
+            this.favoritoGuardando = false;
+        }
     }
 
     ngOnInit() {
@@ -147,6 +180,10 @@ export class VarianteSelectorModalComponent implements OnInit {
     }
 
     private async agregar(varianteId: string, presentacionId: string | undefined, rowEl: HTMLElement | null) {
+        // Click fantasma: un − que acaba de llevar la fila a 0 dejó un click residual que
+        // cae sobre el + recién montado. Descartarlo — no fue un toque intencional de agregar.
+        if (Date.now() < this.supresionAgregarHasta) return;
+
         this.procesando = true;
         const key = presentacionId ? `${varianteId}::${presentacionId}` : varianteId;
         // Capturar thumb y btn ANTES del await — el DOM puede cambiar tras la operación
@@ -161,14 +198,24 @@ export class VarianteSelectorModalComponent implements OnInit {
                 next.set(key, (next.get(key) ?? 0) + 1);
                 return next;
             });
-            // Bump inmediato en el botón — feedback instantáneo al usuario
-            this.footerAnimando = true;
-            setTimeout(() => { this.footerAnimando = false; }, 400);
-            // Vuelo del thumbnail — decorativo, arranca en paralelo
-            if (thumbClone && thumbRect) setTimeout(() => this.flyThumbToFooter(thumbClone, thumbRect), 0);
+            this.animarAgregado(thumbClone, thumbRect);
         } finally {
             this.procesando = false;
         }
+    }
+
+    /**
+     * Feedback visual de "sumó una unidad": bump del botón del footer + vuelo del thumbnail
+     * hacia él. Único lugar que dispara estas animaciones, para que agregar (fila / +) e
+     * incrementar (+ del stepper) den EXACTAMENTE el mismo feedback. Los args del thumbnail
+     * se capturan ANTES del await del caller (el DOM puede cambiar tras la operación).
+     */
+    private animarAgregado(thumbClone: HTMLElement | null, thumbRect: DOMRect | null) {
+        // Bump inmediato en el botón — feedback instantáneo al usuario
+        this.footerAnimando = true;
+        setTimeout(() => { this.footerAnimando = false; }, 400);
+        // Vuelo del thumbnail — decorativo, arranca en paralelo
+        if (thumbClone && thumbRect) setTimeout(() => this.flyThumbToFooter(thumbClone, thumbRect), 0);
     }
 
     private flyThumbToFooter(thumbClone: HTMLElement, thumbRect: DOMRect) {
@@ -182,8 +229,14 @@ export class VarianteSelectorModalComponent implements OnInit {
         });
     }
 
-    async incrementarItem(v: ProductoPOS, p?: ProductoPresentacion) {
+    async incrementarItem(v: ProductoPOS, p?: ProductoPresentacion, event?: Event) {
         if (this.procesando) return;
+        // Capturar el thumbnail de la fila ANTES del await, igual que en agregar() — así el
+        // + del stepper da el mismo vuelo/bump que agregar por la fila (feedback consistente).
+        const rowEl = event ? (event.currentTarget as HTMLElement).closest('.vsm-row') as HTMLElement : null;
+        const thumbEl = rowEl?.querySelector<HTMLElement>('.vsm-row-thumb') ?? null;
+        const thumbClone = thumbEl?.cloneNode(true) as HTMLElement | null ?? null;
+        const thumbRect = thumbEl?.getBoundingClientRect() ?? null;
         this.procesando = true;
         try {
             const incrementado = await this.onIncrementar({ varianteId: v.id, presentacionId: p?.id });
@@ -194,6 +247,7 @@ export class VarianteSelectorModalComponent implements OnInit {
                 next.set(key, (next.get(key) ?? 0) + 1);
                 return next;
             });
+            this.animarAgregado(thumbClone, thumbRect); // mismo feedback que agregar por la fila
         } finally {
             this.procesando = false;
         }
@@ -205,13 +259,17 @@ export class VarianteSelectorModalComponent implements OnInit {
         try {
             await this.onDecrementar({ varianteId: v.id, presentacionId: p?.id });
             const key = p ? `${v.id}::${p.id}` : v.id;
+            let llegoACero = false;
             this._contadores.update(m => {
                 const next = new Map(m);
                 const current = next.get(key) ?? 0;
-                if (current <= 1) next.delete(key);
+                if (current <= 1) { next.delete(key); llegoACero = true; }
                 else next.set(key, current - 1);
                 return next;
             });
+            // Bajó a 0 → el stepper se destruye y el + se monta donde estaba el −.
+            // Abrir la ventana anti click-fantasma para descartar el click residual del gesto.
+            if (llegoACero) this.supresionAgregarHasta = Date.now() + VarianteSelectorModalComponent.GHOST_MS;
         } finally {
             this.procesando = false;
         }

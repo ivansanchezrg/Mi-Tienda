@@ -1,13 +1,24 @@
 @if (visible) {
 <div class="scanner-overlay">
     <div class="scanner-frame">
+        <!-- Esquinas en L (brackets) -->
+        <span class="scanner-corner scanner-corner--tl"></span>
+        <span class="scanner-corner scanner-corner--tr"></span>
+        <span class="scanner-corner scanner-corner--bl"></span>
+        <span class="scanner-corner scanner-corner--br"></span>
+        <!-- Línea de escaneo animada -->
         <div class="scan-line"></div>
     </div>
 
-    <p class="scanner-hint">Apunta al código de barras</p>
+    <p class="scanner-hint">{{ hint }}</p>
 
+    <!-- Contenido extra proyectado (POS: preview del producto escaneado + badge del carrito) -->
+    <ng-content></ng-content>
+
+    @if (showClose) {
     <button class="scanner-close-btn" (click)="cerrar.emit()">
         <ion-icon name="close-outline"></ion-icon>
     </button>
+    }
 </div>
 }

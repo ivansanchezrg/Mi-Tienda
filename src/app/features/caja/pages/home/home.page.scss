@@ -609,6 +609,149 @@ ion-content {
   }
 }
 
+// ── Banner informativo del turno en curso ────────────────────────────────────
+// Card sobria coherente con las cuenta-card. Acento neutro por defecto (turno de
+// otro usuario / vista superadmin); acento verde con --propio (es tu turno).
+.turno-banner {
+  margin: 4px 18px 0;
+  padding: 16px;
+  background: var(--home-card-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--home-divider);
+  border-left: 3px solid var(--home-text-muted);
+  box-shadow: var(--shadow-soft);
+
+  // Acento "es tu turno"
+  &--propio {
+    border-left-color: var(--ion-color-success);
+
+    .turno-banner__icon {
+      background: rgba(var(--ion-color-success-rgb), 0.12);
+      ion-icon { color: var(--ion-color-success); }
+    }
+  }
+
+  @media (min-width: 992px) {
+    margin: 4px 24px 0;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__icon {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    background: var(--home-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    ion-icon {
+      font-size: 19px;
+      color: var(--home-text-soft);
+    }
+  }
+
+  &__heading {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  &__title {
+    font-size: 14px;
+    font-weight: var(--font-weight-bold);
+    color: var(--home-text);
+    line-height: 1.2;
+  }
+
+  &__badge {
+    flex-shrink: 0;
+    padding: 3px 9px;
+    background: var(--home-surface);
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    font-weight: var(--font-weight-bold);
+    color: var(--home-text-soft);
+    letter-spacing: 0.3px;
+  }
+
+  &__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 14px;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+
+    & + & {
+      border-top: 1px solid var(--home-divider);
+    }
+  }
+
+  &__row-icon {
+    font-size: 15px;
+    color: var(--home-text-muted);
+    flex-shrink: 0;
+  }
+
+  &__row-label {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: var(--font-weight-medium);
+    color: var(--home-text-soft);
+  }
+
+  &__row-value {
+    font-size: 13px;
+    font-weight: var(--font-weight-bold);
+    color: var(--home-text);
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60%;
+  }
+
+  &__note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: var(--home-surface);
+    border-radius: var(--radius-sm);
+
+    ion-icon {
+      font-size: 15px;
+      color: var(--home-text-muted);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    span {
+      font-size: 12px;
+      font-weight: var(--font-weight-medium);
+      line-height: 1.4;
+      color: var(--home-text-soft);
+    }
+  }
+}
+
 .bottom-spacer { height: 32px; }
 
 @keyframes pulse {

@@ -12,6 +12,7 @@ import { addIcons } from 'ionicons';
 import {
   archiveOutline, cashOutline, fileTrayOutline, phonePortraitOutline, busOutline,
   notificationsOutline, arrowForwardOutline, logoWhatsapp, closeOutline, timeOutline,
+  informationCircleOutline,
   eyeOutline, eyeOffOutline,
   arrowUpOutline, arrowDownOutline,
   lockClosedOutline, lockOpenOutline,
@@ -183,6 +184,72 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
     return this.turnosCajaService.esMiTurnoValue;
   }
 
+  // ── Banner informativo del turno en curso ──────────────────────────────────
+  // Reusa el estado reactivo ya cargado (estadoCaja.turnoActivo + esMiTurno):
+  // cero queries nuevas. Se sincroniza solo vía turnoActivo$ (Realtime), así el
+  // banner aparece/desaparece cuando otro dispositivo abre/cierra el turno.
+
+  /** Solo se muestra el banner cuando hay un turno realmente en curso. */
+  get mostrarBannerTurno(): boolean {
+    return this.cajaAbierta && !!this.estadoCaja.turnoActivo;
+  }
+
+  /** Nombre de quien abrió el turno (fallback neutro si el JOIN no llegó). */
+  get turnoEmpleadoNombre(): string {
+    return this.estadoCaja.turnoActivo?.empleado?.nombre
+      || this.estadoCaja.empleadoNombre
+      || 'otro empleado';
+  }
+
+  /** Número de turno del día (Turno #N). */
+  get turnoNumero(): number {
+    return this.estadoCaja.turnoActivo?.numero_turno ?? 0;
+  }
+
+  /**
+   * Fondo declarado en el cajón al abrir. Solo se muestra si es > 0: en el borde
+   * offline (turno reconstruido desde el snapshot local mínimo de SQLite) el fondo
+   * llega en 0 aunque el real sea otro — mostrar "$0.00" ahí sería un dato falso.
+   * El valor real reaparece en cuanto reconcilia el fetch fresco (~1s).
+   */
+  get mostrarFondoApertura(): boolean {
+    return (this.estadoCaja.turnoActivo?.fondo_apertura ?? 0) > 0;
+  }
+
+  get turnoFondoApertura(): number {
+    return this.estadoCaja.turnoActivo?.fondo_apertura ?? 0;
+  }
+
+  /**
+   * Mensaje de la regla de cierre, adaptado a quién está mirando:
+   *  - superadmin (observador, solo lectura) → tono neutro, sin "tú".
+   *  - el propio empleado que abrió → segunda persona.
+   *  - otro usuario del negocio → tercera persona con el nombre.
+   */
+  get mensajeCierreTurno(): string {
+    if (this.esSuperadmin) {
+      return `Este turno solo puede cerrarlo ${this.turnoEmpleadoNombre}, quien lo abrió.`;
+    }
+    if (this.esMiTurno) {
+      return 'Abriste este turno. Eres el único que puede cerrarlo.';
+    }
+    return `${this.turnoEmpleadoNombre} abrió este turno. Solo esa persona puede cerrarlo.`;
+  }
+
+  /**
+   * Título interno del banner. Con el header de sección "TURNO EN CURSO" ya visible
+   * arriba, este título aporta el estado PERSONAL (de quién es), no repite la sección.
+   */
+  get tituloBannerTurno(): string {
+    if (this.esSuperadmin) return `Turno de ${this.turnoEmpleadoNombre}`;
+    return this.esMiTurno ? 'Tu turno está abierto' : `Turno de ${this.turnoEmpleadoNombre}`;
+  }
+
+  /** Acento visual: verde cuando es mi turno, neutro para observadores. */
+  get bannerTurnoEsPropio(): boolean {
+    return this.esMiTurno && !this.esSuperadmin;
+  }
+
   constructor() {
     super();
     addIcons({
@@ -196,6 +263,7 @@ export class HomePage extends ScrollablePage implements OnInit, OnDestroy {
       trendingUpOutline, trendingDownOutline,
       addOutline, removeOutline, swapHorizontalOutline,
       imageOutline,
+      informationCircleOutline,
 
       // Iconos de cajas custom — registrados acá para que `[name]="caja.icono"`
       // funcione al renderizar cards CUSTOM_N existentes sin haber abierto antes

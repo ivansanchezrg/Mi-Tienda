@@ -5,14 +5,14 @@ import {
     ModalController, NavController,
     IonHeader, IonToolbar, IonButtons, IonButton, IonTitle, IonContent,
     IonIcon, IonCard, IonCardContent, IonSkeletonText, IonSpinner,
-    IonItem, IonInput
+    IonItem, IonInput, IonToggle
 } from '@ionic/angular/standalone';
 import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
 import {
     arrowBackOutline, saveOutline, cameraOutline, ellipsisHorizontal,
     chevronDownOutline, checkmarkCircleOutline, colorPaletteOutline,
-    imageOutline
+    imageOutline, star
 } from 'ionicons/icons';
 import { ROUTES } from '../../../../core/config/routes.config';
 import { UiService } from '../../../../core/services/ui.service';
@@ -47,7 +47,7 @@ import { OptionsModalComponent, ModalOptionGroup } from '../../../../shared/comp
         ReactiveFormsModule,
         IonHeader, IonToolbar, IonButtons, IonButton, IonTitle, IonContent,
         IonIcon, IonCard, IonCardContent, IonSkeletonText, IonSpinner,
-        IonItem, IonInput,
+        IonItem, IonInput, IonToggle,
     ]
 })
 export class TemplateEditarPage implements OnInit, HasPendingChanges {
@@ -92,7 +92,7 @@ export class TemplateEditarPage implements OnInit, HasPendingChanges {
         addIcons({
             arrowBackOutline, saveOutline, cameraOutline, ellipsisHorizontal,
             chevronDownOutline, checkmarkCircleOutline, colorPaletteOutline,
-            imageOutline
+            imageOutline, star
         });
     }
 
@@ -129,9 +129,12 @@ export class TemplateEditarPage implements OnInit, HasPendingChanges {
     }
 
     private _initForm() {
+        // Favorito all-or-nothing: el template está en favoritos si TODAS sus variantes lo están.
+        const esFavorito = this.variantes.length > 0 && this.variantes.every(v => v.favorito);
         this.form = this.fb.group({
             nombre:       [this.template.nombre || '', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
             categoria_id: [this.template.categoria_id ?? null, [Validators.required]],
+            favorito:     [esFavorito],
         });
     }
 
@@ -286,6 +289,12 @@ export class TemplateEditarPage implements OnInit, HasPendingChanges {
             // res.ok === false: falló (call() ya mostró el toast de error real) — no
             // navegar, el usuario conserva el formulario para reintentar.
             if (!res.ok) { this.guardando = false; return; }
+
+            // Favorito all-or-nothing: si cambió, marcar/desmarcar TODAS las variantes.
+            const favoritoActual = this.variantes.length > 0 && this.variantes.every(x => x.favorito);
+            if (!!v.favorito !== favoritoActual) {
+                await this.productoSvc.toggleFavoritoTemplate(this.template.id, !!v.favorito);
+            }
 
             this.form.markAsPristine();
             this.fotoNueva = false;

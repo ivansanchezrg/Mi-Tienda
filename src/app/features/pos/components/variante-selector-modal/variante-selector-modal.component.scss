@@ -18,6 +18,55 @@
     font-weight: 400;
 }
 
+// ── Fila título + estrella de favorito (juntos) ──
+// justify-content: flex-start + título con flex:0 1 auto → la estrella queda pegada al
+// final del texto, no empujada al borde derecho del header.
+.vsm-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    min-width: 0;
+
+    .bs-header__title {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+// ── Estrella de favorito (grupo/template) — pegada al nombre ──
+.vsm-fav-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease;
+
+    ion-icon {
+        font-size: 22px;
+        color: var(--ion-color-medium);
+        transition: color 0.15s ease;
+    }
+
+    &--activo ion-icon {
+        color: var(--ion-color-warning); // dorado
+    }
+
+    &:active:not([disabled]) { transform: scale(0.85); }
+    &[disabled] { opacity: 0.5; }
+}
+
 // ── Lista — el scroll lo maneja ion-content (bs-content) ──
 .vsm-list {
     display: flex;

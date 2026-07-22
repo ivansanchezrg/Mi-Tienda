@@ -28,8 +28,11 @@ export class AtributoService {
                 .from('atributos')
                 .upsert({ negocio_id: negocioId, nombre: nombreNorm }, { onConflict: 'negocio_id,nombre', ignoreDuplicates: true })
         );
+        // Filtro explícito por negocio_id (defensivo): la RLS ya aísla, pero sin este eq()
+        // un .single() dependería solo de la RLS para no traer filas de otros negocios.
         return this.supabase.call<Atributo>(
-            this.supabase.client.from('atributos').select('*').eq('nombre', nombreNorm).single()
+            this.supabase.client.from('atributos').select('*')
+                .eq('negocio_id', negocioId).eq('nombre', nombreNorm).single()
         );
     }
 
@@ -67,10 +70,12 @@ export class AtributoService {
                     { onConflict: 'atributo_id,valor', ignoreDuplicates: true }
                 )
         );
+        // Filtro por negocio_id explícito (defensivo) además de atributo_id + valor.
         return this.supabase.call<AtributoOpcion>(
             this.supabase.client
                 .from('atributo_opciones')
                 .select('*, atributo:atributos(*)')
+                .eq('negocio_id', negocioId)
                 .eq('atributo_id', atributoId)
                 .eq('valor', valorNorm)
                 .single()

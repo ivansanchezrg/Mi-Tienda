@@ -11,8 +11,8 @@ import {
   AlertController, ModalController, ViewDidLeave, ViewWillEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { BarcodeScannerService } from '../../../../core/services/barcode-scanner.service';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, pricetagOutline, chevronDownCircleOutline, arrowUpOutline, star, colorPaletteOutline } from 'ionicons/icons';
+import { BarcodeScannerService, AreaDeteccion } from '../../../../core/services/barcode-scanner.service';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, pricetagOutline, arrowUpOutline, star, colorPaletteOutline, checkmarkCircle, createOutline } from 'ionicons/icons';
 import { CategoriaProducto } from '../../../inventario/models/categoria-producto.model';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
@@ -41,6 +41,7 @@ import { StorageService } from '../../../../core/services/storage.service';
 import { ConfigService } from '../../../../core/services/config.service';
 import { Configuracion } from '../../../configuracion/models/configuracion.model';
 import { ROUTES } from '../../../../core/config/routes.config';
+import { ScannerOverlayComponent } from '../../../../shared/components/scanner-overlay/scanner-overlay.component';
 
 @Component({
   selector: 'app-pos',
@@ -55,7 +56,7 @@ import { ROUTES } from '../../../../core/config/routes.config';
     IonItemSliding, IonItemOptions, IonItemOption,
     IonRefresher, IonRefresherContent, IonFab, IonFabButton,
     CommonModule, FormsModule,
-    OptionsMenuComponent, EmptyStateComponent
+    OptionsMenuComponent, EmptyStateComponent, ScannerOverlayComponent
   ]
 })
 export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
@@ -95,7 +96,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private searchVersion = 0;
   escaneando = false;
   cobroEnProceso = false;
-  scanPreview: { nombre: string; cantidad: number; subtotal: number; precioUnitario: number } | null = null;
+  // itemKey: identifica el CartItem exacto del producto escaneado, para poder abrir su
+  // modal de cantidad si el usuario toca el banner para corregir (ej. escaneó de más).
+  scanPreview: { itemKey: string; nombre: string; cantidad: number; subtotal: number; precioUnitario: number } | null = null;
   private scanPreviewTimeout: ReturnType<typeof setTimeout> | undefined;
 
   clienteSeleccionado: Cliente | null = null;
@@ -132,26 +135,48 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   catalogoCardAnimando: string | null = null;
   totalAmountAnimando = false;
 
-  private dispararAnimacionPanel(itemKey: string) {
+  /**
+   * Scroll del panel desktop al agregar/incrementar un ítem.
+   *  - esNuevo=true (línea nueva): scroll al FONDO para mostrar el último ítem completo.
+   *    El bug anterior usaba scrollIntoView(block:'nearest'), que hace el MÍNIMO scroll y
+   *    dejaba el último ítem a medias. scrollTo(scrollHeight) baja del todo. (El scale de
+   *    cartItemEnter es un transform → no altera scrollHeight, así que no hace falta esperar
+   *    a que termine la animación; solo un tick para que el nodo ya esté en el DOM.)
+   *  - esNuevo=false (incremento de un ítem existente, que puede estar arriba): scroll al
+   *    ítem que cambió (block:'nearest'), sin arrastrar al usuario hasta el fondo.
+   */
+  private dispararAnimacionPanel(itemKey: string, esNuevo = false) {
     if (!this.esDesktop) return;
     setTimeout(() => {
       const panel = this.panelItemsRef?.nativeElement;
       if (!panel) return;
-      const itemEl = panel.querySelector<HTMLElement>(`[data-item-key="${CSS.escape(itemKey)}"]`);
-      if (itemEl) {
-        itemEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      } else {
+      if (esNuevo) {
         panel.scrollTo({ top: panel.scrollHeight, behavior: 'smooth' });
+      } else {
+        const itemEl = panel.querySelector<HTMLElement>(`[data-item-key="${CSS.escape(itemKey)}"]`);
+        itemEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
-    }, 30);
+    }, 40);
   }
 
+  private catalogoAnimTimeout: ReturnType<typeof setTimeout> | undefined;
   private dispararAnimacionCatalogo(productoId: string) {
     // Solo la animación de la card. El total lo anima actualizarCantidad/agregarLineaNueva
     // (único punto centralizado) — así mouse, pistola y botones +/- se comportan igual.
-    this.catalogoCardAnimando = productoId;
+    // Robusto ante taps rápidos del MISMO producto: apagar → macrotask → reencender reinicia
+    // el keyframe (si no, Angular no re-aplica la clase al no cambiar el valor); y el timer
+    // guardado evita que un timeout viejo corte la animación del tap nuevo a la mitad.
+    clearTimeout(this.catalogoAnimTimeout);
+    this.catalogoCardAnimando = null;
     this.cdr.markForCheck();
-    setTimeout(() => { this.catalogoCardAnimando = null; this.cdr.markForCheck(); }, 400);
+    setTimeout(() => {
+      this.catalogoCardAnimando = productoId;
+      this.cdr.markForCheck();
+      this.catalogoAnimTimeout = setTimeout(() => {
+        this.catalogoCardAnimando = null;
+        this.cdr.markForCheck();
+      }, 400);
+    }, 0);
   }
 
   /** Anima el total a pagar (panel desktop, footer mobile y pill del catálogo).
@@ -220,7 +245,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   /** Desde lista → volver al catálogo (botón atrás en modo lista cuando vino del catálogo) */
-  async volverAlCatalogo() {
+  volverAlCatalogo() {
+    // El feedback del botón (:active — flecha deslizándose) ocurre DURANTE el press,
+    // antes de soltar, así que no hace falta demorar el cambio de vista. El catálogo
+    // aparece con su .tab-animate (fade + subida). Transición sin demora perceptible.
     this.volvioDesdeCatalogo = false;
     this.vistaActual = 'catalogo';
   }
@@ -429,8 +457,15 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const cardEl = event
       ? ((event.currentTarget ?? event.target) as HTMLElement).closest('.catalogo-card') as HTMLElement | null
       : null;
-    const cardRect  = cardEl?.getBoundingClientRect() ?? null;
-    const cardClone = cardEl?.cloneNode(true) as HTMLElement | null ?? null;
+    // Volar SOLO la zona de imagen (.catalogo-card-img), no la card completa: la foto (o el
+    // placeholder de color con el nombre si no hay foto) representa el producto y se ve limpia
+    // al encogerse. Una card entera con texto a 32px se vería apretujada.
+    const imgEl = cardEl?.querySelector<HTMLElement>('.catalogo-card-img') ?? null;
+    const cardRect  = imgEl?.getBoundingClientRect() ?? null;
+    const cardClone = imgEl?.cloneNode(true) as HTMLElement | null ?? null;
+    // Quitar del clon los badges/tags superpuestos (peso, presentaciones) — solo debe volar
+    // la imagen/placeholder puro, sin adornos.
+    cardClone?.querySelectorAll('.catalogo-card-multi, .catalogo-card-tag').forEach(el => el.remove());
 
     const tienePresentaciones = (producto.presentaciones?.length ?? 0) > 0;
     const totalAntes = this.totalArticulos();
@@ -438,11 +473,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const seAgrego = this.totalArticulos() > totalAntes;
 
     // Solo animar en productos simples sin presentaciones — en presentaciones/variantes
-    // el flujo pasa por un modal y la animación se siente desfasada
+    // el flujo pasa por un modal y la animación se siente desfasada.
+    // El scroll del panel NO se dispara aquí: agregarAlCarrito (dentro de
+    // seleccionarProductoBusqueda) ya lo hizo con el esNuevo correcto — llamarlo de nuevo
+    // duplicaba el scroll con timings distintos que se peleaban.
     if (seAgrego && !tienePresentaciones) {
-      navigator.vibrate?.(30);
+      // La vibración ya la disparó agregarLineaNueva (o la rama de incremento) dentro de
+      // seleccionarProductoBusqueda → aquí solo la animación de la card, sin duplicar.
       this.dispararAnimacionCatalogo(producto.id);
-      this.dispararAnimacionPanel(producto.id);
       if (cardRect && cardClone) setTimeout(() => this.flyToPillFromClone(cardClone, cardRect), 0);
     }
   }
@@ -552,22 +590,52 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
    * por eso re-derivamos la lista visible desde el snapshot ya resuelto en memoria.
    */
   private mutarFavoritoEnMemoria(productoId: string, favorito: boolean) {
+    this.mutarFavoritoGrupoEnMemoria([productoId], favorito);
+  }
+
+  /** Igual que mutarFavoritoEnMemoria pero para un CONJUNTO de productos (todas las
+   *  variantes de un template, o un producto con presentaciones). Conserva imágenes
+   *  firmadas en ambos niveles (producto + template) para no romper miniaturas. */
+  private mutarFavoritoGrupoEnMemoria(productoIds: string[], favorito: boolean) {
+    const ids = new Set(productoIds);
     // Snapshot crudo (para filtros y próximas cargas) — se muta por identidad.
     if (this.catalogoCompleto) {
-      const idx = this.catalogoCompleto.findIndex(p => p.id === productoId);
-      if (idx >= 0) this.catalogoCompleto[idx] = { ...this.catalogoCompleto[idx], favorito };
+      this.catalogoCompleto = this.catalogoCompleto.map(p =>
+        ids.has(p.id) ? { ...p, favorito } : p
+      );
     }
 
-    // Índice de imágenes YA firmadas (http) por id, tomado de la vista actual — así el
-    // re-render conserva las miniaturas sin volver a firmar nada.
-    const imagenesFirmadas = new Map(this.productosCatalogo().map(p => [p.id, p.imagen_url]));
+    // Índices de imágenes YA firmadas (http) tomados de la vista actual — así el re-render
+    // conserva las miniaturas sin volver a firmar nada. Se conservan DOS niveles:
+    //  • imagen_url del producto (cards simples y con presentaciones).
+    //  • producto_template.imagen_url (cards de VARIANTES — su miniatura sale del template).
+    // Sin conservar el template, las cards de variantes quedaban con el path crudo de
+    // catalogoCompleto → 404 al marcar favorito (bug 2026-07-21).
+    const vistaActualCat = this.productosCatalogo();
+    const imagenesFirmadas = new Map(vistaActualCat.map(p => [p.id, p.imagen_url]));
+    const templateImagenesFirmadas = new Map(
+      vistaActualCat
+        .filter(p => p.producto_template_id && this.esUrlRenderizable(p.producto_template?.imagen_url))
+        .map(p => [p.producto_template_id!, p.producto_template!.imagen_url!])
+    );
 
-    const base = this.catalogoCompleto ?? this.productosCatalogo();
-    const visibles = this.filtrarPorCategoria(base).map(p => ({
-      ...p,
-      favorito: p.id === productoId ? favorito : p.favorito,
-      imagen_url: imagenesFirmadas.get(p.id) ?? p.imagen_url,
-    }));
+    const base = this.catalogoCompleto ?? vistaActualCat;
+    const visibles = this.filtrarPorCategoria(base).map(p => {
+      const result = {
+        ...p,
+        favorito: ids.has(p.id) ? favorito : p.favorito,
+        imagen_url: imagenesFirmadas.get(p.id) ?? p.imagen_url,
+      };
+      // Conservar la imagen firmada del template (si la card es de variantes)
+      if (result.producto_template) {
+        const tplFirmada = templateImagenesFirmadas.get(p.producto_template_id!);
+        result.producto_template = {
+          ...result.producto_template,
+          imagen_url: tplFirmada ?? result.producto_template.imagen_url,
+        };
+      }
+      return result;
+    });
     this.productosCatalogo.set(visibles);
     this.cdr.markForCheck();
   }
@@ -587,6 +655,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       tamanoFinal: 32,
       borderRadius: 'var(--radius-md)',
       boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+      escalaInicial: 0.6, // parte al 60% de la imagen → vuelo más ligero, menos saturado
     });
   }
 
@@ -610,6 +679,10 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   // Buffer para pistola lectora física
   private barcodeBuffer = '';
   private barcodeTimeout: ReturnType<typeof setTimeout> | undefined;
+  /** True mientras se procesa un agregado originado por escaneo físico (pistola HID o
+   *  input en modo código). Habilita el preview efímero del producto en el catálogo sin
+   *  el beep de la app (la pistola ya beepea por hardware). El click de mouse no lo activa. */
+  private origenEscaneoFisico = false;
 
   // Anti-duplicados para escáner de cámara
   private ultimoCodigoEscaneado = '';
@@ -631,8 +704,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       addOutline, removeOutline, trashOutline,
       cubeOutline, searchOutline, personOutline,
       chevronForwardOutline, chevronBackOutline, refreshOutline,
-      alertCircleOutline, closeOutline, pricetagOutline, chevronDownCircleOutline,
-      arrowUpOutline, star, colorPaletteOutline
+      alertCircleOutline, closeOutline, pricetagOutline,
+      arrowUpOutline, star, colorPaletteOutline, checkmarkCircle, createOutline
     });
   }
 
@@ -890,6 +963,15 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     return item.id + (item.presentacion_id ?? '');
   }
 
+  /** Línea del carrito que coincide con un producto+presentación, o undefined. Único punto
+   *  para este lookup (antes duplicado en agregarAlCarrito y agregarAlCarritoConCantidad). */
+  private buscarLineaEnCarrito(producto: ProductoPOS, presentacion?: ProductoPresentacion): CartItem | undefined {
+    return this.carrito().find(item =>
+      item.id === producto.id &&
+      item.presentacion_id === (presentacion?.id ?? undefined)
+    );
+  }
+
   private calcularSubtotal(cantidad: number, precioUnitario: number): number {
     return Math.round(cantidad * precioUnitario * 100) / 100;
   }
@@ -906,18 +988,33 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   /** Marca la línea recién agregada para su animación de entrada. */
+  private addedAnimTimeout: ReturnType<typeof setTimeout> | undefined;
   private marcarAgregado(key: string) {
+    // Timer guardado: al agregar varias líneas nuevas seguidas (taps rápidos de productos
+    // distintos), un timeout viejo no debe limpiar el lastAddedKey de la línea más reciente.
+    clearTimeout(this.addedAnimTimeout);
     this.lastAddedKey = key;
     this.cdr.markForCheck();
-    setTimeout(() => { this.lastAddedKey = null; this.cdr.markForCheck(); }, 600);
+    this.addedAnimTimeout = setTimeout(() => {
+      this.lastAddedKey = null;
+      this.cdr.markForCheck();
+    }, 600);
   }
 
-  /** Crea una línea nueva en el carrito (imagen resuelta) y dispara el feedback estándar. */
+  /** Crea una línea nueva en el carrito y dispara el feedback estándar.
+   *  La imagen se resuelve en BACKGROUND (no bloquea): agregar al carrito debe ser
+   *  instantáneo. resolveImageUrl puede tardar si toca red (firmar signed URL de un
+   *  producto aún no renderizado) — antes ese await hacía que "Agregar" se sintiera
+   *  lento de forma intermitente. La miniatura se rellena cuando la imagen llega. */
   private async agregarLineaNueva(producto: ProductoPOS, cantidad: number, presentacion?: ProductoPresentacion) {
     const precioVenta = presentacion?.precio_venta ?? producto.precio_venta;
-    const prod = await this.resolverImagen(producto, presentacion);
+    // Imagen provisional: solo si YA es renderizable (firmada/blob/data). Un path crudo de
+    // Storage se deja undefined (placeholder) — pintarlo haría que <img> pida localhost/{path}
+    // → 404 en consola. El background (resolverImagenLinea) la firma y rellena.
+    const imgProvisional = presentacion?.imagen_url || producto.imagen_url;
     const item: CartItem = {
-      ...prod,
+      ...producto,
+      imagen_url: this.esUrlRenderizable(imgProvisional) ? imgProvisional! : undefined,
       precio_venta: precioVenta,
       cantidad,
       subtotal: this.calcularSubtotal(cantidad, precioVenta),
@@ -930,8 +1027,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     };
     this.carrito.update(c => [...c, item]);
     const key = this.keyDe(item);
+    // Si la imagen provisional ya es renderizable, la línea ya tiene su miniatura correcta.
+    // Si no, resolverla en background y rellenarla por su clave cuando llegue (no bloquea).
+    if (!item.imagen_url) void this.resolverImagenLinea(key, producto, presentacion);
+    this.vibrarAgregado(); // único punto de vibración para líneas nuevas (click catálogo + pistola)
     this.marcarAgregado(key);
-    this.dispararAnimacionPanel(key);
+    this.dispararAnimacionPanel(key, true); // línea nueva → scroll al fondo
     this.animarTotal();
     this.feedbackEscaneo(key);
     this.scrollToBottom();
@@ -953,15 +1054,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const factor = presentacion?.factor_conversion ?? 1;
     const stockUsado = this.stockUsadoPorProducto(producto.id);
 
-    const existe = this.carrito().find(item =>
-        item.id === producto.id &&
-        item.presentacion_id === (presentacion?.id ?? undefined)
-    );
+    const existe = this.buscarLineaEnCarrito(producto, presentacion);
 
     if (existe) {
       const maxParaEste = Math.floor((stockBase - stockUsado + existe.cantidad * factor) / factor);
       if (existe.cantidad < maxParaEste) {
-        navigator.vibrate?.(18);
+        this.vibrarAgregado();
         this.incrementar(existe);
         this.dispararAnimacionPanel(this.keyDe(existe));
         this.feedbackEscaneo(this.keyDe(existe));
@@ -1007,6 +1105,19 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     return result;
   }
 
+  /** Resuelve la imagen de una línea ya agregada y actualiza su miniatura por CLAVE
+   *  (no por identidad — la línea puede haberse reemplazado por un refresco de stock).
+   *  Corre en background desde agregarLineaNueva para no bloquear el "Agregar". */
+  private async resolverImagenLinea(key: string, producto: ProductoPOS, presentacion?: ProductoPresentacion) {
+    const skuPath = presentacion?.imagen_url || producto.imagen_url || producto.producto_template?.imagen_url;
+    const url = await this.storageService.resolveImageUrl(skuPath);
+    if (!url) return; // sin imagen resuelta → queda el placeholder
+    this.carrito.update(c => c.map(i =>
+      this.keyDe(i) === key ? { ...i, imagen_url: url } : i
+    ));
+    this.cdr.markForCheck();
+  }
+
   /** Calcula cuantas unidades base de un producto estan comprometidas en el carrito */
   private stockUsadoPorProducto(productoId: string): number {
     return this.carrito()
@@ -1038,7 +1149,6 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
-      backdropDismiss: false
     });
 
     await modal.present();
@@ -1070,10 +1180,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return;
     }
 
-    const existe = this.carrito().find(item =>
-        item.id === producto.id &&
-        item.presentacion_id === (presentacion?.id ?? undefined)
-    );
+    const existe = this.buscarLineaEnCarrito(producto, presentacion);
 
     const stockLibreConEste = existe ? stockLibre + (existe.cantidad * factor) : stockLibre;
     const maxParaEste = Math.floor(stockLibreConEste / factor);
@@ -1086,6 +1193,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
 
     if (existe) {
+      this.vibrarAgregado();
       this.actualizarCantidad(this.keyDe(existe), existe.cantidad + cantidadReal);
       this.triggerIncrementAnimation(existe);
       this.dispararAnimacionPanel(this.keyDe(existe));
@@ -1100,26 +1208,63 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
+  private incrementAnimTimeout: ReturnType<typeof setTimeout> | undefined;
   private triggerIncrementAnimation(item: CartItem) {
-    this.lastIncrementedKey = this.keyDe(item);
+    // Robusto ante taps rápidos del MISMO ítem (incrementar varias veces seguidas): apagar
+    // → macrotask → reencender reinicia el keyframe qtyBump desde el frame 0, y el timer
+    // guardado evita que un timeout viejo corte el bump del tap nuevo.
+    const key = this.keyDe(item);
+    clearTimeout(this.incrementAnimTimeout);
+    this.lastIncrementedKey = null;
     this.cdr.markForCheck();
-    setTimeout(() => { this.lastIncrementedKey = null; this.cdr.markForCheck(); }, 350);
+    setTimeout(() => {
+      this.lastIncrementedKey = key;
+      this.cdr.markForCheck();
+      this.incrementAnimTimeout = setTimeout(() => {
+        this.lastIncrementedKey = null;
+        this.cdr.markForCheck();
+      }, 350);
+    }, 0);
   }
 
-  /** Vibración + beep + preview efímero al agregar producto (feedback para escáner).
-   *  Recibe la CLAVE de la línea (id + presentacion_id) para mostrar la línea correcta
-   *  cuando el mismo producto tiene unidad suelta y presentaciones en el carrito. */
-  private feedbackEscaneo(itemKey: string) {
-    if (!this.escaneando) return;
-    this.barcodeScanner.feedback();
+  /** Preview efímero del producto escaneado (+ beep/vibración solo en modo cámara).
+   *  Se muestra al escanear con la cámara fullscreen O con pistola física en el catálogo
+   *  — NO al agregar con click de mouse (ahí la card ya se anima). Recibe la CLAVE de la
+   *  línea (id + presentacion_id) para mostrar la línea correcta cuando el mismo producto
+   *  tiene unidad suelta y presentaciones en el carrito. */
+  /** Vibración táctil coherente al agregar/incrementar un producto en el carrito.
+   *  Un solo valor (22ms) para todas las vías (click, pistola). NO vibra en modo cámara:
+   *  ahí el scanner ya da su propio feedback (barcodeScanner.feedback → 40ms) y duplicar
+   *  se sentiría doble. Único punto → mismo "peso" táctil en toda la app. */
+  private vibrarAgregado() {
+    if (this.escaneando) return; // el scanner de cámara ya vibró
+    navigator.vibrate?.(22);
+  }
 
-    // Mostrar preview del producto escaneado (2.5s)
+  private feedbackEscaneo(itemKey: string) {
+    // Solo hay preview si el agregado vino de un escaneo (cámara o pistola), no de mouse.
+    if (!this.escaneando && !this.origenEscaneoFisico) return;
+
+    // Beep/vibración de la app solo en modo cámara — la pistola física ya beepea por hardware.
+    if (this.escaneando) this.barcodeScanner.feedback();
+
+    // En desktop el preview del catálogo es redundante (el panel lateral ya muestra los
+    // ítems en vivo). Sí se mantiene en modo cámara fullscreen (no hay panel a la vista).
+    if (this.esDesktop && !this.escaneando) return;
+
     const item = this.carrito().find(i => this.keyDe(i) === itemKey);
     if (!item) return;
     clearTimeout(this.scanPreviewTimeout);
-    this.scanPreview = { nombre: item.nombre, cantidad: item.cantidad, subtotal: item.subtotal, precioUnitario: item.precio_venta };
+    this.scanPreview = { itemKey, nombre: item.nombre, cantidad: item.cantidad, subtotal: item.subtotal, precioUnitario: item.precio_venta };
     this.cdr.markForCheck();
-    this.scanPreviewTimeout = setTimeout(() => { this.scanPreview = null; this.cdr.markForCheck(); }, 2500);
+
+    // Modo cámara fullscreen: el banner queda ESTÁTICO (no auto-dismiss). Es la única vía
+    // para acceder al último producto y corregirlo — cada escaneo nuevo lo reemplaza, y
+    // cerrarEscaner() lo limpia. En modo pistola sobre el catálogo, en cambio, sigue siendo
+    // un feedback efímero (2.5s): ahí el panel de ítems en vivo ya muestra el carrito.
+    if (!this.escaneando) {
+      this.scanPreviewTimeout = setTimeout(() => { this.scanPreview = null; this.cdr.markForCheck(); }, 2500);
+    }
   }
 
   incrementar(item: CartItem): boolean {
@@ -1194,7 +1339,6 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
-      backdropDismiss: false
     });
 
     await modal.present();
@@ -1214,6 +1358,25 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   eliminar(item: CartItem) {
     const key = this.keyDe(item);
     this.carrito.update(c => c.filter(i => this.keyDe(i) !== key));
+  }
+
+  /**
+   * Corregir el producto recién escaneado desde su banner (ej. se escaneó de más).
+   * Cierra el escáner y abre directo el modal de cantidad de ESE ítem — corrección en
+   * 1 tap, sin tener que buscar el producto en el catálogo ni ir al carrito.
+   */
+  async corregirDesdeBanner() {
+    const key = this.scanPreview?.itemKey;
+    if (!key) return;
+
+    // El item pudo haber sido eliminado entre el escaneo y el tap — resolver contra el
+    // carrito vigente (no contra el snapshot del preview) para editar la fila real.
+    const item = this.carrito().find(i => this.keyDe(i) === key);
+
+    clearTimeout(this.scanPreviewTimeout);
+    this.scanPreview = null;
+    await this.cerrarEscaner(); // salir del modo cámara: el modal quedaría oculto tras él
+    if (item) await this.editarCantidad(item);
   }
 
 
@@ -1276,6 +1439,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
     const version = ++this.searchVersion;
     this.buscando = true;
+    // Agregar por código (pistola o tecleo manual) muestra el preview efímero del producto.
+    this.origenEscaneoFisico = true;
     this.cdr.markForCheck();
     try {
       // Patrón cantidad.codigo (ej: 20.7891234 = 20 unidades del código "7891234")
@@ -1284,7 +1449,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         const cantidad = parseInt(matchRapido[1], 10);
         const codigo = matchRapido[2].trim();
         if (cantidad > 0 && codigo) {
-          const resultado = await this.inventarioService.buscarPorCodigoBarras(codigo);
+          const resultado = await this.resolverCodigo(codigo);
           if (version !== this.searchVersion) return;
           if (resultado) {
             await this.agregarAlCarritoConCantidad(resultado.producto, cantidad, resultado.presentacion);
@@ -1296,8 +1461,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         return;
       }
 
-      // Código exacto — se agrega directo sin confirmación
-      const resultado = await this.inventarioService.buscarPorCodigoBarras(texto);
+      // Código exacto — se agrega directo sin confirmación.
+      const resultado = await this.resolverCodigo(texto);
       if (version !== this.searchVersion) return;
       if (resultado) {
         await this.agregarAlCarrito(resultado.producto, resultado.presentacion);
@@ -1306,6 +1471,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         this.ui.showToast(`Código "${texto}" no encontrado`, 'warning');
       }
     } finally {
+      this.origenEscaneoFisico = false;
       if (version === this.searchVersion) {
         this.buscando = false;
         this.cdr.markForCheck();
@@ -1367,6 +1533,18 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       return this.editarCantidad(r.item);
     };
 
+    // Favorito del grupo (all-or-nothing). Variantes: marca TODO el template. Presentaciones
+    // (variantes=[producto], sin template): marca ese producto único (SKU).
+    const templateId = variantes[0]?.producto_template_id ?? null;
+    const esFavorito = variantes.length > 0 && variantes.every(v => v.favorito);
+    const onToggleFavorito = async (favorito: boolean): Promise<boolean> => {
+      const ok = templateId
+        ? await this.productoService.toggleFavoritoTemplate(templateId, favorito)
+        : !!(await this.productoService.toggleFavorito(variantes[0].id, favorito));
+      if (ok) this.mutarFavoritoGrupoEnMemoria(variantes.map(v => v.id), favorito);
+      return ok;
+    };
+
     const modal = await this.modalCtrl.create({
       component: VarianteSelectorModalComponent,
       componentProps: {
@@ -1377,6 +1555,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         onIncrementar,
         onDecrementar,
         onEditarCantidad,
+        esFavorito,
+        onToggleFavorito,
         carritoActual: this.carrito(),
         totalCarrito: this.totalPagar,
         totalArticulosCarrito: this.totalArticulos
@@ -1456,6 +1636,33 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
   }
 
+  /**
+   * Lookup dual del código en el catálogo YA cargado en memoria (catalogoCompleto).
+   * Instantáneo (0 red) — el producto escaneado casi siempre está en el catálogo del POS.
+   * Evita el round-trip a Supabase que causaba el "atranque" perceptible al escanear.
+   * Devuelve null si no está en memoria → el caller cae al servicio (red) como fallback.
+   */
+  private buscarCodigoEnMemoria(codigo: string): { producto: ProductoPOS; presentacion?: ProductoPresentacion } | null {
+    const cod = codigo.trim();
+    if (!cod || !this.catalogoCompleto) return null;
+    // 1. Match directo en el producto
+    const prod = this.catalogoCompleto.find(p => p.codigo_barras === cod);
+    if (prod) return { producto: prod };
+    // 2. Match en presentaciones anidadas
+    for (const p of this.catalogoCompleto) {
+      const pres = p.presentaciones?.find(pr => pr.codigo_barras === cod && pr.activo);
+      if (pres) return { producto: p, presentacion: pres };
+    }
+    return null;
+  }
+
+  /** Resuelve un código: memoria primero (instantáneo), red como fallback. Único punto
+   *  para las 3 rutas de escaneo (listener global + input código exacto + cantidad.codigo). */
+  private async resolverCodigo(codigo: string): Promise<{ producto: ProductoPOS; presentacion?: ProductoPresentacion } | null> {
+    return this.buscarCodigoEnMemoria(codigo)
+      ?? await this.inventarioService.buscarPorCodigoBarras(codigo);
+  }
+
   async procesarCodigoRapido(codigo: string) {
     // Sin red: continuar solo si hay catálogo cacheado.
     if (!this.network.isConnected() && !(await this.catalogoLocal.tieneCache())) {
@@ -1464,9 +1671,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     }
 
     try {
-      const resultado = await this.inventarioService.buscarPorCodigoBarras(codigo);
+      const resultado = await this.resolverCodigo(codigo);
       if (resultado) {
-        await this.agregarAlCarrito(resultado.producto, resultado.presentacion);
+        this.origenEscaneoFisico = true;
+        try {
+          await this.agregarAlCarrito(resultado.producto, resultado.presentacion);
+        } finally {
+          this.origenEscaneoFisico = false;
+        }
       } else {
         this.ui.showToast(`EAN ${codigo} no encontrado en catálogo`, 'warning');
       }
@@ -1478,35 +1690,55 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   async abrirEscanerCamara() {
     this.escaneando = true;
     this.cdr.markForCheck();
-    const iniciado = await this.barcodeScanner.startContinuous((codigo) => {
-      if (this.procesandoEscaneo) return;
+    const iniciado = await this.barcodeScanner.startContinuous(
+      (codigo) => {
+        if (this.procesandoEscaneo) return;
 
-      // Anti-duplicados: ignora el mismo código dentro de 800ms
-      const ahora = Date.now();
-      if (codigo === this.ultimoCodigoEscaneado && ahora - this.ultimoTiempoEscaneado < 800) return;
+        // Anti-duplicados: ignora el mismo código dentro de 800ms
+        const ahora = Date.now();
+        if (codigo === this.ultimoCodigoEscaneado && ahora - this.ultimoTiempoEscaneado < 800) return;
 
-      this.procesandoEscaneo = true;
-      this.ultimoCodigoEscaneado = codigo;
-      this.ultimoTiempoEscaneado = ahora;
+        this.procesandoEscaneo = true;
+        this.ultimoCodigoEscaneado = codigo;
+        this.ultimoTiempoEscaneado = ahora;
 
-      (async () => {
-        try {
-          await this.procesarCodigoRapido(codigo);
-        } finally {
-          this.procesandoEscaneo = false;
-        }
-      })();
-    });
+        (async () => {
+          try {
+            await this.procesarCodigoRapido(codigo);
+          } finally {
+            this.procesandoEscaneo = false;
+          }
+        })();
+      },
+      undefined,
+      // Área de detección: solo se leen códigos DENTRO del recuadro central. La cámara es
+      // fullscreen (el plugin no la puede confinar en nativo), así que el filtro se hace por
+      // coordenadas. Se recalcula en cada lectura leyendo el rect real del marco del overlay.
+      () => this.areaEscaneoActual(),
+    );
 
     if (!iniciado) { this.escaneando = false; this.cdr.markForCheck(); }
   }
 
+  /** Rect del recuadro del escáner (`.scanner-frame` del overlay) en píxeles CSS, o null
+   *  si no está montado. Alimenta el filtro de detection area del BarcodeScannerService. */
+  private areaEscaneoActual(): AreaDeteccion | null {
+    const el = document.querySelector('.scanner-frame');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left, y: r.top, width: r.width, height: r.height };
+  }
+
   async cerrarEscaner() {
-    await this.barcodeScanner.stop();
+    // Bajar el flag y repintar PRIMERO: el @if(!escaneando) monta el catálogo de inmediato,
+    // listo detrás de la máscara del escáner. Luego stop() quita `scanner-active` (revela el
+    // WebView ya con el catálogo montado) y apaga la cámara. Así la vuelta al catálogo es
+    // instantánea — antes se esperaba todo el stop() nativo antes de siquiera renderizar.
     this.escaneando = false;
     this.scanPreview = null;
     clearTimeout(this.scanPreviewTimeout);
-    this.cdr.markForCheck();
+    this.cdr.detectChanges();
+    await this.barcodeScanner.stop();
   }
 
   async cobrarEfectivo() {
@@ -1550,6 +1782,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       cssClass: 'bottom-sheet-modal',
       breakpoints: [0, 1],
       initialBreakpoint: 1,
+      // A propósito NO se cierra tocando fuera (a diferencia de cantidad/variantes): es el
+      // paso final con dinero de por medio — se cierra solo con la ✕ o un método de pago,
+      // para no cancelarlo por un toque accidental en el backdrop.
       backdropDismiss: false
     });
 
@@ -1608,6 +1843,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       baseIva15:         desglose?.base15 ?? 0,
       ivaValor:          desglose?.iva ?? 0,
       idempotencyKey,
+      // Instante real de la venta (UTC). Capturado aquí, al cobrar, para que una venta
+      // encolada offline conserve su fecha original al sincronizarse — no la del momento
+      // en que el sync corre (que podía ser el día siguiente). toISOString() es correcto:
+      // guardamos un instante absoluto en un TIMESTAMPTZ, no una fecha local.
+      fechaVenta:        new Date().toISOString(),
     };
 
     // 3. Offline: FIADO y FACTURA no están soportados (requieren el servidor — §3 del plan).
@@ -1780,6 +2020,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     clearTimeout(this.searchDebounce);
     clearTimeout(this.scanPreviewTimeout);
     clearTimeout(this.totalAnimTimeout);
+    clearTimeout(this.catalogoAnimTimeout);
+    clearTimeout(this.incrementAnimTimeout);
+    clearTimeout(this.addedAnimTimeout);
   }
 
   async ionViewWillEnter() {
@@ -1883,6 +2126,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     clearTimeout(this.searchDebounce);
     clearTimeout(this.scanPreviewTimeout);
     clearTimeout(this.totalAnimTimeout);
+    clearTimeout(this.catalogoAnimTimeout);
+    clearTimeout(this.incrementAnimTimeout);
+    clearTimeout(this.addedAnimTimeout);
     this.cancelarGesto();
   }
 

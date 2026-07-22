@@ -18,6 +18,14 @@ export interface VentaPayload {
     baseIva15: number;
     ivaValor: number;
     idempotencyKey: string;  // UUID generado antes del RPC — protección contra duplicados
+    /**
+     * Instante REAL de la venta (ISO 8601 UTC, capturado al cobrar). Se propaga hasta
+     * fn_registrar_venta_pos como p_fecha para que una venta encolada offline conserve
+     * su fecha original al sincronizarse — sin esto, el INSERT caía en DEFAULT NOW() y
+     * la venta quedaba con la fecha del momento de sincronización (bug: venta de la
+     * noche sincronizada al día siguiente aparecía en el día equivocado).
+     */
+    fechaVenta: string;
 }
 
 @Injectable({
@@ -70,6 +78,7 @@ export class PosService {
         const outboxPayload: OutboxVentaPayload = {
             turnoId:         turno.id,
             empleadoId:      turno.empleado_id,
+            fechaVenta:      payload.fechaVenta,
             clienteId:       payload.clienteId ?? null,
             tipoComprobante: payload.tipoComprobante,
             total:           payload.total,
@@ -121,7 +130,8 @@ export class PosService {
             p_iva_valor:         payload.ivaValor,
             p_metodo_pago:       payload.metodoPago,
             p_items:             items,
-            p_idempotency_key:   payload.idempotencyKey
+            p_idempotency_key:   payload.idempotencyKey,
+            p_fecha:             payload.fechaVenta
         });
 
         if (error) {

@@ -40,8 +40,6 @@ export class ProductoInfoFormComponent {
     @Input() modo: 'crear' | 'editar' = 'crear';
     /** true cuando es SKU de variante — oculta tipo_venta (lo hereda del template) */
     @Input() esVariante = false;
-    /** true cuando el flujo eligió "tamaños o empaques" — fuerza UNIDAD y oculta el selector */
-    @Input() ocultarTipoVenta = false;
     /** URL ya resuelta de imagen existente (modo editar) */
     @Input() imagenUrlExistente: string | null = null;
     /** SafeUrl de preview local (recién capturada) */

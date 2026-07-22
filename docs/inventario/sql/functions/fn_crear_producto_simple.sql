@@ -18,6 +18,7 @@ CREATE OR REPLACE FUNCTION public.fn_crear_producto_simple(
     p_precio_venta      NUMERIC DEFAULT 0,
     p_stock_actual      NUMERIC DEFAULT 0,
     p_stock_minimo      INTEGER DEFAULT 5,
+    p_favorito          BOOLEAN DEFAULT FALSE,
     -- Presentaciones: [{ nombre, factor_conversion, precio_venta, precio_costo, codigo_barras?, imagen_url? }]
     p_presentaciones    JSON DEFAULT '[]'::JSON
 )
@@ -75,13 +76,13 @@ BEGIN
         nombre, categoria_id, tiene_iva, tipo_venta, unidad_medida,
         codigo_barras, imagen_url,
         precio_costo, precio_venta, stock_actual, stock_minimo,
-        activo
+        favorito, activo
     ) VALUES (
         v_producto_id, v_negocio_id,
         TRIM(p_nombre), p_categoria_id, p_tiene_iva, p_tipo_venta, p_unidad_medida,
         NULLIF(TRIM(COALESCE(p_codigo_barras, '')), ''), p_imagen_url,
         p_precio_costo, p_precio_venta, p_stock_actual, p_stock_minimo,
-        TRUE
+        COALESCE(p_favorito, FALSE), TRUE
     );
 
     -- Presentaciones (opcional)

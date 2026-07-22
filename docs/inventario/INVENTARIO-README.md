@@ -54,15 +54,24 @@ Todo el flujo de creación vive en una **sola ruta** (`/inventario/nuevo` → `P
 Boton "Nuevo" (o scan codigo)
   ↓
 /inventario/nuevo  →  ProductoCrearPage
-  paso 0: selector visual de tipo (cards: Simple / Tamaños o empaques / Sabores·colores·tallas)
-    ├─ "Simple"               → paso 1: formulario (info + precio + stock) → guardar
-    ├─ "Tamaños o empaques"   → paso 1: formulario + sección presentaciones → guardar
+  paso 0: selector visual de tipo (2 cards: Producto simple / Sabores·colores·tallas)
+    ├─ "Producto simple"      → paso 1: formulario (info + precio + stock)
+    │                           + sección "Presentaciones (opcional)" colapsable con toggle → guardar
     └─ "Con variantes"        → paso 1: datos base
                                 paso 2: tipos de variante (atributos + opciones)
                                 paso 3: revisar y ajustar SKUs → guardar
 ```
 
+> **2026-07-21:** se fusionaron las 2 cards "Producto simple" y "Tamaños o empaques distintos" en una sola. Las presentaciones ahora son una sección **opcional colapsable** dentro del form simple (toggle "Presentaciones (opcional)"), no un tipo elegido de antemano. `mostrarPresentaciones` pasó de flag-de-tipo a estado del toggle (`togglePresentaciones()` descarta las presentaciones al desactivar).
+
 El scanner pasa `?codigo=EAN` como queryParam al navegar a `/inventario/nuevo`, y `ProductoCrearPage` lo prellenan en el campo de código de barras del formulario simple.
+
+### Escaneo desde el listado del inventario (cámara + pistola física) — 2026-07-21
+
+Estando en el listado (`InventarioPage`), escanear un código dispara `procesarCodigoEscaneado(codigo)`: si el EAN **no existe** → navega a crear producto con el código pre-cargado; si **existe** → alert "Producto encontrado" con opciones *Editar producto* / *Ver kardex* / *Cancelar*. Dos vías, mismo flujo (patrón dual idéntico al POS):
+
+- **Cámara del teléfono** (`escanearYCrear()`, botón `scan-outline` del header): one-shot vía `BarcodeScannerService.scan()`.
+- **Pistola lectora física (HID)** (`@HostListener('document:keydown')`): captura el escaneo cuando **ningún input tiene el foco**. Buffer de 100ms + Enter final (mismo mecanismo que el POS). Con el buscador **enfocado**, `onSearchKeyup` detecta el Enter y, si el texto es un EAN (solo dígitos ≥8), dispara el mismo flujo en vez de solo filtrar. Guards: `paginaActiva` (la página se cachea con IonicRouteStrategy — no procesar escaneos en otra ruta, vía `ionViewWillEnter`/`ionViewDidLeave`), `hayOverlayAbierto()` (no procesar con un alert/modal abierto), `procesandoEscaneoFisico` (anti-reentrada), `preventDefault()`+`blur()` en el Enter (evita activar botones enfocados).
 
 **Protección de datos al salir:** si el usuario intenta salir con datos ingresados sin guardar (gesto de retroceso Android, flecha del header, o al volver del paso 1 al paso 0), se muestra un alert de confirmación "¿Descartar producto?". Si no hay datos, sale directamente sin preguntar.
 
@@ -250,15 +259,33 @@ pantalla sin scrollear — mismo criterio que ya resolvió bien la densidad del 
 - **La lista entera** (`.inv-list`) es una sola superficie con `box-shadow` + `border-radius`,
   no una card por item — igual que `.cart-wrapper` del POS.
 
-### Favorito — estrella en el thumbnail (2026-07-16)
+### Favorito — puntos de entrada (2026-07-16, ampliado 2026-07-21)
 
-Estrella superpuesta en la esquina inferior derecha del thumbnail (`⭐`/`☆`, `star`/`star-outline`),
-solo en items individuales (`item.kind === 'simple'` — incluye simples, variante única y vista plana
-por template; **no** en la tarjeta agrupada del template, porque el favorito es por SKU). Toggle
-optimista: el ícono cambia al instante, sin loading ni toast — si `ProductoService.toggleFavorito()`
-falla, revierte el ícono (`call()` ya mostró el toast de error). Se marca igual sin importar si el
-producto tiene presentaciones (a diferencia del POS, donde el long-press está restringido a
-productos sin presentaciones — ver `docs/pos/POS-README.md` → "Favoritos").
+El flag `favorito` vive en `productos.favorito` (**por SKU**). Se puede marcar desde varios lugares,
+todos escribiendo el mismo dato:
+
+1. **Estrella INDICADORA en la lista del inventario** (2026-07-16, cambiado a solo-lectura 2026-07-21):
+   estrella dorada (`star`, `.inv-fav-ind`) junto al nombre del producto/template, visible solo cuando
+   es favorito. **No es accionable** — es un indicador de solo lectura (`pointer-events: none`). Para
+   cambiar el favorito, el usuario entra a editar el producto (switch). Antes era una estrella tappable
+   sobre el thumbnail; se separó "ver" (lista) de "editar" (detalle) para evitar taps accidentales y
+   redundancia con el switch. En templates (variantes) el indicador se deriva de `variantes[0].favorito`
+   (all-or-nothing).
+2. **Switch en crear/editar producto** (2026-07-21): `ion-toggle` "Favorito" (`.fav-row`, color
+   warning) en el formulario. En **producto-crear** (simple y variantes) y **producto-editar**.
+   Para productos **simples/presentaciones** el switch va en `producto-editar` (oculto si es una
+   variante individual — `!templateSeleccionado`). Para **variantes** el switch va en `template-editar`
+   y es **all-or-nothing**: marca/desmarca TODAS las variantes del grupo vía
+   `ProductoService.toggleFavoritoTemplate(templateId, favorito)` (un solo UPDATE por
+   `producto_template_id`). El estado inicial se deriva: el template es favorito si TODAS sus
+   variantes lo son (`variantes.every(v => v.favorito)`).
+3. **Estrella en el modal de variantes/presentaciones del POS** (2026-07-21): ver
+   `docs/pos/POS-README.md` → "Favoritos".
+
+**Modelo all-or-nothing para variantes:** un template está en favoritos como un todo (nunca variantes
+sueltas). Así el tab Favoritos del POS muestra UNA card del template (no N variantes), igual que el
+catálogo normal. Los RPCs `fn_crear_producto_simple` y `fn_crear_producto_con_variantes` aceptan
+`p_favorito BOOLEAN DEFAULT FALSE` (en variantes se aplica a todos los SKUs).
 
 ### Tarjeta agrupada de template (grupo de variantes) — botón lápiz (2026-07-13)
 

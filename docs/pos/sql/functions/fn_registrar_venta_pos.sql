@@ -10,10 +10,22 @@ DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
 DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
   UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID, BOOLEAN
 );
+DROP FUNCTION IF EXISTS public.fn_registrar_venta_pos(
+  UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID, BOOLEAN, TIMESTAMPTZ
+);
 
 -- ==========================================
--- FUNCIÓN: fn_registrar_venta_pos (v3.2 — validación de presentaciones)
+-- FUNCIÓN: fn_registrar_venta_pos (v3.3 — fecha real de la venta offline)
 -- ==========================================
+-- v3.3 (2026-07-21):
+--   • p_fecha (TIMESTAMPTZ, default NULL). El INSERT usa COALESCE(p_fecha, NOW()).
+--     Una venta encolada offline viaja con el instante REAL en que se cobró; sin esto
+--     el INSERT caía en DEFAULT NOW() = momento de sincronización, y una venta de la
+--     noche sincronizada al día siguiente quedaba con la fecha equivocada (afectaba
+--     resumen del día, cierre del turno e historial). El cliente manda toISOString()
+--     (UTC); las queries que agrupan por día lo derivan a America/Guayaquil correctamente.
+--     Online: el cliente igual manda p_fecha ≈ NOW(), sin diferencia práctica.
+--
 -- v3.2 (2026-07-11):
 --   • Valida que cada presentacion_id de p_items pertenezca al negocio Y al producto
 --     del ítem. Antes solo se validaban los productos: una presentacion_id de otro
@@ -54,7 +66,8 @@ CREATE OR REPLACE FUNCTION public.fn_registrar_venta_pos(
   p_metodo_pago             TEXT             DEFAULT 'EFECTIVO',
   p_items                   JSONB            DEFAULT '[]',
   p_idempotency_key         UUID             DEFAULT NULL,
-  p_permitir_stock_negativo BOOLEAN          DEFAULT FALSE
+  p_permitir_stock_negativo BOOLEAN          DEFAULT FALSE,
+  p_fecha                   TIMESTAMPTZ      DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -171,13 +184,13 @@ BEGIN
   BEGIN
     v_venta_id := gen_random_uuid();
     INSERT INTO ventas (
-      id, negocio_id, turno_id, cliente_id, empleado_id,
+      id, negocio_id, turno_id, cliente_id, empleado_id, fecha,
       tipo_comprobante, numero_comprobante,
       subtotal, descuento, descuento_pct, total,
       base_iva_0, base_iva_15, iva_valor,
       metodo_pago, estado, estado_pago, idempotency_key
     ) VALUES (
-      v_venta_id, v_negocio_id, p_turno_id, p_cliente_id, p_empleado_id,
+      v_venta_id, v_negocio_id, p_turno_id, p_cliente_id, p_empleado_id, COALESCE(p_fecha, NOW()),
       p_tipo_comprobante::tipo_comprobante_enum, v_numero_comprobante,
       p_subtotal, p_descuento, p_descuento_pct, p_total,
       p_base_iva_0, p_base_iva_15, p_iva_valor,
@@ -228,13 +241,15 @@ END;
 $$;
 
 -- Permisos
-REVOKE EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID, BOOLEAN) FROM anon;
-GRANT  EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID, BOOLEAN) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID, BOOLEAN, TIMESTAMPTZ) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.fn_registrar_venta_pos(UUID, UUID, UUID, TEXT, DECIMAL, DECIMAL, DECIMAL, SMALLINT, DECIMAL, DECIMAL, DECIMAL, TEXT, JSONB, UUID, BOOLEAN, TIMESTAMPTZ) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
 
 COMMENT ON FUNCTION public.fn_registrar_venta_pos IS
-  'v3.2 — Multi-tenant: valida turno/cliente/empleado/productos Y presentaciones '
+  'v3.3 — p_fecha (TIMESTAMPTZ, COALESCE con NOW()): una venta offline conserva su fecha '
+  'REAL de cobro al sincronizar, no la del momento de sincronización. '
+  'Multi-tenant: valida turno/cliente/empleado/productos Y presentaciones '
   '(pertenencia al negocio y al producto del ítem) del negocio. '
   'Performance: detalles insertados en batch (INSERT ... SELECT) eliminando N+1. '
   'Idempotencia por p_idempotency_key. p_permitir_stock_negativo habilita stock negativo '

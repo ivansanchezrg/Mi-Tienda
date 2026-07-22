@@ -1,3 +1,89 @@
+// ── Fila de switch Favorito ──
+.fav-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    cursor: pointer;
+
+    .fav-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .fav-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 15px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--ion-text-color);
+
+        ion-icon {
+            font-size: 18px;
+            color: var(--ion-color-warning);
+        }
+    }
+
+    .fav-hint {
+        font-size: 12px;
+        color: var(--ion-color-medium);
+    }
+}
+
+// ── Sección Presentaciones (opcional, colapsable) ──
+.pres-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    cursor: pointer;
+
+    .pres-toggle-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .pres-toggle-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 15px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--ion-text-color);
+
+        ion-icon {
+            font-size: 18px;
+            color: var(--ion-color-primary);
+        }
+    }
+
+    .pres-toggle-opt {
+        font-size: 11px;
+        font-weight: var(--font-weight-medium);
+        color: var(--ion-color-medium);
+        background: var(--ion-color-step-100);
+        border-radius: 10px;
+        padding: 1px 8px;
+    }
+
+    .pres-toggle-hint {
+        font-size: 12px;
+        color: var(--ion-color-medium);
+    }
+}
+
+// Cuerpo expandido — separador arriba para distinguirlo del toggle
+.pres-body {
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--ion-color-step-100);
+}
+
 // ── Layout pc-* (nuevo sistema de clases) ────────────────────────────────────
 .pc-container {
     display: flex;
@@ -444,8 +530,6 @@
     margin-bottom: var(--spacing-md);
     &:last-child { margin-bottom: 0; }
     &.m-0   { margin: 0; }
-    &.mb-md { margin-bottom: var(--spacing-md); }
-    &.mb-sm { margin-bottom: var(--spacing-sm); }
     &.mt-md { margin-top: var(--spacing-md); }
 }
 
@@ -953,12 +1037,7 @@
 }
 
 // ── Utilidades ────────────────────────────────────────────────────────────────
-.p-md  { padding: var(--spacing-md); }
-.p-lg  { padding: var(--spacing-lg); }
-.p-xs  { padding: var(--spacing-xs); }
 .mb-md { margin-bottom: var(--spacing-md); }
-.mb-sm { margin-bottom: var(--spacing-sm); }
-.mb-lg { margin-bottom: var(--spacing-lg); }
 .mt-sm { margin-top: var(--spacing-sm); }
 .mt-md { margin-top: var(--spacing-md); }
 .m-0   { margin: 0; }

@@ -19,8 +19,6 @@ import { AuthService } from 'src/app/features/auth/services/auth.service';
 import { TurnosCajaService } from 'src/app/features/caja/services/turnos-caja.service';
 import { CalculadoraMargenComponent } from 'src/app/shared/components/calculadora-margen/calculadora-margen.component';
 import { ConsultaPrecioModalComponent } from 'src/app/shared/components/consulta-precio-modal/consulta-precio-modal.component';
-import { BarcodeScannerService } from '@core/services/barcode-scanner.service';
-import { ScannerOverlayComponent } from 'src/app/shared/components/scanner-overlay/scanner-overlay.component';
 
 @Component({
   selector: 'app-main-layout',
@@ -31,7 +29,7 @@ import { ScannerOverlayComponent } from 'src/app/shared/components/scanner-overl
     CommonModule,
     IonSplitPane, IonMenu, IonTabs, IonTabBar,
     IonTabButton, IonIcon, IonLabel,
-    SidebarComponent, DisabledTabComponent, ScannerOverlayComponent
+    SidebarComponent, DisabledTabComponent
   ]
 })
 export class MainLayoutPage implements OnInit, OnDestroy {
@@ -41,7 +39,6 @@ export class MainLayoutPage implements OnInit, OnDestroy {
   private notasService = inject(NotasService);
   private authService = inject(AuthService);
   private configService = inject(ConfigService);
-  private scanner = inject(BarcodeScannerService);
 
   posHabilitado = false;
   posDisabledMessage = 'Para usar el POS primero abre la caja desde Inicio';
@@ -69,7 +66,6 @@ export class MainLayoutPage implements OnInit, OnDestroy {
 
   // Estado del FAB
   fabAbierto = false;
-  escaneandoPrecio = false;
 
   async ngOnInit() {
     // ── SUSCRIPCIONES PRIMERO (síncronas, antes de cualquier await) ──────────
@@ -152,53 +148,21 @@ export class MainLayoutPage implements OnInit, OnDestroy {
 
   /**
    * Consulta de precio por código de barras.
-   * Nativo: escanea con la cámara y abre el bottom sheet con el resultado.
-   * Web/desktop: abre el modal en modo manual — la pistola de escaneo (HID)
-   * actúa como teclado y escribe el código en el input del modal.
+   * Abre directamente el modal: el input (pistola HID / teclado) es la vía principal
+   * y la cámara es un botón opcional dentro del modal (solo nativo). El escaneo lo
+   * maneja el propio modal — mismo patrón que el catálogo del POS. Antes esto abría
+   * la cámara de una en nativo; ahora el usuario decide cuándo usarla.
    */
   async consultarPrecio() {
     this.fabAbierto = false;
 
-    if (!this.scanner.isAvailable) {
-      const modal = await this.modalCtrl.create({
-        component: ConsultaPrecioModalComponent,
-        cssClass: 'bottom-sheet-modal',
-        breakpoints: [0, 1],
-        initialBreakpoint: 1,
-        // sin codigoInicial → modo manual
-      });
-      await modal.present();
-      return;
-    }
-
-    this.escaneandoPrecio = true;
-    try {
-      const codigo = await this.scanner.scan();
-      this.escaneandoPrecio = false;  // cerrar overlay antes de abrir el modal
-      if (!codigo) return;
-
-      const modal = await this.modalCtrl.create({
-        component: ConsultaPrecioModalComponent,
-        cssClass: 'bottom-sheet-modal',
-        breakpoints: [0, 1],
-        initialBreakpoint: 1,
-        componentProps: { codigoInicial: codigo },
-      });
-      await modal.present();
-      const { role } = await modal.onDidDismiss();
-
-      // El usuario quiere consultar otro — volver a escanear
-      if (role === 'rescanear') {
-        await this.consultarPrecio();
-      }
-    } finally {
-      this.escaneandoPrecio = false;
-    }
-  }
-
-  cerrarEscaner() {
-    this.scanner.stop();
-    this.escaneandoPrecio = false;
+    const modal = await this.modalCtrl.create({
+      component: ConsultaPrecioModalComponent,
+      cssClass: 'bottom-sheet-modal',
+      breakpoints: [0, 1],
+      initialBreakpoint: 1,
+    });
+    await modal.present();
   }
 
   /**

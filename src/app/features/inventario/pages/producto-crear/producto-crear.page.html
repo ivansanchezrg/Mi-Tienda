@@ -64,7 +64,7 @@
                 Más común
               </span>
             </h3>
-            <p class="tipo-card__desc">Se vende siempre igual. Un solo precio, una sola forma.</p>
+            <p class="tipo-card__desc">Un precio y una forma. Opcional: varias presentaciones (suelto, funda, caja…).</p>
           </div>
           <div class="tipo-card__arrow">
             <ion-icon name="chevron-forward-outline"></ion-icon>
@@ -76,40 +76,11 @@
         </button>
         @if (ejemplosExpandidos === 'simple') {
         <div class="tipo-card__ejemplos">
-          <p class="tipo-ejemplo-item"><ion-icon name="ellipse" class="tipo-ejemplo-dot"></ion-icon>Caramelos y chicles sueltos</p>
-          <p class="tipo-ejemplo-item"><ion-icon name="ellipse" class="tipo-ejemplo-dot"></ion-icon>Fundas de papas o galletas</p>
-          <p class="tipo-ejemplo-item"><ion-icon name="ellipse" class="tipo-ejemplo-dot"></ion-icon>Jabón de tocador, vela, fósforos</p>
-          <p class="tipo-ejemplo-item"><ion-icon name="ellipse" class="tipo-ejemplo-dot"></ion-icon>Escobas, trapeadores, baldes</p>
-        </div>
-        }
-      </div>
-
-      <!-- Diferentes tamaños o empaques -->
-      <div class="tipo-card" [class.tipo-card--expanded]="ejemplosExpandidos === 'simple-presentaciones'">
-        <button type="button" class="tipo-card__main" (click)="elegirTipo('simple-presentaciones')">
-          <div class="tipo-card__icon tipo-card__icon--presentaciones">
-            <ion-icon name="layers-outline"></ion-icon>
-          </div>
-          <div class="tipo-card__body">
-            <h3 class="tipo-card__titulo">Tamaños o empaques distintos</h3>
-            <p class="tipo-card__desc">Mismo producto, varias presentaciones (suelto, funda, caja…).</p>
-          </div>
-          <div class="tipo-card__arrow">
-            <ion-icon name="chevron-forward-outline"></ion-icon>
-          </div>
-        </button>
-        <button type="button" class="tipo-card__ejemplos-toggle" (click)="toggleEjemplos('simple-presentaciones', $event)">
-          <ion-icon [name]="ejemplosExpandidos === 'simple-presentaciones' ? 'chevron-up-outline' : 'chevron-down-outline'"></ion-icon>
-          <span>{{ ejemplosExpandidos === 'simple-presentaciones' ? 'Ocultar ejemplos' : 'Ver ejemplos' }}</span>
-        </button>
-        @if (ejemplosExpandidos === 'simple-presentaciones') {
-        <div class="tipo-card__ejemplos">
-          <p class="tipo-ejemplo-item"><strong>Cigarrillos</strong><span class="tipo-ejemplo-detail">unidad · cajetilla 10 · cajetilla 20 · cartón</span></p>
-          <p class="tipo-ejemplo-item"><strong>Coca-Cola</strong><span class="tipo-ejemplo-detail">350ml · 1L · 2L · 3L</span></p>
+          <p class="tipo-ejemplo-item"><ion-icon name="ellipse" class="tipo-ejemplo-dot"></ion-icon>Caramelos, fundas de papas, jabón, velas</p>
+          <p class="tipo-ejemplo-item"><strong>Con presentaciones (opcional):</strong></p>
+          <p class="tipo-ejemplo-item"><strong>Cigarrillos</strong><span class="tipo-ejemplo-detail">unidad · cajetilla · cartón</span></p>
+          <p class="tipo-ejemplo-item"><strong>Coca-Cola</strong><span class="tipo-ejemplo-detail">350ml · 1L · 2L</span></p>
           <p class="tipo-ejemplo-item"><strong>Arroz</strong><span class="tipo-ejemplo-detail">libra suelta · funda 5lb · quintal</span></p>
-          <p class="tipo-ejemplo-item"><strong>Huevos</strong><span class="tipo-ejemplo-detail">unidad · cubeta de 30</span></p>
-          <p class="tipo-ejemplo-item"><strong>Aceite</strong><span class="tipo-ejemplo-detail">botella · galón</span></p>
-          <p class="tipo-ejemplo-item"><strong>Leche</strong><span class="tipo-ejemplo-detail">funda · galón</span></p>
         </div>
         }
       </div>
@@ -180,16 +151,45 @@
       </app-producto-inventario-form>
     </div>
 
-    @if (mostrarPresentaciones) {
-    <div class="pc-card pc-card--highlight">
-      <app-producto-presentaciones
-        [nombreProducto]="simpleForm.get('nombre')?.value || ''"
-        [precioCosto]="currencyService.parse(simpleForm.get('precio_costo')?.value ?? 0)"
-        modo="crear"
-        [(presentacionesNuevas)]="presentacionesNuevas">
-      </app-producto-presentaciones>
+    <!-- Favorito -->
+    <div class="pc-card">
+      <label class="fav-row">
+        <div class="fav-text">
+          <span class="fav-title">
+            <ion-icon name="star"></ion-icon>
+            Favorito
+          </span>
+          <span class="fav-hint">Aparece en el acceso rápido del POS</span>
+        </div>
+        <ion-toggle formControlName="favorito" color="warning"></ion-toggle>
+      </label>
     </div>
-    }
+
+    <!-- Presentaciones — sección opcional colapsable (fusiona el antiguo tipo separado) -->
+    <div class="pc-card" [class.pc-card--highlight]="mostrarPresentaciones">
+      <label class="pres-toggle-row">
+        <div class="pres-toggle-text">
+          <span class="pres-toggle-title">
+            <ion-icon name="layers-outline"></ion-icon>
+            Presentaciones
+            <span class="pres-toggle-opt">Opcional</span>
+          </span>
+          <span class="pres-toggle-hint">¿Se vende en varias presentaciones? (suelto, funda, caja…)</span>
+        </div>
+        <ion-toggle [checked]="mostrarPresentaciones" (ionChange)="togglePresentaciones()" color="primary"></ion-toggle>
+      </label>
+
+      @if (mostrarPresentaciones) {
+      <div class="pres-body">
+        <app-producto-presentaciones
+          [nombreProducto]="simpleForm.get('nombre')?.value || ''"
+          [precioCosto]="currencyService.parse(simpleForm.get('precio_costo')?.value ?? 0)"
+          modo="crear"
+          [(presentacionesNuevas)]="presentacionesNuevas">
+        </app-producto-presentaciones>
+      </div>
+      }
+    </div>
 
     <div class="pc-submit-wrap">
       <ion-button expand="block" type="submit" color="primary"
@@ -276,6 +276,20 @@
           </ion-input>
         </ion-item>
       </div>
+    </div>
+
+    <!-- Favorito — marca todas las variantes del grupo -->
+    <div class="pc-card">
+      <label class="fav-row">
+        <div class="fav-text">
+          <span class="fav-title">
+            <ion-icon name="star"></ion-icon>
+            Favorito
+          </span>
+          <span class="fav-hint">Marca todas las variantes para el acceso rápido del POS</span>
+        </div>
+        <ion-toggle [formControl]="$any(templateForm.get('favorito'))" color="warning"></ion-toggle>
+      </label>
     </div>
 
   </div>

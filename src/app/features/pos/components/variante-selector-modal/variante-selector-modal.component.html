@@ -3,7 +3,20 @@
   <!-- Header -->
   <div class="bs-header">
     <div class="vsm-header-text">
-      <span class="bs-header__title">{{ templateNombre }}</span>
+      <div class="vsm-title-row">
+        <span class="bs-header__title">{{ templateNombre }}</span>
+        @if (onToggleFavorito) {
+          <button class="vsm-fav-btn" [class.vsm-fav-btn--activo]="esFavorito"
+            [disabled]="favoritoGuardando" (click)="toggleFavorito()" type="button"
+            [attr.aria-label]="esFavorito ? 'Quitar de favoritos' : 'Marcar como favorito'">
+            @if (esFavorito) {
+              <ion-icon name="star"></ion-icon>
+            } @else {
+              <ion-icon name="star-outline"></ion-icon>
+            }
+          </button>
+        }
+      </div>
       @if (subtitle) {
         <span class="vsm-header-subtitle">{{ subtitle }}</span>
       }
@@ -58,7 +71,7 @@
                       {{ countVariante(v) }}
                     }
                   </span>
-                  <button class="vsm-stepper-btn" (click)="incrementarItem(v)" [disabled]="procesando || sinStock(v)" type="button">
+                  <button class="vsm-stepper-btn" (click)="incrementarItem(v, undefined, $event)" [disabled]="procesando || sinStock(v)" type="button">
                     <ion-icon name="add-outline"></ion-icon>
                   </button>
                 </div>
@@ -118,7 +131,7 @@
                           {{ _contadores().get(v.id) }}
                         }
                       </span>
-                      <button class="vsm-stepper-btn" (click)="incrementarItem(v)" [disabled]="procesando || sinStock(v)" type="button">
+                      <button class="vsm-stepper-btn" (click)="incrementarItem(v, undefined, $event)" [disabled]="procesando || sinStock(v)" type="button">
                         <ion-icon name="add-outline"></ion-icon>
                       </button>
                     </div>
@@ -171,7 +184,7 @@
                             {{ countPresentacion(v, p) }}
                           }
                         </span>
-                        <button class="vsm-stepper-btn" (click)="incrementarItem(v, p)" [disabled]="procesando || sinStock(v, p)" type="button">
+                        <button class="vsm-stepper-btn" (click)="incrementarItem(v, p, $event)" [disabled]="procesando || sinStock(v, p)" type="button">
                           <ion-icon name="add-outline"></ion-icon>
                         </button>
                       </div>
