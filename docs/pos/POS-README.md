@@ -377,6 +377,10 @@ El POS aplica descuentos automáticos sobre el subtotal bruto si se cumplen las 
 
 Modal bottom-sheet para editar la cantidad de un ítem del carrito (o asignarla al agregar desde catálogo).
 
+### Cierre tocando fuera (2026-07-22)
+
+`CantidadModalComponent` y `VarianteSelectorModalComponent` se cierran tocando el backdrop (sin `backdropDismiss: false`) — es seguro porque ninguno muta al cerrarse sin confirmar: `CantidadModal` solo hace `dismiss()` con un `role`, el caller (`agregarAlCarritoConCantidad`/`editarCantidad`) decide según ese role; `VarianteSelectorModal` aplica sus cambios en vivo al tocar cada variante, así que al cerrar ya están reflejados en el carrito. `CobrarModalComponent` es la única excepción deliberada: mantiene `backdropDismiss: false` (comentado en `pos.page.ts`) porque es el paso final con dinero de por medio — se cierra solo con la ✕ o eligiendo un método de pago, para no cancelarlo por un toque accidental.
+
 ### Header
 
 Muestra un thumbnail cuadrado con `border-radius: var(--radius-md)`. Si `imagenUrl` tiene valor la muestra; si no, muestra un ícono sobre fondo gris:

@@ -524,7 +524,7 @@ await modal.present();
 - Badge azul "Presentación: X" si el código corresponde a una presentación
 - Precio de venta (de la presentación si aplica, del producto base si no)
 - Stock actual con alerta roja si `stock_actual <= stock_minimo`
-- Botón "Consultar otro" para reactivar el escáner sin cerrar el modal
+- El input de código sigue visible bajo el resultado — para consultar el siguiente producto no hay botón dedicado, se escribe/escanea de nuevo sobre el mismo input (ver "Patrón de entrada" arriba)
 
 ---
 
