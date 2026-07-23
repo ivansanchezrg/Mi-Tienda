@@ -37,6 +37,7 @@ import {
 } from 'ionicons/icons';
 import { CajasService, Caja } from '../../services/cajas.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
+import { CurrencyService } from '@core/services/currency.service';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 
 export interface IconOption {
@@ -68,6 +69,7 @@ export class NuevaCajaModalComponent implements OnInit {
   private modalCtrl    = inject(ModalController);
   private fb           = inject(FormBuilder);
   private cajasService = inject(CajasService);
+  private currency     = inject(CurrencyService);
 
   /** Cajas existentes — se usan para filtrar íconos y colores ya en uso */
   @Input() cajasExistentes: Caja[] = [];
@@ -302,6 +304,9 @@ export class NuevaCajaModalComponent implements OnInit {
     this.guardando = true;
     try {
       const { nombre, icono, color, descripcion, saldoInicial } = this.form.value;
+      // parse(): con type="text" el saldo llega como string (posible coma decimal cruda) — a
+      // la BD va el número real. Patrón CLAUDE.md § "Formateo de dinero".
+      const saldoNum = this.currency.parse(saldoInicial);
 
       if (this.modoEdicion) {
         const caja = await this.cajasService.editarCaja(this.cajaEditar!.id, {
@@ -309,7 +314,7 @@ export class NuevaCajaModalComponent implements OnInit {
         });
         if (caja) this.modalCtrl.dismiss(caja, 'confirm');
       } else {
-        const caja = await this.cajasService.crearCaja(nombre.trim(), icono, color, descripcion ?? '', saldoInicial ?? 0);
+        const caja = await this.cajasService.crearCaja(nombre.trim(), icono, color, descripcion ?? '', saldoNum);
         if (caja) this.modalCtrl.dismiss(caja, 'confirm');
       }
     } finally {

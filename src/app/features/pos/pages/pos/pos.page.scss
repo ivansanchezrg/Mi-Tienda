@@ -668,8 +668,12 @@ ion-toolbar {
         margin-top: var(--spacing-sm);
     }
 
+    // Mismo refinamiento que el panel desktop: radio 10px, sin MAYÚSCULAS, sombra sutil en
+    // el principal. Coherencia del footer de cobro en mobile y desktop.
     .btn-charge-main {
-        --border-radius: var(--radius-md);
+        --border-radius: 10px;
+        --box-shadow: 0 4px 12px rgba(var(--ion-color-primary-rgb), 0.28);
+        text-transform: none;
         font-weight: var(--font-weight-bold);
         font-size: 15px;
         height: 44px;
@@ -679,7 +683,9 @@ ion-toolbar {
     }
 
     .btn-charge-other {
-        --border-radius: var(--radius-md);
+        --border-radius: 10px;
+        --border-width: 1.5px;
+        text-transform: none;
         font-weight: var(--font-weight-semibold);
         font-size: 13px;
         height: 44px;
@@ -746,12 +752,49 @@ ion-toolbar {
 .catalogo-wrapper {
     display: flex;
     flex-direction: column;
-    min-height: 100%;
+    // Altura fija (no min-height): el wrapper ocupa exactamente el alto del ion-content,
+    // la barra de categorías queda fija arriba y el viewport CDK toma el alto restante y
+    // scrollea internamente. Con min-height el viewport no tendría un alto acotado del cual
+    // calcular qué filas montar (la virtualización no funcionaría).
+    height: 100%;
 
     .catalogo-cats-bar {
-        position: sticky;
-        top: 0;
+        flex-shrink: 0;
         z-index: 10;
+    }
+}
+
+// Viewport CDK del catálogo — toma el alto restante bajo la barra de categorías y es el
+// scroller del grid virtualizado. Padding lateral/inferior que antes tenía .catalogo-grid.
+.catalogo-vscroll {
+    flex: 1;
+    min-height: 0;         // permite que el flex hijo encoja y el scroll interno funcione
+    width: 100%;
+
+    // Padding vertical del contenido virtualizado en el wrapper interno de CDK (no en las
+    // .catalogo-fila: un padding en la fila alteraría su alto y desincronizaría el itemSize
+    // del viewport). CDK posiciona el wrapper con transform, así que el padding-top separa
+    // la primera fila de la barra de filtros sin afectar el cálculo de offsets.
+    //  - top: aire entre la barra de categorías y la primera fila de cards (UX).
+    //  - bottom: colchón para que el pill flotante "Ver carrito" no tape la última fila.
+    ::ng-deep .cdk-virtual-scroll-content-wrapper {
+        padding-top: var(--spacing-sm);
+        padding-bottom: 100px;
+    }
+
+    // El contenido virtualizado (las filas) lo posiciona CDK con transform; el padding va
+    // en cada fila para no romper el cálculo de offsets del viewport.
+    // El nº de columnas lo fija el TS (calcularColumnas → --cols) para que el chunking de
+    // filas (TS) y el layout (CSS) SIEMPRE coincidan. Con auto-fill el CSS podría poner un
+    // nº de columnas distinto al que agrupó el TS → filas con huecos o desalineadas.
+    .catalogo-fila {
+        display: grid;
+        grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+        gap: 10px;
+        padding: 0 var(--spacing-sm);
+        // Separación vertical entre filas — el alto de fila (itemSize) ya incluye este
+        // espacio (calcularAlturaFila suma el gap).
+        margin-bottom: 10px;
     }
 }
 
@@ -761,10 +804,19 @@ ion-toolbar {
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    border-bottom: 1px solid var(--ion-color-step-100);
+    // Separador pronunciado entre la barra de filtros (y el input de búsqueda) y el
+    // catálogo: borde 2px. Sin esto, con la barra fija y las cards scrolleando debajo, no
+    // había una división clara entre ambas zonas.
+    border-bottom: 2px solid var(--ion-color-step-150, var(--ion-color-step-100));
+    // Sombra de elevación hacia abajo — refuerza la separación con el catálogo que scrollea
+    // debajo. overflow:hidden clippea el CONTENIDO/descendientes (para la animación de la
+    // capa de búsqueda), pero NO la box-shadow del propio elemento (se pinta fuera del
+    // border-box) → la sombra sí es visible.
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.07);
     background: var(--ion-item-background);
     min-height: 54px;
-    overflow: hidden; // clip para la animación de la capa de búsqueda
+    overflow: hidden; // clip para la animación de la capa de búsqueda (±6px translateY)
+    z-index: 10;      // por encima de la primera fila del catálogo
 }
 
 // Capa 1 — tabs + botón búsqueda (scroll horizontal)
@@ -832,36 +884,48 @@ ion-toolbar {
     }
 }
 
-.cat-search-mode-btn {
-    flex-shrink: 0;
-    width: 42px;
-    height: 38px;
-    background: var(--ion-color-step-100);
-    border: none;
-    border-right: 1px solid var(--ion-color-step-150);
-    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-    color: var(--ion-color-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-
-    ion-icon { font-size: 18px; }
-    &:active { background: rgba(var(--ion-color-primary-rgb), 0.12); }
-}
-
-// Input + spinner + botón X comparten el mismo borde
+// Buscador del POS — mismo diseño que el input de Inventario (.inv-search-field):
+// field único con fondo step-50, borde step-200, radio 8px, alto 38px. La única diferencia
+// es que el ícono de lupa del POS es un BOTÓN (togglea nombre/código), no decorativo.
 .cat-search-field {
     flex: 1;
     min-width: 0;
     display: flex;
     align-items: center;
     height: 38px;
-    border: 1px solid var(--ion-color-step-100);
-    border-left: none;
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-    background: transparent;
-    padding-right: 4px;
+    border: 1px solid var(--ion-color-step-200);
+    border-radius: 8px;
+    background: var(--ion-color-step-50, var(--ion-background-color));
+    padding: 0 4px 0 4px;
+    gap: 6px;
+}
+
+// Botón de modo (lupa/barcode) — DENTRO del field, con aspecto de botón clickeable:
+// fondo sutil + chevron ▾ que comunica "toca para cambiar el modo de búsqueda". El icono
+// de modo va en color primary (acento) para que se lea como control activo, no decorativo.
+.cat-search-mode-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 30px;
+    padding: 0 6px;
+    background: var(--ion-color-step-100);
+    border: none;
+    border-radius: 6px;
+    color: var(--ion-color-primary);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    // Icono de modo (lupa o barcode)
+    > ion-icon:first-child { font-size: 17px; }
+    // Chevron ▾ — pista de que es un selector; más chico y tenue que el icono de modo
+    .cat-search-mode-caret {
+        font-size: 11px;
+        color: var(--ion-color-medium);
+    }
+
+    &:active { background: var(--ion-color-step-150); }
 }
 
 .cat-search-input {
@@ -873,7 +937,6 @@ ion-toolbar {
     font-size: 15px;
     color: var(--ion-text-color);
     outline: none;
-    padding: 0 8px 0 12px;
     caret-color: var(--ion-color-primary);
 
     &::placeholder { color: var(--ion-color-medium); }
@@ -898,7 +961,8 @@ ion-toolbar {
     justify-content: center;
     cursor: pointer;
 
-    ion-icon { font-size: 20px; --ionicon-stroke-width: 28; }
+    // Mismo peso de trazo que el botón de limpiar de Inventario (.inv-search-clear-btn)
+    ion-icon { font-size: 20px; --ionicon-stroke-width: 56; }
     &:active { color: var(--ion-color-danger); }
 }
 
@@ -1003,11 +1067,10 @@ ion-toolbar {
     display: flex;
     flex-direction: column;
     aspect-ratio: 3 / 4;
-    // El browser salta layout/paint de las cards fuera del viewport — clave con
-    // catálogos grandes (grid sin virtualización). Sin saltos de scroll: aspect-ratio
-    // + ancho del grid fijan la geometría sin depender del contenido.
-    content-visibility: auto;
-    contain-intrinsic-size: auto 200px;
+    // Ya no se usa content-visibility: la virtualización CDK (cdk-virtual-scroll-viewport)
+    // hace que solo las filas visibles existan en el DOM, así que el browser nunca paga el
+    // layout/paint de cards fuera de pantalla. content-visibility + virtual scroll juntos
+    // podían provocar mediciones de alto inconsistentes (saltos de scroll).
     border-radius: 10px;
     overflow: hidden;
     cursor: pointer;
@@ -1587,12 +1650,14 @@ ion-toolbar {
     }
 
     // ── Header del panel ──────────────────────────────────
+    // Sin border-bottom: header + cliente forman UN bloque de cabecera fija. La separación
+    // reforzada (borde 2px + sombra) va bajo .panel-cliente, el límite con los ítems que
+    // scrollean — mismo lenguaje visual que la barra de filtros → catálogo.
     .panel-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding: 16px 20px 12px;
-        border-bottom: 1px solid var(--ion-color-step-100);
         flex-shrink: 0;
     }
 
@@ -1624,12 +1689,19 @@ ion-toolbar {
     }
 
     // ── Selector de cliente ───────────────────────────────
+    // Límite entre la cabecera fija (Carrito + Cliente) y los ítems que scrollean. Separador
+    // reforzado (borde 2px + sombra de elevación) idéntico al de la barra de filtros → así,
+    // al scrollear el carrito, se percibe la misma jerarquía visual en todo el POS.
     .panel-cliente {
         display: flex;
         align-items: center;
         gap: 10px;
         padding: 10px 20px;
-        border-bottom: 1px solid var(--ion-color-step-100);
+        background: var(--ion-item-background); // opaco: la cabecera fija tapa los ítems al scrollear
+        border-bottom: 2px solid var(--ion-color-step-150, var(--ion-color-step-100));
+        box-shadow: 0 3px 5px rgba(0, 0, 0, 0.07);
+        position: relative;
+        z-index: 2; // la sombra queda por encima del primer ítem del carrito
         cursor: pointer;
         transition: background 0.15s ease;
         flex-shrink: 0;
@@ -1969,8 +2041,13 @@ ion-toolbar {
         gap: 8px;
     }
 
+    // Botón principal (Cobrar efectivo): radio 10px alineado al buscador/sistema, sin
+    // MAYÚSCULAS (default de ion-button md) para un look más limpio y moderno (Square/Shopify),
+    // y una sombra sutil en primary que lo hace flotar como la acción protagonista.
     .panel-btn-main {
-        --border-radius: var(--radius-md);
+        --border-radius: 10px;
+        --box-shadow: 0 4px 12px rgba(var(--ion-color-primary-rgb), 0.28);
+        text-transform: none;
         font-weight: var(--font-weight-bold);
         font-size: 15px;
         height: 46px;
@@ -1978,8 +2055,13 @@ ion-toolbar {
         letter-spacing: 0.2px;
     }
 
+    // Botón secundario (Otros métodos): mismo radio, sin MAYÚSCULAS. Usa color="primary"
+    // (HTML) + fill="outline" → borde y texto en primary, no el gris apagado de antes, para
+    // que se lea como acción real. Borde un poco más grueso para que no se vea débil.
     .panel-btn-other {
-        --border-radius: var(--radius-md);
+        --border-radius: 10px;
+        --border-width: 1.5px;
+        text-transform: none;
         font-weight: var(--font-weight-semibold);
         font-size: 13px;
         height: 38px;
@@ -2001,18 +2083,30 @@ ion-toolbar {
         animation: none;
     }
 
-    // Grid del catálogo en desktop con panel lateral — columnas fijas (no auto-fill)
-    // para priorizar legibilidad sobre densidad: 4 columnas es el estándar de POS
-    // profesionales (Square, Shopify POS) porque reduce el costo de un mal-click y
-    // deja espacio para nombres largos (variantes con talla/color).
+    // En desktop el scroll del catálogo lo maneja el viewport CDK, no .pos-col-main.
+    // Sin esto habría doble scroll (el de la columna + el del viewport). La columna solo
+    // define la altura; el wrapper la llena y el viewport scrollea dentro.
+    .pos-col-main {
+        overflow-y: hidden;
+    }
+    .catalogo-wrapper {
+        height: 100%;
+    }
+
+    // Filas del catálogo en desktop — el nº de columnas lo fija el TS vía --cols (4 en
+    // laptop, 5 en ≥1440px). Aquí solo el gap mayor que en mobile. Columnas fijas (no
+    // auto-fill) es el estándar de POS profesionales (Square, Shopify POS): reduce el
+    // costo de un mal-click y deja espacio para nombres largos (variantes talla/color).
+    .catalogo-vscroll .catalogo-fila {
+        gap: 12px;
+    }
+
+    // Skeleton mantiene el grid original (no se virtualiza)
     .catalogo-grid {
         grid-template-columns: repeat(4, 1fr);
         gap: 12px;
         padding-bottom: var(--spacing-md);
     }
-
-    // Monitores grandes (≥1440px): 5 columnas — ahí el área del catálogo (~70% del
-    // viewport) sobra espacio real sin apretar las cards, a diferencia de un laptop.
     @media (min-width: 1440px) {
         .catalogo-grid {
             grid-template-columns: repeat(5, 1fr);

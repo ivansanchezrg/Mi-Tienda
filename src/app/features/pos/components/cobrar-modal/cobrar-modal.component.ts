@@ -72,7 +72,10 @@ export class CobrarModalComponent implements OnInit, AfterViewInit {
 
     // ── Getters para vuelto ──────────────────────
     get recibido(): number {
-        return parseFloat(this.montoRecibido) || 0;
+        // parse() (no parseFloat): parseFloat("20,50") cortaba en la coma → 20, y el vuelto
+        // salía mal. parse() interpreta la coma decimal correctamente. Con type="text" el
+        // input ya no depende del locale del navegador para el separador.
+        return this.currencyService.parse(this.montoRecibido);
     }
 
     get vuelto(): number {

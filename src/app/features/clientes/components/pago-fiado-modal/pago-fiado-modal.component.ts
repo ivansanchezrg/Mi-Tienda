@@ -60,27 +60,31 @@ export class PagoFiadoModalComponent implements OnInit {
     modoAbono = false;
 
     get totalDeuda(): number {
-        return this.ventas.reduce((s, v) => s + v.saldo_pendiente, 0);
+        // redondear(): la suma de saldos en float puede acumular error (aunque cada uno esté
+        // limpio) — el total que se cobra y muestra debe ser centavos exactos.
+        return this.currencyService.redondear(this.ventas.reduce((s, v) => s + v.saldo_pendiente, 0));
     }
 
     /** Monto efectivo a cobrar: total si no es abono, o lo que diga el input */
     get montoACobrar(): number {
         if (!this.modoAbono) return this.totalDeuda;
-        return Math.max(0, Number(this.form?.get('monto')?.value) || 0);
+        // parse() (no Number()): interpreta la coma decimal cruda del input y redondea a
+        // centavos. Number("20,50") daba NaN. El input usa appCurrencyInput (type="text").
+        return Math.max(0, this.currencyService.parse(this.form?.get('monto')?.value));
     }
 
     /** Distribución FIFO — solo se calcula cuando es abono parcial y hay >1 venta */
     get distribucion(): DistribucionItem[] {
         let resto = this.montoACobrar;
         return this.ventas.map(v => {
-            const pago = parseFloat(Math.min(resto, v.saldo_pendiente).toFixed(2));
-            resto = parseFloat(Math.max(0, resto - pago).toFixed(2));
+            const pago = this.currencyService.redondear(Math.min(resto, v.saldo_pendiente));
+            resto = this.currencyService.redondear(Math.max(0, resto - pago));
             return { venta: v, pago, completa: pago >= v.saldo_pendiente };
         });
     }
 
     get saldoRestante(): number {
-        return parseFloat(Math.max(0, this.totalDeuda - this.montoACobrar).toFixed(2));
+        return this.currencyService.redondear(Math.max(0, this.totalDeuda - this.montoACobrar));
     }
 
     get mostrarDistribucion(): boolean {
@@ -196,7 +200,7 @@ export class PagoFiadoModalComponent implements OnInit {
                     numeroComprobante: i.venta.numero_comprobante,
                     pago: i.pago,
                     completa: i.completa,
-                    saldoVenta: parseFloat(Math.max(0, i.venta.saldo_pendiente - i.pago).toFixed(2))
+                    saldoVenta: this.currencyService.redondear(Math.max(0, i.venta.saldo_pendiente - i.pago))
                 }))
             });
 

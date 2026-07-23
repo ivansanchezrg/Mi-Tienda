@@ -20,15 +20,14 @@
           <input
             #costoInput
             class="calc-input"
-            type="number"
+            type="text"
             inputmode="decimal"
             placeholder="0.00"
             [(ngModel)]="costo"
-            (ngModelChange)="onCostoChange()"
-            min="0">
+            (ngModelChange)="onCostoChange()">
         </div>
 
-        @if (costo && costo > 0) {
+        @if (costoNum > 0) {
         <div class="calc-field">
           <label class="calc-label">Precio de venta ($)</label>
           <input
@@ -44,7 +43,7 @@
       </div>
 
       <!-- Resultado -->
-      @if (costo && costo > 0 && precioVentaNum > 0) {
+      @if (costoNum > 0 && precioVentaNum > 0) {
       <div class="resultado-card" [class.danger-card]="margenColor === 'danger'" [class.warning-card]="margenColor === 'warning'" [class.success-card]="margenColor === 'success'">
         <div class="resultado-cols">
           <div class="resultado-col">

@@ -11,6 +11,7 @@
 ion-toolbar {
     --background: var(--modal-card-bg);
     --color: var(--modal-text);
+    --min-height: 52px;
 }
 
 ion-content {
@@ -18,11 +19,11 @@ ion-content {
     --overflow: auto;
 }
 
+// Compacto: padding ajustado, secciones juntas. Menos scroll, más eficiencia visual.
 .modal-content {
-    padding: 12px 16px 32px;
+    padding: 8px 14px 20px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
 }
 
 // ── Aviso Factura ──────────────────────────────
@@ -30,60 +31,71 @@ ion-content {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 14px;
+    padding: 9px 12px;
     background: rgba(var(--ion-color-warning-rgb), 0.1);
-    border: 1px solid var(--ion-color-warning);
-    border-radius: var(--radius-sm);
-    margin-bottom: 8px;
-    font-size: 13px;
+    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.4);
+    border-radius: 10px;
+    margin: 4px 0 10px;
+    font-size: 12.5px;
     color: var(--ion-color-warning-shade);
     font-weight: var(--font-weight-medium);
+    line-height: 1.3;
 
     ion-icon {
         font-size: 18px;
         flex-shrink: 0;
+        color: var(--ion-color-warning);
     }
 }
 
 // ── Labels de sección ──────────────────────────
+// Jerarquía por tipografía: label pequeño en mayúsculas. Color -soft (#666) — NO -muted
+// (#999): sobre el fondo claro del modal (#F4F5F8) el muted quedaba lavado, sin presencia.
 .section-label {
     font-size: 11px;
     font-weight: var(--font-weight-bold);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.6px;
     color: var(--modal-text-soft);
-    margin: 12px 4px 6px;
+    margin: 14px 2px 6px;
+    display: flex;
+    align-items: center;
+
+    &:first-child { margin-top: 4px; }
 }
 
-// ── Lista de clientes ──────────────────────────
+// ── Lista de clientes (compacta) ───────────────
 .client-list {
-    background: transparent;
-    border-radius: var(--radius-md);
+    background: var(--modal-card-bg);
+    border-radius: 12px;
     overflow: hidden;
-    box-shadow: var(--shadow-level-1);
-    margin-bottom: 4px;
+    border: 1px solid var(--modal-divider);
 
     ion-item {
         --background: var(--modal-card-bg);
         --padding-start: 12px;
         --inner-padding-end: 12px;
-        --padding-top: 10px;
-        --padding-bottom: 10px;
-        --min-height: 60px;
+        --padding-top: 8px;
+        --padding-bottom: 8px;
+        --min-height: 54px;
+        --inner-border-width: 0;
+
+        // Separador entre filas de la misma lista (no en la última)
+        &:not(:last-of-type) {
+            --inner-border-width: 0 0 1px 0;
+            --border-color: var(--modal-divider);
+        }
 
         &.item-active {
             --background: rgba(var(--ion-color-primary-rgb), 0.06);
 
-            h3 {
-                color: var(--ion-color-primary);
-                font-weight: var(--font-weight-bold);
-            }
+            h3 { color: var(--ion-color-primary); font-weight: var(--font-weight-bold); }
         }
 
         h3 {
-            font-size: 15px;
+            font-size: 14.5px;
             font-weight: var(--font-weight-semibold);
-            margin: 0 0 2px 0;
+            margin: 0 0 1px 0;
             color: var(--modal-text);
         }
 
@@ -92,22 +104,25 @@ ion-content {
             color: var(--modal-text-soft);
             margin: 0;
         }
+
+        ion-icon[slot="end"] { font-size: 20px; }
     }
 }
 
+// Avatar compacto — 34px
 .client-avatar {
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
     border-radius: var(--radius-full);
-    background: var(--modal-surface);
+    background: rgba(var(--ion-color-primary-rgb), 0.1);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    margin-right: 10px;
+    margin-right: 12px;
 
     ion-icon {
-        font-size: 20px;
+        font-size: 18px;
         color: var(--ion-color-primary);
     }
 }
@@ -131,9 +146,9 @@ ion-content {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 9px 11px;
     background: rgba(var(--ion-color-medium-rgb), 0.1);
-    border-radius: var(--radius-sm);
+    border-radius: 10px;
     font-size: 12px;
     color: var(--modal-text-soft);
     line-height: 1.4;
@@ -152,18 +167,28 @@ ion-content {
 
     ion-searchbar {
         --box-shadow: none;
-        --border-radius: var(--radius-sm);
+        --border-radius: 10px;
         --background: var(--modal-card-bg);
+        --border: 1px solid var(--modal-divider);
         padding: 0;
-        margin: 0 0 8px 0;
+        margin: 0;
         height: 44px;
+        min-height: 44px;
+
+        // El searchbar de Ionic no expone borde por variable — lo forzamos en la parte interna.
+        &::part(searchbar-input),
+        .searchbar-input-container {
+            border: 1px solid var(--modal-divider) !important;
+            border-radius: 10px !important;
+        }
     }
 
     .search-spinner {
         position: absolute;
         right: 12px;
         top: 50%;
-        transform: translateY(-60%);
+        transform: translateY(-50%);
+        z-index: 2;
     }
 }
 
@@ -172,7 +197,7 @@ ion-content {
     text-align: center;
     font-size: 13px;
     color: var(--modal-text-soft);
-    padding: 12px 0;
+    padding: 14px 0;
     margin: 0;
 }
 
@@ -180,61 +205,59 @@ ion-content {
 .add-client-btn {
     display: flex;
     align-items: center;
-    gap: 10px;
+    justify-content: center;
+    gap: 9px;
     width: 100%;
-    padding: 14px 16px;
-    background: var(--modal-card-bg);
-    border: 1.5px dashed var(--ion-color-primary);
-    border-radius: var(--radius-md);
+    padding: 13px 16px;
+    background: rgba(var(--ion-color-primary-rgb), 0.05);
+    border: 1.5px dashed rgba(var(--ion-color-primary-rgb), 0.45);
+    border-radius: 12px;
     color: var(--ion-color-primary);
-    font-size: 15px;
+    font-size: 14.5px;
     font-weight: var(--font-weight-semibold);
     cursor: pointer;
-    transition: background var(--transition-fast);
+    transition: background var(--transition-fast), border-color var(--transition-fast);
 
     ion-icon {
-        font-size: 20px;
+        font-size: 19px;
         flex-shrink: 0;
     }
 
     &:active {
-        background: rgba(var(--ion-color-primary-rgb), 0.06);
+        background: rgba(var(--ion-color-primary-rgb), 0.1);
+        border-color: var(--ion-color-primary);
     }
 }
 
-// ── Formulario nuevo cliente ───────────────────
+// ── Formulario nuevo cliente (compacto) ─────────
 .new-client-form {
     background: var(--modal-card-bg);
-    border-radius: var(--radius-md);
-    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid var(--modal-divider);
+    padding: 14px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    box-shadow: var(--shadow-level-1);
+    gap: 12px;
 }
 
 .form-field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
 
     .field-label {
-        font-size: 12px;
+        font-size: 12.5px;
         font-weight: var(--font-weight-semibold);
-        color: var(--modal-text-soft);
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
+        color: var(--modal-text);
 
-        .required {
-            color: var(--ion-color-danger);
-        }
+        .required { color: var(--ion-color-danger); }
     }
 
     .field-input {
         width: 100%;
         padding: 10px 12px;
         border: 1.5px solid var(--modal-divider);
-        border-radius: var(--radius-sm);
+        border-radius: 9px;
         font-size: 15px;
         color: var(--modal-text);
         background: var(--modal-bg);
@@ -242,13 +265,8 @@ ion-content {
         box-sizing: border-box;
         transition: border-color var(--transition-fast);
 
-        &:focus {
-            border-color: var(--ion-color-primary);
-        }
-
-        &::placeholder {
-            color: var(--modal-text-muted);
-        }
+        &:focus { border-color: var(--ion-color-primary); }
+        &::placeholder { color: var(--modal-text-muted); }
     }
 }
 
@@ -258,9 +276,7 @@ ion-content {
     display: flex;
     align-items: center;
 
-    .field-input {
-        padding-right: 38px;
-    }
+    .field-input { padding-right: 38px; }
 
     .cedula-spinner,
     .cedula-icon {
@@ -270,10 +286,7 @@ ion-content {
         pointer-events: none;
     }
 
-    .cedula-spinner {
-        width: 18px;
-        height: 18px;
-    }
+    .cedula-spinner { width: 18px; height: 18px; }
 }
 
 .field-error {
@@ -285,15 +298,15 @@ ion-content {
 // ── Card cliente duplicado ──────────────────────
 .duplicate-card {
     background: rgba(var(--ion-color-warning-rgb), 0.08);
-    border: 1px solid var(--ion-color-warning);
-    border-radius: var(--radius-sm);
+    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.4);
+    border-radius: 10px;
     padding: 10px 12px;
 
     .duplicate-label {
         font-size: 12px;
         font-weight: var(--font-weight-semibold);
         color: var(--ion-color-warning-shade);
-        margin: 0 0 8px 0;
+        margin: 0 0 6px 0;
     }
 
     .duplicate-item {
@@ -302,8 +315,9 @@ ion-content {
         --inner-padding-end: 0;
         --padding-top: 4px;
         --padding-bottom: 4px;
-        --min-height: 48px;
-        border-radius: var(--radius-sm);
+        --min-height: 46px;
+        --inner-border-width: 0;
+        border-radius: 8px;
 
         h3 {
             font-size: 14px;
@@ -321,29 +335,27 @@ ion-content {
 .form-actions {
     display: flex;
     gap: 10px;
-    margin-top: 4px;
+    margin-top: 2px;
 
     .btn-cancel {
         flex: 1;
         padding: 12px;
         border: 1.5px solid var(--modal-divider);
-        border-radius: var(--radius-sm);
+        border-radius: 10px;
         background: transparent;
         color: var(--modal-text-soft);
         font-size: 15px;
         font-weight: var(--font-weight-semibold);
         cursor: pointer;
 
-        &:active {
-            background: var(--modal-surface);
-        }
+        &:active { background: var(--modal-surface); }
     }
 
     .btn-save {
         flex: 2;
         padding: 12px;
         border: none;
-        border-radius: var(--radius-sm);
+        border-radius: 10px;
         background: var(--ion-color-primary);
         color: var(--ion-color-primary-contrast);
         font-size: 15px;
@@ -359,8 +371,6 @@ ion-content {
             cursor: not-allowed;
         }
 
-        &:active:not(:disabled) {
-            opacity: 0.85;
-        }
+        &:active:not(:disabled) { opacity: 0.85; }
     }
 }

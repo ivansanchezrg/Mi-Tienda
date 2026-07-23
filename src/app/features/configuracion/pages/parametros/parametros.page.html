@@ -168,7 +168,7 @@
           <label class="input-label">Monto diario a separar</label>
           <div class="input-with-prefix">
             <span class="prefix">$</span>
-            <input type="number" inputmode="decimal" step="0.01" min="0.01"
+            <input type="text" inputmode="decimal"
               [(ngModel)]="variosMonto" [ngModelOptions]="{standalone: true}"
               [disabled]="guardandoVarios" autocomplete="off" placeholder="0.00">
           </div>

@@ -29,7 +29,7 @@ export class AdelantoModalComponent {
   private authService = inject(AuthService);
   public currency = inject(CurrencyService);
 
-  montoRaw: number | null = null;
+  montoRaw = '';   // string: con type="text" el input maneja el separador, no el locale del navegador
   descripcion = '';
   guardando = false;
   errorMsg = '';
@@ -44,7 +44,8 @@ export class AdelantoModalComponent {
   }
 
   get montoNumerico(): number {
-    return this.montoRaw && this.montoRaw > 0 ? this.montoRaw : 0;
+    // parse(): interpreta bien la coma decimal cruda ("20,50"). Consistente con ajuste-modal.
+    return this.currency.parse(this.montoRaw);
   }
 
   get valido(): boolean {

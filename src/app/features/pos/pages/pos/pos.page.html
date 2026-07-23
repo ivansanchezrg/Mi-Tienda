@@ -25,7 +25,7 @@
           </button>
         } @else {
           <button class="header-search-btn" (click)="abrirCatalogoSearch()" type="button">
-            @if (modoBusqueda === 'codigo') {
+            @if (modoBusqueda() === 'codigo') {
               <ion-icon name="barcode-outline"></ion-icon>
             } @else {
               <ion-icon name="search-outline"></ion-icon>
@@ -54,7 +54,7 @@
   <!-- Fila cliente — mobile: solo en lista. Desktop: oculta (el panel tiene su propio selector) -->
   <ion-toolbar class="cliente-toolbar cliente-toolbar--mobile" [class.ion-hide]="vistaActual === 'catalogo'">
     <div class="cliente-header-row"
-      [class.cliente-header-row--requerido]="tipoComprobante === TipoComprobante.FACTURA && clienteSeleccionado?.es_consumidor_final">
+      [class.cliente-header-row--requerido]="tipoComprobante === TipoComprobante.FACTURA && clienteSeleccionado()?.es_consumidor_final">
       <span class="chr-label">
         <ion-icon name="person-outline"></ion-icon>
         Cliente
@@ -75,7 +75,7 @@
             <ion-icon name="chevron-forward-outline" color="warning"></ion-icon>
           </button>
         } @else {
-          <span class="chr-nombre">{{ clienteSeleccionado?.nombre || 'Consumidor Final' }}</span>
+          <span class="chr-nombre">{{ clienteSeleccionado()?.nombre || 'Consumidor Final' }}</span>
           <button class="chr-action-btn" (click)="abrirSelectorCliente()">
             <ion-icon name="chevron-forward-outline"></ion-icon>
           </button>
@@ -135,9 +135,15 @@
 @if (!escaneando) {
 <ion-content color="light" [scrollEvents]="true" (ionScroll)="scrollTop.onContentScroll($event)">
 
+  <!-- Pull-to-refresh solo en la vista lista/carrito: en el catálogo el scroll lo maneja
+       el viewport CDK (no ion-content), así que el refresher no dispararía ahí. El catálogo
+       ya se refresca solo (al entrar al POS, tras cada venta y con descuento local en vivo),
+       por lo que el gesto manual era redundante — ver decisión 2026-07-22. -->
+  @if (vistaActual === 'lista') {
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
+  }
 
   <!-- ═══════════════════════════════════════════════════════ -->
   <!-- LAYOUT DESKTOP (≥992px): catálogo + panel cobro       -->
@@ -245,19 +251,21 @@
             }
           </div>
           <div class="search-layer">
-            <button class="cat-search-mode-btn"
-              (mousedown)="$event.preventDefault()"
-              (click)="toggleModoBusqueda()" type="button">
-              @if (modoBusqueda === 'codigo') {
-                <ion-icon name="barcode-outline"></ion-icon>
-              } @else {
-                <ion-icon name="search-outline"></ion-icon>
-              }
-            </button>
             <div class="cat-search-field">
+              <button class="cat-search-mode-btn"
+                (mousedown)="$event.preventDefault()"
+                (click)="toggleModoBusqueda()" type="button"
+                [attr.aria-label]="modoBusqueda() === 'codigo' ? 'Buscar por código' : 'Buscar por nombre'">
+                @if (modoBusqueda() === 'codigo') {
+                  <ion-icon name="barcode-outline"></ion-icon>
+                } @else {
+                  <ion-icon name="search-outline"></ion-icon>
+                }
+                <ion-icon name="chevron-down-outline" class="cat-search-mode-caret"></ion-icon>
+              </button>
               <input class="cat-search-input"
                 [ngModel]="buscarTexto()" (ngModelChange)="buscarTexto.set($event)"
-                [placeholder]="modoBusqueda === 'codigo' ? 'Código...' : 'Nombre...'"
+                [placeholder]="modoBusqueda() === 'codigo' ? 'Código...' : 'Nombre...'"
                 inputmode="text"
                 (input)="onSearchInput($event)"
                 (keyup)="onSearchKeyup($event)"
@@ -294,8 +302,21 @@
           style="min-height: auto; margin-top: 48px;">
         </app-empty-state>
         } @else {
-        <div class="catalogo-grid">
-          @for (item of itemsCatalogo(); track (item.tipo === 'simple' ? item.producto.id : item.templateId)) {
+        <!-- Virtual scroll por FILAS: solo las filas visibles existen en el DOM. Con miles
+             de productos, cambiar de filtro ya no monta N cards de golpe. Cada fila es un
+             grid de `columnasCatalogo` cards (--cols); el contenido de cada card es idéntico
+             al de antes. El viewport es un scroller independiente con altura acotada por
+             .catalogo-wrapper (height:100%) → ion-content no scrollea el catálogo, así que
+             sus slot="fixed" (pill, FAB, escáner) siguen intactos. itemSize = alto de fila. -->
+        <cdk-virtual-scroll-viewport
+          #catalogoViewport
+          class="catalogo-vscroll"
+          [style.--cols]="columnasCatalogo()"
+          [itemSize]="alturaFilaCatalogo()"
+          minBufferPx="1000" maxBufferPx="1500"
+          (scrolledIndexChange)="onCatalogoScroll()">
+          <div class="catalogo-fila" *cdkVirtualFor="let fila of filasCatalogo(); trackBy: trackFila">
+          @for (item of fila; track (item.tipo === 'simple' ? item.producto.id : item.templateId)) {
             @if (item.tipo === 'simple') {
               <!-- Unidades base (cantidad × factor): 2 cajetillas x10 comprometen 20, no 2 -->
               @let stockLibre = item.producto.stock_actual - (carritoUnidadesBaseMap()[item.producto.id] || 0);
@@ -346,10 +367,12 @@
                   <span class="catalogo-card-nombre">{{ item.producto.nombre }}</span>
                   <div class="catalogo-card-bottom-row">
                     <span class="catalogo-card-precio">${{ currencyService.format(item.producto.precio_venta) }}</span>
-                    <!-- "sin stock" (0) y "¡último!" (1) son estados distintos: el primero ya no
-                         se puede vender, el segundo sí — no deben compartir la misma etiqueta. -->
+                    <!-- Sin stock (0): sin etiqueta de texto — la card ya se atenúa visualmente
+                         (--agotado, opacity + grayscale) y el toast "Producto sin stock" avisa
+                         al tocarla. El texto era redundante y ensuciaba la card (decidido 2026-07-22).
+                         "¡último!" (1) sí necesita texto: la card NO se atenúa (todavía se puede
+                         vender) y nada más comunica que solo queda 1 unidad. -->
                     @if (stockLibre <= 0) {
-                      <span class="catalogo-card-stock catalogo-card-stock--danger">sin stock</span>
                     } @else if (stockLibre === 1) {
                       <span class="catalogo-card-stock catalogo-card-stock--danger">¡último!</span>
                     } @else if (stockLibre <= 10) {
@@ -389,7 +412,8 @@
               </button>
             }
           }
-        </div>
+          </div><!-- /.catalogo-fila -->
+        </cdk-virtual-scroll-viewport>
         }
 
       </div>
@@ -415,7 +439,7 @@
 
       <!-- Selector de cliente -->
       <div class="panel-cliente"
-        [class.panel-cliente--requerido]="tipoComprobante === TipoComprobante.FACTURA && clienteSeleccionado?.es_consumidor_final"
+        [class.panel-cliente--requerido]="tipoComprobante === TipoComprobante.FACTURA && clienteSeleccionado()?.es_consumidor_final"
         (click)="abrirSelectorCliente()">
         <ion-icon name="person-outline" class="panel-cliente-icon"></ion-icon>
         <div class="panel-cliente-info">
@@ -425,7 +449,7 @@
           } @else if (errorCliente) {
             <span class="panel-cliente-nombre panel-cliente-nombre--error">Error — reintentar</span>
           } @else {
-            <span class="panel-cliente-nombre">{{ clienteSeleccionado?.nombre || 'Consumidor Final' }}</span>
+            <span class="panel-cliente-nombre">{{ clienteSeleccionado()?.nombre || 'Consumidor Final' }}</span>
           }
         </div>
         <ion-icon name="chevron-forward-outline" class="panel-cliente-arrow"></ion-icon>
@@ -553,7 +577,7 @@
             <ion-icon name="cash-outline" slot="start"></ion-icon>
             Cobrar Efectivo
           </ion-button>
-          <ion-button expand="block" fill="outline" color="medium" class="panel-btn-other"
+          <ion-button expand="block" fill="outline" color="primary" class="panel-btn-other"
             [disabled]="carrito().length === 0 || cobroEnProceso"
             (click)="cobrar()">
             Otros métodos
@@ -676,7 +700,7 @@
         <span class="total-amount" [class.total-amount--bump]="totalAmountAnimando">${{ currencyService.format(totalPagar()) }}</span>
       </div>
       <div class="btn-charge-row">
-        <ion-button expand="block" fill="outline" color="medium" class="btn-charge-other" (click)="cobrar()"
+        <ion-button expand="block" fill="outline" color="primary" class="btn-charge-other" (click)="cobrar()"
           [disabled]="carrito().length === 0 || cobroEnProceso">
           Otros métodos
         </ion-button>

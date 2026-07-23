@@ -308,12 +308,37 @@ readonly currency = inject(CurrencyService);
 <span class="cc-currency">$</span>{{ currency.parteEntera(saldo) }}<span class="cc-cents">.{{ currency.centavos(saldo) }}</span>
 ```
 
-### Parse (input del usuario → número)
+### Parse (input del usuario → número) — SIEMPRE redondea a centavos
 
 ```typescript
 private currency = inject(CurrencyService);
 const monto = this.currency.parse(this.form.get('monto')?.value); // "1,250.50" → 1250.5
 ```
+
+`parse()` **redondea a 2 decimales internamente** (llama a `redondear()` en su return). Es el embudo
+obligatorio de todo input de dinero → todo monto que pasa por `parse()` sale limpio de centavos para la BD.
+Por eso **no** hay que hacer `Math.round(parse(x)*100)/100` manual — `parse()` ya lo hace.
+
+### Inputs de dinero — `type="text"`, NUNCA `type="number"`
+
+Todo `<input>`/`<ion-input>` de dinero debe ser `type="text"` + `inputmode="decimal"` (+ `appCurrencyInput`
+`appNumbersOnly` si aplica). **Nunca `type="number"`**: el navegador renderiza el separador decimal según el
+**locale del dispositivo** — en un teléfono en español, `20.00` se muestra como `20,00` (coma), y el valor se
+corrompe. `type="text"` muestra exactamente lo que da la directiva. Bug auditado y corregido en 9 inputs (2026-07-23).
+
+### Precisión financiera — `redondear()` para montos CALCULADOS
+
+JavaScript no tiene tipo decimal: `0.1 + 0.2 === 0.30000000000000004`. La BD (columnas `DECIMAL(12,2)`) es la
+fuente de verdad y redondea, pero el cliente debe garantizar formalmente que envía centavos limpios.
+
+- **Montos de INPUT de usuario** → ya cubiertos por `parse()` (redondea solo).
+- **Montos CALCULADOS en el cliente** (sumas de subtotales, `cantidad × precio`, reduces) que se **envían a la
+  BD** → redondear en el borde con `currency.redondear(monto)` antes de armar el payload. Ej: el payload de venta
+  del POS redondea `total`/`subtotal`/`descuento`/bases IVA (suman `item.subtotal` en float).
+- **Cálculos que NO se envían** (previews de nómina, displays) → no hace falta redondear; la BD recalcula el valor real.
+
+**Regla de oro:** los cálculos financieros críticos (cuadre, faltantes, reparto, comisiones, liquidaciones) los
+hace el **SQL**, no el cliente. El cliente captura inputs (parse) y muestra previews; la BD calcula y guarda.
 
 ### Regla — cuándo usar cada uno
 
@@ -321,7 +346,8 @@ const monto = this.currency.parse(this.form.get('monto')?.value); // "1,250.50" 
 |------|------|
 | Lista, tabla, label, toast, alerta | `\| appCurrency` |
 | Card de saldo con tipografía partida | `currency.parteEntera()` + `currency.centavos()` |
-| Convertir input de usuario a número | `currency.parse()` |
+| Convertir input de usuario a número | `currency.parse()` (ya redondea) |
+| Redondear un monto calculado antes de enviarlo a la BD | `currency.redondear()` |
 | Texto en TS (mensajes, logs) | `currency.format(value)` |
 
 ---

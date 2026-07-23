@@ -672,8 +672,9 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
 
     private _generarCombinaciones(): SKUGenerado[] {
         const nombreBase  = this.templateForm.get('nombre')!.value.trim();
-        const precioCosto = Math.round(this.currencyService.parse(this.templateForm.get('precio_costo_base')!.value) * 100) / 100;
-        const precioVenta = Math.round(this.currencyService.parse(this.templateForm.get('precio_venta_base')!.value) * 100) / 100;
+        // parse() ya redondea a centavos internamente — no hace falta Math.round externo.
+        const precioCosto = this.currencyService.parse(this.templateForm.get('precio_costo_base')!.value);
+        const precioVenta = this.currencyService.parse(this.templateForm.get('precio_venta_base')!.value);
         const stockMinimo = Number(this.templateForm.get('stock_minimo')!.value) || 5;
         const combinaciones = this._cartesian(this.atributosEditor.map(a => a.opciones));
         return combinaciones.map(combo => {
@@ -734,7 +735,7 @@ export class ProductoCrearPage implements ViewWillEnter, HasPendingChanges {
     toggleSKU(sku: SKUGenerado) { sku.seleccionado = !sku.seleccionado; }
 
     parsearPrecio(valor: string, sku: SKUGenerado, campo: 'costo' | 'venta') {
-        const parsed = Math.round(this.currencyService.parse(valor) * 100) / 100;
+        const parsed = this.currencyService.parse(valor); // parse() ya redondea a centavos
         if (campo === 'costo') sku.precio_costo = parsed;
         else sku.precio_venta = parsed;
         sku.margen = calcularMargenDesdePrecio(sku.precio_costo, sku.precio_venta);

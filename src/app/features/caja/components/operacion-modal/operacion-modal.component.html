@@ -86,6 +86,18 @@
         }
       </div>
 
+      <!-- Aviso de bloqueo: hasta elegir caja, el resto del form está deshabilitado -->
+      @if (!cajaSeleccionada) {
+        <div class="lock-hint">
+          <ion-icon name="arrow-up-outline"></ion-icon>
+          <span>Selecciona una caja para continuar</span>
+        </div>
+      }
+
+      <!-- Campos que dependen de la caja: se habilitan al seleccionarla -->
+      <div class="form-steps" [class.form-steps--locked]="!cajaSeleccionada"
+        [attr.aria-disabled]="!cajaSeleccionada">
+
       <!-- Paso 2: Categoría -->
       <div class="field-group">
         <span class="field-label">Motivo</span>
@@ -112,7 +124,7 @@
         <div class="amount-row" [class.amount-row--error]="montoExcedeSaldo">
           <span class="amount-currency">$</span>
           <input
-            type="number"
+            type="text"
             inputmode="decimal"
             placeholder="0.00"
             formControlName="monto"
@@ -157,6 +169,8 @@
           </div>
         }
       </div>
+
+      </div><!-- /.form-steps -->
 
     </form>
   </div>

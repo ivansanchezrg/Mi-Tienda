@@ -10,6 +10,7 @@ import { storefrontOutline, archiveOutline, busOutline, cartOutline, peopleOutli
 import { Subscription } from 'rxjs';
 import { UiService } from '@core/services/ui.service';
 import { ConfigService } from '@core/services/config.service';
+import { CurrencyService } from '@core/services/currency.service';
 import { LoggerService } from '@core/services/logger.service';
 import { ConfiguracionService } from '../../services/configuracion.service';
 import { AuthService } from '../../../auth/services/auth.service';
@@ -57,6 +58,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
   private route                = inject(ActivatedRoute);
   private configuracionService = inject(ConfiguracionService);
   private configService        = inject(ConfigService);
+  private currency             = inject(CurrencyService);
   private authService          = inject(AuthService);
   private supabase             = inject(SupabaseService);
   private ui                   = inject(UiService);
@@ -77,18 +79,23 @@ export class ParametrosPage implements OnInit, OnDestroy {
   // Caja Varios — potestad del admin del negocio (fn_configurar_caja_varios).
   // Estado staged: el cambio se aplica al pulsar Guardar, no al mover el toggle.
   variosActiva          = false;
-  variosMonto           = 0;
+  variosMonto           = '';   // string: con type="text" el input maneja el separador decimal
   variosActivaGuardada  = false;
-  variosMontoGuardado   = 0;
+  variosMontoGuardado   = '';
   guardandoVarios       = false;
 
+  /** Monto Varios como número real (parse tolera coma decimal cruda). */
+  get variosMontoNum(): number {
+    return this.currency.parse(this.variosMonto);
+  }
+
   get variosMontoInvalido(): boolean {
-    return this.variosActiva && this.variosMonto <= 0;
+    return this.variosActiva && this.variosMontoNum <= 0;
   }
 
   get variosTieneCambios(): boolean {
     if (this.variosActiva !== this.variosActivaGuardada) return true;
-    return this.variosActiva && Number(this.variosMonto) !== Number(this.variosMontoGuardado);
+    return this.variosActiva && this.variosMontoNum !== this.currency.parse(this.variosMontoGuardado);
   }
 
   guardando: Record<string, boolean> = {
@@ -238,7 +245,9 @@ export class ParametrosPage implements OnInit, OnDestroy {
         this.recargasCelularHabilitada = config.recargas_celular_habilitada;
         this.recargasBusHabilitada     = config.recargas_bus_habilitada;
         this.variosActiva              = config.caja_varios_activa;
-        this.variosMonto               = config.caja_varios_transferencia_dia ?? 0;
+        // El backend da un número; el input es string (type="text"). Se guarda como texto plano
+        // del número para editarlo; parse() lo reinterpreta al usarlo/guardar.
+        this.variosMonto               = String(config.caja_varios_transferencia_dia ?? '');
         this.variosActivaGuardada      = this.variosActiva;
         this.variosMontoGuardado       = this.variosMonto;
         this.tipoComprobanteActual     = config.pos_tipo_comprobante;
@@ -312,7 +321,7 @@ export class ParametrosPage implements OnInit, OnDestroy {
       const resultado = await this.supabase.call(
         this.supabase.client.rpc('fn_configurar_caja_varios', {
           p_activar: this.variosActiva,
-          p_monto:   this.variosActiva ? Number(this.variosMonto) : 0
+          p_monto:   this.variosActiva ? this.variosMontoNum : 0
         }),
         this.variosActiva ? 'Caja Varios activada' : 'Caja Varios desactivada'
       );

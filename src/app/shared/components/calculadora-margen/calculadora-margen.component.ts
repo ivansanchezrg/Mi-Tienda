@@ -20,13 +20,18 @@ export class CalculadoraMargenComponent {
 
     @ViewChild('costoInput') costoInputRef!: ElementRef<HTMLInputElement>;
 
-    costo: number | null = null;
-    // precioVenta se mantiene como string formateado ("0.20") para mostrar siempre 2 decimales.
+    // costo y precioVenta son strings (input type="text"): el separador decimal lo maneja el
+    // parse(), no el locale del navegador. precioVenta además se formatea a "0.20" (2 decimales).
+    costo = '';
     precioVenta = '';
     margenPct: number = 20;
 
     constructor() {
         addIcons({ closeOutline, calculatorOutline, refreshOutline });
+    }
+
+    get costoNum(): number {
+        return this.currencyService.parse(this.costo);
     }
 
     get precioVentaNum(): number {
@@ -47,27 +52,30 @@ export class CalculadoraMargenComponent {
 
     get ganancia(): string {
         const venta = this.precioVentaNum;
-        if (!this.costo || !venta) return this.currencyService.format(0);
-        const valor = Math.round((venta - this.costo) * 100) / 100;
+        const costo = this.costoNum;
+        if (!costo || !venta) return this.currencyService.format(0);
+        const valor = Math.round((venta - costo) * 100) / 100;
         return this.currencyService.format(valor);
     }
 
     onCostoChange() {
-        if (!this.costo || this.costo <= 0) {
+        const costo = this.costoNum;
+        if (costo <= 0) {
             this.precioVenta = '';
             this.margenPct = 20;
             return;
         }
         // Precio redondeado a centavo + margen real recalculado desde ese precio
-        const { precio, margenReal } = resolverPrecioYMargen(this.costo, this.margenPct);
+        const { precio, margenReal } = resolverPrecioYMargen(costo, this.margenPct);
         this.precioVenta = this.currencyService.format(precio); // "0.20" siempre con 2 decimales
         this.margenPct = margenReal;
     }
 
     onPrecioVentaChange() {
         const venta = this.precioVentaNum;
-        if (!this.costo || this.costo <= 0 || venta <= 0) return;
-        this.margenPct = calcularMargenDesdePrecio(this.costo, venta);
+        const costo = this.costoNum;
+        if (costo <= 0 || venta <= 0) return;
+        this.margenPct = calcularMargenDesdePrecio(costo, venta);
     }
 
     /** Reformatea el precio a 2 decimales cuando el usuario termina de editarlo a mano. */
@@ -77,7 +85,7 @@ export class CalculadoraMargenComponent {
     }
 
     limpiar() {
-        this.costo = null;
+        this.costo = '';
         this.precioVenta = '';
         this.margenPct = 20;
         Promise.resolve().then(() => this.costoInputRef?.nativeElement?.focus());

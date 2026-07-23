@@ -42,12 +42,33 @@ export class CurrencyService {
   }
 
   /**
-   * Convierte cualquier entrada de usuario a un número válido.
-   * Detecta inteligentemente si una coma es decimal o de miles.
+   * Redondea un monto a 2 decimales (centavos) con aritmética segura.
+   *
+   * Por qué existe: JavaScript no tiene tipo decimal — todo número es un `double` (punto
+   * flotante binario) que NO representa exacto valores como 0.1 (0.1 + 0.2 === 0.30000000000000004).
+   * En un sistema financiero, todo monto que sale del cliente hacia la BD debe ser un valor
+   * limpio de centavos. La BD (columnas DECIMAL(12,2)) es la fuente de verdad y también
+   * redondea, pero redondear en el borde del cliente garantiza FORMALMENTE que nunca sale
+   * un 20.30000004 — no dependemos implícitamente de que la BD nos salve.
+   *
+   * Math.round(x * 100) / 100 es el patrón estándar para centavos. El +Number.EPSILON
+   * corrige el caso borde donde x*100 cae justo por debajo del .5 por el error de float
+   * (ej. 1.005 * 100 = 100.49999999999999 → sin la corrección redondearía a 1.00 en vez de 1.01).
+   */
+  redondear(monto: number): number {
+    if (!isFinite(monto)) return 0;
+    return Math.round((monto + Number.EPSILON) * 100) / 100;
+  }
+
+  /**
+   * Convierte cualquier entrada de usuario a un número válido, redondeado a 2 decimales.
+   * Detecta inteligentemente si una coma es decimal o de miles. El redondeo a centavos
+   * (redondear()) garantiza que todo monto que pasa por aquí sale limpio para la BD —
+   * parse() es el embudo obligatorio de todo input de dinero del proyecto.
    */
   parse(value: string | number | null | undefined): number {
     if (value === null || value === undefined || value === '') return 0;
-    if (typeof value === 'number') return value;
+    if (typeof value === 'number') return this.redondear(value);
 
     let str = value.toString().trim();
     if (str === '') return 0;
@@ -103,6 +124,6 @@ export class CurrencyService {
     }
 
     const numericValue = parseFloat(str);
-    return isNaN(numericValue) ? 0 : numericValue;
+    return isNaN(numericValue) ? 0 : this.redondear(numericValue);
   }
 }

@@ -30,7 +30,7 @@
         </label>
         <div class="amount-wrapper" [class.error]="!ventaCelularValida && saldoCelularActual > 0">
           <span class="currency">$</span>
-          <input #saldoCelularInput type="number" inputmode="decimal" placeholder="0.00"
+          <input #saldoCelularInput type="text" inputmode="decimal" placeholder="0.00"
             formControlName="saldoCelularActual" appNumbersOnly>
         </div>
         @if (!ventaCelularValida && saldoCelularActual > 0) {
@@ -55,7 +55,7 @@
         </label>
         <div class="amount-wrapper" [class.error]="!ventaBusValida && saldoBusActual > 0">
           <span class="currency">$</span>
-          <input type="number" inputmode="decimal" placeholder="0.00"
+          <input type="text" inputmode="decimal" placeholder="0.00"
             formControlName="saldoBusActual" appNumbersOnly>
         </div>
         @if (!ventaBusValida && saldoBusActual > 0) {

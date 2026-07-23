@@ -20,6 +20,7 @@ import { CategoriaOperacion } from '../../models/categoria-operacion.model';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { UiService } from '@core/services/ui.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
+import { CurrencyService } from '@core/services/currency.service';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { HorizontalScrollDirective } from '@shared/directives/horizontal-scroll.directive';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
@@ -66,6 +67,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
   private operacionesService = inject(OperacionesCajaService);
   private ui          = inject(UiService);
   protected storageService   = inject(StorageService);
+  private currency    = inject(CurrencyService);
 
   @Input() tipo!: 'INGRESO' | 'EGRESO';
   @Input() cajas: Caja[] = [];
@@ -151,6 +153,12 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
     return this.cajas.find(c => c.id === this.cajaIdPreseleccionada);
   }
 
+  /** True cuando ya hay una caja elegida — habilita el resto del formulario (flujo progresivo).
+   *  Hasta que no se sepa a/de qué caja va la operación, el monto/motivo/etc. no tienen sentido. */
+  get cajaSeleccionada(): boolean {
+    return !!this.form?.get('cajaId')?.value;
+  }
+
   get esIngreso(): boolean {
     return this.tipo === 'INGRESO';
   }
@@ -171,9 +179,16 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
     return this.cajas.find(c => c.id === id)?.nombre ?? '';
   }
 
+  /** Monto como NÚMERO real. El input puede tener el valor crudo con coma decimal
+   *  ("20,00") mientras se escribe — parse() lo interpreta bien (coma o punto). Sin esto,
+   *  "890 + '20,00'" hacía coerción de string y daba un saldo resultante falso (89,020). */
+  get montoNumerico(): number {
+    return this.currency.parse(this.form?.get('monto')?.value);
+  }
+
   /** Saldo de la caja tras aplicar el monto — null si aún no hay datos o el monto excede */
   get saldoResultante(): number | null {
-    const monto = this.form?.get('monto')?.value ?? 0;
+    const monto = this.montoNumerico;
     if (!this.form?.get('cajaId')?.value || monto <= 0 || this.montoExcedeSaldo) return null;
     return this.esIngreso
       ? this.saldoCajaSeleccionada + monto
@@ -182,7 +197,7 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
 
   get montoExcedeSaldo(): boolean {
     if (this.esIngreso) return false;
-    return (this.form.get('monto')?.value ?? 0) > this.saldoCajaSeleccionada;
+    return this.montoNumerico > this.saldoCajaSeleccionada;
   }
 
   get categoriaLabel(): string {
@@ -281,7 +296,9 @@ export class OperacionModalComponent implements OnInit, OnDestroy {
     const result: OperacionModalResult = {
       cajaId:          this.form.value.cajaId,
       categoriaId:     this.form.value.categoriaId,
-      monto:           this.form.value.monto,
+      // parse(): el input puede traer el valor con coma decimal cruda ("20,00") — a la BD
+      // siempre va el número real. Patrón CLAUDE.md § "Formateo de dinero".
+      monto:           this.currency.parse(this.form.value.monto),
       descripcion:     this.form.value.descripcion ?? '',
       fotoComprobante: this.fotoRawUrl
     };

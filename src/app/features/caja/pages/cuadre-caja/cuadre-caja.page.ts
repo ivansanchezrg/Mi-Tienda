@@ -13,6 +13,7 @@ import { ConfigService } from '@core/services/config.service';
 import { RecargasVirtualesService } from '../../../recargas-virtuales/services/recargas-virtuales.service';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
+import { CurrencyService } from '@core/services/currency.service';
 
 @Component({
   selector: 'app-cuadre-caja',
@@ -35,6 +36,7 @@ export class CuadreCajaPage implements OnInit {
   private ui = inject(UiService);
   private configService = inject(ConfigService);
   private recargasVirtualesService = inject(RecargasVirtualesService);
+  private currency = inject(CurrencyService);
 
   form!: FormGroup;
 
@@ -92,13 +94,15 @@ export class CuadreCajaPage implements OnInit {
     }
   }
 
-  // Getters para valores del formulario
+  // Getters para valores del formulario. parse(): con type="text" el valor llega como
+  // string (posible coma decimal) — sin parsear, "saldoSistema - '20,50'" hacía coerción
+  // de string y el cuadre salía mal.
   get saldoCelularActual(): number {
-    return this.form.get('saldoCelularActual')?.value || 0;
+    return this.currency.parse(this.form.get('saldoCelularActual')?.value);
   }
 
   get saldoBusActual(): number {
-    return this.form.get('saldoBusActual')?.value || 0;
+    return this.currency.parse(this.form.get('saldoBusActual')?.value);
   }
 
   // Ventas = saldo que el sistema espera − saldo que la máquina muestra ahora
@@ -121,12 +125,12 @@ export class CuadreCajaPage implements OnInit {
 
   get mostrarResultadoCelular(): boolean {
     const val = this.form.get('saldoCelularActual')?.value;
-    return val !== null && val !== '' && val >= 0;
+    return val !== null && val !== undefined && val !== '' && this.saldoCelularActual >= 0;
   }
 
   get mostrarResultadoBus(): boolean {
     const val = this.form.get('saldoBusActual')?.value;
-    return val !== null && val !== '' && val >= 0;
+    return val !== null && val !== undefined && val !== '' && this.saldoBusActual >= 0;
   }
 
   get mostrarResultado(): boolean {

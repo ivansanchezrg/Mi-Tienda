@@ -63,8 +63,11 @@
       <!-- Hacia -->
       <div class="field-group">
         <span class="field-label">Hacia</span>
-        @if (!form.get('origenId')?.value) {
-          <p class="caja-scroll__hint">Elige primero la caja origen</p>
+        @if (!origenSeleccionado) {
+          <div class="lock-hint">
+            <ion-icon name="arrow-up-outline"></ion-icon>
+            <span>Elige primero la caja de origen</span>
+          </div>
         } @else {
           <div class="caja-scroll" appHorizontalScroll>
             @for (caja of cajasDestino; track caja.id) {
@@ -99,13 +102,25 @@
         }
       </div>
 
+      <!-- Aviso de bloqueo: hasta elegir destino, monto/descripción deshabilitados -->
+      @if (origenSeleccionado && !destinoSeleccionado) {
+        <div class="lock-hint">
+          <ion-icon name="arrow-up-outline"></ion-icon>
+          <span>Elige la caja de destino para continuar</span>
+        </div>
+      }
+
+      <!-- Monto + Descripción: se habilitan al elegir el destino -->
+      <div class="form-steps" [class.form-steps--locked]="!destinoSeleccionado"
+        [attr.aria-disabled]="!destinoSeleccionado">
+
       <!-- Monto -->
       <div class="field-group">
         <span class="field-label">Monto</span>
         <div class="amount-row" [class.amount-row--error]="montoExcedeSaldo">
           <span class="amount-currency">$</span>
           <input
-            type="number"
+            type="text"
             inputmode="decimal"
             placeholder="0.00"
             formControlName="monto"
@@ -139,6 +154,8 @@
           rows="2">
         </textarea>
       </div>
+
+      </div><!-- /.form-steps -->
 
     </form>
   </div>

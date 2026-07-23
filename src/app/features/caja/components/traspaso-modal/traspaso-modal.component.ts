@@ -3,10 +3,11 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { IonIcon, IonButton, IonSpinner, ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, swapHorizontalOutline, cashOutline, fileTrayOutline, archiveOutline, arrowDownOutline, checkmarkCircle } from 'ionicons/icons';
+import { closeOutline, swapHorizontalOutline, cashOutline, fileTrayOutline, archiveOutline, arrowDownOutline, arrowUpOutline, checkmarkCircle } from 'ionicons/icons';
 import { Caja } from '../../services/cajas.service';
 import { OperacionesCajaService } from '../../services/operaciones-caja.service';
 import { CurrencyInputDirective } from '@shared/directives/currency-input.directive';
+import { CurrencyService } from '@core/services/currency.service';
 import { NumbersOnlyDirective } from '@shared/directives/numbers-only.directive';
 import { HorizontalScrollDirective } from '@shared/directives/horizontal-scroll.directive';
 import { AppCurrencyPipe } from '@shared/pipes/app-currency.pipe';
@@ -36,6 +37,7 @@ export class TraspasoModalComponent implements OnInit {
   private modalCtrl          = inject(ModalController);
   private fb                 = inject(FormBuilder);
   private operacionesService = inject(OperacionesCajaService);
+  private currency           = inject(CurrencyService);
 
   @Input() cajas: Caja[] = [];
   @Input() cajaAbierta = false;
@@ -54,7 +56,7 @@ export class TraspasoModalComponent implements OnInit {
   }
 
   constructor() {
-    addIcons({ closeOutline, swapHorizontalOutline, cashOutline, fileTrayOutline, archiveOutline, arrowDownOutline, checkmarkCircle });
+    addIcons({ closeOutline, swapHorizontalOutline, cashOutline, fileTrayOutline, archiveOutline, arrowDownOutline, arrowUpOutline, checkmarkCircle });
   }
 
   ngOnInit() {
@@ -73,13 +75,29 @@ export class TraspasoModalComponent implements OnInit {
     return this.cajasDisponibles.filter(c => c.id !== origenId);
   }
 
+  /** True cuando ya se eligió la caja origen — habilita el paso "Hacia" (flujo progresivo). */
+  get origenSeleccionado(): boolean {
+    return !!this.form?.get('origenId')?.value;
+  }
+
+  /** True cuando ya se eligió el destino — habilita Monto + Descripción (flujo progresivo). */
+  get destinoSeleccionado(): boolean {
+    return !!this.form?.get('destinoId')?.value;
+  }
+
+  /** Monto como NÚMERO real. El input puede traer coma decimal cruda ("20,00") mientras se
+   *  escribe — parse() la interpreta bien. Sin esto, "saldo + '20,00'" hacía coerción de string. */
+  get montoNumerico(): number {
+    return this.currency.parse(this.form?.get('monto')?.value);
+  }
+
   get saldoOrigen(): number {
     const id = this.form?.get('origenId')?.value;
     return this.cajas.find(c => c.id === id)?.saldo_actual ?? 0;
   }
 
   get montoExcedeSaldo(): boolean {
-    return (this.form?.get('monto')?.value ?? 0) > this.saldoOrigen;
+    return this.montoNumerico > this.saldoOrigen;
   }
 
   get saldoDestino(): number {
@@ -99,19 +117,18 @@ export class TraspasoModalComponent implements OnInit {
 
   /** Preview de saldos resultantes — visible cuando el traspaso está completo y es válido */
   get mostrarPreview(): boolean {
-    const monto = this.form?.get('monto')?.value ?? 0;
-    return !!this.form?.get('origenId')?.value
-        && !!this.form?.get('destinoId')?.value
-        && monto > 0
+    return this.origenSeleccionado
+        && this.destinoSeleccionado
+        && this.montoNumerico > 0
         && !this.montoExcedeSaldo;
   }
 
   get saldoOrigenDespues(): number {
-    return this.saldoOrigen - (this.form?.get('monto')?.value ?? 0);
+    return this.saldoOrigen - this.montoNumerico;
   }
 
   get saldoDestinoDespues(): number {
-    return this.saldoDestino + (this.form?.get('monto')?.value ?? 0);
+    return this.saldoDestino + this.montoNumerico;
   }
 
   iconoCaja(codigo: string, icono?: string): string {
@@ -157,7 +174,8 @@ export class TraspasoModalComponent implements OnInit {
     const result = await this.operacionesService.registrarTransferencia(
       origen.codigo,
       destino.codigo,
-      this.form.value.monto,
+      // parse(): a la BD va el número real, no el string crudo con posible coma decimal.
+      this.currency.parse(this.form.value.monto),
       this.form.value.descripcion ?? '',
     );
 

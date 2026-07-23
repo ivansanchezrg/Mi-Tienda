@@ -2,17 +2,18 @@ import { Component, OnInit, OnDestroy, inject, HostListener, ViewChild, ElementR
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { ScrollingModule, CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
 import {
   IonContent, IonHeader, IonTitle, IonToolbar,
   IonButtons, IonMenuButton, IonButton, IonIcon,
   IonFooter, IonList, IonItem, IonBadge, IonSpinner, IonSkeletonText,
   IonItemSliding, IonItemOptions, IonItemOption,
   IonRefresher, IonRefresherContent, IonFab, IonFabButton,
-  AlertController, ModalController, ViewDidLeave, ViewWillEnter
+  AlertController, ModalController, ViewDidLeave, ViewWillEnter, ViewDidEnter
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { BarcodeScannerService, AreaDeteccion } from '../../../../core/services/barcode-scanner.service';
-import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, personOutline, chevronForwardOutline, chevronBackOutline, refreshOutline, alertCircleOutline, closeOutline, pricetagOutline, arrowUpOutline, star, colorPaletteOutline, checkmarkCircle, createOutline } from 'ionicons/icons';
+import { barcodeOutline, cartOutline, cashOutline, addOutline, removeOutline, trashOutline, cubeOutline, searchOutline, personOutline, chevronForwardOutline, chevronBackOutline, chevronDownOutline, refreshOutline, alertCircleOutline, closeOutline, pricetagOutline, arrowUpOutline, star, colorPaletteOutline, checkmarkCircle, createOutline } from 'ionicons/icons';
 import { CategoriaProducto } from '../../../inventario/models/categoria-producto.model';
 import { TipoComprobante } from '../../models/tipo-comprobante.enum';
 import { OptionsMenuComponent, MenuOption } from '../../../../shared/components/options-menu/options-menu.component';
@@ -55,11 +56,11 @@ import { ScannerOverlayComponent } from '../../../../shared/components/scanner-o
     IonFooter, IonList, IonItem, IonBadge, IonSpinner, IonSkeletonText,
     IonItemSliding, IonItemOptions, IonItemOption,
     IonRefresher, IonRefresherContent, IonFab, IonFabButton,
-    CommonModule, FormsModule,
+    CommonModule, FormsModule, ScrollingModule,
     OptionsMenuComponent, EmptyStateComponent, ScannerOverlayComponent
   ]
 })
-export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
+export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter, ViewDidEnter {
   @ViewChild(IonContent) content!: IonContent;
   @ViewChild('panelItems') panelItemsRef!: ElementRef<HTMLElement>;
 
@@ -92,7 +93,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   readonly carrito = signal<CartItem[]>([]);
   readonly buscarTexto = signal('');
   buscando = false;
-  modoBusqueda: 'codigo' | 'nombre' = 'nombre';
+  // Signal (no propiedad) para que itemsCatalogo reaccione al cambio de modo: en modo
+  // código el filtro del grid es match EXACTO, en modo nombre es coincidencia parcial.
+  readonly modoBusqueda = signal<'codigo' | 'nombre'>('nombre');
   private searchVersion = 0;
   escaneando = false;
   cobroEnProceso = false;
@@ -101,7 +104,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   scanPreview: { itemKey: string; nombre: string; cantidad: number; subtotal: number; precioUnitario: number } | null = null;
   private scanPreviewTimeout: ReturnType<typeof setTimeout> | undefined;
 
-  clienteSeleccionado: Cliente | null = null;
+  // Signal (no propiedad): con OnPush, actualizar el cliente tras cerrar el modal
+  // (await modal.onDidDismiss, que puede resolver fuera de la zona de Angular) no siempre
+  // refrescaba la vista con solo markForCheck() — el nombre no cambiaba en el header/panel
+  // hasta el próximo tap. Un signal notifica el CD directamente y refleja el cambio al instante.
+  readonly clienteSeleccionado = signal<Cliente | null>(null);
   cargandoCliente = false;
   errorCliente = false;       // fallo de red / error inesperado
   sinConsumidorFinal = false; // la BD no tiene ningún consumidor final creado
@@ -123,9 +130,22 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   cargandoCatalogo = false;
   catalogoSearchAbierto = false;
 
-  /** Controller de scroll-to-top del catálogo (showScrollTop, onContentScroll, scrollToTop) —
-   *  compartido con PaginatedListPage y otras páginas (ver shared/utils/scroll-to-top.util.ts). */
-  readonly scrollTop = crearScrollToTop(() => this.content);
+  /** Controller de scroll-to-top del catálogo (showScrollTop, onContentScroll, scrollToTop).
+   *  Ahora el scroll del catálogo lo maneja el viewport CDK (no ion-content), así que el
+   *  controller apunta al viewport: expone scrollToTop(ms) envolviendo scrollToOffset(0). */
+  readonly scrollTop = crearScrollToTop(() => this.scrollableCatalogo);
+  /** Adaptador: el viewport CDK expone scrollToOffset, no scrollToTop(ms) — se envuelve. */
+  private get scrollableCatalogo(): { scrollToTop(ms?: number): Promise<void> } | null {
+    const vp = this.catalogoViewport;
+    if (!vp) return null;
+    return { scrollToTop: async () => vp.scrollToOffset(0, 'smooth') };
+  }
+  /** Handler de scroll del viewport CDK (elementScrolled) — actualiza el FAB subir. */
+  onCatalogoScroll() {
+    const offset = this.catalogoViewport?.measureScrollOffset('top') ?? 0;
+    this.scrollTop.onContentScroll({ detail: { scrollTop: offset } } as unknown as CustomEvent);
+    this.cdr.markForCheck();
+  }
   /** Snapshot completo del catálogo (todas las categorías) — filtro por categoría sin roundtrip. */
   private catalogoCompleto: ProductoPOS[] | null = null;
   /** Descarta resoluciones de imágenes en background que quedaron obsoletas (carrera filtro vs resolución). */
@@ -212,6 +232,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   cerrarCatalogoSearch() {
     this.catalogoSearchAbierto = false;
+    // Al cerrar la búsqueda desde el header, restaurar el modo por defecto (nombre → lupa).
+    // Así la próxima vez que se abra arranca en el modo esperado, no en "código".
+    this.modoBusqueda.set('nombre');
     this.limpiarBusqueda();
     this.cdr.markForCheck();
   }
@@ -221,8 +244,16 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   /** Opciones del menú ⋮ */
   readonly ACCION_LIMPIAR = '__LIMPIAR__';
+  readonly ACCION_REFRESCAR = '__REFRESCAR__';
+  /** Evita disparar dos refrescos simultáneos si el usuario toca la opción repetidas veces. */
+  refrescandoCatalogo = false;
 
+  // "Actualizar catálogo" primero (acción de mantenimiento, neutra). Entrada separadora
+  // propia (en este componente `separator:true` renderiza SOLO un divisor, no un divisor
+  // antes de una opción) y luego "Limpiar carrito" — acción destructiva, aislada del resto.
   comprobanteOptions: MenuOption[] = [
+    { label: 'Actualizar catálogo', icon: 'refresh-outline', value: '__REFRESCAR__', active: false },
+    { label: '', icon: '', value: '__SEP__', separator: true },
     { label: 'Limpiar carrito', icon: 'trash-outline', value: '__LIMPIAR__', active: false, color: 'danger' },
   ];
 
@@ -231,6 +262,39 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (option.value === this.ACCION_LIMPIAR) {
       if (this.carrito().length === 0) return;
       await this.confirmarLimpiarCarrito();
+    } else if (option.value === this.ACCION_REFRESCAR) {
+      await this.actualizarCatalogoManual();
+    }
+  }
+
+  /**
+   * Refresco manual del catálogo desde el menú ⋮ — resuelve el caso multi-dispositivo:
+   * otro empleado (bodega, otra caja) ingresa mercadería mientras este cajero está PARADO
+   * en el POS sin navegar fuera (por lo que ionViewWillEnter no dispara). Trae el catálogo
+   * y la config frescos de BD SIN perder el carrito (refrescarCatalogo sincroniza el
+   * stock_disponible de los ítems ya agregados, no los descarta).
+   *
+   * Feedback = toast, no overlay: es una acción que el cajero puede repetir varias veces
+   * por turno (cada vez que sospecha que bodega movió stock) → un overlay centrado sería
+   * fatiga de interrupción (criterio CLAUDE.md § "toast vs overlay", regla #1).
+   */
+  private async actualizarCatalogoManual() {
+    if (this.refrescandoCatalogo) return;
+    // Sin red no tiene sentido: el objetivo es traer stock fresco del servidor (lo que otro
+    // dispositivo ingresó). Offline solo se serviría el mismo cache → aviso honesto, no
+    // un "actualizado" falso.
+    if (!this.network.isConnected()) {
+      this.ui.showToast('Sin conexión — no se puede actualizar el catálogo', 'warning');
+      return;
+    }
+    this.refrescandoCatalogo = true;
+    this.cdr.markForCheck();
+    try {
+      await Promise.all([this.refrescarConfig(), this.refrescarCatalogo()]);
+      this.ui.showToast('Catálogo actualizado', 'success');
+    } finally {
+      this.refrescandoCatalogo = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -251,6 +315,9 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     // aparece con su .tab-animate (fade + subida). Transición sin demora perceptible.
     this.volvioDesdeCatalogo = false;
     this.vistaActual = 'catalogo';
+    // El viewport CDK se recrea al volver al catálogo (mobile) — recalcular su tamaño tras
+    // el render, o queda con altura 0 y no muestra filas.
+    setTimeout(() => this.catalogoViewport?.checkViewportSize(), 0);
   }
 
   async cargarCatalogo() {
@@ -327,7 +394,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     if (this.categoriaActivaId === categoriaId) return;
     this.categoriaActivaId  = categoriaId;
     this.scrollTop.reset();
-    this.content?.scrollToTop(0);
+    // Nuevo contenido arranca desde arriba — resetear el scroll del viewport CDK.
+    this.catalogoViewport?.scrollToOffset(0, 'auto');
     this.cdr.markForCheck();
 
     // Scroll automático al tab activo dentro de la barra horizontal
@@ -703,7 +771,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       barcodeOutline, cartOutline, cashOutline,
       addOutline, removeOutline, trashOutline,
       cubeOutline, searchOutline, personOutline,
-      chevronForwardOutline, chevronBackOutline, refreshOutline,
+      chevronForwardOutline, chevronBackOutline, chevronDownOutline, refreshOutline,
       alertCircleOutline, closeOutline, pricetagOutline,
       arrowUpOutline, star, colorPaletteOutline, checkmarkCircle, createOutline
     });
@@ -729,8 +797,8 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     this.sinConsumidorFinal = false;
     this.cdr.markForCheck();
     try {
-      this.clienteSeleccionado = await this.clientesService.obtenerConsumidorFinal();
-      if (!this.clienteSeleccionado) {
+      this.clienteSeleccionado.set(await this.clientesService.obtenerConsumidorFinal());
+      if (!this.clienteSeleccionado()) {
         this.sinConsumidorFinal = true;
       }
     } catch {
@@ -747,17 +815,106 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   readonly totalArticulos = computed(() => this.carrito().reduce((sum, item) => sum + item.cantidad, 0));
 
-  /** Productos del catálogo filtrados y agrupados por template (variantes). Computed: solo recalcula cuando cambia el catálogo o el texto de búsqueda. */
+  /** Productos del catálogo filtrados y agrupados por template (variantes). Computed: recalcula
+   *  cuando cambia el catálogo, el texto o el MODO de búsqueda (nombre=parcial, código=exacto). */
   readonly itemsCatalogo = computed<CatalogoItem[]>(() => {
     const texto = this.buscarTexto().trim().toLowerCase();
-    const fuente = texto
-      ? this.productosCatalogo().filter(p =>
-          p.nombre.toLowerCase().includes(texto) ||
-          (p.codigo_barras?.toLowerCase().includes(texto) ?? false)
-        )
-      : this.productosCatalogo();
+    if (!texto) return this.agruparParaCatalogo(this.productosCatalogo());
+
+    let fuente: ProductoPOS[];
+    if (this.modoBusqueda() === 'codigo') {
+      // Modo código: un código de barras es un identificador EXACTO, no una búsqueda de
+      // texto. Match exacto contra el código del producto O de alguna presentación activa.
+      // Sin esto, un código parcial (00135) matcheaba por "contiene" un código más largo
+      // (0013567) → falso positivo. Coincide con el criterio de la pistola/escáner.
+      fuente = this.productosCatalogo().filter(p =>
+        p.codigo_barras?.toLowerCase() === texto ||
+        (p.presentaciones?.some(pr => pr.activo && pr.codigo_barras?.toLowerCase() === texto) ?? false)
+      );
+    } else {
+      // Modo nombre: coincidencia parcial (contiene) por nombre O código — búsqueda flexible.
+      fuente = this.productosCatalogo().filter(p =>
+        p.nombre.toLowerCase().includes(texto) ||
+        (p.codigo_barras?.toLowerCase().includes(texto) ?? false)
+      );
+    }
     return this.agruparParaCatalogo(fuente);
   });
+
+  // ==========================
+  // VIRTUAL SCROLL DEL CATÁLOGO (CDK)
+  // ==========================
+  // El grid del catálogo se virtualiza por FILAS: solo las filas visibles existen en el
+  // DOM. Con miles de productos, cambiar de filtro (ej. → "Todos") ya no crea N cards de
+  // golpe (el lag), sino ~2 pantallas de filas. CDK virtualiza listas de 1 columna, así
+  // que agrupamos los CatalogoItem en filas de `columnas` elementos y virtualizamos esas
+  // filas. `itemSize` (alto de fila en px) lo mide el layout: ancho de columna × 4/3
+  // (aspect-ratio 3/4 de la card) + gap. Se recalcula en resize.
+  @ViewChild('catalogoViewport') private catalogoViewport?: CdkVirtualScrollViewport;
+
+  /** Columnas por fila del grid, según viewport. Signal → dispara el recálculo de filas. */
+  readonly columnasCatalogo = signal(this.calcularColumnas());
+  /** Alto de una fila del grid en px (card + gap) — itemSize del viewport CDK. */
+  readonly alturaFilaCatalogo = signal(this.calcularAlturaFila(this.calcularColumnas()));
+
+  /** Agrupa los items del catálogo en filas de `columnasCatalogo` elementos para el viewport. */
+  readonly filasCatalogo = computed<CatalogoItem[][]>(() => {
+    const items = this.itemsCatalogo();
+    const cols = this.columnasCatalogo();
+    const filas: CatalogoItem[][] = [];
+    for (let i = 0; i < items.length; i += cols) filas.push(items.slice(i, i + cols));
+    return filas;
+  });
+
+  /** trackBy de filas: índice de fila — la fila i siempre muestra los mismos slots. */
+  readonly trackFila = (index: number): number => index;
+
+  /**
+   * Columnas del grid según ancho de pantalla — DEBE reflejar el grid-template-columns
+   * del SCSS (.catalogo-grid / .catalogo-fila) para que el chunking calce con el layout:
+   *   mobile (<600): auto-fill minmax(110px) → se estima por ancho disponible
+   *   tablet (600–991): 5 fijas
+   *   desktop (992–1439): 4 fijas · desktop grande (≥1440): 5 fijas
+   */
+  private calcularColumnas(): number {
+    const w = window.innerWidth;
+    if (w >= 1440) return 5;
+    if (w >= 992) return 4;
+    if (w >= 600) return 5;
+    // Mobile: auto-fill minmax(110px, 1fr) con gap 10px y padding lateral del grid.
+    // Estimar cuántas columnas de ~110px + gap entran en el ancho útil.
+    const gap = 10;
+    const paddingLateral = 16; // ~var(--spacing-sm) a cada lado
+    const util = w - paddingLateral;
+    const cols = Math.max(2, Math.floor((util + gap) / (110 + gap)));
+    return cols;
+  }
+
+  /** Alto de fila = ancho de columna × 4/3 (aspect-ratio 3/4 de la card) + gap vertical.
+   *  El gap debe reflejar el SCSS: 12px en desktop (≥992), 10px en mobile/tablet. Un
+   *  itemSize impreciso desincroniza el scroll del viewport (filas se solapan o dejan hueco). */
+  private calcularAlturaFila(columnas: number): number {
+    const w = window.innerWidth;
+    const esDesktop = w >= 992;
+    const gap = esDesktop ? 12 : 10;
+    const paddingLateral = 16;
+    // Desktop usa el ancho de .pos-col-main (pantalla menos panel lateral 340px), mobile la pantalla.
+    const anchoContenedor = esDesktop ? w - 340 : w;
+    const anchoUtil = anchoContenedor - paddingLateral;
+    const anchoColumna = (anchoUtil - gap * (columnas - 1)) / columnas;
+    const altoCard = anchoColumna * (4 / 3); // aspect-ratio 3/4 → alto = ancho × 4/3
+    return Math.round(altoCard + gap);
+  }
+
+  /** Recalcula columnas y alto de fila al cambiar el tamaño de ventana (rotación / resize). */
+  @HostListener('window:resize')
+  onResizeCatalogo() {
+    const cols = this.calcularColumnas();
+    if (cols !== this.columnasCatalogo()) this.columnasCatalogo.set(cols);
+    this.alturaFilaCatalogo.set(this.calcularAlturaFila(cols));
+    // El viewport necesita recalcular su geometría tras el cambio de itemSize.
+    setTimeout(() => this.catalogoViewport?.checkViewportSize(), 0);
+  }
 
   private agruparParaCatalogo(productos: ProductoPOS[]): CatalogoItem[] {
     const items: CatalogoItem[] = [];
@@ -843,11 +1000,11 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   readonly descuentoAplicado = computed(() => {
     if (!this.appConfig?.pos_descuentos_habilitados) return 0;
     if (this.subtotalBruto() < this.appConfig.pos_umbral_monto_descuento) return 0;
-    return Math.round(this.subtotalBruto() * (this.appConfig.pos_descuento_maximo_pct / 100) * 100) / 100;
+    return this.currencyService.redondear(this.subtotalBruto() * (this.appConfig.pos_descuento_maximo_pct / 100));
   });
 
   readonly totalPagar = computed(() =>
-    Math.round((this.subtotalBruto() - this.descuentoAplicado()) * 100) / 100
+    this.currencyService.redondear(this.subtotalBruto() - this.descuentoAplicado())
   );
 
   get descuentoPct(): number { return this.appConfig?.pos_descuento_maximo_pct ?? 0; }
@@ -856,7 +1013,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   readonly faltaParaDescuento = computed(() => {
     if (!this.descuentoActivo) return 0;
     const falta = this.appConfig!.pos_umbral_monto_descuento - this.subtotalBruto();
-    return falta > 0 ? Math.round(falta * 100) / 100 : 0;
+    return falta > 0 ? this.currencyService.redondear(falta) : 0;
   });
 
   readonly mostrarUpselling = computed(() => {
@@ -889,12 +1046,12 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
    */
   private calcularDesglose(factor: number, total: number) {
     const brutos = this._brutosDesglose();
-    const base0  = Math.round(brutos.sinIva * factor * 100) / 100;
-    const base15 = Math.round((brutos.conIva * factor / this._ivaDivisor()) * 100) / 100;
+    const base0  = this.currencyService.redondear(brutos.sinIva * factor);
+    const base15 = this.currencyService.redondear(brutos.conIva * factor / this._ivaDivisor());
     return {
       base0, base15,
-      iva:  Math.round((total - base0 - base15) * 100) / 100,
-      neto: Math.round((base0 + base15) * 100) / 100,
+      iva:  this.currencyService.redondear(total - base0 - base15),
+      neto: this.currencyService.redondear(base0 + base15),
     };
   }
 
@@ -929,7 +1086,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       await modal.present();
       const { data } = await modal.onDidDismiss();
       if (data?.cliente) {
-        this.clienteSeleccionado = data.cliente;
+        this.clienteSeleccionado.set(data.cliente);
         this.sinConsumidorFinal = false;
         this.cdr.markForCheck();
       }
@@ -940,14 +1097,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       component: SeleccionarClienteModalComponent,
       componentProps: {
         tipoComprobante: this.tipoComprobante,
-        clienteActual: this.clienteSeleccionado
+        clienteActual: this.clienteSeleccionado()
       }
     });
 
     await modal.present();
     const { data } = await modal.onDidDismiss();
     if (data?.cliente) {
-      this.clienteSeleccionado = data.cliente;
+      this.clienteSeleccionado.set(data.cliente);
       this.cdr.markForCheck();
     }
   }
@@ -973,7 +1130,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   }
 
   private calcularSubtotal(cantidad: number, precioUnitario: number): number {
-    return Math.round(cantidad * precioUnitario * 100) / 100;
+    return this.currencyService.redondear(cantidad * precioUnitario);
   }
 
   /** Actualiza cantidad y subtotal de una línea por su clave.
@@ -1385,7 +1542,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   // ==========================
 
   toggleModoBusqueda() {
-    this.modoBusqueda = this.modoBusqueda === 'codigo' ? 'nombre' : 'codigo';
+    this.modoBusqueda.set(this.modoBusqueda() === 'codigo' ? 'nombre' : 'codigo');
     this.limpiarBusqueda();
     setTimeout(() => {
       const input = document.querySelector<HTMLInputElement>('.cat-search-input');
@@ -1410,7 +1567,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   onSearchInput(event: Event) {
     const texto = (event.target as HTMLInputElement).value?.trim();
 
-    if (this.modoBusqueda === 'nombre') return; // el grid filtra reactivamente via buscarTexto signal
+    if (this.modoBusqueda() === 'nombre') return; // el grid filtra reactivamente via buscarTexto signal
 
     clearTimeout(this.searchDebounce);
     if (!texto) return;
@@ -1421,7 +1578,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
 
   // Enter en modo código dispara búsqueda (pistola lectora envía Enter al final)
   onSearchKeyup(event: KeyboardEvent) {
-    if (this.modoBusqueda === 'codigo' && event.key === 'Enter') {
+    if (this.modoBusqueda() === 'codigo' && event.key === 'Enter') {
       clearTimeout(this.searchDebounce);
       const texto = this.buscarTexto().trim();
       if (texto) this.buscarPorCodigo(texto);
@@ -1752,19 +1909,19 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
   private async abrirModalCobro(iniciarEnEfectivo: boolean) {
     if (this.carrito().length === 0 || this.cobroEnProceso) return;
 
-    if (!this.clienteSeleccionado?.id) {
+    if (!this.clienteSeleccionado()?.id) {
       this.ui.showToast('Cliente no cargado. Toca el cliente para actualizar.', 'warning');
       return;
     }
 
-    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado.es_consumidor_final) {
+    if (this.tipoComprobante === TipoComprobante.FACTURA && this.clienteSeleccionado()!.es_consumidor_final) {
       this.ui.showToast('La Factura requiere seleccionar un cliente con RUC o cédula', 'warning');
       return;
     }
 
     const onSeleccionarCliente = async (): Promise<Cliente | null> => {
       await this.abrirSelectorCliente();
-      return this.clienteSeleccionado;
+      return this.clienteSeleccionado();
     };
 
     const modal = await this.modalCtrl.create({
@@ -1775,7 +1932,7 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
         descuento: this.descuentoAplicado(),
         descuentoPct: this.descuentoPct,
         totalArticulos: this.totalArticulos(),
-        esConsumidorFinal: this.clienteSeleccionado?.es_consumidor_final ?? true,
+        esConsumidorFinal: this.clienteSeleccionado()?.es_consumidor_final ?? true,
         iniciarEnEfectivo,
         onSeleccionarCliente
       },
@@ -1831,17 +1988,21 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
     const desglose = esFactura
       ? (esFiado ? this.calcularDesglose(1, this.subtotalBruto()) : this._desglose())
       : null;
+    // Redondeo de borde a centavos: los montos vienen de computed que SUMAN subtotales
+    // (reduce sobre item.subtotal). Sumar floats puede reintroducir error (45.9000001) aunque
+    // cada subtotal ya esté redondeado. currency.redondear() garantiza que a la BD va un valor
+    // limpio de centavos — el cliente no depende de que DECIMAL(12,2) lo salve.
     const payload: VentaPayload = {
-      total:             totalFinal,
-      subtotal:          desglose ? desglose.neto : this.subtotalBruto(),
-      descuento,
+      total:             this.currencyService.redondear(totalFinal),
+      subtotal:          this.currencyService.redondear(desglose ? desglose.neto : this.subtotalBruto()),
+      descuento:         this.currencyService.redondear(descuento),
       descuentoPct,
       metodoPago,
       tipoComprobante:   this.tipoComprobante,
-      clienteId:         this.clienteSeleccionado?.id,
-      baseIva0:          desglose?.base0 ?? 0,
-      baseIva15:         desglose?.base15 ?? 0,
-      ivaValor:          desglose?.iva ?? 0,
+      clienteId:         this.clienteSeleccionado()?.id,
+      baseIva0:          this.currencyService.redondear(desglose?.base0 ?? 0),
+      baseIva15:         this.currencyService.redondear(desglose?.base15 ?? 0),
+      ivaValor:          this.currencyService.redondear(desglose?.iva ?? 0),
       idempotencyKey,
       // Instante real de la venta (UTC). Capturado aquí, al cobrar, para que una venta
       // encolada offline conserve su fecha original al sincronizarse — no la del momento
@@ -2044,6 +2205,14 @@ export class PosPage implements OnInit, OnDestroy, ViewDidLeave, ViewWillEnter {
       this.refrescarConfig(),
       this.refrescarCatalogo(),
     ]);
+  }
+
+  ionViewDidEnter() {
+    // El viewport CDK puede quedar con tamaño 0 si la página estuvo oculta/cacheada por
+    // Ionic — recalcular su geometría al volver garantiza que las filas se rendericen.
+    // También re-sincroniza columnas/alto por si cambió la orientación fuera de la página.
+    this.onResizeCatalogo();
+    setTimeout(() => this.catalogoViewport?.checkViewportSize(), 0);
   }
 
   /** Refresca config silenciosamente al volver al POS (ej: admin cambió descuentos) */

@@ -11,13 +11,16 @@ import {
   shieldCheckmarkOutline, checkmarkCircle
 } from 'ionicons/icons';
 import { UiService } from '@core/services/ui.service';
+import { CurrencyService } from '@core/services/currency.service';
 import { OnboardingService, OnboardingNegocioError } from '../../services/onboarding.service';
 import { ROUTES } from '@core/config/routes.config';
 
 function variosMontoValidator(control: AbstractControl): ValidationErrors | null {
   const variosActiva = control.get('variosActiva')?.value;
   const montoVarios  = control.get('montoVarios')?.value;
-  if (variosActiva && (montoVarios === null || montoVarios === undefined || Number(montoVarios) <= 0)) {
+  // Normaliza coma decimal → punto antes de Number() (el input es type="text").
+  const num = Number(String(montoVarios ?? '').replace(',', '.'));
+  if (variosActiva && (montoVarios === null || montoVarios === undefined || montoVarios === '' || isNaN(num) || num <= 0)) {
     return { variosMontoRequerido: true };
   }
   return null;
@@ -38,6 +41,7 @@ export class OnboardingCajaPage implements OnInit {
   private router            = inject(Router);
   private ui                = inject(UiService);
   private onboardingService = inject(OnboardingService);
+  private currency          = inject(CurrencyService);
 
   guardando = false;
 
@@ -108,7 +112,8 @@ export class OnboardingCajaPage implements OnInit {
     if (this.form.invalid) return;
 
     const variosActiva = !!this.form.value.variosActiva;
-    const montoVarios  = variosActiva ? Number(this.form.value.montoVarios) : 0;
+    // parse(): el input es type="text" (posible coma decimal). Número real al backend.
+    const montoVarios  = variosActiva ? this.currency.parse(this.form.value.montoVarios) : 0;
 
     this.onboardingService.guardarPaso2({
       variosActiva,
